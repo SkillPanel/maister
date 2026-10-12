@@ -109,7 +109,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
 import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { approvesHeld, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
@@ -1757,17 +1757,8 @@ function isGate(recorded, byId, id) {
  * by this same answer.
  */
 export function closingCandidates(recorded, byId, gate) {
-  const direct = [];
+  const { direct, visited: seen } = closedBy(gate, id => needsOf(recorded, byId, id), id => isGate(recorded, byId, id));
   const stretch = [];
-  const seen = new Set([gate]);
-  const visit = id => {
-    for (const need of needsOf(recorded, byId, id)) {
-      if (seen.has(need)) continue;
-      seen.add(need);
-      if (isGate(recorded, byId, need)) visit(need);
-      else direct.push(need);
-    }
-  };
   const behind = id => {
     for (const need of needsOf(recorded, byId, id)) {
       if (seen.has(need)) continue;
@@ -1777,7 +1768,6 @@ export function closingCandidates(recorded, byId, gate) {
       behind(need);
     }
   };
-  visit(gate);
   for (const id of direct) behind(id);
   return { direct, stretch };
 }

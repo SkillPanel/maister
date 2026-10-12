@@ -162,7 +162,9 @@ Keys are node ids; each entry holds any of these keys:
 | `absent` | Artifact key → a one-line reason the node may leave that artifact unwritten |
 | `budget` | A whole number from 1 to 10: the recovery attempts the node may make, printed as a rule and not enforced. A node with no recovery budget has no `budget` key |
 | `recommends` | `with:` key → (value → continue option id): which option the gate the node feeds should recommend for each value. Values are read as text, so quote `"yes"`, `"no"`, `"true"`, `"false"` |
-| `questions` | In-node question id → the default it takes when nobody can be asked, one line of at most 120 characters, a short form of the prose's *Without question sets* line |
+
+A question the node asks inside itself has no key here: its default is stated once, in the
+*Without question sets* line of the node's section (§ 11), which the brief prints.
 
 **Merge.** The base, then each overlay's block, then the selected profile's, node by node and
 key by key: a later key replaces the earlier one, a key set to `null` removes it, and an entry
@@ -174,10 +176,12 @@ mapping, a key outside the table, and a value of the wrong shape or with a line 
 each located at its path (`brief.<node>.<key>…`, prefixed `profiles.<name>.` in a profile). A
 node the resolved graph does not carry, an `absent` key the node does not declare, a `recommends`
 key that is not one of its `with:` keys, and a recommended option that is not a continue option
-of a gate the node feeds each warn (§ 14); nothing is printed for that item.
+of a gate the node feeds each warn (§ 14); nothing is printed for that item. A node feeds the
+gates whose closing nodes hold it: a gate's needs, with a need that is itself a gate replaced by
+that gate's own needs — the nodes the brief's `feeds:` lines name.
 
-The block is outside the recorded identity: changing a budget or a default moves no frozen run,
-and `resolve` never prints it.
+The block is outside the recorded identity: changing a budget or a summary key moves no frozen
+run, and `resolve` never prints it.
 
 ## 4. Nodes
 
@@ -694,8 +698,8 @@ for it can be one:
    `when: "!${inputs.embedded}"`.
 3. Declare a workflow-level `outputs:` block (§ 8.3) naming every artifact and value a parent may
    read.
-4. Give every question a node asks inside itself a default in `brief:` `questions`, because a
-   child under a cockpit or dispatch driver is never asked one. A question that truly needs a
+4. Give every question a node asks inside itself a default in its *Without question sets* line,
+   because a child under a cockpit or dispatch driver is never asked one. A question that truly needs a
    person becomes a gate.
 5. Keep exposed values short and flow-safe; detail belongs in an artifact.
 6. Where a step behaves differently as a child, say how under an `## Embedded mode` section of

@@ -36,8 +36,7 @@
 # that needs one. Every `direct:` node is executed from its section, and the
 # operator questions asked inside nodes appear only in that prose — a reader of
 # this file alone cannot see them, and neither can the generated diagram. The
-# `brief:` block below carries each node's summary keys, recovery budget and
-# in-node question defaults.
+# `brief:` block below carries each node's summary keys and recovery budget.
 name: migration
 version: 1
 description: "Moves code from one technology, platform or architecture pattern to another: it analyses the current state, plans an incremental migration with a rollback path, implements it and verifies compatibility. Use it for a framework or library upgrade, a platform change, a data or schema migration, or a move to a new architectural pattern."
@@ -130,23 +129,19 @@ html_companions:
   verification: [report]
 
 # What each node's brief prints beside its prose section: the phase keys its
-# summary is mirrored under, its recovery budget (a prose rule the engine never
-# enforces) and the default each in-node question takes when nobody can be
-# asked. Read beside the graph, not part of it: the block moves no graph hash.
+# summary is mirrored under and its recovery budget (a prose rule the engine
+# never enforces). Read beside the graph, not part of it: the block moves no
+# graph hash.
 brief:
   current-state-analysis:
     summary_keys: [current_state_analysis]
     budget: 2
-    questions:
-      clarifications: "None asked; the analysis's answers stand, and what it could not settle is recorded as unsettled."
   gap-analysis:
     summary_keys: [gap_analysis]
     budget: 2
   specification:
     summary_keys: [specification]
     budget: 2
-    questions:
-      specification-requirements: "The assumptions stand as framed, one `by: default` decision, carried as stated assumptions."
   planning:
     budget: 2
   execution:
@@ -154,10 +149,6 @@ brief:
     budget: 5
   verification:
     budget: 3
-  issue-resolution:
-    questions:
-      issue-resolution-findings: "Nothing asked; an unclassed issue stays an `open` risk, a classed one takes its classing outcome."
-      verification-fix-loop: "The loop runs unasked; decisions and risky fixes stay `open` risks, and the stop takes Continue as is."
   documentation:
     budget: 1
 

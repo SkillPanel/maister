@@ -1,8 +1,9 @@
 /**
  * The `brief:` block a definition carries, merged: per node, the data a node's
  * brief prints beside its prose — the phase summary keys it mirrors, the
- * artifacts it may leave unwritten and why, its recovery budget, the `with:`
- * values that recommend a continue option, and its questions' defaults.
+ * artifacts it may leave unwritten and why, its recovery budget and the `with:`
+ * values that recommend a continue option. A question's default is not here:
+ * it is stated once, in the Without line of the node's section.
  *
  * Why it exists: each of these was a sentence or a table row in a node's prose,
  * where a step had to find it and a check could not hold anyone to it. As
@@ -11,7 +12,7 @@
  *
  * It is a top-level block and not a node field for the reason `html_companions:`
  * is one (`companions.mjs`): a node field enters the canonical node list and the
- * graph hash, and a run whose only change is a question's default is the same
+ * graph hash, and a run whose only change is a recovery budget is the same
  * executable graph. `resolve` never prints it.
  *
  * What it drops: a value not of its key's shape (`briefValueProblems`, the rule
@@ -86,12 +87,13 @@ export function briefOf({ definition = null, overlays = [], profile = null } = {
  * profile it recorded, read by the same `sourcesOf` `companionsOfRun` reads
  * them by. An overlay that cannot be read is left out of the merge. Null when
  * no definition is found or the base cannot be read, so a caller can tell
- * "nothing to print" from "cannot say".
+ * "nothing to print" from "cannot say". A caller that has already read the
+ * sources passes them as `read`.
  */
-export function briefOfRun(doc, runDir) {
+export function briefOfRun(doc, runDir, read = undefined) {
   try {
     const workflow = isMap(doc?.workflow) ? doc.workflow : {};
-    const sources = sourcesOf(workflow, runDir);
+    const sources = read !== undefined ? read : sourcesOf(workflow, runDir);
     if (sources === null || !isMap(sources.definition?.doc)) return null;
     return briefOf({ ...sources, overlays: sources.overlays.filter(overlay => isMap(overlay.doc)) });
   } catch {

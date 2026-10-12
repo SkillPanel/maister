@@ -85,7 +85,8 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   `recommended` is the text of the recommended answer, and `as_recommended` says whether the
   user took it. `question_id` names the question, never its page or tab group. Never write
   `answered_by` or `via`: the writer stamps both, and fills an absent `as_recommended` from
-  whether `answer` and `recommended` read the same. A driver's answers are folded into the same
+  whether `answer` and `recommended` read the same, ignoring case and a trailing
+  "(Recommended)" on either. A driver's answers are folded into the same
   shape by the writer; a question nobody could ask is recorded `by: default`
   (`references/in-node-questions.md` § *When nobody can be asked*). Choosing More details, or
   typing "details", is never recorded.
@@ -110,7 +111,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
 - **`gate-brief-questions-unsupported`**: a question set was sent, but the run's driver carries
   none — only a cockpit whose features list `question-sets` does. Nothing is written. Do not
   suspend: in a terminal run ask the questions in session; under any other driver take the
-  default the node's `brief:` `questions` entry names and record it `by: default`.
+  default the node's *Without question sets* line names and record it `by: default`.
 - **`gate-brief-not-askable`**: the question set names a gate, which is asked from its own
   brief, or a node that is not `running`, which has nothing to ask. Nothing is written. Name the
   node that is asking, or brief the gate without `--patch-file`. For `--node=held-approval` it

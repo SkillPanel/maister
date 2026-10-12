@@ -27,8 +27,6 @@ brief:
       audit_flag:
         "yes": continue-to-audit
         "no": continue-to-wrap-up
-    questions:
-      tone: "A plain tone."
 
 nodes:
   scope:

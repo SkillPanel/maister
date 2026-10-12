@@ -97,15 +97,18 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   assert.doesNotMatch(header, /^when:/m, 'an unguarded step prints no when line');
   assert.doesNotMatch(header, /^attempt:/m, 'a first attempt nothing has run prints no attempt line');
 
-  // Sent back by a revise on its last budgeted attempt: the attempt prints, and both rows print whole.
+  // A retry on its last budgeted attempt, with no revise behind it: the attempt
+  // prints and the budget row prints whole; the revise row stays named, since
+  // no recorded revise names the step.
   const before = fs.readFileSync(dev.state, 'utf8');
-  const revised = before.replace(/(    gap-analysis: \{kind: [a-z]+, )status: pending/, '$1status: pending, attempt: 2');
-  assert.notEqual(revised, before, 'the node line carries the attempt');
-  fs.writeFileSync(dev.state, revised);
-  const again = nodeBrief(dev.state, 'gap-analysis').stdout;
-  assert.match(again, /^attempt: 2 — pending$/m);
-  for (const key of ['named by a revise', 'has a budget']) assert.ok(again.split('\n').includes(row(key)), key);
-  assert.ok(!again.includes(LATER), 'no row is left to name');
+  const retried = before.replace(/(    gap-analysis: \{kind: [a-z]+, )status: pending/, '$1status: pending, attempt: 2');
+  assert.notEqual(retried, before, 'the node line carries the attempt');
+  fs.writeFileSync(dev.state, retried);
+  const again = nodeBrief(dev.state, 'gap-analysis').stdout.split('\n');
+  assert.ok(again.includes('attempt: 2 — pending'));
+  assert.ok(again.includes(row('has a budget')), 'the last budgeted attempt prints the budget row');
+  assert.ok(!again.includes(row('named by a revise')), 'a retry is no revise');
+  assert.ok(again.includes('convention (named by a revise): see rules'));
 
   // A direct step that owes no page, keeps its section, declares nothing and feeds no checkpoint: its header is its facts and the pointer.
   const finalization = nodeBrief(dev.state, 'finalization').stdout;
@@ -214,19 +217,38 @@ test('node-brief: every rule a step of a built-in can trigger reaches it — the
   }
 });
 
-test('node-brief: the asks line follows the driver — in session, in a question set, or the default nobody is asked', t => {
+test('node-brief: the asks line follows the driver — in session, in a question set, or the Without line nobody is asked', t => {
   const sample = sampleRun(t);
   write(sample, { orchestrator: { driver: { kind: 'cockpit', features: ['question-sets'] } } });
   assert.match(nodeBrief(sample.state, 'draft').stdout, /^asks \(question sets\): tone$/m);
 
+  // Nobody can be asked: one line, pointing at the Without line the section carries, never a second copy of the default.
   write(sample, { orchestrator: { driver: { kind: 'dispatch' } } });
-  assert.match(nodeBrief(sample.state, 'draft').stdout, /^asks \(nobody can be asked\):\n- tone: not asked — default: A plain tone\.$/m);
+  const driven = nodeBrief(sample.state, 'draft').stdout;
+  assert.match(driven, /^asks \(nobody can be asked\): tone — the Without line of each applies$/m);
+  assert.doesNotMatch(driven, /not asked — default/);
+  assert.match(driven, /^\*\*Without question sets\*\* \(`tone`\): a plain tone/m, 'the slice carries the default');
 
-  // A built-in's question prints the default its brief: names.
   const dev = scratch(t);
   freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' }, orchestrator: { driver: { kind: 'dispatch' } } });
-  assert.match(nodeBrief(dev.state, 'gap-analysis').stdout,
-    /^asks \(nobody can be asked\):\n- scope-decisions: not asked — default: The analyzer's recommended option; .+$/m);
+  assert.match(nodeBrief(dev.state, 'specification').stdout,
+    /^asks \(nobody can be asked\): technical-questions, user-story, specification-requirements — the Without line of each applies$/m);
+});
+
+test('node-brief: the revise row prints whole only while a recorded revise names the step', t => {
+  const sample = sampleRun(t);
+  write(sample, { nodes: { scope: { status: 'completed', values: { wants_audit: false, focus: 'narrow' } } } });
+  write(sample, { nodes: { draft: { status: 'completed' } }, node_summaries: { draft: { summary: 'Drafted the notes.' } } });
+  assert.ok(nodeBrief(sample.state, 'draft').stdout.split('\n').includes(LATER), 'before a revise, both rows are named');
+
+  const revised = verb(['gate-revise', `--state=${sample.state}`, '--node=approval', '--option=revise-draft'], { note: 'Shorten the notes' });
+  assert.equal(revised.code, 0, revised.stderr);
+  const after = nodeBrief(sample.state, 'draft').stdout.split('\n');
+  assert.ok(after.includes('attempt: 2 — pending'));
+  for (const key of ['named by a revise', 'has a budget']) assert.ok(after.includes(row(key)), key);
+  assert.ok(!after.some(line => /^convention \(.*\): see rules$/.test(line)), 'no row is left to name');
+  // Another step of the run is not the one the revise names.
+  assert.doesNotMatch(nodeBrief(sample.state, 'scope').stdout, /^convention \(named by a revise\): [^s]/m);
 });
 
 test('node-brief: a gate points at gate-brief unless its section carries an exception', t => {
@@ -426,4 +448,82 @@ test('node-brief: a plain-picker passage at the end of a section is dropped ther
   const mask = (text, root) => text.split(root).join('<root>');
   assert.equal(mask(nodeBrief(edited.state, 'draft').stdout, edited.root), mask(nodeBrief(baseline.state, 'draft').stdout, baseline.root));
   assert.doesNotMatch(nodeBrief(edited.state, 'draft').stdout, /plain-picker|each focus|plain list of tones/);
+});
+
+test('node-brief: a recommended option prints only when it is a continue of a gate the step feeds', t => {
+  const overlay = 'extends: node-brief.yml\nbrief:\n  draft:\n    recommends:\n      audit_flag:\n        "yes": revise-draft\n        "no": continue-to-wrap-up\n';
+  const sample = copiedSample(t, { files: { 'odd.overlay.yml': overlay } });
+  freeze(sample, { definition: path.join(sample.root, 'node-brief.yml'), overlays: [path.join(sample.root, 'odd.overlay.yml')] });
+
+  write(sample, { orchestrator: { options: { inputs: { audit: 'yes' } } } });
+  assert.doesNotMatch(nodeBrief(sample.state, 'draft').stdout, /^recommends:/m, 'a revise option is no continue: nothing is printed for it');
+  write(sample, { orchestrator: { options: { inputs: { audit: 'no' } } } });
+  assert.match(nodeBrief(sample.state, 'draft').stdout, /^recommends: audit_flag = no → continue-to-wrap-up$/m);
+});
+
+test('node-brief: a node drift removed says so in its own words, apart from an unread definition', t => {
+  const sample = copiedSample(t);
+  const definition = path.join(sample.root, 'node-brief.yml');
+  freeze(sample, { definition });
+  const text = fs.readFileSync(definition, 'utf8');
+  fs.writeFileSync(definition, text.slice(0, text.indexOf('\n  wrap-up:\n') + 1));
+
+  const gone = nodeBrief(sample.state, 'wrap-up');
+  assert.equal(gone.code, 0, gone.stderr);
+  assert.match(gone.stderr, /^warning: node-brief-node-gone: wrap-up is not in the definition as it reads now; /m);
+  assert.doesNotMatch(gone.stderr, /node-brief-definition-unread/);
+  assert.ok(gone.stdout.endsWith('\n\nsection: unknown — the node is not in the definition as it reads now\n'), gone.stdout);
+
+  const source = fs.readFileSync(path.join(ENGINE_DIR, 'scripts/lib/node-brief.mjs'), 'utf8');
+  assert.ok(source.slice(0, source.indexOf('\nimport ')).includes('`node-brief-node-gone`'), 'the module header lists the warning');
+});
+
+test('node-brief: a heading is hashes then a space, and a fenced heading names no shared section', t => {
+  const sample = copiedSample(t, {
+    guide: text => text
+      .replace('record `wants_audit` and `focus`.', 'record `wants_audit` and `focus`.\n\n#tag stays text, so the section goes on.\n\nScope is done.')
+      .replace('As a child run, *Embedded mode* applies.', 'As a child run, *Embedded mode* applies; *Fenced only* is an example.')
+      .replace('```\n## `not-a-heading`\n```', '```\n## `not-a-heading`\n## Fenced only\n```'),
+  });
+  freeze(sample, { definition: path.join(sample.root, 'node-brief.yml') });
+
+  const scope = nodeBrief(sample.state, 'scope');
+  assert.equal(scope.code, 0, scope.stderr);
+  assert.ok(scope.stdout.endsWith('#tag stays text, so the section goes on.\n\nScope is done.\n'), scope.stdout);
+
+  const draft = nodeBrief(sample.state, 'draft').stdout;
+  assert.match(draft, /^see: .+ § Embedded mode$/m);
+  assert.doesNotMatch(draft, /§ Fenced only/, 'a heading inside a fence is no shared section');
+});
+
+test('node-brief: a path holding a space is quoted on the rules line and in the gate-brief call', async t => {
+  const { nodeBrief: render } = await import('../../plugins/maister/skills/workflow-engine/scripts/lib/node-brief.mjs');
+  const sample = scratch(t, { name: '2026-01-05-a sample' });
+  freeze(sample, { definition: NODE_BRIEF });
+  const rules = path.join(sample.root, 'plugin dir', 'SKILL.md');
+
+  const gate = render({ state: sample.state, node: 'approval', rules: `${rules} § Node conventions` });
+  assert.equal(gate.ok, true);
+  assert.match(gate.text, new RegExp(`^rules: '${rules.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}' § Node conventions$`, 'm'));
+  assert.ok(gate.text.includes(`ask it: gate-brief --state='${path.resolve(sample.state)}' --node=approval`), gate.text);
+
+  // A path without one stays bare, as the built-in pointer prints.
+  assert.match(nodeBrief(scratchRun(t).state, 'draft').stdout, new RegExp(`^${RULES.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
+});
+
+/** A frozen run of the node-brief sample in a path without a space. */
+function scratchRun(t) {
+  const sample = scratch(t);
+  freeze(sample, { definition: NODE_BRIEF });
+  return sample;
+}
+
+test('node-brief: a dispatched node prints its dir: filled in, as its with: values are', t => {
+  const overlay = 'extends: node-brief.yml\nadd:\n  remote:\n    uses: workflow:node-brief\n    dir: "members/${scope.values.focus}"\n    needs: [scope]\n    before: [draft]\n';
+  const sample = copiedSample(t, { files: { 'dir.overlay.yml': overlay } });
+  freeze(sample, { definition: path.join(sample.root, 'node-brief.yml'), overlays: [path.join(sample.root, 'dir.overlay.yml')] });
+
+  assert.match(nodeBrief(sample.state, 'remote').stdout, /^runs: workflow:node-brief — dispatched to members\/\(not recorded yet\)$/m);
+  write(sample, { nodes: { scope: { status: 'completed', values: { wants_audit: false, focus: 'narrow' } } } });
+  assert.match(nodeBrief(sample.state, 'remote').stdout, /^runs: workflow:node-brief — dispatched to members\/narrow$/m);
 });

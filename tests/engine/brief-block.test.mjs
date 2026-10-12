@@ -11,7 +11,8 @@ import { ENGINE_DIR, FIXTURES, verb } from '../helpers.mjs';
 
 // The `brief:` block: per node, what the node's brief prints beside its prose —
 // the phase summary keys it mirrors, the absences it may leave, its recovery
-// budget, the inputs that recommend a gate option and its questions' defaults.
+// budget and the inputs that recommend a gate option. A question's default is
+// not one of them: the Without line of the node's section states it, once.
 // Checked on its own shape (errors) and against the resolved graph (warnings),
 // merged base → overlays → the selected profile, and kept out of the graph hash.
 
@@ -56,7 +57,6 @@ test('the block is accepted in a definition, an overlay and an overlay\'s profil
 });
 
 test('each malformed shape is an error, located at its path', t => {
-  const long = 'x'.repeat(121);
   const cases = [
     ['brief: [analysis]\n', 'brief', /^brief is a mapping of node id to the node's brief entry; .* is not$/],
     ['brief:\n  Analysis_1: {budget: 1}\n', 'brief.Analysis_1', /^"Analysis_1" is not a node id$/],
@@ -75,11 +75,6 @@ test('each malformed shape is an error, located at its path', t => {
       /^recommends\.audit_flag is a mapping of input value to /],
     ['brief:\n  specification: {recommends: {audit_flag: {"yes": 3}}}\n', 'brief.specification.recommends.audit_flag.yes',
       /^a recommended option is a gate option id; .* is not$/],
-    ['brief:\n  analysis: {questions: [scope-check]}\n', 'brief.analysis.questions', /^questions is a mapping of question id to /],
-    [`brief:\n  analysis: {questions: {scope-check: "${long}"}}\n`, 'brief.analysis.questions.scope-check',
-      /^a question's default is one line of at most 120 characters/],
-    ['brief:\n  analysis: {questions: {scope-check: "take\\nit"}}\n', 'brief.analysis.questions.scope-check',
-      /^a question's default is one line/],
     ['brief:\n  analysis: {absent: {notes: "not\\nwritten"}}\n', 'brief.analysis.absent.notes', /^an absence's reason is /],
     ['brief:\n  analysis: {budget: null}\n', 'brief.analysis.budget', /^null removes a key an earlier layer set/],
   ];
@@ -107,6 +102,18 @@ test('each malformed shape is an error, located at its path', t => {
   }
 });
 
+test('a question\'s default is no brief key: questions is refused in a definition and dropped by the merge', t => {
+  const dir = scratchDir(t, 'brief:\n  analysis:\n    budget: 2\n    questions: {scope-check: "Take the scope as written."}\n');
+  const { code, report } = validate([`--definition=${path.join(dir, 'brief.yml')}`]);
+  assert.equal(code, 1);
+  const found = report.errors.filter(error => error.path === 'brief.analysis.questions');
+  assert.equal(found.length, 1, JSON.stringify(report.errors));
+  assert.match(found[0].message, /summary_keys, absent, budget, recommends|brief key/);
+
+  const merged = plain(mergeBriefOf({ definition: readDefinition(path.join(dir, 'brief.yml')) }));
+  assert.deepEqual(merged.analysis, { budget: 2 }, 'the merge keeps the brief keys and drops questions');
+});
+
 test('an unknown node, artifact, input and option each warn, and validate', t => {
   const dir = scratchDir(t, 'brief:\n  ghost: {budget: 1}\n  analysis:\n    absent: {missing: "never"}\n'
     + '  specification:\n    recommends:\n      nope: {"yes": continue-to-audit}\n'
@@ -131,6 +138,27 @@ test('an unknown node, artifact, input and option each warn, and validate', t =>
   assert.deepEqual(briefWarnings(trimmed.report), []);
 });
 
+test('a node feeds a gate through a gate it needs: the validator judges a recommended option by the closing nodes, as node-brief does', t => {
+  const definition = [
+    'name: feeds', 'version: 1', 'inputs:', '  audit: {type: string, required: false}', '',
+    'brief:', '  draft:', '    recommends:', '      audit_flag: {"yes": continue-on, "no": continue-to-review}', '',
+    'nodes:',
+    '  draft:', '    uses: direct:draft', '    needs: []', '    with:', '      audit_flag: "${inputs.audit}"',
+    '  review-gate:', '    type: gate', '    needs: [draft]', '    ask: "Draft complete. Continue?"',
+    '    options:', '      continue-to-review: continue', '      stop-here: stop',
+    '  second-gate:', '    type: gate', '    needs: [review-gate]', '    ask: "Sure?"',
+    '    options:', '      continue-on: continue', '      stop-here: stop',
+    '  wrap-up:', '    uses: direct:wrap-up', '    needs: [second-gate]', '',
+  ].join('\n');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-brief-feeds-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'feeds.yml'), definition);
+  fs.writeFileSync(path.join(dir, 'feeds.md'), '# Feeds\n\nA sample.\n\n## `draft`\n\n**Does.** Draft it.\n\n## `wrap-up`\n\n**Does.** Wrap up.\n');
+  const { code, report } = validate([`--definition=${path.join(dir, 'feeds.yml')}`]);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(briefWarnings(report), [], 'continue-on is a continue of a gate the draft closes through review-gate');
+});
+
 test('merge: a later key replaces, null removes a key or an entry, and a disabled node yields nothing', () => {
   const definition = readDefinition(BASE);
   const overlay = readDefinition(OVERLAY);
@@ -143,7 +171,6 @@ test('merge: a later key replaces, null removes a key or an entry, and a disable
       summary_keys: ['analysis', 'scope'],
       absent: { notes: 'Written only when the analysis raises open questions.' },
       budget: 2,
-      questions: { 'scope-check': 'Take the scope as the task describes it.' },
     },
     specification: {
       summary_keys: ['specification'],
@@ -157,7 +184,6 @@ test('merge: a later key replaces, null removes a key or an entry, and a disable
   assert.deepEqual(overlaid.analysis, {
     summary_keys: ['analysis', 'scope'],
     budget: 3,
-    questions: { 'scope-check': 'Take the scope as the task describes it.' },
   });
   assert.equal(overlaid.review, undefined, 'a null entry removes the entry');
   assert.deepEqual(overlaid.extra, { summary_keys: ['extra'] }, 'an added node carries its own entry');
@@ -192,7 +218,6 @@ test('resolve prints no brief, and the block leaves the graph hash where it was'
   assert.equal(withBlock.code, 0, withBlock.stdout);
   assert.ok(!Object.hasOwn(JSON.parse(withBlock.stdout), 'brief'));
   assert.ok(!withBlock.stdout.includes('summary_keys'));
-  assert.ok(!withBlock.stdout.includes('scope-check'));
 
   const bareBase = readDefinition(path.join(scratchDir(t, ''), 'brief.yml'));
   const overlay = readDefinition(OVERLAY);
@@ -271,7 +296,7 @@ test('each built-in\'s hash stays at the baseline, with and without a brief: blo
     const definition = readDefinition(path.join(WORKFLOWS, `${name}.yml`));
     const { brief: _block, ...doc } = definition.doc;
     const first = Object.keys(doc.nodes)[0];
-    const added = { ...doc, brief: { [first]: { budget: 1, questions: { 'some-question': 'Carry on.' } } } };
+    const added = { ...doc, brief: { [first]: { budget: 1, summary_keys: ['carry_on'] } } };
     for (const [label, variant] of [['as shipped', definition.doc], ['without', doc], ['with an added block', added]]) {
       const result = resolve({ definition: { ...definition, doc: variant } });
       assert.equal(result.ok, true, `${name} ${label}: ${JSON.stringify(result.errors)}`);

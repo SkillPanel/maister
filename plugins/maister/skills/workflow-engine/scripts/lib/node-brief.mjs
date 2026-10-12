@@ -23,15 +23,29 @@
  * - The `direct:` row only when the step owes a page or has no section — run
  *   inline from the section is what `runs:` and the section already say.
  * - `every step` only when the step declares an artifact or a value.
- * - `named by a revise` whole on a re-run (attempt 2 or later), `has a budget`
- *   whole on the last budgeted attempt; before then both are named on one
- *   `convention (…): see rules` line, so the reader knows where they stand.
+ * - `named by a revise` whole only while a recorded revise names the step —
+ *   the last answer at a gate is a revise option whose `reruns` is this node —
+ *   and `has a budget` whole on the last budgeted attempt; before then both
+ *   are named on one `convention (…): see rules` line, so the reader knows
+ *   where they stand.
+ * - `recommends:` only for an option among the continues of a gate on the
+ *   step's `feeds:` lines; any other mapping prints nothing, as the validator
+ *   warns of it (`brief-unknown-option`).
+ * - Under a driver nobody can be asked through, the `asks` line names the
+ *   question ids and points at the Without line of each: a question's default
+ *   is stated there, once.
  * - The scheme row of `agent:`, `skill:` and `workflow:` steps, `asks`,
  *   `feeds a checkpoint` and `gate` print whole wherever they apply: each
  *   carries a hand-over or a recording rule a step skips silently without it.
  * An unread definition prints every row its scheme meets, whole.
  * Paths stay repository-root-relative rather than task-relative: a delegate
- * is handed them as printed, and its working directory is the project root.
+ * is handed them as printed, and its working directory is the project root —
+ * all but an `output_path` agent, which joins a path to `task_path` itself and
+ * so is handed the declared one (the `agent:` row says so).
+ * The `with:` values and a `dir:` are printed filled in, by the rules of the
+ * engine skill's *Interpolating*. A path the header names for a shell — the
+ * `rules:` line, the `gate-brief` call — goes in single quotes when it holds
+ * whitespace, as the engine's invocation contract writes one.
  *
  * What it reads. The state file; the definition the run froze, re-read and
  * re-resolved through `gate-brief`'s `reread`; its overlays and profile; the
@@ -55,6 +69,9 @@
  *   `gate-brief` does.
  * - `node-brief-definition-unread` — the definition cannot be re-read; the
  *   header comes from the frozen node entry alone and the section is unknown.
+ * - `node-brief-node-gone` — the definition re-reads, but no longer carries the
+ *   node; the header comes from the frozen node entry alone and the section is
+ *   unknown.
  * - `node-brief-conventions-unread` — the conventions table cannot be read;
  *   one `convention: see rules` line stands for its rows.
  *
@@ -66,12 +83,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse, isPlainObject } from './state-read.mjs';
-import { proseSection, sectionNameOf } from './graph.mjs';
+import { guideRows, proseSection, readerRows, sectionNameOf } from './graph.mjs';
 import { closingCandidates, evaluate, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
 import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf } from './state.mjs';
 import { owedCompanions } from './companions.mjs';
 import { briefOfRun } from './brief.mjs';
+import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
 import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
 
@@ -102,6 +120,7 @@ const NOT_RECORDED = '(not recorded yet)';
 const OWED = 'HTML page owed:';
 const NO_SECTION = 'section: none — the conventions above apply';
 const UNKNOWN_SECTION = 'section: unknown — the definition this run froze cannot be re-read';
+const GONE_SECTION = 'section: unknown — the node is not in the definition as it reads now';
 
 /** A reference that finds nothing in state, kept apart from a recorded null. */
 const MISSING = Symbol('not recorded');
@@ -114,6 +133,7 @@ const MISSING = Symbol('not recorded');
  * Returns `{ok, text, errors, warnings}`; `text` ends with a newline.
  */
 export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` }) {
+  const pointer = quotedPointer(rules);
   let doc;
   try {
     doc = parse(fs.readFileSync(state, 'utf8'));
@@ -154,28 +174,43 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
     status: new Map(Object.keys(recorded).filter(id => id !== HELD_APPROVAL).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
   };
   const resolved = byId.get(node) ?? null;
+  if (resolved === null && current.graph !== null) {
+    warnings.push(`node-brief-node-gone: ${node} is not in the definition as it reads now; the header comes from the frozen node entry alone`);
+  }
   const entry = entryOf(recorded, node);
   const title = titleOf(current.display.titles, node);
   const gate = resolved ? resolved.type === 'gate' : entry.kind === 'gate';
-  const origin = resolved ? originOf(workflow, runDir, node) : null;
+  // The sources are read once, and the section sliced once, for the whole brief.
+  const sources = resolved ? sourcesRead(workflow, runDir) : null;
+  const origin = sources ? originOf(sources, node) : null;
+  const section = origin === null ? null : proseSection(origin, sectionNameOf(resolved));
+  const printed = section === null ? null : sliced(section.text);
   const convention = keys => conventionLines(table, keys);
+  const askIt = `ask it: gate-brief --state=${quoted(path.resolve(state))} --node=${node}`;
 
   const lines = gate
-    ? gateLines({ node, title, resolved, context, convention, rules })
-    : stepLines({ node, title, resolved, entry, context, convention, table, rules, origin });
+    ? gateLines({ node, title, resolved, context, convention, rules: pointer })
+    : stepLines({ node, title, resolved, entry, context, convention, table, rules: pointer, origin, section, sources });
   lines.push('');
   if (resolved === null) {
-    lines.push(gate ? `ask it: gate-brief --state=${path.resolve(state)} --node=${node}` : UNKNOWN_SECTION);
+    lines.push(gate ? askIt : current.graph === null ? UNKNOWN_SECTION : GONE_SECTION);
+  } else if (gate) {
+    lines.push(/^\*\*Exception\.\*\*/m.test(printed ?? '') ? printed : askIt);
   } else {
-    const section = origin === null ? null : proseSection(origin, sectionNameOf(resolved));
-    if (gate) {
-      const text = section === null ? '' : sliced(section.text);
-      lines.push(/^\*\*Exception\.\*\*/m.test(text) ? text : `ask it: gate-brief --state=${path.resolve(state)} --node=${node}`);
-    } else {
-      lines.push(section === null ? NO_SECTION : sliced(section.text));
-    }
+    lines.push(printed ?? NO_SECTION);
   }
   return { ok: true, text: `${lines.join('\n')}\n`, errors: [], warnings };
+}
+
+/** A path as a shell reads it: bare, or in single quotes when it holds whitespace. */
+function quoted(file) {
+  return /\s/.test(file) ? `'${file.replace(/'/g, "'\\''")}'` : file;
+}
+
+/** A `<path> § <heading>` pointer with its path quoted as `quoted` does. */
+function quotedPointer(rules) {
+  const at = rules.lastIndexOf(' § ');
+  return at < 0 ? rules : `${quoted(rules.slice(0, at))}${rules.slice(at)}`;
 }
 
 function refuse(code, message) {
@@ -195,12 +230,12 @@ function inputsOf(doc) {
 // a task step (NB-5)
 // ---------------------------------------------------------------------------
 
-function stepLines({ node, title, resolved, entry, context, convention, table, rules, origin }) {
+function stepLines({ node, title, resolved, entry, context, convention, table, rules, origin, section, sources }) {
   const uses = typeof resolved?.uses === 'string' ? resolved.uses : null;
   const scheme = uses ? uses.slice(0, uses.indexOf(':')) : String(entry.kind ?? '');
   const known = SCHEMES[scheme] ?? null;
   const dispatched = typeof resolved?.dir === 'string' && resolved.dir !== '';
-  const how = dispatched ? `dispatched to ${resolved.dir}` : known?.how ?? 'unknown';
+  const how = dispatched ? `dispatched to ${shown(interpolate(resolved.dir, context))}` : known?.how ?? 'unknown';
 
   const lines = [`## Node: ${node} — ${title}`, `runs: ${uses ?? scheme} — ${how}`];
   if (resolved && typeof resolved.when === 'string') lines.push(whenLine(resolved.when, context));
@@ -211,14 +246,12 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
     lines.push(...convention(known ? [known.row, 'every step'] : ['every step']), `rules: ${rules}`);
     return lines;
   }
-  const section = origin === null ? null : proseSection(origin, sectionNameOf(resolved));
-
-  const brief = briefOfRun(context.doc, context.runDir)?.[node] ?? {};
+  const brief = (sources ? briefOfRun(context.doc, context.runDir, sources) : null)?.[node] ?? {};
   const withs = isPlainObject(resolved.with) ? resolved.with : {};
   const filled = Object.fromEntries(Object.entries(withs).map(([key, value]) => [key, interpolate(value, context)]));
   if (Object.keys(filled).length) lines.push('with:', ...Object.entries(filled).map(([key, value]) => `- ${key}: ${shown(value)}`));
 
-  const writes = writeLines(node, resolved, entry, brief, context);
+  const writes = writeLines(node, resolved, entry, brief, context, sources);
   if (writes.length) lines.push('writes:', ...writes);
 
   const values = isPlainObject(resolved.outputs?.values) ? resolved.outputs.values : {};
@@ -230,31 +263,32 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (known && (scheme !== 'direct' || section === null || writes.some(line => line.includes(OWED)))) keys.push(known.row);
   if (writes.length || Object.keys(values).length) keys.push('every step');
 
-  const asks = askLines(origin, resolved, brief, context.doc);
+  const asks = askLines(origin, resolved, context.doc);
   if (asks.length) {
     lines.push(...asks);
     keys.push('asks');
   }
 
-  const feeds = feedLines(node, context);
-  if (feeds.length) {
-    lines.push(...feeds);
+  const fed = gatesFed(node, context);
+  if (fed.length) {
+    lines.push(...fed.map(feedLine));
     keys.push('feeds a checkpoint');
   }
 
+  // Only an option the step can recommend: a continue of a gate it feeds.
+  const continues = new Set(fed.flatMap(each => each.continues));
   for (const [key, mapping] of Object.entries(isPlainObject(brief.recommends) ? brief.recommends : {})) {
     const value = Object.hasOwn(filled, key) ? filled[key] : MISSING;
     if (value === MISSING || value === null || value === '') continue;
     const text = String(value);
-    lines.push(Object.hasOwn(mapping, text)
-      ? `recommends: ${key} = ${text} → ${mapping[text]}`
-      : `recommends: ${key} = ${text} — the section decides`);
+    if (!Object.hasOwn(mapping, text)) lines.push(`recommends: ${key} = ${text} — the section decides`);
+    else if (continues.has(mapping[text])) lines.push(`recommends: ${key} = ${text} → ${mapping[text]}`);
   }
   if (Array.isArray(brief.summary_keys) && brief.summary_keys.length) lines.push(`summary keys: ${brief.summary_keys.join(', ')}`);
   if (Number.isInteger(brief.budget)) lines.push(`budget: ${brief.budget} attempt${brief.budget === 1 ? '' : 's'} — a prose rule; nothing enforces it`);
 
   const later = [];
-  if ([...context.byId.values()].some(each => rerunsOf(each).includes(node))) (attempt > 1 ? keys : later).push('named by a revise');
+  if ([...context.byId.values()].some(each => rerunsOf(each).includes(node))) (revisedNow(context.doc, node) ? keys : later).push('named by a revise');
   if (Number.isInteger(brief.budget)) (attempt >= brief.budget ? keys : later).push('has a budget');
   lines.push(...convention(keys));
   if (later.length && table !== null) lines.push(`convention (${later.join(', ')}): see rules`);
@@ -275,10 +309,10 @@ function whenLine(when, { byId, recorded, status, inputs, defaults }) {
  * it owes when HTML output is on, and the reason `brief:` gives when it may be
  * absent.
  */
-function writeLines(node, resolved, entry, brief, context) {
+function writeLines(node, resolved, entry, brief, context, sources) {
   const artifacts = isPlainObject(resolved.outputs?.artifacts) ? resolved.outputs.artifacts : {};
   if (!Object.keys(artifacts).length) return [];
-  const owing = htmlOutput(context.doc) ? companionsOfRun(context.doc, context.runDir) : null;
+  const owing = htmlOutput(context.doc) && sources ? companionsOfRun(context.doc, context.runDir, sources) : null;
   const owed = new Map(owing ? owedCompanions(owing, node).map(each => [each.key, each.html]) : []);
   const absent = isPlainObject(brief.absent) ? brief.absent : {};
   const where = artifactBase(resolved, entry, context);
@@ -334,30 +368,44 @@ function typeText(type) {
 
 /**
  * `asks (<driver>): <ids>` for the question ids the node's section declares;
- * when nobody can be asked, one line per id with the default that stands in.
+ * when nobody can be asked, the same ids and a pointer at the Without line of
+ * each, which states the default that stands in.
  */
-function askLines(origin, resolved, brief, doc) {
+function askLines(origin, resolved, doc) {
   const ids = origin === null ? [] : declaredQuestionIds(origin, sectionNameOf(resolved));
   if (!ids.length) return [];
-  const defaults = isPlainObject(brief.questions) ? brief.questions : {};
-  const sets = questionSets(doc);
-  const asking = canAsk(doc);
-  const phrase = sets ? 'question sets' : asking ? 'in session' : 'nobody can be asked';
-  if (sets || asking) return [`asks (${phrase}): ${ids.join(', ')}`];
-  return [`asks (${phrase}):`, ...ids.map(id => `- ${id}: not asked — default: ${Object.hasOwn(defaults, id) ? defaults[id] : 'the Without line below'}`)];
+  if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}`];
+  if (canAsk(doc)) return [`asks (in session): ${ids.join(', ')}`];
+  return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies`];
 }
 
-/** One `feeds:` line per gate whose closing nodes hold this one. */
-function feedLines(node, { byId, recorded }) {
-  const lines = [];
+/**
+ * Each gate the step feeds — whose closing nodes, by `closingCandidates`
+ * (the validator's `closedBy`), hold it — with its continue and revise
+ * options, in graph order.
+ */
+function gatesFed(node, { byId, recorded }) {
+  const fed = [];
   for (const each of byId.values()) {
     if (each.type !== 'gate' || !closingCandidates(recorded, byId, each.id).direct.includes(node)) continue;
     const options = isPlainObject(each.options) ? Object.entries(each.options) : [];
-    const continues = options.filter(([, option]) => effectOf(option) === 'continue').map(([id]) => id);
-    const revises = options.filter(([, option]) => effectOf(option) === 'revise').map(([id, option]) => `${id} → ${option.reruns}`);
-    lines.push(`feeds: ${each.id} — continues: ${continues.join(', ')}${revises.length ? `; revise: ${revises.join(', ')}` : ''}`);
+    fed.push({
+      id: each.id,
+      continues: options.filter(([, option]) => effectOf(option) === 'continue').map(([id]) => id),
+      revises: options.filter(([, option]) => effectOf(option) === 'revise').map(([id, option]) => `${id} → ${option.reruns}`),
+    });
   }
-  return lines;
+  return fed;
+}
+
+function feedLine({ id, continues, revises }) {
+  return `feeds: ${id} — continues: ${continues.join(', ')}${revises.length ? `; revise: ${revises.join(', ')}` : ''}`;
+}
+
+/** Whether a recorded revise names the step now: the open revise, applied, re-runs this node. */
+function revisedNow(doc, node) {
+  const open = openRevision(doc);
+  return open !== null && open.applied && open.reruns === node;
 }
 
 function effectOf(option) {
@@ -374,10 +422,10 @@ function rerunsOf(node) {
  * that is not a node's — the slice names in italics.
  */
 function seeLines(section) {
-  const text = fs.readFileSync(section.companion, 'utf8');
   const shared = [];
-  for (const line of text.split('\n').map(row => row.replace(/\r$/, ''))) {
-    const match = /^##\s+([^`#].*?)\s*$/.exec(line);
+  for (const row of guideRows(fs.readFileSync(section.companion, 'utf8'))) {
+    if (row.level !== 2) continue;
+    const match = /^##\s+([^`].*?)\s*$/.exec(row.text);
     if (match) shared.push(match[1]);
   }
   return shared.filter(heading => section.text.includes(`*${heading}*`)).map(heading => `see: ${section.companion} § ${heading}`);
@@ -406,19 +454,22 @@ function gateLines({ node, title, resolved, context, convention, rules }) {
 // the guide
 // ---------------------------------------------------------------------------
 
+/** The definition, overlays and profile the run froze (`sourcesOf`), or null when they cannot be read. */
+function sourcesRead(workflow, runDir) {
+  try {
+    return sourcesOf(workflow, runDir);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * The file a node's section is found beside: the overlay that added it — the
  * last layer to add it, a profile's addition included — or the base
  * definition. Null when the sources cannot be read.
  */
-function originOf(workflow, runDir, node) {
-  let sources;
-  try {
-    sources = sourcesOf(workflow, runDir);
-  } catch {
-    return null;
-  }
-  if (sources === null || !sources.definition?.file) return null;
+function originOf(sources, node) {
+  if (!sources.definition?.file) return null;
   let origin = sources.definition.file;
   for (const overlay of sources.overlays) {
     const doc = isPlainObject(overlay.doc) ? overlay.doc : {};
@@ -431,26 +482,14 @@ function originOf(workflow, runDir, node) {
 }
 
 /**
- * A section as the brief prints it: leading blank lines gone, every
- * `<!-- plain-picker` … `-->` passage dropped whole, the rich-picker marker
- * lines dropped with the text between them kept, and no run of blank lines
- * the drops left behind.
+ * A section as the brief prints it: the picker passages dropped by `readerRows`
+ * — the one strip the template lint reads a section through — leading blank
+ * lines gone, and no run of blank lines the drops left behind.
  */
 function sliced(text) {
   const kept = [];
-  let plain = false;
-  for (const line of text.split('\n')) {
-    const trimmed = line.trim();
-    if (plain) {
-      if (trimmed.endsWith('-->')) plain = false;
-      continue;
-    }
-    if (trimmed.startsWith('<!-- plain-picker')) {
-      plain = !trimmed.endsWith('-->');
-      continue;
-    }
-    if (trimmed === '<!-- rich-picker -->' || trimmed === '<!-- /rich-picker -->') continue;
-    if (trimmed === '' && (kept.length === 0 || kept.at(-1).trim() === '')) continue;
+  for (const { text: line } of readerRows(guideRows(text))) {
+    if (line.trim() === '' && (kept.length === 0 || kept.at(-1).trim() === '')) continue;
     kept.push(line);
   }
   while (kept.length && kept.at(-1).trim() === '') kept.pop();

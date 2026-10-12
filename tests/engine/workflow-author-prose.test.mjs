@@ -32,9 +32,11 @@ test('new writes a section only for a step that needs prose, writes brief:, and 
   assert.match(body, /a section only for a `direct:` step that asks a question, keeps a budget or has a summary hint/);
   assert.doesNotMatch(body, /one `## <id>` section per `direct:` node/, 'the old one-section-per-node rule is gone');
   assert.match(body, /`brief:`/);
-  for (const key of ['questions', 'budget', 'summary_keys', 'absent', 'recommends']) {
+  for (const key of ['budget', 'summary_keys', 'absent', 'recommends']) {
     assert.match(body, new RegExp(`\`${key}\``), `brief: key ${key} is named`);
   }
+  assert.doesNotMatch(body, /`questions`/, 'a question\'s default is no brief: key');
+  assert.match(body, /the Without line stating the default — the\s+one place it is written/);
   assert.match(body, /\*\*Does\.\*\*.*\*\*Asks\.\*\*.*\*\*Writes\.\*\*.*\*\*Summary\.\*\*.*\*\*Re-run\.\*\*.*\*\*Budget\.\*\*/,
     'the template parts in their order');
   assert.match(body, /from: conventions/);
@@ -46,9 +48,9 @@ test('new writes a section only for a step that needs prose, writes brief:, and 
 
 test('check lists the three prose findings and words the orphan rule as sectionNameOf does', () => {
   const body = part(skill, '`check');
-  assert.match(body, /merged `brief:` has `questions`, `budget` or `recommends` but no section/);
-  assert.match(body, /a `questions` id with no question-set line in its section/);
-  assert.match(body, /a question-set line whose id has no `questions` entry/);
+  assert.match(body, /merged `brief:` has `budget` or `recommends` but no section/);
+  assert.match(body, /a question id with a \*\*With question sets\*\* line and no \*\*Without question sets\*\* line/);
+  assert.doesNotMatch(body, /`questions`/);
   assert.match(body, /not the name some node finds its section by: the name after `direct:` for a `direct:` node, the node id otherwise \(a disabled node still counts\)/);
   assert.match(body, /fix: rename the heading to the node id, or delete the section/i);
   assert.match(body, /`<file> · <node> — <problem>`/);

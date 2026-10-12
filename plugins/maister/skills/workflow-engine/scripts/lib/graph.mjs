@@ -48,7 +48,8 @@
  * section name — the node id — and the slicer finds the heading that is
  * exactly that name, skipping fenced blocks, so a heading quoted in an example
  * neither starts nor ends a section. The `direct:` check above is that slicer
- * returning something.
+ * returning something. It walks the guide by `guideRows`, the one line walk
+ * every reader of a guide shares, the template lint included.
  */
 
 import { createHash } from 'node:crypto';
@@ -177,26 +178,20 @@ const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
 /**
  * The keys of one node's entry in the top-level `brief:` block: what the node's
  * brief prints beside its prose — the phase summary keys the node mirrors, the
- * artifacts it may leave unwritten and why, its recovery budget, the `with:`
- * values that recommend a continue option of the gate it feeds, and the default
- * each of its in-node questions takes when nobody can be asked. Every one is
- * data a step reads; none is graph data, so the block stays outside the hash
- * (`buildGraph`). Exported for `brief.mjs`, which merges the block by the same
- * shape rules (`briefValueProblems`).
+ * artifacts it may leave unwritten and why, its recovery budget, and the
+ * `with:` values that recommend a continue option of the gate it feeds. A
+ * question's default is not one of them: it lives once, in the Without line of
+ * the step's section. Every one is data a step reads; none is graph data, so
+ * the block stays outside the hash (`buildGraph`). Exported for `brief.mjs`,
+ * which merges the block by the same shape rules (`briefValueProblems`).
  */
-export const BRIEF_KEYS = ['summary_keys', 'absent', 'budget', 'recommends', 'questions'];
+export const BRIEF_KEYS = ['summary_keys', 'absent', 'budget', 'recommends'];
 
 /**
  * A phase key, as a node mirrors its summary under it. The dash is admitted
  * because a frozen state shape already carries phase keys written with one.
  */
 const PHASE_KEY = /^[a-z][a-z0-9_-]*$/;
-
-/** An in-node question's id, the class its prose declares it in. */
-const QUESTION_KEY = /^[a-z0-9][a-z0-9-]*$/;
-
-/** The longest default a `brief.<node>.questions` entry may give. */
-const QUESTION_DEFAULT_MAX = 120;
 
 /** The highest recovery budget a brief may print. */
 const BUDGET_MAX = 10;
@@ -803,57 +798,112 @@ function hasProseSection(file, name) {
 const FENCE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
 /**
- * One node's section of the prose companion beside a definition file, or null
- * when the companion is missing or carries no such section. The caller passes
- * the section name — the node id — not a heading.
- *
- * A heading is a line outside a fenced block that starts with `#`; it names
- * `name` when its text, with the `#`s, backticks and surrounding spacing
- * removed, equals it. The heading must *be* the node id, not mention it: a
- * section titled "Notes on assess-scope failure modes" is prose about the
- * node, and accepting it would report an implementation that is not there.
- *
- * The section runs to the next heading outside a fence at the same or a higher
- * level, so a `### Step` stays inside its node. Fences are skipped both ways:
- * a heading quoted in an example neither opens a section nor closes one. The
- * heading line itself, trailing blank lines and trailing `---` rules are
- * dropped. Lines are split on LF with a trailing CR removed, so a CRLF checkout
- * slices the same as an LF one.
+ * A heading line: one to six `#`, then a space or the end of the line, as
+ * CommonMark has it. `#tag` or `#123` at the start of a line is text, so it
+ * neither opens a section nor ends one.
  */
-export function proseSection(file, name) {
-  if (!file) return null;
-  const companion = file.replace(/\.ya?ml$/i, '.md');
-  if (companion === file || !isFile(companion)) return null;
-  const lines = fs.readFileSync(companion, 'utf8').split('\n').map(row => row.replace(/\r$/, ''));
+const HEADING = /^(#{1,6})(?:\s|$)/;
+
+/** A node heading: an H2 whose whole text is one backticked name. */
+export const NODE_HEADING = /^##\s+`([^`]+)`\s*$/;
+
+/**
+ * The lines of a guide as every reader of its structure walks them — the
+ * section slicer, the orphan check, `node-brief`'s `see:` lines and the guide
+ * template lint — so none of them can disagree about where a fence or a
+ * heading is. One row per line, split on LF with a trailing CR removed:
+ * `{line, text, fenced, opens, level}`, where `line` is 0-based, `fenced` holds
+ * for a fence line and every line inside one, `opens` for the line that opens
+ * a fence, and `level` is the heading's level for a heading outside a fence
+ * (`HEADING`), null otherwise. A fence closes on a fence of its own character,
+ * at least as long, with nothing after it.
+ */
+export function guideRows(text) {
+  const rows = [];
   let fence = null;
-  let found = null;
-  for (let at = 0; at < lines.length; at++) {
-    const line = lines[at];
+  for (const [at, raw] of text.split('\n').entries()) {
+    const line = raw.replace(/\r$/, '');
     const marker = FENCE.exec(line);
     if (fence) {
+      rows.push({ line: at, text: line, fenced: true, opens: false, level: null });
       if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && marker[2].trim() === '') fence = null;
       continue;
     }
     if (marker) {
       fence = marker[1];
+      rows.push({ line: at, text: line, fenced: true, opens: true, level: null });
       continue;
     }
-    if (!line.startsWith('#')) continue;
-    const level = /^#+/.exec(line)[0].length;
+    const heading = HEADING.exec(line);
+    rows.push({ line: at, text: line, fenced: false, opens: false, level: heading ? heading[1].length : null });
+  }
+  return rows;
+}
+
+/**
+ * Rows of `guideRows` as a step reads them: every `<!-- plain-picker` … `-->`
+ * comment dropped whole — it ends at the first line holding `-->`, or with the
+ * rows — and the rich-picker marker lines dropped with the text between them
+ * kept. Neither marker counts inside a fence. `node-brief` prints a section
+ * through this and the lint checks one through it, so the two read one text.
+ */
+export function readerRows(rows) {
+  const kept = [];
+  let plain = false;
+  for (const row of rows) {
+    if (plain) {
+      if (row.text.includes('-->')) plain = false;
+      continue;
+    }
+    if (!row.fenced && /^\s*<!--\s*plain-picker\b/.test(row.text)) {
+      plain = !row.text.includes('-->');
+      continue;
+    }
+    if (!row.fenced && /^\s*<!--\s*\/?rich-picker\s*-->\s*$/.test(row.text)) continue;
+    kept.push(row);
+  }
+  return kept;
+}
+
+/**
+ * One node's section of the prose companion beside a definition file, or null
+ * when the companion is missing or carries no such section. The caller passes
+ * the section name — the node id — not a heading.
+ *
+ * A heading is a `guideRows` heading; it names `name` when its text, with the
+ * `#`s, backticks and surrounding spacing removed, equals it. The heading must
+ * *be* the node id, not mention it: a section titled "Notes on assess-scope
+ * failure modes" is prose about the node, and accepting it would report an
+ * implementation that is not there.
+ *
+ * The section runs to the next heading outside a fence at the same or a higher
+ * level, so a `### Step` stays inside its node. Fences are skipped both ways:
+ * a heading quoted in an example neither opens a section nor closes one. The
+ * heading line itself, trailing blank lines and trailing `---` rules are
+ * dropped. A CRLF checkout slices the same as an LF one.
+ */
+export function proseSection(file, name) {
+  if (!file) return null;
+  const companion = file.replace(/\.ya?ml$/i, '.md');
+  if (companion === file || !isFile(companion)) return null;
+  const rows = guideRows(fs.readFileSync(companion, 'utf8'));
+  let found = null;
+  for (const row of rows) {
+    if (row.level === null) continue;
     if (found) {
-      if (level <= found.level) {
-        found.end = at;
+      if (row.level <= found.level) {
+        found.end = row.line;
         break;
       }
       continue;
     }
-    const heading = line.replace(/^#+\s*/, '').replace(/`/g, '').trim();
-    if (heading === name) found = { at, level, end: lines.length };
+    const heading = row.text.replace(/^#+\s*/, '').replace(/`/g, '').trim();
+    if (heading === name) found = { at: row.line, level: row.level, end: rows.length };
   }
   if (!found) return null;
-  const body = lines.slice(found.at + 1, found.end);
+  const body = rows.slice(found.at + 1, found.end).map(row => row.text);
   while (body.length > 0 && (body.at(-1).trim() === '' || body.at(-1).trim() === '---')) body.pop();
-  return { companion, heading: lines[found.at], text: body.join('\n') };
+  return { companion, heading: rows[found.at].text, text: body.join('\n') };
 }
 
 /**
@@ -872,33 +922,34 @@ export function sectionNameOf(node, id = node?.id) {
   return id;
 }
 
-/** A node heading: an H2 whose whole text is one backticked name. */
-const NODE_HEADING = /^##\s+`([^`]+)`\s*$/;
-
 /**
- * The names of every node heading in a companion — `` ## `x` `` outside a fenced
- * block — in file order, or an empty list when the companion is missing. Shared
- * H2s such as `## Embedded mode` are not node headings and are not listed.
+ * Every node heading in a companion — `` ## `x` `` outside a fenced block — as
+ * `{name, line}` in file order, `line` 0-based; an empty list when the
+ * companion is missing. Shared H2s such as `## Embedded mode` are not node
+ * headings and are not listed.
  */
 function nodeHeadings(companion) {
   if (!isFile(companion)) return [];
-  const names = [];
-  let fence = null;
-  for (const raw of fs.readFileSync(companion, 'utf8').split('\n')) {
-    const line = raw.replace(/\r$/, '');
-    const marker = FENCE.exec(line);
-    if (fence) {
-      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && marker[2].trim() === '') fence = null;
-      continue;
-    }
-    if (marker) {
-      fence = marker[1];
-      continue;
-    }
-    const heading = NODE_HEADING.exec(line);
-    if (heading) names.push(heading[1].trim());
+  const headings = [];
+  for (const row of guideRows(fs.readFileSync(companion, 'utf8'))) {
+    if (row.level !== 2) continue;
+    const heading = NODE_HEADING.exec(row.text);
+    if (heading) headings.push({ name: heading[1].trim(), line: row.line });
   }
-  return names;
+  return headings;
+}
+
+/**
+ * The node headings of the companion beside `file` that no node of `declared`
+ * — a `nodes:` or `add:` map, by id — finds its section by, as `{companion,
+ * name, line}`. The rule behind the `orphan-prose-section` warning, exported
+ * for the guide template lint, which fails a built-in on the same finding.
+ */
+export function orphanHeadings(file, declared) {
+  if (typeof file !== 'string' || !/\.ya?ml$/i.test(file)) return [];
+  const names = new Set(Object.entries(isMap(declared) ? declared : {}).map(([id, node]) => sectionNameOf(node, id)));
+  const companion = companionOf(file);
+  return nodeHeadings(companion).filter(heading => !names.has(heading.name)).map(heading => ({ companion, ...heading }));
 }
 
 // ---------------------------------------------------------------------------
@@ -1354,12 +1405,7 @@ function undescribedWorkflow(definition) {
 function orphanSections(definition, overlays) {
   const warnings = [];
   const judge = (file, declared) => {
-    if (typeof file !== 'string' || !/\.ya?ml$/i.test(file)) return;
-    const names = new Set(Object.entries(declared).map(([id, node]) => sectionNameOf(node, id)));
-    const companion = companionOf(file);
-    for (const name of nodeHeadings(companion)) {
-      if (!names.has(name)) warnings.push(WARN.orphanSection(companion, name));
-    }
+    for (const orphan of orphanHeadings(file, declared)) warnings.push(WARN.orphanSection(orphan.companion, orphan.name));
   };
   if (isMap(definition?.doc)) judge(definition.file, isMap(definition.doc.nodes) ? definition.doc.nodes : {});
   for (const overlay of overlays) {
@@ -2339,17 +2385,6 @@ export function briefValueProblems(key, value) {
         }
       }
     }
-  } else if (key === 'questions') {
-    if (!isMap(value)) {
-      report('', `questions is a mapping of question id to the default it takes when nobody can be asked; ${shown(value)} is not`);
-      return problems;
-    }
-    for (const [id, fallback] of Object.entries(value)) {
-      if (!QUESTION_KEY.test(id)) report(`.${id}`, `"${id}" is not a question id`);
-      else if (!isOneLine(fallback) || fallback.length > QUESTION_DEFAULT_MAX) {
-        report(`.${id}`, `a question's default is one line of at most ${QUESTION_DEFAULT_MAX} characters; ${shown(fallback)} is not`);
-      }
-    }
   }
   return problems;
 }
@@ -2360,10 +2395,36 @@ function isOneLine(value) {
 }
 
 /**
+ * The nodes a gate closes: its needs, in order, where a need that is itself a
+ * gate is replaced by that gate's own needs, recursively — the nodes that have
+ * just finished when the gate is asked, and so the nodes that feed it. `needs`
+ * and `isGate` take a node id and read whatever record the caller holds: the
+ * resolved graph here, the frozen node lines first in `gate-brief`'s
+ * `closingCandidates`. One rule for both, so the validator and `node-brief`
+ * agree on which gate a step feeds. `visited` is every id the walk reached,
+ * the gate's own included.
+ */
+export function closedBy(gate, needs, isGate) {
+  const direct = [];
+  const visited = new Set([gate]);
+  const visit = id => {
+    for (const need of needs(id)) {
+      if (visited.has(need)) continue;
+      visited.add(need);
+      if (isGate(need)) visit(need);
+      else direct.push(need);
+    }
+  };
+  visit(gate);
+  return { direct, visited };
+}
+
+/**
  * The block against the resolved graph. A node the graph does not carry, an
  * `absent` key the node does not declare, a `recommends` key that is not one of
  * its `with:` keys and a recommended option that is not a continue option of a
- * gate the node feeds each **warn**: the brief prints nothing for that item,
+ * gate the node feeds (`closedBy`, the rule `node-brief`'s `feeds:` lines use)
+ * each **warn**: the brief prints nothing for that item,
  * so nothing breaks, but the author meant something that will never be shown.
  *
  * A node an overlay's or the selected profile's `disable` removed is skipped in
@@ -2389,8 +2450,10 @@ function checkBriefNodes({ prefix, block }, nodes, removed, warnings) {
     if (isMap(entry.recommends)) {
       const inputs = isMap(node.with) ? node.with : {};
       const continues = new Set();
-      for (const gate of nodes.values()) {
-        if (gate.type !== 'gate' || !needsOf(gate).includes(id) || !isMap(gate.options)) continue;
+      const isGate = each => nodes.get(each)?.type === 'gate';
+      for (const [gateId, gate] of nodes) {
+        if (gate.type !== 'gate' || !isMap(gate.options)) continue;
+        if (!closedBy(gateId, each => needsOf(nodes.get(each)), isGate).direct.includes(id)) continue;
         for (const [option, authored] of Object.entries(gate.options)) {
           if (optionEffect(authored) === 'continue') continues.add(option);
         }

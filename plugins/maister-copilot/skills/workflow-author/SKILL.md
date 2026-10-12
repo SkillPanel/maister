@@ -131,9 +131,10 @@ questions:
   `needs` closure (§ 9); a value a skipped node may leave null is read from state by the prose,
   not interpolated (§ 9).
   Then a top-level `brief:` block (§ 3.3) carrying the step data the interview gave, only for the
-  steps that have any: `questions` (id → the answer taken when nobody can be asked), `budget`,
-  `summary_keys` (only when the author names a phase key), `absent` (artifact key → reason) and
-  `recommends` (`with:` key → value → continue option). It sits outside the graph hash.
+  steps that have any: `budget`, `summary_keys` (only when the author names a phase key),
+  `absent` (artifact key → reason) and `recommends` (`with:` key → value → continue option). It
+  sits outside the graph hash. The answer a question takes when nobody can be asked goes in its
+  **Without question sets** line, not here.
 - `<name>.md` — an `# H1` title; an opening paragraph saying what the workflow is for and when to
   use it; then a section only for a `direct:` step that asks a question, keeps a budget or has a
   summary hint, headed ``## `<name>` `` with the name after `direct:` (§ 11). Every other `direct:`
@@ -142,8 +143,9 @@ questions:
   **Asks.**, **Writes.**, **Summary.**, **Re-run.**, **Budget.**, in that order, each only when the
   step has something of its own to say there. **Asks.** carries one
   ``**With question sets** (`<id>`): …`` line and one ``**Without question sets** (`<id>`): …``
-  line per question id, each at the start of its line, the Without default saying at length what
-  `brief:` `questions` says short; **Budget.** says what each further attempt does differently, the number staying in `brief:`.
+  line per question id, each at the start of its line, the Without line stating the default — the
+  one place it is written; **Budget.** says what each further attempt does differently, the
+  number staying in `brief:`.
   Each section is a short, honest stub the author will finish. It never restates a convention —
   checking the declared artifacts, handing a page to `html-companion-writer` before the completing
   write, how a revised step runs again, what a summary for a gate holds. A fix loop inside one
@@ -226,12 +228,11 @@ validate. Then run **check** on the built-in's name, which picks the overlay up,
    - **Prose sections** — read each `direct:` step's section in the companion beside the file
      that declares the step, and the `brief:` blocks of the definition, then each overlay, then
      the profile, merged as § 3.3 says:
-     - a step whose merged `brief:` has `questions`, `budget` or `recommends` but no section —
-       the step would run from the conventions with data nothing explains. Fix: write its
+     - a step whose merged `brief:` has `budget` or `recommends` but no section — the step
+       would run from the conventions with data nothing explains. Fix: write its
        section in the template (§ 11), or drop the data from `brief:`.
-     - a `questions` id with no question-set line in its section, and a question-set line whose
-       id has no `questions` entry. Fix: write the missing **With** and **Without** lines, or add
-       the id with its default to `brief:` — or delete the side that is left over.
+     - a question id with a **With question sets** line and no **Without question sets** line,
+       or the other way round. Fix: write the missing line, the Without one stating the default.
      - a `` ## `x` `` heading outside a fence whose `x` is not the name some node finds its
        section by: the name after `direct:` for a `direct:` node, the node id otherwise (a
        disabled node still counts). The report above warns `orphan-prose-section` for it: a

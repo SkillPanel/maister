@@ -164,16 +164,17 @@ findable:
 - **Write the section in the template.** Bold run-in parts, in this order and each only when the
   step has something of its own there: **Does.** what it does; **Asks.** its questions, one
   ``**With question sets** (`id`): …`` and one ``**Without question sets** (`id`): …`` line per
-  question at the start of a line, the second saying what it takes when nobody is at the keyboard;
+  question at the start of a line, the second saying what it takes when nobody is at the keyboard
+  — the one place that default is written;
   **Writes.** what it writes beyond its declared outputs; **Summary.** a hint for its closing
   summary; **Re-run.** what it does after a revise beyond the convention; **Budget.** what each
   further attempt does differently. A gate gets no section unless it carries an **Exception.**;
   `## Embedded mode` is written only where the workflow behaves differently as a child run.
 - **Put the step's data in `brief:`.** A top-level `brief:` block, keyed by node id, holds what a
-  step reads as data rather than prose: `questions` (each id and its default), `budget` (the
-  attempts it may make), `summary_keys`, `absent` (an artifact it may leave unwritten, and why)
-  and `recommends` (which continue option a gate after it recommends for a value). It sits outside
-  the graph hash, an overlay or profile may change one item, and the grammar's § 3.3 has its shape.
+  step reads as data rather than prose: `budget` (the attempts it may make), `summary_keys`,
+  `absent` (an artifact it may leave unwritten, and why) and `recommends` (which continue option a
+  gate after it recommends for a value). It sits outside the graph hash, an overlay or profile may
+  change one item, and the grammar's § 3.3 has its shape.
 - **What a step runs from.** Before each node the run reads the engine's `node-brief` for it: a
   short header, the convention rows that apply, the step's `brief:` data, then its section — or
   `section: none` for a step without one. It is the orchestrator's verb, not a command you run;

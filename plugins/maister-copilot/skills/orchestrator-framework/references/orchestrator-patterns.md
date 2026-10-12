@@ -82,7 +82,7 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 |---|---|
 | absent, or `kind: terminal` | asked in session, exactly as the phase describes it |
 | `kind: cockpit` whose `features` list `question-sets` | **suspended to the operator**: every question the phase can form at its first asking point goes out as one `kind: question` request, and the phase resumes `running` with the answers recorded as `by: operator` decisions |
-| any other — `dispatch`, or a cockpit without that feature | **never asked**; the phase takes the default its `brief:` `questions` entry names, and records that it did |
+| any other — `dispatch`, or a cockpit without that feature | **never asked**; the phase takes the default its *Without question sets* line names, and records that it did |
 
 The workflow engine's `references/in-node-questions.md` holds the mechanism — one request per attempt, written to disk before suspending, what is recorded, and the policy that classes questions when the freeze recorded `orchestrator.classes_questions`. Asking in session under a driver is the defect this rule prevents: nobody is in the session to answer.
 
