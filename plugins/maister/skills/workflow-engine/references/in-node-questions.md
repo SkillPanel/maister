@@ -263,6 +263,46 @@ after a minute). Its refusals leave nothing written:
 | `finding-brief-not-running` | The node's status is not `running`, and only a running node asks. Nothing was written. Name the node that is asking, or start it first through `write-state`, then run the verb again. |
 | `finding-brief-undeclared` | The node's prose declares no `<node>-findings` question id, so no policy could class its findings. Nothing was written. Ask the findings as the node's prose says without the verb, or add the declaration to a workflow you own, then run it again. |
 
+## A dispatch closed out partial
+
+A dispatched node — a `workflow:` node carrying `dir:` — waits while its worker runs in the
+member repository. When the dispatch's close-out is graded `partial`, the work was done but
+something is still held, and the node asks one question while still `waiting` (engine
+§ *Recording an outcome*). Its shape is fixed; only the `<…>` parts are filled, from the
+close-out — `<what is held>` from its summary or its held-command report, and `why` from its
+summary in one line:
+
+```
+{"questions": [{"id": "<node>-dispatch-held", "header": "Dispatch held",
+  "question": "<Node title> closed out partial: its work is done, but <what is held> is still held. How does the run go on?",
+  "why": "<the close-out's summary, in one line>",
+  "allow_other": false,
+  "options": [
+    {"id": "accept", "label": "Accept the work as done", "description": "Records <node> completed and the held item as an open risk; the run goes on."},
+    {"id": "redispatch", "label": "Dispatch the node again", "description": "Sends <node> to its member repository as a new dispatch; nothing after it runs until that one closes out."},
+    {"id": "stop", "label": "Stop the run", "description": "Records <node> stopped and ends the run here; the held item stays held."}]}]}
+```
+
+No option is recommended and the set names no default, so nothing continues on its own. More
+details is never offered: the question carries what is held in its own text. It is never sent
+through the classing write, so no policy settles it.
+
+- **In session** it is asked with the question tool, the same question and the same three
+  options.
+- **Under a cockpit whose `features` list `question-sets`** the waiting node writes the set to
+  the patch file, runs `gate-brief --request --patch-file=<the patch file> --node=<node>` — which
+  briefs a `waiting` node only when it carries `dir:` — and suspends with `gate-request` exactly
+  as *When a question suspends* says. The answer is folded as any set's.
+- **Under any other driver** nobody can be asked, and the run stops (*When nobody can be asked*).
+
+After the fold, one `write-state` records what the answer decided:
+
+| Answer | The write |
+|---|---|
+| `accept` | the node `completed`; its summary's `risks` gains `{risk: "Held after dispatch: <what is held>", tag: open}` |
+| `redispatch` | the node `pending`; the ready set dispatches it again through the umbrella runtime's `envelope` verb, as a new dispatch |
+| `stop` | `task.status: stopped`, the node and every unexecuted node `stopped`, then `run-complete` |
+
 ## When a question suspends
 
 Under a driver that carries question sets, a node asks what it would have asked in session —
@@ -316,6 +356,7 @@ takes:
 | A finding that needs a decision (a review step's finding questions) | nothing is asked; each finding stays open as an `open` risk for the gate, unless the policy classes it |
 | The automatic fix loop's stopping point | "Continue as is" — the open issues become `open` risks for the gate |
 | An exhausted recovery budget | the node is recorded `failed`, per engine § *Recording an outcome* |
+| A dispatch closed out partial (*A dispatch closed out partial*) | "Stop the run" — the node, every unexecuted node and the run are recorded `stopped`, and the summary carries what is held as an `open` risk; the work is never accepted and never dispatched again unasked |
 
 `(Recommended)` appears once per question, on the recommended option, whose description (or,
 without descriptions, the question) gives the reason; behind "Choose individually", no option
