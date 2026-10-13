@@ -352,9 +352,10 @@ own closing checkpoint, `held-approval` — a reserved id, never a node of the f
 before its closing patch and, under dispatch, before its close-out (`references/gates.md`
 § *The closing checkpoint `held-approval`*).
 
-**A `waiting` node is not ready.** It is a `workflow:` node whose child run has not ended: the
-walk does not execute it again, it satisfies **no** `needs`, not even under `on: always`, and it
-does **not** make the run gate-pending. Its next turn is the waiting path of *Sub-runs*.
+**A `waiting` node is not ready.** It is a `workflow:` node whose child run or dispatch has not
+ended: the walk does not execute it again, it satisfies **no** `needs`, not even under
+`on: always`, and it does **not** make the run gate-pending. Its next turn is the waiting path of
+*Sub-runs*, or for a dispatch the close-out grade (*Recording an outcome*).
 
 **No node in the shipped built-ins carries `on:`**, which is what makes a stop option terminate a
 run: nothing downstream of a stopped node ever becomes ready.
@@ -529,6 +530,34 @@ the child's `task.status` at the node's recorded `values.task_path` and maps it:
 A child can complete without an artifact its parent's node declares, when a guard skipped the
 child node that writes it: the adopting write records it under the parent node's `absent`, with
 the skip as the reason. Any other absence is left unrecorded, so `run-complete` reports it.
+
+**A dispatched node's outcome is its close-out grade, mapped rather than judged.** A node carrying
+`dir:` is recorded `waiting` while its dispatch runs, and its outcome is the grade the dispatch's
+close-out carries — `success`, `partial` or `failed`, given by the worker, or by whatever closed
+a dispatch the worker never closed. The engine never grades on a worker's behalf:
+
+| Close-out grade | Dispatched node | Run |
+|---|---|---|
+| `success` | `completed` | continues its walk; the declared outputs are exposed |
+| `partial` | unchanged, stays `waiting` | asks the held-dispatch question; its answer decides (below) |
+| `failed` | `failed` | ends `RUN-FAILED: dispatch <dispatch-id> failed`, unless a downstream node declares `on: failure` or `on: always` |
+| a stopped dispatch | `stopped` | stops outright, as for a stopped child run |
+| no close-out yet | unchanged, stays `waiting` | nothing is recorded |
+
+**`partial` is held, and the operator decides.** The work was done but something is still held —
+a push or a pull request awaiting approval. The run asks one question, named after the node,
+that says what is held, from the close-out's own summary or its held-command report, and offers
+three options, none recommended and none taken on its own:
+- **accept the work as done**: the node is recorded `completed`, and its summary gains an `open`
+  risk naming what is held;
+- **dispatch the node again**: the node goes back to `pending`, and the ready set dispatches it
+  anew — a new dispatch, since ids are never reused;
+- **stop the run**: one patch carries `task.status: stopped`, the node and every unexecuted node
+  `stopped`, then `run-complete`, as for a stopped child run.
+
+It is asked in session with the question tool, and under a driver suspended as an in-node
+question set from the waiting node; where the driver carries no question sets, the run stops
+(`references/in-node-questions.md` § *A dispatch closed out partial*).
 
 **A declared artifact path resolves against the task directory of the run that wrote it** — the
 run's own for a `direct:`, `skill:` or `agent:` node, the child's (the node's recorded

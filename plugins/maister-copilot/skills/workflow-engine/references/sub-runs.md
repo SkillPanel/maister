@@ -332,7 +332,8 @@ one the child's producing node declares. Binding is by name; there is no renamin
 names resolves in the *member* repository rather than this one — so holding it against a local
 file of the same name would warn about a disagreement that does not exist, on every node of every
 workspace chain. **The reserved-name check still applies to it**, because that one is a rule about
-what a `workflow:` node may declare, whatever ends up running it.
+what a `workflow:` node may declare, whatever ends up running it. Nor is its outcome a child's
+status: it is mapped from the dispatch's close-out grade (engine § *Recording an outcome*).
 
 ---
 

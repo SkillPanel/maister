@@ -31,7 +31,8 @@
  * `gate-brief-no-graph` (no definition, no frozen needs and no summary to fall
  * back on). A question set a node asks inside itself has four more, none
  * fixed by a write: `gate-brief-questions-unsupported` (the driver carries no
- * question sets), `gate-brief-not-askable` (a gate, or a node not running),
+ * question sets), `gate-brief-not-askable` (a gate, or a node not running —
+ * a waiting dispatch excepted, which asks what its partial close-out holds),
  * `gate-brief-questions-invalid` (the set itself, corrected in the patch file,
  * or a set lacking an id the classing write left to ask) and
  * `gate-brief-nothing-to-ask` (the classing write settled every question, so
@@ -444,7 +445,9 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
  * `kind: question` checkpoint, or the whole request a driver suspends on. Only
  * under a driver that carries question sets — anywhere else the node takes the
  * default its prose names — and only while the node is running, since a node
- * asks from inside its own work.
+ * asks from inside its own work. The one exception is a dispatch: a node
+ * carrying `dir:` waits while its worker runs elsewhere, and when the dispatch
+ * closes out `partial` the waiting node asks what the close-out holds.
  */
 function questionBrief({ doc, state, workflow, recorded, node, form, questions }) {
   const entry = entryOf(recorded, node);
@@ -458,9 +461,12 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
       `this run's driver (${JSON.stringify(driver.kind ?? 'terminal')}) does not carry question sets: only a cockpit driver whose features list question-sets does. `
       + 'Nothing was written. Ask in session when no driver is set; under any other driver take the default the node prose names and record it as a by: default decision');
   }
-  if ((entry.status ?? 'pending') !== 'running') {
+  const runDir = path.dirname(path.resolve(state));
+  const current = reread(doc, workflow, runDir);
+  const status = entry.status ?? 'pending';
+  if (status !== 'running' && !(status === 'waiting' && dispatched(current, node))) {
     return refuse('gate-brief-not-askable',
-      `--node=${node} is ${JSON.stringify(entry.status ?? 'pending')}, and only a running node asks a question inside itself. Nothing was written. `
+      `--node=${node} is ${JSON.stringify(status)}, and only a running node asks a question inside itself, or a waiting node carrying dir: whose dispatch closed out partial. Nothing was written. `
       + 'Name the node that is asking; a node that has not started, or has ended, has nothing to ask');
   }
   // What the classing write left to ask, when the run classes questions: the
@@ -489,8 +495,7 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
     }
     set = { ...set, questions: set.questions.filter(question => asking.includes(question.id)) };
   }
-  const runDir = path.dirname(path.resolve(state));
-  const { display } = reread(doc, workflow, runDir);
+  const { display } = current;
   const order = frozenIds(recorded);
   const title = titleOf(display.titles, node);
   const checkpoint = questionCheckpoint({
@@ -513,6 +518,16 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   }
   if (form === 'checkpoint') return { ok: true, checkpoint, panel, errors: [], warnings: [] };
   return { ok: true, request: questionRequest(checkpoint), panel, errors: [], warnings: [] };
+}
+
+/**
+ * Whether `node` is a dispatch in the run's resolved graph: a node carrying
+ * `dir:`, read only while the definition still resolves to the frozen hash.
+ */
+function dispatched({ graph, drift }, node) {
+  if (drift || !graph) return false;
+  const entry = (graph.nodes ?? []).find(each => each.id === node);
+  return typeof entry?.dir === 'string' && entry.dir !== '';
 }
 
 /** The reserved closing checkpoint's header, as every surface but the rich picker's chip shows it. */
