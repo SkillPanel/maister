@@ -121,6 +121,12 @@ workspace with work in flight.
   in the step's own section. In your own workflow, a step with nothing to say beyond those rules
   needs no section in its guide; a guide heading that names no step is warned about rather than
   ignored.
+- **A context pack for a run.** `/maister:development` and `/maister:research` take
+  `--context=PATH`: a file or a directory, relative to the project root, that the run's first phase
+  copies into `analysis/work-context/` and records as `work_reference` in the run's context block.
+  Every later phase reads it as background. A path that cannot be read is reported and the run
+  continues without it. Adding it changed both definitions' graphs, so an eject or an overlay of
+  either built-in is checked again against the new base.
 - **Also new.** Umbrella workspaces span several repositories (`/maister:umbrella init`, `validate`
   and `prune`) and are driven as chains from the
   [maister cockpit](https://github.com/SkillPanel/maister-cockpit). On GitHub Copilot CLI, the

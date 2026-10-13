@@ -122,6 +122,7 @@ Starts the unified development workflow (14 adaptive phases) or resumes an exist
 | `--e2e` / `--no-e2e` | Recommend running or skipping the E2E browser checks; the verification checkpoint still asks, with one continue for each |
 | `--user-docs` / `--no-user-docs` | Generate or skip user documentation without being asked (asked if omitted) |
 | `--research=PATH` | Start development informed by a completed research task |
+| `--context=PATH` | Hand the run a context pack — a file or a directory, relative to the project root — copied into the task's `analysis/work-context/` as background for every phase; a path that cannot be read is reported and the run continues without it |
 | `--design=PATH` | Start development from a completed product-design task: its brief and mockups become the design context |
 | `--architecture=PATH` | Build within a high-level design — a design document, or a research task that wrote one: its interfaces, contracts and decisions constrain the specification and the plan |
 | `--sequential` | Run task groups one at a time instead of in parallel waves |
@@ -186,6 +187,7 @@ Starts research workflow with multi-source gathering, synthesis, and optional so
 | `--type=technical\|requirements\|literature\|mixed` | Research methodology type |
 | `--brainstorm` / `--no-brainstorm` | Recommend going on to solution brainstorming, or past it, at the checkpoint after the research (still asked) |
 | `--design` / `--no-design` | Recommend going on to the high-level design, or finishing without one, at the checkpoint that decides it (still asked) |
+| `--context=PATH` | Hand the run a context pack — a file or a directory, relative to the project root — copied into the task's `analysis/work-context/` as background for the brief, the plan and the gathering; a path that cannot be read is reported and the run continues without it |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
 

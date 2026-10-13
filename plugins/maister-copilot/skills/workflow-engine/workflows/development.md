@@ -68,6 +68,13 @@ and the context ingests the rest of the run reads from.
    — which of the three sources supplied it, the product-design task path when
    that was the source, how many mockups were copied, whether a brief came with
    them, and the index path. It stays unset when no source existed.
+9. **Ingest a context pack** when the context input names one — a file or a
+   directory handed over by whatever started the run. Copy it under
+   `analysis/work-context/` as it is, and record `task_context.work_reference`
+   with its `path` as given. The pack has no shape the run may assume: read it
+   as background that **informs** every later node, never as a specification,
+   and let it skip nothing. When the path is missing or cannot be read, say so
+   in one line in the node summary and continue without it.
 
 **Asks.** Before anything else, when the invocation supplied no task
 description, ask for it as free text — "What should this run build or fix? One

@@ -635,13 +635,14 @@ function replayRecorded(t, absent = {}) {
   return run;
 }
 
-test('recorded run: as it closed, four conditional artifacts read as missing', t => {
+test('recorded run: as it closed, five conditional artifacts read as missing', t => {
   const result = complete(replayRecorded(t));
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, [
     'missing-artifact: intake analysis/architecture-context',
     'missing-artifact: intake analysis/design-context/INDEX.md',
     'missing-artifact: intake analysis/research-context',
+    'missing-artifact: intake analysis/work-context',
     'missing-artifact: planning implementation/visual-coverage.md',
     'RUN-COMPLETE',
     '',
@@ -654,6 +655,7 @@ test('recorded run: with the absences its nodes sanction recorded, it ends on RU
       research_context: 'no research was passed in',
       design_index: 'no design context was passed in',
       architecture_context: 'no architecture was passed in',
+      work_context: 'no context pack was passed in',
     },
     planning: { visual_coverage: 'no design index exists, so there is nothing to cover' },
   });

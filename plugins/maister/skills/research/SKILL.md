@@ -26,7 +26,8 @@ before the next call, check that you did (engine Step 4).
 
 - **The flags are inputs of the definition**, handed to the engine as such: `--type=TYPE` is
   `research_type`; `--brainstorm` and `--no-brainstorm` are `brainstorm: yes` and
-  `brainstorm: no`; `--design` and `--no-design` are `design: yes` and `design: no`. The two
+  `brainstorm: no`; `--design` and `--no-design` are `design: yes` and `design: no`; `--context=PATH` is
+  `context`, a context pack the first phase copies in. The brainstorm and design
   flags set which way on the checkpoint that decides each stretch recommends; the checkpoint is
   still asked. A flag that was not passed supplies no input, and the run recommends from what it
   found. An invocation
