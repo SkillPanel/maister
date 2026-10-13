@@ -50,7 +50,8 @@ test('seed: a gate suspends through gate-request alone, and the answer is folded
   assert.ok(line, 'the seed carries the gate instruction');
   assert.match(line, /suspend the run through the gate-request verb alone, never by hand-writing the request file, the gate index or the pending marker/);
   assert.match(line, /on resume, apply the operator's answer exactly as the driver-suspended resume in \S+ says/);
-  const reference = path.join(pluginRoot, 'skills/workflow-engine/references/gates.md');
+  // Joined with `/` after the root, as the seed names the engine script too.
+  const reference = `${pluginRoot}/skills/workflow-engine/references/gates.md`;
   assert.ok(line.includes(reference), 'the gate reference is named by its absolute path');
   assert.ok(existsSync(reference), 'the named gate reference exists');
 });
