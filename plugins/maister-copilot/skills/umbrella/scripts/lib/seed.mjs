@@ -123,12 +123,21 @@ const script = root => `${root}/skills/umbrella/scripts/umbrella.mjs`;
 
 /**
  * The engine script a dispatched worker suspends its own gates through. Named
- * here for the same reason the outbox verb is: the gate files are a frozen
- * shape, and a worker that hand-writes them writes a question no reader
- * matches. It is one call because it cannot be two — the run is pending the
- * moment the request file lands.
+ * here for the same reason the outbox verb is: the request file, the gate
+ * index and the pending marker are a frozen shape, and a worker that
+ * hand-writes them writes a question no reader matches. It is one call because
+ * it cannot be two — the run is pending the moment the request file lands.
  */
 const workflowScript = root => `${root}/skills/workflow-engine/scripts/workflow.mjs`;
+
+/**
+ * The engine's gate reference, which says how a resumed worker folds the
+ * operator's answer into its own run: the answer block, the node's summary and
+ * status, the marker cleared last, then the writer's re-validation. The seed
+ * names it rather than restating it, and must not forbid it: a worker told
+ * never to touch the gate files cannot record the answer it was woken with.
+ */
+const gatesReference = root => `${root}/skills/workflow-engine/references/gates.md`;
 
 /**
  * The plugin install this runtime is executing out of, used when a caller names
@@ -315,7 +324,7 @@ function taskLines({ document, workflow, pluginRoot }) {
   // The dispatch id goes in beside the kind and the cwd because dispatches into
   // one member share its worktree: two runs in one checkout are told apart by
   // the dispatch each records, and by nothing else in their state.
-  lines.push(`You run under the dispatch driver: record \`orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>, dispatch_id: ${oneLine(document.dispatch_id)}}\` in your run state - the cwd is required beside the kind, and a block carrying only the kind is an invalid state; the dispatch id is what tells your run apart from another dispatch working in the same checkout. At every gate suspend the run, never by writing the gate files yourself. The only source of the request is the engine's gate-brief verb:`);
+  lines.push(`You run under the dispatch driver: record \`orchestrator.driver: {kind: dispatch, cwd: <the directory named above, absolute>, dispatch_id: ${oneLine(document.dispatch_id)}}\` in your run state - the cwd is required beside the kind, and a block carrying only the kind is an invalid state; the dispatch id is what tells your run apart from another dispatch working in the same checkout. At every gate suspend the run through the gate-request verb alone, never by hand-writing the request file, the gate index or the pending marker; on resume, apply the operator's answer exactly as the driver-suspended resume in ${gatesReference(pluginRoot)} says. The only source of the request is the engine's gate-brief verb:`);
   lines.push(`  node ${workflowScript(pluginRoot)} gate-brief --state=<your own orchestrator-state.yml> --node=<the gate's node id> --request`);
   lines.push('Write what it prints, unchanged, with your file tool to `.state-patch.json` beside that state file - never composed or edited by you, never through a heredoc or a pipe. Then make one call to the gate-request verb:');
   lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml> --patch-file=<the .state-patch.json beside it>`);
