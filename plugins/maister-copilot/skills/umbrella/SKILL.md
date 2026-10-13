@@ -484,19 +484,13 @@ one list or the other so a spawner never has to invent one.
 
 **Translating them.** On Copilot the atoms are already the vocabulary: pass each
 denied atom verbatim, `--deny-tool='shell(git push)'`, `--deny-tool='write'`.
-On Claude the reliable lever is **removing the capability**, not describing it:
-deny the tool itself, and where a tier must keep a shell, gate it with a
-`PreToolUse` hook that inspects the command the worker actually runs.
-
-**A command gate matches the command, never the data it carries.** A worker's
-commands routinely *contain* the words of a denied atom without doing it: a
-state patch in a heredoc, a commit message, a research finding. During this
-runtime's live acceptance a tier gate denied a legitimate state write because
-the patch's own prose explained that a directory had arrived by `git subtree
-merge`. Strip heredoc bodies and quoted strings before matching, or the gate
-denies a worker for what it says rather than what it does — and the worker then
-routes around a denial that should never have fired, which is the reflex the
-whole design exists to avoid provoking.
+On Claude the tier becomes **Claude's own permission rules** for the worker's
+session: a deny for what the tier refuses, an ask for what it relays to an
+operator, an allow only for what it grants, and a permission mode that leaves
+every other call to Claude's own judgement — never one that skips the rules.
+Nothing outside the CLI decides a call. Where a tier must not have a capability
+at all, removing the tool itself is the one lever that holds however a command
+is spelled.
 
 **Do not enforce a shell atom with an argument pattern.** A rule of the shape
 `Bash(git push:*)` reads like the atom and is not equivalent to it. It matches
@@ -517,7 +511,9 @@ which is what isolates the cause to the rewrite rather than to the matching.
 So the rule is not inert, and it is still not an enforcement mechanism. What it
 depends on is a property of the operator's machine that a spawner cannot see,
 and it is a behaviour measured at one version rather than anything guaranteed.
-Treat it as advisory; put the enforcement in the tool list or the hook.
+Treat an ask or deny rule as the first line, not the fence: what it misses goes
+to Claude's own judgement. Put hard enforcement in the tool list, the provider's
+sandbox or branch protection on the git host.
 
 **The consequence of skipping this** is a run whose autonomy tier is decorative:
 every envelope, ledger entry and seed still says `attended`, the worker still
