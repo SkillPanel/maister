@@ -101,6 +101,7 @@ test('a profile cannot add back a node its own overlay body disabled', t => {
 const BASE_WITH = {
   task_description: '${inputs.task_description}',
   research_context: '${intake.artifacts.research_context}',
+  work_context: '${intake.artifacts.work_context}',
   design_index: '${intake.artifacts.design_index}',
 };
 

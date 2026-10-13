@@ -234,9 +234,11 @@ test('resolve prints no brief, and the block leaves the graph hash where it was'
 
 const WORKFLOWS = path.join(ENGINE_DIR, 'workflows');
 
+// Development's and research's moved with the optional context input their
+// first nodes take; the brief block itself moves none of them.
 const BASELINE_HASHES = {
-  development: 'sha256:07283f38099328aa45b9031c81e9320e199f2cc2bd14d6dc97d8e76bdb56d47c',
-  research: 'sha256:e2bdfcbcb2cddbaf0d0c972c07ed51cddddf8abe33fc171092c038e925e688a5',
+  development: 'sha256:7e3c72d72b5d95b7cbf9dde960a82f8ae09327e1e24978db9c42de83ed605295',
+  research: 'sha256:95b869ae2079a9009c0e4e349b6f0af1c005fec1debf64c1a727de09872cc166',
   performance: 'sha256:183605fc3986554aedd5cf5b92ce001ef65302858909b2984d96d0b8fbbcce62',
   migration: 'sha256:04f475d1cb380017e6a30a1038448b5af8fb5ecb874ce98b5e67ed5d4ebc1546',
   'product-design': 'sha256:08bd2d76e6c1472b130e22ca7a2a8f5d10fb46fd2d380522edb9f5af669c9e00',

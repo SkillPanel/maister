@@ -68,6 +68,9 @@ inputs:
   # a flag only sets which continue the node it closes recommends.
   brainstorm: {type: string, required: false}
   design: {type: string, required: false}
+  # The path of a context pack — a file or a directory — handed over by
+  # whatever started the run; the foundation copies it in as context.
+  context: {type: path, required: false}
   # "This run is a sub-run of another run." The engine supplies it at the child
   # freeze; an operator never types it. Its only effect here is the guard on
   # `completion`, which a parent has no use for.
@@ -169,6 +172,8 @@ html_companions:
 brief:
   research-foundation:
     summary_keys: [phase-1]
+    absent:
+      work_context: "No context pack was named, or it could not be read."
     recommends:
       brainstorm_flag: {"yes": continue-to-brainstorming}
   solution-generation:
@@ -192,6 +197,7 @@ nodes:
     with:
       question: "${inputs.question}"
       research_type: "${inputs.research_type}"
+      context: "${inputs.context}"
       # Read when this node writes its closing summary, to say which continue
       # of `foundation-approval` it recommends; not the research's input.
       brainstorm_flag: "${inputs.brainstorm}"
@@ -204,6 +210,7 @@ nodes:
         findings: analysis/findings
         synthesis: analysis/synthesis.md
         report: outputs/research-report.md
+        work_context: analysis/work-context
       values:
         confidence_level: {enum: [high, medium, low]}
         # A handle, not the content: the one-line conclusion of the research

@@ -245,10 +245,10 @@ Workflows add domain-specific fields in their context block, at the **top level*
 
 | Domain | Context Field | Example Fields |
 |--------|---------------|----------------|
-| Development | `task_context` | risk_level, architecture_decision, task_characteristics (`ui_heavy` nests here), research_reference, architecture_reference |
+| Development | `task_context` | risk_level, architecture_decision, task_characteristics (`ui_heavy` nests here), research_reference, work_reference, architecture_reference |
 | Performance | `performance_context` | bottlenecks_identified, user_data_available, bottleneck_priorities |
 | Migration | `migration_context` | migration_type, migration_strategy, breaking_changes, rollback_plan_created |
-| Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy |
+| Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy, work_reference |
 | Product design | `design_context` | design_characteristics, complexity_level, refinement_iterations, visual_companion |
 
 Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/references/writing-state.md`); the phase keys each node mirrors are its `brief:` `summary_keys` in that workflow's definition, `workflow-engine/workflows/<name>.yml`, which `node-brief` prints for the node, and for product design the block's shape is "The context block" in `product-design.md` beside it.
@@ -274,6 +274,21 @@ task_context:
 ```
 
 Research context flows to ALL phases via context passing. Artifacts are also copied to `analysis/research-context/`.
+
+### Shared: work_reference
+
+When a development or research run is started with a context pack (`--context` flag, the
+`context` input), the run's context block records where it came from, and the pack is copied to
+`analysis/work-context/`:
+
+```yaml
+task_context:          # research_context in a research run
+  work_reference:
+    path: null         # the path as given, relative to the project root
+```
+
+The pack is background, not a specification; a path that is missing or unreadable is reported in
+the first node's summary and the run continues without it.
 
 ### Shared: verification_context
 

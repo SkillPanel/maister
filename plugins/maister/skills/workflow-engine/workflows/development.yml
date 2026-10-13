@@ -66,6 +66,9 @@ description: "Builds a change to the code — a new feature, an enhancement, a b
 inputs:
   task_description: {type: string, required: true}
   research: {type: string, required: false}
+  # The path of a context pack — a file or a directory — handed over by
+  # whatever started the run; the intake copies it in as context.
+  context: {type: path, required: false}
   # The path of a completed product-design task, or of its brief, whose brief
   # and mockups the intake copies in as the run's design context.
   design: {type: string, required: false}
@@ -225,6 +228,7 @@ brief:
     summary_keys: [research, design]
     absent:
       research_context: "No research task was named."
+      work_context: "No context pack was named, or it could not be read."
       design_index: "No design source was ingested."
       architecture_context: "No architecture was supplied, or it resolved to no file."
   codebase-analysis:
@@ -275,11 +279,13 @@ nodes:
     with:
       task_description: "${inputs.task_description}"
       research: "${inputs.research}"
+      context: "${inputs.context}"
       design: "${inputs.design}"
       architecture: "${inputs.architecture}"
     outputs:
       artifacts:
         research_context: analysis/research-context
+        work_context: analysis/work-context
         design_index: analysis/design-context/INDEX.md
         architecture_context: analysis/architecture-context
 
@@ -289,6 +295,7 @@ nodes:
     with:
       task_description: "${inputs.task_description}"
       research_context: "${intake.artifacts.research_context}"
+      work_context: "${intake.artifacts.work_context}"
       design_index: "${intake.artifacts.design_index}"
     outputs:
       artifacts:
