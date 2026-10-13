@@ -17,6 +17,37 @@ guessing. Every default a run takes is written onto that phase's summary, beside
 the run's dashboard and its state both show which questions were answered for you and what the
 answer was — and the next pause is where you change any of it.
 
+## Permissions in a run the cockpit drives
+
+In your terminal, a run asks permission the way your CLI always does, under your own settings. A
+session the cockpit drives still runs under its CLI's own permission system: the cockpit sets that
+system up from the session's preset or the worker's autonomy tier, and decides no call itself.
+
+- **Claude Code.** The level becomes Claude's own permission rules, and the session runs in auto
+  mode, which judges any call no rule covers; a read-only session only reads and asks nothing. A
+  call a rule holds — a push, a pull request, a release or a merge, and at the most careful level
+  a commit or an install too — reaches you as a card in the cockpit and waits until you answer it.
+  **Allow for the session** adds one more of Claude's own rules. The engine's own state writes are
+  allowed, so a run does not ask you to approve itself.
+- **Copilot CLI.** Copilot cannot stop and ask in the middle of a headless turn, so each turn starts
+  with a fixed list of allowed and refused tools. A refused call reaches you as a card. **Allow from
+  next turn** adds the narrowest rule Copilot honours for that command, from the session's next
+  turn; it never applies to the turn that was refused.
+- **Grants from a gate.** A gate option that also pushes the branch and opens a pull request says so
+  on its card. Choosing it grants exactly that, to the worker whose gate you answered, for that
+  worker's own branch. On Claude the grant becomes the session's own rules until the run hands off;
+  on Copilot it covers the worker's next turn only, and the turn after is refused again. The run
+  lists every grant in force, each with a revoke.
+
+The pauses between phases are asked as described above whatever the level, and the plugin's guard
+against destructive commands from subagents applies under the cockpit as in your terminal. Neither
+CLI's rules hold everything: a rule matches the start of a command, so it holds nothing spelled
+another way. Each level's details, and what is not held, are in the cockpit's guides:
+[Autonomy tiers and permissions](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/autonomy.md),
+[What Claude cannot hold](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/what-claude-cannot-hold.md),
+[What Copilot can and cannot hold](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/copilot.md)
+and [How a Claude session asks you](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/sessions.md#how-a-claude-session-asks-you-and-when-it-falls-back).
+
 ## Development Workflow
 
 The unified development workflow handles features, enhancements, and bug fixes through a 14-phase adaptive pipeline. Phases activate or skip based on task type.
