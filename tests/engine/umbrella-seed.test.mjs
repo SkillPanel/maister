@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import { ROOT } from '../helpers.mjs';
@@ -36,6 +37,22 @@ test('seed: a driven gate request comes from gate-brief --request alone, written
   assert.match(lines[brief + 1], /Write what it prints, unchanged, .*`\.state-patch\.json`.*never composed or edited by you/);
   assert.match(lines[brief + 1], /Then make one call to the gate-request verb/);
   assert.equal(lines.filter(line => /gate-request --state=/.test(line)).length, 1, 'one gate-request call');
+});
+
+// The seed forbids hand-writing the suspend side only: a resumed worker folds
+// the answer into its own run as the engine's gate reference says, and a seed
+// that forbade touching the gate files would forbid that fold too.
+test('seed: a gate suspends through gate-request alone, and the answer is folded as the gate reference says', () => {
+  const pluginRoot = path.join(ROOT, 'plugins/maister');
+  const prompt = renderSeed(buildSeed(ENVELOPE, { pluginRoot }));
+  assert.doesNotMatch(prompt, /never by writing the gate files yourself/);
+  const line = prompt.split('\n').find(l => l.includes('At every gate'));
+  assert.ok(line, 'the seed carries the gate instruction');
+  assert.match(line, /suspend the run through the gate-request verb alone, never by hand-writing the request file, the gate index or the pending marker/);
+  assert.match(line, /on resume, apply the operator's answer exactly as the driver-suspended resume in \S+ says/);
+  const reference = path.join(pluginRoot, 'skills/workflow-engine/references/gates.md');
+  assert.ok(line.includes(reference), 'the gate reference is named by its absolute path');
+  assert.ok(existsSync(reference), 'the named gate reference exists');
 });
 
 test('seed: the worker records its dispatch id in the driver block, beside the kind and the cwd', () => {
