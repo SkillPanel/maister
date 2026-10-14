@@ -234,6 +234,69 @@ test('seed: the ceiling line is present with a ceiling, absent without, never an
   }
 });
 
+// A dispatching run names its read-only inputs relative to the workspace root,
+// and the worker's cwd is a member checkout. Under a root, a relative input is
+// stated anchored there; an absolute one and a value that is not a path are
+// stated as given. Without a root the inputs render exactly as they always did.
+
+const INPUTS = [
+  { path: '.maister/work/d-0001/context.md', role: 'context' },
+  { path: 'research/report.md', role: 'research' },
+  { path: '/abs/spec.md', role: 'spec' },
+  { path: 'attended', role: 'mode' },
+  { path: 42, role: 'count' },
+  { path: true, role: 'flag' },
+];
+
+function seedLines(envelope) {
+  const lines = renderSeed(buildSeed(envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') })).split(/\r?\n/);
+  assert.ok(lines.length <= SEED_LINE_CAP, `the seed is ${lines.length} lines`);
+  return lines;
+}
+
+function inputBlockOf(lines) {
+  const header = lines.findIndex(line => line.startsWith('Inputs from the dispatching run'));
+  assert.ok(header > lines.indexOf('# task'), 'the inputs are stated under # task');
+  return lines.slice(header, header + 1 + INPUTS.length);
+}
+
+test('seed: under a workspace root a relative input is anchored there, an absolute one and a value are stated as given', () => {
+  const root = ENVELOPE.workspace_root;
+  const [header, ...inputs] = inputBlockOf(seedLines({ ...ENVELOPE, inputs: INPUTS }));
+  assert.match(header, /read-only, each relative path anchored at the workspace root/);
+  assert.doesNotMatch(header, /spelled as that run named them/);
+  assert.equal(inputs[0], `  ${root}/.maister/work/d-0001/context.md (context)`);
+  assert.equal(inputs[1], `  ${root}/research/report.md (research - required reading: read it in full before any work starts)`);
+  assert.equal(inputs[2], '  /abs/spec.md (spec)', 'an absolute input is kept');
+  assert.deepEqual(inputs.slice(3), ['  attended (mode)', '  42 (count)', '  true (flag)'], 'a value is not a path');
+});
+
+test('seed: control — without a workspace root the inputs render as the run named them', () => {
+  const { workspace_root, ...unrooted } = ENVELOPE;
+  assert.deepEqual(inputBlockOf(seedLines({ ...unrooted, inputs: INPUTS })), [
+    'Inputs from the dispatching run, read-only and spelled as that run named them rather than anchored here. If one does not resolve, send a blocked message rather than guessing:',
+    '  .maister/work/d-0001/context.md (context)',
+    '  research/report.md (research - required reading: read it in full before any work starts)',
+    '  /abs/spec.md (spec)',
+    '  attended (mode)',
+    '  42 (count)',
+    '  true (flag)',
+  ]);
+});
+
+test('seed: the identity section no longer names the read-only inputs as an exception', () => {
+  const { workspace_root, ...unrooted } = ENVELOPE;
+  for (const envelope of [ENVELOPE, unrooted]) {
+    const lines = seedLines({ ...envelope, inputs: INPUTS });
+    const identity = lines.slice(lines.indexOf('# identity'), lines.indexOf('# task'));
+    const work = identity.find(line => line.startsWith('Work in '));
+    assert.ok(work, 'the identity section says where to work');
+    assert.doesNotMatch(work, /exception|read-only inputs/, work);
+  }
+  const rooted = seedLines({ ...ENVELOPE, inputs: INPUTS }).find(line => line.startsWith('Work in '));
+  assert.equal(rooted, `Work in ${ENVELOPE.workspace_root}/members/app. Every path below is absolute; write nothing outside that directory except the outbox input file and through the outbox verb, both named below.`);
+});
+
 // A seed lists the outcome's other dispatches only when its envelope does; with
 // none it renders exactly the section it always did, and a malformed list is
 // refused rather than rendered.

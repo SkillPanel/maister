@@ -370,9 +370,15 @@ is a pure function of the envelope, so its output is reproducible and testable.
 The section set and their order are frozen and the prompt is capped; the wording
 inside each section is free. A descriptor that would render past the cap is
 **refused, never truncated** — a silently shortened prompt is a worker missing
-its close-out contract. `--siblings` counts the other dispatches in the same
-wave, which is what lets the prompt say how many workers are in flight and that
-they coordinate only through their outboxes. When the envelope lists the other
+its close-out contract. The read-only inputs a dispatching node names in its
+`with:` map are relative to the workspace root, as every other path in the
+workspace is: when the envelope carries `workspace_root`, the prompt states each
+relative one under that root and an absolute one as is, so a worker in a member
+checkout never resolves one against the member repository; a value that is not
+a path is stated as given, and without a root every input is stated as named.
+`--siblings` counts the other dispatches in the same wave, which is what lets the
+prompt say how many workers are in flight and that they coordinate only through
+their outboxes. When the envelope lists the other
 dispatches of the same outcome — an optional `siblings` field, a list of
 `{member, branch, worktree}` that only the dispatching caller can fill, sent in
 the `envelope` overrides — the prompt names each one as a reference to read for
