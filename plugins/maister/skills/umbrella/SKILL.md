@@ -376,7 +376,11 @@ they coordinate only through their outboxes. When the envelope lists the other
 dispatches of the same outcome — an optional `siblings` field, a list of
 `{member, branch, worktree}` that only the dispatching caller can fill, sent in
 the `envelope` overrides — the prompt names each one as a reference to read for
-what it delivers and never to write. Without the field, nothing changes.
+what it delivers and never to write. A sibling's worktree follows the target's
+rule: a relative one is relative to that member's checkout, which the envelope
+resolves from the manifest by the member's name, and an absolute one is used as
+is; a member the manifest does not declare keeps its worktree exactly as sent.
+Without the field, nothing changes.
 
 **`ledger`** — for every state change to a dispatch after the envelope opened
 it. Seven ops: create an entry, claim it, update its status, add a constraint,

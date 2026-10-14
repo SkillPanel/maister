@@ -295,21 +295,26 @@ test('validate: control — publish alone, or a declared false alone, warns noth
 // read-only reference; absent, the envelope carries no key; malformed, the
 // dispatch is refused and nothing is published.
 
-const SIBLINGS = [{ member: 'beta', branch: 'feature/2026-01-05-chain-beta', worktree: 'repos/beta/.worktrees/2026-01-05-chain-beta' }];
+const SIBLINGS = [
+  { member: 'beta', branch: 'feature/2026-01-05-chain-beta', worktree: '.worktrees/2026-01-05-chain-beta' },
+  { member: 'gamma', branch: 'feature/2026-01-05-chain-gamma', worktree: '.worktrees/2026-01-05-chain-gamma' },
+];
 
-test('envelope: listed siblings are written and named by the seed as read-only references', (t) => {
+test('envelope: listed siblings are written with their member path and named by the seed as read-only references', (t) => {
   const ws = workspace(t);
   const report = published(dispatch(ws, publishChain(ws, []), { siblings: SIBLINGS }));
-  assert.deepEqual(report.envelope.siblings, SIBLINGS);
-  assert.match(fs.readFileSync(report.path, 'utf8'), /^siblings: \[\{member: beta, branch: feature\/2026-01-05-chain-beta, worktree: repos\/beta\/\.worktrees\/2026-01-05-chain-beta\}\]$/m);
+  // A declared member gains its manifest path; one the manifest does not declare is written as sent.
+  assert.deepEqual(report.envelope.siblings, [{ ...SIBLINGS[0], path: 'repos/beta' }, SIBLINGS[1]]);
+  assert.match(fs.readFileSync(report.path, 'utf8'), /^siblings: \[\{member: beta, path: repos\/beta, branch: feature\/2026-01-05-chain-beta, worktree: \.worktrees\/2026-01-05-chain-beta\}, \{member: gamma, branch: feature\/2026-01-05-chain-gamma, worktree: \.worktrees\/2026-01-05-chain-gamma\}\]$/m);
 
   const seeded = umbrella(['seed', `--envelope=${report.path}`]);
   assert.equal(seeded.code, 0, seeded.stdout + seeded.stderr);
-  const lines = JSON.parse(seeded.stdout).prompt.split('\n');
+  const lines = JSON.parse(seeded.stdout).prompt.split(/\r?\n/);
   const section = lines.slice(lines.indexOf('# siblings'));
   assert.ok(section.some((line) => /for reading only - never edit, commit or run anything that writes there/.test(line)), section.join('\n'));
   const anchored = `${report.envelope.workspace_root}/repos/beta/.worktrees/2026-01-05-chain-beta`;
   assert.ok(section.includes(`- beta: worktree ${anchored}, branch feature/2026-01-05-chain-beta`), section.join('\n'));
+  assert.ok(section.includes('- gamma: worktree .worktrees/2026-01-05-chain-gamma, branch feature/2026-01-05-chain-gamma'), section.join('\n'));
 });
 
 test('envelope: control — no siblings listed writes no key, and an empty list is the same', (t) => {
