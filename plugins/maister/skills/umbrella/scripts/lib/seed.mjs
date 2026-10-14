@@ -249,8 +249,8 @@ function identityLines({ document, chain, target }) {
     `You are dispatch ${oneLine(document.dispatch_id)} of run ${oneLine(chain.run_id)}, node ${oneLine(chain.node)}.`,
     `Member ${oneLine(target.member)}, checked out at ${checkout}${target.worktree ? `, worktree ${where}` : ''}.`,
     root === null
-      ? `Work in ${where}. The paths below are relative to the workspace root - the directory holding the member checkouts - and never to your own working directory. The one exception is the read-only inputs under \`# task\`, which are as the dispatching run named them and are anchored to nothing here.`
-      : `Work in ${where}. Every path below is absolute except the read-only inputs under \`# task\`, which are as the dispatching run named them; write nothing outside that directory except the outbox input file and through the outbox verb, both named below.`,
+      ? `Work in ${where}. The paths below are relative to the workspace root - the directory holding the member checkouts - and never to your own working directory.`
+      : `Work in ${where}. Every path below is absolute; write nothing outside that directory except the outbox input file and through the outbox verb, both named below.`,
     document.autonomy === RELAYED
       // "Wait for that decision" was the wording here too, and it contradicts
       // what `# closeout` now says. A held command is not a pause a turn can
@@ -273,6 +273,16 @@ function identityLines({ document, chain, target }) {
  * The statement of the work is the envelope's `statement`, when the dispatching
  * node carried one. Absent it the seed still names the workflow and its
  * arguments, which is the whole of what the node said.
+ *
+ * The read-only inputs are anchored like every other path. A dispatching run
+ * names them relative to the workspace root, and the worker's cwd is a member
+ * checkout, where such a path either resolves to nothing or to a same-named
+ * file in the member repository. So an input whose value is a relative path —
+ * a string, not absolute, that contains a `/` or starts with `.` — is stated
+ * under the envelope's `workspace_root`; an absolute one is stated as is, and
+ * anything else — a plain word, a number, a boolean — is a value and is stated
+ * as is. Without a `workspace_root` every input is stated as the run named it,
+ * which is relative to the workspace root like the other paths then.
  */
 /**
  * The definition a `workflow:` target names, bare, or `null` for every other
@@ -359,12 +369,14 @@ function taskLines({ document, workflow, pluginRoot }) {
     for (const name of names) lines.push(`  ${oneLine(name)} = ${oneLine(args[name])}`);
   }
   if (inputs.length) {
-    // Stated as the dispatching run wrote them and deliberately not anchored:
-    // these are run outputs, and this envelope carries no run directory to
-    // resolve them against. Guessing one would send a worker to a path that
-    // does not exist; saying so gives it the move that does — a blocked
+    // Anchored by the rule above. The envelope keeps the run's literal path, so
+    // the anchoring happens here and only here. An input that still does not
+    // resolve gets the move that works rather than a guess - a blocked
     // message, which is what the outbox is for.
-    lines.push('Inputs from the dispatching run, read-only and spelled as that run named them rather than anchored here. If one does not resolve, send a blocked message rather than guessing:');
+    const root = rootOf(document);
+    lines.push(root === null
+      ? 'Inputs from the dispatching run, read-only and spelled as that run named them rather than anchored here. If one does not resolve, send a blocked message rather than guessing:'
+      : 'Inputs from the dispatching run, read-only, each relative path anchored at the workspace root like every other path here. If one does not resolve, send a blocked message rather than guessing:');
     // A research input is the report the work was planned from, so it is named
     // as required reading on its own line rather than by a sentence of its own:
     // the section's line count, and so the cap, does not move.
@@ -373,7 +385,8 @@ function taskLines({ document, workflow, pluginRoot }) {
       const note = role === RESEARCH_ROLE
         ? ` (${RESEARCH_ROLE} - required reading: read it in full before any work starts)`
         : role ? ` (${oneLine(role)})` : '';
-      lines.push(`  ${oneLine(mapOf(input).path)}${note}`);
+      const named = mapOf(input).path;
+      lines.push(`  ${relativePath(named) ? anchor(root, named) : oneLine(named)}${note}`);
     }
   }
   return lines;
@@ -688,6 +701,11 @@ function anchor(root, relative) {
 /** Whether a path is absolute, POSIX or Windows. */
 function isAbsolute(text) {
   return /^([A-Za-z]:[\\/]|[\\/])/.test(text);
+}
+
+/** Whether an input names a relative path rather than a value: see `taskLines`. */
+function relativePath(value) {
+  return typeof value === 'string' && !isAbsolute(value) && (value.includes('/') || value.startsWith('.'));
 }
 
 /**
