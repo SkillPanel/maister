@@ -394,12 +394,17 @@ is; a member the manifest does not declare keeps its worktree exactly as sent.
 Without the field, nothing changes.
 
 **`ledger`** — for every state change to a dispatch after the envelope opened
-it. Seven ops: create an entry, claim it, update its status, add a constraint,
-add a follow-up, close it out, and query. Creation is the envelope verb's: a
+it. Eight ops: create an entry, claim it, update its status, add a constraint,
+add a follow-up, mark a follow-up resolved, close it out, and query. Creation is the envelope verb's: a
 `create-entry` must name the run and node in its `chain`, and a node has one
 entry, so a second creation for it is refused rather than written. Ownership is documented rather than enforced, because enforcing it in
 code would lock the daemon out of the same library: the engine owns creation,
 claiming and status; the daemon owns constraints, follow-ups and close-out;
+`resolve-followup` is the daemon's, or whatever drives the dispatch, called once
+the grant a `needs: [permission]` follow-up asked for has been used and the held
+command has run — never the worker's, which only reports the hold. It moves an
+`open` or `dispatched` follow-up to `resolved` with `resolved_by` and
+`resolved_at`, on a closed entry too, and refuses any other move;
 query takes no lock at all. Conflicts resolve on read by update time and actor —
 the engine wins on status, the daemon wins on follow-ups and close-out.
 
@@ -613,9 +618,9 @@ tool because the script said no is the drift this whole design removes.
 | `ledger-entry-missing` | The dispatch id names no entry. Either the id is wrong or the entry was never created — a caller defect either way. |
 | `ledger-entry-exists` | Creation was asked for an id that already has an entry, or for a run's node that an entry already records — a node has one entry, and the message names it. Ids are never reused; address the named entry with the op you meant. A dispatch's entry is the envelope verb's to open, so a driver that reaches this after `envelope` should simply drop its own `create-entry`. |
 | `ledger-entry-unreadable` | The entry is on disk but does not parse. The file needs repair; no op can proceed and repeating one will not help. Report the message verbatim. |
-| `ledger-op-unknown` | The op name is outside the seven. A typo, or a caller built against a different version. |
+| `ledger-op-unknown` | The op name is outside the eight. A typo, or a caller built against a different version. |
 | `ledger-args-invalid` | The arguments do not carry what the op needs — a `create-entry` without a `chain` naming the run and node, for one. The report says which field. Fix the arguments and re-send — this is the one caller defect where a *corrected* re-send is the whole recovery. |
-| `ledger-status-illegal` | A status outside the frozen enum, or a transition out of a closed entry. Closed is terminal by design; reopening a dispatch means creating a new one. |
+| `ledger-status-illegal` | A status outside the frozen enum, a transition out of a closed entry, or a follow-up resolved from anything but `open` or `dispatched`. Closed is terminal by design; reopening a dispatch means creating a new one. A resolved or dismissed follow-up is final too: query the entry, and if it already reads `resolved` there is nothing left to do. |
 | `ledger-unwritable` | The ledger path could not be written. **Read `entry_written` before deciding.** Absent or `false`: nothing was published, so fix the environment and re-issue. `true`: the entry is written and only the index regeneration failed — the index is behind, the next op of any kind regenerates it, and re-issuing *this* op would apply the mutation twice. |
 | `ledger-temp-exists` | **The entry is written and the index is behind** — this code is not reachable as a lock conflict, because a held entry lock is reported as `ledger-locked`. It means the shared index temp stayed held across every retry, after the entry was already committed. Do not re-issue the op; any later op regenerates the index. |
 | `ledger-log-unappendable` | **Read this one carefully: the entry is written, the index is current, and the log is behind.** The append is not advisory, so it is reported rather than swallowed, but the entry itself did land. Do not re-issue the op — that would apply the mutation twice. Fix the log's writability; the next op's append will follow. |
@@ -632,7 +637,8 @@ something:
 
 `add-constraint` is idempotent on `{kind, ref}` and `add-followup` on the follow-up id, so a
 caller that re-issues one of them against an entry that already carries the same record does
-not double it. Nothing else in the seven is idempotent, which is why the flags are the
+not double it. Nothing else in the eight is idempotent — a second `resolve-followup` is
+refused, so read `entry_written` before re-issuing one — which is why the flags are the
 instruction and "re-issue" is not.
 
 ### Outbox

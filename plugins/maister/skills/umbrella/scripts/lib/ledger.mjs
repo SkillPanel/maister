@@ -1,5 +1,5 @@
 /**
- * The dispatch ledger: seven ops over file-canonical entries.
+ * The dispatch ledger: eight ops over file-canonical entries.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20. Three files make up a
  * ledger and each answers a different question:
@@ -16,7 +16,7 @@
  * no way to tell a line that landed from a line whose writer died between the
  * append and the rename.
  *
- * **The seven ops are the whole write surface** and their names are frozen.
+ * **The eight ops are the whole write surface** and their names are frozen.
  * They are named exports first and a CLI second: the cockpit daemon calls
  * `closeOut(...)` in process, with no subprocess and no JSON round trip. That
  * is the reason the shared primitives arrive through the sibling shims
@@ -26,7 +26,8 @@
  *
  * **Ownership is documented, not enforced** (`OWNERSHIP`). The engine owns
  * `create-entry`, `claim` and `update-status`; the daemon owns
- * `add-constraint`, `add-followup` and `close-out`; `query` is read-only.
+ * `add-constraint`, `add-followup`, `resolve-followup` and `close-out`; `query`
+ * is read-only.
  * Enforcing the split here would lock the daemon out of the very library it
  * vendors. It holds instead because each op writes only the fields its owner
  * owns, so two writers cannot contend for one field: the `updated` + actor
@@ -71,6 +72,7 @@ export const OWNERSHIP = Object.freeze({
   'update-status': 'engine',
   'add-constraint': 'daemon',
   'add-followup': 'daemon',
+  'resolve-followup': 'daemon',
   'close-out': 'daemon',
   query: 'reader',
 });
@@ -85,9 +87,9 @@ export const REFUSALS = Object.freeze({
   'ledger-entry-missing': 'No entry file exists for that dispatch id. Check the id, or create the entry first; re-issuing changes nothing.',
   'ledger-entry-exists': 'An entry already exists for that dispatch id, or already records that run\'s node — a node has one dispatch entry. Nothing was written. Address the entry the message names with the op you meant instead of creating it again.',
   'ledger-entry-unreadable': 'An entry file is on disk but outside the definition reader\'s subset. Repair the named file by hand; every write is blocked until it parses, because the index is regenerated from every entry.',
-  'ledger-op-unknown': 'The op is not one of the frozen seven. Correct the op name; the set is closed.',
+  'ledger-op-unknown': 'The op is not one of the frozen eight. Correct the op name; the set is closed.',
   'ledger-args-invalid': 'The op arguments are missing a required field or carry an unusable value — create-entry, for one, needs a chain naming the run_id and node. Correct the arguments and re-issue.',
-  'ledger-status-illegal': 'The status is outside the frozen enum, or the entry is closed and closed is terminal. Nothing was written.',
+  'ledger-status-illegal': 'The status is outside the frozen enum, the entry is closed and closed is terminal, or a follow-up was to be resolved from a status other than open or dispatched. Nothing was written.',
   'ledger-unwritable': 'The filesystem refused a read or a write the op depends on. Read `entry_written` before deciding: false (or absent) means nothing was published and the op may be re-issued once the path is writable; true means the entry is written and only the index regeneration failed, so the index is behind and any later op regenerates it — do not re-issue this one.',
   'ledger-temp-exists': 'The index temp is held by another writer and stayed held across every retry. The entry is written and the index is behind; re-issuing any op regenerates it. Do not re-issue this one — the mutation already landed and applying it twice is the failure this refusal is most often mistaken for.',
   'ledger-log-unappendable': 'The entry is written and the index is current, but ledger.log could not be appended to, so the log is behind by one line. Do not re-issue the op — the mutation already landed and applying it twice is the failure this refusal is mistaken for. Repair the log path; the entry itself is not in doubt.',
@@ -104,7 +106,10 @@ const PROVIDERS = ['claude', 'copilot'];
 const SESSION_STATUSES = ['spawned', 'running', 'paused', 'lost', 'closed'];
 const SUBSTRATES = ['p', 'bg', 'manual'];
 const FOLLOWUP_TO = ['parent', 'sibling'];
-const FOLLOWUP_STATUSES = ['open', 'dispatched', 'dismissed'];
+const FOLLOWUP_STATUSES = ['open', 'dispatched', 'dismissed', 'resolved'];
+
+/** The follow-up statuses `resolve-followup` moves out of; every other one is final. */
+const RESOLVABLE = ['open', 'dispatched'];
 
 /** The short-id and timestamp shapes. */
 const SHORT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -676,7 +681,7 @@ function nextDispatchId(p) {
 }
 
 // ---------------------------------------------------------------------------
-// the seven ops
+// the eight ops
 // ---------------------------------------------------------------------------
 
 /**
@@ -909,6 +914,41 @@ export function addFollowup(call) {
 }
 
 /**
+ * Mark one follow-up resolved: the held command its `needs: [permission]`
+ * asked a grant for has run, so nothing it waited on is still held. Called by
+ * whoever drives the dispatch once the grant is used — never by the worker,
+ * which only reports. `resolved_by` names who resolved it (`args.by`, else the
+ * call's actor) and `resolved_at` when. Only an `open` or `dispatched`
+ * follow-up moves; a dismissed or already resolved one is final and refused,
+ * so a repeat is a refusal rather than a second stamp. A closed entry still
+ * takes it: a dispatch closed out `partial` is exactly one whose follow-up
+ * resolves afterwards.
+ */
+export function resolveFollowup(call) {
+  return guard(call?.dispatch_id ?? null, () => mutate('resolve-followup', call, (entry, { actor, args, at }) => {
+    if (typeof args.id !== 'string' || args.id === '') {
+      throw new Refusal('ledger-args-invalid', 'resolve-followup needs a non-empty args.id');
+    }
+    if (args.by !== undefined && (typeof args.by !== 'string' || args.by.trim() === '')) {
+      throw new Refusal('ledger-args-invalid', 'resolve-followup takes args.by as a non-empty name, or none to credit the actor');
+    }
+    const existing = Array.isArray(entry.followups) ? entry.followups : [];
+    const found = existing.findIndex(item => isPlainObject(item) && item.id === args.id);
+    if (found < 0) {
+      throw new Refusal('ledger-args-invalid', `${entry.dispatch_id} carries no follow-up with the id ${args.id}`);
+    }
+    const followup = existing[found];
+    if (!RESOLVABLE.includes(followup.status)) {
+      throw new Refusal('ledger-status-illegal',
+        `the follow-up ${args.id} of ${entry.dispatch_id} is ${followup.status}, and only an ${RESOLVABLE.join(' or ')} follow-up can be resolved`);
+    }
+    const resolved = { ...followup, status: 'resolved', resolved_by: args.by ?? actor, resolved_at: at };
+    entry.followups = existing.map((item, index) => (index === found ? resolved : item));
+    return entry;
+  }));
+}
+
+/**
  * Close the dispatch out: the grade, what shipped, and the terminal status, in
  * one write. The status transition belongs to the engine everywhere else; here
  * it rides with the close-out because a graded entry that is not closed would
@@ -953,13 +993,14 @@ export function query(call) {
 // the verb
 // ---------------------------------------------------------------------------
 
-/** The seven, by their frozen names. This map is the whole dispatch table. */
+/** The eight, by their frozen names. This map is the whole dispatch table. */
 const OPS = {
   'create-entry': createEntry,
   claim,
   'update-status': updateStatus,
   'add-constraint': addConstraint,
   'add-followup': addFollowup,
+  'resolve-followup': resolveFollowup,
   'close-out': closeOut,
   query,
 };
@@ -968,7 +1009,7 @@ const OPS = {
  * The `ledger` verb: one op, named on the command line, over the same functions
  * the daemon calls directly. Nothing is validated here that the ops do not
  * validate themselves — including `--dispatch-id`, whose presence is a flag
- * dependency the entry point already enforces for the six addressing ops.
+ * dependency the entry point already enforces for the seven addressing ops.
  *
  * `Object.hasOwn` rather than `in`, so `constructor` is not a ledger op.
  */
@@ -983,7 +1024,7 @@ export function ledger(options) {
       entry: null,
       errors: [{
         code: 'ledger-op-unknown',
-        message: `"${op}" is not a ledger op; the frozen seven are ${Object.keys(OPS).join(', ')}`,
+        message: `"${op}" is not a ledger op; the frozen eight are ${Object.keys(OPS).join(', ')}`,
       }],
     };
   }
