@@ -24,7 +24,7 @@ A continue option may declare `sets` — the gate values its answer records, suc
 optional audit runs next (grammar § 6). This is how a gate decides an optional step in the same
 question that approves the work before it, so the step itself asks nothing. The writer records
 the chosen option's values on the gate from its recorded answer, on every write once the gate is
-completed — the empty write that re-publishes a driven answer included — and a guard downstream
+completed — the re-validation write that re-publishes a driven answer included — and a guard downstream
 reads them like any node's. A gate's values are the writer's alone: never send `values` for a gate.
 
 **Who answered, and how much a person had to see, is recorded with the answer — by the writer.
@@ -390,8 +390,9 @@ an immediate re-validation through the writer.
    request's answer — then `node_summaries.<node>` and the node's `status: completed`, then
    **`gate_pending: null` last** — clearing the marker first would end the suspension before
    the decision was recorded.
-5. The very next action is `write-state --state=<state>` with the empty patch, `{}`, as the
-   patch file's body (engine § *The invocation contract*). It is not a no-op: the writer reads
+5. The very next action is the **re-validation write**: `write-state --state=<state>` with
+   `{}` as the patch file's body (engine § *The invocation contract*), described as
+   re-validating the recorded answer. It is not a no-op: the writer reads
    back the file the editor tools wrote, self-checks it and re-publishes it, recording what the
    answer implies — the gate's values, the provenance keys copied from the request's answer
    block, and under a classifying policy the triage and settlement items — and regenerating

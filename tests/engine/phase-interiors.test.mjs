@@ -247,6 +247,22 @@ test('each verification cycle reaches the dashboard through its verification_con
   });
 });
 
+// A call described as a write with nothing to change is one a permission check
+// may refuse. Both callers of the `{}` patch name what the write does: the
+// executor publishes progress, the driven gate resume re-validates an answer.
+test('the {} patch is named by its purpose wherever prose sends it, never as a write that changes nothing', () => {
+  const read = file => fs.readFileSync(path.join(SKILLS, file), 'utf8').replace(/\s+/g, ' ');
+  const executor = read('implementation-plan-executor/SKILL.md');
+  assert.match(executor, /a \*\*progress write\*\* that publishes the phase's progress to the dashboard and the status line/);
+  assert.match(executor, /It is a real write, not one with nothing to change/);
+  assert.doesNotMatch(executor, /changes nothing in state/);
+  const gates = read('workflow-engine/references/gates.md');
+  assert.match(gates, /The very next action is the \*\*re-validation write\*\*/);
+  for (const file of ['implementation-plan-executor/SKILL.md', 'workflow-engine/references/gates.md', 'workflow-engine/references/writing-state.md', 'orchestrator-framework/references/orchestrator-patterns.md']) {
+    assert.doesNotMatch(read(file), /\bthe empty (?:patch|write)\b/, `${file} names the write by its purpose`);
+  }
+});
+
 test('neither phase-interior skill writes dashboard-data.js by hand', () => {
   const handWrite = /\b(?:rewrite|regenerate)s?\s+`dashboard-data\.js`|`dashboard-data\.js` rewritten/i;
   for (const skill of ['implementation-plan-executor', 'implementation-verifier']) {
