@@ -268,7 +268,10 @@ after a minute). Its refusals leave nothing written:
 A dispatched node — a `workflow:` node carrying `dir:` — waits while its worker runs in the
 member repository. When the dispatch's close-out is graded `partial`, the work was done but
 something is still held, and the node asks one question while still `waiting` (engine
-§ *Recording an outcome*). Its shape is fixed; only the `<…>` parts are filled, from the
+§ *Recording an outcome*). It asks only while the hold is live: when the dispatch's ledger entry
+records its pull request in `closeout.prs`, or its `needs: [permission]` follow-up is
+`resolved`, the node is recorded `completed` with a `by: run` decision naming what resolved it,
+and nothing below is asked. Its shape is fixed; only the `<…>` parts are filled, from the
 close-out — `<what is held>` from its summary or its held-command report, and `why` from its
 summary in one line:
 

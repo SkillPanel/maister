@@ -543,7 +543,7 @@ a dispatch the worker never closed. The engine never grades on a worker's behalf
 | Close-out grade | Dispatched node | Run |
 |---|---|---|
 | `success` | `completed` | continues its walk; the declared outputs are exposed |
-| `partial` | unchanged, stays `waiting` | asks the held-dispatch question; its answer decides (below) |
+| `partial` | unchanged, stays `waiting`; `completed` when the held item is already resolved | asks the held-dispatch question, and its answer decides (below), unless the dispatch's ledger entry records its pull request in `closeout.prs` or its `needs: [permission]` follow-up is `resolved`; then nothing is asked |
 | `failed` | `failed` | ends `RUN-FAILED: dispatch <dispatch-id> failed`, unless a downstream node declares `on: failure` or `on: always` |
 | a stopped dispatch | `stopped` | stops outright, as for a stopped child run |
 | no close-out yet | unchanged, stays `waiting` | nothing is recorded |
@@ -558,6 +558,14 @@ three options, none recommended and none taken on its own:
   anew — a new dispatch, since ids are never reused;
 - **stop the run**: one patch carries `task.status: stopped`, the node and every unexecuted node
   `stopped`, then `run-complete`, as for a stopped child run.
+
+**A held item already resolved is not asked about.** Before asking, read the dispatch's ledger
+entry (the umbrella runtime's `ledger` verb, op `query`). When its `closeout.prs` records the
+dispatch's pull request, or its `needs: [permission]` follow-up is `resolved`, what was held has
+happened: record the node `completed` with one decision naming what resolved it, `by: run` —
+`{decision: "Held item resolved: pull request <url> recorded", by: run}`, or `{decision: "Held
+item resolved: follow-up <id> resolved by <resolved_by>", by: run}` — and ask nothing. Never
+`by: operator`: nobody answered. Otherwise the question is asked exactly as above.
 
 It is asked in session with the question tool, and under a driver suspended as an in-node
 question set from the waiting node; where the driver carries no question sets, the run stops
