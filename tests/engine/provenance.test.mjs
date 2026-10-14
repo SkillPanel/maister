@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { FIXTURES, OPERATOR, freeze, readState, scratch, verb, write } from '../helpers.mjs';
-import { gateAnswer } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
+import { decisionOf, gateAnswer } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
 // A gate's answer is the last decision carrying an option, and every reader of
@@ -127,6 +127,44 @@ test('a terminal in-node answer gains the same actor; a run decision and an acto
   assert.deepEqual(stored[1].actor, own);
   assert.deepEqual(stored[2], { decision: 'Kept', by: 'run' });
   assert.deepEqual(stored[3], { decision: 'Taken', by: 'default', question_id: 'c' });
+});
+
+// Under a dispatch driver nobody is asked inside a step, so a decision there
+// credited to the operator with no person's name, no via and no actor is one
+// the run settled itself: recorded by: run, never stamped with the operator's
+// name. An answer carrying its provenance is a person's and is kept; under a
+// terminal driver an in-session answer arrives bare and is still the operator's.
+test('a dispatched run\'s bare operator-shaped decision is credited to the run; one with provenance, or a terminal one, stays the operator\'s', t => {
+  const asked = { decision: 'Yes', question_id: 'a', question: 'Proceed?', answer: 'Yes' };
+  const dispatched = scratch(t);
+  freeze(dispatched, { orchestrator: { driver: { kind: 'dispatch', cwd: '/work', dispatch_id: 'd-0001' } } });
+  write(dispatched, {
+    node_summaries: {
+      analysis: {
+        decisions: [
+          asked,
+          { ...asked, by: 'operator', question_id: 'b', answered_by: 'operator' },
+          { ...asked, by: 'operator', question_id: 'c', answered_by: 'dana', via: 'cockpit' },
+        ],
+      },
+    },
+  });
+  const stored = readState(dispatched).node_summaries.analysis.decisions;
+  for (const item of stored.slice(0, 2)) {
+    assert.equal(decisionOf(item).by, 'run', item.question_id);
+    assert.equal(Object.hasOwn(item, 'answered_by'), false, `${item.question_id}: no name stamped`);
+    assert.equal(Object.hasOwn(item, 'actor'), false, `${item.question_id}: no actor stamped`);
+  }
+  assert.equal(stored[2].by, 'operator', 'an answer carrying its provenance stays the operator\'s');
+  assert.equal(stored[2].answered_by, 'dana');
+
+  const terminal = scratch(t);
+  freeze(terminal);
+  write(terminal, { node_summaries: { analysis: { decisions: [{ ...asked, by: 'operator' }] } } });
+  const answered = readState(terminal).node_summaries.analysis.decisions[0];
+  assert.equal(answered.by, 'operator');
+  assert.equal(answered.answered_by, OPERATOR);
+  assert.deepEqual(answered.actor, PERSON);
 });
 
 test('gate-revise copies provenance from its patch file, else from the folded answer, and stamps the terminal actor', t => {

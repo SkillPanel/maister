@@ -513,9 +513,10 @@ reviews, none of them preselected.
 The user-docs input (`user_docs_flag`) is tri-state. Absent means ask. `yes` or
 `no` settled it when the run started: leave the user-guide tab off the page,
 record the value as `user_docs_enabled` and its state mirror and as a decision
-`by: operator`, and say so in one line of the reviews tab's plan ("User guide:
-on — asked for when the run started"). In a terminal run the seed is a default
-for the recommendation, not an answer.
+— `by: operator` when a person gave it at the start, `by: run` when a
+dispatching run's arguments set it — and say so in one line of the reviews
+tab's plan ("User guide: on — asked for when the run started"). In a terminal
+run the seed is a default for the recommendation, not an answer.
 
 **With question sets** (`standard-verifications`): in this node's one request;
 "Choose individually" is not offered.

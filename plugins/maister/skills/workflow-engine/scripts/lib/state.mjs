@@ -2793,7 +2793,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       } else {
         via ??= answerVia(parseState(doc.text()));
         const prior = heldOf(key)?.decisions;
-        entry.decisions = stampAnswers(keepProvenance(prior, keepAttempts(prior, entry.decisions)), runDir, via);
+        entry.decisions = stampAnswers(keepProvenance(prior, keepAttempts(prior, runSettled(entry.decisions, via))), runDir, via);
         const kept = classing !== null && classes() ? writerKept(prior, entry.decisions) : [];
         entry.decisions = [...earlierAnswers(prior, entry.decisions), ...kept, ...entry.decisions];
       }
@@ -3115,6 +3115,27 @@ function foldQuestionAnswer(entry, node, runDir, held, attempt = 1, writeWarning
     return decisionOf(item)?.by === 'operator' && given < attempt ? [{ ...item, attempt: given }] : [];
   });
   return { ...rest, decisions: [...kept, ...folded.decisions.map(item => ({ ...item, attempt }))] };
+}
+
+/**
+ * A task node's `decisions` with what the run settled itself credited to it.
+ * Under a dispatch driver nobody is asked inside a step — a question there
+ * takes its default or is settled by the run — so an item credited to the
+ * operator, by its `by` or by the answer shape that reads as one, that carries
+ * no person's name, no `via` and no `actor` came from no person: it is
+ * recorded `by: run`, and `stampAnswers` then leaves it alone instead of
+ * writing the operator's name onto a decision nobody gave. An answer a person
+ * gave reaches a dispatched run with its provenance and is kept as it is; under
+ * every other driver an in-session answer arrives bare, so nothing is judged.
+ */
+function runSettled(decisions, via) {
+  if (via !== 'dispatch' || !Array.isArray(decisions)) return decisions;
+  return decisions.map(item => {
+    if (!isPlainObject(item) || decisionOf(item)?.by !== 'operator') return item;
+    if (!isPlaceholderName(item.answered_by) || Object.hasOwn(item, 'via') || Object.hasOwn(item, 'actor')) return item;
+    const { answered_by: _answeredBy, ...rest } = item;
+    return { ...rest, by: 'run' };
+  });
 }
 
 /**
