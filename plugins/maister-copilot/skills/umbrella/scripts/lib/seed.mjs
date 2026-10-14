@@ -66,7 +66,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
-import { closeoutReachable, siblingsProblem } from './envelope.mjs';
+import { closeoutReachable, pathLike, siblingsProblem } from './envelope.mjs';
 import { bareWorkflowName, TARGET_NAME } from '../../../workflow-engine/scripts/lib/graph.mjs';
 import { ASK_LEVELS } from '../../../workflow-engine/scripts/lib/policy.mjs';
 
@@ -78,6 +78,20 @@ export const SEED_SECTIONS = Object.freeze(['identity', 'task', 'outbox', 'close
 
 /** The rendered line cap. */
 export const SEED_LINE_CAP = 60;
+
+/**
+ * How the worker runs its commands, said once on the tier line rather than on
+ * a line of its own, so the cap does not move. A permission rule matches one
+ * command, and a line joining several is offered only a dismissal.
+ */
+const ONE_COMMAND = 'Run one command per line, never several chained with `&&`, `;` or `|`: a permission rule matches a single command, and a chained line can only be dismissed. The one exception is the JSON a workflow-engine verb takes, sent as that skill documents.';
+
+/**
+ * How the read-only inputs are read, said on the inputs header line. A copy
+ * into the checkout is a write outside the grant and is refused; a worker that
+ * needs the content in its own tree writes its own file from what it read.
+ */
+const IN_PLACE = 'Read each where it is, never copying it into your checkout; if you need its content in your own tree, write your own file from what you read.';
 
 /** The `with:` keys the envelope reads as control rather than as arguments. */
 // `closeout_contract` joins them for the same reason the other three are here:
@@ -256,8 +270,8 @@ function identityLines({ document, chain, target }) {
       // what `# closeout` now says. A held command is not a pause a turn can
       // sit through; it is the end of the turn. Both sections have to say so,
       // or the worker picks whichever it read last.
-      ? `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake. At this tier a denial is relayed to an operator rather than final: never route around a held command - report it and end the turn, as \`# closeout\` describes.`
-      : `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake.`,
+      ? `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake. ${ONE_COMMAND} At this tier a denial is relayed to an operator rather than final: never route around a held command - report it and end the turn, as \`# closeout\` describes.`
+      : `Autonomy tier ${oneLine(document.autonomy)}; the permissions it grants are already in force, so a refused command is the tier and not a mistake. ${ONE_COMMAND}`,
   ];
 }
 
@@ -278,7 +292,9 @@ function identityLines({ document, chain, target }) {
  * names them relative to the workspace root, and the worker's cwd is a member
  * checkout, where such a path either resolves to nothing or to a same-named
  * file in the member repository. So an input whose value is a relative path —
- * a string, not absolute, that contains a `/` or starts with `.` — is stated
+ * not absolute, and path-like by the envelope's own rule (`pathLike`: one
+ * whitespace-free string holding a `/` and no `${…}`; a bare name such as
+ * `context.md` is a value, and `./context.md` is its path) — is stated
  * under the envelope's `workspace_root`; an absolute one is stated as is, and
  * anything else — a plain word, a number, a boolean — is a value and is stated
  * as is. Without a `workspace_root` every input is stated as the run named it,
@@ -375,8 +391,8 @@ function taskLines({ document, workflow, pluginRoot }) {
     // message, which is what the outbox is for.
     const root = rootOf(document);
     lines.push(root === null
-      ? 'Inputs from the dispatching run, read-only and spelled as that run named them rather than anchored here. If one does not resolve, send a blocked message rather than guessing:'
-      : 'Inputs from the dispatching run, read-only, each relative path anchored at the workspace root like every other path here. If one does not resolve, send a blocked message rather than guessing:');
+      ? `Inputs from the dispatching run, read-only and spelled as that run named them rather than anchored here. ${IN_PLACE} If one does not resolve, send a blocked message rather than guessing:`
+      : `Inputs from the dispatching run, read-only, each relative path anchored at the workspace root like every other path here. ${IN_PLACE} If one does not resolve, send a blocked message rather than guessing:`);
     // A research input is the report the work was planned from, so it is named
     // as required reading on its own line rather than by a sentence of its own:
     // the section's line count, and so the cap, does not move.
@@ -705,7 +721,7 @@ function isAbsolute(text) {
 
 /** Whether an input names a relative path rather than a value: see `taskLines`. */
 function relativePath(value) {
-  return typeof value === 'string' && !isAbsolute(value) && (value.includes('/') || value.startsWith('.'));
+  return pathLike(value) && !isAbsolute(value);
 }
 
 /**
