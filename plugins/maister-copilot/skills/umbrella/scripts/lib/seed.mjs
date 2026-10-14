@@ -505,10 +505,23 @@ function siblingLines(siblings, { listed = null, root = null } = {}) {
   }
   lines.push('The other dispatches of this outcome, for reading only - never edit, commit or run anything that writes there:');
   for (const entry of listed) {
-    lines.push(`- ${oneLine(entry.member)}: worktree ${anchor(root, entry.worktree)}, branch ${oneLine(entry.branch)}`);
+    lines.push(`- ${oneLine(entry.member)}: worktree ${siblingWorktree(root, entry)}, branch ${oneLine(entry.branch)}`);
   }
   lines.push("Read them for what they deliver - a contract, an API - when your work depends on it. Never edit a sibling's repository, and never read or write another dispatch's outbox.");
   return lines;
+}
+
+/**
+ * A sibling's worktree, by the target's rule: an absolute one as is, a relative
+ * one joined to its member's checkout and anchored. The envelope resolves that
+ * checkout from the manifest; an entry without one names a member the manifest
+ * does not declare, and its worktree is stated as given rather than guessed.
+ */
+function siblingWorktree(root, entry) {
+  const worktree = oneLine(entry.worktree);
+  if (isAbsolute(worktree)) return worktree;
+  if (typeof entry.path !== 'string' || entry.path === '') return worktree;
+  return anchor(root, joinPath(entry.path, worktree));
 }
 
 // ---------------------------------------------------------------------------
@@ -660,8 +673,13 @@ function rootOf(document) {
 function anchor(root, relative) {
   const text = oneLine(relative);
   if (root === null || text === '' || text === 'null') return text;
-  if (/^([A-Za-z]:[\\/]|[\\/])/.test(text)) return text;
+  if (isAbsolute(text)) return text;
   return joinPath(root, text);
+}
+
+/** Whether a path is absolute, POSIX or Windows. */
+function isAbsolute(text) {
+  return /^([A-Za-z]:[\\/]|[\\/])/.test(text);
 }
 
 /**

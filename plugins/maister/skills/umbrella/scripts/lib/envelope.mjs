@@ -332,7 +332,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const statement = statementOf({ defined, overrides });
   const permissions = permissionsOf(autonomy);
   const prRequired = closeoutPrOf({ node, defined, autonomy, permissions, overrides });
-  const siblings = siblingsOf(overrides);
+  const siblings = siblingsOf(overrides, members);
 
   return {
     version: VERSION,
@@ -380,12 +380,16 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
  * so the list arrives as an override and is never derived here. Each entry is
  * `{member, branch, worktree}`, the three things a worker needs to find a
  * sibling's delivered work and read it; the seed names them as read-only
- * references. An absent or empty list writes no key, so an envelope built
- * without one is byte-for-byte what it was. A malformed list is refused rather
- * than trimmed, because a worker sent to a path that is half a path reads the
- * wrong tree.
+ * references. A sibling's worktree is relative to its member, as the target's
+ * is, so an entry whose member the manifest declares also carries that member's
+ * `path`, resolved by the target's rule; the seed joins the two. A member the
+ * manifest does not declare is written as sent, with no `path`, and the seed
+ * states its worktree as given rather than guessing a checkout. An absent or
+ * empty list writes no key, so an envelope built without one is byte-for-byte
+ * what it was. A malformed list is refused rather than trimmed, because a
+ * worker sent to a path that is half a path reads the wrong tree.
  */
-function siblingsOf(overrides) {
+function siblingsOf(overrides, members = {}) {
   const listed = mapOf(overrides).siblings;
   if (listed === undefined || listed === null) return null;
   const problem = siblingsProblem(listed);
@@ -394,7 +398,12 @@ function siblingsOf(overrides) {
       `the dispatch override's siblings ${problem}. Send siblings as a list of {member, branch, worktree}, each a non-empty string, or leave the field out.`);
   }
   if (listed.length === 0) return null;
-  return listed.map((entry) => ({ member: entry.member, branch: entry.branch, worktree: entry.worktree }));
+  return listed.map((entry) => ({
+    member: entry.member,
+    ...(Object.hasOwn(members, entry.member) ? { path: mapOf(members[entry.member]).path ?? entry.member } : {}),
+    branch: entry.branch,
+    worktree: entry.worktree,
+  }));
 }
 
 /**

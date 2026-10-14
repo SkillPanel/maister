@@ -191,15 +191,32 @@ function siblingsOf(envelope) {
   return lines.slice(lines.indexOf('# siblings'));
 }
 
-test('seed: listed siblings are named read-only, anchored to the workspace root', () => {
+// A sibling's worktree is relative to its member, as the target's is: the
+// envelope carries the member's path, and the seed joins the two under the root.
+test('seed: listed siblings are named read-only, each worktree relative to its member', () => {
+  const root = ENVELOPE.workspace_root;
   const section = siblingsOf({ ...ENVELOPE, siblings: [
-    { member: 'api', branch: 'feature/run-api', worktree: 'members/api/.worktrees/run-api' },
-    { member: 'web', branch: 'feature/run-web', worktree: '/elsewhere/web' },
+    { member: 'api', path: 'members/api', branch: 'feature/run-api', worktree: '.worktrees/run-api' },
+    { member: 'web', path: 'members/web', branch: 'feature/run-web', worktree: '/elsewhere/web' },
+    { member: 'docs', branch: 'feature/run-docs', worktree: '.worktrees/run-docs' },
   ] });
-  assert.ok(section.includes('- api: worktree /work/members/api/.worktrees/run-api, branch feature/run-api'), section.join('\n'));
+  assert.ok(section.includes(`- api: worktree ${root}/members/api/.worktrees/run-api, branch feature/run-api`), section.join('\n'));
   assert.ok(section.includes('- web: worktree /elsewhere/web, branch feature/run-web'), 'an absolute path is kept');
+  assert.ok(section.includes('- docs: worktree .worktrees/run-docs, branch feature/run-docs'), 'a member the manifest does not declare is stated as given');
   assert.ok(section.some(line => /for reading only - never edit/.test(line)));
   assert.ok(section.some(line => /never read or write another dispatch's outbox/.test(line)));
+});
+
+test('seed: the target line is unchanged by listed siblings', () => {
+  const root = ENVELOPE.workspace_root;
+  const pluginRoot = path.join(ROOT, 'plugins/maister');
+  const envelope = { ...ENVELOPE, target: { ...ENVELOPE.target, worktree: '.worktrees/run-app' } };
+  const memberLine = (doc) => renderSeed(buildSeed(doc, { pluginRoot })).split('\n').find(line => line.startsWith('Member '));
+  const expected = `Member app, checked out at ${root}/members/app, worktree ${root}/members/app/.worktrees/run-app.`;
+  assert.equal(memberLine(envelope), expected);
+  assert.equal(memberLine({ ...envelope, siblings: [
+    { member: 'api', path: 'members/api', branch: 'feature/run-api', worktree: '.worktrees/run-api' },
+  ] }), expected);
 });
 
 test('seed: control — no siblings listed renders the section unchanged', () => {
