@@ -485,7 +485,8 @@ test('writer-classed items survive later writes and the answer fold; a sent item
 test('a revise reset clears the reset nodes\' writer-classed items and their remainder; operator answers stay', t => {
   const run = started(t, QUESTIONS.engine, { definition: REVISE, node: 'draft', driver: DISPATCH });
   classing(QUESTIONS.engine, run, ['layout-choice'], { node: 'draft' });
-  const answer = { decision: 'Short intro', by: 'operator', question_id: 'intro-length', question: 'How long is the intro?' };
+  // A person's answer reaches a dispatched run with its provenance; a bare one would be the run's own.
+  const answer = { decision: 'Short intro', by: 'operator', question_id: 'intro-length', question: 'How long is the intro?', answered_by: 'dana', via: 'dispatch' };
   ok(QUESTIONS.engine, run, {
     nodes: { draft: { status: 'completed', values: { needs_figures: false } } },
     node_summaries: { draft: { summary: 'Drafted.', decisions: [answer] } },
