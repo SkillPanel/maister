@@ -521,7 +521,9 @@ past it — a truncated prompt silently loses the close-out contract at the bott
 | `--siblings=N` | How many workers are running in this wave, so the prompt can say the worker has peers. A count; the envelope's own `siblings` list, when present, is what names the other dispatches of the outcome, as read-only references |
 
 **`ledger`** — run one ledger op. The ops are `create-entry`, `claim`, `update-status`,
-`add-constraint`, `add-followup`, `close-out` and the read-only `query`. Each one reads,
+`add-constraint`, `add-followup`, `resolve-followup`, `close-out` and the read-only `query`.
+`resolve-followup` marks a follow-up resolved once the held command it asked a grant for has
+run. Each one reads,
 mutates, writes atomically, regenerates the index and appends exactly one log line after the
 rename. Ids are allocated under a lock and never reused. `ledger-locked` is the one refusal
 whose recovery is to re-issue the same op. A dispatch's entry is opened by `envelope`, not by

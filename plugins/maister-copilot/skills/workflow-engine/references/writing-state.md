@@ -208,7 +208,7 @@ else that moment moves, and never the node's status, which only the node's own e
 |---|---|
 | the freeze | it precedes node 1, and is already the merged write engine Step 4 lists |
 | `gate-request` | one invocation, three writes, in the order `references/gates.md` § *Driver-suspended mode — the write order* fixes — a run is pending from the moment its request file lands, so a second shell call against it cannot run |
-| the empty patch on gate resume | the shell becomes reachable only the instant `gate_pending` goes null, which is what that write re-validates (`references/gates.md` § *Driver-suspended mode — resume*) |
+| the re-validation write on gate resume (patch `{}`) | the shell becomes reachable only the instant `gate_pending` goes null, which is what that write re-validates (`references/gates.md` § *Driver-suspended mode — resume*) |
 
 **A sub-run start never merges**: W1 and W3 land in the parent's state and W2 in the child's,
 and "one write per moment" is per state file. **W2 is one call and must stay one call**: a state

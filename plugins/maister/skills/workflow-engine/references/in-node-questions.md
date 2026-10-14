@@ -268,7 +268,10 @@ after a minute). Its refusals leave nothing written:
 A dispatched node — a `workflow:` node carrying `dir:` — waits while its worker runs in the
 member repository. When the dispatch's close-out is graded `partial`, the work was done but
 something is still held, and the node asks one question while still `waiting` (engine
-§ *Recording an outcome*). Its shape is fixed; only the `<…>` parts are filled, from the
+§ *Recording an outcome*). It asks only while the hold is live: when the dispatch's ledger entry
+records its pull request in `closeout.prs`, or its `needs: [permission]` follow-up is
+`resolved`, the node is recorded `completed` with a `by: run` decision naming what resolved it,
+and nothing below is asked. Its shape is fixed; only the `<…>` parts are filled, from the
 close-out — `<what is held>` from its summary or its held-command report, and `why` from its
 summary in one line:
 
@@ -371,7 +374,11 @@ list:
 
 `question_id` is the id the node's *Without question sets* line names, and `decision` is the
 default this run actually took. A node that had nothing to ask records nothing. An answered question is recorded the same
-way, `by: operator` (`references/gates.md` § *Before every gate*). The older string form,
+way, `by: operator` (`references/gates.md` § *Before every gate*). `by: operator` is for an
+answer a person gave and nothing else: a question the run settles without asking anybody —
+under any permission mode, and under a driver that asks nobody — is `{decision, by: run,
+rationale}`, never written in the answer shape. Under a dispatch driver the writer credits an
+operator-shaped item with no name, `via` or `actor` to the run. The older string form,
 `defaulted: <id> -> <taken>`, is still read as `by: default`.
 
 **A run started under a driver has its inputs** (`orchestrator.options.inputs`, engine Step 4):

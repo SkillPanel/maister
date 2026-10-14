@@ -949,14 +949,17 @@ test('write-state: an answer naming nobody, or a placeholder, is stamped with th
   assert.deepEqual(stored[5], { decision: 'Kept', by: 'run' }, 'a decision the run made names nobody');
 });
 
-test('write-state: under a cockpit or a dispatch driver an answer naming nobody is stamped with that driver; a via it carries is kept', t => {
+// Under a dispatch driver nobody is asked inside a step, so an answer there
+// naming nobody and carrying no via is the run's own call, credited by: run.
+test('write-state: under a cockpit driver an answer naming nobody is stamped cockpit, under a dispatch driver it is the run\'s; a via it carries is kept', t => {
   for (const kind of ['cockpit', 'dispatch']) {
     const run = scratch(t);
     freeze(run, { orchestrator: { driver: { kind, cwd: '/work' } } });
     const asked = (id, via) => ({ decision: 'Yes', by: 'operator', question_id: id, question: 'Proceed?', answer: 'Yes', ...(via === undefined ? {} : { via }) });
     write(run, { node_summaries: { analysis: { decisions: [asked('a'), asked('b', 'terminal')] } } });
     const stored = readState(run).node_summaries.analysis.decisions;
-    assert.deepEqual(stored.map(item => [item.answered_by, item.via]), [[OPERATOR, kind], [OPERATOR, 'terminal']], kind);
+    const bare = kind === 'cockpit' ? ['operator', OPERATOR, kind] : ['run', undefined, undefined];
+    assert.deepEqual(stored.map(item => [item.by, item.answered_by, item.via]), [bare, ['operator', OPERATOR, 'terminal']], kind);
   }
 });
 

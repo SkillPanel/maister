@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, umbrella, verb, write } from '../helpers.mjs';
 
 // A dispatched node — a workflow: node carrying dir: — whose close-out is
 // graded partial stays waiting and asks one question: accept the work as
@@ -151,6 +152,71 @@ test('stop: the node and every unexecuted node are recorded stopped, and the run
   assert.equal(state.task.status, 'stopped');
   assert.equal(state.workflow.nodes.remote.status, 'stopped');
   assert.equal(state.workflow.nodes['wrap-up'].status, 'stopped');
+});
+
+// A partial close-out asks only while the hold is live. When the dispatch's
+// ledger entry records its pull request in closeout.prs, or its
+// needs: [permission] follow-up is resolved, the node is completed with a
+// by: run decision naming what resolved it, and nothing is asked. The ledger
+// fields are read back through the umbrella's own query, as the run reads them.
+
+/** A ledger entry for `remote` closed out partial, with the given pull requests and follow-up; its queried entry. */
+function ledgerEntry(t, { prs = [], followup = null } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-ledger-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const op = (name, args, id = 'd-0001') => {
+    const result = umbrella(['ledger', `--ledger=${root}`, `--op=${name}`, '--actor=daemon', ...(id ? [`--dispatch-id=${id}`] : [])], args);
+    assert.equal(result.code, 0, result.stdout + result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  op('create-entry', { chain: { run_id: '2026-01-05-dispatch-partial', node: 'remote' } }, null);
+  if (followup) op('add-followup', { id: 'f-push', summary: HELD });
+  op('close-out', { grade: 'partial', prs, summary: 'push held for operator approval' });
+  if (followup === 'resolved') op('resolve-followup', { id: 'f-push', by: 'dana' });
+  return op('query', {}).entry;
+}
+
+/** Whether the entry says the held item already happened: the rule the engine skill states. */
+function resolvedBy(entry) {
+  const pr = Array.isArray(entry.closeout?.prs) ? entry.closeout.prs[0] : undefined;
+  if (pr) return `Held item resolved: pull request ${pr} recorded`;
+  const done = (entry.followups ?? []).find(item => item.status === 'resolved');
+  return done ? `Held item resolved: follow-up ${done.id} resolved by ${done.resolved_by}` : null;
+}
+
+for (const [name, shape] of [
+  ['its pull request recorded in closeout.prs', { prs: ['https://example.test/pr/7'] }],
+  ['its needs: [permission] follow-up resolved', { followup: 'resolved' }],
+]) {
+  test(`partial with ${name}: the node is completed by: run, and nothing is asked`, t => {
+    const decision = resolvedBy(ledgerEntry(t, shape));
+    assert.ok(decision, 'the ledger records the hold as resolved');
+    const run = waiting(t);
+    write(run, { nodes: { remote: { status: 'completed' } }, node_summaries: { remote: { decisions: [{ decision, by: 'run' }] } } });
+    const state = readState(run);
+    assert.equal(state.workflow.nodes.remote.status, 'completed');
+    assert.deepEqual(JSON.parse(JSON.stringify(state.node_summaries.remote.decisions)), [{ decision, by: 'run' }]);
+    assert.equal(fs.existsSync(path.join(run.dir, 'gates/remote.request.yml')), false, 'no question was asked');
+  });
+}
+
+test('partial with the follow-up still open and no pull request: the question is asked, as before', t => {
+  assert.equal(resolvedBy(ledgerEntry(t, { followup: 'open' })), null, 'nothing in the ledger resolves the hold');
+  const { run, decision } = decided(t, 'accept');
+  assert.equal(decision.by, 'operator');
+  assert.equal(readState(run).workflow.nodes.remote.status, 'waiting');
+});
+
+test('the engine skill and the reference state when a partial close-out is not asked about', () => {
+  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8').split(/\r?\n/);
+  const row = skill.find(line => line.startsWith('| `partial` |'));
+  assert.match(row, /`closeout\.prs`/);
+  assert.match(row, /`needs: \[permission\]` follow-up is `resolved`/);
+  const text = skill.join(' ').replace(/\s+/g, ' ');
+  assert.match(text, /\*\*A held item already resolved is not asked about\.\*\*/);
+  assert.match(text, /Never `by: operator`: nobody answered/);
+  const reference = fs.readFileSync(path.join(ENGINE_DIR, 'references/in-node-questions.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.match(reference, /It asks only while the hold is live: when the dispatch's ledger entry records its pull request in `closeout\.prs`, or its `needs: \[permission\]` follow-up is `resolved`/);
 });
 
 test('the engine skill maps every close-out grade, and the reference fixes the question\'s three options', () => {

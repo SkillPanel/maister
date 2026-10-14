@@ -213,3 +213,69 @@ test('dispatch entry: a publish that fails after the entry landed says so, and r
   assert.equal(retried.report.entry, 'existing');
   assert.equal(logLines(ws).length, 1, 'one creation, not two');
 });
+
+// A follow-up asking a grant for a held command is resolved by whoever drives
+// the dispatch once the grant is used: `resolve-followup` moves an open or
+// dispatched follow-up to resolved, naming who and when, and refuses every
+// other move with nothing written. A dispatch closed out partial still takes it.
+
+/** A dispatch for `api` carrying follow-ups `f-open`, `f-sent` and `f-dismissed`. */
+function withFollowups(t) {
+  const ws = workspace(t);
+  assert.equal(envelope(ws, 'api').code, 0);
+  for (const [id, status] of [['f-open', undefined], ['f-sent', 'dispatched'], ['f-dismissed', 'dismissed']]) {
+    const added = ledger(ws, 'add-followup', { id, summary: 'git push of the branch', ...(status ? { status } : {}) }, 'd-0001');
+    assert.equal(added.code, 0, JSON.stringify(added.report));
+  }
+  return ws;
+}
+
+const followupOf = (ws, id) => ledger(ws, 'query', {}, 'd-0001').report.entry.followups.find(item => item.id === id);
+
+test('resolve-followup: an open and a dispatched follow-up are resolved, naming who and when, on a dispatch closed out partial', (t) => {
+  const ws = withFollowups(t);
+  assert.equal(ledger(ws, 'close-out', { grade: 'partial', summary: 'push held' }, 'd-0001').code, 0);
+
+  const named = ledger(ws, 'resolve-followup', { id: 'f-open', by: 'Dana Example' }, 'd-0001');
+  assert.equal(named.code, 0, JSON.stringify(named.report));
+  const open = followupOf(ws, 'f-open');
+  assert.equal(open.status, 'resolved');
+  assert.equal(open.resolved_by, 'Dana Example');
+  assert.match(open.resolved_at, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal(open.summary, 'git push of the branch', 'the rest of the follow-up is kept');
+
+  assert.equal(ledger(ws, 'resolve-followup', { id: 'f-sent' }, 'd-0001').code, 0);
+  assert.equal(followupOf(ws, 'f-sent').resolved_by, 'engine', 'without a name the actor is credited');
+  assert.match(logLines(ws).at(-1), /^\S+ resolve-followup d-0001 engine$/);
+  assert.equal(ledger(ws, 'query', {}, 'd-0001').report.entry.status, 'closed', 'the entry stays closed');
+});
+
+test('resolve-followup: a resolved or dismissed follow-up is final, refused ledger-status-illegal with nothing written', (t) => {
+  const ws = withFollowups(t);
+  assert.equal(ledger(ws, 'resolve-followup', { id: 'f-open' }, 'd-0001').code, 0);
+  for (const id of ['f-open', 'f-dismissed']) {
+    const before = snapshot(ws.ledger);
+    const refused = ledger(ws, 'resolve-followup', { id }, 'd-0001');
+    assert.equal(refused.code, 1, id);
+    assert.equal(refused.report.errors[0].code, 'ledger-status-illegal', id);
+    assert.deepEqual(snapshot(ws.ledger), before, `${id}: nothing was written`);
+  }
+});
+
+test('resolve-followup: no id, an unknown id or an empty name is refused ledger-args-invalid with nothing written', (t) => {
+  const ws = withFollowups(t);
+  const before = snapshot(ws.ledger);
+  for (const args of [{}, { id: 'f-none' }, { id: 'f-open', by: ' ' }]) {
+    const refused = ledger(ws, 'resolve-followup', args, 'd-0001');
+    assert.equal(refused.code, 1, JSON.stringify(args));
+    assert.equal(refused.report.errors[0].code, 'ledger-args-invalid', JSON.stringify(args));
+  }
+  assert.deepEqual(snapshot(ws.ledger), before);
+});
+
+test('add-followup: resolved is in the follow-up status enum', (t) => {
+  const ws = workspace(t);
+  assert.equal(envelope(ws, 'api').code, 0);
+  assert.equal(ledger(ws, 'add-followup', { id: 'f-done', status: 'resolved' }, 'd-0001').code, 0);
+  assert.equal(ledger(ws, 'add-followup', { id: 'f-bad', status: 'cleared' }, 'd-0001').report.errors[0].code, 'ledger-args-invalid');
+});

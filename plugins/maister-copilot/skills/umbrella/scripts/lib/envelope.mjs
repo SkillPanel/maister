@@ -181,13 +181,24 @@ const WRITE_CODES = { unwritable: 'dispatch-unwritable', tempExists: 'dispatch-t
 
 /**
  * A `with` value that names a file the worker should read. Deliberately narrow:
- * no whitespace, an unexpanded `${…}` reference excluded, and at least one path
- * separator — which is what tells `runs/research/outputs/report.md` apart from
- * `attended`. A value that is merely a word is an argument, not an input, and
- * seeding it as a read-only file reference would send the worker looking for a
- * path that does not exist.
+ * no whitespace, an unexpanded `${…}` reference excluded (`pathLike`), and at
+ * least one path separator — which is what tells `runs/research/outputs/report.md`
+ * apart from `attended`. A value that is merely a word is an argument, not an
+ * input, and seeding it as a read-only file reference would send the worker
+ * looking for a path that does not exist. A bare filename is a word here too:
+ * `context.md` stays an argument, and `./context.md` hands the file over —
+ * `node.js` or `v1.2` must never turn into an input nobody named.
  */
 const PATH_LIKE = /^[A-Za-z0-9._][^\s]*\/[^\s]*$/;
+
+/**
+ * Whether a value is path-like: the one rule the envelope promotes `with`
+ * values to inputs by, and the seed anchors inputs by, so the two cannot
+ * disagree on what a path is.
+ */
+export function pathLike(value) {
+  return typeof value === 'string' && !value.includes('${') && PATH_LIKE.test(value);
+}
 
 /**
  * A member name that can also be a git branch segment. Member names are raw
@@ -809,8 +820,7 @@ function resolveCeiling({ state, defined, entry, manifest }) {
 function inputsOf(defined) {
   const inputs = [];
   for (const [role, value] of Object.entries(mapOf(defined.with))) {
-    if (typeof value !== 'string' || value.includes('${')) continue;
-    if (!PATH_LIKE.test(value)) continue;
+    if (!pathLike(value)) continue;
     inputs.push({ path: value, role });
   }
   return inputs;
