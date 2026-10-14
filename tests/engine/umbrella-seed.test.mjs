@@ -274,7 +274,7 @@ test('seed: under a workspace root a relative input is anchored there, an absolu
 test('seed: control — without a workspace root the inputs render as the run named them', () => {
   const { workspace_root, ...unrooted } = ENVELOPE;
   assert.deepEqual(inputBlockOf(seedLines({ ...unrooted, inputs: INPUTS })), [
-    'Inputs from the dispatching run, read-only and spelled as that run named them rather than anchored here. If one does not resolve, send a blocked message rather than guessing:',
+    'Inputs from the dispatching run, read-only and spelled as that run named them rather than anchored here. Read each where it is, never copying it into your checkout; if you need its content in your own tree, write your own file from what you read. If one does not resolve, send a blocked message rather than guessing:',
     '  .maister/work/d-0001/context.md (context)',
     '  research/report.md (research - required reading: read it in full before any work starts)',
     '  /abs/spec.md (spec)',
@@ -282,6 +282,29 @@ test('seed: control — without a workspace root the inputs render as the run na
     '  42 (count)',
     '  true (flag)',
   ]);
+});
+
+// A read-only grant refuses a copy out of another run's outputs, so the inputs
+// header says to read each in place; a worker that needs the content in its own
+// tree writes its own file. Said on the header line, so the cap does not move.
+test('seed: the inputs are read in place, never copied into the checkout, rooted or not', () => {
+  const { workspace_root, ...unrooted } = ENVELOPE;
+  for (const envelope of [ENVELOPE, unrooted]) {
+    const [header] = inputBlockOf(seedLines({ ...envelope, inputs: INPUTS }));
+    assert.match(header, /Read each where it is, never copying it into your checkout; if you need its content in your own tree, write your own file from what you read\./);
+  }
+});
+
+// A permission rule matches one command, so a chained line is offered only a
+// dismissal. The tier line says so at every tier, on the same line.
+test('seed: the tier line says one command per line, never chained, with the engine JSON route excepted', () => {
+  for (const autonomy of Object.keys(PERMISSIONS)) {
+    const lines = seedLines({ ...ENVELOPE, autonomy, permissions: PERMISSIONS[autonomy] });
+    const tier = lines.filter(line => line.startsWith('Autonomy tier '));
+    assert.equal(tier.length, 1, autonomy);
+    assert.match(tier[0], /Run one command per line, never several chained with `&&`, `;` or `\|`: a permission rule matches a single command/);
+    assert.match(tier[0], /The one exception is the JSON a workflow-engine verb takes, sent as that skill documents\./);
+  }
 });
 
 test('seed: the identity section no longer names the read-only inputs as an exception', () => {

@@ -253,6 +253,10 @@ other than the here-string, no heredoc (an agent host's shell-safety check refus
 whose body is a JSON object), no substitution — and never several verbs packed into one
 shell script. Flag values are written bare; a path holding a space goes in single quotes,
 never double quotes or a backslash. Any other form brings the approval prompt back.
+Every other command a run issues follows the same rule: one command per line, never
+several chained with `&&`, `;` or `|`, because a permission rule matches a single command
+and a chained line is offered only a dismissal. The here-string and the pipe below are the
+documented routes for a verb's JSON and stay as they are.
 
 A patch or a request document travels as a here-string (*Before anything else*, item 2).
 Inside single quotes nothing is expanded. An apostrophe inside the JSON is written `'\''` —

@@ -376,6 +376,11 @@ workspace is: when the envelope carries `workspace_root`, the prompt states each
 relative one under that root and an absolute one as is, so a worker in a member
 checkout never resolves one against the member repository; a value that is not
 a path is stated as given, and without a root every input is stated as named.
+One rule decides what a path is, for the envelope and the prompt alike: a value
+with no whitespace and no `${…}` that holds a `/`. A bare filename such as
+`context.md` is an argument, not an input; write `./context.md` to hand that
+file over. The prompt tells the worker to read each input where it is and never
+copy it into its checkout, which the read-only grant would refuse.
 `--siblings` counts the other dispatches in the same wave, which is what lets the
 prompt say how many workers are in flight and that they coordinate only through
 their outboxes. When the envelope lists the other
