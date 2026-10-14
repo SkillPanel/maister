@@ -72,7 +72,7 @@ test('seed: an attended worker holding a push or a pull request reports it with 
     const lines = prompt.split('\n');
     assert.ok(lines.length <= SEED_LINE_CAP, `the seed is ${lines.length} lines`);
     const closeout = lines.slice(lines.indexOf('# closeout'), lines.indexOf('# siblings'));
-    const held = closeout.filter(line => /a push or a pull request is held for approval/.test(line));
+    const held = closeout.filter(line => /a push or a pull request the work expects is held for approval/.test(line));
     assert.equal(held.length, 1, `pr_required ${pr_required}`);
     assert.match(held[0], /followup message .*`needs: \[permission\]` in its body beside that summary/);
     assert.match(held[0], /`DISPATCH-FOLLOWUP: `.* end the turn/);
@@ -102,8 +102,61 @@ const unpublished = closeout => closeout.filter(line => /commits on your branch 
 test('seed: an attended worker ends the turn on the held-command followup, pull request required or not', () => {
   for (const pr_required of [true, false]) {
     const closeout = closeoutOf('attended', pr_required);
-    assert.equal(closeout.filter(line => /a push or a pull request is held for approval/.test(line)).length, 1);
+    assert.equal(closeout.filter(line => /a push or a pull request the work expects is held for approval/.test(line)).length, 1);
     assert.deepEqual(unpublished(closeout), [], 'an attended worker is relayed, not told to close out');
+  }
+});
+
+// An approval covers one push of the branch and its pull request, for one turn
+// of the same session. The relayed worker finishes first, asks once, waits by
+// ending the turn, asks again the same way when a later push is refused, and
+// closes out `partial` only when told to.
+
+test('seed: an attended worker finishes everything else first, then posts exactly one followup and ends the turn', () => {
+  for (const pr_required of [true, false]) {
+    const held = closeoutOf('attended', pr_required).filter(line => /held for approval/.test(line));
+    assert.equal(held.length, 1, `pr_required ${pr_required}`);
+    assert.match(held[0], /finish everything else this node owes first\. Then write exactly one followup message/);
+    assert.match(held[0], /`git push` of your branch, and `gh pr create` when a pull request is owed/);
+    assert.match(held[0], /`needs: \[permission\]`.*`DISPATCH-FOLLOWUP: `.*end the turn/);
+  }
+});
+
+test('seed: an attended worker runs the approved push itself, and treats a later refusal as the first hold', () => {
+  for (const pr_required of [true, false]) {
+    const grant = closeoutOf('attended', pr_required).filter(line => /approve one push of your branch and its pull request/.test(line));
+    assert.equal(grant.length, 1, `pr_required ${pr_required}`);
+    assert.match(grant[0], /resumes this session for one turn, in which you run the held push and pull request yourself and then close out `success`/);
+    assert.match(grant[0], /If a later push or pull request is refused again .* treat it exactly like the first hold: one followup with `needs: \[permission\]`, then end the turn/);
+    assert.match(grant[0], /Never improvise around a refusal and never wait inside a turn\./);
+  }
+});
+
+test('seed: an attended worker closes out partial only on dismissal or stop', () => {
+  for (const pr_required of [true, false]) {
+    const partial = closeoutOf('attended', pr_required).filter(line => /`partial`/.test(line));
+    assert.equal(partial.length, 1, `pr_required ${pr_required}`);
+    assert.match(partial[0], /only when the followup is dismissed or a note tells you to stop/);
+    assert.match(partial[0], /Never close out `partial` on your own while the followup is unanswered\./);
+  }
+});
+
+test('seed: the auto tiers keep closing out in the same turn, their lines unchanged', () => {
+  const forbidden = 'Your tier denies `git push` and `gh pr create` unless a gate\'s answer granted them. If you end with commits on your branch that are not pushed - because the tier forbids the push, or a push or a pull request was refused - write a followup message naming each held command (`git push` of your branch, and `gh pr create` when a pull request is owed) and what is left to do, with `needs: [permission]` in its body beside that summary. Then publish the closeout in the same turn, `prs` empty and its summary saying the branch is unpublished.';
+  const tail = ['Grade the run success, partial or failed.', 'The closeout message carries the grade, a summary of what changed, and what a reviewer must check.', ''];
+  assert.deepEqual(closeoutOf('auto-medium', true), [
+    '# closeout', 'A pull request is required before close-out; open it and put its URL in the closeout message.', forbidden, ...tail,
+  ]);
+  for (const autonomy of ['auto-medium', 'auto-low']) {
+    assert.deepEqual(closeoutOf(autonomy, false), [
+      '# closeout', 'No pull request is required - your tier denies opening one. Say in the closeout what a reviewer has to open and merge.', forbidden, ...tail,
+    ], autonomy);
+  }
+  for (const autonomy of ['auto-low', 'auto-medium', 'auto-high']) {
+    for (const pr_required of [true, false]) {
+      const closeout = closeoutOf(autonomy, pr_required).join('\n');
+      assert.doesNotMatch(closeout, /exactly one followup|approve one push|Never close out `partial`/, `${autonomy} ${pr_required}`);
+    }
   }
 });
 

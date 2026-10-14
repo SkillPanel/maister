@@ -464,17 +464,25 @@ function closeoutLines({ closeout, autonomy, permissions }) {
     lines.push('Your tier denies `git push` and `gh pr create` unless a gate\'s answer granted them. If you end with commits on your branch that are not pushed - because the tier forbids the push, or a push or a pull request was refused - write a followup message naming each held command (`git push` of your branch, and `gh pr create` when a pull request is owed) and what is left to do, with `needs: [permission]` in its body beside that summary. Then publish the closeout in the same turn, `prs` empty and its summary saying the branch is unpublished.');
   }
   if (autonomy === RELAYED) {
-    // The line a live worker needed. It used to say "wait for that approval",
-    // which a headless worker cannot do: its turn ends. Obeying that literally
-    // produced a dispatch with no close-out, no marker and nothing for the
-    // daemon to read — so a held command ends the turn the way every other
-    // unfinished dispatch ends, on a followup and a frozen marker. It renders
-    // for every relayed seed, because a push is held whether or not a pull
-    // request is required, and `# identity` points here either way. The
-    // `needs` field is what a reader acts on: prose alone names the held
-    // command to a person, and offers nothing to a cockpit that would put the
-    // approval in front of one.
-    lines.push('If a push or a pull request is held for approval, do not wait inside this turn - an approval cannot arrive in one. Write a followup message naming the held command and what is left to do, with `needs: [permission]` in its body beside that summary, print `DISPATCH-FOLLOWUP: ` followed by that summary as the last line, and end the turn. The close-out belongs to a later turn, once the operator has answered.');
+    // A held command ends the turn the way every other unfinished dispatch
+    // ends, on a followup and a frozen marker: a headless worker cannot wait
+    // inside a turn, and one told to produced no close-out and nothing to read.
+    // It renders for every relayed seed, because a push is held whether or not
+    // a pull request is required. The `needs` field is what a reader acts on;
+    // prose alone offers nothing to whoever puts the approval before a person.
+    //
+    // The approval is one push of the branch and its pull request, granted for
+    // one turn: it resumes this same session, and the worker runs the held
+    // commands itself — nothing else ever pushes for it. So the worker finishes
+    // everything else before asking, asks once, and waits by ending the turn.
+    // A push refused after a resume is the grant having lapsed, not a new kind
+    // of failure, so it is asked for again the same way rather than worked
+    // around. The person may instead dismiss the followup or send a note; only
+    // a dismissal or a note saying stop closes the dispatch `partial`, because
+    // a worker closing out on its own would strand an approval still pending.
+    lines.push('If a push or a pull request the work expects is held for approval, finish everything else this node owes first. Then write exactly one followup message naming each held command (`git push` of your branch, and `gh pr create` when a pull request is owed) and what is left to do, with `needs: [permission]` in its body beside that summary, print `DISPATCH-FOLLOWUP: ` followed by that summary as the last line, and end the turn - an approval cannot arrive inside one.');
+    lines.push('An operator may approve one push of your branch and its pull request; that resumes this session for one turn, in which you run the held push and pull request yourself and then close out `success` as usual. If a later push or pull request is refused again - the approval covered one turn - treat it exactly like the first hold: one followup with `needs: [permission]`, then end the turn. Never improvise around a refusal and never wait inside a turn.');
+    lines.push('Close out `partial`, naming what is still held, only when the followup is dismissed or a note tells you to stop. Never close out `partial` on your own while the followup is unanswered.');
   }
   lines.push(`Grade the run ${listOf(Array.isArray(closeout.grade) && closeout.grade.length ? closeout.grade.map(oneLine) : ['success', 'partial', 'failed'])}.`);
   lines.push('The closeout message carries the grade, a summary of what changed, and what a reviewer must check.');
