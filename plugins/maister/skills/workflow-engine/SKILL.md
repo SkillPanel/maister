@@ -156,7 +156,8 @@ framework's task-name rule (`orchestrator-patterns.md` § 5), with `-2`, `-3` �
 directory of that name already exists. The writer derives the project root from that depth, so
 the directory sits exactly there and nowhere deeper. Create it once, on a first run, and record
 its repository-relative path as `orchestrator.task_path` in the freeze; a resume keeps the
-directory it has. **The freeze creates the folders inside it**: the first folder of every
+directory it has. A child run's directory is not named by this rule: it is the one `subrun-path`
+prints (*Sub-runs*). **The freeze creates the folders inside it**: the first folder of every
 artifact path the resolved graph declares, so a node or an agent writing a declared artifact
 finds its folder there. A deeper folder, a directory artifact included, is its writer's to create.
 
@@ -303,6 +304,7 @@ write a question set there themselves.
 | `area-brief` | `--state`, `--node` (the convergence node that is asking), and one form: `--area=<id>` with `--json` and `--picker=rich`; `--area=<id>` alone; or `--patch-file=<run>/.state-patch.json` with `--area` repeated or omitted | One decision area of the brainstorm, as a picker in the field shape of `gate-brief --json`, as its full write-up in markdown, or written as a driven question set to the patch file (`references/in-node-questions.md` § *Decision areas from the brainstorm*). A file it cannot use is one `warning: decision-areas-…` line on stderr, exit `0`, and the node composes the area itself. Writes no state and no `display/next.json` |
 | `finding-brief` | `--state`, `--node` (the reviewing node that is asking), `--findings-file=<file in the run>`, and optionally `--patch-file=<run>/.state-patch.json` | The node's findings that need a decision as one question set, printed as JSON or written to the patch file (`references/in-node-questions.md` § *Findings that need a decision*). A file it cannot use is one `warning: finding-list-…` line on stderr, exit `0`, and the node composes the questions itself. Writes no state |
 | `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume, with an operator `message` (*Resume*); a retired `phase_summaries` mirror in the context block that holds a decision or a risk is one `warning: legacy-mirror-ignored:` line on stderr, outside the JSON, exit `0` — reads the run, writes nothing |
+| `subrun-path` | `--state` (the parent's), `--node` (its `workflow:` node) | JSON on stdout: `{ok, node, workflow, task_path, run_id, recorded, existing}` — the child run's directory relative to the project root and its run id, as the parent recorded them (`recorded: true`) or as the sub-run naming rule gives them, with `existing` `absent`, `empty` or `adopt` (*Sub-runs*). The only source of a child's directory: never work it out by hand. Exit `1` with `{ok: false, code, message}` for the refusals below and for `subrun-on-dir-node`, `subrun-recursion`, `subrun-target-unresolved` and `subrun-child-foreign` (`references/sub-runs.md`); a definition that drifted since the freeze is one `warning: subrun-path-graph-drift` line, exit `0` — reads the run, writes nothing |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
 `run-context`, `prior-context` with `--node`, and `node-brief` refuse with exit `1`, an empty stdout and the code first on stderr; nothing was written:
@@ -315,6 +317,16 @@ write a question set there themselves.
 | `node-brief-state-unreadable` | `--state` cannot be read or parsed as a state document, and nothing was read further. Point `--state` at the run's `orchestrator-state.yml` — the run directory this node belongs to — and run the verb again. |
 | `node-brief-not-a-run` | The file carries no `workflow:` block: the engine never froze it, so it has no nodes to brief. Run the verb on the state of a frozen run — freeze it first through `write-state` (Step 4) — and never write the block by hand. |
 | `node-brief-unknown-node` | `--node` is not a node of the run's frozen graph, or names `held-approval`, which is briefed by `gate-brief`. Name the node about to run, exactly as `workflow.nodes` spells it, and run the verb again; no state write fixes this. |
+
+`subrun-path` refuses with exit `1` and the refusal as JSON on stdout, like `resume-check`; nothing was written:
+
+| Refusal | Response |
+|---|---|
+| `subrun-path-state-unreadable` | `--state` cannot be read or parsed as a state document. Point `--state` at the parent run's `orchestrator-state.yml` and run the verb again. |
+| `subrun-path-not-a-run` | The file carries no `workflow:` block: the engine never froze it, so it has no `workflow:` node to start a child. Run the verb on the parent's frozen state. |
+| `subrun-path-unknown-node` | `--node` is not a node of the run's frozen graph. Name the `workflow:` node that starts the child, exactly as `workflow.nodes` spells it; no state write fixes this. |
+| `subrun-path-definition-unread` | The definition the parent froze cannot be re-read, so the workflow the node starts is unknown. Restore the file its `workflow.source` names, then run the verb again; never type the child's directory by hand instead. |
+| `subrun-path-not-a-subrun` | The node runs a `skill:`, `agent:` or `direct:` target, not a `workflow:` one, so it starts no child run. Name the `workflow:` node. |
 
 `run-complete` ends a run and, under a dispatch driver, only once the close-out it owes is
 on disk. There it takes `--outbox` and `--dispatch-id` as well, because the state never records
@@ -645,14 +657,16 @@ The full contract is `references/sub-runs.md`. What the engine must hold in mind
 - **Under a terminal driver the child runs in session** and the turn continues to W4. Under a
   `cockpit` or `dispatch` driver the turn ends at `WAITING-SUBRUN` and the daemon discovers the
   child in its ordinary sweep — the parent drives nothing and spawns nothing.
-- **Five checks refuse before anything is created, and no verb runs them for you**: perform them
-  from `references/sub-runs.md` § *Before any write — the checks that refuse*.
+- **Five checks refuse before anything is created**: `subrun-path` runs the first three; perform
+  the last two from `references/sub-runs.md` § *Before any write — the checks that refuse*.
 - **The child's freeze copies from the parent** the narrower autonomy ceiling and, under a driver
   that is not the terminal, the driver's features; a parent whose state cannot be read gives
   neither, and the freeze warns `autonomy-ceiling-parent-unread:<run>` or
   `driver-features-parent-unread:<run>`.
-- **The child directory name is derived, never chosen**, so a parent re-driven after a crash
-  computes the same name and **adopts** the existing child instead of starting a second one.
+- **The child's directory comes from `subrun-path`, never worked out by hand**: the verb prints
+  the `task_path` and `run_id` W3 records, so a parent re-driven after a crash gets the same
+  directory and **adopts** the existing child (`existing: adopt`) instead of starting a second
+  one. A child frozen anywhere else is refused `state-subrun-path-mismatch`.
 
 ## Resume
 

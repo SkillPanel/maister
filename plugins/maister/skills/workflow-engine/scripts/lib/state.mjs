@@ -2575,16 +2575,37 @@ function ceilingIn(options) {
 }
 
 /**
+ * A child run's project root. Four levels up is right for a child in its own
+ * task directory, but not for one placed deeper — inside its parent's
+ * directory, say — where four levels up lands inside `.maister/` and the
+ * parent can no longer be found. The link names where the parent lives,
+ * relative to the root, so the root is the nearest ancestor of the run
+ * directory under which `parent.run` holds a state file: four levels up when
+ * it does there, and four levels up as well when no ancestor does, so a
+ * parent that genuinely does not exist is handled as it always was.
+ */
+function childRootOf(runDir, parent) {
+  const fourUp = projectRootOf(runDir);
+  const holdsParent = root => isFile(path.join(root, parent.run, 'orchestrator-state.yml'));
+  if (holdsParent(fourUp)) return fourUp;
+  for (let dir = path.dirname(runDir); ; dir = path.dirname(dir)) {
+    if (holdsParent(dir)) return dir;
+    if (path.dirname(dir) === dir) return fourUp;
+  }
+}
+
+/**
  * A child run's parent state: read from the state file `parent.run` names,
- * relative to the project root, or null when that file cannot be read or
- * parsed. Its `orchestrator:` block is what a child's freeze inherits from; its
- * node entries are what the child's directory is held to. The link is judged
- * before the path is built from it, exactly as `applyScalars` would.
+ * relative to the child's project root (`childRootOf`), or null when that file
+ * cannot be read or parsed. Its `orchestrator:` block is what a child's freeze
+ * inherits from; its node entries are what the child's directory is held to.
+ * The link is judged before the path is built from it, exactly as
+ * `applyScalars` would.
  */
 function readParentState(parent, runDir) {
   assertParent(parent);
   try {
-    const file = path.join(projectRootOf(runDir), parent.run, 'orchestrator-state.yml');
+    const file = path.join(childRootOf(runDir, parent), parent.run, 'orchestrator-state.yml');
     const state = parseState(fs.readFileSync(file, 'utf8'));
     return { ...state, orchestrator: state.orchestrator ?? {} };
   } catch {
@@ -2603,10 +2624,15 @@ function readParentState(parent, runDir) {
  * carries — is refused `state-subrun-path-mismatch` when the parent's node
  * names another directory.
  *
+ * Before the parent records the link — the child's freeze comes first — the
+ * child is held to the shape every task directory has instead:
+ * `.maister/tasks/<type>/<name>` under the project root. A child frozen beside
+ * another kind of run, or inside its parent's own directory, is refused at the
+ * freeze, nothing written; the root is found from the link (`childRootOf`), so
+ * a child placed too deep still reads its parent and is judged.
+ *
  * Nothing is refused that cannot be judged: a parent whose state cannot be
- * read, a node it does not carry, or a node that has not recorded its
- * `task_path` yet — the child's freeze comes before the parent records the
- * link — leaves the write as it was.
+ * read, or a node it does not carry, leaves the write as it was.
  */
 function assertSubrunPath(doc, sent, runDir) {
   if (runDir === null) return;
@@ -2621,10 +2647,16 @@ function assertSubrunPath(doc, sent, runDir) {
     if (!isPlainObject(link)) return;
   }
   const parent = readParentState(link, runDir);
-  const node = parent?.workflow?.nodes?.[link.node];
+  if (!isPlainObject(parent?.workflow?.nodes) || !Object.hasOwn(parent.workflow.nodes, link.node)) return;
+  const node = parent.workflow.nodes[link.node];
   const recorded = isPlainObject(node?.values) ? node.values.task_path : undefined;
-  if (typeof recorded !== 'string' || recorded === '') return;
-  const own = path.relative(projectRootOf(runDir), runDir).split(path.sep).join('/');
+  const own = path.relative(childRootOf(runDir, link), runDir).split(path.sep).join('/');
+  if (typeof recorded !== 'string' || recorded === '') {
+    if (/^\.maister\/tasks\/[^/]+\/[^/]+$/.test(own)) return;
+    throw new Refusal('state-subrun-path-mismatch',
+      `this run's directory is ${own}, which is not a task directory: a child run of ${link.run} node ${link.node} lives at .maister/tasks/<type>/<name> under the project root. `
+      + `Nothing was written. Take the child's directory from the subrun-path verb on the parent's state with --node=${link.node}, and freeze the child there.`);
+  }
   const spelled = value => value.replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/\/+$/, '');
   if (spelled(recorded) === spelled(own)) return;
   throw new Refusal('state-subrun-path-mismatch',

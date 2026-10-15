@@ -26,15 +26,15 @@ catches it with `on:`) before anything is created:
 5. a key the node declares under `outputs:` has no entry of that name in the child definition's
    workflow-level `outputs:` → `subrun-output-unmatched`.
 
-**All five are performed by the driver, from this prose.** No verb runs them: the graph module
-spells the vocabulary, it does not decide these refusals. What it guarantees is that there is one
-spelling of each code — an exported constant is their single source, so this file and any code that
-ever raises them cannot drift into two names for one refusal. Of the checks the module's constant
-covers, only the reserved-name one runs as code, at validate time. Read this list as the operative
-statement of *when* each refusal fires, and the module as the authority on *how it is spelled*.
-Checks 4
-and 5 also run at validate time, as warnings, whenever the child definition resolves: the warnings
-are what an author sees first, the refusals are what fail a run.
+**The first three are run by the `subrun-path` verb; the last two by the driver, from this
+prose.** `subrun-path --state=<parent state> --node=<node>` — the call that gives the child its
+directory (*The child directory name*) — refuses with the code of the first of checks 1–3 that
+fails, exit `1`, so a driver that has its directory has passed them. Checks 4 and 5 need the
+interpolated `with:` and the child's declared interface, which the driver holds at that moment, so
+they stay prose. Every code has one spelling, an exported constant in the graph module, so this
+file and the code that raises them cannot drift into two names for one refusal. Checks 4 and 5 also
+run at validate time, as warnings, whenever the child definition resolves: the warnings are what an
+author sees first, the refusals are what fail a run.
 
 ---
 
@@ -43,9 +43,9 @@ are what an author sees first, the refusals are what fail a run.
 | Moment | The write | What it carries |
 |---|---|---|
 | **W1 — the node starts** | `write-state` against the **parent** state | `nodes.<node>`: `kind: workflow`, `status: running`. The writer stamps `started`. It refuses `state-subrun-held-open` while a step the node follows holds a question with no choice yet: settle it first (the engine skill, *The ready set*), since no revise can re-run that step once the child has run |
-| — | *no write* | resolve the name, interpolate `with:`, run the checks above, derive the child directory name, create it, `validate` and `resolve` the child definition |
+| — | *no write* | run `subrun-path` for the node (checks 1–3 and the child's directory), interpolate `with:`, run checks 4 and 5, create the directory it prints unless it reports `existing: adopt`, `validate` and `resolve` the child definition |
 | **W2 — the child freezes** | one `write-state` against the **child** state | `task` (title, description, status `in_progress`, and `task.key` when the child marks a tracker key input); `workflow` (`source`, `overlays`, `profile`, `graph_hash` exactly as `resolve` printed it, `grammar_version`, `name`) **together with** its `nodes`; `orchestrator.options.inputs` (the interpolated `with:`, plus `embedded: true` when the child declares that input); `orchestrator.driver` (`{kind: terminal}`); `orchestrator.parent` (`{run, node}`); `orchestrator.completed_phases` and `orchestrator.failed_phases`, both `[]`, which the writer seeds at the top of the block when the patch omits them; and `orchestrator.created`, which the writer stamps from its own clock when the patch omits it, as it does at any run's freeze — a driver drives no run without one. `updated` is the writer's own: it stamps it *after* applying the patch, by the same append rule that lands a key the region does not already carry at the end of it, so the block ends with `updated` below `parent`. A child's freeze is necessarily that run's first write: a state file carrying no `workflow:` block is refused `state-incomplete`, so there is no initialise-first, freeze-second two-step to spread it over. |
-| **W3 — the parent records the link** | `write-state` against the **parent** state | `nodes.<node>`: `status: waiting`, `values: {task_path, run_id}`. From here on every write to the child is held to that `task_path`: a child state in any other directory is refused `state-subrun-path-mismatch` (a freeze sent before W3 is not judged, since nothing is recorded yet) |
+| **W3 — the parent records the link** | `write-state` against the **parent** state | `nodes.<node>`: `status: waiting`, `values: {task_path, run_id}`, both exactly as `subrun-path` printed them. From here on every write to the child is held to that `task_path`: a child state in any other directory is refused `state-subrun-path-mismatch`. A freeze sent before W3 is held to the task-directory shape instead — `.maister/tasks/<type>/<name>` under the project root — so a child frozen beside another kind of run, or inside its parent's directory, is refused the same way |
 | — | *the child runs, in session* | the ordinary engine loop against the child's state. Child gates are asked with the host's question tool and answered in the same turn; the child's own close-out runs `run-complete` with no wrap-up, since the parent's own ending carries it |
 | — | *no write: the re-resolve* | read the child's state, re-resolve the definition **it** names, compare hashes, read its declared `outputs:` and the producing nodes' declared paths |
 | **W4 — the parent adopts the outcome** | `write-state` against the **parent** state | `nodes.<node>`: the mapped status, `values` re-sent whole as `{task_path, run_id, …copied values}`; `node_summaries.<node>`, onto which the writer appends every artifact the node declares that the child wrote, spelled relative to the parent's run directory, and whose `absent` names each declared artifact the child never wrote because a guard skipped the child node that writes it |
@@ -152,13 +152,20 @@ after a freeze must both prove it has not moved underneath them.
 
 ## The child directory name
 
+**Take it from `subrun-path`, never work it out.** The verb prints the child's `task_path`,
+relative to the project root, and its `run_id`: the pair the parent already recorded for the node,
+or, when it has recorded none, the pair the rule below gives, with `existing` saying what the
+directory holds now. It reads and writes nothing — recording the pair stays with W3, because the
+child freezes first and the adoption after a crash depends on that order. The rule is written down
+here as the verb's specification, for a reader checking it, not for a driver to apply:
+
 ```
 .maister/tasks/<child-type>/<parent-date>-<parent-slug>-<node>/
 ```
 
 `<child-type>` is the child workflow's own task type: its name, for every workflow but migration,
 whose type is `migrations`. `<parent-date>` is the parent directory's
-`YYYY-MM-DD` prefix, or the turn's measured date when it has none. `<parent-slug>` is the parent
+`YYYY-MM-DD` prefix, or the current UTC date when it has none. `<parent-slug>` is the parent
 basename with that prefix and its hyphen removed — the whole basename when there is no prefix.
 `<node>` is the parent node id.
 
@@ -179,14 +186,14 @@ parent's own, so two parents running the same child on one day do not collide. *
 keeps the dated task-directory shape, so the existing walks find it and it lists and resumes like
 any other run. Nothing about a child is special.
 
-Adoption is by directory, not by scan:
+Adoption is by directory, not by scan, and `subrun-path` reports which row applies:
 
-| The derived directory | The engine |
-|---|---|
-| does not exist | creates it and freezes the child into it (W2) |
-| exists, holds a state file whose `orchestrator.parent` names this run and this node | **adopts** it: W2 is skipped and W3 records the existing child |
-| exists, holds no state file — a crash between the creation and the freeze | freezes into it. An empty directory carries no run and nothing is overwritten |
-| exists, holds a state file whose parent link names another run or another node | `RUN-FAILED: subrun-child-foreign` — it refuses rather than overwriting a stranger's run |
+| The derived directory | `subrun-path` | The engine |
+|---|---|---|
+| does not exist | `existing: absent` | creates it and freezes the child into it (W2) |
+| exists, holds a state file whose `orchestrator.parent` names this run and this node | `existing: adopt` | **adopts** it: W2 is skipped and W3 records the existing child |
+| exists, holds no state file — a crash between the creation and the freeze | `existing: empty` | freezes into it. An empty directory carries no run and nothing is overwritten |
+| exists, holds a state file whose parent link names another run or another node | refuses `subrun-child-foreign`, exit `1` | `RUN-FAILED: subrun-child-foreign` — it refuses rather than overwriting a stranger's run |
 
 ---
 
@@ -269,9 +276,9 @@ Neither family joins the writer's twenty-seven refusal codes: nothing here is a 
 
 The four codes the graph module spells — the three pre-start ones and the reserved-name one — are
 exported from it under one name, so this table and any code that raises them share one vocabulary
-rather than two that drift. Spelling is all that is shared: only the reserved-name code is raised
-from there, at validate time, while the three pre-start refusals are performed by the driver from
-the list above. Validate-time warnings keep the shape the existing
+rather than two that drift. The reserved-name code is raised at validate time; the three pre-start
+refusals, and `subrun-child-foreign`, are raised by `subrun-path` and carried by the driver into
+`RUN-FAILED: <code>`. Validate-time warnings keep the shape the existing
 unresolved-reference warning has: `unresolved-subrun-input:<node>:<name>` and
 `unresolved-subrun-output:<node>:<name>`.
 
@@ -341,7 +348,7 @@ status: it is mapped from the dispatch's close-out grade (engine § *Recording a
 
 | # | Interruption | Required behaviour |
 |---|---|---|
-| A1 | crash after W2, before W3 | the re-driven parent derives the same directory, finds it, reads its `orchestrator.parent`, confirms it names this run and this node, **adopts** it and writes W3. Exactly one child exists |
+| A1 | crash after W2, before W3 | the re-driven parent runs `subrun-path` again, which prints the same directory with `existing: adopt` — the child's `orchestrator.parent` names this run and this node — so the parent **adopts** it and writes W3. Exactly one child exists |
 | A2 | a re-drive arrives while the child still runs | no write — nothing changed, so the last projection is still current. `WAITING-SUBRUN` is re-printed unchanged and the turn ends. Repeatable without limit and without a second child |
 | A3 | a duplicate wake-up after the node already completed | `SUB-RUN-ALREADY-DONE` is printed, nothing is written — the node keeps its recorded status and values, and the last projection is still current |
 | A4 | the child directory is missing at the recorded `task_path` | `RUN-FAILED: subrun-state-missing`, and **no write**: the node stays `waiting` with its recorded values and the last projection is still current, so every later re-drive reaches the same refusal until an operator restores the directory or edits the run. The child is never re-created and the run never silently re-started |

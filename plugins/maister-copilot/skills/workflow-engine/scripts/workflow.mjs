@@ -83,6 +83,11 @@
  *                  (the frozen workflow's name, overlays and profile, or the
  *                  refusal for a directory the engine does not resume, a 2.x
  *                  one among them) — read-only over a run
+ *   subrun-path    --state (the parent's), --node             JSON on stdout
+ *                  (a workflow: node's child run directory, relative to the
+ *                  project root, and its run id: the one the parent recorded,
+ *                  else the one the sub-run naming rule gives, with what that
+ *                  directory holds now) — read-only over a run
  *   sync-plan      --plan                                     JSON on stdout
  *                  (the plan companion's progress markers set from the
  *                  markdown plan's checkboxes; a no-op without a companion)
@@ -210,6 +215,11 @@ const VERBS = {
   // holds a run this engine froze, and what it froze. One flag for the reason
   // the other state verbs take one.
   'resume-check': { module: 'resume-check.mjs', flags: ['state'] },
+  // Read-only as well: where a `workflow:` node's child run lives. `--node`
+  // because a run may hold several such nodes; the rest — the parent's
+  // directory, its definition and the project root — is found from the state,
+  // so no driver composes the child's path by hand.
+  'subrun-path': { module: 'subrun-path.mjs', flags: ['state', 'node'] },
   // The plan, not the state file: the executor also runs outside an engine
   // run, and the companion it keeps in step sits beside the plan either way.
   // The run's `html_output` switch is looked up from there when a run exists.
@@ -1130,6 +1140,21 @@ async function runResumeCheck(flags) {
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
+/**
+ * `subrun-path` reports like `resume-check`: the whole result as JSON on stdout,
+ * exit 1 on a refusal, and a drifted definition as a `warning:` line on stderr.
+ */
+async function runSubrunPath(flags) {
+  if (!flags.state) throw new UsageError('subrun-path needs --state');
+  if (!flags.node) throw new UsageError('subrun-path needs --node');
+  const module = await loadModule(VERBS['subrun-path'].module);
+  const locate = entryOf(module, 'subrunPath', VERBS['subrun-path'].module);
+  const { warnings = [], ...result } = locate({ state: flags.state, node: flags.node });
+  report(result);
+  for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
 const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
@@ -1146,6 +1171,7 @@ const RUNNERS = {
   'area-brief': runAreaBrief,
   'finding-brief': runFindingBrief,
   'resume-check': runResumeCheck,
+  'subrun-path': runSubrunPath,
   'sync-plan': runSyncPlan,
 };
 
