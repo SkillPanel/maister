@@ -338,10 +338,13 @@ Update or create standards from conversation context or explicit description. Wh
 
 ## Umbrella
 
-A multi-repository workspace: an umbrella directory whose members are checkouts of separate
-repositories, coordinated by a manifest and driven as chains by the cockpit. Two commands turn a
-directory into one and judge it. The rest of the workspace runtime is machinery a running chain
-uses, documented below for the operator who needs to know what wrote a ledger or an outbox.
+The workspace runtime the [maister cockpit](https://github.com/SkillPanel/maister-cockpit) uses for
+multi-repository runs: an umbrella directory whose members are checkouts of separate repositories,
+coordinated by a manifest and driven as chains by the cockpit. **A terminal user working in one
+repository does not need it** — every workflow above runs without it. The three commands below
+set a workspace up for the cockpit, judge it and tidy it; the rest of the runtime is machinery a
+running chain uses, documented here for the operator who needs to know what wrote a ledger or an
+outbox.
 
 ### `/maister:umbrella init [--root DIR] [--members-root DIR] [--force]`
 
@@ -466,9 +469,9 @@ gets you pointed here.
 
 ### The workspace runtime
 
-Every verb, the two above included, runs through one workspace runtime that the commands, a
-workflow's orchestrator and the cockpit daemon share. It is not something a user types: the two
-commands above are the user surface, and the runtime's other verbs are listed here so the reports
+Every verb, the three above included, runs through one workspace runtime that the commands, a
+workflow's orchestrator and the cockpit daemon share. It is not something a user types: the three
+commands above are the setup surface, and the runtime's other verbs are listed here so the reports
 and refusals they print are recognisable when a chain or the cockpit shows them. Node 20 or newer,
 no dependencies to install. The verbs are the sanctioned way anything touches a workspace's files —
 never an editor.
@@ -554,8 +557,9 @@ other three refuse, because a lost status is not a lost result.
 
 **Workspace directory**: `.maister/umbrella/`
 **Verbs**: `init`, `validate`, `prune`, `envelope`, `seed`, `ledger`, `outbox`
-**Entry point**: `/maister:umbrella init`, `/maister:umbrella validate` and `/maister:umbrella prune`;
-the other verbs are run by a workflow's orchestrator and by the cockpit, not by a user.
+**Entry point**: `/maister:umbrella init`, `/maister:umbrella validate` and `/maister:umbrella prune`,
+to set a workspace up for the cockpit; the other verbs are run by a workflow's orchestrator and by
+the cockpit, not by a user.
 
 ## Quick Commands
 
