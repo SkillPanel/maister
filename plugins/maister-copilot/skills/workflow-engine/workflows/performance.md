@@ -10,8 +10,8 @@ per-node context in `with:` to whatever the node names.
 and the profiling-data drop point the analysis node reads from.
 
 1. **Initialize** as `orchestrator-patterns.md` § 5 says: the clock from the
-   shell, the state file with the task description and an empty
-   `phase_summaries` map under `performance_context`, `options.html_output`
+   shell, the state file with the task description,
+   `options.html_output`
    from the project configuration, the dashboard opened with the platform
    opener unless that is false — never its path printed instead — and the
    start banner shown.
@@ -77,7 +77,7 @@ clarification answers to `analysis/clarifications.md`, then set
 `performance_context.clarifications_resolved` to true — also when nothing was
 asked.
 
-**Summary.** The `codebase_analysis` mirror carries the key files and the
+**Summary.** The entry carries the key files and the
 primary language.
 
 **Budget.** Expand the search patterns on the second attempt, and prompt the
@@ -109,7 +109,7 @@ priority codes (P0 critical, P1 high, P2 medium, P3 low) at first use, and
 name a bottleneck by what it is ("one database call per order"), never by its
 id alone. The ranking choices are `by: run` decisions; `risks` holds only what
 the analysis could not settle, each `open` with its `change`. The
-`bottleneck_analysis` mirror carries the bottleneck list and
+entry carries the bottleneck list and
 `user_data_incorporated`.
 
 **Re-run.** Ask nothing about profiling data: read the directory as it stands.

@@ -163,8 +163,8 @@ const VERBS = {
   // publishes with.
   'run-complete': { module: 'complete.mjs', flags: ['state', 'outbox', 'dispatch-id'] },
   // One of the two verbs that read a run and write nothing. One flag, for
-  // `write-state`'s reason: the context block and its `phase_summaries` are
-  // found inside the state file, so there is nothing else a caller could name
+  // `write-state`'s reason: the summaries it renders are found inside the
+  // state file, so there is nothing else a caller could name
   // and therefore nothing else a caller could name wrongly. `--background`
   // frames the same items for a delegate writing for end users, who is to stay
   // consistent with them rather than carry them into its document.
@@ -1118,13 +1118,15 @@ async function runSyncPlan(flags) {
  * Reported like `locate` — the whole JSON result on stdout, exit 1 for a
  * directory it does not resume — so the refusal's `message`, which is written
  * for the operator, is read from the same place as the frozen workflow's name.
+ * A warning goes to stderr, opening with `warning:`, and stays out of the JSON.
  */
 async function runResumeCheck(flags) {
   if (!flags.state) throw new UsageError('resume-check needs --state');
   const module = await loadModule(VERBS['resume-check'].module);
   const check = entryOf(module, 'resumeCheck', VERBS['resume-check'].module);
-  const result = check({ state: flags.state });
+  const { warnings = [], ...result } = check({ state: flags.state });
   report(result);
+  for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 

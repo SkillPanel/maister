@@ -1,6 +1,7 @@
-# Overlays the brief sample: replaces one key of a node's entry and removes
-# another, removes a node's entry whole, adds a node with an entry of its own,
-# and carries a profile that disables a node and has the last word on another.
+# Overlays the brief sample: replaces a node's budget and removes its absence,
+# removes a node's entry whole, adds a node with a budget of its own, and
+# carries a profile that disables a node and adds a budget beside another's
+# recommendation.
 extends: brief.yml
 
 brief:
@@ -9,7 +10,7 @@ brief:
     absent: null
   review: null
   extra:
-    summary_keys: [extra]
+    budget: 1
 
 add:
   extra:
@@ -22,4 +23,4 @@ profiles:
     disable: [audit]
     brief:
       specification:
-        summary_keys: [spec]
+        budget: 4

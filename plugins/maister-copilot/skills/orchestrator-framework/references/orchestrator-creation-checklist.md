@@ -19,7 +19,7 @@ Before considering a workflow complete, verify ALL items:
 - [ ] **Guards** — a guard reads one declared bool or one gate value; the closing gate of a guarded stretch repeats the guard, unless it also closes an unguarded document before it, in which case it needs both nodes of its stretch
 - [ ] **No interpolation from a skippable node** — a `${node.…}` reference only into a node that shares the referenced node's guard; anything else reads the state and the disk
 - [ ] **Step template** — the H1 and one opening paragraph, then a `` ## `<id>` `` section only for a node with something of its own, built from the parts *Does*, *Asks*, *Writes*, *Summary*, *Re-run* and *Budget* in that order; nothing the engine's node conventions already say; the template lint in `make validate` passes
-- [ ] **Brief data** — a `brief:` entry for every node with data: the `summary_keys` it mirrors, the `absent` artifacts it may leave unwritten, its `budget`, and the continue its input `recommends`
+- [ ] **Brief data** — a `brief:` entry for every node with data: the `absent` artifacts it may leave unwritten, its `budget`, and the continue its input `recommends`
 - [ ] **No gate section without an exception** — a gate has a section only when it holds an *Exception* part: behaviour the definition, the gates reference and the conventions do not carry
 - [ ] **Embedded mode only where it differs** — an `## Embedded mode` section only in a workflow that can run as a child and behaves differently as one
 - [ ] **No icon section** — the dashboard reads each icon from the display block alone, so the prose never tells a node to write one

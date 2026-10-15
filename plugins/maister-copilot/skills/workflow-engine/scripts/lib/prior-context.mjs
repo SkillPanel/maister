@@ -12,24 +12,21 @@
  * clauses on one line, and nothing in the prompt records that they were ever
  * thirteen.
  *
- * So the composing step is removed. This module turns the run's accumulated
- * `phase_summaries` into text a node pastes, and a node that pastes cannot
+ * So the composing step is removed. This module turns the run's
+ * `node_summaries` into text a node pastes, and a node that pastes cannot
  * condense. The counts are printed beside every list for the same reason: a
  * reader — operator or reviewer — can hold the output against state without
  * reading state, and a truncation shows up as a number that does not match its
  * own bullets.
  *
  * What it does not do. It does not write. It reads the state file, renders, and
- * returns; there is no patch, no temp file, no key introduced. `phase_summaries`
+ * returns; there is no patch, no temp file, no key introduced. `node_summaries`
  * is a key the state contract already defines and the run already carries.
  *
- * Generic on purpose. The context block is *found*, by its suffix, not named by
- * a flag: the root carries exactly one, so a workflow key would be a second
- * place to get the same fact wrong. Every workflow is served by the same call
- * with the same flag — a built-in's block and one derived from any other
- * workflow's name alike. A run with no context block at all, a workflow whose
- * nodes record only `node_summaries`, has those rendered instead: they are the
- * run's prior record, and a refusal would hand its next delegate nothing.
+ * Every run is served the same way: the passage is `node_summaries` whether or
+ * not the workflow has a context block, and a `<context>.phase_summaries` an
+ * older run carries is not read — only announced, by one `legacy-mirror-ignored`
+ * warning that counts its decisions and risks (`legacyMirrorWarning`).
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -38,11 +35,6 @@ import fs from 'node:fs';
 // The one state reader (`state-read.mjs`): this module used to carry its own,
 // which is exactly the duplication that reader exists to end.
 import { parse, isPlainObject } from './state-read.mjs';
-// The writer decides which keys are context blocks, so the reader asks it
-// rather than keeping a list of its own: a block the writer derives is a block
-// this module finds, and a reserved `project_context` is one neither mistakes
-// for the run's.
-import { isContextBlock } from './state.mjs';
 // A revise the run is in the middle of is found the way `resume-check` finds it.
 import { openRevision } from './revise.mjs';
 import { PROVENANCE_KEYS, riskOf, riskText } from './items.mjs';
@@ -50,10 +42,11 @@ import { approvalKey, isOpenHeld, outstandingHeld } from './question-triage.mjs'
 // The run block an artifact writer's prompt opens with, so that one call
 // fetches both passages and the two can never be pasted out of order.
 import { runContext } from './run-context.mjs';
+import { legacyMirrorWarning } from './state.mjs';
 
 /**
  * The two fields the artifact summary contract is written against. They lead
- * every phase section and they are printed even when empty, because an absent
+ * every node section and they are printed even when empty, because an absent
  * list and an empty one are different facts and a delegate is owed the
  * difference.
  */
@@ -62,7 +55,7 @@ const CONTRACT_LISTS = ['decisions', 'risks'];
 /** Printed first when present: one line of orientation before the items. */
 const LEAD = 'summary';
 
-/** Carried in the section heading rather than as a field of its own. */
+/** Not printed as fields: `summary` leads the section, and `node` would only repeat the heading's key. */
 const HEADING_FIELDS = new Set(['node', LEAD]);
 
 /**
@@ -97,7 +90,7 @@ export function priorContext({ state, background = false, node = null }) {
   if (!context.ok) return context;
   const prior = priorPhases({ state, background });
   if (!prior.ok) return prior;
-  return { ok: true, text: `${context.text}\n${prior.text}`, errors: [], warnings: context.warnings };
+  return { ok: true, text: `${context.text}\n${prior.text}`, errors: [], warnings: [...(context.warnings ?? []), ...prior.warnings] };
 }
 
 function priorPhases({ state, background }) {
@@ -115,30 +108,26 @@ function priorPhases({ state, background }) {
     return refuse('state-unreadable', `${state} cannot be read as a state document: ${err.message}`);
   }
 
-  const key = Object.keys(doc).find(name => isContextBlock(name) && isPlainObject(doc[name]));
-  if (key) {
-    const summaries = doc[key].phase_summaries;
-    if (summaries !== undefined && summaries !== null && !isPlainObject(summaries)) {
-      return refuse('prior-context-absent',
-        `${key}.phase_summaries is not a map, so its entries cannot be rendered`);
-    }
-    return { ok: true, text: render(`${key}.phase_summaries`, 'phase', isPlainObject(summaries) ? summaries : {}, background) + revisionOf(doc), errors: [] };
-  }
-
-  // No context block. A run — one the engine froze, or one whose nodes have
-  // recorded summaries — is rendered from `node_summaries`; a file that is
-  // neither is not a run this verb can say anything about.
+  // A run — one the engine froze, or one whose nodes have recorded summaries —
+  // is always rendered from `node_summaries`; a file that is neither is not a
+  // run this verb can say anything about.
   const nodes = doc.node_summaries;
   if (!isPlainObject(doc.workflow) && (nodes === undefined || nodes === null)) {
     return refuse('prior-context-absent',
-      `${state} carries no context block, no node_summaries and no workflow block, so there is no prior context to render`);
+      `${state} carries no node_summaries and no workflow block, so there is no prior context to render`);
   }
   if (nodes !== undefined && nodes !== null && !isPlainObject(nodes)) {
     return refuse('prior-context-absent', 'node_summaries is not a map, so its entries cannot be rendered');
   }
   // A held choice no approval matches yet is printed as provisional.
   const held = new Map(outstandingHeld(doc).map(each => [approvalKey(each.node, each.item), isOpenHeld(each.item) ? NO_CHOICE_NOTE : HELD_NOTE]));
-  return { ok: true, text: render('node_summaries', 'node', isPlainObject(nodes) ? nodes : {}, background, held) + revisionOf(doc), errors: [] };
+  const mirror = legacyMirrorWarning(doc);
+  return {
+    ok: true,
+    text: render(isPlainObject(nodes) ? nodes : {}, background, held) + revisionOf(doc),
+    errors: [],
+    warnings: mirror === null ? [] : [mirror],
+  };
 }
 
 /**
@@ -176,11 +165,9 @@ function refuse(code, message) {
  * The paste-ready block.
  *
  * Markdown, because that is what a delegate prompt already is, and because a
- * bullet is the one form that cannot quietly hold two items. `source` is the
- * map's path in state and `unit` what one of its entries records — a phase for
- * a context block's `phase_summaries`, a node for `node_summaries`.
+ * bullet is the one form that cannot quietly hold two items.
  */
-function render(source, unit, summaries, background = false, held = new Map()) {
+function render(summaries, background = false, held = new Map()) {
   // Every entry the state writer records is a map — it refuses any other shape —
   // so an entry that is not one was written by hand, and is not read.
   const entries = Object.entries(summaries).filter(([, value]) => isPlainObject(value));
@@ -193,8 +180,8 @@ function render(source, unit, summaries, background = false, held = new Map()) {
     risks += listOf(entry.risks).length;
   }
 
-  const counts = `Pasted from \`${source}\` in this run's \`orchestrator-state.yml\`: `
-    + `${entries.length} ${entries.length === 1 ? unit : `${unit}s`}, ${decisions} `
+  const counts = 'Pasted from `node_summaries` in this run\'s `orchestrator-state.yml`: '
+    + `${entries.length} ${entries.length === 1 ? 'node' : 'nodes'}, ${decisions} `
     + `${decisions === 1 ? 'decision' : 'decisions'}, ${risks} ${risks === 1 ? 'risk' : 'risks'}. `;
   if (background) {
     out.push('## Background — what earlier phases decided');
@@ -211,15 +198,14 @@ function render(source, unit, summaries, background = false, held = new Map()) {
   out.push('');
 
   if (!entries.length) {
-    out.push(`No ${unit} has recorded a summary yet: this is the run's first artifact-writing node, `
+    out.push(`No node has recorded a summary yet: this is the run's first artifact-writing node, `
       + 'and there is no prior decision or risk to carry forward.');
     out.push('');
     return `${out.join('\n')}\n`;
   }
 
   for (const [key, entry] of entries) {
-    const node = scalarText(entry.node);
-    out.push(`### ${key}${node ? ` — node: ${node}` : ''}`);
+    out.push(`### ${key}`);
     out.push('');
     const lead = scalarText(entry[LEAD]);
     if (lead) {

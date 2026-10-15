@@ -177,21 +177,17 @@ const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
 
 /**
  * The keys of one node's entry in the top-level `brief:` block: what the node's
- * brief prints beside its prose — the phase summary keys the node mirrors, the
- * artifacts it may leave unwritten and why, its recovery budget, and the
- * `with:` values that recommend a continue option of the gate it feeds. A
- * question's default is not one of them: it lives once, in the Without line of
- * the step's section. Every one is data a step reads; none is graph data, so
- * the block stays outside the hash (`buildGraph`). Exported for `brief.mjs`,
- * which merges the block by the same shape rules (`briefValueProblems`).
+ * brief prints beside its prose — the artifacts it may leave unwritten and
+ * why, its recovery budget, and the `with:` values that recommend a continue
+ * option of the gate it feeds. A question's default is not one of them: it
+ * lives once, in the Without line of the step's section. Every one is data a
+ * step reads; none is graph data, so the block stays outside the hash
+ * (`buildGraph`). `summary_keys` is a retired key: accepted with any value so
+ * an older definition validates, warned as retired (`brief-retired-key`), and
+ * merged and printed nowhere. Exported for `brief.mjs`, which
+ * merges the block by the same shape rules (`briefValueProblems`).
  */
 export const BRIEF_KEYS = ['summary_keys', 'absent', 'budget', 'recommends'];
-
-/**
- * A phase key, as a node mirrors its summary under it. The dash is admitted
- * because a frozen state shape already carries phase keys written with one.
- */
-const PHASE_KEY = /^[a-z][a-z0-9_-]*$/;
 
 /** The highest recovery budget a brief may print. */
 const BUDGET_MAX = 10;
@@ -324,6 +320,7 @@ const WARN = {
   briefUnknownArtifact: (path, node) => `brief-unknown-artifact:${path}:${node}`,
   briefUnknownInput: (path, node) => `brief-unknown-input:${path}:${node}`,
   briefUnknownOption: (path, node) => `brief-unknown-option:${path}:${node}`,
+  briefRetiredKey: (path, node) => `brief-retired-key:${path}:${node}`,
   overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
   orphanSection: (companion, name) => `orphan-prose-section:${companion}:${name}`,
   undescribed: (name) => `workflow-undescribed:${name} — the work command offers a project workflow by what it is for, `
@@ -2343,21 +2340,8 @@ export function briefValueProblems(key, value) {
   const problems = [];
   const report = (at, message) => problems.push({ at, message });
   const shown = item => (typeof item === 'string' ? JSON.stringify(item) : describe(item));
-  if (key === 'summary_keys') {
-    if (!Array.isArray(value) || value.length === 0) {
-      report('', `summary_keys is a list of phase keys the node mirrors its summary under; ${shown(value)} is not`);
-      return problems;
-    }
-    const seen = new Set();
-    for (const [index, each] of value.entries()) {
-      if (typeof each !== 'string' || !PHASE_KEY.test(each)) {
-        report(`.${index}`, `a phase key is lower-case letters, digits, underscores and dashes, starting with a letter; ${shown(each)} is not`);
-        continue;
-      }
-      if (seen.has(each)) report('', `summary_keys names ${each} twice`);
-      seen.add(each);
-    }
-  } else if (key === 'absent') {
+  // `summary_keys` is retired: any value is accepted, and only warned.
+  if (key === 'absent') {
     if (!isMap(value)) {
       report('', `absent is a mapping of artifact key to the one-line reason the node may leave it unwritten; ${shown(value)} is not`);
       return problems;
@@ -2426,15 +2410,21 @@ export function closedBy(gate, needs, isGate) {
  * gate the node feeds (`closedBy`, the rule `node-brief`'s `feeds:` lines use)
  * each **warn**: the brief prints nothing for that item,
  * so nothing breaks, but the author meant something that will never be shown.
+ * A `summary_keys` key warns as retired, in every layer and profile block; an
+ * overlay's `null` removal of it does not.
  *
  * A node an overlay's or the selected profile's `disable` removed is skipped in
- * silence, for the reason `checkCompanionNodes` gives.
+ * silence, for the reason `checkCompanionNodes` gives — except for the retired
+ * `summary_keys` warning, which applies even to a removed node.
  */
 function checkBriefNodes({ prefix, block }, nodes, removed, warnings) {
   if (!isMap(block)) return;
   for (const [id, entry] of Object.entries(block)) {
     const at = `${prefix}brief.${id}`;
     if (entry === null) continue;
+    if (isMap(entry) && Object.hasOwn(entry, 'summary_keys') && entry.summary_keys !== null) {
+      warnings.push(WARN.briefRetiredKey(`${at}.summary_keys`, id));
+    }
     if (!nodes.has(id)) {
       if (!removed.has(id)) warnings.push(WARN.briefUnknownNode(at, id));
       continue;

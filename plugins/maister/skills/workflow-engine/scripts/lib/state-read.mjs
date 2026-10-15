@@ -32,7 +32,7 @@
  * it is read as belonging to that key and the map resumes at the key's indent.
  * An indent the reader cannot account for means the document is not the
  * document it thinks it is, and the alternative to stopping is a map that is
- * missing entries no caller can know were there: a half-read `phase_summaries`
+ * missing entries no caller can know were there: a half-read `node_summaries`
  * is precisely the dropped item this module exists to prevent. Callers wrap the
  * call and turn the throw into their own refusal — `state-unreadable` in the
  * prior-phase renderer — which keeps the decision about *how loudly* to fail
@@ -54,7 +54,7 @@
  * sequences, quoted and plain scalars, and the folded and literal block scalars
  * a hand-written file may still carry — and nothing else. An indent it cannot
  * account for is a throw, never a silently half-read document, because a
- * half-read `phase_summaries` is precisely the dropped item this module exists
+ * half-read `node_summaries` is precisely the dropped item this module exists
  * to prevent.
  */
 export function parse(raw) {

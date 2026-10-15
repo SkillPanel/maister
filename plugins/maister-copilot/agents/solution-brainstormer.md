@@ -81,7 +81,7 @@ Optional, and exact when given:
 - `research_type`: technical, requirements, literature, mixed
 - `research_question`: The original research question
 - `confidence_level`: Overall research confidence (high/medium/low)
-- `phase_summaries`: Prior phase summaries (Phases 0-1)
+- Earlier phases: the passage pasted unedited from `prior-context` (Phases 0-1)
 
 ---
 
@@ -91,7 +91,7 @@ Optional, and exact when given:
 
 1. **Read `analysis/synthesis.md`** - patterns, cross-references, key insights, gaps
 2. **Read `outputs/research-report.md`** - comprehensive findings, recommendations, evidence
-3. **Parse accumulated context** - research type, question, phase summaries
+3. **Parse accumulated context** - research type, question, the earlier-phases passage
 4. **Read project documentation** (if `project_doc_paths` provided) — read ALL listed project docs. These include predefined docs (vision, roadmap, tech-stack) AND user-added docs that provide project-specific context. Ground alternatives in the project's strategic direction, tech constraints, and domain knowledge.
 5. **Identify the decision areas** - where multiple viable approaches exist based on evidence; one area when the problem holds one decision
 6. **Generate HMW questions internally** - transform research findings into opportunity statements (not user-validated, used to structure your own exploration)

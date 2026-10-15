@@ -46,27 +46,6 @@ design_context:
   project_context_summary: "A team scheduling app; calendars are private to the organisation today."
   refinement_iterations: {problem_statement: 1, personas: 0, direction: 0, specification_sections: {sharing-model: 1}, prototypes: 2}
   visual_companion: {available: true, port: 52341, pid: 48810, fallback_to_ascii: false}
-  phase_summaries:
-    context_synthesis:
-      node: context-synthesis
-      summary: "Calendars are scoped to the organisation; invitations already reach external addresses by email."
-      sources_count: 3
-      status: completed
-    problem_exploration:
-      node: problem-exploration
-      summary: "Teams cannot show availability to outside guests without exporting their whole calendar."
-      problem_statement: "Team members cannot share availability with external guests without exposing event details."
-      constraints: [no guest accounts, revocable at any time]
-      success_criteria: [a guest sees free and busy times within one click of the link]
-      status: completed
-    idea_convergence:
-      node: idea-convergence
-      summary: "Link-based sharing with free and busy only, and propose-a-time as an opt-in."
-      selected_approach: link-sharing
-      decision_areas:
-        - {area: access model, alternatives_count: 3, recommended: signed link, chosen_approach: signed link}
-        - {area: detail shown, alternatives_count: 2, recommended: free and busy only, chosen_approach: free and busy only}
-      status: completed
 
 node_summaries:
   intake:
@@ -82,6 +61,7 @@ node_summaries:
     status: completed
   context-synthesis:
     summary: "Calendars are scoped to the organisation; invitations already reach external addresses by email."
+    sources_count: 3
     decisions: [reuse the existing invitation email for the share link]
     risks: ["open: the audit log records internal viewers only"]
     status: completed
@@ -92,6 +72,9 @@ node_summaries:
     status: completed
   problem-exploration:
     summary: "Team members cannot share availability with external guests without exposing event details; two constraints and one success criterion."
+    problem_statement: "Team members cannot share availability with external guests without exposing event details."
+    constraints: [no guest accounts, revocable at any time]
+    success_criteria: [a guest sees free and busy times within one click of the link]
     decisions: [external guests get no account]
     risks: [assumes guests accept a link instead of a login]
     status: completed
@@ -110,6 +93,10 @@ node_summaries:
     status: completed
   idea-convergence:
     summary: "Link-based sharing with free and busy only, and propose-a-time as an opt-in."
+    selected_approach: link-sharing
+    decision_areas:
+      - {area: access model, alternatives_count: 3, recommended: signed link, chosen_approach: signed link}
+      - {area: detail shown, alternatives_count: 2, recommended: free and busy only, chosen_approach: free and busy only}
     decisions: ["access model: signed link", "detail shown: free and busy only"]
     risks: [a forwarded link reaches whoever it is forwarded to]
     status: completed

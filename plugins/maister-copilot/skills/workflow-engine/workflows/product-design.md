@@ -18,7 +18,6 @@ The block is `design_context`, and this workflow writes no other context block.
 | `refinement_iterations` | each looping node | rounds taken: `problem_statement`, `personas`, `specification_sections` (a map by section), `prototypes` |
 | `visual_companion` | `visual-prototyping` | `{available, port, pid, fallback_to_ascii}` as the mockup studio reported it |
 | `design_resources` | `visual-prototyping` | what the studio's design-resource discovery bound to |
-| `phase_summaries` | the mirroring nodes | each under the keys its `brief:` `summary_keys` name, beside the fields its Summary part lists |
 
 The run's options live under `orchestrator.options`: `html_output`,
 `mockup_format` and `visual_enabled`, the last derived by `intake`.
@@ -75,8 +74,8 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
 
 **Does.**
 
-1. **Initialize** as the framework's *Initialization Steps* say, with an empty
-   `phase_summaries` map under `design_context`. Set `options.mockup_format`
+1. **Initialize** as the framework's *Initialization Steps* say.
+   Set `options.mockup_format`
    (default `html`) and `options.visual_enabled`: false when `no_visual` is
    true or the format is `ascii`. Write `context/README.md`, inviting the
    operator to drop relevant files there.
@@ -166,7 +165,7 @@ how many sources fed it. In `summary`, the two or three key findings. In
 `decisions`, the implications for the design, each `{decision, by: run}`. In
 `risks`, what the synthesis left open — an unsettled choice, an inferred
 constraint, a thin source, a source that would not load, an unsettled topic —
-each `{risk, tag: open, change}`. The phase entry adds `sources_count`.
+each `{risk, tag: open, change}`. The node entry adds `sources_count`.
 
 **Re-run.** Read a file or fetch a link the note adds, research a topic it
 adds or reopens, and run the codebase analysis again only when the note is
@@ -236,7 +235,7 @@ statement and the number of constraints and success criteria. In `decisions`,
 the scope choices settled, each `{decision, by: run}`. In `risks`, the
 assumptions the statement rests on, each `{risk, tag: open, change}` — a story
 taken as drafted is one, its `change` the correction listed for it; a need left
-out on purpose is `tag: tradeoff`. The phase entry adds `problem_statement`,
+out on purpose is `tag: tradeoff`. The node entry adds `problem_statement`,
 `constraints` and `success_criteria`.
 
 **Re-run.** A note about the personas alone leaves this document unchanged —
@@ -286,7 +285,7 @@ with any insight about how users discover the feature.
 `problem-approval` closes both. In `summary`, each persona's name and role. In
 `decisions`, what set them apart, each `{decision, by: run}`. In `risks`, a
 user type left out on purpose, `tag: tradeoff`, or one left unsettled,
-`tag: open` with the `change` that would add it. The phase entry adds
+`tag: open` with the `change` that would add it. The node entry adds
 `personas` and `user_journeys`.
 
 **Re-run.** When the problem statement changed, check every card still fits
@@ -331,7 +330,7 @@ the summary's artifacts with `role: evidence`.
 
 **Summary.** The number of decision areas (from the areas file when there is
 one) and of alternatives, and each area's recommendation, in `summary` and
-**never in `decisions`**: a recommendation is not a decision. The phase entry
+**never in `decisions`**: a recommendation is not a decision. The node entry
 adds `alternatives_count`.
 
 **Re-run.** Hand the brainstormer the note and the existing
@@ -386,7 +385,7 @@ the detail.
 direction across the areas in `summary`, and the trade-offs it accepts in
 `risks`, each `tag: tradeoff`. Without question sets: the items above, and a
 `headline` and `summary` saying the direction is proposed and how many areas
-await a choice. The phase entry adds `selected_approach`,
+await a choice. The node entry adds `selected_approach`,
 `trade_offs_accepted` and `decision_areas` — each element `area`,
 `alternatives_count`, `recommended` and `chosen_approach`. Every area is in
 `decision_areas`; a dropped area is a defect to resolve before completing.
@@ -499,7 +498,7 @@ specify it. In `summary`, the sections by name and the feature in two
 sentences. In `decisions`, the scope boundaries and key "how" decisions, each
 `{decision, by: run}`, never restating the earlier direction. In `risks`, every
 answer a section still needs, `tag: open`; a scope boundary drawn on purpose,
-`tag: tradeoff`. The phase entry adds `spec_sections` and `sections_count`.
+`tag: tradeoff`. The node entry adds `spec_sections` and `sections_count`.
 
 **Re-run.** Revise the sections the note reaches through the per-section loop
 in a terminal run, and verify depth again for a complex design.
@@ -544,7 +543,7 @@ rounds as `design_context.refinement_iterations.prototypes`.
 in the `headline` with the screens drawn, and open `summary` with it and how to
 navigate — a trimmed brief keeps opening sentences. When the companion never
 came up, say so and name the saved files; never write an address never served.
-The phase entry adds `mockup_references`, the studio's returned files.
+The node entry adds `mockup_references`, the studio's returned files.
 
 **Re-run.** Re-invoke the studio with the revised specification and regenerate
 only the screens the revision touches, reusing the server still running.
@@ -610,7 +609,7 @@ artifact summary block. The brief's HTML page is written once, after approval.
 
 **Summary.** The `headline` names what was designed; the `summary` gives the
 delivery scope in a sentence — *"two members in scope, `api` before `web`;
-`mobile` left out"*. The phase entry adds `brief_layers`.
+`mobile` left out"*. The node entry adds `brief_layers`.
 
 **Budget.** Re-assemble the brief and the scope from the documents on disk.
 

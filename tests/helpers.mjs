@@ -16,6 +16,7 @@ import { after, before } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { parse } from '../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
+import { isContextBlock } from '../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const ENGINE_DIR = path.join(ROOT, 'plugins/maister/skills/workflow-engine');
@@ -259,6 +260,28 @@ function kindOf(node) {
  */
 export function readState(run) {
   return JSON.parse(JSON.stringify(parse(fs.readFileSync(run.state, 'utf8'))));
+}
+
+/**
+ * Give the run the phase-summary mirror a run from 3.0.0-beta.28 or earlier
+ * carries: `  phase_summaries:` and `lines`, each written as it is, directly
+ * under the run's context-block header. The writer no longer writes the
+ * mirror, so a test that proves it is ignored or preserved makes it by hand,
+ * after a `context` write has installed the block. Returns the inserted text.
+ */
+export function legacyMirror(run, lines) {
+  const text = fs.readFileSync(run.state, 'utf8');
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const rows = text.split(/\r?\n/);
+  const header = rows.findIndex(row => {
+    const match = row.match(/^([a-z][a-z0-9_]*):\s*$/);
+    return match !== null && isContextBlock(match[1]);
+  });
+  if (header === -1) throw new Error(`legacyMirror: ${run.state} has no context block; write context first`);
+  const mirror = ['  phase_summaries:', ...lines];
+  rows.splice(header + 1, 0, ...mirror);
+  fs.writeFileSync(run.state, rows.join(eol));
+  return mirror.join(eol);
 }
 
 /** The dashboard projection beside the state, parsed; null when there is none. */

@@ -52,7 +52,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
 - **Every node a gate needs writes a non-empty `summary`** in its closing `node_summaries`
   entry, in the same patch that marks it `completed`. The fields beside it — `headline`,
   `decisions` and their `by`, `fixes_applied`, `risks` and their tags — mean what the summary
-  contract says (`orchestrator-patterns.md` § 4, *Shared: phase_summaries entry shape*), and
+  contract says (`orchestrator-patterns.md` § 4, *Shared: node_summaries entry shape*), and
   every one is written for the user, by engine § *Speaking to the user*. What the gate adds:
   - **`headline`**, at most 220 characters, opens the checkpoint as *Done*; without it, *Done*
     is the summary's first sentence.

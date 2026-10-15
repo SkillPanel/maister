@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 
-import { DECLARED, freeze, scratch, verb, write } from '../helpers.mjs';
+import { DECLARED, FIXTURES, freeze, legacyMirror, scratch, verb, write } from '../helpers.mjs';
 
 /** Run `prior-context` against a run; the verb writes nothing, so only its output is asserted. */
 function priorContext(run) {
@@ -19,15 +20,16 @@ function survey(t) {
 test('prior-context: a workflow of its own name is rendered from its derived block', t => {
   const run = survey(t);
   write(run, {
-    phase_summaries: {
-      scanning: { node: 'scan', summary: 'Scanned the api.', decisions: ['scan the api only'], risks: ['rate limits'] },
+    context: { scope: 'api' },
+    node_summaries: {
+      scan: { summary: 'Scanned the api.', decisions: ['scan the api only'], risks: ['rate limits'] },
     },
   });
   const result = priorContext(run);
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^## Prior-phase context/);
-  assert.match(result.stdout, /Pasted from `survey_context\.phase_summaries` in this run's `orchestrator-state\.yml`: 1 phase, 1 decision, 1 risk\./);
-  assert.match(result.stdout, /^### scanning — node: scan$/m);
+  assert.match(result.stdout, /Pasted from `node_summaries` in this run's `orchestrator-state\.yml`: 1 node, 1 decision, 1 risk\./);
+  assert.match(result.stdout, /^### scan$/m);
   assert.match(result.stdout, /^Decisions \(1\):\n- scan the api only$/m);
   assert.match(result.stdout, /^Risks \(1\):\n- rate limits$/m);
 });
@@ -56,36 +58,112 @@ test('prior-context: a freshly frozen run with nothing recorded says so and exit
   assert.match(result.stdout, /^No node has recorded a summary yet: this is the run's first artifact-writing node/m);
 });
 
-test('prior-context: a built-in run is rendered from its own block, as it always was', t => {
+test('prior-context: a phase-summary mirror an older run carries is ignored', t => {
   const run = scratch(t);
   freeze(run);
-  write(run, { phase_summaries: { analysis: { node: 'analysis', summary: 'Scoped.', decisions: ['keep the parser'], risks: [] } } });
+  write(run, {
+    context: { risk_level: 'low' },
+    node_summaries: { analysis: { summary: 'Scoped.', decisions: ['keep the parser'], risks: [] } },
+  });
+  legacyMirror(run, [
+    '    analysis:',
+    '      node: analysis',
+    '      summary: Scoped on the mirror.',
+    '      decisions:',
+    '        - only on the mirror',
+  ]);
   const result = priorContext(run);
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /Pasted from `task_context\.phase_summaries` in this run's `orchestrator-state\.yml`: 1 phase, 1 decision, 0 risks\./);
-  assert.match(result.stdout, /^### analysis — node: analysis$/m);
+  assert.match(result.stdout, /Pasted from `node_summaries` in this run's `orchestrator-state\.yml`: \d+ nodes?, 1 decision, 0 risks\./);
+  assert.match(result.stdout, /^- keep the parser$/m);
+  assert.doesNotMatch(result.stdout, /only on the mirror|Scoped on the mirror|phase_summaries/);
+  assert.deepEqual(result.stderr.split(/\r?\n/).filter(line => line !== ''), [
+    'warning: legacy-mirror-ignored: task_context.phase_summaries holds 1 decision and 0 risks that no step reads; '
+      + 'the phase-summary mirror is retired (see the Upgrading note in the changelog)',
+  ]);
 });
 
-test('prior-context: a shared block ending in _context is never taken for the run\'s own', t => {
-  // The unproven run carries `project_context` above the block its first
-  // context write installs, so file order alone would pick the wrong one.
-  const run = scratch(t, { fixture: 'unproven' });
-  write(run, { phase_summaries: { analysis: { summary: 'Analysed.', decisions: ['keep the notes'], risks: [] } } });
-  const text = fs.readFileSync(run.state, 'utf8');
-  assert.ok(text.indexOf('\nproject_context:') < text.indexOf('\ntask_context:'), 'the fixture no longer puts project_context first');
+test('prior-context --node: a mirror holding items warns once on stderr, beside the run block and the passage', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, {
+    context: { risk_level: 'low' },
+    node_summaries: { analysis: { summary: 'Scoped.', decisions: ['keep the parser'], risks: [] } },
+  });
+  legacyMirror(run, [
+    '    analysis:',
+    '      decisions:',
+    '        - only on the mirror',
+    '      risks:',
+    '        - a mirror risk',
+  ]);
+  const result = verb(['prior-context', `--state=${run.state}`, '--node=analysis']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^## Run context/);
+  assert.match(result.stdout, /\n\n## Prior-phase context/);
+  assert.match(result.stdout, /^- keep the parser$/m);
+  assert.doesNotMatch(result.stdout, /only on the mirror|a mirror risk|phase_summaries/);
+  assert.deepEqual(result.stderr.split(/\r?\n/).filter(line => line !== ''), [
+    'warning: legacy-mirror-ignored: task_context.phase_summaries holds 1 decision and 1 risk that no step reads; '
+      + 'the phase-summary mirror is retired (see the Upgrading note in the changelog)',
+  ]);
+});
+
+test('prior-context: no mirror, or an empty one, prints no warning', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { context: { risk_level: 'low' } });
+  const bare = priorContext(run);
+  assert.equal(bare.code, 0, bare.stderr);
+  assert.equal(bare.stderr, '');
+  legacyMirror(run, []);
+  const empty = priorContext(run);
+  assert.equal(empty.code, 0, empty.stderr);
+  assert.equal(empty.stderr, '');
+});
+
+test('prior-context: a decision on a node summary reaches later steps once the run has a context block', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { node_summaries: { analysis: { summary: 'Scoped.', decisions: ['keep the parser'], risks: [] } } });
+  write(run, { context: { risk_level: 'low' } });
   const result = priorContext(run);
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /Pasted from `task_context\.phase_summaries`/);
-  assert.match(result.stdout, /- keep the notes/);
+  assert.match(result.stdout, /Pasted from `node_summaries` in this run's `orchestrator-state\.yml`: \d+ nodes?, 1 decision, 0 risks\./);
+  assert.match(result.stdout, /^### analysis$/m);
+  assert.match(result.stdout, /^Decisions \(1\):\n- keep the parser$/m);
+  assert.doesNotMatch(result.stdout, /has recorded a summary yet/);
 });
 
-test('prior-context: a phase summary written by hand as a bare list is not read as decisions', t => {
+test('parity: every decision and risk of the beta.28 mirror reaches later steps', t => {
+  const sample = path.join(FIXTURES, 'runs/free-delivery-threshold');
+  const reference = JSON.parse(fs.readFileSync(path.join(sample, 'phase-summary-items.json'), 'utf8'));
+  const run = scratch(t, { name: '2026-09-30-free-delivery-threshold-per-country' });
+  fs.copyFileSync(path.join(sample, 'recorded-state.yml'), run.state);
+  assert.doesNotMatch(fs.readFileSync(run.state, 'utf8'), /phase_summaries/);
+  const result = priorContext(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Pasted from `node_summaries` in this run's `orchestrator-state\.yml`: 26 nodes, 41 decisions, 31 risks\./);
+  assert.equal(reference.decisions.length, 35, 'the reference holds every mirror decision');
+  assert.equal(reference.risks.length, 27, 'the reference holds every mirror risk');
+  const printed = new Set(result.stdout.split(/\r?\n/));
+  const matched = entries => entries.filter(entry =>
+    printed.has(`- ${entry.line}`) || (entry.equivalent_line !== undefined && printed.has(`- ${entry.equivalent_line}`)));
+  const missing = entries => entries.filter(entry => !matched([entry]).length).map(entry => entry.line);
+  assert.deepEqual(missing(reference.decisions), [], 'every mirror decision is printed');
+  assert.deepEqual(missing(reference.risks), [], 'every mirror risk is printed');
+  const decisions = matched(reference.decisions).length;
+  const risks = matched(reference.risks).length;
+  t.diagnostic(`matched ${decisions} of ${reference.decisions.length} mirror decisions and ${risks} of ${reference.risks.length} mirror risks`);
+});
+
+test('prior-context: a node summary written by hand as a bare list is not read as decisions', t => {
   const run = scratch(t, { fixture: 'unproven' });
-  write(run, { phase_summaries: { analysis: { summary: 'Analysed.', decisions: ['keep the notes'], risks: [] } } });
+  write(run, { node_summaries: { analysis: { summary: 'Analysed.', decisions: ['keep the notes'], risks: [] } } });
   // The writer refuses a summary that is not a map, so only a hand edit can leave one.
   const text = fs.readFileSync(run.state, 'utf8')
-    .replace('  phase_summaries:\n', '  phase_summaries:\n    review:\n      - approve the scope\n');
-  assert.match(text, /review:\n {6}- approve the scope/, 'the hand edit landed');
+    .replace(/^node_summaries:\r?\n/m, 'node_summaries:\n  review:\n    - approve the scope\n');
+  assert.match(text, /review:\n {4}- approve the scope/, 'the hand edit landed');
   fs.writeFileSync(run.state, text);
   const result = priorContext(run);
   assert.equal(result.code, 0, result.stderr);
@@ -99,20 +177,20 @@ test('prior-context: a file that is no run at all is refused', t => {
   const result = priorContext(run);
   assert.equal(result.code, 1);
   assert.equal(result.stdout, '');
-  assert.match(result.stderr, /^prior-context-absent: .*no context block, no node_summaries and no workflow block/);
+  assert.match(result.stderr, /^prior-context-absent: .*no node_summaries and no workflow block/);
 });
 
 test('prior-context --background: the same items, framed as background an end-user document stays consistent with', t => {
   const run = survey(t);
   write(run, {
-    phase_summaries: {
-      scanning: { node: 'scan', summary: 'Scanned the api.', decisions: ['scan the api only'], risks: ['rate limits'] },
+    node_summaries: {
+      scan: { summary: 'Scanned the api.', decisions: ['scan the api only'], risks: ['rate limits'] },
     },
   });
   const result = verb(['prior-context', `--state=${run.state}`, '--background']);
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^## Background — what earlier phases decided$/m);
-  assert.match(result.stdout, /1 phase, 1 decision, 1 risk\. These are background for a document written for end users/);
+  assert.match(result.stdout, /1 node, 1 decision, 1 risk\. These are background for a document written for end users/);
   assert.match(result.stdout, /do not reproduce them/);
   assert.doesNotMatch(result.stdout, /binding|do not re-word/, 'nothing tells the writer to carry the items into its document');
   // Every item still arrives, so the writer can stay consistent with each one.
@@ -153,4 +231,19 @@ test('prior-context --node: a node the run does not have is refused by the run b
   assert.equal(result.code, 1);
   assert.equal(result.stdout, '');
   assert.match(result.stderr, /^run-context-unknown-node: /);
+});
+
+test('prior-context: a mirror whose entries hold no decision and no risk prints no warning', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { context: { risk_level: 'low' } });
+  legacyMirror(run, [
+    '    analysis:',
+    '      summary: Scoped on the mirror.',
+    '      decisions: []',
+    '      risks: []',
+  ]);
+  const result = priorContext(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
 });

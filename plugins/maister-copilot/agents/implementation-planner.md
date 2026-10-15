@@ -34,7 +34,7 @@ The Task prompt MUST include:
 | `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
 **Accumulated Context** (Pattern 7):
-- `phase_summaries`: Prior phase summaries (specification, gap analysis, codebase analysis, design)
+- Earlier phases: the passage pasted unedited from `prior-context` (specification, gap analysis, codebase analysis, design)
 - `research_context`: Research findings path (if research-informed development)
 - `architecture_context`: High-level design path, `analysis/architecture-context/` (if the run was handed an architecture)
 - `design_reference`: Design context pointer (if mockups present) — `analysis/design-context/INDEX.md` enumerates screens/components with stable IDs; `design-context/brief.md` holds product-design intent (when handed off from product-design task)

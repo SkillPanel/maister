@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { artifactOf, decisionOf, deriveProgress, issueOf, render } from '../../plugins/maister/skills/workflow-engine/scripts/lib/dashboard.mjs';
-import { FIXTURES, freeze, readDashboard, readState, scratch, write } from '../helpers.mjs';
+import { FIXTURES, freeze, legacyMirror, readDashboard, readState, scratch, write } from '../helpers.mjs';
 
 // ---------------------------------------------------------------------------
 // the projection, through write-state
@@ -117,27 +117,32 @@ test('what a node fixed without asking projects apart from its decisions, and on
   assert.equal(Object.hasOwn(next, 'fixes'), false, 'a phase that fixed nothing carries no fixes key');
 });
 
-test('an empty field on the node summary falls through to the phase summary, field by field', t => {
+test('a phase card reads its node summary alone', t => {
   const run = scratch(t);
   freeze(run);
   write(run, {
+    context: { risk_level: 'low' },
     node_summaries: {
       analysis: { summary: 'Scoped on the node.', decisions: [], risks: ['node risk'], artifacts: [] },
     },
-    phase_summaries: {
-      analysis: {
-        summary: 'Scoped on the phase.',
-        decisions: ['keep the parser'],
-        risks: ['phase risk'],
-        artifacts: ['analysis/report.md'],
-      },
-    },
   });
+  // The mirror an older run carries, with every field filled where the node's is empty.
+  legacyMirror(run, [
+    '    analysis:',
+    '      summary: Scoped on the phase.',
+    '      decisions:',
+    '        - keep the parser',
+    '      risks:',
+    '        - phase risk',
+    '      artifacts:',
+    '        - analysis/report.md',
+  ]);
+  write(run, {});
   const analysis = readDashboard(run).phases.find(phase => phase.id === 'analysis');
   assert.equal(analysis.summary, 'Scoped on the node.');
-  assert.deepEqual(analysis.decisions, [{ decision: 'keep the parser', by: 'run' }]);
-  assert.deepEqual(analysis.risks, [{ risk: 'node risk', tag: 'open', change: null }], 'a field filled on both sources is the node\'s alone');
-  assert.deepEqual(analysis.artifacts, [{ path: 'analysis/report.md', label: null, html: null, role: null }]);
+  assert.deepEqual(analysis.decisions, []);
+  assert.deepEqual(analysis.risks, [{ risk: 'node risk', tag: 'open', change: null }]);
+  assert.deepEqual(analysis.artifacts, []);
 });
 
 test('verification issues are normalized to objects; a bare count is dropped', t => {

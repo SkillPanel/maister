@@ -25,7 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
-import { dashboardUrl } from './state.mjs';
+import { dashboardUrl, legacyMirrorWarning } from './state.mjs';
 import { openRevision } from './revise.mjs';
 
 /** What an operator reads when a 2.x directory is offered for resume. */
@@ -46,6 +46,11 @@ export const WRITTEN_BY_2X = [
  * gate's revise is open (`openRevision`) — `dashboard` the `file://` link a
  * resume shows the operator once, or null when the run has none — or
  * `{ok: false, code, message}` for one it does not resume.
+ *
+ * A run whose context block still carries the retired phase-summary mirror
+ * resumes all the same; the result then carries `warnings`, the one
+ * `legacy-mirror-ignored` line (`legacyMirrorWarning`), which the verb prints
+ * on stderr and keeps out of the JSON.
  */
 export function resumeCheck({ state }) {
   let raw;
@@ -71,6 +76,7 @@ export function resumeCheck({ state }) {
   }
   const task = isPlainObject(doc.task) ? doc.task : {};
   const revision = openRevision(doc);
+  const mirror = legacyMirrorWarning(doc);
   return {
     ok: true,
     workflow: {
@@ -85,6 +91,7 @@ export function resumeCheck({ state }) {
     // Additive, and only while a gate's revise is open: a resume that finds it
     // not yet applied runs `gate-revise` before it walks the ready set.
     ...(revision ? { revision: { gate: revision.gate, option: revision.option, reruns: revision.reruns, revision: revision.revision, applied: revision.applied } } : {}),
+    ...(mirror === null ? {} : { warnings: [mirror] }),
   };
 }
 

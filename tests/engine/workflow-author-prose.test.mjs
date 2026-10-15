@@ -32,9 +32,10 @@ test('new writes a section only for a step that needs prose, writes brief:, and 
   assert.match(body, /a section only for a `direct:` step that asks a question, keeps a budget or has a summary hint/);
   assert.doesNotMatch(body, /one `## <id>` section per `direct:` node/, 'the old one-section-per-node rule is gone');
   assert.match(body, /`brief:`/);
-  for (const key of ['budget', 'summary_keys', 'absent', 'recommends']) {
+  for (const key of ['budget', 'absent', 'recommends']) {
     assert.match(body, new RegExp(`\`${key}\``), `brief: key ${key} is named`);
   }
+  assert.doesNotMatch(body, /`summary_keys`/, 'the retired key is not offered');
   assert.doesNotMatch(body, /`questions`/, 'a question\'s default is no brief: key');
   assert.match(body, /the Without line stating the default — the\s+one place it is written/);
   assert.match(body, /\*\*Does\.\*\*.*\*\*Asks\.\*\*.*\*\*Writes\.\*\*.*\*\*Summary\.\*\*.*\*\*Re-run\.\*\*.*\*\*Budget\.\*\*/,
@@ -59,7 +60,7 @@ test('check lists the three prose findings and words the orphan rule as sectionN
 test('overlay writes its companion whenever it adds a direct: step, and routes brief data to brief:', () => {
   const body = part(skill, '`overlay <builtin>`');
   assert.match(body, /`<builtin>\.overlay\.md` whenever the overlay adds a `direct:` step/);
-  assert.match(body, /\| A step's summary keys, budget or recommendation changed \| `brief:`/);
+  assert.match(body, /\| A step's budget, absences or recommendation changed \| `brief:`/);
 });
 
 test('the skill cites no docs/ page, and extending.md agrees with the engine on the section-less step', () => {

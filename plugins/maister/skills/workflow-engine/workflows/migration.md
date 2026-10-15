@@ -71,7 +71,7 @@ constraints is recorded in the file as unsettled rather than guessed at.
 `migration_context.clarifications_resolved` to true — also when nothing was
 asked.
 
-**Summary.** The `current_state_analysis` mirror carries the current system and
+**Summary.** The entry carries the current system and
 its technologies.
 
 **Budget.** Expand the search patterns on the second attempt, and prompt the
@@ -107,7 +107,7 @@ Breaking changes found by reading the code go to
 **Summary.** A `headline` naming the recommended strategy and the risk level; a
 `summary` of one labelled line each for the current system, the target system,
 the migration type, the number of gaps, the strategy and the risk level; the
-strategy and the type as `by: run` decisions. The `gap_analysis` mirror carries
+strategy and the type as `by: run` decisions. The entry carries
 the gap list, the strategy and the risk level.
 
 **Re-run.** Keep the migration type unless the note changes it, and write the

@@ -28,7 +28,7 @@
 # id. Every `direct:` node is executed from its section there, and the operator
 # questions asked inside nodes appear only in that prose — a reader of the graph
 # alone cannot see them, and neither can the generated diagram. The recovery
-# budgets and the phase summary keys sit in the `brief:` block below.
+# budgets sit in the `brief:` block below.
 name: performance
 version: 1
 description: "Finds and fixes performance problems by static analysis of the code — N+1 queries, missing indexes, quadratic algorithms, blocking I/O, memory leaks — informed by profiling data when the operator supplies it, then specifies, plans, implements and verifies the optimisation. Use it when the task is to make something faster or leaner rather than to change what it does."
@@ -117,23 +117,19 @@ html_companions:
   planning: [plan]
   verification: [report]
 
-# What each step's brief prints beside its prose: the phase keys its summary is
-# mirrored under and its recovery budget (a prose rule, never enforced).
+# What each step's brief prints beside its prose: its recovery budget (a prose
+# rule, never enforced).
 # Outside the recorded identity, like the two blocks above.
 brief:
   codebase-analysis:
-    summary_keys: [codebase_analysis]
     budget: 2
   bottleneck-analysis:
-    summary_keys: [bottleneck_analysis]
     budget: 2
   specification:
-    summary_keys: [specification]
     budget: 2
   planning:
     budget: 2
   implementation:
-    summary_keys: [implementation]
     budget: 5
   verification:
     budget: 3

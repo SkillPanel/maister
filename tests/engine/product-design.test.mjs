@@ -61,12 +61,10 @@ function replayRecorded(t, absent = null, { inputs = {}, unrun = [] } = {}) {
       else summaries[id].absent = entries;
     }
   }
-  const { phase_summaries: phases, ...context } = JSON.parse(JSON.stringify(recorded.design_context));
   write(run, {
     task: { status: recorded.task.status },
     nodes,
-    context,
-    phase_summaries: phases,
+    context: JSON.parse(JSON.stringify(recorded.design_context)),
     node_summaries: summaries,
   });
   return run;

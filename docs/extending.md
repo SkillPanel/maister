@@ -171,7 +171,7 @@ findable:
   further attempt does differently. A gate gets no section unless it carries an **Exception.**;
   `## Embedded mode` is written only where the workflow behaves differently as a child run.
 - **Put the step's data in `brief:`.** A top-level `brief:` block, keyed by node id, holds what a
-  step reads as data rather than prose: `budget` (the attempts it may make), `summary_keys`,
+  step reads as data rather than prose: `budget` (the attempts it may make),
   `absent` (an artifact it may leave unwritten, and why) and `recommends` (which continue option a
   gate after it recommends for a value). It sits outside the graph hash, an overlay or profile may
   change one item, and the grammar's § 3.3 has its shape.

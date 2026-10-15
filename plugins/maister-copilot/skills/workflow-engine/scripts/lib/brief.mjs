@@ -1,9 +1,9 @@
 /**
  * The `brief:` block a definition carries, merged: per node, the data a node's
- * brief prints beside its prose — the phase summary keys it mirrors, the
- * artifacts it may leave unwritten and why, its recovery budget and the `with:`
- * values that recommend a continue option. A question's default is not here:
- * it is stated once, in the Without line of the node's section.
+ * brief prints beside its prose — the artifacts it may leave unwritten and
+ * why, its recovery budget and the `with:` values that recommend a continue
+ * option. A question's default is not here: it is stated once, in the
+ * Without line of the node's section.
  *
  * Why it exists: each of these was a sentence or a table row in a node's prose,
  * where a step had to find it and a check could not hold anyone to it. As
@@ -16,11 +16,12 @@
  * executable graph. `resolve` never prints it.
  *
  * What it drops: a value not of its key's shape (`briefValueProblems`, the rule
- * the validator holds an author to), a key outside `BRIEF_KEYS`, an entry or a
- * block that is not a mapping, and every entry of a node an overlay or the
- * selected profile disabled. A drop is silent here — the validator is where an
- * author hears of it — and never throws, because an ejected or hand-edited
- * definition reaches a reader without passing the validator.
+ * the validator holds an author to), the retired `summary_keys`, a key outside
+ * `BRIEF_KEYS`, an entry or a block that is not a mapping, and every entry of a
+ * node an overlay or the selected profile disabled. A drop is silent here — the
+ * validator is where an author hears of it — and never throws, because an
+ * ejected or hand-edited definition reaches a reader without passing the
+ * validator.
  *
  * Zero dependencies beyond the engine's own modules, `node:` builtins only,
  * Node >= 20.
@@ -70,7 +71,8 @@ export function briefOf({ definition = null, overlays = [], profile = null } = {
       if (!isMap(entry)) continue;
       const into = merged[id] ?? Object.create(null);
       for (const key of BRIEF_KEYS) {
-        if (!Object.hasOwn(entry, key)) continue;
+        // The retired key is accepted by the validator and carried by no merge.
+        if (key === 'summary_keys' || !Object.hasOwn(entry, key)) continue;
         if (entry[key] === null) delete into[key];
         else if (briefValueProblems(key, entry[key]).length === 0) into[key] = structuredClone(entry[key]);
       }

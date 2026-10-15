@@ -19,7 +19,6 @@ html_companions:
 
 brief:
   draft:
-    summary_keys: [drafting]
     absent:
       extras: "Written only when the draft raises open questions."
     budget: 2

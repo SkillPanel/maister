@@ -39,6 +39,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 - While choices are held for approval, every checkpoint behind a step holding one offers `revise-<node>` for it, so one held choice is sent back without approving the rest (ADR-0042)
 - A delegate pastes the run context a verb prints; a definition declares which artifacts owe an HTML companion, outside the graph hash; `write-state` and `run-complete` name a missing one; a patch travels by here-string first; the gate-rule copies are held at an exact count (ADR-0043)
 - A step reads a brief the engine derives — its data from a non-hashed `brief:` block, the conventions stated once in the engine skill, then its own section in a fixed template whose structure a lint holds; a question's default lives only in the step's Without line, an in-session answer is recorded on the asking step with whether it took the recommendation, a `direct:` step may have no section, and a heading that names no step is warned about (ADR-0044)
+- Each step's summary is recorded once, on `node_summaries`; the phase-summary mirror is no longer written or read, and `summary_keys` is retired with a warning (ADR-0046)
 
 ## Index
 
@@ -88,3 +89,4 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0043](0043-run-context-and-declared-companions.md) | Run context and HTML companions are fetched, declared and checked | Accepted | 2026-10-12 | Amends ADR-0012 (the patch may travel by here-string; the patch file stays for PowerShell and cmd); builds on ADR-0029 and ADR-0030 |
 | [ADR-0044](0044-node-briefs-and-the-step-template.md) | A step reads a derived brief, and its guide section follows one template | Accepted | 2026-10-12 | Amends ADR-0008 (a `direct:` node with no section validates from conventions; the `orphan-prose-section` warning and the `workflow-author check` finding replace the renamed-section guard); builds on ADR-0043 |
 | [ADR-0045](0045-a-context-pack-input.md) | A run takes a context pack by path, recorded as `work_reference` | Accepted | 2026-10-13 | Builds on ADR-0020 (sibling-task references) and ADR-0044 (`brief:` `absent`); moves the development and research graph hashes |
+| [ADR-0046](0046-one-summary-per-step.md) | Each step's summary is recorded once, on `node_summaries` | Accepted | 2026-10-15 | Amends ADR-0006 (an exception to additive-only: the mirror is no longer read), ADR-0024 (phase cards read the node summary alone) and ADR-0044 (`summary_keys` retired, accepted with a warning); moves no graph hash |

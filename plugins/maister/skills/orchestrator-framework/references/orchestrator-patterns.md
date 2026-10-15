@@ -143,12 +143,12 @@ prompt: |
 
 ### Context Extraction
 
-After each phase, extract key findings into the `phase_summaries` of the run's context block, `<name>_context` (§ 4 Extension Pattern says how the name is derived):
+After each step, extract key findings into the step's own `node_summaries.<node>` entry:
 
 1. Parse subagent output for key fields
 2. Create 1-2 sentence summary
 3. Extract `decisions`, `risks`, and `artifacts` from the artifact's summary block (§ 7)
-4. Update state: `<name>_context.phase_summaries.[phase_name]` — every successful `write-state` also projects the operator dashboard (§ 8), so there is nothing else to refresh
+4. Update state: `node_summaries.<node>` — every successful `write-state` also projects the operator dashboard (§ 8), so there is nothing else to refresh
 
 This enables context passing to downstream phases and supports resume.
 
@@ -251,7 +251,7 @@ Workflows add domain-specific fields in their context block, at the **top level*
 | Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy, work_reference |
 | Product design | `design_context` | design_characteristics, complexity_level, refinement_iterations, visual_companion |
 
-Every context carries `phase_summaries`. The state writer maps each workflow to its block (`workflow-engine/references/writing-state.md`); the phase keys each node mirrors are its `brief:` `summary_keys` in that workflow's definition, `workflow-engine/workflows/<name>.yml`, which `node-brief` prints for the node, and for product design the block's shape is "The context block" in `product-design.md` beside it.
+The state writer maps each workflow to its block (`workflow-engine/references/writing-state.md`); for product design the block's shape is "The context block" in `workflow-engine/workflows/product-design.md`. A step's summary is never kept in the context block: it is the step's `node_summaries` entry (*Shared: node_summaries entry shape*).
 
 ### Shared: research_reference
 
@@ -264,13 +264,6 @@ task_context:
     research_question: null
     research_type: null           # technical | requirements | literature | mixed
     confidence_level: null        # high | medium | low
-
-  phase_summaries:
-    research:
-      summary: null
-      key_findings: []
-      recommended_approach: null
-      decisions_made: []
 ```
 
 Research context flows to ALL phases via context passing. Artifacts are also copied to `analysis/research-context/`.
@@ -306,13 +299,13 @@ verification_context:
 
 Record every issue in `issues_found` as an object, never as a bare string: `severity` is `critical`, `warning` or `info` as the report graded it, `id` is the report's own number for the finding — kept across re-checks, a new finding taking the next unused number — `risky` is the verifier's grading of whether its fix would reach beyond the item, and `fixed: true` marks one fixed since (keep its original severity). The dashboard shows each issue under its `severity`. A string carries no severity field, so its severity has to be guessed from the text.
 
-### Shared: phase_summaries entry shape
+### Shared: node_summaries entry shape
 
-Every `phase_summaries.[phase_name]` entry uses this base shape (orchestrators may add phase-specific fields):
+Every `node_summaries.<node>` entry uses this base shape (a workflow's guide may add step-specific fields):
 
 ```yaml
-phase_summaries:
-  [phase_name]:
+node_summaries:
+  <node>:
     headline: null       # one sentence (≤ 220 chars) for the stretch a gate closes; on the node the gate needs
     summary: null        # 1-2 sentence prose summary; the top findings go here, never in risks
     decisions: []        # [{decision, by, rationale?}] — by: run | audit | default | operator
@@ -503,7 +496,7 @@ Workflow artifacts accumulate deep detail for subagent context — but the human
 - Omit `Key Decisions` / `Open Questions / Risks` sections entirely when empty — never write "None".
 - Full detail follows below the block, unchanged. The block is a lens, not a replacement.
 - Applies to every artifact-writing subagent and skill. Orchestrators MUST include the contract in every artifact-writing prompt (§ 3 context template).
-- At context extraction (§ 3), the orchestrator lifts the block's content into `phase_summaries.[phase_name].decisions` / `.risks` in the object shapes of § 4 — this is what feeds the operator dashboard (§ 8).
+- At context extraction (§ 3), the orchestrator lifts the block's content into `node_summaries.<node>.decisions` / `.risks` in the object shapes of § 4 — this is what feeds the operator dashboard (§ 8).
 
 **Exempt**: `orchestrator-state.yml`, `dashboard-data.js`, raw mockup files, screenshots, and incremental logs (`work-log.md` — append-only, gets no retroactive TL;DR).
 
@@ -529,7 +522,7 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 
 **Resolved risks**: when a previously recorded risk gets resolved in a later phase, keep the entry and set its `tag` to `resolved` (e.g. `{risk: "transient warning — query lookup chosen", tag: resolved}`; an older string entry is prefixed `resolved:` instead). The viewer dims and strikes resolved entries, separating live risks from settled ones.
 
-**Where a phase card's prose comes from.** The projection reads `node_summaries.<node>` first and falls back to `[domain]_context.phase_summaries.<key>` only where the key equals the node id. It chooses **field by field**: `summary`, `decisions`, `risks` and `artifacts` each come from the first of the two that carries them non-empty, and the two are never concatenated — a field filled on both shows the node summary's. A node summary written with empty lists therefore no longer hides what its phase summary recorded, but a node summary that fills a field is the only source for that field.
+**Where a phase card's prose comes from.** The projection reads `node_summaries.<node>` alone: `summary`, `decisions`, `risks` and `artifacts` come from the node's own entry, and a `phase_summaries` copy that an older run still carries in its context block is not read.
 
 The viewer decides presentation (hero artifacts per workflow type — none for a type it has no hero map for — collapsed drawers, severity colors) — orchestrators only supply data.
 
