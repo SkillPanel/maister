@@ -435,7 +435,7 @@ function outboxLines(document, pluginRoot) {
   return [
     `Report through the outbox verb, never by writing a message file under the outbox path yourself. Write the message body as JSON with your file tool to ${input} - the one file you may write there - and then run:`,
     `  node ${script(pluginRoot)} outbox --outbox=${outboxRoot} --dispatch-id=${id} --type=<type> --input-file=${input}`,
-    `The verb deletes that file once the message lands and keeps it on a refusal, for you to correct and run again; never send the body through a heredoc or a pipe. Types: ${MESSAGE_TYPES.join(', ')}; a blocked message adds reason, an artifact adds path, a followup adds summary, a closeout adds grade, commits and prs - prs empty when none was opened. Messages are append-only and the writer never rewrites one.`,
+    `The verb deletes that file once the message lands and keeps it on a refusal, for you to correct and run again; never send the body through a heredoc or a pipe. Types: ${MESSAGE_TYPES.join(', ')}; a blocked message adds reason, an artifact adds path, a followup adds summary, a closeout adds grade, commits and prs - each pull request a {repo, number, url} map, prs empty when none was opened. Messages are append-only and the writer never rewrites one.`,
     'If the outbox cannot be written the verb hands you a line to print instead: `DISPATCH-RESULT: <grade> <summary>` for a closeout, `DISPATCH-FOLLOWUP: <summary>` for a followup. Print it as the last line of your turn - it is the only form in which the message survives.',
     'The other three types have no such line: run the same write again once the path is writable, or fold what it carried into the closeout summary.',
   ];

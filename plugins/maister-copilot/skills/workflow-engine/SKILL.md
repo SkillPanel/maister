@@ -563,7 +563,8 @@ three options, none recommended and none taken on its own:
 entry (the umbrella runtime's `ledger` verb, op `query`). When its `closeout.prs` records the
 dispatch's pull request, or its `needs: [permission]` follow-up is `resolved`, what was held has
 happened: record the node `completed` with one decision naming what resolved it, `by: run` —
-`{decision: "Held item resolved: pull request <url> recorded", by: run}`, or `{decision: "Held
+`{decision: "Held item resolved: pull request <url> recorded", by: run}`, `<url>` being the `url`
+of the pull request's `{repo, number, url}` entry, or `{decision: "Held
 item resolved: follow-up <id> resolved by <resolved_by>", by: run}` — and ask nothing. Never
 `by: operator`: nobody answered. Otherwise the question is asked exactly as above.
 

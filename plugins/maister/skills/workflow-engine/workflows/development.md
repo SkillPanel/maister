@@ -696,9 +696,9 @@ than retried.
    pull request from it is already open the push has updated it, so it is not
    opened again; otherwise `gh pr create` against the default branch, its body
    drawn from the executive summary. Merging is never part of this. The pull
-   request's URL goes in the close-out's `prs` under a dispatch driver, and under
-   **Done** in a terminal run, where step 4's pull request is then dropped from
-   **Next**. A push or a pull request that is refused or held is not routed
+   request goes in the close-out's `prs` as `{repo, number, url}` under a
+   dispatch driver, and its URL under **Done** in a terminal run, where step 4's
+   pull request is then dropped from **Next**. A push or a pull request that is refused or held is not routed
    around: under a dispatch driver the seed's close-out section says how it is
    reported; in a terminal run the held command goes under **Needs you**.
 

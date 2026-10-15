@@ -155,7 +155,7 @@ test('stop: the node and every unexecuted node are recorded stopped, and the run
 });
 
 // A partial close-out asks only while the hold is live. When the dispatch's
-// ledger entry records its pull request in closeout.prs, or its
+// ledger entry records its pull request in closeout.prs, as {repo, number, url}, or its
 // needs: [permission] follow-up is resolved, the node is completed with a
 // by: run decision naming what resolved it, and nothing is asked. The ledger
 // fields are read back through the umbrella's own query, as the run reads them.
@@ -179,18 +179,22 @@ function ledgerEntry(t, { prs = [], followup = null } = {}) {
 /** Whether the entry says the held item already happened: the rule the engine skill states. */
 function resolvedBy(entry) {
   const pr = Array.isArray(entry.closeout?.prs) ? entry.closeout.prs[0] : undefined;
-  if (pr) return `Held item resolved: pull request ${pr} recorded`;
+  if (pr) return `Held item resolved: pull request ${pr.url} recorded`;
   const done = (entry.followups ?? []).find(item => item.status === 'resolved');
   return done ? `Held item resolved: follow-up ${done.id} resolved by ${done.resolved_by}` : null;
 }
 
-for (const [name, shape] of [
-  ['its pull request recorded in closeout.prs', { prs: ['https://example.test/pr/7'] }],
-  ['its needs: [permission] follow-up resolved', { followup: 'resolved' }],
+const PR = { repo: 'acme/shop', number: 7, url: 'https://example.test/acme/shop/pull/7' };
+
+for (const [name, shape, expected] of [
+  ['its pull request recorded in closeout.prs', { prs: [PR] }, `Held item resolved: pull request ${PR.url} recorded`],
+  ['its needs: [permission] follow-up resolved', { followup: 'resolved' }, 'Held item resolved: follow-up f-push resolved by dana'],
 ]) {
   test(`partial with ${name}: the node is completed by: run, and nothing is asked`, t => {
-    const decision = resolvedBy(ledgerEntry(t, shape));
-    assert.ok(decision, 'the ledger records the hold as resolved');
+    const entry = ledgerEntry(t, shape);
+    if (shape.prs) assert.deepEqual({ ...entry.closeout.prs[0] }, PR, 'the ledger records the pull request as {repo, number, url}');
+    const decision = resolvedBy(entry);
+    assert.equal(decision, expected, 'the ledger records the hold as resolved');
     const run = waiting(t);
     write(run, { nodes: { remote: { status: 'completed' } }, node_summaries: { remote: { decisions: [{ decision, by: 'run' }] } } });
     const state = readState(run);
@@ -217,6 +221,8 @@ test('the engine skill and the reference state when a partial close-out is not a
   assert.match(text, /Never `by: operator`: nobody answered/);
   const reference = fs.readFileSync(path.join(ENGINE_DIR, 'references/in-node-questions.md'), 'utf8').replace(/\s+/g, ' ');
   assert.match(reference, /It asks only while the hold is live: when the dispatch's ledger entry records its pull request in `closeout\.prs`, or its `needs: \[permission\]` follow-up is `resolved`/);
+  assert.match(reference, /A pull request is recorded there as `\{repo, number, url\}`, and the decision names its `url`\./);
+  assert.match(text, /`<url>` being the `url` of the pull request's `\{repo, number, url\}` entry/);
 });
 
 test('the engine skill maps every close-out grade, and the reference fixes the question\'s three options', () => {
