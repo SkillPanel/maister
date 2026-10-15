@@ -148,7 +148,6 @@ so every workflow states it the same way and an overlay can change one item:
 ```yaml
 brief:
   specification:
-    summary_keys: [specification, architecture_decision]
     absent: {technical_clarifications: "Written only when clarifications were needed."}
     recommends: {audit_flag: {"yes": continue-to-spec-audit, "no": continue-to-planning}}
 ```
@@ -158,7 +157,7 @@ Keys are node ids; each entry holds any of these keys:
 <!-- vocabulary: BRIEF_KEYS -->
 | Key | Shape |
 |---|---|
-| `summary_keys` | A list of the phase keys the node mirrors its summary under, each lower-case letters, digits, underscores and dashes starting with a letter, none twice. A phase key is never derived from the node id |
+| `summary_keys` | Retired. A list of the phase keys a node once mirrored its summary under, still held to its old shape (lower-case letters, digits, underscores and dashes starting with a letter, none twice); it warns `brief-retired-key` (§ 14) and is printed nowhere. A step's summary is its `node_summaries` entry |
 | `absent` | Artifact key → a one-line reason the node may leave that artifact unwritten |
 | `budget` | A whole number from 1 to 10: the recovery attempts the node may make, printed as a rule and not enforced. A node with no recovery budget has no `budget` key |
 | `recommends` | `with:` key → (value → continue option id): which option the gate the node feeds should recommend for each value. Values are read as text, so quote `"yes"`, `"no"`, `"true"`, `"false"` |
@@ -175,12 +174,12 @@ error in a definition. A node an overlay or the profile disables gets no brief d
 mapping, a key outside the table, and a value of the wrong shape or with a line break are errors,
 each located at its path (`brief.<node>.<key>…`, prefixed `profiles.<name>.` in a profile). A
 node the resolved graph does not carry, an `absent` key the node does not declare, a `recommends`
-key that is not one of its `with:` keys, and a recommended option that is not a continue option
-of a gate the node feeds each warn (§ 14); nothing is printed for that item. A node feeds the
+key that is not one of its `with:` keys, a recommended option that is not a continue option
+of a gate the node feeds, and a `summary_keys` key each warn (§ 14); nothing is printed for that item. A node feeds the
 gates whose closing nodes hold it: a gate's needs, with a need that is itself a gate replaced by
 that gate's own needs — the nodes the brief's `feeds:` lines name.
 
-The block is outside the recorded identity: changing a budget or a summary key moves no frozen
+The block is outside the recorded identity: changing a budget or an absence moves no frozen
 run, and `resolve` never prints it.
 
 ## 4. Nodes
@@ -603,7 +602,7 @@ with its bold label, in this order, each at most once:
 
 A gate has a section only for an exception — behaviour neither its definition,
 `references/gates.md` nor the conventions carry — held in a single `**Exception.**` part. The data
-a step reads (its phase keys, sanctioned absences, budget, recommendation and question defaults)
+a step reads (its sanctioned absences, budget, recommendation and question defaults)
 lives in `brief:`, never in the prose, and a budget never in `with:`, where it would be inert.
 
 **The top of the companion introduces the workflow.** Its `# Title` line is the workflow's title,
@@ -783,6 +782,7 @@ Warnings never block, and each one is worth reading:
 | `brief-unknown-artifact:<path>:<node>` | An `absent` key the node does not declare under `outputs.artifacts` |
 | `brief-unknown-input:<path>:<node>` | A `recommends` key that is not one of the node's `with:` keys |
 | `brief-unknown-option:<path>:<node>` | A recommended option that is not a continue option of a gate the node feeds |
+| `brief-retired-key:<path>:<node>` | A `summary_keys` entry: the phase-summary mirror it named is retired and nothing reads it; remove the key |
 | `orphan-prose-section:<companion>:<name>` | A `` ## `name` `` heading outside a fence that no node of the definition or overlay beside it finds its section by (§ 11) — a renamed node or a mistyped `direct:` target; rename the heading to the name, or delete the section. A node an overlay or profile disables still counts |
 | `reserved-key:<key>` | A reserved key (§ 10), parsed and ignored |
 | `newer-format` | A version above 1: only the structure and the cycle check ran |

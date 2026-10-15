@@ -28,17 +28,17 @@ able to write:
   edited in place afterwards. Never send a node's `started` or `completed`, or
   `orchestrator.updated`: the writer stamps all three from its own clock on each status change
   and drops, with a `note:` line on stderr, any value a patch carries for them.
-- `context` and `phase_summaries` — written into the run's context block, whose name the
+- `context` — written into the run's context block, whose name the
   writer derives from `workflow.name`: `<name>_context`, the name's dashes written as
   underscores, so `acme-review` writes `acme_review_context`. Two built-ins keep older blocks:
   `development` writes `task_context` and `product-design` writes `design_context`. A workflow
   named `project` or `verification` would derive one of the shared blocks below, so its context
   writes are refused with `state-context-block-unknown`. `node_summaries` is its own top-level
   block, keyed by node id.
-  A phase summary is always sent as the **top-level** `phase_summaries` patch key, never nested
-  under `context`, although the file keeps the map inside the context block: every `context`
-  key replaces whole, so a nested map would erase every summary earlier phases wrote, and the
-  writer refuses it with `state-patch-invalid`. `node_summaries` merges entry by entry, and
+  A step's summary goes on `node_summaries` alone. `phase_summaries`, the retired phase-summary
+  mirror, is dropped with a `note:` line as a top-level key and refused with
+  `state-patch-invalid` nested under `context`, whose keys each replace whole; an older run's
+  copy is never read. `node_summaries` merges entry by entry, and
   **each node summary merges field by field**: a field you send replaces that field whole, and
   a field you leave out keeps its value. So a later node retagging one earlier risk `resolved`
   sends only that node's `risks`, and its summary, artifacts and answers stay. Send a field as
@@ -77,7 +77,8 @@ never refusals — the write lands and the exit code does not move:
 A `note:` line says the write dropped something the patch sent and landed without it. Beside the
 clock fields and `policy_hash`, the writer drops, each with its note: an
 `orchestrator.options.ceiling` wider than the run's autonomy ceiling, or one removing it (engine Step 4);
-`orchestrator.classes_questions` and a node's `asking`, which only the writer records; and, in a
+`orchestrator.classes_questions` and a node's `asking`, which only the writer records; a
+top-level `phase_summaries`, the retired phase-summary mirror; and, in a
 run that records `classes_questions`, a `by: run` or `by: default` item sent for a question the
 writer classed, and any `triage` sent on a node's decisions. Correct the prose that sent it
 rather than re-sending.
@@ -177,13 +178,12 @@ entry states.
 
 **A patch may carry every block at once, and a moment that changes several things is one
 write, not one write per thing.** The writer applies every key present in a single pass, and
-`nodes`, `node_summaries` and the top-level `phase_summaries` key merge entry by entry, so any
+`nodes` and `node_summaries` merge entry by entry, so any
 number of entries ride in one patch. There are four moments:
 
 - **A node starts.** One patch: the node's `status: running`, and the `orchestrator` scalars
   the start moves.
-- **A node ends.** One patch: the node's status, its `node_summaries` entry, the
-  `phase_summaries` key its `brief:` entry names under `summary_keys`, and the `orchestrator`
+- **A node ends.** One patch: the node's status, its `node_summaries` entry and the `orchestrator`
   scalars the outcome moves. The writer mirrors the node's status onto its summary whichever
   arrives first; a summary written with its own `status` keeps it until the node's status
   next changes.
@@ -239,7 +239,7 @@ twenty-six, each with its response below; two more are raised before the writer 
 | `state-node-regressed` | The patch sends a node that already ended — completed, failed, skipped or stopped — back to `pending`. Nothing was written. A node's record only moves forward: to run it again, re-drive it (`running`), and to redo a stretch the operator sent back, answer the gate with its revise option through `gate-revise`, which resets the stretch in one write and records why. Never rewind a node by hand to make it ready. |
 | `state-held-approval-not-askable` | The write records a continue at `held-approval` that nobody could have been asked: something besides the running closing node is still owed (and the checkpoint is not raised early before a checkpoint), or the run's `cockpit` or `dispatch` driver carried no request for it answered continue in this round (a request whose gate-index row an earlier answer already closed belongs to an earlier round). Nothing was written, and the held choices stay held. Finish what is owed and ask the checkpoint from its brief; under a driver, suspend on it with `gate-request` and fold the answer it brings. Where the driver cannot carry it, publish the close-out graded `failed`, naming each held choice, and let `run-complete` end the run `run-held-unapproved` (engine § *Ending a dispatched run*). Never record a continue to get past it. |
 | `state-subrun-held-open` | The write starts a `workflow:` node while a step it follows holds a question with no choice yet, and once its child has run no revise can re-run that step. Nothing was written. Settle the question first: ask the checkpoint the run has reached whose revise re-runs that step, or `held-approval` when none does (engine § *The ready set*), revise the step with the choice in the note, and start the sub-run once nothing it follows holds a question with no choice. |
-| `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo or a phase key used as a node id, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
+| `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
 | `state-gate-values-sent` | The write sends `values` for a gate. A gate's values are recorded by the writer from the answer, as the chosen continue option sets them. Nothing was written. Drop `values` from the gate's entry and record the answer the usual way — the gate `completed`, the chosen option under its `decisions` — and the writer records the values in the same write. |
 | `state-value-invalid` | A value recorded under a key the node declares is not of the declared type. The message names the key, the value and the form it should take. Nothing was written. Send the node's whole `values` map again with that key corrected, because values are replaced whole. If the node produced no such value, the node prose decides whether it failed; never coerce one to get past the check. |
 | `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. While choices are held, a frozen gate also offers a `revise-<node>` for each step behind it holding one (`references/gates.md` § *For a held choice*), and only while it does. At `held-approval` the options are the ones its brief offers — continue, a `revise-<node>` per node holding a choice, stop — and only continue and stop once its revises are spent; while a held question with no choice yet waits there is no continue — only the revises and stop, and stop alone once the revises are spent too. |

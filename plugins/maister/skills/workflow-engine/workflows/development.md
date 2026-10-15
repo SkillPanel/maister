@@ -86,9 +86,8 @@ supplies the description.
 **Without question sets** (`task-description`): never reached either. A
 non-terminal run with no description is `RUN-FAILED`.
 
-**Summary.** The `research` entry carries the research reference and `design`
-the ingested design; `ui-mockups` overwrites `design`
-when that stretch runs.
+**Summary.** The entry carries the research reference and the ingested
+design.
 
 **Budget.** None: a source it cannot find is an absence, not a failure.
 
@@ -113,8 +112,9 @@ answers stand, and what it could not settle is named in the file as unsettled.
 there, then set `task_context.clarifications_resolved` to true — also when no
 question was asked: the file is still written.
 
-**Summary.** The `codebase_analysis` entry carries the key files and the
-primary language.
+**Summary.** The entry carries the key files and the primary language as
+`key_files` and `primary_language`. Every decision and risk of the analysis
+and of the clarifications goes on this one entry.
 
 **Budget.** Expand the search patterns on the second attempt, and prompt the
 operator when the second also comes back thin.
@@ -175,8 +175,9 @@ optional work runs next is the gate's *Next* line, never the headline. In
 `summary`, the gaps found and why each optional stretch is on or off ("no
 reproducible defect, so no failing test first"). In `decisions`, what the gap
 analysis itself settled, `by: run`. In `risks`, each gap outside this change's
-scope as a `followup`. The `gap_analysis` entry carries the integration points
-and `scope_clarifications` whether scope expanded.
+scope as a `followup`. The entry carries `integration_points` and
+`scope_expanded`, whether scope expanded. Every decision and risk of the gap
+analysis and of the scope decisions goes on this one entry.
 
 **Re-run.** Record the five characteristics and the risk level again too: a
 revise clears them, and a changed `mockups_needed` or `has_reproducible_defect`
@@ -236,9 +237,8 @@ address that was never served. In `risks`, each screen the studio could not bind
 to the project's design resources as `open`, its `change` what a revise would
 render instead: the revise of `mockup-approval` is the way to change the
 screens. Record the format actually used and any fallback note. The
-`ui_mockups` entry carries the components designed, and `design` the screen and
-component counts and the index path; this
-`design` overwrites the one `intake` seeded.
+entry carries the components designed, the screen and component counts and
+the index path.
 
 **Re-run.** Hand the studio the existing mockups under
 `analysis/design-context/`: the same screen ids, a row appended only for a
@@ -345,8 +345,8 @@ would change if it is wrong ("CSV cells are never quoted", change: "quote cells
 that hold a comma") — never a bare "Assumption: …"; a story taken as drafted is
 one such assumption, its `change` the correction Part B listed for it; each
 conflict with the architecture input as `open`, its `change` what would follow
-either way. The `architecture_decision` entry carries the chosen approach and
-its rationale.
+either way. The entry carries the chosen approach and its rationale as a
+decision. Every decision and risk of Parts A and B goes on this one entry.
 
 Recommend the audit, never ask it. A set audit input's reason is "Asked for
 when the run started" or "Declined when the run started", and the gate is still
@@ -401,7 +401,7 @@ report still lists the findings the run fixed. In `decisions`, only a point the
 spec left open that the audit resolved against the codebase, `by: audit`; a
 check that merely confirmed the spec goes in the summary. In `risks`, the
 findings still open as § 6 step 6 hands them, their `change` what a revise of
-the specification would do. The `spec_audit` entry carries the verdict.
+the specification would do. The entry carries the verdict as `verdict`.
 
 **Budget.** None: an audit that returns is an audit, whatever its verdict; a
 fix pass that fails leaves its findings open for the gate.
@@ -425,7 +425,7 @@ carries and how many waves they run in ("Four task groups, 23 steps, in three
 waves"). In `summary`, the groups in a line each and the estimated complexity.
 In `decisions`, the key ordering and dependency choices, `by: run`. In `risks`,
 a cost accepted on purpose, such as a group that must run alone, as a
-`tradeoff`. The `implementation_plan` entry carries the task-group count.
+`tradeoff`. The entry carries the task-group count as `task_groups`.
 
 **Re-run.** Regroup, split or reorder what the note names and keep the rest,
 and check coverage again, `implementation/visual-coverage.md` included when a
