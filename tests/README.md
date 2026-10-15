@@ -35,12 +35,16 @@ umbrella's, plus 20,000 seeded random values parsed in process.
   written by 2.x (`prose-2x/`, `prose-2x-research/`, `prose-2x-product-design/`) that `resume-check` refuses, and
   `free-delivery-threshold/`, a real development run: its state as it recorded it (the definition
   source made repository-relative) as `recorded-state.yml`, beside every file it wrote, emptied.
+  The items it kept only in its phase-summary mirror are folded onto the steps that own them, and
+  the mirror is gone; `phase-summary-items.json` beside it is the parity reference, extracted from
+  the state before the fold, which `prior-context.test.mjs` checks every item of against the render.
   `run-complete.test.mjs` freezes the shipped `development.yml` afresh and replays the recorded
   outcomes and summaries onto it, with and without the absences its nodes sanction.
   `team-calendar-sharing/` is a synthetic product-design run of the same shape — an invented
   enhancement with a UI, so its personas are skipped and its screens drawn — which
   `product-design.test.mjs` replays onto the shipped `product-design.yml` beside partial runs it
-  walks to each of that workflow's gates. Its `outputs/delivery-scope.yml` is kept whole: it is the
+  walks to each of that workflow's gates. It carries no phase-summary mirror: each step's values sit
+  on its `node_summaries` entry. Its `outputs/delivery-scope.yml` is kept whole: it is the
   single-repository scope, read beside `fixtures/delivery-scope/workspace.yml`, a workspace's.
   Its `analysis/decision-areas.json` is a 0-byte placeholder like its siblings: the brainstorm
   declares it, so the replay needs it present to end on `RUN-COMPLETE`, and nothing reads its bytes.

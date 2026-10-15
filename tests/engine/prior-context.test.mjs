@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 
-import { DECLARED, freeze, legacyMirror, scratch, verb, write } from '../helpers.mjs';
+import { DECLARED, FIXTURES, freeze, legacyMirror, scratch, verb, write } from '../helpers.mjs';
 
 /** Run `prior-context` against a run; the verb writes nothing, so only its output is asserted. */
 function priorContext(run) {
@@ -89,6 +90,30 @@ test('prior-context: a decision on a node summary reaches later steps once the r
   assert.match(result.stdout, /^### analysis$/m);
   assert.match(result.stdout, /^Decisions \(1\):\n- keep the parser$/m);
   assert.doesNotMatch(result.stdout, /has recorded a summary yet/);
+});
+
+test('parity: every decision and risk of the beta.28 mirror reaches later steps', t => {
+  const sample = path.join(FIXTURES, 'runs/free-delivery-threshold');
+  const reference = JSON.parse(fs.readFileSync(path.join(sample, 'phase-summary-items.json'), 'utf8'));
+  assert.equal(reference.decisions.length, 35);
+  assert.equal(reference.risks.length, 27);
+  const run = scratch(t, { name: '2026-09-30-free-delivery-threshold-per-country' });
+  fs.copyFileSync(path.join(sample, 'recorded-state.yml'), run.state);
+  assert.doesNotMatch(fs.readFileSync(run.state, 'utf8'), /phase_summaries/);
+  const result = priorContext(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Pasted from `node_summaries` in this run's `orchestrator-state\.yml`: 26 nodes, 41 decisions, 31 risks\./);
+  const printed = new Set(result.stdout.split(/\r?\n/));
+  const matched = entries => entries.filter(entry =>
+    printed.has(`- ${entry.line}`) || (entry.equivalent_line !== undefined && printed.has(`- ${entry.equivalent_line}`)));
+  const missing = entries => entries.filter(entry => !matched([entry]).length).map(entry => entry.line);
+  assert.deepEqual(missing(reference.decisions), [], 'every mirror decision is printed');
+  assert.deepEqual(missing(reference.risks), [], 'every mirror risk is printed');
+  const decisions = matched(reference.decisions).length;
+  const risks = matched(reference.risks).length;
+  t.diagnostic(`matched ${decisions} of ${reference.decisions.length} mirror decisions and ${risks} of ${reference.risks.length} mirror risks`);
+  assert.equal(decisions, 35);
+  assert.equal(risks, 27);
 });
 
 test('prior-context: a node summary written by hand as a bare list is not read as decisions', t => {
