@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, lastLine, readState, scratch, sibling, umbrella, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, lastLine, readState, run as runScript, scratch, scratchPlugin, sibling, umbrella, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
+import { published } from '../../plugins/maister/lib/outbox-files.mjs';
 
 function complete(run, extra = []) {
   return verb(['run-complete', `--state=${run.state}`, ...extra]);
@@ -140,6 +141,40 @@ test('dispatch: a failed run is still checked for its close-out before its failu
   assert.equal(complete(run, [`--outbox=${outbox}`, '--dispatch-id=d-1']).stdout, 'RUN-FAILED: closeout-unpublished\n');
   umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade: 'failed', summary: 'analysis failed' });
   assert.equal(complete(run, [`--outbox=${outbox}`, '--dispatch-id=d-1']).stdout, 'RUN-FAILED: node analysis failed\n');
+});
+
+test('dispatch: run-complete loads and judges the close-out with the umbrella runtime absent', t => {
+  // A copy of the plugin without the umbrella skill: the engine reads an outbox
+  // through the plugin-root library and never imports the umbrella.
+  const engine = scratchPlugin(t);
+  fs.rmSync(path.join(path.dirname(engine), '..', '..', 'umbrella'), { recursive: true, force: true });
+  assert.equal(fs.existsSync(path.join(path.dirname(engine), '..', '..', 'umbrella')), false);
+
+  const run = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE }, { orchestrator: DISPATCH('e') });
+  const outbox = path.join(run.root, 'outbox');
+  const flags = ['run-complete', `--state=${run.state}`, `--outbox=${outbox}`, '--dispatch-id=d-1'];
+  const before = runScript(engine, flags);
+  assert.equal(before.stdout, 'RUN-FAILED: closeout-unpublished\n', before.stderr);
+
+  const sent = umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade: 'success', summary: 'done' });
+  assert.equal(sent.code, 0, sent.stdout);
+  const after = runScript(engine, flags);
+  assert.equal(after.code, 0, after.stderr);
+  assert.equal(after.stdout, 'RUN-COMPLETE\n');
+});
+
+test('the shared outbox reader lists message files by sequence and ignores anything else', t => {
+  const run = scratch(t);
+  const outbox = path.join(run.root, 'outbox');
+  assert.deepEqual(published({ outbox, dispatch_id: 'd-9' }), [], 'a dispatch that published nothing has no directory');
+
+  const dir = path.join(outbox, 'd-9');
+  fs.mkdirSync(path.join(dir, '0003-status.yml'), { recursive: true });
+  for (const name of ['0010-closeout.yml', '0002-status.yml', 'notes.txt', '.umbrella-input.json']) {
+    fs.writeFileSync(path.join(dir, name), 'x\n');
+  }
+  assert.deepEqual(published({ outbox, dispatch_id: 'd-9' }).map(m => [m.seq, m.type]), [[2, 'status'], [10, 'closeout']]);
+  assert.throws(() => published({ outbox, dispatch_id: '../d-9' }), { code: 'outbox-message-invalid' });
 });
 
 // ---------------------------------------------------------------------------

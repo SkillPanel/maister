@@ -25,12 +25,13 @@
  * the guard cannot prove the close-out landed, and an unprovable close-out is
  * the whole defect.
  *
- * WHY IT ASKS THE UMBRELLA RUNTIME. The on-disk shape of an outbox belongs to
- * `outbox.mjs`, which claims those names exclusively as its locking primitive.
- * This module never builds one: it calls that module's own reader, the way
- * `state.mjs` already reaches across the plugin for `lib/state-scan.mjs`. A
- * second copy of the convention here would answer confidently and wrongly the
- * first time the convention moved.
+ * WHY IT READS THROUGH THE SHARED LIBRARY. The on-disk shape of an outbox is
+ * spelled once, in the plugin-root `lib/outbox-files.mjs`, which the umbrella
+ * runtime's writer claims those names against. This module never builds one:
+ * it calls that library's reader, the way `state.mjs` already reaches across
+ * the plugin for `lib/state-scan.mjs`, and never imports the umbrella — the
+ * engine runs whole without it. A second copy of the convention here would
+ * answer confidently and wrongly the first time the convention moved.
  *
  * WHAT IT DELIBERATELY DOES NOT COVER. A close-out that degraded — the outbox
  * was unwritable and the verb handed back a `DISPATCH-RESULT:` line instead —
@@ -134,7 +135,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { scanState } from '../../../../lib/state-scan.mjs';
-import { published } from '../../../umbrella/scripts/lib/outbox.mjs';
+import { published } from '../../../../lib/outbox-files.mjs';
 import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
 import { atClose, heldApprovalBefore } from './gate-brief.mjs';
