@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { freeze, scratch, verb } from '../helpers.mjs';
+import { freeze, legacyMirror, scratch, verb, write } from '../helpers.mjs';
 
 /** Run `resume-check` against a run and parse the JSON it always prints. */
 function resumeCheck(run) {
@@ -100,4 +100,59 @@ test('resume-check: a missing state file is unreadable, not 2.x', t => {
 test('resume-check: --state is required and no other flag is taken', () => {
   assert.equal(verb(['resume-check']).code, 2);
   assert.equal(verb(['resume-check', '--state=x', '--node=y']).code, 2);
+});
+
+test('resume-check: a phase-summary mirror an older run carries is announced once, and changes nothing else', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { context: { risk_level: 'low' } });
+  legacyMirror(run, [
+    '    analysis:',
+    '      decisions:',
+    '        - only on the mirror',
+    '        - also on the mirror',
+    '      risks:',
+    '        - a mirrored risk',
+    '    specification:',
+    '      decisions: not a list',
+    '    gap: not a map',
+  ]);
+  const before = snapshot(run.dir);
+  const result = resumeCheck(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.json.ok, true);
+  assert.ok(!Object.hasOwn(result.json, 'warnings'), 'the JSON keeps its shape');
+  assert.deepEqual(result.stderr.split(/\r?\n/).filter(line => line !== ''), [
+    'warning: legacy-mirror-ignored: task_context.phase_summaries holds 2 decisions and 1 risk that no step reads; '
+      + 'the phase-summary mirror is retired (see the Upgrading note in the changelog)',
+  ]);
+  assert.deepEqual(snapshot(run.dir), before);
+});
+
+test('resume-check: no mirror, or an empty one, prints no warning', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { context: { risk_level: 'low' } });
+  assert.equal(resumeCheck(run).stderr, '');
+  legacyMirror(run, []);
+  const result = resumeCheck(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+});
+
+test('resume-check: a mirror whose entries hold no decision and no risk prints no warning', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { context: { risk_level: 'low' } });
+  legacyMirror(run, [
+    '    analysis:',
+    '      summary: Scoped on the mirror.',
+    '      decisions: []',
+    '      risks: []',
+    '    specification:',
+    '      summary: Specified.',
+  ]);
+  const result = resumeCheck(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
 });

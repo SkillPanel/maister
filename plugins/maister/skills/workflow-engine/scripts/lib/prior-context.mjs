@@ -25,7 +25,8 @@
  *
  * Every run is served the same way: the passage is `node_summaries` whether or
  * not the workflow has a context block, and a `<context>.phase_summaries` an
- * older run carries is not read.
+ * older run carries is not read — only announced, by one `legacy-mirror-ignored`
+ * warning that counts its decisions and risks (`legacyMirrorWarning`).
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -41,6 +42,7 @@ import { approvalKey, isOpenHeld, outstandingHeld } from './question-triage.mjs'
 // The run block an artifact writer's prompt opens with, so that one call
 // fetches both passages and the two can never be pasted out of order.
 import { runContext } from './run-context.mjs';
+import { legacyMirrorWarning } from './state.mjs';
 
 /**
  * The two fields the artifact summary contract is written against. They lead
@@ -88,7 +90,7 @@ export function priorContext({ state, background = false, node = null }) {
   if (!context.ok) return context;
   const prior = priorPhases({ state, background });
   if (!prior.ok) return prior;
-  return { ok: true, text: `${context.text}\n${prior.text}`, errors: [], warnings: context.warnings };
+  return { ok: true, text: `${context.text}\n${prior.text}`, errors: [], warnings: [...(context.warnings ?? []), ...prior.warnings] };
 }
 
 function priorPhases({ state, background }) {
@@ -119,7 +121,13 @@ function priorPhases({ state, background }) {
   }
   // A held choice no approval matches yet is printed as provisional.
   const held = new Map(outstandingHeld(doc).map(each => [approvalKey(each.node, each.item), isOpenHeld(each.item) ? NO_CHOICE_NOTE : HELD_NOTE]));
-  return { ok: true, text: render(isPlainObject(nodes) ? nodes : {}, background, held) + revisionOf(doc), errors: [] };
+  const mirror = legacyMirrorWarning(doc);
+  return {
+    ok: true,
+    text: render(isPlainObject(nodes) ? nodes : {}, background, held) + revisionOf(doc),
+    errors: [],
+    warnings: mirror === null ? [] : [mirror],
+  };
 }
 
 /**

@@ -1118,13 +1118,15 @@ async function runSyncPlan(flags) {
  * Reported like `locate` — the whole JSON result on stdout, exit 1 for a
  * directory it does not resume — so the refusal's `message`, which is written
  * for the operator, is read from the same place as the frozen workflow's name.
+ * A warning goes to stderr, opening with `warning:`, and stays out of the JSON.
  */
 async function runResumeCheck(flags) {
   if (!flags.state) throw new UsageError('resume-check needs --state');
   const module = await loadModule(VERBS['resume-check'].module);
   const check = entryOf(module, 'resumeCheck', VERBS['resume-check'].module);
-  const result = check({ state: flags.state });
+  const { warnings = [], ...result } = check({ state: flags.state });
   report(result);
+  for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 

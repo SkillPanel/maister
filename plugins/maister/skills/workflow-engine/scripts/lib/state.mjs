@@ -1210,9 +1210,11 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   if (regress !== null) clearClassed(doc, regress, changed);
   if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings, () => outstandingHeld(typedOf(doc)).length > 0);
   if (patch.nodes && markStarted(doc, patch, changed)) intended.add('task');
-  // The retired phase-summary mirror: dropped whole, with a note, so a session
-  // still sending it loses nothing else of its write.
-  if (Object.hasOwn(patch, 'phase_summaries')) notes.push(MIRROR_NOTE);
+  // The retired phase-summary mirror, sent top-level or nested under `context`:
+  // dropped whole, with one note, so a session still sending it loses nothing
+  // else of its write.
+  const nested = isPlainObject(patch.context) && Object.hasOwn(patch.context, 'phase_summaries');
+  if (Object.hasOwn(patch, 'phase_summaries') || nested) notes.push(MIRROR_NOTE);
   if (patch.context) {
     // Resolved once, after `workflow:` is in place, so a patch that installs
     // the block and writes its context in one invocation resolves from the
@@ -1351,6 +1353,35 @@ function contextBlockOf(written) {
  */
 export function isContextBlock(key) {
   return key.endsWith(CONTEXT_SUFFIX) && !RESERVED_KEYS.has(key);
+}
+
+/**
+ * The one warning `resume-check` and `prior-context` print when a parsed state
+ * still carries the retired phase-summary mirror — a `<context>.phase_summaries`
+ * map an older run wrote — holding at least one decision or risk, or null when
+ * it does not. It counts the decisions and risks the mirror holds, so the
+ * operator sees what no step will read; an entry or a list of another shape
+ * counts nothing, and a mirror that counts nothing is not worth a warning. Nothing of the mirror is read into any output beyond the counts.
+ */
+export function legacyMirrorWarning(doc) {
+  if (!isPlainObject(doc)) return null;
+  for (const [key, block] of Object.entries(doc)) {
+    if (!isContextBlock(key) || !isPlainObject(block)) continue;
+    const mirror = block.phase_summaries;
+    if (!isPlainObject(mirror) || Object.keys(mirror).length === 0) continue;
+    let decisions = 0;
+    let risks = 0;
+    for (const entry of Object.values(mirror)) {
+      if (!isPlainObject(entry)) continue;
+      if (Array.isArray(entry.decisions)) decisions += entry.decisions.length;
+      if (Array.isArray(entry.risks)) risks += entry.risks.length;
+    }
+    if (decisions + risks === 0) continue;
+    return `legacy-mirror-ignored: ${key}.phase_summaries holds ${decisions} ${decisions === 1 ? 'decision' : 'decisions'} `
+      + `and ${risks} ${risks === 1 ? 'risk' : 'risks'} that no step reads; `
+      + 'the phase-summary mirror is retired (see the Upgrading note in the changelog)';
+  }
+  return null;
 }
 
 /**
@@ -2642,18 +2673,16 @@ function clampCeiling(doc, orchestrator, policyNow, notes) {
 /**
  * Free-form keys under the run's context block, each one replacing.
  *
- * `phase_summaries` sent here is refused before anything is set: it would
- * recreate the retired phase-summary mirror as a free-form key. Each step's
- * summary lives on its `node_summaries` entry. A `phase_summaries` an older run
- * already carries in the block is never read or rewritten here.
+ * `phase_summaries` sent here is skipped — the caller has already noted the
+ * drop (`MIRROR_NOTE`) — so the retired phase-summary mirror cannot return as a
+ * free-form key. Each step's summary lives on its `node_summaries` entry. A
+ * `phase_summaries` an older run already carries in the block is never read or
+ * rewritten here.
  */
 function applyContext(doc, contextKey, context, changed) {
   if (!isPlainObject(context)) throw new Refusal('state-patch-invalid', 'the context patch must be an object');
-  if (Object.hasOwn(context, 'phase_summaries')) {
-    throw new Refusal('state-patch-invalid',
-      "phase_summaries is not a context key; the phase-summary mirror is retired, so record each step's summary, decisions and risks on its node_summaries entry");
-  }
   for (const [key, value] of Object.entries(context)) {
+    if (key === 'phase_summaries') continue;
     doc.set([contextKey, key], block(key, value, 2));
     changed.push(`${contextKey}.${key}`);
   }

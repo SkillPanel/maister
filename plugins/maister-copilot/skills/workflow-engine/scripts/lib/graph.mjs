@@ -182,19 +182,12 @@ const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
  * option of the gate it feeds. A question's default is not one of them: it
  * lives once, in the Without line of the step's section. Every one is data a
  * step reads; none is graph data, so the block stays outside the hash
- * (`buildGraph`). `summary_keys` is a retired key: still accepted in its old
- * shape so an older definition validates, warned as retired
- * (`brief-retired-key`), and printed nowhere. Exported for `brief.mjs`, which
+ * (`buildGraph`). `summary_keys` is a retired key: accepted with any value so
+ * an older definition validates, warned as retired (`brief-retired-key`), and
+ * merged and printed nowhere. Exported for `brief.mjs`, which
  * merges the block by the same shape rules (`briefValueProblems`).
  */
 export const BRIEF_KEYS = ['summary_keys', 'absent', 'budget', 'recommends'];
-
-/**
- * The shape a retired `summary_keys` entry is still held to. The dash is
- * admitted because a frozen state shape already carries phase keys written
- * with one.
- */
-const PHASE_KEY = /^[a-z][a-z0-9_-]*$/;
 
 /** The highest recovery budget a brief may print. */
 const BUDGET_MAX = 10;
@@ -2347,21 +2340,8 @@ export function briefValueProblems(key, value) {
   const problems = [];
   const report = (at, message) => problems.push({ at, message });
   const shown = item => (typeof item === 'string' ? JSON.stringify(item) : describe(item));
-  if (key === 'summary_keys') {
-    if (!Array.isArray(value) || value.length === 0) {
-      report('', `summary_keys is a list of phase keys (retired); ${shown(value)} is not`);
-      return problems;
-    }
-    const seen = new Set();
-    for (const [index, each] of value.entries()) {
-      if (typeof each !== 'string' || !PHASE_KEY.test(each)) {
-        report(`.${index}`, `a phase key is lower-case letters, digits, underscores and dashes, starting with a letter; ${shown(each)} is not`);
-        continue;
-      }
-      if (seen.has(each)) report('', `summary_keys names ${each} twice`);
-      seen.add(each);
-    }
-  } else if (key === 'absent') {
+  // `summary_keys` is retired: any value is accepted, and only warned.
+  if (key === 'absent') {
     if (!isMap(value)) {
       report('', `absent is a mapping of artifact key to the one-line reason the node may leave it unwritten; ${shown(value)} is not`);
       return problems;

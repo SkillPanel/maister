@@ -77,6 +77,23 @@ test('prior-context: a phase-summary mirror an older run carries is ignored', t 
   assert.match(result.stdout, /Pasted from `node_summaries` in this run's `orchestrator-state\.yml`: \d+ nodes?, 1 decision, 0 risks\./);
   assert.match(result.stdout, /^- keep the parser$/m);
   assert.doesNotMatch(result.stdout, /only on the mirror|Scoped on the mirror|phase_summaries/);
+  assert.deepEqual(result.stderr.split(/\r?\n/).filter(line => line !== ''), [
+    'warning: legacy-mirror-ignored: task_context.phase_summaries holds 1 decision and 0 risks that no step reads; '
+      + 'the phase-summary mirror is retired (see the Upgrading note in the changelog)',
+  ]);
+});
+
+test('prior-context: no mirror, or an empty one, prints no warning', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { context: { risk_level: 'low' } });
+  const bare = priorContext(run);
+  assert.equal(bare.code, 0, bare.stderr);
+  assert.equal(bare.stderr, '');
+  legacyMirror(run, []);
+  const empty = priorContext(run);
+  assert.equal(empty.code, 0, empty.stderr);
+  assert.equal(empty.stderr, '');
 });
 
 test('prior-context: a decision on a node summary reaches later steps once the run has a context block', t => {
@@ -186,4 +203,19 @@ test('prior-context --node: a node the run does not have is refused by the run b
   assert.equal(result.code, 1);
   assert.equal(result.stdout, '');
   assert.match(result.stderr, /^run-context-unknown-node: /);
+});
+
+test('prior-context: a mirror whose entries hold no decision and no risk prints no warning', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { context: { risk_level: 'low' } });
+  legacyMirror(run, [
+    '    analysis:',
+    '      summary: Scoped on the mirror.',
+    '      decisions: []',
+    '      risks: []',
+  ]);
+  const result = priorContext(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
 });

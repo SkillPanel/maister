@@ -157,7 +157,7 @@ Keys are node ids; each entry holds any of these keys:
 <!-- vocabulary: BRIEF_KEYS -->
 | Key | Shape |
 |---|---|
-| `summary_keys` | Retired. A list of the phase keys a node once mirrored its summary under, still held to its old shape (lower-case letters, digits, underscores and dashes starting with a letter, none twice); it warns `brief-retired-key` (§ 14) and is printed nowhere. A step's summary is its `node_summaries` entry |
+| `summary_keys` | Retired: accepted with any value and ignored; validate warns `brief-retired-key` (§ 14) |
 | `absent` | Artifact key → a one-line reason the node may leave that artifact unwritten |
 | `budget` | A whole number from 1 to 10: the recovery attempts the node may make, printed as a rule and not enforced. A node with no recovery budget has no `budget` key |
 | `recommends` | `with:` key → (value → continue option id): which option the gate the node feeds should recommend for each value. Values are read as text, so quote `"yes"`, `"no"`, `"true"`, `"false"` |

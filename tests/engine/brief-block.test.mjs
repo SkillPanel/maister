@@ -11,7 +11,7 @@ import { ENGINE_DIR, FIXTURES, verb } from '../helpers.mjs';
 
 // The `brief:` block: per node, what the node's brief prints beside its prose —
 // the absences it may leave, its recovery budget and the inputs that recommend
-// a gate option; `summary_keys` is retired, still held to its old shape and
+// a gate option; `summary_keys` is retired, accepted with any value and
 // warned. A question's default is
 // not one of them: the Without line of the node's section states it, once.
 // Checked on its own shape (errors) and against the resolved graph (warnings),
@@ -64,9 +64,6 @@ test('each malformed shape is an error, located at its path', t => {
     ['brief:\n  analysis: 3\n', 'brief.analysis', /^brief\.analysis is a mapping of brief keys \(summary_keys, .*\); .* is not$/],
     ['brief:\n  analysis:\n', 'brief.analysis', /^brief\.analysis is a mapping of brief keys \(summary_keys, .*\); .* is not$/],
     ['brief:\n  analysis: {budgets: 2}\n', 'brief.analysis.budgets', /did you mean "budget"\?/],
-    ['brief:\n  analysis: {summary_keys: analysis}\n', 'brief.analysis.summary_keys', /^summary_keys is a list of phase keys/],
-    ['brief:\n  analysis: {summary_keys: [Analysis]}\n', 'brief.analysis.summary_keys.0', /^a phase key is /],
-    ['brief:\n  analysis: {summary_keys: [scope, scope]}\n', 'brief.analysis.summary_keys', /names scope twice$/],
     ['brief:\n  analysis: {absent: [notes]}\n', 'brief.analysis.absent', /^absent is a mapping of artifact key to /],
     ['brief:\n  analysis: {absent: {notes: 3}}\n', 'brief.analysis.absent.notes', /^an absence's reason is /],
     ['brief:\n  analysis: {budget: 11}\n', 'brief.analysis.budget', /^budget is a whole number from 1 to 10/],
@@ -92,14 +89,14 @@ test('each malformed shape is an error, located at its path', t => {
   // standalone mode too; a null entry and a null key are an overlay's removals.
   const dir = scratchDir(t, BLOCK, {
     'bad.overlay.yml': 'extends: brief.yml\nbrief:\n  analysis: {budget: 0}\n  review: null\n  audit: {budget: null}\n'
-      + 'profiles:\n  lean:\n    brief:\n      specification: {summary_keys: [spec, spec]}\n',
+      + 'profiles:\n  lean:\n    brief:\n      specification: {budget: 0}\n',
   });
   const overlay = path.join(dir, 'bad.overlay.yml');
   for (const args of [[`--definition=${path.join(dir, 'brief.yml')}`, `--overlay=${overlay}`], [`--overlay=${overlay}`]]) {
     const { code, report } = validate(args);
     assert.equal(code, 1);
     assert.deepEqual(report.errors.map(error => [error.file, error.path]).sort(),
-      [[overlay, 'brief.analysis.budget'], [overlay, 'profiles.lean.brief.specification.summary_keys']], args.join(' '));
+      [[overlay, 'brief.analysis.budget'], [overlay, 'profiles.lean.brief.specification.budget']], args.join(' '));
   }
 });
 
@@ -288,4 +285,14 @@ test('summary_keys still validates, with a retired-key warning', t => {
   const removal = validate([`--definition=${definition}`, `--overlay=${path.join(dir, 'removal.overlay.yml')}`]);
   assert.equal(removal.code, 0, JSON.stringify(removal.report.errors));
   assert.deepEqual(briefWarnings(removal.report), ['brief-retired-key:brief.analysis.summary_keys:analysis']);
+});
+
+test('summary_keys of any value validates with only the retired-key warning', t => {
+  for (const value of ['analysis', '[Analysis]', '[scope, scope]', '[]', '{a: 1}', '3']) {
+    const dir = scratchDir(t, `brief:\n  analysis: {summary_keys: ${value}}\n`);
+    const { code, report } = validate([`--definition=${path.join(dir, 'brief.yml')}`]);
+    assert.equal(code, 0, `${value}: ${JSON.stringify(report.errors)}`);
+    assert.deepEqual(report.errors, [], value);
+    assert.deepEqual(briefWarnings(report), ['brief-retired-key:brief.analysis.summary_keys:analysis'], value);
+  }
 });

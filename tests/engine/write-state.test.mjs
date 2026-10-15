@@ -439,6 +439,27 @@ test('a phase_summaries write is ignored with one note, and the rest lands', t =
   assert.deepEqual(state.node_summaries.analysis.decisions, ['keep the parser']);
 });
 
+test('a phase_summaries nested under context is dropped with the same note, and the rest lands', t => {
+  const run = scratch(t);
+  freeze(run);
+  const note = 'note: ignored the supplied phase_summaries; the phase-summary mirror is retired, so record each step\'s summary, decisions and risks on its node_summaries entry';
+  const nested = verb(['write-state', `--state=${run.state}`], {
+    context: { risk_level: 'low', phase_summaries: { analysis: { summary: 'x' } } },
+  });
+  assert.equal(nested.code, 0, nested.stderr);
+  assert.deepEqual(nested.stderr.split(/\r?\n/).filter(line => line !== ''), [note]);
+  assert.deepEqual(readState(run).task_context, { risk_level: 'low' });
+
+  const both = verb(['write-state', `--state=${run.state}`], {
+    context: { scope: 'api', phase_summaries: { analysis: { summary: 'x' } } },
+    phase_summaries: { analysis: { summary: 'x' } },
+  });
+  assert.equal(both.code, 0, both.stderr);
+  assert.deepEqual(both.stderr.split(/\r?\n/).filter(line => line !== ''), [note], 'one note for both');
+  assert.deepEqual(readState(run).task_context, { risk_level: 'low', scope: 'api' });
+  assert.doesNotMatch(fs.readFileSync(run.state, 'utf8'), /phase_summaries/);
+});
+
 test('a context write on a fresh freeze writes the context and nothing beside it', t => {
   const run = scratch(t);
   freeze(run);
@@ -588,14 +609,6 @@ test('an empty patch is a sanctioned republish; empty stdin is a usage failure',
   const empty = verb(['write-state', `--state=${run.state}`], '');
   assert.equal(empty.code, 2);
   assert.match(empty.stderr, /^usage: the patch on stdin is empty/);
-});
-
-test('refusal: phase_summaries nested under context', t => {
-  const run = scratch(t);
-  freeze(run);
-  const result = refused(run, { context: { phase_summaries: { analysis: { summary: 'x' } } } });
-  assert.match(result.stderr, /^state-patch-invalid\b/);
-  assert.match(result.stderr, /node_summaries entry/);
 });
 
 test('refusal: a patch key outside the closed vocabulary', t => {

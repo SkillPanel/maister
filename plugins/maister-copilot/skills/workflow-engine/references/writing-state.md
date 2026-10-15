@@ -36,9 +36,10 @@ able to write:
   writes are refused with `state-context-block-unknown`. `node_summaries` is its own top-level
   block, keyed by node id.
   A step's summary goes on `node_summaries` alone. `phase_summaries`, the retired phase-summary
-  mirror, is dropped with a `note:` line as a top-level key and refused with
-  `state-patch-invalid` nested under `context`, whose keys each replace whole; an older run's
-  copy is never read. `node_summaries` merges entry by entry, and
+  mirror, is dropped with one `note:` line, sent top-level or nested under `context`, whose
+  other keys each replace whole; an older run's copy is never read, and `resume-check` and
+  `prior-context` each announce one holding a decision or a risk with one
+  `warning: legacy-mirror-ignored:` line. `node_summaries` merges entry by entry, and
   **each node summary merges field by field**: a field you send replaces that field whole, and
   a field you leave out keeps its value. So a later node retagging one earlier risk `resolved`
   sends only that node's `risks`, and its summary, artifacts and answers stay. Send a field as
@@ -78,7 +79,7 @@ A `note:` line says the write dropped something the patch sent and landed withou
 clock fields and `policy_hash`, the writer drops, each with its note: an
 `orchestrator.options.ceiling` wider than the run's autonomy ceiling, or one removing it (engine Step 4);
 `orchestrator.classes_questions` and a node's `asking`, which only the writer records; a
-top-level `phase_summaries`, the retired phase-summary mirror; and, in a
+`phase_summaries`, the retired phase-summary mirror, top-level or under `context`; and, in a
 run that records `classes_questions`, a `by: run` or `by: default` item sent for a question the
 writer classed, and any `triage` sent on a node's decisions. Correct the prose that sent it
 rather than re-sending.

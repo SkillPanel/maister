@@ -163,8 +163,8 @@ workspace with work in flight.
 - **Each step's summary is recorded once.** A step's summary, decisions and risks live on that
   step's own record, and every later step, checkpoint and dashboard card reads them from there.
   The copy each built-in also kept in its context block (`phase_summaries`) is no longer written
-  or read: a write that still sends it lands without it and says so in a note, and
-  `summary_keys` in a `brief:` block is accepted with a warning and does nothing.
+  or read: a write that still sends it, top-level or under `context`, lands without it and says
+  so in a note, and `summary_keys` in a `brief:` block is accepted with a warning and does nothing.
 
 ### Upgrading
 
@@ -202,7 +202,8 @@ completes after the upgrade; one html-companion-writer run fixes it.
 
 *If you ran the 3.0.0 betas, finish a run started on 3.0.0-beta.28 or earlier on that version.* After the upgrade such a run
 resumes, but decisions and risks it recorded only in its context block's `phase_summaries` no
-longer reach its later steps; the copy stays in the file. *If a project workflow or overlay
+longer reach its later steps; the copy stays in the file, and resuming the run or assembling a
+step's prompt prints one `legacy-mirror-ignored` warning counting what it holds. *If a project workflow or overlay
 carries `summary_keys`*, remove it; `/maister:run --check` warns `brief-retired-key` until you do.
 
 *To stay on 2.x*, install the 2.x maintenance line instead. It receives fixes only — no new
