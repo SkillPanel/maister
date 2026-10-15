@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { DECLARED, ENGINE_DIR, FIXTURES, OPERATOR, SAMPLE, freeze, freezePatch, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { DECLARED, ENGINE_DIR, FIXTURES, OPERATOR, SAMPLE, freeze, freezePatch, legacyMirror, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 import { scanState } from '../../plugins/maister/lib/state-scan.mjs';
 
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
@@ -422,27 +422,49 @@ test('orchestrator.options merges key by key: a later option write keeps html_ou
   assert.deepEqual(options.inputs, { ticket: 'ALPHA-1' });
 });
 
-test('phase_summaries: lands in the workflow\'s own context block and merges entry by entry', t => {
+test('a phase_summaries write is ignored with one note, and the rest lands', t => {
   const run = scratch(t);
   freeze(run);
-  write(run, {
-    phase_summaries: { analysis: { node: 'analysis', status: 'completed', summary: 'Scoped.', decisions: ['keep the parser'], risks: [] } },
-  });
-  write(run, {
-    phase_summaries: { implementation: { node: 'implementation', status: 'in_progress', summary: 'Wave 1.' } },
+  const result = verb(['write-state', `--state=${run.state}`], {
     context: { risk_level: 'low' },
+    node_summaries: { analysis: { summary: 'Scoped.', decisions: ['keep the parser'], risks: [] } },
+    phase_summaries: { analysis: { node: 'analysis', summary: 'Scoped.', decisions: ['keep the parser'], risks: [] } },
   });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(result.stderr.split(/\r?\n/).filter(line => line !== ''), [
+    'note: ignored the supplied phase_summaries; the phase-summary mirror is retired, so record each step\'s summary, decisions and risks on its node_summaries entry',
+  ]);
   const state = readState(run);
-  assert.deepEqual(Object.keys(state.task_context.phase_summaries), ['analysis', 'implementation']);
-  assert.deepEqual(state.task_context.phase_summaries.analysis.decisions, ['keep the parser']);
-  assert.equal(state.task_context.risk_level, 'low');
+  assert.deepEqual(state.task_context, { risk_level: 'low' });
+  assert.deepEqual(state.node_summaries.analysis.decisions, ['keep the parser']);
 });
 
-test('a context write on a fresh freeze seeds an empty phase_summaries map', t => {
+test('a context write on a fresh freeze writes the context and nothing beside it', t => {
   const run = scratch(t);
   freeze(run);
   write(run, { context: { risk_level: 'low' } });
-  assert.deepEqual(readState(run).task_context.phase_summaries, {});
+  assert.deepEqual(readState(run).task_context, { risk_level: 'low' });
+});
+
+test('a mirror an older run carries is kept byte for byte through later writes', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { context: { risk_level: 'low' } });
+  const mirror = legacyMirror(run, [
+    '    analysis:',
+    '      node: analysis',
+    '      summary: Scoped on the mirror.',
+    '      decisions:',
+    '        - only on the mirror',
+    '      risks: []',
+  ]);
+  write(run, { context: { scope: 'api' } });
+  write(run, { node_summaries: { analysis: { summary: 'Scoped.', decisions: ['keep the parser'], risks: [] } } });
+  const text = fs.readFileSync(run.state, 'utf8');
+  assert.ok(text.includes(mirror), `the mirror's text survives as it was:\n${text}`);
+  const state = readState(run);
+  assert.equal(state.task_context.scope, 'api');
+  assert.deepEqual(state.node_summaries.analysis.decisions, ['keep the parser']);
 });
 
 test('a state no freeze proves keeps its unknown blocks, options and comments', t => {
@@ -573,7 +595,7 @@ test('refusal: phase_summaries nested under context', t => {
   freeze(run);
   const result = refused(run, { context: { phase_summaries: { analysis: { summary: 'x' } } } });
   assert.match(result.stderr, /^state-patch-invalid\b/);
-  assert.match(result.stderr, /top-level phase_summaries/);
+  assert.match(result.stderr, /node_summaries entry/);
 });
 
 test('refusal: a patch key outside the closed vocabulary', t => {
@@ -589,13 +611,12 @@ test('context: a workflow of its own name writes into <name>_context, with the n
   write(run, { ...patch, context: { risk_level: 'low' } });
   write(run, {
     nodes: { scan: { status: 'running' } },
-    phase_summaries: { scanning: { node: 'scan', summary: 'Scanning the api.', decisions: ['scan the api only'], risks: [] } },
+    node_summaries: { scan: { summary: 'Scanning the api.', decisions: ['scan the api only'], risks: [] } },
   });
   const state = readState(run);
   assert.equal(state.workflow.name, 'survey');
-  assert.equal(state.survey_context.risk_level, 'low');
-  assert.deepEqual(Object.keys(state.survey_context.phase_summaries), ['scanning']);
-  assert.deepEqual(state.survey_context.phase_summaries.scanning.decisions, ['scan the api only']);
+  assert.deepEqual(state.survey_context, { risk_level: 'low' });
+  assert.deepEqual(state.node_summaries.scan.decisions, ['scan the api only']);
   assert.equal(state.workflow.nodes.scan.status, 'running');
 });
 
@@ -603,7 +624,7 @@ test('context: a dashed workflow name derives its block with the dashes as under
   const run = scratch(t, { type: 'closing-child' });
   freeze(run, { definition: CLOSING_CHILD, inputs: { subject: 'acme-api' } });
   write(run, { context: { scope: 'api' } });
-  assert.deepEqual(readState(run).closing_child_context, { phase_summaries: {}, scope: 'api' });
+  assert.deepEqual(readState(run).closing_child_context, { scope: 'api' });
 });
 
 test('context: every name a built-in run is recorded under keeps the block it always derived', t => {
@@ -640,7 +661,7 @@ test('context: a file with one derived block and no workflow name writes into th
   write(run, { context: { second: 'y' } });
   const state = readState(run);
   assert.equal(state.workflow.name, undefined);
-  assert.deepEqual(state.survey_context, { phase_summaries: {}, first: 'x', second: 'y' });
+  assert.deepEqual(state.survey_context, { first: 'x', second: 'y' });
 });
 
 test('refusal: a workflow name whose block the state file reserves', t => {
@@ -656,7 +677,7 @@ test('refusal: a workflow name whose block the state file reserves', t => {
 test('refusal: a workflow name outside the grammar\'s character set derives no block', t => {
   for (const name of ['Acme Tool', '__proto__', 'toString']) {
     const run = renamed(t, name);
-    const result = refused(run, { phase_summaries: { scanning: { summary: 'x' } } });
+    const result = refused(run, { context: { probe: 'x' } });
     assert.match(result.stderr, /^state-context-block-unknown\b/);
     assert.match(result.stderr, /character set/);
   }
@@ -687,7 +708,7 @@ test('refusal: a node id the graph grammar would never produce', t => {
 test('refusal: a summary key that would spill onto its own lines', t => {
   const run = scratch(t);
   freeze(run);
-  const result = refused(run, { phase_summaries: { 'design: draft': { summary: 'x' } } });
+  const result = refused(run, { node_summaries: { 'design: draft': { summary: 'x' } } });
   assert.match(result.stderr, /^state-patch-invalid\b/);
 });
 
@@ -1007,11 +1028,11 @@ test('write-state: a dispatch driver\'s dispatch_id survives the freeze and ever
 // typed summary items: headline, decisions by source, risks by tag, roles, metrics
 // ---------------------------------------------------------------------------
 
-test('write-state: decision_areas is refused in any shape but one map per area, on a node or a phase summary', t => {
+test('write-state: decision_areas is refused in any shape but one map per area, on a node summary', t => {
   const run = scratch(t);
   freeze(run);
   for (const patch of [
-    { phase_summaries: { analysis: { node: 'analysis', decision_areas: ['gather', 'synthesize'] } } },
+    { node_summaries: { analysis: { decision_areas: ['gather', 'synthesize'] } } },
     { node_summaries: { analysis: { decision_areas: 'storage' } } },
     { node_summaries: { analysis: { decision_areas: [{ alternatives_count: 3 }] } } },
   ]) {
@@ -1019,7 +1040,7 @@ test('write-state: decision_areas is refused in any shape but one map per area, 
     assert.match(result.stderr, /state-summary-item-invalid/);
   }
   const areas = [{ area: 'Storage', alternatives_count: 3, chosen_approach: 'Keep the Map private' }];
-  assert.equal(write(run, { phase_summaries: { analysis: { node: 'analysis', decision_areas: areas } } }).code, 0);
+  assert.equal(write(run, { node_summaries: { analysis: { decision_areas: areas } } }).code, 0);
 });
 
 test('write-state: a summary takes a headline, typed decisions and risks, artifact roles and metrics, and keeps them as sent', t => {
@@ -1072,13 +1093,6 @@ for (const [label, entry, at] of [
     assert.match(result.stderr, /Nothing was written/);
   });
 }
-
-test('refusal: state-summary-item-invalid holds for a context block\'s phase summaries too', t => {
-  const run = scratch(t);
-  freeze(run);
-  const result = refused(run, { phase_summaries: { analysis: { node: 'analysis', summary: 'S.', risks: [{ risk: 'x', tag: 'later' }] } } });
-  assert.match(result.stderr, /^state-summary-item-invalid: [a-z_]+\.phase_summaries\.analysis\.risks\[0\]\.tag/);
-});
 
 test('write-state: a gate answer gains the label it was chosen by and who chose it; one sent typed is kept', t => {
   const run = scratch(t);

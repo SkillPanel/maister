@@ -120,8 +120,7 @@ test('a revise answered in a driven session is stamped with the driver\'s kind, 
 test('the phases the stretch owned leave completed_phases; the others stay', t => {
   const run = atGate(t);
   write(run, {
-    orchestrator: { completed_phases: ['drafting', 'review', 'side-note'] },
-    phase_summaries: { drafting: { node: 'draft', summary: 'Drafted.' } },
+    orchestrator: { completed_phases: ['draft', 'review', 'side-note'] },
   });
   revise(run);
   assert.deepEqual(readState(run).orchestrator.completed_phases, ['side-note']);

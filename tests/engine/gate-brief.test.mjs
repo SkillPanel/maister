@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, legacyMirror, readState, scratch, verb, write } from '../helpers.mjs';
 import { scalar } from '../../plugins/maister/lib/canonical.mjs';
 
 // `gate-brief` renders what the operator reads at a gate — the closing node's
@@ -442,16 +442,24 @@ test('gate-brief: --oneline folds the brief onto one flow-safe line', t => {
   assert.doesNotThrow(() => scalar(line));
 });
 
-test('gate-brief: a summary recorded only in the context block\'s phase_summaries is found by its node', t => {
+test('gate-brief: a summary left only in an older run\'s mirror is not read', t => {
   const run = scratch(t);
   freeze(run);
   write(run, {
+    context: { risk_level: 'low' },
     nodes: { analysis: { status: 'completed' } },
-    phase_summaries: { 'phase-1': { node: 'analysis', status: 'completed', summary: 'Scoped from the context block.' } },
+    node_summaries: { analysis: { status: 'completed', summary: 'Scoped on the node.' } },
   });
+  legacyMirror(run, [
+    '    phase-1:',
+    '      node: analysis',
+    '      status: completed',
+    '      summary: Scoped from the context block.',
+  ]);
   const result = brief(run, 'approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^Scoped from the context block\.$/m);
+  assert.match(result.stdout, /^Scoped on the node\.$/m);
+  assert.doesNotMatch(result.stdout, /Scoped from the context block/);
 });
 
 test('gate-brief: with no decisions and no risks the brief is the summary and Next', t => {
