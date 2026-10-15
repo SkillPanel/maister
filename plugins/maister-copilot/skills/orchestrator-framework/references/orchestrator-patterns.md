@@ -522,7 +522,7 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 
 **Resolved risks**: when a previously recorded risk gets resolved in a later phase, keep the entry and set its `tag` to `resolved` (e.g. `{risk: "transient warning — query lookup chosen", tag: resolved}`; an older string entry is prefixed `resolved:` instead). The viewer dims and strikes resolved entries, separating live risks from settled ones.
 
-**Where a phase card's prose comes from.** The projection reads `node_summaries.<node>` alone: `summary`, `decisions`, `risks` and `artifacts` come from the node's own entry, and a `phase_summaries` copy that a run from 3.0.0-beta.28 or earlier still carries in its context block is not read.
+**Where a phase card's prose comes from.** The projection reads `node_summaries.<node>` alone: `summary`, `decisions`, `risks` and `artifacts` come from the node's own entry, and a `phase_summaries` copy that an older run still carries in its context block is not read.
 
 The viewer decides presentation (hero artifacts per workflow type — none for a type it has no hero map for — collapsed drawers, severity colors) — orchestrators only supply data.
 

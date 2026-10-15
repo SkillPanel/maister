@@ -53,7 +53,7 @@ const CONTRACT_LISTS = ['decisions', 'risks'];
 /** Printed first when present: one line of orientation before the items. */
 const LEAD = 'summary';
 
-/** Carried in the section heading rather than as a field of its own. */
+/** Not printed as fields: `summary` leads the section, and `node` would only repeat the heading's key. */
 const HEADING_FIELDS = new Set(['node', LEAD]);
 
 /**
@@ -119,7 +119,7 @@ function priorPhases({ state, background }) {
   }
   // A held choice no approval matches yet is printed as provisional.
   const held = new Map(outstandingHeld(doc).map(each => [approvalKey(each.node, each.item), isOpenHeld(each.item) ? NO_CHOICE_NOTE : HELD_NOTE]));
-  return { ok: true, text: render('node_summaries', 'node', isPlainObject(nodes) ? nodes : {}, background, held) + revisionOf(doc), errors: [] };
+  return { ok: true, text: render(isPlainObject(nodes) ? nodes : {}, background, held) + revisionOf(doc), errors: [] };
 }
 
 /**
@@ -157,10 +157,9 @@ function refuse(code, message) {
  * The paste-ready block.
  *
  * Markdown, because that is what a delegate prompt already is, and because a
- * bullet is the one form that cannot quietly hold two items. `source` is the
- * map's path in state and `unit` what one of its entries records: a node.
+ * bullet is the one form that cannot quietly hold two items.
  */
-function render(source, unit, summaries, background = false, held = new Map()) {
+function render(summaries, background = false, held = new Map()) {
   // Every entry the state writer records is a map — it refuses any other shape —
   // so an entry that is not one was written by hand, and is not read.
   const entries = Object.entries(summaries).filter(([, value]) => isPlainObject(value));
@@ -173,8 +172,8 @@ function render(source, unit, summaries, background = false, held = new Map()) {
     risks += listOf(entry.risks).length;
   }
 
-  const counts = `Pasted from \`${source}\` in this run's \`orchestrator-state.yml\`: `
-    + `${entries.length} ${entries.length === 1 ? unit : `${unit}s`}, ${decisions} `
+  const counts = 'Pasted from `node_summaries` in this run\'s `orchestrator-state.yml`: '
+    + `${entries.length} ${entries.length === 1 ? 'node' : 'nodes'}, ${decisions} `
     + `${decisions === 1 ? 'decision' : 'decisions'}, ${risks} ${risks === 1 ? 'risk' : 'risks'}. `;
   if (background) {
     out.push('## Background — what earlier phases decided');
@@ -191,15 +190,14 @@ function render(source, unit, summaries, background = false, held = new Map()) {
   out.push('');
 
   if (!entries.length) {
-    out.push(`No ${unit} has recorded a summary yet: this is the run's first artifact-writing node, `
+    out.push(`No node has recorded a summary yet: this is the run's first artifact-writing node, `
       + 'and there is no prior decision or risk to carry forward.');
     out.push('');
     return `${out.join('\n')}\n`;
   }
 
   for (const [key, entry] of entries) {
-    const node = scalarText(entry.node);
-    out.push(`### ${key}${node ? ` — node: ${node}` : ''}`);
+    out.push(`### ${key}`);
     out.push('');
     const lead = scalarText(entry[LEAD]);
     if (lead) {

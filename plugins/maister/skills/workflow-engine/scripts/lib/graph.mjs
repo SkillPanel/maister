@@ -2434,7 +2434,8 @@ export function closedBy(gate, needs, isGate) {
  * overlay's `null` removal of it does not.
  *
  * A node an overlay's or the selected profile's `disable` removed is skipped in
- * silence, for the reason `checkCompanionNodes` gives.
+ * silence, for the reason `checkCompanionNodes` gives — except for the retired
+ * `summary_keys` warning, which applies even to a removed node.
  */
 function checkBriefNodes({ prefix, block }, nodes, removed, warnings) {
   if (!isMap(block)) return;
