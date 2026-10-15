@@ -301,7 +301,7 @@ beside it — and continues into umbrella workspaces and chains.
 | To | See |
 |---|---|
 | Watch a run you started in a terminal | [Cockpit README](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/README.md) |
-| Turn a workspace into an umbrella (`/maister:umbrella init`, then `validate`) and author a chain | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
+| Set up a multi-repository workspace for the cockpit to drive (the umbrella runtime) and author a chain | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
 | Understand what an autonomy tier actually enforces | [Autonomy tiers and permissions](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/autonomy.md) |
 | See what asks you, and what a gate answer grants, in a run the cockpit drives | [Permissions in a run the cockpit drives](docs/workflows.md#permissions-in-a-run-the-cockpit-drives) |
 | Write your own chains, use your own skills and agents as nodes, or overlay a built-in | [Extending maister](docs/extending.md) |

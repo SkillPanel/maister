@@ -1,6 +1,6 @@
 ---
 name: umbrella
-description: Scaffolds and validates a multi-repository workspace — an umbrella directory whose members are checkouts of separate repositories — and runs it as one coordinated unit. For a user, `init` turns a directory into a workspace and `validate` judges it together with any chain files, both reached as `/maister-copilot:umbrella <verb>`. For a workflow's orchestrator and for the cockpit daemon, the same script builds the dispatch envelope a node hands to a worker in a member repository, renders that worker's seed prompt, and keeps the dispatch ledger and the per-dispatch outbox that carry results back. A third user verb, `prune`, deletes the generated per-ticket chains whose runs have all closed. Seven verbs behind one script, every write atomic and every rejection named.
+description: The workspace runtime the maister cockpit uses for multi-repository runs — an umbrella directory whose members are checkouts of separate repositories, coordinated as one unit. A terminal user working in one repository does not need it. While the cockpit drives a chain, a workflow's orchestrator and the cockpit daemon use the same script to build the dispatch envelope a node hands to a worker in a member repository, render that worker's seed prompt, and keep the dispatch ledger and the per-dispatch outbox that carry results back. Setting a workspace up for the cockpit is the one place a person reaches it, as `/maister-copilot:umbrella <verb>`: `init` turns a directory into a workspace, `validate` judges it together with any chain files, and `prune` deletes the generated per-ticket chains whose runs have all closed. Seven verbs behind one script, every write atomic and every rejection named.
 argument-hint: "init [--root DIR] [--members-root DIR] [--force] | validate [--definition FILE ...] | prune [--root DIR] [--name STEM] [--dry-run]"
 user-invocable: true
 ---
@@ -13,14 +13,16 @@ turns a workflow node that names one of those members into a dispatch — an
 envelope describing the work, a seed prompt for whoever does it, a ledger entry
 that makes it visible, and an outbox that carries the answer back.
 
-**Three of the seven verbs are a user's; four are machinery.** A user reaches
-this skill as `/maister-copilot:umbrella init` to turn a directory into a workspace, as
-`/maister-copilot:umbrella validate` to judge it, and as `/maister-copilot:umbrella prune` to
-delete the generated chains whose runs have closed — the section *When a user
-invokes this skill* below says how each argument maps onto the script and what
-to report back. The other four verbs are reached by name, by a workflow's
-orchestrator and by the cockpit daemon while a run is in flight; a user never
-needs them, and this skill never offers them.
+**This is the cockpit's runtime, not a terminal feature.** Its users are runs
+the cockpit drives across several repositories; a terminal user working in one
+repository never needs it. Three of the seven verbs set a workspace up for the
+cockpit: `/maister-copilot:umbrella init` turns a directory into a workspace,
+`/maister-copilot:umbrella validate` judges it, and `/maister-copilot:umbrella prune` deletes
+the generated chains whose runs have closed — the section *When a user invokes
+this skill* below says how each argument maps onto the script and what to
+report back. The other four verbs are machinery, reached by name by a
+workflow's orchestrator and by the cockpit daemon while a run is in flight; a
+user never needs them, and this skill never offers them.
 
 **Nothing here spawns anything.** The runtime describes work and records it; it
 never launches a worker, never polls, and never holds a session open. A node

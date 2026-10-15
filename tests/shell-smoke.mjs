@@ -229,6 +229,12 @@ try {
   }
   check('the dashboard link is a file:// URL to the viewer in the run', viewer !== null && path.resolve(viewer) === path.join(runDir, 'dashboard.html') && fs.existsSync(viewer), String(report?.dashboard));
 
+  // --- subrun-path ----------------------------------------------------------
+  const placed = call('subrun-path', [flag('state', statePath), '--node=research']);
+  const child = json(placed.stdout);
+  check('subrun-path names the child directory with /, under the project root',
+    placed.code === 0 && child?.ok === true && /^\.maister\/tasks\/research\/[^/\\]+-research$/.test(child.task_path ?? '') && child.existing === 'absent', show(placed));
+
   // --- the hooks ------------------------------------------------------------
   // Each hook is started from its `hooks.json` entry the way the host starts
   // it: `${CLAUDE_PLUGIN_ROOT}` replaced by the plugin root, an exec-form entry

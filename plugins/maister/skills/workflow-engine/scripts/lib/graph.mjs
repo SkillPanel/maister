@@ -343,9 +343,8 @@ const WARN = {
  *
  * Spelling is all this module owns. Only the fourth is raised from here:
  * `checkSubrun` fails on it at validate time. The other three are run-level
- * refusals the driver performs from the engine's prose, before anything is
- * created — `checkSubrunStart` below writes their conditions down but has no
- * caller today. All four live here rather than in a message literal for one
+ * refusals decided by `checkSubrunStart` below, which the `subrun-path` verb
+ * runs before it names a child's directory. All four live here rather than in a message literal for one
  * reason: a code a caller greps for must have exactly one spelling.
  */
 export const SUBRUN_REFUSAL = {
@@ -380,11 +379,10 @@ const RESERVED_SUBRUN_OUTPUTS = ['task_path', 'run_id'];
  * state carries there. One level of nesting is what the design needs, and
  * refusing on the link makes a cycle impossible without cycle detection.
  *
- * Exported, and with no caller today: the driver performs these three from the
- * engine's prose, and this is their condition — the node's shape, the run's
- * link, and what `locateWorkflow` answers — written down once so a caller that
- * ever does run them need not re-derive it. A second derivation next to the
- * caller is how a refusal ends up meaning two different things.
+ * Exported for the `subrun-path` verb, which runs them before it names a
+ * child's directory: their condition — the node's shape, the run's link, and
+ * what `locateWorkflow` answers — written down once. A second derivation next
+ * to a caller is how a refusal ends up meaning two different things.
  */
 export function checkSubrunStart({ node, parent = null, project = null } = {}) {
   const uses = typeof node?.uses === 'string' ? node.uses : '';

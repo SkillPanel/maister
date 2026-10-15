@@ -162,6 +162,68 @@ test('sub-run path: an unreadable parent is not judged, and the freeze lands as 
   assert.equal(next.code, 0, next.stderr);
 });
 
+/** A child frozen in `relative` under the parent's project root, linked to the parent's research node. */
+function childAt(parent, relative) {
+  const dir = path.join(parent.root, ...relative.split('/'));
+  fs.mkdirSync(dir, { recursive: true });
+  const child = { root: parent.root, dir, path: relative, state: path.join(dir, 'orchestrator-state.yml') };
+  const { patch } = freezePatch({
+    definition: RESEARCH,
+    task: { title: 'Open questions' },
+    inputs: { question: 'What is open?', embedded: true },
+    orchestrator: { driver: { kind: 'terminal' }, parent: { run: parent.path, node: 'research' } },
+  });
+  return { child, result: verb(['write-state', `--state=${child.state}`], patch) };
+}
+
+function recordAt(parent, taskPath) {
+  write(parent, { nodes: { research: { status: 'waiting', values: { task_path: taskPath, run_id: taskPath.split('/').pop() } } } });
+}
+
+test('sub-run path: a child frozen beside a cockpit run is refused, recorded or not', t => {
+  const parent = drivenParent(t, null);
+  const { child, result } = childAt(parent, '.maister/umbrella/runs/2026-01-05-child');
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /^state-subrun-path-mismatch\b/);
+  assert.match(result.stderr, /not a task directory/);
+  assert.match(result.stderr, /subrun-path/);
+  assert.equal(fs.existsSync(child.state), false, 'no state file was written');
+
+  recordAt(parent, '.maister/tasks/research/2026-01-05-sample-research');
+  const again = childAt(parent, '.maister/umbrella/runs/2026-01-05-child');
+  assert.equal(again.result.code, 1);
+  assert.match(again.result.stderr, /^state-subrun-path-mismatch\b/);
+  assert.equal(fs.existsSync(again.child.state), false);
+});
+
+test('sub-run path: a child frozen inside its parent\'s directory reads the parent from the real root and is refused', t => {
+  const parent = drivenParent(t, null);
+  const inside = `${parent.path}/2026-01-05-sample-research`;
+  const { child, result } = childAt(parent, inside);
+  assert.equal(result.code, 1, result.stderr);
+  assert.match(result.stderr, /^state-subrun-path-mismatch\b/);
+  assert.ok(result.stderr.includes(inside), 'the message names the directory relative to the real root');
+  assert.doesNotMatch(result.stderr, /parent-unread/, 'the parent was read');
+  assert.equal(fs.existsSync(child.state), false, 'no state file was written');
+
+  recordAt(parent, '.maister/tasks/research/2026-01-05-sample-research');
+  const again = childAt(parent, inside);
+  assert.equal(again.result.code, 1);
+  assert.match(again.result.stderr, /^state-subrun-path-mismatch\b/);
+  assert.match(again.result.stderr, /recorded the sub-run of its node research at \.maister\/tasks\/research\/2026-01-05-sample-research/);
+});
+
+test('sub-run path: a child frozen where subrun-path puts it is accepted, before and after the parent records it', t => {
+  const parent = drivenParent(t, null);
+  const at = JSON.parse(verb(['subrun-path', `--state=${parent.state}`, '--node=research']).stdout);
+  const { child, result } = childAt(parent, at.task_path);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  recordAt(parent, at.task_path);
+  const next = verb(['write-state', `--state=${child.state}`], { nodes: { 'research-foundation': { status: 'running' } } });
+  assert.equal(next.code, 0, next.stderr);
+});
+
 test('sub-run path: the refusal has its recovery row in the writing-state reference', () => {
   const rows = fs.readFileSync(path.join(ENGINE_DIR, 'references/writing-state.md'), 'utf8').split(/\r?\n/);
   const row = rows.find(line => line.startsWith('| `state-subrun-path-mismatch` |'));

@@ -95,8 +95,9 @@ import { fileURLToPath } from 'node:url';
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
 import { createEntry } from './ledger.mjs';
-import { bareWorkflowName, locateTarget, resolve as resolveGraph, TARGET_REF } from '../../../workflow-engine/scripts/lib/graph.mjs';
-import { effectiveCeiling, loadPolicy, narrowerLevel } from '../../../workflow-engine/scripts/lib/policy.mjs';
+import {
+  bareWorkflowName, effectiveCeiling, loadPolicy, locateTarget, narrowerLevel, resolve as resolveGraph, TARGET_REF,
+} from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
 
 /** The format version every umbrella document this module writes declares. */
 const VERSION = 1;
