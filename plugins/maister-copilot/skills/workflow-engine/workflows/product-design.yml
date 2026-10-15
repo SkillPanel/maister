@@ -191,42 +191,34 @@ html_companions:
   feature-specification: [spec]
   review-handoff: [brief]
 
-# What each node's brief prints beside its prose: the phase keys it mirrors its
-# summary under, a file it may leave unwritten and its recovery budget. Read
-# beside the graph, not part of it: the block moves no graph hash. No node's
-# flag recommends a continue option, so no entry carries `recommends`.
+# What each node's brief prints beside its prose: a file it may leave unwritten
+# and its recovery budget. Read beside the graph, not part of it: the block
+# moves no graph hash. No node's flag recommends a continue option, so no entry
+# carries `recommends`.
 brief:
   intake:
     absent:
       research_context: "No research task was named."
     budget: 1
   context-synthesis:
-    summary_keys: [context_synthesis]
     absent:
       codebase_analysis: "A greenfield design has no codebase to analyse."
     budget: 2
   problem-exploration:
-    summary_keys: [problem_exploration]
     budget: 1
   persona-exploration:
-    summary_keys: [persona_exploration]
     budget: 1
   idea-generation:
-    summary_keys: [idea_generation]
     absent:
       decision_areas: "The brainstormer returned no areas file; the convergence asks from the markdown."
     budget: 2
   idea-convergence:
-    summary_keys: [idea_convergence]
     budget: 1
   feature-specification:
-    summary_keys: [feature_specification]
     budget: 1
   visual-prototyping:
-    summary_keys: [visual_prototyping]
     budget: 2
   review-handoff:
-    summary_keys: [review_handoff]
     budget: 1
 
 nodes:

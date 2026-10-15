@@ -38,8 +38,8 @@ question, and any supplied type, to `research_context`; step 1 writes a
 classified type over an absent one.
 
 **Steps 1–3 each end with one milestone write**: this node's `node_summaries`
-entry and its `phase-1` mirror, each listing every artifact written so far
-(both replace whole), with `steps_completed` — `initialize`, `plan`, `gather`,
+entry, listing every artifact written so far,
+with `steps_completed` — `initialize`, `plan`, `gather`,
 `synthesize`, as far as reached, on every milestone and the closing write — and
 the context fields the step settled as `context`. No `nodes` patch: only the
 closing write changes the status.
@@ -270,7 +270,7 @@ deferred ideas in one line; in `decisions`, the answer or default per area. In
 open `open` with the `change` that would settle it, a deferred idea worth its
 own task `followup`.
 
-The entry and its `phase-4` mirror carry two more keys and no others:
+The entry carries two more keys and no others:
 `decision_areas`, a list whose every element has exactly `area`,
 `alternatives_count` and `chosen_approach` — the first two from the areas file
 when the areas came from it — and `deferred_ideas`, the ideas parked rather than

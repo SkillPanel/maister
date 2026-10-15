@@ -175,7 +175,7 @@ writer proves the freeze before it installs it, and its refusal names the recove
 **The freeze patch carries, beside the block:**
 - **`workflow.name`** — the definition's own `name`, as `resolve` printed it; for a built-in,
   the bare name without `builtin:`. The writer derives the run's context block,
-  `<name>_context`, from it, so a later `context` or `phase_summaries` write with no name
+  `<name>_context`, from it, so a later `context` write with no name
   recorded is refused `state-context-block-unknown`.
 - **`task.key`, when the definition declares a tracker key.** `resolve` reports the input marked
   `tracker_key: true` as `tracker_key` (null when none is), and the freeze writes that input's
@@ -470,8 +470,8 @@ here.
 | `workflow:` step | Starts a child run and waits for it (*Sub-runs*); its outcome is mapped, not judged (*Recording an outcome*). |
 | gate | Asked from `gate-brief` (`references/gates.md`); record the answer, end the run on a stop, revise through `gate-revise`. A false guard skips it with its stretch, unless it reads a step's value and is no pure confirmation, or a choice is held. Sections hold exceptions only. |
 | every step | Before recording `completed`, check each declared artifact path. A missing one its `brief:` `absent` does not sanction is a failed self-check: re-drive the step, naming the path. Record a sanctioned absence under `absent` with its reason, and record every declared value. |
-| asks | With question sets, ask them all in one request per attempt; without them, record the Without default `by: default`. Record each in-session answer as one `by: operator` decision with its `question_id`, question, answer, recommended answer and `as_recommended` on the step's own `node_summaries` entry, not only its mirror (`references/gates.md`). Once `classes_questions` is recorded, ask only the classing writer's `ask:` ids; held choices wait for the next checkpoint or `held-approval`. |
-| feeds a checkpoint | The closing summary keeps the summary contract: a one-sentence `headline` within 220 characters; the artifact's decisions and risks item for item, tagged; `recommends` with a one-line reason as `brief:` directs once its input is set. Mirror it under each `summary_keys` entry, `node:` naming the step. |
+| asks | With question sets, ask them all in one request per attempt; without them, record the Without default `by: default`. Record each in-session answer as one `by: operator` decision with its `question_id`, question, answer, recommended answer and `as_recommended` on the step's own `node_summaries` entry (`references/gates.md`). Once `classes_questions` is recorded, ask only the classing writer's `ask:` ids; held choices wait for the next checkpoint or `held-approval`. |
+| feeds a checkpoint | The closing summary keeps the summary contract: a one-sentence `headline` within 220 characters; the artifact's decisions and risks item for item, tagged; `recommends` with a one-line reason as `brief:` directs once its input is set. |
 | named by a revise | Read the note from `prior-context`; revise the step's own artifacts in place; keep earlier answers unless the note reopens them; record the declared values again; say what changed and write the headline again. |
 | has a budget | The attempt count in `brief:` `budget` is a prose rule nothing enforces. When the last attempt fails, the budget-exhausted rows of *Recording an outcome* decide. |
 
@@ -600,9 +600,9 @@ completed without, named by its declared key (never its path), with the reason i
 and its `summary` still says it in prose. Record it only where the node's `brief:` `absent`
 entry sanctions the absence.
 
-**A phase key is never a node id.** `node_summaries` is keyed by node id, and `phase_summaries`
-by the workflow's phase keys: the node's `brief:` `summary_keys` name the keys each mirroring
-node writes under, and a node that names none writes a node summary and nothing else.
+**One summary per step.** A step's summary, decisions and risks are its `node_summaries` entry,
+keyed by node id, and are recorded nowhere else: no copy goes into the context block, and the
+writer drops a `phase_summaries` key with a `note:` line.
 
 The writer mirrors a node's status onto its summary and registers, on a completing summary,
 every declared artifact on disk the entry does not list; the closing write still lists what the

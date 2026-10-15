@@ -43,7 +43,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
-import { answerVia, attemptOf, isContextBlock, operatorName, writeState } from './state.mjs';
+import { answerVia, attemptOf, operatorName, writeState } from './state.mjs';
 import { downstreamOf, reviseStretch } from './graph.mjs';
 import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 import {
@@ -186,21 +186,14 @@ function summaryOf(doc, node) {
 }
 
 /**
- * `orchestrator.completed_phases` without the phases the stretch owned — a node
- * id of the stretch, or a context block's phase key whose entry names one —
- * or null when the list does not change, so an unchanged list is not rewritten.
+ * `orchestrator.completed_phases` without the node ids of the stretch, or null
+ * when the list does not change, so an unchanged list is not rewritten.
  */
 function trimmedPhases(doc, stretch) {
   const orchestrator = isPlainObject(doc.orchestrator) ? doc.orchestrator : {};
   const listed = Array.isArray(orchestrator.completed_phases) ? orchestrator.completed_phases : [];
   if (!listed.length) return null;
   const owned = new Set(stretch);
-  for (const key of Object.keys(doc)) {
-    if (!isContextBlock(key) || !isPlainObject(doc[key]) || !isPlainObject(doc[key].phase_summaries)) continue;
-    for (const [phase, value] of Object.entries(doc[key].phase_summaries)) {
-      if (isPlainObject(value) && owned.has(value.node)) owned.add(phase);
-    }
-  }
   const kept = listed.filter(phase => !owned.has(phase));
   return kept.length === listed.length ? null : kept;
 }

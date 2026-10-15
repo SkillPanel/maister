@@ -119,9 +119,6 @@ const STATUS_FALLBACK = 'pending';
  */
 const TYPE_NAME = /^[a-z][a-z0-9-]*$/;
 
-/** The context blocks a run's `phase_summaries` can live under. */
-const CONTEXT_SUFFIX = '_context';
-
 /**
  * The severity vocabulary, in its order.
  *
@@ -352,44 +349,20 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
 }
 
 /**
- * The two places a phase's prose lives, node-first, field by field.
- *
- * `node_summaries.<id>` is consulted first because `phases[].id` **is** the node
- * id; `<something>_context.phase_summaries.<key>` is the fallback, and only where
- * `key === id`. A workflow's key-to-node mapping, its `brief:` `summary_keys`, is
- * deliberately not carried into code: it exists so a human can line the two up
- * by eye, and a projection that guessed at it would attribute one phase's
- * decisions to another.
- *
- * The choice is made **per field** — `summary`, `fixes_applied`, `decisions`,
- * `risks`, `artifacts` each come from the first source that carries them filled — and
- * **the two are never merged**: a field filled on both is the node summary's
- * alone. Taking the first entry whole instead let a node summary written with
- * empty lists hide the decisions and artifacts its phase summary recorded, and
- * an empty list is what a closing write sends when its `brief:` names the
- * phase key as the place for them.
- *
- * The context block is found by suffix rather than against a frozen list of five
- * names, so a run using a block this module has never heard of still projects,
- * and the list of blocks does not have to be kept in step with the writer's.
+ * The one place a phase's prose lives: its node summary, `node_summaries.<id>`,
+ * since `phases[].id` **is** the node id. It is read field by field as
+ * `SUMMARY_FIELDS` lists. A context block's `phase_summaries`, which an older
+ * run may carry, is not read.
  */
 function summarySources(state) {
-  const sources = [isPlainObject(state.node_summaries) ? state.node_summaries : null];
-  for (const key of Object.keys(state)) {
-    if (!key.endsWith(CONTEXT_SUFFIX)) continue;
-    const block = state[key];
-    if (!isPlainObject(block) || !isPlainObject(block.phase_summaries)) continue;
-    sources.push(block.phase_summaries);
-  }
-  return sources.filter(source => source !== null);
+  return isPlainObject(state.node_summaries) ? [state.node_summaries] : [];
 }
 
 /**
  * A node's sanctioned absences as `{artifact, path, reason}` entries, in the
  * order its summary lists them: `node_summaries.<id>.absent` maps a declared
  * artifact key to the reason the node completed without it. Read from the node
- * summary alone — a phase summary is keyed by a phase key, which names no
- * node's artifacts. `path` is the declared path as the summary would register
+ * summary alone. `path` is the declared path as the summary would register
  * it, or null when the definition could not be read. An entry with no reason
  * is dropped: it explains nothing, and the writer refuses one.
  */

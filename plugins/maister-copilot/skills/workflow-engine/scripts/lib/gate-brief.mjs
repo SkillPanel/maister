@@ -121,9 +121,6 @@ import { checkSet, questionCheckpoint, questionRequest } from './question-set.mj
 import { loadPolicy, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, REVISION_CEILING, frozenIds, gateHeldRevises, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 
-/** The context blocks a summary may also be recorded in, beside `node_summaries`. */
-const CONTEXT_SUFFIX = '_context';
-
 /** The warning `workflow.mjs` records for a format this build does not know. */
 const NEWER_FORMAT = 'newer-format';
 
@@ -938,8 +935,8 @@ const REVIEW_RANK = { primary: 0, review: 1, other: 2 };
 
 /**
  * Each source of registered artifacts as a function of a node id to its
- * `{path, html}` entries: the node's summary, then any context-block entry that
- * names it — the same places `summarySources` reads a summary from.
+ * `{path, html}` entries: the node's summary — the place `summarySources` reads
+ * a summary from.
  */
 function artifactSources(doc) {
   const entries = entry => (isPlainObject(entry) && Array.isArray(entry.artifacts) ? entry.artifacts.map(artifactOf).filter(Boolean) : []);
@@ -1884,9 +1881,9 @@ function fixKey(item) {
  *
  * Each field is picked on its own from the first source carrying it filled — the
  * dashboard's `pick` rule, mirrored rather than imported so the projection stays
- * free to change what it draws. One addition: a context-block entry counts when
- * its key *or* its `node:` names the node, because the context blocks are keyed
- * by phase and name the node inside the entry.
+ * free to change what it draws. The one source is the node's `node_summaries`
+ * entry; a context block's `phase_summaries`, which an older run may carry, is
+ * not read.
  */
 function summaryOf(sources, id) {
   const entries = sources.flatMap(source => source(id));
@@ -1915,13 +1912,6 @@ function summarySources(doc) {
   if (isPlainObject(doc.node_summaries)) {
     const map = doc.node_summaries;
     sources.push(id => (Object.hasOwn(map, id) && isPlainObject(map[id]) ? [map[id]] : []));
-  }
-  for (const key of Object.keys(doc)) {
-    if (!key.endsWith(CONTEXT_SUFFIX) || !isPlainObject(doc[key]) || !isPlainObject(doc[key].phase_summaries)) continue;
-    const map = doc[key].phase_summaries;
-    sources.push(id => Object.entries(map)
-      .filter(([phase, entry]) => isPlainObject(entry) && (phase === id || entry.node === id))
-      .map(([, entry]) => entry));
   }
   return sources;
 }

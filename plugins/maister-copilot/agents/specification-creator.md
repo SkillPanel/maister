@@ -57,7 +57,7 @@ The Task prompt MUST include:
 - `risk_level`: low/medium/high
 - `ui_heavy`: true/false
 - `scope_expanded`: true/false
-- `phase_summaries`: Prior phase summaries (codebase analysis, gap analysis, clarifications)
+- Earlier phases: the passage pasted unedited from `prior-context` (codebase analysis, gap analysis, clarifications)
 - `research_context`: Research findings path (if research-informed development)
 - `architecture_context`: High-level design path, `analysis/architecture-context/` (if the run was handed an architecture)
 

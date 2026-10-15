@@ -163,8 +163,8 @@ const VERBS = {
   // publishes with.
   'run-complete': { module: 'complete.mjs', flags: ['state', 'outbox', 'dispatch-id'] },
   // One of the two verbs that read a run and write nothing. One flag, for
-  // `write-state`'s reason: the context block and its `phase_summaries` are
-  // found inside the state file, so there is nothing else a caller could name
+  // `write-state`'s reason: the summaries it renders are found inside the
+  // state file, so there is nothing else a caller could name
   // and therefore nothing else a caller could name wrongly. `--background`
   // frames the same items for a delegate writing for end users, who is to stay
   // consistent with them rather than carry them into its document.

@@ -131,7 +131,7 @@ questions:
   `needs` closure (§ 9); a value a skipped node may leave null is read from state by the prose,
   not interpolated (§ 9).
   Then a top-level `brief:` block (§ 3.3) carrying the step data the interview gave, only for the
-  steps that have any: `budget`, `summary_keys` (only when the author names a phase key),
+  steps that have any: `budget`,
   `absent` (artifact key → reason) and `recommends` (`with:` key → value → continue option). It
   sits outside the graph hash. The answer a question takes when nobody can be asked goes in its
   **Without question sets** line, not here.
@@ -175,7 +175,7 @@ without asking.
 | A phase gone | `disable` — clean only when **nodes** says so; otherwise also `tune` each dependent's `with` to drop the key that referred to it, or eject when the reference is a guard |
 | Variants of the same change | `profiles`, selected with `--profile` |
 | Different titles or icons | `display` |
-| A step's summary keys, budget or recommendation changed | `brief:` — merged node by node and key by key over the built-in's, `null` removes a key (§ 3.3) |
+| A step's budget, absences or recommendation changed | `brief:` — merged node by node and key by key over the built-in's, `null` removes a key (§ 3.3) |
 | A companion added or dropped | `html_companions: {<id>: [<key>…]}`, `[]` drops a node's — merged node by node over the built-in's (§ 3.2) |
 | A different executor, gate wording or options, a guard, a reorder | an eject — see *Overlay or eject* |
 

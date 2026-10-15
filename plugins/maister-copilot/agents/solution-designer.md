@@ -71,7 +71,7 @@ The Task prompt MUST include:
 - `research_type`: technical, requirements, literature, mixed
 - `research_question`: The original research question
 - `confidence_level`: Overall research confidence
-- `phase_summaries`: Prior phase summaries (Phases 0-4, including brainstorming)
+- Earlier phases: the passage pasted unedited from `prior-context` (Phases 0-4, including brainstorming)
 - `chosen_approach_summary`: Brief summary of the selected approach
 - `key_trade_offs`: Trade-offs accepted with the chosen approach
 - `deferred_ideas`: Ideas captured for future consideration
@@ -85,7 +85,7 @@ The Task prompt MUST include:
 1. **Read `outputs/solution-exploration.md`** - chosen approach, alternatives, trade-offs, deferred ideas
 2. **Read `analysis/synthesis.md`** - patterns, cross-references, technical details
 3. **Read `outputs/research-report.md`** - comprehensive findings, recommendations
-4. **Parse accumulated context** - phase summaries, selected approach, design preferences
+4. **Parse accumulated context** - the earlier-phases passage, selected approach, design preferences
 5. **Read project documentation** (if `project_doc_paths` provided) — read ALL listed project docs. Align architecture design with project vision, tech stack, existing architecture, and any user-documented domain knowledge.
 6. **Identify design scope** - what the chosen approach requires architecturally
 6. **Synthesize Design Overview** - draft a concise, scannable executive summary (aim for ~150 words total). Use bold terms and bullet lists — avoid dense prose. Structure:

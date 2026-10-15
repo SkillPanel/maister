@@ -184,9 +184,9 @@ const TOP_LEVEL_BLOCKS = ['project_context', 'related_tasks', 'verification_cont
  * The closed patch vocabulary. An unknown key is an error, not a no-op.
  *
  * Four of these name no top-level block: `nodes` edits entries inside
- * `workflow.nodes`, `context` and `phase_summaries` are written into whichever
- * per-workflow context block the run resolves to, and `workflow` and
- * `node_summaries` are the two engine blocks. Everything else is a core
+ * `workflow.nodes`, `context` is written into the run's context block, and
+ * `phase_summaries`, the retired phase-summary mirror, is accepted and dropped
+ * with a note. `workflow` and `node_summaries` are the two engine blocks. Everything else is a core
  * top-level block spelled exactly as the state contract spells it.
  */
 const PATCH_KEYS = ['orchestrator', 'task', 'workflow', 'nodes', 'context', 'phase_summaries', 'node_summaries',
@@ -1210,18 +1210,19 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   if (regress !== null) clearClassed(doc, regress, changed);
   if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings, () => outstandingHeld(typedOf(doc)).length > 0);
   if (patch.nodes && markStarted(doc, patch, changed)) intended.add('task');
-  if (patch.context || patch.phase_summaries) {
+  // The retired phase-summary mirror: dropped whole, with a note, so a session
+  // still sending it loses nothing else of its write.
+  if (Object.hasOwn(patch, 'phase_summaries')) notes.push(MIRROR_NOTE);
+  if (patch.context) {
     // Resolved once, after `workflow:` is in place, so a patch that installs
-    // the block and writes its summaries in one invocation resolves from the
+    // the block and writes its context in one invocation resolves from the
     // name it just wrote.
     const block = contextBlock(doc, patch);
     intended.add(block);
-    seedSummaries(doc, block, changed);
-    if (patch.context) applyContext(doc, block, patch.context, changed);
-    if (patch.phase_summaries) applySummaries(doc, block, patch.phase_summaries, patch.nodes, 'phase', changed);
+    applyContext(doc, block, patch.context, changed);
   }
   if (patch.node_summaries) {
-    applySummaries(doc, null, patch.node_summaries, patch.nodes, 'node', changed, runDir, graphOf, writeWarnings, { notes, policyNow, out });
+    applySummaries(doc, patch.node_summaries, patch.nodes, changed, runDir, graphOf, writeWarnings, { notes, policyNow, out });
     intended.add('node_summaries');
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
@@ -1281,7 +1282,7 @@ const STARTED = 'in_progress';
  * installing the block, or from the `name:` already beside `workflow.nodes`. A
  * file that carries exactly one context block and no usable name is read as
  * belonging to that one. Anything else refuses: defaulting would write the
- * summaries into a block no reader of this run consults, which is a successful
+ * context into a block no reader of this run consults, which is a successful
  * write nothing can find.
  */
 function contextBlock(doc, patch) {
@@ -2450,40 +2451,14 @@ function applyTopLevel(doc, key, value, changed) {
 }
 
 /**
- * The empty `phase_summaries` map, written the first time a run's context block
- * is touched and never again.
- *
- * Every built-in definition's intake prose already required it, and three
- * attended runs of the same definition seeded scalars only — the map was
- * inserted several nodes later by whichever node first wrote a summary. A rule
- * stated in the definition and in the framework patterns, and missed three
- * times out of three, is not a rule prose is carrying; so the writer carries
- * it. The map is what a reader of a half-finished run consults to learn that
- * nothing has been decided yet, and its absence reads instead as a run that
- * never had the key.
- *
- * Seeded for every context block, because every context block carries the map
- * in practice: `migration.md` requires it at intake in the same words
- * `performance.md` does. No shape changes — the key was already part of the
- * state contract and an empty object is the value the definitions ask for.
- *
- * It is reported among `changed` only when it was actually written, so a caller
- * cannot read the echo as "the map was re-created" on every later write.
- */
-function seedSummaries(doc, contextKey, changed) {
-  if (doc.locate([contextKey, 'phase_summaries'])) return;
-  doc.set([contextKey, 'phase_summaries'], block('phase_summaries', {}, 2));
-  changed.push(`${contextKey}.phase_summaries`);
-}
-
-/**
  * `orchestrator.completed_phases` and `orchestrator.failed_phases`, written as
  * empty lists by the write that installs the `workflow:` block.
  *
  * The state contract requires both on every run, and the freeze patch the
  * prose describes never carried them, so every engine-frozen run was invalid
- * from its first write. The reason the writer carries the rule rather than the
- * prose is the one `seedSummaries` gives. A value the file already holds, or
+ * from its first write. The writer carries the rule rather than the prose
+ * because the contract requires it, and three attended runs showed prose does
+ * not carry such a rule. A value the file already holds, or
  * one the patch supplies, is left alone: a later write of either is still the
  * whole-list replacement `applyScalars` makes it.
  *
@@ -2557,6 +2532,7 @@ function seedPolicyHash(doc, workflow, loaded, changed, writeWarnings) {
 /** The notes `apply` returns for a writer-owned value it dropped. */
 const FACT_NOTE = 'ignored the supplied orchestrator.classes_questions; the freeze records it from the policy it applied, so no patch sets it';
 const CEILING_NOTE = 'ignored the supplied orchestrator.options.ceiling; the autonomy ceiling may narrow after the freeze, never widen';
+const MIRROR_NOTE = "ignored the supplied phase_summaries; the phase-summary mirror is retired, so record each step's summary, decisions and risks on its node_summaries entry";
 
 /** A recorded or sent autonomy ceiling: a non-empty string, else null. */
 function ceilingIn(options) {
@@ -2664,19 +2640,18 @@ function clampCeiling(doc, orchestrator, policyNow, notes) {
 }
 
 /**
- * Free-form keys under the run's context block, beside `phase_summaries:`.
+ * Free-form keys under the run's context block, each one replacing.
  *
- * Each one replaces, which is right for a free-form key and wrong for the one
- * map beside them: `phase_summaries` sent here would be written whole over
- * every entry earlier phases merged in, and `prior-context` would hand the next
- * delegate only the latest. The top-level `phase_summaries` key is the one
- * shape, so the nested one is refused before anything is set.
+ * `phase_summaries` sent here is refused before anything is set: it would
+ * recreate the retired phase-summary mirror as a free-form key. Each step's
+ * summary lives on its `node_summaries` entry. A `phase_summaries` an older run
+ * already carries in the block is never read or rewritten here.
  */
 function applyContext(doc, contextKey, context, changed) {
   if (!isPlainObject(context)) throw new Refusal('state-patch-invalid', 'the context patch must be an object');
   if (Object.hasOwn(context, 'phase_summaries')) {
     throw new Refusal('state-patch-invalid',
-      'phase_summaries is not a context key; send it as the top-level phase_summaries patch key, which merges entry by entry instead of replacing the map');
+      "phase_summaries is not a context key; the phase-summary mirror is retired, so record each step's summary, decisions and risks on its node_summaries entry");
   }
   for (const [key, value] of Object.entries(context)) {
     doc.set([contextKey, key], block(key, value, 2));
@@ -2685,8 +2660,8 @@ function applyContext(doc, contextKey, context, changed) {
 }
 
 /**
- * The two summary maps. Both are block maps and both are outside every
- * flow-map rule: prose belongs here, and nowhere near a node entry.
+ * The node summary map. It is a block map and outside every flow-map rule:
+ * prose belongs here, and nowhere near a node entry.
  *
  * `status` on a summary is the five-member vocabulary, so a node status is
  * *mapped* rather than copied. The status mirrored is the node's as it stands
@@ -2694,9 +2669,7 @@ function applyContext(doc, contextKey, context, changed) {
  * node, the one already on disk otherwise — so a summary re-sent in a later call
  * than the one that ended its node still carries the outcome. It used to mirror
  * from the patch alone, and a closing write split across two calls left a
- * summary with no status at all. A `phase_summaries` entry mirrors only when it
- * names the node it belongs to, because its key is a phase key and the two
- * namespaces do not line up.
+ * summary with no status at all.
  *
  * A gate's `node_summaries` entry is where its answer is recorded, so its
  * decisions are held to the options the gate offers (`assertOptions`) while the
@@ -2720,8 +2693,8 @@ function applyContext(doc, contextKey, context, changed) {
  * a triage sent on a decision is dropped (`sentDecisions`). `asking` is the
  * writer's too, dropped with a note when a patch sends it.
  */
-function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, runDir = null, graphOf = null, writeWarnings = [], classing = null) {
-  if (!isPlainObject(summaries)) throw new Refusal('state-patch-invalid', `the ${kind} summaries must be an object`);
+function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graphOf = null, writeWarnings = [], classing = null) {
+  if (!isPlainObject(summaries)) throw new Refusal('state-patch-invalid', 'the node summaries must be an object');
   let recorded = null;
   let run = null;
   let display = null;
@@ -2740,7 +2713,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     if (!isPlainObject(value)) throw new Refusal('state-patch-invalid', `the summary ${key} must be an object`);
     let entry = { ...value };
     let dropAsking = false;
-    if (kind === 'node' && classing !== null) {
+    if (classing !== null) {
       recorded ??= recordedNodes(doc);
       const isGate = isGateSummary(recorded, key);
       if (Object.hasOwn(entry, 'asking')) {
@@ -2758,7 +2731,7 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         if (Object.keys(entry).length === 0 && !dropAsking) continue;
       }
     }
-    if (kind === 'node' && Object.hasOwn(entry, 'answer')) {
+    if (Object.hasOwn(entry, 'answer')) {
       recorded ??= recordedNodes(doc);
       if (isGateSummary(recorded, key)) entry = foldFlatAnswer(entry);
       else if (isPlainObject(entry.answer)) {
@@ -2767,21 +2740,21 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
     }
     // What an answer authorises belongs to its option: `grants` never lands on a decision.
     if (Array.isArray(entry.decisions)) entry.decisions = entry.decisions.map(withoutGrants);
-    if (kind === 'node' && graphOf !== null && Object.hasOwn(entry, 'decisions')) {
+    if (graphOf !== null && Object.hasOwn(entry, 'decisions')) {
       const gate = resolvedNode(graphOf(), key);
       if (gate?.type === 'gate') assertOptions(key, entry.decisions, gate, heldRevisesOf(typedNow(), key, gate));
     }
     // The reserved closing checkpoint offers what the brief derives from the
     // state, so its answer is held to that, definition or none. A revise the
     // reset has applied carries its attempt and is history, not an answer now.
-    if (kind === 'node' && key === HELD_APPROVAL && Array.isArray(entry.decisions)) {
+    if (key === HELD_APPROVAL && Array.isArray(entry.decisions)) {
       const answers = entry.decisions.filter(item => !(isPlainObject(item) && Object.hasOwn(item, 'attempt')));
       assertOptions(key, answers, heldApprovalGate(typedNow()));
     }
-    if (kind === 'node' && Object.hasOwn(entry, 'absent')) assertAbsent(key, entry.absent, graphOf === null ? null : graphOf());
-    if (kind === 'node' && Object.hasOwn(entry, 'recommends')) assertRecommends(key, entry.recommends, graphOf === null ? null : graphOf());
-    assertItems(kind === 'node' ? `node_summaries.${key}` : `${contextKey}.phase_summaries.${key}`, entry);
-    if (kind === 'node' && Array.isArray(entry.decisions)) {
+    if (Object.hasOwn(entry, 'absent')) assertAbsent(key, entry.absent, graphOf === null ? null : graphOf());
+    if (Object.hasOwn(entry, 'recommends')) assertRecommends(key, entry.recommends, graphOf === null ? null : graphOf());
+    assertItems(`node_summaries.${key}`, entry);
+    if (Array.isArray(entry.decisions)) {
       recorded ??= recordedNodes(doc);
       if (isGateSummary(recorded, key)) {
         display ??= runDir === null ? displayOf() : displayOfRun(parseState(doc.text()), runDir);
@@ -2798,16 +2771,14 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
         entry.decisions = [...earlierAnswers(prior, entry.decisions), ...kept, ...entry.decisions];
       }
     }
-    if (kind === 'node') {
-      const prior = heldOf(key);
-      if (prior) {
-        const { status: _status, ...kept } = prior;
-        entry = { ...kept, ...entry };
-      }
-      if (dropAsking) delete entry.asking;
+    const prior = heldOf(key);
+    if (prior) {
+      const { status: _status, ...kept } = prior;
+      entry = { ...kept, ...entry };
     }
+    if (dropAsking) delete entry.asking;
     if (!('status' in entry)) {
-      const nodeId = kind === 'node' ? key : entry.node;
+      const nodeId = key;
       // Both reads are own-property reads for the reason `contextBlock` gives:
       // a summary keyed `constructor` reached the patch's prototype, and a
       // status of `constructor` reached `Object.prototype.constructor`.
@@ -2821,12 +2792,12 @@ function applySummaries(doc, contextKey, summaries, nodePatch, kind, changed, ru
       const mirrored = mirrorOf(nodeStatus);
       if (mirrored) entry.status = mirrored;
     }
-    if (kind === 'node' && entry.status === 'completed' && runDir !== null) {
+    if (entry.status === 'completed' && runDir !== null) {
       run ??= runOf(doc, runDir);
       registerArtifacts(entry, key, run);
     }
-    const at = kind === 'node' ? ['node_summaries', key] : [contextKey, 'phase_summaries', key];
-    doc.set(at, block(key, entry, kind === 'node' ? 2 : 4));
+    const at = ['node_summaries', key];
+    doc.set(at, block(key, entry, 2));
     changed.push(at.join('.'));
   }
 }
@@ -4268,7 +4239,7 @@ function assertFlowKey(key, where) {
 }
 
 /**
- * A block-position value: `node_summaries`, `phase_summaries` and the free-form
+ * A block-position value: `node_summaries` and the free-form
  * context keys. Prose is welcome here, so a string that would confuse a reader
  * is quoted and escaped onto one line rather than refused — the double-quoted
  * form YAML and JSON share means no block scalar is ever emitted, which is also
