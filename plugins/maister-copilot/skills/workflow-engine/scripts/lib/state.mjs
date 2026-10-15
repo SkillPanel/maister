@@ -1361,7 +1361,8 @@ export function isContextBlock(key) {
  * map an older run wrote — holding at least one decision or risk, or null when
  * it does not. It counts the decisions and risks the mirror holds, so the
  * operator sees what no step will read; an entry or a list of another shape
- * counts nothing, and a mirror that counts nothing is not worth a warning. Nothing of the mirror is read into any output beyond the counts.
+ * counts nothing, and a mirror that counts nothing is not worth a warning.
+ * Nothing of the mirror is read into any output beyond the counts.
  */
 export function legacyMirrorWarning(doc) {
   if (!isPlainObject(doc)) return null;

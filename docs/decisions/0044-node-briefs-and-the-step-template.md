@@ -122,6 +122,6 @@ Accepted. No definition's graph hash moves; the five built-in diagrams are byte-
 
 ### Amendment 2026-10-15 — `summary_keys` is retired
 The key named the phase-summary mirror's entries a step was to fill, and the mirror is gone
-(ADR-0046). `summary_keys` is still accepted in a `brief:` entry, with any value and the warning
-`brief-retired-key`, but `node-brief` prints it nowhere and no built-in carries it. `brief:` now
-has three active keys: `budget`, `absent` and `recommends`.
+(ADR-0046). `summary_keys` is still accepted in a `brief:` entry, with any non-null value and
+the warning `brief-retired-key`, but `node-brief` prints it nowhere and no built-in carries it.
+`brief:` now has three active keys: `budget`, `absent` and `recommends`.

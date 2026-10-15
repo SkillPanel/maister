@@ -11,9 +11,8 @@ import { ENGINE_DIR, FIXTURES, verb } from '../helpers.mjs';
 
 // The `brief:` block: per node, what the node's brief prints beside its prose —
 // the absences it may leave, its recovery budget and the inputs that recommend
-// a gate option; `summary_keys` is retired, accepted with any value and
-// warned. A question's default is
-// not one of them: the Without line of the node's section states it, once.
+// a gate option; `summary_keys` is retired, accepted with any non-null value
+// and warned. A question's default is not one of them: the Without line of the node's section states it, once.
 // Checked on its own shape (errors) and against the resolved graph (warnings),
 // merged base → overlays → the selected profile, and kept out of the graph hash.
 

@@ -7,9 +7,9 @@ A step's summary, decisions and risks are recorded once, on its own `node_summar
 every reader — the earlier-steps passage a later step pastes, gate briefs, revise, the dashboard —
 reads them from there. The writer no longer keeps the copy each built-in also held in its context
 block (`phase_summaries`): a write that still sends it lands without it and says so in a note.
-`summary_keys` in a `brief:` block is accepted with any value, with a warning, and does nothing. A
-mirror already in an older run's state stays on disk and is not read; `resume-check` and
-`prior-context` announce it with one warning.
+`summary_keys` in a `brief:` block is accepted with any non-null value, with a warning, and does
+nothing. A mirror already in an older run's state stays on disk and is not read; `resume-check`
+and `prior-context` announce it with one warning.
 
 ## ADR-0046: Each step's summary is recorded once, on `node_summaries` {#adr-0046}
 
@@ -40,7 +40,8 @@ Accepted. No graph hash moves: `brief:` sits outside the hashed envelope, and no
 ### Decision
 1. **Readers read `node_summaries` alone.** The earlier-steps passage, gate briefs, revise and the
    dashboard projection take a step's summary, decisions, risks and artifacts from its node entry.
-   A context block's `phase_summaries` is not consulted, whether or not it exists.
+   A context block's `phase_summaries` is not read into any passage, brief or card, whether or not
+   it exists; it is only counted for the `legacy-mirror-ignored` warning.
 2. **The writer drops the mirror with a note.** It no longer seeds `phase_summaries` in a new
    run's context block. A top-level `phase_summaries` patch key is ignored: the rest of the write
    lands, the exit code stays 0, and one line on stderr says
@@ -49,9 +50,9 @@ Accepted. No graph hash moves: `brief:` sits outside the hashed envelope, and no
    when both forms are sent, so the mirror cannot return as a free-form context key. A mirror
    already in the file is preserved untouched as an unknown key.
 3. **`summary_keys` is retired.** `validate` and `/maister:run --check` accept the key with any
-   value and only the warning `brief-retired-key:<path>:<node>` (an overlay's `null` removal
-   stays silent), the brief merge drops it, `node-brief` no longer prints it, and no built-in
-   carries it. `brief:` keeps three active keys: `budget`, `absent` and `recommends`.
+   non-null value and only the warning `brief-retired-key:<path>:<node>` (an overlay's `null`
+   removal stays silent), the brief merge drops it, `node-brief` no longer prints it, and no
+   built-in carries it. `brief:` keeps three active keys: `budget`, `absent` and `recommends`.
 4. **The guides point at the one record.** Every built-in guide, the engine skill and the
    framework patterns tell a step to put its summary, decisions and risks on its own
    `node_summaries` entry. The steps that complete in two writes — `codebase-analysis`,

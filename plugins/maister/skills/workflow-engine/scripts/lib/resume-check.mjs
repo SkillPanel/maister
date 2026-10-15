@@ -95,7 +95,6 @@ export function resumeCheck({ state }) {
   };
 }
 
-
 function refuse(code, message) {
   return { ok: false, code, message };
 }

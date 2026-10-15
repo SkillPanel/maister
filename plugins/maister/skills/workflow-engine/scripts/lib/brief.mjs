@@ -18,10 +18,10 @@
  * What it drops: a value not of its key's shape (`briefValueProblems`, the rule
  * the validator holds an author to), the retired `summary_keys`, a key outside
  * `BRIEF_KEYS`, an entry or a block that is not a mapping, and every entry of a
- * node an overlay or the
- * selected profile disabled. A drop is silent here — the validator is where an
- * author hears of it — and never throws, because an ejected or hand-edited
- * definition reaches a reader without passing the validator.
+ * node an overlay or the selected profile disabled. A drop is silent here — the
+ * validator is where an author hears of it — and never throws, because an
+ * ejected or hand-edited definition reaches a reader without passing the
+ * validator.
  *
  * Zero dependencies beyond the engine's own modules, `node:` builtins only,
  * Node >= 20.

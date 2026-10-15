@@ -83,6 +83,32 @@ test('prior-context: a phase-summary mirror an older run carries is ignored', t 
   ]);
 });
 
+test('prior-context --node: a mirror holding items warns once on stderr, beside the run block and the passage', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, {
+    context: { risk_level: 'low' },
+    node_summaries: { analysis: { summary: 'Scoped.', decisions: ['keep the parser'], risks: [] } },
+  });
+  legacyMirror(run, [
+    '    analysis:',
+    '      decisions:',
+    '        - only on the mirror',
+    '      risks:',
+    '        - a mirror risk',
+  ]);
+  const result = verb(['prior-context', `--state=${run.state}`, '--node=analysis']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^## Run context/);
+  assert.match(result.stdout, /\n\n## Prior-phase context/);
+  assert.match(result.stdout, /^- keep the parser$/m);
+  assert.doesNotMatch(result.stdout, /only on the mirror|a mirror risk|phase_summaries/);
+  assert.deepEqual(result.stderr.split(/\r?\n/).filter(line => line !== ''), [
+    'warning: legacy-mirror-ignored: task_context.phase_summaries holds 1 decision and 1 risk that no step reads; '
+      + 'the phase-summary mirror is retired (see the Upgrading note in the changelog)',
+  ]);
+});
+
 test('prior-context: no mirror, or an empty one, prints no warning', t => {
   const run = scratch(t);
   freeze(run);
@@ -118,6 +144,8 @@ test('parity: every decision and risk of the beta.28 mirror reaches later steps'
   const result = priorContext(run);
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /Pasted from `node_summaries` in this run's `orchestrator-state\.yml`: 26 nodes, 41 decisions, 31 risks\./);
+  assert.equal(reference.decisions.length, 35, 'the reference holds every mirror decision');
+  assert.equal(reference.risks.length, 27, 'the reference holds every mirror risk');
   const printed = new Set(result.stdout.split(/\r?\n/));
   const matched = entries => entries.filter(entry =>
     printed.has(`- ${entry.line}`) || (entry.equivalent_line !== undefined && printed.has(`- ${entry.equivalent_line}`)));

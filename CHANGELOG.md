@@ -200,11 +200,12 @@ needs this plugin version or newer, because an older engine refuses it. Agents n
 style-guide path parameter. A run already in flight may report a missing page for a step it
 completes after the upgrade; one html-companion-writer run fixes it.
 
-*If you ran the 3.0.0 betas, finish a run started on 3.0.0-beta.28 or earlier on that version.* After the upgrade such a run
-resumes, but decisions and risks it recorded only in its context block's `phase_summaries` no
-longer reach its later steps; the copy stays in the file, and resuming the run or assembling a
-step's prompt prints one `legacy-mirror-ignored` warning counting what it holds. *If a project workflow or overlay
-carries `summary_keys`*, remove it; `/maister:run --check` warns `brief-retired-key` until you do.
+*If you ran the 3.0.0 betas, finish a run started on 3.0.0-beta.28 or earlier on that version.*
+After the upgrade such a run resumes, but decisions and risks it recorded only in its context
+block's `phase_summaries` no longer reach its later steps; the copy stays in the file, and
+resuming the run or assembling a step's prompt prints one `legacy-mirror-ignored` warning
+counting what it holds. *If a project workflow or overlay carries `summary_keys`*, remove it;
+`/maister:run --check` warns `brief-retired-key` until you do.
 
 *To stay on 2.x*, install the 2.x maintenance line instead. It receives fixes only — no new
 features — for six months after 3.0.0 is released:

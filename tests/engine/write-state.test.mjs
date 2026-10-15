@@ -439,6 +439,20 @@ test('a phase_summaries write is ignored with one note, and the rest lands', t =
   assert.deepEqual(state.node_summaries.analysis.decisions, ['keep the parser']);
 });
 
+test('a context holding only phase_summaries is dropped with one note and creates no context block', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = verb(['write-state', `--state=${run.state}`], {
+    context: { phase_summaries: { analysis: { summary: 'x', decisions: ['only on the mirror'] } } },
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(result.stderr.split(/\r?\n/).filter(line => line !== ''), [
+    'note: ignored the supplied phase_summaries; the phase-summary mirror is retired, so record each step\'s summary, decisions and risks on its node_summaries entry',
+  ]);
+  assert.equal(Object.hasOwn(readState(run), 'task_context'), false);
+  assert.doesNotMatch(fs.readFileSync(run.state, 'utf8'), /phase_summaries|^task_context:/m);
+});
+
 test('a phase_summaries nested under context is dropped with the same note, and the rest lands', t => {
   const run = scratch(t);
   freeze(run);
