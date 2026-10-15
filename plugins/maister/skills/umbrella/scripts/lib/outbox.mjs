@@ -70,6 +70,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { Refusal, flow, scalar, stamp } from './canonical.mjs';
+import { isPullRequest } from './ledger.mjs';
 
 /** The message types, and the one field each conditionally requires. */
 const TYPES = {
@@ -103,6 +104,10 @@ const oneOf = values => ({
   expected: `one of ${values.join(', ')}`,
   accepts: value => values.includes(value),
 });
+const PULL_REQUESTS = {
+  expected: 'an array of {repo, number, url} objects, one per pull request',
+  accepts: value => Array.isArray(value) && value.every(isPullRequest),
+};
 const listOf = values => ({
   expected: `an array of ${values.join(', ')}`,
   accepts: value => Array.isArray(value) && value.every(item => values.includes(item)),
@@ -139,7 +144,7 @@ const DECLARED = {
   reason: TEXT,
   needs: listOf(['permission', 'decision', 'input']),
   grade: oneOf(GRADES),
-  prs: LIST,
+  prs: PULL_REQUESTS,
   commits: LIST,
   artifacts: LIST,
 };

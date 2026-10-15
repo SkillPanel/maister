@@ -271,6 +271,26 @@ function requireList(value, field) {
   return value;
 }
 
+/**
+ * One pull request as a close-out names it: `{repo, number, url}` — the host's
+ * `<owner>/<repo>`, its number and its URL. Exported because the outbox writer
+ * holds a close-out message's `prs` to the same shape before the ledger ever
+ * sees it.
+ */
+export function isPullRequest(value) {
+  return isPlainObject(value)
+    && typeof value.repo === 'string' && value.repo !== ''
+    && Number.isInteger(value.number) && value.number > 0
+    && typeof value.url === 'string' && value.url !== '';
+}
+
+function requirePullRequests(value, field) {
+  if (!requireList(value, field).every(isPullRequest)) {
+    throw new Refusal('ledger-args-invalid', `${field} must be a list of {repo, number, url} maps, one per pull request`);
+  }
+  return value;
+}
+
 /** Timestamps compare lexically in this form, which is the point of the form. */
 const laterOf = (a, b) => (typeof a === 'string' && a > b ? a : b);
 
@@ -964,7 +984,7 @@ export function closeOut(call) {
     entry.grade = grade;
     entry.status = 'closed';
     entry.closeout = {
-      prs: args.prs === undefined ? [] : requireList(args.prs, 'closeout.prs'),
+      prs: args.prs === undefined ? [] : requirePullRequests(args.prs, 'closeout.prs'),
       commits: args.commits === undefined ? [] : requireList(args.commits, 'closeout.commits'),
       summary: args.summary ?? null,
       at,

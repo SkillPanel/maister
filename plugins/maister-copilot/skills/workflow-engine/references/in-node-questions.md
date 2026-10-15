@@ -243,7 +243,8 @@ something is still held, and the node asks one question while still `waiting` (e
 § *Recording an outcome*). It asks only while the hold is live: when the dispatch's ledger entry
 records its pull request in `closeout.prs`, or its `needs: [permission]` follow-up is
 `resolved`, the node is recorded `completed` with a `by: run` decision naming what resolved it,
-and nothing below is asked. Its shape is fixed; only the `<…>` parts are filled, from the
+and nothing below is asked. A pull request is recorded there as `{repo, number, url}`, and the
+decision names its `url`. Its shape is fixed; only the `<…>` parts are filled, from the
 close-out — `<what is held>` from its summary or its held-command report, and `why` from its
 summary in one line:
 

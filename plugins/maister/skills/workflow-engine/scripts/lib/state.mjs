@@ -119,7 +119,7 @@ const { Refusal, flow } = canonical;
 /**
  * This writer's own names for the two refusals the shared publish path can
  * raise. They are passed in rather than emitted by `canonical.mjs` so this
- * module keeps its closed twenty-five-code vocabulary.
+ * module keeps its closed twenty-seven-code vocabulary.
  */
 const COMMIT_CODES = { unwritable: 'state-unwritable', tempExists: 'state-temp-exists' };
 
@@ -159,7 +159,7 @@ const VIEWER_SOURCE = fileURLToPath(new URL('../../../orchestrator-framework/ass
  * They are caught at the projection call site and turned into warning entries,
  * because the projection runs *after* the state rename: a refusal there could not
  * un-publish the state write and reporting one would turn a landed write into a
- * reported failure. So the writer's documented twenty-five-code vocabulary does not
+ * reported failure. So the writer's documented twenty-seven-code vocabulary does not
  * grow and neither code is owed a recovery row.
  */
 const DASHBOARD_CODES = { unwritable: 'dashboard-unwritable', tempExists: 'dashboard-temp-exists' };
@@ -1147,6 +1147,8 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   // The run's frozen graph, proven, for the checks that need the definition;
   // resolved at most once per write, and only if one of them asks.
   const graphOf = frozenGraphOf(doc, runDir);
+  // A child run is written where its parent recorded it, or not at all.
+  assertSubrunPath(doc, patch.orchestrator, runDir);
 
   // `updated` is this write's own stamp, set last below; a patch value for it
   // is dropped here, before it can land and before its spelling is judged.
@@ -1177,7 +1179,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   // A child's parent state, read at most once per freeze and only by a rule
   // that needs it; null when it cannot be read.
   let parentRead;
-  const parentNow = () => (parentRead ??= { orchestrator: readParentOrchestrator(orchestrator.parent, runDir) }).orchestrator;
+  const parentNow = () => (parentRead ??= { orchestrator: readParentState(orchestrator.parent, runDir)?.orchestrator ?? null }).orchestrator;
   // Before `applyScalars`, which would otherwise write the values as sent.
   if (freezing) {
     orchestrator = seedCeiling(orchestrator, policyNow, parentNow, writeWarnings);
@@ -2573,19 +2575,62 @@ function ceilingIn(options) {
 }
 
 /**
- * The parent's `orchestrator:` block, for a child run's freeze: read from the
- * state file `parent.run` names, relative to the project root, or null when
- * that file cannot be read or parsed. The link is judged before the path is
- * built from it, exactly as `applyScalars` would.
+ * A child run's parent state: read from the state file `parent.run` names,
+ * relative to the project root, or null when that file cannot be read or
+ * parsed. Its `orchestrator:` block is what a child's freeze inherits from; its
+ * node entries are what the child's directory is held to. The link is judged
+ * before the path is built from it, exactly as `applyScalars` would.
  */
-function readParentOrchestrator(parent, runDir) {
+function readParentState(parent, runDir) {
   assertParent(parent);
   try {
     const file = path.join(projectRootOf(runDir), parent.run, 'orchestrator-state.yml');
-    return parseState(fs.readFileSync(file, 'utf8')).orchestrator ?? {};
+    const state = parseState(fs.readFileSync(file, 'utf8'));
+    return { ...state, orchestrator: state.orchestrator ?? {} };
   } catch {
     return null;
   }
+}
+
+/**
+ * A child run is written only in the directory its parent recorded for it. The
+ * parent's `workflow:` node names the child by `values.task_path` (sub-runs
+ * reference, W3), and every reader that follows the link — the parent's own
+ * adoption, a cockpit opening the child — goes to that path. A child state
+ * written anywhere else is one nobody will ever read, and its run is lost while
+ * every write to it reports success. So a write to a run carrying a parent link
+ * — the link the patch sends at the freeze, else the one the file already
+ * carries — is refused `state-subrun-path-mismatch` when the parent's node
+ * names another directory.
+ *
+ * Nothing is refused that cannot be judged: a parent whose state cannot be
+ * read, a node it does not carry, or a node that has not recorded its
+ * `task_path` yet — the child's freeze comes before the parent records the
+ * link — leaves the write as it was.
+ */
+function assertSubrunPath(doc, sent, runDir) {
+  if (runDir === null) return;
+  let link = isPlainObject(sent) && Object.hasOwn(sent, 'parent') ? sent.parent : undefined;
+  if (link === undefined) {
+    if (!/^ +parent:/m.test(doc.text())) return;
+    try {
+      link = parseState(doc.text()).orchestrator?.parent;
+    } catch {
+      return;
+    }
+    if (!isPlainObject(link)) return;
+  }
+  const parent = readParentState(link, runDir);
+  const node = parent?.workflow?.nodes?.[link.node];
+  const recorded = isPlainObject(node?.values) ? node.values.task_path : undefined;
+  if (typeof recorded !== 'string' || recorded === '') return;
+  const own = path.relative(projectRootOf(runDir), runDir).split(path.sep).join('/');
+  const spelled = value => value.replace(/\\/g, '/').replace(/^(\.\/)+/, '').replace(/\/+$/, '');
+  if (spelled(recorded) === spelled(own)) return;
+  throw new Refusal('state-subrun-path-mismatch',
+    `this run's directory is ${own}, but its parent ${link.run} recorded the sub-run of its node ${link.node} at ${recorded}. `
+    + 'Nothing was written. Write the child at the path the parent recorded, or, when this directory is the one that holds the run, '
+    + 'correct the parent node\'s task_path and run_id first; never re-point the parent link to make them agree.');
 }
 
 /**

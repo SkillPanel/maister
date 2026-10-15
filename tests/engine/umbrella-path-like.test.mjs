@@ -68,8 +68,9 @@ test('path-like: the seed anchors exactly the path-like inputs under the workspa
   const header = lines.findIndex((line) => line.startsWith('Inputs from the dispatching run'));
   const stated = lines.slice(header + 1, header + 1 + CASES.length);
   CASES.forEach(({ value, path: expected }, at) => {
-    // Joined with `/`, as the seed joins every path it states.
-    const want = expected ? `${ROOT_DIR}/${value}` : value;
+    // Joined with `/`, as the seed joins every path it states, with each `.`
+    // segment dropped.
+    const want = expected ? `${ROOT_DIR}/${value.split('/').filter((segment) => segment !== '.').join('/')}` : value;
     assert.equal(stated[at], `  ${want} (k${at})`, value);
   });
 });
