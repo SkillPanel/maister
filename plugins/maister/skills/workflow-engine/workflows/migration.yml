@@ -36,7 +36,7 @@
 # that needs one. Every `direct:` node is executed from its section, and the
 # operator questions asked inside nodes appear only in that prose — a reader of
 # this file alone cannot see them, and neither can the generated diagram. The
-# `brief:` block below carries each node's summary keys and recovery budget.
+# `brief:` block below carries each node's recovery budget.
 name: migration
 version: 1
 description: "Moves code from one technology, platform or architecture pattern to another: it analyses the current state, plans an incremental migration with a rollback path, implements it and verifies compatibility. Use it for a framework or library upgrade, a platform change, a data or schema migration, or a move to a new architectural pattern."
@@ -128,24 +128,19 @@ html_companions:
   planning: [plan]
   verification: [report]
 
-# What each node's brief prints beside its prose section: the phase keys its
-# summary is mirrored under and its recovery budget (a prose rule the engine
-# never enforces). Read beside the graph, not part of it: the block moves no
-# graph hash.
+# What each node's brief prints beside its prose section: its recovery budget
+# (a prose rule the engine never enforces). Read beside the graph, not part of
+# it: the block moves no graph hash.
 brief:
   current-state-analysis:
-    summary_keys: [current_state_analysis]
     budget: 2
   gap-analysis:
-    summary_keys: [gap_analysis]
     budget: 2
   specification:
-    summary_keys: [specification]
     budget: 2
   planning:
     budget: 2
   execution:
-    summary_keys: [implementation]
     budget: 5
   verification:
     budget: 3

@@ -284,7 +284,6 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
     if (!Object.hasOwn(mapping, text)) lines.push(`recommends: ${key} = ${text} — the section decides`);
     else if (continues.has(mapping[text])) lines.push(`recommends: ${key} = ${text} → ${mapping[text]}`);
   }
-  if (Array.isArray(brief.summary_keys) && brief.summary_keys.length) lines.push(`summary keys: ${brief.summary_keys.join(', ')}`);
   if (Number.isInteger(brief.budget)) lines.push(`budget: ${brief.budget} attempt${brief.budget === 1 ? '' : 's'} — a prose rule; nothing enforces it`);
 
   const later = [];

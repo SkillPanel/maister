@@ -10,8 +10,9 @@ import { resolve } from '../../plugins/maister/skills/workflow-engine/scripts/li
 import { ENGINE_DIR, FIXTURES, verb } from '../helpers.mjs';
 
 // The `brief:` block: per node, what the node's brief prints beside its prose —
-// the phase summary keys it mirrors, the absences it may leave, its recovery
-// budget and the inputs that recommend a gate option. A question's default is
+// the absences it may leave, its recovery budget and the inputs that recommend
+// a gate option; `summary_keys` is retired, still held to its old shape and
+// warned. A question's default is
 // not one of them: the Without line of the node's section states it, once.
 // Checked on its own shape (errors) and against the resolved graph (warnings),
 // merged base → overlays → the selected profile, and kept out of the graph hash.
@@ -168,12 +169,10 @@ test('merge: a later key replaces, null removes a key or an entry, and a disable
   assert.equal(Object.getPrototypeOf(base.analysis), null);
   assert.deepEqual(plain(base), {
     analysis: {
-      summary_keys: ['analysis', 'scope'],
       absent: { notes: 'Written only when the analysis raises open questions.' },
       budget: 2,
     },
     specification: {
-      summary_keys: ['specification'],
       recommends: { audit_flag: { yes: 'continue-to-audit', no: 'continue-to-review' } },
     },
     audit: { budget: 1 },
@@ -181,16 +180,13 @@ test('merge: a later key replaces, null removes a key or an entry, and a disable
   });
 
   const overlaid = plain(mergeBriefOf({ definition, overlays: [overlay] }));
-  assert.deepEqual(overlaid.analysis, {
-    summary_keys: ['analysis', 'scope'],
-    budget: 3,
-  });
+  assert.deepEqual(overlaid.analysis, { budget: 3 });
   assert.equal(overlaid.review, undefined, 'a null entry removes the entry');
-  assert.deepEqual(overlaid.extra, { summary_keys: ['extra'] }, 'an added node carries its own entry');
+  assert.deepEqual(overlaid.extra, { budget: 1 }, 'an added node carries its own entry');
 
   const lean = plain(mergeBriefOf({ definition, overlays: [overlay], profile: 'lean' }));
-  assert.deepEqual(lean.specification.summary_keys, ['spec'], 'the profile has the last word');
-  assert.deepEqual(lean.specification.recommends, overlaid.specification.recommends, 'merging is key by key');
+  assert.deepEqual(lean.specification, { recommends: overlaid.specification.recommends, budget: 4 },
+    'the profile has the last word, and merging is key by key');
   assert.equal(lean.audit, undefined, 'a disabled node yields nothing');
   assert.deepEqual(plain(mergeBriefOf({ definition, overlays: [overlay], profile: 'absent' })), overlaid);
 
@@ -244,61 +240,12 @@ const BASELINE_HASHES = {
   'product-design': 'sha256:08bd2d76e6c1472b130e22ca7a2a8f5d10fb46fd2d380522edb9f5af669c9e00',
 };
 
-// Each built-in's phase summary keys, node by node, as its guide's Phase
-// summary keys table names them.
-const SUMMARY_KEYS = {
-  development: {
-    intake: ['research', 'design'],
-    'codebase-analysis': ['codebase_analysis', 'clarifications'],
-    'gap-analysis': ['gap_analysis', 'scope_clarifications'],
-    'ui-mockups': ['ui_mockups', 'design'],
-    specification: ['specification', 'architecture_decision'],
-    'spec-audit': ['spec_audit'],
-    planning: ['implementation_plan'],
-    implementation: ['implementation'],
-  },
-  research: {
-    'research-foundation': ['phase-1'],
-    'solution-generation': ['phase-3'],
-    'solution-convergence': ['phase-4'],
-    'high-level-design': ['phase-5'],
-  },
-  'product-design': {
-    'context-synthesis': ['context_synthesis'],
-    'problem-exploration': ['problem_exploration'],
-    'persona-exploration': ['persona_exploration'],
-    'idea-generation': ['idea_generation'],
-    'idea-convergence': ['idea_convergence'],
-    'feature-specification': ['feature_specification'],
-    'visual-prototyping': ['visual_prototyping'],
-    'review-handoff': ['review_handoff'],
-  },
-  performance: {
-    'codebase-analysis': ['codebase_analysis'],
-    'bottleneck-analysis': ['bottleneck_analysis'],
-    specification: ['specification'],
-    implementation: ['implementation'],
-  },
-  migration: {
-    'current-state-analysis': ['current_state_analysis'],
-    'gap-analysis': ['gap_analysis'],
-    specification: ['specification'],
-    execution: ['implementation'],
-  },
-};
-
-test('development\'s summary keys are twelve over eight nodes', () => {
-  const nodes = Object.values(SUMMARY_KEYS.development);
-  assert.equal(nodes.length, 8);
-  assert.equal(new Set(nodes.flat()).size, 12);
-});
-
 test('each built-in\'s hash stays at the baseline, with and without a brief: block', () => {
   for (const [name, hash] of Object.entries(BASELINE_HASHES)) {
     const definition = readDefinition(path.join(WORKFLOWS, `${name}.yml`));
     const { brief: _block, ...doc } = definition.doc;
     const first = Object.keys(doc.nodes)[0];
-    const added = { ...doc, brief: { [first]: { budget: 1, summary_keys: ['carry_on'] } } };
+    const added = { ...doc, brief: { [first]: { budget: 1 } } };
     for (const [label, variant] of [['as shipped', definition.doc], ['without', doc], ['with an added block', added]]) {
       const result = resolve({ definition: { ...definition, doc: variant } });
       assert.equal(result.ok, true, `${name} ${label}: ${JSON.stringify(result.errors)}`);
@@ -307,15 +254,38 @@ test('each built-in\'s hash stays at the baseline, with and without a brief: blo
   }
 });
 
-for (const [name, expected] of Object.entries(SUMMARY_KEYS)) {
-  const definition = readDefinition(path.join(WORKFLOWS, `${name}.yml`));
-  test(`${name}'s brief: block names the guide's summary keys`, () => {
+test('no built-in\'s brief: block carries summary_keys', () => {
+  for (const name of Object.keys(BASELINE_HASHES)) {
+    const file = path.join(WORKFLOWS, `${name}.yml`);
+    const definition = readDefinition(file);
     assert.ok(Object.hasOwn(definition.doc, 'brief'), `${name}.yml carries no brief: block`);
-    const merged = mergeBriefOf({ definition });
-    const found = {};
-    for (const [node, entry] of Object.entries(merged)) {
-      if (entry.summary_keys) found[node] = entry.summary_keys;
+    for (const [node, entry] of Object.entries(mergeBriefOf({ definition }))) {
+      assert.ok(!Object.hasOwn(entry, 'summary_keys'), `${name}: ${node}`);
     }
-    assert.deepEqual(found, expected);
+    const { code, report } = validate([`--definition=${file}`]);
+    assert.equal(code, 0, `${name}: ${JSON.stringify(report.errors)}`);
+    assert.deepEqual(report.warnings.filter(warning => warning.startsWith('brief-retired-key')), [], name);
+  }
+});
+
+test('summary_keys still validates, with a retired-key warning', t => {
+  const dir = scratchDir(t, 'brief:\n  analysis: {summary_keys: [analysis], budget: 2}\n', {
+    'retired.overlay.yml': 'extends: brief.yml\nprofiles:\n  lean:\n    brief:\n      specification: {summary_keys: [specification]}\n',
+    'removal.overlay.yml': 'extends: brief.yml\nbrief:\n  analysis: {summary_keys: null}\n',
   });
-}
+  const definition = path.join(dir, 'brief.yml');
+  const own = validate([`--definition=${definition}`]);
+  assert.equal(own.code, 0, JSON.stringify(own.report.errors));
+  assert.deepEqual(briefWarnings(own.report), ['brief-retired-key:brief.analysis.summary_keys:analysis']);
+
+  const profiled = validate([`--definition=${definition}`, `--overlay=${path.join(dir, 'retired.overlay.yml')}`, '--profile=lean']);
+  assert.equal(profiled.code, 0, JSON.stringify(profiled.report.errors));
+  assert.ok(briefWarnings(profiled.report)
+    .includes('brief-retired-key:profiles.lean.brief.specification.summary_keys:specification'),
+  JSON.stringify(profiled.report.warnings));
+
+  // An overlay's null removes the key: the base's use warns, the removal does not.
+  const removal = validate([`--definition=${definition}`, `--overlay=${path.join(dir, 'removal.overlay.yml')}`]);
+  assert.equal(removal.code, 0, JSON.stringify(removal.report.errors));
+  assert.deepEqual(briefWarnings(removal.report), ['brief-retired-key:brief.analysis.summary_keys:analysis']);
+});

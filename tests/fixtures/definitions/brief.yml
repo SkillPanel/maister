@@ -1,7 +1,6 @@
 # A small definition that carries a brief: block. Its entries name a node's
-# phase summary keys, a sanctioned absence, a recovery budget and an input that
-# recommends a gate option; one entry is for a node the overlay's profile
-# disables.
+# sanctioned absence, its recovery budget and an input that recommends a gate
+# option; one entry is for a node the overlay's profile disables.
 name: brief
 version: 1
 inputs:
@@ -9,12 +8,10 @@ inputs:
 
 brief:
   analysis:
-    summary_keys: [analysis, scope]
     absent:
       notes: "Written only when the analysis raises open questions."
     budget: 2
   specification:
-    summary_keys: [specification]
     recommends:
       audit_flag:
         "yes": continue-to-audit

@@ -85,7 +85,6 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     'records: has_reproducible_defect (bool), mockups_needed (bool), risk_level (enum: high, medium, low)',
     'asks (in session): scope-decisions',
     'feeds: gap-approval — continues: continue-past-analysis; revise: revise-gap-analysis → gap-analysis',
-    'summary keys: gap_analysis, scope_clarifications',
     'budget: 2 attempts — a prose rule; nothing enforces it',
     row('`agent:` step'),
     row('every step'),
@@ -150,7 +149,6 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
     `- notes: ${relative}/drafts/notes.md — HTML page owed: notes.html beside it`,
     'asks (in session): tone',
     'feeds: approval — continues: continue-to-audit, continue-to-wrap-up; revise: revise-draft → draft',
-    'summary keys: drafting',
     'budget: 2 attempts — a prose rule; nothing enforces it',
     row('`direct:` step'),
     row('every step'),
@@ -416,7 +414,7 @@ test('node-brief: a brief: block that only a profile carries reaches the brief w
   const result = nodeBrief(lean.state, 'draft');
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^budget: 5 attempts — a prose rule; nothing enforces it$/m);
-  assert.match(result.stdout, /^summary keys: drafting$/m, 'the base\'s other brief: keys stay');
+  assert.match(result.stdout, / — may be absent: Written only when the draft raises open questions\.$/m, 'the base\'s other brief: keys stay');
 });
 
 test('node-brief: a CRLF guide gives the same brief as its LF copy, see: line included, with no CR in it', t => {

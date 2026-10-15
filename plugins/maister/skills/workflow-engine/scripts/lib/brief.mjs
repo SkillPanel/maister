@@ -1,9 +1,9 @@
 /**
  * The `brief:` block a definition carries, merged: per node, the data a node's
- * brief prints beside its prose — the phase summary keys it mirrors, the
- * artifacts it may leave unwritten and why, its recovery budget and the `with:`
- * values that recommend a continue option. A question's default is not here:
- * it is stated once, in the Without line of the node's section.
+ * brief prints beside its prose — the artifacts it may leave unwritten and
+ * why, its recovery budget and the `with:` values that recommend a continue
+ * option. A question's default is not here: it is stated once, in the
+ * Without line of the node's section.
  *
  * Why it exists: each of these was a sentence or a table row in a node's prose,
  * where a step had to find it and a check could not hold anyone to it. As
