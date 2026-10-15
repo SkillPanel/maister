@@ -271,6 +271,22 @@ test('seed: under a workspace root a relative input is anchored there, an absolu
   assert.deepEqual(inputs.slice(3), ['  attended (mode)', '  42 (count)', '  true (flag)'], 'a value is not a path');
 });
 
+test('seed: an anchored input drops its ./ segments, and a clean one is unchanged', () => {
+  const root = ENVELOPE.workspace_root;
+  const dotted = [
+    { path: './context.md', role: 'context' },
+    { path: 'notes/./plan.md', role: 'plan' },
+    { path: 'research/report.md', role: 'brief' },
+  ];
+  const lines = seedLines({ ...ENVELOPE, inputs: dotted });
+  const header = lines.findIndex(line => line.startsWith('Inputs from the dispatching run'));
+  assert.deepEqual(lines.slice(header + 1, header + 1 + dotted.length), [
+    `  ${root}/context.md (context)`,
+    `  ${root}/notes/plan.md (plan)`,
+    `  ${root}/research/report.md (brief)`,
+  ]);
+});
+
 test('seed: control — without a workspace root the inputs render as the run named them', () => {
   const { workspace_root, ...unrooted } = ENVELOPE;
   assert.deepEqual(inputBlockOf(seedLines({ ...unrooted, inputs: INPUTS })), [

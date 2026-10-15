@@ -728,13 +728,18 @@ function relativePath(value) {
  * Two path segments joined with a forward slash. Deliberately not `path.join`:
  * the seed is a prompt, and a rendering that changed shape with the platform it
  * was rendered on would not be reproducible.
+ *
+ * A `.` segment the tail carries is dropped, so `./context.md` under a root
+ * reads `<root>/context.md` rather than `<root>/./context.md`. A `..` is kept
+ * as written: resolving it would need the directory it climbs out of.
  */
 function joinPath(left, right) {
   const head = oneLine(left).replace(/\/+$/, '');
   const tail = oneLine(right).replace(/^\/+/, '');
   if (head === '' || head === 'null') return tail;
   if (tail === '' || tail === 'null') return head;
-  return `${head}/${tail}`;
+  const kept = tail.split('/').filter(segment => segment !== '.').join('/');
+  return kept === '' ? head : `${head}/${kept}`;
 }
 
 /**
