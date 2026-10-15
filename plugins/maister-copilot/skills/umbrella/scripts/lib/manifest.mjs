@@ -80,7 +80,7 @@ import { randomBytes } from 'node:crypto';
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
 import { driverCapability } from './envelope.mjs';
-import { validate as validateGraph } from '../../../workflow-engine/scripts/lib/graph.mjs';
+import { validate as validateGraph } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
 
 /** The refusal names `commit` and `openTemp` report under, kept in one place. */
 const CODES = { unwritable: 'umbrella-unwritable', tempExists: 'umbrella-temp-exists' };

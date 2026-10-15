@@ -67,8 +67,7 @@ import { fileURLToPath } from 'node:url';
 import { Refusal } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
 import { closeoutReachable, pathLike, siblingsProblem } from './envelope.mjs';
-import { bareWorkflowName, TARGET_NAME } from '../../../workflow-engine/scripts/lib/graph.mjs';
-import { ASK_LEVELS } from '../../../workflow-engine/scripts/lib/policy.mjs';
+import { ASK_LEVELS, bareWorkflowName, TARGET_NAME } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
 
 /** The format version a seed descriptor declares. */
 const VERSION = 1;
