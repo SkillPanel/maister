@@ -116,11 +116,10 @@ workspace with work in flight.
   the checkpoint it feeds — the rules every step of its kind follows that apply right now, and then
   only that step's own section of the workflow's guide. The five built-in guides are about two
   fifths shorter, each step written in one fixed shape that `make validate` checks for structure,
-  not length. The per-step data — summary keys, sanctioned absences, attempt budgets,
-  recommendations — sits in the definition's `brief:` block; a question's default is written once,
-  in the step's own section. In your own workflow, a step with nothing to say beyond those rules
-  needs no section in its guide; a guide heading that names no step is warned about rather than
-  ignored.
+  not length. The per-step data — sanctioned absences, attempt budgets, recommendations — sits
+  in the definition's `brief:` block; a question's default is written once, in the step's own
+  section. In your own workflow, a step with nothing to say beyond those rules needs no section in
+  its guide; a guide heading that names no step is warned about rather than ignored.
 - **A context pack for a run.** `/maister:development` and `/maister:research` take
   `--context=PATH`: a file or a directory, relative to the project root, that the run's first phase
   copies into `analysis/work-context/` and records as `work_reference` in the run's context block.
@@ -161,6 +160,11 @@ workspace with work in flight.
   are declined by name rather than silently ignored, and the run continues without them. Re-entering
   a run at a phase of your choosing is planned for a later release; until then, a gate's revise is
   the way back inside a run.
+- **Each step's summary is recorded once.** A step's summary, decisions and risks live on that
+  step's own record, and every later step, checkpoint and dashboard card reads them from there.
+  The copy each built-in also kept in its context block (`phase_summaries`) is no longer written
+  or read: a write that still sends it lands without it and says so in a note, and
+  `summary_keys` in a `brief:` block is accepted with a warning and does nothing.
 
 ### Upgrading
 
@@ -195,6 +199,11 @@ want when the run starts. This matters only where an autonomy policy is installe
 needs this plugin version or newer, because an older engine refuses it. Agents no longer take a
 style-guide path parameter. A run already in flight may report a missing page for a step it
 completes after the upgrade; one html-companion-writer run fixes it.
+
+*Finish a run started on 3.0.0-beta.28 or earlier on that version.* After the upgrade such a run
+resumes, but decisions and risks it recorded only in its context block's `phase_summaries` no
+longer reach its later steps; the copy stays in the file. *If a project workflow or overlay
+carries `summary_keys`*, remove it; `/maister:run --check` warns `brief-retired-key` until you do.
 
 *To stay on 2.x*, install the 2.x maintenance line instead. It receives fixes only — no new
 features — for six months after 3.0.0 is released:

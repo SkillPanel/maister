@@ -118,3 +118,10 @@ Moments 1-7 were kept for the prose path, and product design was its last user. 
 engine (ADR-0025, amendment 2026-10-02), the framework's moments table and the clock rule for
 writing the file by hand are removed. The projection is now the file's only writer for every
 workflow, and no node or orchestrator owes a rewrite moment.
+
+### Amendment 2026-10-15 — a phase card reads its node summary alone
+This supersedes the fallback in the 2026-09-27 amendment. A phase card's `summary`, `decisions`,
+`risks` and `artifacts` come from the node's own `node_summaries.<id>` entry and nowhere else; the
+context block's `phase_summaries` is no longer written, and where an older run still carries it,
+the projection does not read it. With one source there is nothing to choose field by field. See
+ADR-0046.

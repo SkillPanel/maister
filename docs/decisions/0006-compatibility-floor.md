@@ -46,3 +46,10 @@ From plugin 3.0 the open plugin resumes a `development`, `research`, `performanc
 when its state carries a `workflow:` block; a 2.x prose directory at or above the floor is refused on
 resume and finished on the 2.x line (ADR-0025). The floor itself and the read-side rules above are
 unchanged: such a directory is still listed, parsed and rendered.
+
+### Amendment 2026-10-15 — the phase-summary mirror is no longer read
+This is an exception to the additive-only rule above. A task directory written by 3.0.0-beta.28 or
+earlier keeps `<context>.phase_summaries` on disk, and the writer preserves it as an unknown key,
+but no reader consults it any more: a step's summary is read from `node_summaries` alone. Finish
+such a run on 3.0.0-beta.28, or accept that decisions and risks recorded only in the mirror do not
+reach its later steps. See ADR-0046.
