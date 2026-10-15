@@ -119,6 +119,57 @@ test('features: an unreadable parent vouches for none and warns', t => {
   assert.deepEqual(readState(child).orchestrator.driver, BARE_COCKPIT);
 });
 
+// A child run is written only where its parent's workflow: node recorded it
+// (values.task_path). A parent that cannot be read, or has recorded nothing
+// yet, is not judged.
+
+test('sub-run path: a child at the recorded task_path is written as before', t => {
+  const { child } = waiting(t);
+  const result = verb(['write-state', `--state=${child.state}`], { nodes: { 'research-foundation': { status: 'running' } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(readState(child).workflow.nodes['research-foundation'].status, 'running');
+});
+
+test('sub-run path: a child frozen outside the recorded task_path is refused, and nothing is written', t => {
+  const parent = drivenParent(t, null);
+  const recorded = '.maister/tasks/research/2026-01-05-child';
+  write(parent, { nodes: { research: { status: 'waiting', values: { task_path: recorded, run_id: '2026-01-05-child' } } } });
+  const { child, result } = childFreeze(parent, { kind: 'terminal' }, { name: '2026-01-05-elsewhere' });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /^state-subrun-path-mismatch\b/);
+  assert.match(result.stderr, /\.maister\/tasks\/research\/2026-01-05-elsewhere/);
+  assert.match(result.stderr, /\.maister\/tasks\/research\/2026-01-05-child/);
+  assert.equal(fs.existsSync(child.state), false, 'no state file was written');
+});
+
+test('sub-run path: a frozen child whose parent recorded another directory is refused on its next write', t => {
+  const { parent, child } = waiting(t);
+  write(parent, { nodes: { research: { status: 'waiting', values: { task_path: '.maister/tasks/research/2026-01-05-moved', run_id: '2026-01-05-moved' } } } });
+  const before = fs.readFileSync(child.state, 'utf8');
+  const result = verb(['write-state', `--state=${child.state}`], { nodes: { 'research-foundation': { status: 'running' } } });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /^state-subrun-path-mismatch\b/);
+  assert.equal(fs.readFileSync(child.state, 'utf8'), before, 'the child state is byte-for-byte what it was');
+});
+
+test('sub-run path: an unreadable parent is not judged, and the freeze lands as before', t => {
+  const root = scratch(t);
+  const { child, result } = childFreeze(root, { kind: 'terminal' }, { name: '2026-01-05-orphan', link: '.maister/tasks/development/2026-01-05-missing' });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.deepEqual(readState(child).orchestrator.parent, { run: '.maister/tasks/development/2026-01-05-missing', node: 'research' });
+  const next = verb(['write-state', `--state=${child.state}`], { nodes: { 'research-foundation': { status: 'running' } } });
+  assert.equal(next.code, 0, next.stderr);
+});
+
+test('sub-run path: the refusal has its recovery row in the writing-state reference', () => {
+  const rows = fs.readFileSync(path.join(ENGINE_DIR, 'references/writing-state.md'), 'utf8').split(/\r?\n/);
+  const row = rows.find(line => line.startsWith('| `state-subrun-path-mismatch` |'));
+  assert.ok(row, 'a recovery row exists');
+  assert.match(row, /Nothing was written/);
+  assert.match(row, /Never re-point the parent link/);
+});
+
 test('waiting: the node is not finished, and the dashboard reads it as in progress', t => {
   const { parent, child } = waiting(t);
   const node = readState(parent).workflow.nodes.research;
