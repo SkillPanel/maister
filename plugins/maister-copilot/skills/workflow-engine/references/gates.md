@@ -111,6 +111,12 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   whole `values` map, because a node's values are replaced whole on patch. A missing gate value
   names no patch: record that gate's answer again — the gate `completed`, the chosen option
   under its `decisions` — and the writer records the values the option sets.
+- **`gate-guard-false`**: the gate's guard reads false and nothing asks it anyway — neither the
+  skip-guard rule (`references/grammar.md` § 7) nor a held choice, which asks only a gate whose
+  guard reads a step's value. Nothing is written; `gate-request` refuses the same gate and keeps
+  the request file. Send the patch the message names through `write-state` — the gate, and each
+  pending node of its stretch whose guard reads false, recorded `skipped` — and go on with the
+  ready set. Never ask the gate in session instead.
 - **`gate-brief-unknown-node` or `gate-brief-not-a-gate`**: the `--node` argument is wrong;
   correct it. Nothing is written. A question a node asks inside itself is not a gate: it is
   briefed from its question set (`references/in-node-questions.md` § *In-node questions*).

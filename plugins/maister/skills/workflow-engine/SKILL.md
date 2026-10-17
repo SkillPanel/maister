@@ -378,7 +378,7 @@ nodes recorded — the rule, the skip-guard exception for gates included, is `re
 § *When the policy classes a question*), a gate whose guard reads a task node's value is asked
 whatever its guard reads: the first such checkpoint that runs lists the held choices first, and
 its continue approves them. A gate guarded only by an input or another gate's value is still
-skipped by its guard. When no checkpoint follows a held choice, the closing node asks the run's
+skipped by its guard, and the engine refuses to ask it (`gate-guard-false`). When no checkpoint follows a held choice, the closing node asks the run's
 own closing checkpoint, `held-approval` — a reserved id, never a node of the frozen graph —
 before its closing patch and, under dispatch, before its close-out (`references/gates.md`
 § *The closing checkpoint `held-approval`*).
@@ -495,7 +495,7 @@ here.
 | `skill:` step | Skill tool, given the `with:` values and the `run-context` output; the skill's own result feeds the node summary. |
 | `direct:` step | Run inline from the node's section. A step that owes an HTML page hands its finished markdown to `html-companion-writer` before the completing write. A step with no section does only what these rows say. |
 | `workflow:` step | Starts a child run and waits for it (*Sub-runs*); its outcome is mapped, not judged (*Recording an outcome*). |
-| gate | Asked from `gate-brief` (`references/gates.md`); record the answer, end the run on a stop, revise through `gate-revise`. A false guard skips it with its stretch, unless it reads a step's value and is no pure confirmation, or a choice is held. Sections hold exceptions only. |
+| gate | Asked from `gate-brief` (`references/gates.md`); record the answer, end the run on a stop, revise through `gate-revise`. A false guard skips it with its stretch, unless that guard reads a step's value and the gate is no pure confirmation, or reads a step's value while a choice is held. A false guard on inputs or other gates' values alone always skips it, held choices or not: `gate-brief` and `gate-request` refuse it `gate-guard-false`. Sections hold exceptions only. |
 | every step | Before recording `completed`, check each declared artifact path. A missing one its `brief:` `absent` does not sanction is a failed self-check: re-drive the step, naming the path. Record a sanctioned absence under `absent` with its reason, and record every declared value. |
 | asks | With question sets, ask them all in one request per attempt; without them, record the Without default `by: default`. Record each in-session answer as one `by: operator` decision with its `question_id`, question, answer, recommended answer and `as_recommended` on the step's own `node_summaries` entry (`references/gates.md`). Once `classes_questions` is recorded, ask only the classing writer's `ask:` ids; held choices wait for the next checkpoint or `held-approval`. |
 | feeds a checkpoint | The closing summary keeps the summary contract: a one-sentence `headline` within 220 characters; the artifact's decisions and risks item for item, tagged; `recommends` with a one-line reason as `brief:` directs once its input is set. |

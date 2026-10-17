@@ -23,9 +23,12 @@
  * is the nearest node recorded before the gate that carries one, and a warning
  * says so. Only when no node carries a summary does it refuse.
  *
- * The refusals, split by who can fix them. Two are fixed by a state write, and
- * their message carries the patch: `gate-brief-no-summary` and
- * `gate-brief-value-missing`. Five name no write: `gate-brief-unknown-node`,
+ * The refusals, split by who can fix them. Three are fixed by a state write, and
+ * their message carries the patch: `gate-brief-no-summary`,
+ * `gate-brief-value-missing` and `gate-guard-false` (the gate's guard reads
+ * false and neither the skip-guard rule nor a held choice asks it, so the
+ * write records it skipped — refused in every form, and by `gate-request` too,
+ * through `requestGuardRefusal`). Five name no write: `gate-brief-unknown-node`,
  * `gate-brief-not-a-gate` and `gate-brief-reask-not-revise` (the invocation is
  * wrong), `state-unreadable`, and
  * `gate-brief-no-graph` (no definition, no frozen needs and no summary to fall
@@ -246,6 +249,10 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   }
   const graph = current.graph;
   const byId = new Map((graph?.nodes ?? []).map(entry => [entry.id, entry]));
+
+  // A gate its guard skips is never asked, in any form: the skip is the write.
+  const skippedByGuard = guardFalse({ doc, recorded, node, current });
+  if (skippedByGuard) return { ...skippedByGuard, warnings };
 
   // The choices held for a person's approval, in frozen order: every form
   // lists them first, and this gate approves them with its continue.
@@ -1185,6 +1192,73 @@ export function skippedAgain(id, stretch, guards) {
   }
   const guard = evaluate(when, guards);
   return guard.ok && !guard.value;
+}
+
+/**
+ * The `gate-guard-false` refusal for a gate its guard skips, or null when the
+ * gate may be asked. A gate is refused when its `when` reads false and neither
+ * exception asks it: the skip-guard rule (`skipGuardAsks`), and a guard reading
+ * a task's value (`guardReadsTask`) while a choice is held for approval
+ * (`outstandingHeld`). A guard on inputs or other gates' values alone is never
+ * overridden by a held choice. Nothing is judged without a trusted graph — the
+ * definition drifted, or the gate is gone from it — nor for a gate already
+ * answered, nor while the guard cannot be read: its value-missing refusal is
+ * the brief's to give. The message names the skip write: the gate, and each
+ * pending node it closes whose own guard reads false, recorded `skipped`.
+ */
+function guardFalse({ doc, recorded, node, current }) {
+  if (current.drift || entryOf(recorded, node).status === 'completed') return null;
+  const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
+  const gate = byId.get(node);
+  if (gate?.type !== 'gate' || typeof gate.when !== 'string') return null;
+  const kindOf = nodeKindIn(byId);
+  if (skipGuardAsks(gate, kindOf)) return null;
+  const readsTask = guardReadsTask(gate, kindOf);
+  if (readsTask && outstandingHeld(doc).length > 0) return null;
+  const context = {
+    byId,
+    recorded,
+    status: new Map(frozenIds(recorded).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
+    inputs: inputsOf(doc),
+    defaults: current.defaults,
+  };
+  const guard = evaluate(gate.when, context);
+  if (!guard.ok || guard.value) return null;
+  const { direct, stretch } = closingCandidates(recorded, byId, node);
+  const skips = [...direct, ...stretch].filter((id) => {
+    const when = byId.get(id)?.when;
+    if (context.status.get(id) !== 'pending' || typeof when !== 'string') return false;
+    const read = evaluate(when, context);
+    return read.ok && !read.value;
+  });
+  const patch = JSON.stringify({ nodes: Object.fromEntries([node, ...skips].map(id => [id, { status: 'skipped' }])) });
+  const why = readsTask
+    ? 'it is a pure confirmation and no choice is held for approval'
+    : 'it reads only inputs or other gates\' values, which a held choice never overrides';
+  return refuse('gate-guard-false',
+    `--node=${node} is not asked: its guard ${gate.when} reads false, and ${why}. Nothing was written. `
+    + `Record it skipped${skips.length ? ' with its stretch' : ''} through write-state — ${patch} — and go on with the ready set`);
+}
+
+/**
+ * The `gate-guard-false` refusal for the gate a driven request names, or null:
+ * `gate-request` refuses what `gate-brief` refuses, so no request is written
+ * for a gate its guard skips. A state that cannot be read, a node the run does
+ * not record and the closing checkpoint are left to the verb's own checks.
+ */
+export function requestGuardRefusal({ state, node }) {
+  if (typeof node !== 'string' || node === HELD_APPROVAL) return null;
+  let doc;
+  try {
+    doc = parse(fs.readFileSync(state, 'utf8'));
+  } catch {
+    return null;
+  }
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  if (entryOf(recorded, node).kind !== 'gate') return null;
+  const current = reread(doc, workflow, path.dirname(path.resolve(state)));
+  return guardFalse({ doc, recorded, node, current });
 }
 
 /**
