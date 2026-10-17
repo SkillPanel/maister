@@ -444,6 +444,15 @@ test('a held choice an approval matches anywhere in the run is marked approved b
   assert.equal(Object.hasOwn(byNode.checkpoint[1], 'approved'), false, 'the approval item itself gains nothing');
 });
 
+test('a relayed approval names the person it came from beside the operator who recorded it', () => {
+  const { byNode } = decisionsByNode({
+    analysis: { decisions: [held(), { decision: 'Kept the parser', by: 'operator', answered_by: 'marek', on_behalf_of: 'lee' }] },
+    checkpoint: { decisions: [{ option: 'continue', answered_by: 'marek', on_behalf_of: 'lee' }, approval({ answered_by: 'marek', on_behalf_of: 'lee' })] },
+  });
+  assert.deepEqual(byNode.analysis[0].approved, { by: 'marek', on_behalf_of: 'lee' });
+  assert.equal(byNode.analysis[1].on_behalf_of, 'lee', 'a projected answer keeps on_behalf_of for the viewer');
+});
+
 test('a run that records no classing marks nothing approved, as it holds nothing', () => {
   const { byNode } = decisionsByNode({
     analysis: { decisions: [held()] },

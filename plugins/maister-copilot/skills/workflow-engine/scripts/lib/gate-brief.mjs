@@ -1399,6 +1399,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
             answer: decision.answer,
             recommended: decision.recommended,
             answered_by: decision.answered_by,
+            on_behalf_of: decision.on_behalf_of,
             actor_kind: actorKind,
             node: entry.id,
           }));

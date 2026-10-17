@@ -18,27 +18,34 @@ and the context ingests the rest of the run reads from.
    project-documentation section, predefined and operator-added alike. Record
    them as `project_context.project_doc_paths`, a top-level block of its own.
 4. **Detect research context** — when the invocation named a completed research
-   task, as the sole argument or through the research input, copy its report and
-   artifacts under `analysis/research-context/`. Record
-   `task_context.research_reference`: the copied path, the research question,
-   the research type and the confidence level. Research **informs** every later
-   node and skips none of them.
+   task, as the sole argument or through the research input, bring its report and
+   artifacts under `analysis/research-context/` with `import`. Record
+   `task_context.research_reference`: the source path, the copied path, the
+   research question, the research type and the confidence level. Research
+   **informs** every later node and skips none of them, so a source the verb
+   skips becomes an `open` risk naming each skipped file and the source path
+   the later nodes read it at, and the node goes on.
 5. **Ingest design context from three sources** and unify them under
    `analysis/design-context/`: a product-design task path, named in the
-   description or supplied through the design input, whose brief and mockups are
-   copied in; inline mockup paths and design-tool links in the task description,
-   the files copied in and the links recorded; and legacy locations from a
-   resumed run, migrated in. Skip silently when no source exists.
+   description or supplied through the design input, whose brief is imported
+   as `brief.md` and whose mockups under `mockups/`; inline mockup paths and
+   design-tool links in the task description, the files imported under
+   `mockups/` and the links recorded; and legacy locations from a resumed run,
+   imported the same way. Skip silently when no source exists. Every file
+   comes in through `import` — mockups are often binary, which only the verb
+   carries intact. The mockups are **binding**, so a mockup the verb skips
+   fails the node, its summary naming each skipped file and the verb's
+   reason: a run that silently lost a screen would build the wrong one.
 
    **A mockup is a picture of the thing, never the thing itself.** An ingested
    mockup is a *binding* input to the implementation, so decide per matched
-   path, before copying anything:
+   path, before importing anything:
 
    | The matched path | Treat it as |
    |---|---|
-   | outside the project working tree — a scratch directory, a downloads folder, an absolute path elsewhere | a mockup: copy it in |
-   | inside the project, under a design location — `design/`, `designs/`, `mockups/`, a product-design task directory, or an existing `analysis/design-context/` | a mockup: copy it in |
-   | inside the project and tracked as source — `git ls-files --error-unmatch <path>` exits `0` and it is not under a design location | the **subject** of the work: do not copy it, do not give it an index row, and do not let it set `design_reference` |
+   | outside the project working tree — a scratch directory, a downloads folder, an absolute path elsewhere | a mockup: import it |
+   | inside the project, under a design location — `design/`, `designs/`, `mockups/`, a product-design task directory, or an existing `analysis/design-context/` | a mockup: import it |
+   | inside the project and tracked as source — `git ls-files --error-unmatch <path>` exits `0` and it is not under a design location | the **subject** of the work: do not import it, do not give it an index row, and do not let it set `design_reference` |
 
    The extension alone never decides: *"fix the column order in
    `src/board.html`"* names the file the run edits. When the table excludes a
@@ -52,14 +59,15 @@ and the context ingests the rest of the run reads from.
    so in one line in the node summary and continue without it.
 6. **Ingest the architecture** when the architecture input names one: a
    high-level design document, or a research task directory whose
-   `outputs/high-level-design.md` is that document. Copy it to
-   `analysis/architecture-context/high-level-design.md`, and `decision-log.md`
-   from the same directory to `analysis/architecture-context/decision-log.md`
-   when it exists. Record `task_context.architecture_reference`: the source
-   path, the copied path and whether a decision log came with it. The
-   architecture **constrains** the specification and the plan and skips no node.
-   When the input resolves to no file, say so in one line in the node summary
-   and continue without it.
+   `outputs/high-level-design.md` is that document. Import it into
+   `analysis/architecture-context/` as `high-level-design.md`, and
+   `decision-log.md` from the same directory beside it when it exists. Record
+   `task_context.architecture_reference`: the source path, the copied path and
+   whether a decision log came with it. The architecture **constrains** the
+   specification and the plan and skips no node. When the input resolves to no
+   file, say so in one line in the node summary and continue without it; when
+   the verb skips a file that exists, record an `open` risk naming it and its
+   source path, which the specification and the plan then read instead.
 7. **Generate the design index** when any design source was ingested — one row
    per screen or component with a stable id, its source mockup and a one-line
    description.
@@ -69,12 +77,13 @@ and the context ingests the rest of the run reads from.
    that was the source, how many mockups were copied, whether a brief came with
    them, and the index path. It stays unset when no source existed.
 9. **Ingest a context pack** when the context input names one — a file or a
-   directory handed over by whatever started the run. Copy it under
+   directory handed over by whatever started the run. Import it under
    `analysis/work-context/` as it is, and record `task_context.work_reference`
    with its `path` as given. The pack has no shape the run may assume: read it
    as background that **informs** every later node, never as a specification,
-   and let it skip nothing. When the path is missing or cannot be read, say so
-   in one line in the node summary and continue without it.
+   and let it skip nothing. When the path is missing or the verb skips any of
+   it, record an `open` risk naming what was skipped and the source path, and
+   continue without it.
 
 **Asks.** Before anything else, when the invocation supplied no task
 description, ask for it as free text — "What should this run build or fix? One
@@ -605,7 +614,12 @@ With the mockup directory the agent also writes the structural visual-fidelity
 comparison `verification/visual-fidelity.md`, which is informational and never
 decides whether this node succeeded. Decide whether design context exists on
 disk: the mockup reference resolves to its declared path even when the mockup
-stretch was skipped. When it does not exist, pass no mockup directory.
+stretch was skipped. When it does not exist, pass no mockup directory. Pass
+the command it brings screenshots into the run with, as `import_command`: the
+engine's `import` verb with this run's `--state` and
+`--to=verification/screenshots`, written out whole with the plugin root as an
+absolute path, so the delegate adds one `--from` per screenshot and never
+copies through the shell.
 
 **This node and `user-docs` share one browser**: never dispatch the two delegate
 calls in one message, even when both stretches are enabled: concurrent dispatch
@@ -636,7 +650,8 @@ Reuse the browser stretch's screenshots when it ran: pass the screenshot
 directory with the instruction to reuse what applies before capturing anything
 new, plus the `prior-context --background --node=user-docs` output. When the
 browser stretch was skipped, omit the directory entirely rather than passing an
-empty path.
+empty path. Pass `import_command` as `e2e-verification` does, with
+`--to=documentation/screenshots`.
 
 The prior decisions are background for this delegate, not content: the guide
 must stay consistent with the run's decisions and risks, and never quote them

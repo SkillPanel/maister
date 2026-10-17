@@ -27,8 +27,15 @@ import { oneLine, provenanceOf } from './items.mjs';
 /** The keys a question may carry; any other is a typo the operator would never see answered. */
 const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage', 'details'];
 
-/** The keys an option may carry. */
-const OPTION_KEYS = ['id', 'label', 'description', 'recommended'];
+/**
+ * The keys an option may carry. `person_act` marks an option whose answer says
+ * a person did something outside the run — copied, uploaded, approved, fixed,
+ * installed, signed in. Only a person may take it, so it is never recommended
+ * and never a default, and a question offering one is never settled by the run
+ * (`question-triage.mjs`). The node declares it: the meaning of a label is
+ * not something this module guesses at.
+ */
+const OPTION_KEYS = ['id', 'label', 'description', 'recommended', 'person_act'];
 
 /** The keys the set itself may carry, beside its questions. */
 const SET_KEYS = ['ask', 'headline', 'questions'];
@@ -92,6 +99,9 @@ export function checkSet(input) {
     }
     const multi = question.multi_select === true;
     const options = checkOptions(question.options, where, errors);
+    for (const option of options.filter(each => each.recommended && each.person_act)) {
+      errors.push(`${where} option "${option.id}": it is marked "person_act", an act only a person can say they did, so it is never recommended; recommend an option the run can take, or none`);
+    }
     const recommended = options.filter(option => option.recommended).map(option => option.id);
     if (!multi && recommended.length > 1) {
       errors.push(`${where}: ${recommended.length} options are recommended in a single choice; recommend one at most`);
@@ -103,6 +113,8 @@ export function checkSet(input) {
       const known = new Set(options.map(option => option.id));
       if ((Array.isArray(fallback) && !multi) || !named.length || named.some(id => !known.has(id))) {
         errors.push(`${where}: "default" must name ${multi ? 'options' : 'one option'} of this question by id`);
+      } else if (options.some(option => option.person_act && named.includes(option.id))) {
+        errors.push(`${where}: "default" names an option marked "person_act", which only a person can take; default to an option the run can take`);
       }
     } else if (recommended.length) {
       fallback = multi ? recommended : recommended[0];
@@ -147,11 +159,13 @@ function checkOptions(options, where, errors) {
     if (!isLine(option.label)) errors.push(`${at}: "label" must be one line of text`);
     if (Object.hasOwn(option, 'description') && !isText(option.description)) errors.push(`${at}: "description" must be text`);
     if (Object.hasOwn(option, 'recommended') && typeof option.recommended !== 'boolean') errors.push(`${at}: "recommended" must be true or false`);
+    if (Object.hasOwn(option, 'person_act') && typeof option.person_act !== 'boolean') errors.push(`${at}: "person_act" must be true or false`);
     return {
       id: option.id,
       label: option.label,
       ...(isText(option.description) ? { description: option.description } : {}),
       ...(option.recommended === true ? { recommended: true } : {}),
+      ...(option.person_act === true ? { person_act: true } : {}),
     };
   });
 }
@@ -184,7 +198,12 @@ export function questionCheckpoint({ set, node, title, header, progress, run }) 
     ask: set.ask ?? `${title}: ${count} ${count === 1 ? 'question' : 'questions'} to answer`,
     headline: set.headline ?? `Answer ${count === 1 ? 'it' : `all ${count}`} to continue ${lowered}.`,
     progress,
-    questions: set.questions,
+    // `person_act` has done its work once the set is checked and classed: the
+    // checkpoint a reader renders carries the options as it always has.
+    questions: set.questions.map(question => ({
+      ...question,
+      options: question.options.map(({ person_act: _act, ...option }) => option),
+    })),
     run,
     truncated: false,
   };

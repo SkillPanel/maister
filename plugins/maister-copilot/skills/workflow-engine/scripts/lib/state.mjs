@@ -2936,6 +2936,33 @@ function heldApprovalGate(doc) {
   return { options: Object.fromEntries(options.map(option => [option.id, option.effect])) };
 }
 
+/** The provenance key naming the person a relaying side says gave an answer. */
+const ON_BEHALF_OF = 'on_behalf_of';
+
+/** A value `on_behalf_of` may hold: a name, on one line. */
+function isOnBehalfOf(value) {
+  return typeof value === 'string' && value.trim() !== '' && !/[\r\n]/.test(value);
+}
+
+/**
+ * A decision's `on_behalf_of`: a name, and only on an answer a person gave. It
+ * is recorded as the relaying side sent it and never verified, so all the
+ * writer can hold it to is where it stands — a decision the run, an audit or a
+ * default settled was given by nobody, on anybody's behalf.
+ */
+function assertOnBehalfOf(at, decision, refuse, where) {
+  const value = decision[ON_BEHALF_OF];
+  if (value === null || value === undefined) return;
+  if (!isOnBehalfOf(value)) refuse(`${where}.${ON_BEHALF_OF}`, value, 'a person\'s name on one line');
+  const by = decisionOf(decision)?.by ?? null;
+  if (by !== null && by !== 'operator') {
+    throw new Refusal('state-on-behalf-of-not-operator',
+      `${at} carries on_behalf_of ${JSON.stringify(value)} on a decision recorded by: ${by}. Nothing was written. `
+      + 'on_behalf_of names the person a relayed answer came from, so it belongs on an answer a person gave: '
+      + 'send the answer as theirs (by: operator, or the answer shape), or drop on_behalf_of from a decision the run made');
+  }
+}
+
 /**
  * The typed fields of a summary entry, held to their vocabularies.
  *
@@ -2966,7 +2993,11 @@ function assertItems(at, entry) {
       if (Object.hasOwn(decision, 'as_recommended') && decision.as_recommended !== null && typeof decision.as_recommended !== 'boolean') {
         refuse(`decisions[${index}].as_recommended`, decision.as_recommended, 'true, false or null');
       }
+      if (Object.hasOwn(decision, ON_BEHALF_OF)) assertOnBehalfOf(`${at}.decisions[${index}]`, decision, refuse, `decisions[${index}]`);
     });
+  }
+  if (Object.hasOwn(entry, ON_BEHALF_OF) && !isOnBehalfOf(entry[ON_BEHALF_OF])) {
+    refuse(ON_BEHALF_OF, entry[ON_BEHALF_OF], 'a person\'s name on one line');
   }
   if (Array.isArray(entry.risks)) {
     entry.risks.forEach((risk, index) => {
@@ -3202,7 +3233,8 @@ function foldQuestionAnswer(entry, node, runDir, held, attempt = 1, writeWarning
  * operator, by its `by` or by the answer shape that reads as one, that carries
  * no person's name, no `via` and no `actor` came from no person: it is
  * recorded `by: run`, and `stampAnswers` then leaves it alone instead of
- * writing the operator's name onto a decision nobody gave. An answer a person
+ * writing the operator's name onto a decision nobody gave. One carrying
+ * `on_behalf_of` names the person it was relayed for, and is kept. An answer a person
  * gave reaches a dispatched run with its provenance and is kept as it is; under
  * every other driver an in-session answer arrives bare, so nothing is judged.
  */
@@ -3211,6 +3243,8 @@ function runSettled(decisions, via) {
   return decisions.map(item => {
     if (!isPlainObject(item) || decisionOf(item)?.by !== 'operator') return item;
     if (!isPlaceholderName(item.answered_by) || Object.hasOwn(item, 'via') || Object.hasOwn(item, 'actor')) return item;
+    // A relayed answer names the person it came from: it is theirs, not the run's.
+    if (Object.hasOwn(item, ON_BEHALF_OF) && item[ON_BEHALF_OF] !== null) return item;
     const { answered_by: _answeredBy, ...rest } = item;
     return { ...rest, by: 'run' };
   });

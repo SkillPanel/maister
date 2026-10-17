@@ -217,6 +217,9 @@ function floorOf(triage) {
  * refused — a `reasons` entry naming no question of the set or carrying
  * another key. When `faults` is non-empty nothing is to be recorded.
  *
+ * A question offering an option marked `person_act` is never settled: it
+ * needs a person, so it is classed as if the ceiling settled nothing.
+ *
  * The ids still to ask are the unclassed and asked questions, and every
  * classed one with no default — no recommended option and no `default` —
  * whose outcome would settle or default it: nothing is invented for it, so it
@@ -238,7 +241,11 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
   for (const question of list) {
     const computed = triageFor({ policy, workflow, kind: 'question', id: question.id, declaredIds });
     const triage = raiseTriage(computed, question.triage);
-    const { outcome, triage: recorded } = questionOutcome({ triage, settles, canAsk });
+    // A question offering an option only a person can take needs that person:
+    // the run never settles it, whatever its class, so it is asked where
+    // somebody can be and otherwise takes its default as a default.
+    const own = needsPerson(question) ? null : settles;
+    const { outcome, triage: recorded } = questionOutcome({ triage, settles: own, canAsk });
     const chosen = defaultOf(question);
     if (outcome === 'ask' || outcome === 'unclassed' || (chosen === null && outcome !== 'hold')) {
       asking.push(question.id);
@@ -267,6 +274,11 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
     items.push(item);
   }
   return faults.length ? { items: [], asking: [], faults } : { items, asking, faults };
+}
+
+/** Whether a question offers an option marked `person_act` (`question-set.mjs`). */
+function needsPerson(question) {
+  return (Array.isArray(question.options) ? question.options : []).some(option => isMap(option) && option.person_act === true);
 }
 
 /** The options a question defaults to, in option order, or null when it names none. */

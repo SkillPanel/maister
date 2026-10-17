@@ -234,7 +234,7 @@ ordinary resume from the frozen state. **Never drop one silently.**
 
 ## The invocation contract
 
-One script, sixteen verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, seventeen verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -305,6 +305,7 @@ write a question set there themselves.
 | `finding-brief` | `--state`, `--node` (the reviewing node that is asking), `--findings-file=<file in the run>`, and optionally `--patch-file=<run>/.state-patch.json` | The node's findings that need a decision as one question set, printed as JSON or written to the patch file (`references/in-node-questions.md` § *Findings that need a decision*). A file it cannot use is one `warning: finding-list-…` line on stderr, exit `0`, and the node composes the questions itself. Writes no state |
 | `resume-check` | `--state` | JSON on stdout: the frozen workflow's `name`, `overlays` and `profile` and the run's `dashboard` link (`null` when it has none), or, exit `1`, the refusal of a directory the engine does not resume, with an operator `message` (*Resume*); a retired `phase_summaries` mirror in the context block that holds a decision or a risk is one `warning: legacy-mirror-ignored:` line on stderr, outside the JSON, exit `0` — reads the run, writes nothing |
 | `subrun-path` | `--state` (the parent's), `--node` (its `workflow:` node) | JSON on stdout: `{ok, node, workflow, task_path, run_id, recorded, existing}` — the child run's directory relative to the project root and its run id, as the parent recorded them (`recorded: true`) or as the sub-run naming rule gives them, with `existing` `absent`, `empty` or `adopt` (*Sub-runs*). The only source of a child's directory: never work it out by hand. Exit `1` with `{ok: false, code, message}` for the refusals below and for `subrun-on-dir-node`, `subrun-recursion`, `subrun-target-unresolved` and `subrun-child-foreign` (`references/sub-runs.md`); a definition that drifted since the freeze is one `warning: subrun-path-graph-drift` line, exit `0` — reads the run, writes nothing |
+| `import` | `--state`, `--to=<folder of the run>`, repeatable `--from=<file or directory>` (absolute, or relative to the project root), optional `--as=<name>` with a single `--from` | Each source copied into `<to>/<its name>` (`<to>/<as>` when renamed), byte for byte, a directory recursively and a link as what it points at, replacing an earlier copy; JSON on stdout: `{ok, to, copied: [{from, to, files}], skipped: [{from, code, message}]}`, every path relative to the run and spelled with `/`. **The only way a node brings context into its run: never a shell copy**, which a driven session's permissions refuse, and never the file tools, which cannot carry a binary. A source it could not copy is listed under `skipped` — `import-source-missing`, `import-source-overlaps` (it holds the destination or lies in it) or `import-copy-failed` — the rest are still copied, and the exit is `1`; what a skipped source means for the step is the step's to record. Exit `1` with `{ok: false, code, message}` for the refusals below — writes the copies, never state |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
 
 `run-context`, `prior-context` with `--node`, and `node-brief` refuse with exit `1`, an empty stdout and the code first on stderr; nothing was written:
@@ -327,6 +328,20 @@ write a question set there themselves.
 | `subrun-path-unknown-node` | `--node` is not a node of the run's frozen graph. Name the `workflow:` node that starts the child, exactly as `workflow.nodes` spells it; no state write fixes this. |
 | `subrun-path-definition-unread` | The definition the parent froze cannot be re-read, so the workflow the node starts is unknown. Restore the file its `workflow.source` names, then run the verb again; never type the child's directory by hand instead. |
 | `subrun-path-not-a-subrun` | The node runs a `skill:`, `agent:` or `direct:` target, not a `workflow:` one, so it starts no child run. Name the `workflow:` node. |
+
+`import` refuses with exit `1` and the refusal as JSON on stdout; nothing was copied:
+
+| Refusal | Response |
+|---|---|
+| `import-state-unreadable` | `--state` cannot be read or parsed as a state document. Point `--state` at the run's `orchestrator-state.yml` and run the verb again. |
+| `import-not-a-run` | The file carries no `workflow:` block: the engine never froze it. Import into a frozen run; freeze first through `write-state` (Step 4). |
+| `import-destination-outside` | `--to` is absolute, climbs with `..`, or reaches outside the run through a link. Name the folder relative to the run directory — the one the step's prose names — and run the verb again; never copy by hand instead. |
+| `import-destination-reserved` | `--to` is the run directory itself, or lies under `gates/` or `display/`, which the engine writes. Name a folder of the run's own, such as the step's `analysis/…-context/`. |
+
+**A skipped source is the step's to judge.** Supporting context, such as research, an
+architecture or a context pack, becomes an `open` risk that names what was skipped and the
+source path the later steps read instead. The step then goes on. Only an input the step says it
+cannot work without fails it. Never ask a person to copy a file in by hand.
 
 `run-complete` ends a run and, under a dispatch driver, only once the close-out it owes is
 on disk. There it takes `--outbox` and `--dispatch-id` as well, because the state never records

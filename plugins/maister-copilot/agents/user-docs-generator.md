@@ -50,6 +50,7 @@ The user documentation generator transforms technical specifications into user-f
 | `spec_path` | Orchestrator | Path to spec.md |
 | `base_url` | Orchestrator | Application base URL for Playwright |
 | `output_path` | Orchestrator (optional) | Where the guide is written, relative to `task_path` (default `documentation/user-guide.md`); an absolute path is used as given |
+| `import_command` | Orchestrator (optional) | The command that brings files into `documentation/screenshots/`, to which one `--from=<path>` per file is added (Step 7) |
 
 **CRITICAL**: Always use `task_path` as the root for ALL file writes. Save the guide to the `output_path` (relative to `task_path`, default `documentation/user-guide.md`; an absolute path is used as given), screenshots to `{task_path}/documentation/screenshots/`. NEVER write to project-level directories.
 
@@ -261,7 +262,7 @@ The user documentation generator transforms technical specifications into user-f
   1. `e2e_screenshots_path` from the orchestrator prompt (preferred — reused from the `e2e-verification` run)
   2. `verification/screenshots/` (fallback discovery when `e2e_screenshots_path` was not provided)
   3. `.playwright-mcp/` (newly captured in Step 4)
-- Copy to `documentation/screenshots/`: `cp SOURCE_PATH documentation/screenshots/`
+- Bring each into `documentation/screenshots/`: when the prompt carries an `import_command`, run it once with one `--from=SOURCE_PATH` per screenshot, and read its JSON — a source under `skipped` is a missing screenshot. Never copy with the shell then: inside a workflow run a shell copy may be refused. Without an `import_command`: `cp SOURCE_PATH documentation/screenshots/`
 - Verify copied: `test -f documentation/screenshots/FILENAME`
 - Error if any referenced screenshot missing
 

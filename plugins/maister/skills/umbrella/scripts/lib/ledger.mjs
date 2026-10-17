@@ -938,7 +938,9 @@ export function addFollowup(call) {
  * asked a grant for has run, so nothing it waited on is still held. Called by
  * whoever drives the dispatch once the grant is used — never by the worker,
  * which only reports. `resolved_by` names who resolved it (`args.by`, else the
- * call's actor) and `resolved_at` when. Only an `open` or `dispatched`
+ * call's actor) and `resolved_at` when; `on_behalf_of`, when `args` carries it,
+ * the person a relaying side says resolved it, recorded as given and never
+ * verified. Only an `open` or `dispatched`
  * follow-up moves; a dismissed or already resolved one is final and refused,
  * so a repeat is a refusal rather than a second stamp. A closed entry still
  * takes it: a dispatch closed out `partial` is exactly one whose follow-up
@@ -952,6 +954,9 @@ export function resolveFollowup(call) {
     if (args.by !== undefined && (typeof args.by !== 'string' || args.by.trim() === '')) {
       throw new Refusal('ledger-args-invalid', 'resolve-followup takes args.by as a non-empty name, or none to credit the actor');
     }
+    if (args.on_behalf_of !== undefined && (typeof args.on_behalf_of !== 'string' || args.on_behalf_of.trim() === '' || /[\r\n]/.test(args.on_behalf_of))) {
+      throw new Refusal('ledger-args-invalid', 'resolve-followup takes args.on_behalf_of as the name, on one line, of the person a relaying side says resolved it, or none');
+    }
     const existing = Array.isArray(entry.followups) ? entry.followups : [];
     const found = existing.findIndex(item => isPlainObject(item) && item.id === args.id);
     if (found < 0) {
@@ -962,7 +967,13 @@ export function resolveFollowup(call) {
       throw new Refusal('ledger-status-illegal',
         `the follow-up ${args.id} of ${entry.dispatch_id} is ${followup.status}, and only an ${RESOLVABLE.join(' or ')} follow-up can be resolved`);
     }
-    const resolved = { ...followup, status: 'resolved', resolved_by: args.by ?? actor, resolved_at: at };
+    const resolved = {
+      ...followup,
+      status: 'resolved',
+      resolved_by: args.by ?? actor,
+      ...(args.on_behalf_of !== undefined ? { on_behalf_of: args.on_behalf_of } : {}),
+      resolved_at: at,
+    };
     entry.followups = existing.map((item, index) => (index === found ? resolved : item));
     return entry;
   }));
