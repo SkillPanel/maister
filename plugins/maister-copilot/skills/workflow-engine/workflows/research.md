@@ -64,12 +64,13 @@ operator-added alike. The milestone records `research_type`,
 `constraints` — and `project_doc_paths`, `[]` when there is no index.
 
 When the context input names a context pack — a file or a directory handed over
-by whatever started the run — copy it under `analysis/work-context/` as it is
-and record `research_context.work_reference` with its `path` as given. It is
+by whatever started the run — bring it under `analysis/work-context/` as it is
+with `import` (engine § *The invocation contract*), never a shell copy, and
+record `research_context.work_reference` with its `path` as given. It is
 background for the brief, the plan and the gatherers, never a substitute for
 the question or for evidence they gather themselves. When the path is missing
-or cannot be read, say so in one line in the milestone summary and continue
-without it.
+or the verb skips any of it, record an `open` risk in the milestone summary
+naming what was skipped and the source path, and continue without it.
 
 ### Step 2 — plan (delegate)
 

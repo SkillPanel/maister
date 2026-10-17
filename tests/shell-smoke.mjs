@@ -235,6 +235,17 @@ try {
   check('subrun-path names the child directory with /, under the project root',
     placed.code === 0 && child?.ok === true && /^\.maister\/tasks\/research\/[^/\\]+-research$/.test(child.task_path ?? '') && child.existing === 'absent', show(placed));
 
+  // --- import -----------------------------------------------------------------
+  const source = path.join(project, 'context pack');
+  fs.mkdirSync(source, { recursive: true });
+  fs.writeFileSync(path.join(source, 'screen.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]));
+  const imported = call('import', [flag('state', statePath), '--to=analysis/work-context', flag('from', source)]);
+  const copy = json(imported.stdout);
+  const landed = path.join(runDir, 'analysis', 'work-context', 'context pack', 'screen.png');
+  check('import copies a folder holding a space, byte for byte, and reports it with /',
+    imported.code === 0 && copy?.copied?.[0]?.to === 'analysis/work-context/context pack' && fs.existsSync(landed)
+      && Buffer.compare(fs.readFileSync(landed), fs.readFileSync(path.join(source, 'screen.png'))) === 0, show(imported));
+
   // --- the hooks ------------------------------------------------------------
   // Each hook is started from its `hooks.json` entry the way the host starts
   // it: `${CLAUDE_PLUGIN_ROOT}` replaced by the plugin root, an exec-form entry

@@ -138,6 +138,30 @@ names the rest in the question, for the user to type.
 In a decision area, the message's last line before the ask is the recommendation:
 "Recommended: <alternative> — <reason>."
 
+## An option only a person can take
+
+Some answers say that a person did something outside the run: copied a file in, uploaded,
+approved, fixed, installed, signed in. Only that person can give such an answer. When the run
+takes it, it records an act that nobody performed.
+
+- **Mark it.** Such an option carries `person_act: true` in the question set. The engine cannot
+  tell such an option from its label, so the node declares it. Without the marker the option
+  reads as an ordinary one.
+- **Never recommend it, and never default to it.** A set that recommends a `person_act` option,
+  or names one as its `default`, is refused, both by `write-state`'s classing write and by
+  `gate-brief --request`. Recommend an option the run can take, or none.
+- **The run never settles it.** A question offering a `person_act` option needs a person,
+  whatever its class: the classing writer never records it `by: run`. Where somebody can be
+  asked, it is asked. Where nobody can be asked, it takes its default `by: default`, and that
+  default is always an option the run can take. When no such option lets the step go on, the
+  step fails, and its summary names what a person must do.
+- **Never invent one to recover.** A step that failed at something the engine does for it does
+  not ask a person to do it by hand. An import is the main case: a source `import` skipped is
+  handled as the step's import rule says.
+
+A node that records its own `by: run` decisions, in a run whose policy classes no questions,
+holds itself to the same rule. The writer sees no options there, so nothing checks it.
+
 ## Decision areas from the brainstorm
 
 A convergence node asks its decision areas from `area-brief`, which finds the file the brainstorm
@@ -397,6 +421,13 @@ question sets the request carries only those (*When a question suspends*); under
 driver they are the unclassed ones and the ones that recommend nothing, and each takes its named
 default, recorded as *When nobody can be asked* says. `ask: none` means nothing is left to ask:
 ask nothing, suspend on nothing, and carry on.
+
+**A relayed answer** to a question set lands as one `by: operator` decision per question. When
+the answer block carries `on_behalf_of`, every one of those decisions carries it too
+(`references/gates.md`, *On whose behalf*).
+
+**A question offering an option only a person can take** is never settled: the writer classes
+it as if the ceiling settled nothing (*An option only a person can take*).
 
 **A question that recommends nothing.** The writer never picks an option for a classed question
 with no recommended option and no `default`. Where it would be settled, defaulted or asked, its

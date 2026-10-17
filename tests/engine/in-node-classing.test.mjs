@@ -1616,7 +1616,7 @@ test('end to end under dispatch: held, briefed first at the forced gate, approve
   ok(QUESTIONS.engine, run, {});
   assert.deepEqual(outstandingHeld(readState(run)), []);
   const after = byId(dashboardDecisions(run, 'scoping'), 'signed-choice');
-  assert.deepEqual(after.approved, { by: 'dana' });
+  assert.deepEqual(after.approved, { by: 'dana', on_behalf_of: 'lee' }, 'the relayed answer names its person beside the operator');
   assert.equal(after.triage.held, true, 'the held mark stays as history');
   for (const other of dashboardDecisions(run, 'scoping').filter(each => each.question_id !== 'signed-choice')) {
     assert.equal(Object.hasOwn(other, 'approved'), false, other.question_id);
@@ -1995,4 +1995,68 @@ test('held revise: none is offered once the checkpoint has spent its revisions',
   const checkpoint = JSON.parse(gateBriefOf(run, 'check', '--checkpoint').stdout);
   assert.deepEqual(checkpoint.options.map(each => each.id), ['go-on', 'halt']);
   refused(checkRevise(run, 'revise-first', 'Use B'), 'revise-option-unknown');
+});
+
+// ---------------------------------------------------------------------------
+// an option only a person can take
+// ---------------------------------------------------------------------------
+
+/** `noted-choice` (record) offering, beside the recommended A, an option saying a person acted. */
+function personQuestion() {
+  const asked = question('noted-choice');
+  return { ...asked, options: [asked.options[0], { id: 'b', label: 'I have copied it; read the folder again', person_act: true }] };
+}
+
+test('a question offering a person_act option is never settled by the run: asked where a person can be', t => {
+  for (const driver of [null, COCKPIT]) {
+    const run = started(t, QUESTIONS.engine, { driver });
+    const result = classing(QUESTIONS.engine, run, [], { questions: [question('quick-choice'), personQuestion()] });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(askLine(result.stdout), 'ask: noted-choice', 'a record question the ceiling settles is asked instead');
+    assert.deepEqual(summaryOf(run).decisions.map(item => [item.question_id, item.by]), [['quick-choice', 'run']]);
+  }
+});
+
+test('dispatch: a question offering a person_act option takes the option the run can take, by default, never by run', t => {
+  const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
+  const result = classing(QUESTIONS.engine, run, [], { questions: [personQuestion()] });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(askLine(result.stdout), 'ask: none');
+  const item = byId(summaryOf(run).decisions, 'noted-choice');
+  assert.equal(item.by, 'default');
+  assert.equal(item.decision, 'Option A');
+});
+
+test('a person_act option recommended, or named as the default, is refused state-patch-invalid', t => {
+  const run = started(t, QUESTIONS.engine);
+  const before = fs.readFileSync(run.state, 'utf8');
+  const recommended = personQuestion();
+  recommended.options = [{ id: 'a', label: 'Option A' }, { ...recommended.options[1], recommended: true }];
+  const defaulted = { ...personQuestion(), default: 'b' };
+  const malformed = personQuestion();
+  malformed.options = [malformed.options[0], { ...malformed.options[1], person_act: 'yes' }];
+  for (const [what, set, message] of [
+    ['recommended', recommended, /option "b": it is marked "person_act".*never recommended/],
+    ['the default', defaulted, /"default" names an option marked "person_act"/],
+    ['not a boolean', malformed, /"person_act" must be true or false/],
+  ]) {
+    const result = classing(QUESTIONS.engine, run, [], { questions: [set] });
+    refused(result, 'state-patch-invalid');
+    assert.match(result.stderr, message, what);
+  }
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+});
+
+test('a driven request carries a person_act option as a plain option, and refuses one recommended', t => {
+  const run = started(t, QUESTIONS.engine, { driver: COCKPIT, ceiling: null });
+  const built = brief(QUESTIONS.engine, run, { questions: [personQuestion()] });
+  assert.equal(built.code, 0, built.stderr);
+  assert.doesNotMatch(built.stdout, /person_act/, 'neither the request nor its checkpoint names the marker');
+  const request = JSON.parse(built.stdout);
+  assert.deepEqual(request.questions[0].options.map(option => option.id), ['a', 'b']);
+  const bad = personQuestion();
+  bad.options = [{ id: 'a', label: 'Option A' }, { ...bad.options[1], recommended: true }];
+  const refusedBrief = brief(QUESTIONS.engine, run, { questions: [bad] });
+  assert.notEqual(refusedBrief.code, 0);
+  assert.match(refusedBrief.stdout + refusedBrief.stderr, /never recommended/);
 });

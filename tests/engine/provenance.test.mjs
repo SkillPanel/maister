@@ -464,3 +464,71 @@ test('an in-node answer with no recommended answer, or a non-string one, gains n
   assert.equal(Object.hasOwn(bare, 'as_recommended'), false);
   assert.equal(Object.hasOwn(typed, 'as_recommended'), false);
 });
+
+// ---------------------------------------------------------------------------
+// on_behalf_of: the person a relayed answer came from, on a person's answer only
+// ---------------------------------------------------------------------------
+
+test('on_behalf_of on a decision the run, an audit or a default settled is refused state-on-behalf-of-not-operator', t => {
+  const run = scratch(t);
+  freeze(run);
+  const before = fs.readFileSync(run.state, 'utf8');
+  for (const decision of [
+    { decision: 'Took A', by: 'run', on_behalf_of: 'lee' },
+    { decision: 'Took A', by: 'audit', on_behalf_of: 'lee' },
+    { decision: 'Took A', by: 'default', question_id: 'q', on_behalf_of: 'lee' },
+    { decision: 'Took A', rationale: 'reads as the run', on_behalf_of: 'lee' },
+  ]) {
+    const result = verb(['write-state', `--state=${run.state}`], { node_summaries: { analysis: { decisions: [decision] } } });
+    assert.equal(result.code, 1, JSON.stringify(decision));
+    assert.match(result.stderr, /^state-on-behalf-of-not-operator: node_summaries\.analysis\.decisions\[0\] carries on_behalf_of "lee"/m);
+  }
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+});
+
+test('on_behalf_of that is not a name on one line is refused state-summary-item-invalid', t => {
+  const run = scratch(t);
+  freeze(run);
+  for (const value of ['', '  ', 'two\nlines', 7, { name: 'lee' }]) {
+    const result = verb(['write-state', `--state=${run.state}`],
+      { node_summaries: { analysis: { decisions: [{ decision: 'Took A', by: 'operator', on_behalf_of: value }] } } });
+    assert.equal(result.code, 1, JSON.stringify(value));
+    assert.match(result.stderr, /^state-summary-item-invalid: .*on_behalf_of/m);
+  }
+});
+
+test('on_behalf_of is recorded as sent on an operator answer, a gate answer and an in-node answer', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, {
+    node_summaries: {
+      analysis: { decisions: [{ question_id: 'q', question: 'Which?', answer: 'A', by: 'operator', on_behalf_of: 'lee' }] },
+      approval: { decisions: [{ option: 'continue', answered_by: 'dana', via: 'cockpit', on_behalf_of: 'kim' }] },
+    },
+  });
+  const state = readState(run);
+  const [answer] = state.node_summaries.analysis.decisions;
+  assert.equal(answer.by, 'operator');
+  assert.equal(answer.on_behalf_of, 'lee');
+  assert.equal(state.node_summaries.approval.decisions[0].on_behalf_of, 'kim');
+  assert.equal(state.node_summaries.approval.decisions[0].answered_by, 'dana', 'the machine\'s operator stays the writer');
+});
+
+test('dispatch: an anonymous answer relayed on someone\'s behalf stays the operator\'s, never re-credited to the run', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { driver: { kind: 'dispatch', cwd: '/work' } } });
+  write(run, {
+    node_summaries: {
+      analysis: {
+        decisions: [
+          { question_id: 'q', question: 'Which?', answer: 'A', by: 'operator', on_behalf_of: 'lee' },
+          { question_id: 'r', question: 'Which?', answer: 'B', by: 'operator' },
+        ],
+      },
+    },
+  });
+  const [relayed, bare] = readState(run).node_summaries.analysis.decisions;
+  assert.equal(relayed.by, 'operator');
+  assert.equal(relayed.on_behalf_of, 'lee');
+  assert.equal(bare.by, 'run', 'an answer naming nobody is still the run\'s');
+});

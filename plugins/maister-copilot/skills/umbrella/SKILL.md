@@ -406,7 +406,9 @@ claiming and status; the daemon owns constraints, follow-ups and close-out;
 the grant a `needs: [permission]` follow-up asked for has been used and the held
 command has run — never the worker's, which only reports the hold. It moves an
 `open` or `dispatched` follow-up to `resolved` with `resolved_by` and
-`resolved_at`, on a closed entry too, and refuses any other move;
+`resolved_at` — and `on_behalf_of` when the call names the person a relaying
+side says resolved it, recorded as given and never verified — on a closed
+entry too, and refuses any other move;
 query takes no lock at all. Conflicts resolve on read by update time and actor —
 the engine wins on status, the daemon wins on follow-ups and close-out.
 

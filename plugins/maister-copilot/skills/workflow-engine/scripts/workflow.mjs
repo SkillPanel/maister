@@ -88,6 +88,11 @@
  *                  project root, and its run id: the one the parent recorded,
  *                  else the one the sub-run naming rule gives, with what that
  *                  directory holds now) — read-only over a run
+ *   import         --state, --to (a folder of the run), repeatable --from,
+ *                  optional --as                            JSON on stdout
+ *                  (each source copied into the run byte for byte, a
+ *                  directory recursively, and each one it could not copy
+ *                  with its reason) — writes the copies and no state
  *   sync-plan      --plan                                     JSON on stdout
  *                  (the plan companion's progress markers set from the
  *                  markdown plan's checkboxes; a no-op without a companion)
@@ -220,6 +225,11 @@ const VERBS = {
   // directory, its definition and the project root — is found from the state,
   // so no driver composes the child's path by hand.
   'subrun-path': { module: 'subrun-path.mjs', flags: ['state', 'node'] },
+  // Context brought into the run from elsewhere, copied by the one script a
+  // driven session can always run, never by a shell copy its permissions may
+  // refuse. `--from` repeats, one source each; `--as` renames the one source,
+  // so a document lands under the fixed name the steps after it read.
+  import: { module: 'context-import.mjs', flags: ['state', 'to', 'from', 'as'] },
   // The plan, not the state file: the executor also runs outside an engine
   // run, and the companion it keeps in step sits beside the plan either way.
   // The run's `html_output` switch is looked up from there when a run exists.
@@ -274,7 +284,7 @@ function refuseRules(moment) {
 }
 
 /** The flags that may be given more than once; every other flag is single-valued. */
-const REPEATABLE = new Set(['overlay', 'area']);
+const REPEATABLE = new Set(['overlay', 'area', 'from']);
 
 /**
  * The picker profiles `gate-brief --json` renders: `rich` for a tool that shows
@@ -1155,6 +1165,28 @@ async function runSubrunPath(flags) {
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
+/**
+ * `import` reports like `subrun-path`: the whole result as JSON on stdout, exit
+ * 1 on a refusal or when any source was not copied. One source is all `--as`
+ * can rename, and a name, never a path: anything else is a usage error.
+ */
+async function runImport(flags) {
+  if (!flags.state) throw new UsageError('import needs --state');
+  if (!flags.to) throw new UsageError('import needs --to');
+  if (!(flags.from || []).length) throw new UsageError('import needs at least one --from');
+  if (flags.as !== undefined) {
+    if (flags.from.length !== 1) throw new UsageError('import takes --as with exactly one --from');
+    if (/[\\/]/.test(flags.as) || flags.as === '.' || flags.as === '..') {
+      throw new UsageError('import takes --as as a file or folder name, not a path');
+    }
+  }
+  const module = await loadModule(VERBS.import.module);
+  const copy = entryOf(module, 'importContext', VERBS.import.module);
+  const result = copy({ state: flags.state, to: flags.to, from: flags.from, as: flags.as ?? null });
+  report(result);
+  return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
 const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
@@ -1172,6 +1204,7 @@ const RUNNERS = {
   'finding-brief': runFindingBrief,
   'resume-check': runResumeCheck,
   'subrun-path': runSubrunPath,
+  import: runImport,
   'sync-plan': runSyncPlan,
 };
 

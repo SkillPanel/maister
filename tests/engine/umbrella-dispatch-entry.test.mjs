@@ -250,6 +250,17 @@ test('resolve-followup: an open and a dispatched follow-up are resolved, naming 
   assert.equal(ledger(ws, 'query', {}, 'd-0001').report.entry.status, 'closed', 'the entry stays closed');
 });
 
+test('resolve-followup: on_behalf_of names the person a relaying side says resolved it, beside resolved_by', (t) => {
+  const ws = withFollowups(t);
+  const relayed = ledger(ws, 'resolve-followup', { id: 'f-open', on_behalf_of: 'Lee Example' }, 'd-0001');
+  assert.equal(relayed.code, 0, JSON.stringify(relayed.report));
+  const open = followupOf(ws, 'f-open');
+  assert.equal(open.on_behalf_of, 'Lee Example');
+  assert.equal(open.resolved_by, 'engine', 'the caller stays the one who resolved it');
+  assert.equal(ledger(ws, 'resolve-followup', { id: 'f-sent' }, 'd-0001').code, 0);
+  assert.equal(Object.hasOwn(followupOf(ws, 'f-sent'), 'on_behalf_of'), false, 'absent unless sent');
+});
+
 test('resolve-followup: a resolved or dismissed follow-up is final, refused ledger-status-illegal with nothing written', (t) => {
   const ws = withFollowups(t);
   assert.equal(ledger(ws, 'resolve-followup', { id: 'f-open' }, 'd-0001').code, 0);
@@ -265,7 +276,7 @@ test('resolve-followup: a resolved or dismissed follow-up is final, refused ledg
 test('resolve-followup: no id, an unknown id or an empty name is refused ledger-args-invalid with nothing written', (t) => {
   const ws = withFollowups(t);
   const before = snapshot(ws.ledger);
-  for (const args of [{}, { id: 'f-none' }, { id: 'f-open', by: ' ' }]) {
+  for (const args of [{}, { id: 'f-none' }, { id: 'f-open', by: ' ' }, { id: 'f-open', on_behalf_of: '' }, { id: 'f-open', on_behalf_of: 7 }]) {
     const refused = ledger(ws, 'resolve-followup', args, 'd-0001');
     assert.equal(refused.code, 1, JSON.stringify(args));
     assert.equal(refused.report.errors[0].code, 'ledger-args-invalid', JSON.stringify(args));

@@ -21,6 +21,7 @@ Prove the implementation works from the user's perspective: turn the spec's user
 | `spec_path` | Orchestrator | Path to spec.md |
 | `base_url` | Orchestrator | Application base URL for Playwright |
 | `design_context_path` | Orchestrator (optional) | Path to `analysis/design-context/` when mockups are present. Triggers visual-fidelity comparison (Step 7) and writes `verification/visual-fidelity.md`. |
+| `import_command` | Orchestrator (optional) | The command that brings files into `verification/screenshots/`, to which one `--from=<path>` per file is added (screenshot collection below) |
 | `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
 **CRITICAL**: Always use `task_path` as the root for ALL file writes. Save report to `{task_path}/verification/e2e-verification-report.md`, screenshots to `{task_path}/verification/screenshots/`, visual fidelity report to `{task_path}/verification/visual-fidelity.md` (when design_context_path provided). NEVER write to project-level directories.
@@ -302,7 +303,7 @@ Before writing the report file, walk this checklist and only save once every ite
 - Extract image references: `!\[.*?\]\(screenshots/(.*?\.png)\)`
 - For each referenced screenshot:
   - Look ONLY in `.playwright-mcp/` directory (relative to project root)
-  - Copy to `verification/screenshots/`: `cp .playwright-mcp/FILENAME verification/screenshots/`
+  - Bring it into `verification/screenshots/`: with an `import_command` in the prompt, add `--from=.playwright-mcp/FILENAME` to it — one call for every screenshot, each one it reports under `skipped` marked missing — and never copy with the shell, which a workflow run's permissions may refuse; without one, `cp .playwright-mcp/FILENAME verification/screenshots/`
   - Verify copied: `test -f verification/screenshots/FILENAME`
   - If not found in `.playwright-mcp/`, mark as missing in report — do NOT search elsewhere
 - **NEVER** use broad glob patterns (e.g., `**/*.png`) from root, home, or parent directories — this can scan the entire filesystem

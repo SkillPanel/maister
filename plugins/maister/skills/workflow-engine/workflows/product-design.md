@@ -83,9 +83,14 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    Record the paths as `project_context.project_doc_paths` (top level, beside
    the orchestrator and context blocks) and a few lines on them as
    `design_context.project_context_summary`.
-3. **Import research** the `research` input names: copy its report, synthesis
-   and solution exploration, where they exist, under `context/research-context/`,
-   and record `design_context.research_reference`.
+3. **Import research** the `research` input names: its report, synthesis and
+   solution exploration, where they exist, brought under
+   `context/research-context/` in one `import` call (engine § *The invocation
+   contract*), never a shell copy. Record `design_context.research_reference`
+   with the source path. Research is supporting context: a source the verb
+   skips becomes `{risk: "research not imported: <each skipped file and its reason>", tag: open, change: "read it at <source path>"}`,
+   and the design goes on, citing the research at its source path. Never ask
+   anybody to copy it in.
 4. **Detect the characteristics** and the complexity as
    `${CLAUDE_PLUGIN_ROOT}/skills/product-design/references/characteristic-detection.md`
    says; read it first. Record the six flags as
@@ -104,8 +109,11 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    answer. Nothing ticked is the recommended answer. Catalog `context/` into
    `design_context.user_files_list`; sort what was typed into
    `collected_urls` and `research_topics`. When Files was chosen and the
-   folder is still empty, ask once more, naming the folder: *"Read the folder
-   again (Recommended)"* or *"Go on without files"*.
+   folder is still empty, ask once more, naming the folder: *"Go on without
+   files (Recommended)"* or *"I have added the files; read the folder again"*.
+   *Files* and the read-again option each say a person put files in the
+   folder, so both are marked `person_act` and neither is ever recommended
+   (`references/in-node-questions.md` § *An option only a person can take*).
 <!-- plain-picker
    Under this picker the four options are one property of type array, none of them the default, and
    the links and topics a text property beside it.

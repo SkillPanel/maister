@@ -462,7 +462,9 @@ export function artifactOf(entry) {
  * Who approved each held choice the run's approvals match, keyed by owning
  * node, question id and attempt (1 when absent) — the matching a checkpoint
  * applies (`approvalKey`) — to `{by}`: the approval's `answered_by`, else
- * `operator`. The first approval recorded for a key names the approver.
+ * `operator`, with the approval's `on_behalf_of` beside it when a relaying
+ * side named the person. The first approval recorded for a key names the
+ * approver.
  */
 function approversOf(state) {
   const approvers = new Map();
@@ -470,7 +472,8 @@ function approversOf(state) {
     const key = approvalKey(node, item);
     if (approvers.has(key)) continue;
     const by = typeof item.answered_by === 'string' && item.answered_by.trim() !== '' ? item.answered_by.trim() : 'operator';
-    approvers.set(key, { by });
+    const behalf = typeof item.on_behalf_of === 'string' && item.on_behalf_of.trim() !== '' ? item.on_behalf_of.trim() : null;
+    approvers.set(key, behalf === null ? { by } : { by, on_behalf_of: behalf });
   }
   return approvers;
 }

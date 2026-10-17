@@ -34,6 +34,16 @@ Send the answer only**: never compose provenance stamps, triage, settlement or a
   driven answer's from the request file's answer block. An answer given at the terminal gains
   `actor: {kind: person, id: <answered_by>}`. The five keys are record-only: `prior-context`
   never prints them.
+- **On whose behalf.** A hub may relay a person's answer to this machine. The answer then
+  carries `on_behalf_of`: the name of the person the relaying side says gave it.
+  - `by` stays `operator`, and `answered_by` stays the machine's operator, who still writes the
+    answer.
+  - The name is recorded exactly as sent and is never verified.
+  - It must be one line of text.
+  - It is accepted only on a person's answer. A decision recorded `by: run`, `audit` or
+    `default` that carries it is refused with `state-on-behalf-of-not-operator`.
+  - The dashboard shows such an answer as "<on_behalf_of> (via <answered_by>)".
+  - An answer without `on_behalf_of` is recorded as it always was.
 - **Triage**, under a policy that classifies the gate (engine Step 4) and whose hash is the run's
   recorded `policy_hash`: the writer adds `triage` to the answer item, and right after it one
   settlement item per value the chosen continue `sets`; the gate's answer is still its last
