@@ -427,6 +427,9 @@ set takes it as ready once its needs are met, the brief walks to it, and `run-co
 owed and never offers to record it skipped. Validation warns `skip-guard-not-pure:<node>`; nothing
 is refused. A write that records such a gate `skipped` lands and warns `skip-guard-skipped:<node>`.
 The fix is a guard on an input or a gate's value, or a gate reduced to a single plain continue.
+A gate whose guard reads false and that neither this rule nor a held choice asks (engine
+§ *The ready set*) is never asked: `gate-brief` and `gate-request` refuse it `gate-guard-false`,
+naming the write that records it skipped.
 
 <!-- vocabulary: ON_VALUES -->
 | `on` | The node runs when |

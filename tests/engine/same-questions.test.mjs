@@ -133,6 +133,41 @@ function ok(result, what) {
   return result.stdout;
 }
 
+/**
+ * A gate whose guard reads false is refused `gate-guard-false`, never briefed:
+ * when it is, the first value its guard reads plainly is turned true — an
+ * input, a step's value, or an earlier gate answered with the continue that
+ * sets it — so the gate's words are pinned as a run that asks it reads them.
+ * Returns what puts the run back as it was, so no later gate reads the change.
+ */
+function askable(run, graph, gate, args) {
+  const first = verb(args);
+  if (first.code === 0 || !/^gate-guard-false: /.test(first.stderr)) return () => {};
+  const state = readState(run);
+  const recorded = state.workflow.nodes;
+  const [, owner, key] = String(gate.when).match(/(?<!!)\$\{([^.}]+)\.(?:values\.)?([^.}]+)\}/) ?? [];
+  if (owner === 'inputs') {
+    const options = state.orchestrator.options ?? {};
+    write(run, { orchestrator: { options: { ...options, inputs: { ...options.inputs, [key]: true } } } });
+    return () => write(run, { orchestrator: { options } });
+  }
+  const source = graph.nodes.find(node => node.id === owner);
+  if (!source) throw new Error(`${gate.id}: its guard ${gate.when} reads false and no value turns it`);
+  if (source.type !== 'gate') {
+    const values = recorded[owner]?.values;
+    write(run, { nodes: { [owner]: { values: { ...values, [key]: true } } } });
+    return () => write(run, { nodes: { [owner]: { values } } });
+  }
+  const [option] = Object.entries(source.options ?? {}).find(([, each]) => each?.sets?.[key] === true) ?? [];
+  if (!option) throw new Error(`${gate.id}: no continue of ${owner} sets ${key}`);
+  const answer = chosen => write(run, {
+    nodes: { [owner]: { status: 'completed' } },
+    node_summaries: { [owner]: { decisions: [{ option: chosen, answered_by: 'operator', at: '2026-10-09T09:00:00Z' }] } },
+  });
+  answer(option);
+  return () => answer(firstContinue(source));
+}
+
 /** How each gate of `name` is carried under `driverName`: its form and the options it offers. */
 function gatesUnder(t, name, driverName) {
   const { driver, gate: form } = DRIVERS[driverName];
@@ -159,6 +194,7 @@ function gatesUnder(t, name, driverName) {
     if (Object.keys(nodes).length) write(run, { nodes, node_summaries });
     done = index;
     const base = ['gate-brief', `--state=${run.state}`, `--node=${node.id}`];
+    const restore = askable(run, graph, node, [...base, '--checkpoint']);
     let offered;
     if (form === 'picker') {
       const picker = JSON.parse(ok(verb([...base, '--json', '--picker=rich']), `gate-brief ${node.id}`));
@@ -177,6 +213,7 @@ function gatesUnder(t, name, driverName) {
       texts[node.id] = { question: request.question, options: request.options, checkpoint: withoutActors(checkpoint) };
     }
     gates[node.id] = offered;
+    restore();
   }
   seen.states.push({ at: `${name}/${driverName}`, state: readState(run) });
   seen.texts[`${name}/${driverName}`] = { gates: texts, reached: reachedUnder(t, name, driverName) };

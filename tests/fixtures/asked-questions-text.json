@@ -472,12 +472,17 @@
               "recommended": true
             },
             {
-              "consequence": "Re-runs  with your note, then asks this again.",
+              "consequence": "Re-runs UI mockups with your note, then asks this again.",
               "effect": "revise",
               "id": "revise-mockups",
               "label": "Revise the mockups",
               "recommended": false,
-              "reruns": [],
+              "reruns": [
+                {
+                  "node": "ui-mockups",
+                  "title": "UI mockups"
+                }
+              ],
               "revision": {
                 "max": 10,
                 "n": 1
@@ -527,7 +532,7 @@
             "recommended": true
           },
           {
-            "description": "Re-runs  with your note, then asks this again.",
+            "description": "Re-runs UI mockups with your note, then asks this again.",
             "effect": "revise",
             "id": "revise-mockups",
             "label": "Revise the mockups",
@@ -1787,12 +1792,17 @@
               "recommended": true
             },
             {
-              "consequence": "Re-runs  with your note, then asks this again.",
+              "consequence": "Re-runs UI mockups with your note, then asks this again.",
               "effect": "revise",
               "id": "revise-mockups",
               "label": "Revise the mockups",
               "recommended": false,
-              "reruns": [],
+              "reruns": [
+                {
+                  "node": "ui-mockups",
+                  "title": "UI mockups"
+                }
+              ],
               "revision": {
                 "max": 10,
                 "n": 1
@@ -1842,7 +1852,7 @@
             "recommended": true
           },
           {
-            "description": "Re-runs  with your note, then asks this again.",
+            "description": "Re-runs UI mockups with your note, then asks this again.",
             "effect": "revise",
             "id": "revise-mockups",
             "label": "Revise the mockups",
@@ -2729,7 +2739,7 @@
             "label": "Continue to the specification (Recommended)"
           },
           {
-            "description": "Re-runs  with your note, then asks this again.",
+            "description": "Re-runs UI mockups with your note, then asks this again.",
             "id": "revise-mockups",
             "label": "Revise the mockups"
           },

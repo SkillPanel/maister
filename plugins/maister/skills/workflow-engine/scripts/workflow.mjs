@@ -24,7 +24,9 @@
  *                  <node> <path>` line per file)
  *   gate-request   --state, --patch-file (or the request as JSON on stdin)
  *                                                             the files written
- *                  (the request file, the gate index and the pending marker)
+ *                  (the request file, the gate index and the pending marker);
+ *                  a gate its guard skips is refused `gate-guard-false`, as
+ *                  `gate-brief` refuses it, before anything is written
  *   gate-revise    --state, --node, --option, --patch-file (or the note as
  *                  JSON on stdin)                             changed paths
  *                  (the stretch from the option's rerun node to the gate reset
@@ -733,6 +735,18 @@ function reportWrite(result, input, rules) {
 async function runGateRequest(flags) {
   if (!flags.state) throw new UsageError('gate-request needs --state');
   const input = await readInput(flags, 'the request document');
+  // A gate its guard skips is refused before anything else, in every edition:
+  // the skip is the write a run makes there, never a suspension. Nothing is
+  // written and the request file is kept.
+  const briefing = await loadModule(VERBS['gate-brief'].module);
+  const skipped = entryOf(briefing, 'requestGuardRefusal', VERBS['gate-brief'].module)({
+    state: flags.state,
+    node: input.document !== null && typeof input.document === 'object' ? input.document.node : undefined,
+  });
+  if (skipped) {
+    for (const reason of skipped.errors) process.stderr.write(`${reason.message}\n`);
+    return EXIT.REJECTED;
+  }
   // An edition without the gate module cannot suspend a run at all. That is
   // answered by name rather than as the internal failure a missing import
   // otherwise is, because a driven run reaching it has one right response and

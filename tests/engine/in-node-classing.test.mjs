@@ -683,7 +683,37 @@ test('held: recording a task-guarded gate skipped while a choice is held warns h
   assert.doesNotMatch(quiet.stderr, /held-gate-skipped/);
 });
 
-test('held: a forced gate whose work was skipped is briefed "Skipped." with the held list; without one it still wants a summary', t => {
+test('held: a gate guarded only by an input is refused gate-guard-false while a choice is held, by the brief and by gate-request', t => {
+  const run = heldRun(t, { values: { wants_review: false, wants_notes: false } });
+  const before = fs.readFileSync(run.state, 'utf8');
+  for (const form of [[], ['--json', '--picker=rich'], ['--checkpoint'], ['--request'], ['--oneline']]) {
+    const result = gateBriefOf(run, 'depth-approval', ...form);
+    refused(result, 'gate-guard-false');
+    assert.match(result.stderr, /reads only inputs or other gates' values, which a held choice never overrides\./);
+    assert.match(result.stderr, /\{"nodes":\{"depth-approval":\{"status":"skipped"\}\}\}/);
+  }
+  const patch = path.join(run.dir, '.state-patch.json');
+  fs.writeFileSync(patch, JSON.stringify({ node: 'depth-approval', kind: 'approve', question: 'Proceed?', options: [] }));
+  const request = runScript(QUESTIONS.engine, ['gate-request', `--state=${run.state}`, `--patch-file=${patch}`]);
+  refused(request, 'gate-guard-false');
+  assert.equal(request.stdout, '');
+  assert.ok(fs.existsSync(patch), 'the request is kept');
+  assert.equal(fs.existsSync(path.join(run.dir, 'gates')), false, 'no request file');
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+});
+
+test('held: a gate whose false guard reads a step\'s value is asked while a choice is held, never refused', t => {
+  const run = heldRun(t, { values: { wants_review: false, wants_notes: false } });
+  for (const form of [['--json', '--picker=rich'], ['--request']]) {
+    const result = gateBriefOf(run, 'review-approval', ...form);
+    assert.equal(result.code, 0, result.stderr);
+    assert.doesNotMatch(result.stderr, /gate-guard-false/);
+  }
+  // Nothing held: the same guard skips it, and the brief says so.
+  refused(gateBriefOf(heldRun(t, { values: { wants_review: false, wants_notes: false }, hold: false }), 'review-approval', '--request'), 'gate-guard-false');
+});
+
+test('held: a forced gate whose work was skipped is briefed "Skipped." with the held list; without one its false guard refuses it', t => {
   const reach = (hold) => {
     const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
     ok(QUESTIONS.engine, run, {
@@ -722,7 +752,7 @@ test('held: a forced gate whose work was skipped is briefed "Skipped." with the 
   assert.match(listed.question, /^- Which signed-choice\?: signed-choice A — drafting$/m);
 
   const bare = gateBriefOf(reach(false), 'notes-approval', '--checkpoint');
-  refused(bare, 'gate-brief-no-summary');
+  refused(bare, 'gate-guard-false');
 });
 
 test('prior-context: the asking remainder is never printed; an unapproved held choice is marked awaiting approval', t => {
