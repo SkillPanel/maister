@@ -114,8 +114,8 @@ import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
-import { displayOf, headerOf, labelOf, titleOf } from './display.mjs';
-import { definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
+import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
+import { childRootOf, definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
 import { approvesHeld, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
@@ -380,6 +380,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   let built = null;
   const checkpointOf = () => (built ??= buildCheckpoint({
     doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId, held, settling,
+    graph: current.drift ? null : graph, defaults: current.defaults, parent: parentOf(doc, runDir),
     approves: policyOf().matches ? policyOf().approves : [],
   }));
   // Every form carries the panel an editor extension draws above the question,
@@ -1399,7 +1400,7 @@ const KEEPS_MAX = 3;
  * counted rather than listed. A fix is kept apart from the decisions: the run
  * changed it without asking, and settled nothing by it.
  */
-function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [], settling = null }) {
+function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [], settling = null, graph = null, defaults = {}, parent = null }) {
   const title = id => titleOf(titles, id);
   // The frozen nodes alone: the reserved closing checkpoint's status entry is
   // never counted, and it stands after them all.
@@ -1521,11 +1522,15 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       // and says where that answer leads; any other reads the preferred walk.
       const sets = isPlainObject(option) && isPlainObject(option.sets) ? { ...option.sets } : null;
       const own = sets && walks.has(id) ? nextOf(walks.get(id)) : next;
-      base.label = continueLabel(base.label, own);
+      base.label = continueLabel(base.label, own, parent);
       let consequence = 'Continues the run.';
       if (own?.waiting) consequence = `Waits on ${andList(own.waiting.map(each => each.title))}.`;
-      else if (own?.end) consequence = 'Finishes the run.';
+      else if (own?.end) consequence = parent ? `Ends this ${lowered(humanize(workflowName(doc)))} run; ${parentGoesOn(parent)}.` : 'Finishes the run.';
       else if (own?.title) consequence = `Runs ${lowered(own.title)} next.`;
+      // A continue that sets the gate's values says what those values turn
+      // off and what they leave to a later checkpoint, so two continues that
+      // land on the same next step still read apart.
+      if (sets && graph) consequence = withReach(consequence, reach({ graph, recorded, gate: node, inputs: inputsOf(doc), defaults, sets }), own, title, gateId);
       // The reason a closing node recommended this continue rides on the
       // option, so either picker shows why it is the one marked.
       const why = base.recommended && preferred?.option === id ? preferred.reason : null;
@@ -1546,10 +1551,13 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
         suggestions,
       }];
     }
+    // A stop under a parent stops the parent too: the label and the
+    // consequence name it, so it never reads as ending this run alone.
+    if (parent && base.label === STOP_HERE) base.label = `Stop ${lowered(parent.name)} here (nothing further runs)`;
     return [{
       ...base,
       effect: 'stop',
-      consequence: 'Ends the run here.',
+      consequence: parent ? `Stops this run and ${lowered(parent.name)}; nothing further runs.` : 'Ends the run here.',
       keeps,
       not_run: { next: next?.title ?? (later.length ? title(later[0]) : null), remaining: later.length },
     }];
@@ -1561,9 +1569,18 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   if (stopping) reason = risks.stop[0].risk;
   else if (settling && settling.option === recommended) reason = settling.reason;
   else if (preferred?.reason && preferred.option === recommended) reason = preferred.reason;
-  else if (risks.open.length) reason = `${risks.open.length} open ${risks.open.length === 1 ? 'item' : 'items'}; revise to settle ${risks.open.length === 1 ? 'it' : 'them'} first`;
-  else if (next?.title) reason = `nothing open blocks ${lowered(next.title)}`;
-  else reason = 'nothing open is left';
+  else {
+    // The reason argues for the option it stands beside: an open item is one
+    // nothing marked as blocking — a blocking one recommends the stop — so it
+    // is counted as going on with the run, never as a case for another option.
+    const chosen = listed.find(option => option.recommended);
+    const way = chosen?.next ?? next;
+    const onto = way?.title ? lowered(way.title) : way?.end && !parent ? 'finishing the run' : 'going on';
+    if (risks.open.length === 1) reason = `the open item does not block ${onto}`;
+    else if (risks.open.length) reason = `none of the ${risks.open.length} open items blocks ${onto}`;
+    else if (way?.title) reason = `nothing open blocks ${onto}`;
+    else reason = 'nothing open is left';
+  }
 
   const gates = order.filter(gateId);
   return {
@@ -1571,7 +1588,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     kind: 'gate',
     node,
     header: headerOf(display, node, closing.id),
-    ask: askOf(gateNode?.ask, title(closing.id)),
+    ask: gateAsk(gateNode?.ask, title(closing.id), Object.hasOwn(titles ?? {}, node) ? titles[node] : null),
     headline: headline || null,
     progress: { checkpoint: gates.indexOf(node) + 1, checkpoints_max: gates.length, node: Math.min(at + 1, order.length), nodes_total: order.length },
     next,
@@ -1680,10 +1697,67 @@ function grantsOf(options) {
  * final summary — read wrong whenever a guard had already settled which one
  * runs. Any other label is the definition's own.
  */
-function continueLabel(label, next) {
+function continueLabel(label, next, parent = null) {
   if (label !== BARE_CONTINUE || !next || next.waiting) return label;
-  if (next.end) return 'Finish the run';
+  if (next.end) return parent ? sentenceOf(parentStep(parent)).slice(0, -1) : 'Finish the run';
   return next.title ? `Continue to ${lowered(next.title)}` : label;
+}
+
+/** The stop label the engine scopes to the parent a stop also ends. */
+const STOP_HERE = 'Stop here';
+
+/**
+ * Where a run started by another run goes when this one ends: `{name, next?,
+ * ends?}` — `name` the parent workflow's readable name, `next` the title of
+ * the parent's step after the node that started this run, `ends` when the
+ * parent has none. Read from the child's `orchestrator.parent` link: the
+ * parent's state, its definition re-read as the gate brief reads its own, and
+ * the walk from the parent's node simulated completed. A parent that cannot be
+ * read, a definition that drifted or a walk that needs the child's values
+ * leaves the name alone. Null for a run with no parent.
+ */
+function parentOf(doc, runDir) {
+  const link = isPlainObject(doc.orchestrator) ? doc.orchestrator.parent : null;
+  if (!isPlainObject(link) || typeof link.run !== 'string' || link.run === '' || typeof link.node !== 'string') return null;
+  const dir = path.join(childRootOf(runDir, link), ...link.run.split('/'));
+  let parentDoc;
+  try {
+    parentDoc = parse(fs.readFileSync(path.join(dir, 'orchestrator-state.yml'), 'utf8'));
+  } catch {
+    return { name: humanize(path.basename(link.run).replace(/^\d{4}-\d{2}-\d{2}-/, '')) };
+  }
+  const workflow = isPlainObject(parentDoc.workflow) ? parentDoc.workflow : {};
+  const name = humanize(typeof workflow.name === 'string' && workflow.name !== '' ? workflow.name : path.basename(link.run));
+  try {
+    const current = reread(parentDoc, workflow, dir);
+    if (current.drift || !current.graph) return { name };
+    const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+    const way = walk({ graph: current.graph, recorded, gate: link.node, inputs: inputsOf(parentDoc), defaults: current.defaults });
+    if (!way.ok) return { name };
+    if (way.next === null) return (way.waiting ?? []).length ? { name } : { name, ends: true };
+    return { name, next: titleOf(current.display.titles, way.next) };
+  } catch {
+    return { name };
+  }
+}
+
+/** What this run's end does for its parent, as a step: `continue to <next>`, `finish <parent>` or `return to <parent>`. */
+function parentStep(parent) {
+  if (parent.next) return `continue to ${lowered(parent.next)}`;
+  return parent.ends ? `finish ${lowered(parent.name)}` : `return to ${lowered(parent.name)}`;
+}
+
+/** What the parent does once this run ends: `<parent> continues to <next>`, `… finishes` or `… goes on`. */
+function parentGoesOn(parent) {
+  const name = lowered(parent.name);
+  if (parent.next) return `${name} continues to ${lowered(parent.next)}`;
+  return parent.ends ? `${name} finishes` : `${name} goes on`;
+}
+
+/** The run's workflow name, `run` without one. */
+function workflowName(doc) {
+  const name = isPlainObject(doc.workflow) ? doc.workflow.name : null;
+  return typeof name === 'string' && name !== '' ? name : 'run';
 }
 
 /** The continue label the engine completes with the destination. */
@@ -1707,19 +1781,24 @@ function headline_(text) {
 }
 
 /**
- * The one-line ask, generated rather than read off the frozen `ask:`: the lead
- * of the gate's own ask — what finished, its parentheses dropped — then one
- * question, the same at every gate: is that work ready to go on. The ask names
- * the work the gate approves, never where the run goes: a destination read
- * like a second question whenever the step before had just opted into it, and
- * the continue option's label and the `Next:` line already say it. Without a
- * lead the closing node's title says what finished. An ask that does not end
- * asking to continue is a question of its own, kept as written.
+ * The one-line ask, generated rather than read off the frozen `ask:`. A gate
+ * the definition titles asks its own title as the question — `Approve the
+ * research foundation?` — so two gates closing the same work never read alike.
+ * Without a title: the lead of the gate's own ask — what finished, its
+ * parentheses dropped — then one question, the same at every gate: is that
+ * work ready to go on. Either way the ask names the work the gate approves,
+ * never where the run goes: a destination read like a second question whenever
+ * the step before had just opted into it, and the continue option's label and
+ * the `Next:` line already say it. Without a lead the closing node's title says
+ * what finished. An ask that does not end asking to continue is a question of
+ * its own, kept as written. Exported for the gate-title lint, which holds every
+ * built-in definition to one distinct ask per gate.
  */
-function askOf(ask, closingTitle) {
+export function gateAsk(ask, closingTitle, gateTitle = null) {
   const text = typeof ask === 'string' ? scalarText(ask) : '';
   const asks = ASKS_TO_CONTINUE.exec(text);
   if (text !== '' && !asks) return text;
+  if (typeof gateTitle === 'string' && gateTitle.trim() !== '') return `${gateTitle.trim().replace(/[.!?]+$/, '')}?`;
   let lead = asks ? asks[1].replace(PARENTHESIS, '').trim() : '';
   if (lead === '') lead = `${closingTitle} complete.`;
   if (!/[.!?]$/.test(lead)) lead = `${lead}.`;
@@ -2059,6 +2138,68 @@ export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, 
     status.set(ready.id, 'skipped');
     skipped.push(ready.id);
   }
+}
+
+/**
+ * What a continue's values decide downstream of `gate`: `{runs, skips, later}`,
+ * the ids of the nodes whose guard reads one of the gate's values, in resolved
+ * order — `runs` those it turns on, `skips` those it turns off, `later` those
+ * whose guard also reads a value no one has recorded yet, a later gate's most
+ * often. Walked as `walk` walks, over the whole downstream rather than to the
+ * first ready node: a node that runs, or whose guard cannot be read yet, is
+ * simulated completed so the nodes behind it are judged too. A node whose
+ * guard reads none of the gate's values is passed over as it falls, and listed
+ * nowhere: what an input or another step decides is not this answer's doing.
+ */
+export function reach({ graph, recorded: held, gate, inputs = {}, defaults = {}, sets = null }) {
+  const nodes = (graph?.nodes ?? []).filter(entry => entry.id !== HELD_APPROVAL);
+  const byId = new Map(nodes.map(entry => [entry.id, entry]));
+  const downstream = downstreamOf(nodes, gate);
+  const recorded = isPlainObject(sets) ? { ...held, [gate]: { ...entryOf(held, gate), values: { ...sets } } } : held;
+  const status = new Map();
+  for (const entry of nodes) status.set(entry.id, entryOf(recorded, entry.id).status ?? 'pending');
+  status.set(gate, 'completed');
+  const reads = entry => typeof entry.when === 'string'
+    && guardOperands(entry.when).some(operand => operand.replace(/^!/, '').startsWith(`\${${gate}.values.`));
+  const out = { runs: [], skips: [], later: [] };
+  for (;;) {
+    const ready = nodes.find(entry => downstream.has(entry.id)
+      && status.get(entry.id) === 'pending'
+      && readinessOf(entry, status) !== 'waiting');
+    if (!ready) return out;
+    if (readinessOf(ready, status) === 'skip') {
+      status.set(ready.id, 'skipped');
+      continue;
+    }
+    let verdict = true;
+    if (typeof ready.when === 'string' && !skipGuardAsks(ready, nodeKindIn(byId))) {
+      const guard = evaluate(ready.when, { byId, recorded, status, inputs, defaults });
+      verdict = guard.ok ? guard.value : null;
+    }
+    status.set(ready.id, verdict === false ? 'skipped' : 'completed');
+    if (reads(ready)) out[verdict === true ? 'runs' : verdict === false ? 'skips' : 'later'].push(ready.id);
+  }
+}
+
+/**
+ * A continue's consequence with what its values decide (`reach`): the steps it
+ * skips lead, the step after a gate it lands on follows, and the steps left to
+ * a later checkpoint close — `Skips solution brainstorming; runs high-level
+ * design next.` Gates are left out of every list: the approval of work follows
+ * the work.
+ */
+function withReach(consequence, reached, own, title, gateId) {
+  const tasks = ids => ids.filter(id => !gateId(id)).map(id => lowered(title(id)));
+  const skips = tasks(reached.skips);
+  const later = tasks(reached.later);
+  let text = consequence.replace(/\.$/, '');
+  if (own?.node && gateId(own.node)) {
+    const then = tasks(reached.runs)[0];
+    if (then) text = `${text}, then ${then}`;
+  }
+  if (skips.length) text = `Skips ${andList(skips)}; ${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+  if (later.length) text = `${text}; ${andList(later)} ${later.length === 1 ? 'is' : 'are'} decided at a later checkpoint`;
+  return `${text}.`;
 }
 
 /**

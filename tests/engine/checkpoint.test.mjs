@@ -181,7 +181,7 @@ test('checkpoint: its fields, in the contract\'s order', t => {
   assert.equal(checkpoint.kind, 'gate');
   assert.equal(checkpoint.node, 'specification-approval');
   assert.equal(checkpoint.header, 'Spec');
-  assert.equal(checkpoint.ask, 'Specification complete. Ready to go on?');
+  assert.equal(checkpoint.ask, 'Approve specification?');
   assert.deepEqual(checkpoint.next, { node: 'spec-audit', title: 'Specification audit', end: false, skipped: [] });
   assert.deepEqual(checkpoint.review, [
     { path: 'implementation/spec.md', label: 'Specification', html: 'implementation/spec.html', role: 'primary' },
@@ -226,7 +226,7 @@ test('checkpoint: options carry what choosing each does, revise and stop with th
     ['stop-development', 'stop', false],
   ]);
   // Each continue is walked on its own answer: what it sets, and where it leads.
-  assert.equal(options[0].consequence, 'Runs implementation planning next.');
+  assert.equal(options[0].consequence, 'Skips specification audit; runs implementation planning next.');
   assert.deepEqual(options[0].sets, { spec_audit_enabled: false });
   assert.deepEqual(options[0].next, {
     node: 'planning', title: 'Implementation planning', end: false,
@@ -265,7 +265,7 @@ test('checkpoint: a stop risk, typed or written the old way, recommends stopping
     const checkpoint = checkpointOf(run, 'specification-approval');
     assert.equal(checkpoint.recommended.option, 'stop-development');
     assert.equal(checkpoint.recommended.reason, 'the spec contradicts itself on null');
-    assert.equal(checkpoint.ask, 'Specification complete. Ready to go on?', 'with stopping recommended the ask still reads as a question about the work');
+    assert.equal(checkpoint.ask, 'Approve specification?', 'with stopping recommended the ask still reads as a question about the work');
     const rich = pickerOf(run, 'specification-approval', 'rich');
     assert.equal(rich.options[0].id, 'stop-development');
     assert.match(rich.options[0].preview, /^Why stop: the spec contradicts itself on null\nDone: /);
@@ -386,7 +386,7 @@ function atSpecGateRecommending(t, option, reason) {
 
 test('checkpoint: the gate that decides the audit names it in each continue and its Next, never in the ask', t => {
   const run = atSpecGateRecommending(t, 'continue-to-spec-audit', 'Asked for when the run started');
-  const ask = 'Specification complete. Ready to go on?';
+  const ask = 'Approve specification?';
   const rich = pickerOf(run, 'specification-approval', 'rich');
   assert.equal(rich.question, `${ask} Type "details" for the full brief.`, 'four options leave no slot for More details');
   assert.deepEqual(rich.options.map(option => option.id), ['continue-to-spec-audit', 'continue-to-planning', 'revise-specification', 'stop-development']);
@@ -545,7 +545,7 @@ test('rich: the specification gate renders as designed — a one-line ask, the g
   const rich = pickerOf(atSpecGate(t), 'specification-approval', 'rich');
   assert.equal(rich.header, 'Spec');
   // Two continues, a revise and a stop fill the four slots, so More details is typed.
-  assert.equal(rich.question, 'Specification complete. Ready to go on? Type "details" for the full brief.');
+  assert.equal(rich.question, 'Approve specification? Type "details" for the full brief.');
   assert.equal(rich.details, 'typed');
   assert.deepEqual(rich.options.map(option => option.label), [
     'Continue to the specification audit (Recommended)', 'Continue to planning, skip the audit', 'Revise the specification', 'Stop here',
@@ -586,7 +586,7 @@ test('plain: the specification gate renders as designed — the glance, then the
     'Next (continue to the specification audit): Specification audit',
     'Next (continue to planning, skip the audit): Implementation planning (skipping Specification audit)',
   ] : [line.replace('(HTML beside it)', '(HTML: spec.html)')]);
-  assert.equal(plain.question, [...glance, 'Specification complete. Ready to go on?'].join('\n'));
+  assert.equal(plain.question, [...glance, 'Approve specification?'].join('\n'));
   assert.deepEqual(plain.options.map(option => option.label), [
     `Continue to the specification audit — ${AUDIT_REASON} (Recommended)`,
     'Continue to planning, skip the audit',
@@ -619,7 +619,7 @@ test('rich: the research convergence gate recommending no design goes on to what
   const rich = pickerOf(run, 'convergence-approval', 'rich');
   assert.equal(rich.header, 'Solutions');
   // Two continues, the revise and the stop fill the picker, so More details is typed.
-  assert.equal(rich.question, 'Brainstorming complete. Ready to go on? Type "details" for the full brief.');
+  assert.equal(rich.question, 'Approve brainstorming? Type "details" for the full brief.');
   const glance = rich.options[0].preview.split('\n');
   assert.equal(glance[0], 'Done: The nine decision areas add up to one 2.0.0 release that is projected to close every path that can corrupt a stored note.');
   assert.match(glance[1], /^Next: Final summary \(skipping .*High-level design.*\)$/);
@@ -629,8 +629,8 @@ test('rich: the research convergence gate recommending no design goes on to what
   assert.ok(glance.indexOf('- The path-closure projection has not been run') < glance.indexOf('- Ship every change together as one 2.0.0 release — solution convergence'),
     'the open risk comes ahead of the decision');
   // The recommended continue is the one that finishes without the design, and says where it leads.
-  assert.equal(rich.options[0].label, 'Finish without a design (Recommended)');
-  assert.equal(rich.options[0].description, 'Runs final summary next. Design declined when the run started.');
+  assert.equal(rich.options[0].label, 'Continue to final summary (Recommended)');
+  assert.equal(rich.options[0].description, 'Skips high-level design; runs final summary next. Design declined when the run started.');
   const plain = pickerOf(run, 'convergence-approval', 'plain');
   assert.equal(plain.options.find(option => option.id === 'revise-convergence').label,
     'Ask the decision areas again — re-runs solution convergence with your note');
@@ -647,7 +647,7 @@ test('rich: the research convergence gate recommends the design when nothing nam
   const rich = pickerOf(run, 'convergence-approval', 'rich');
   assert.deepEqual(rich.options.slice(0, 2).map(option => [option.label, option.description]), [
     ['Continue to the design (Recommended)', 'Runs high-level design next.'],
-    ['Finish without a design', 'Runs final summary next.'],
+    ['Continue to final summary', 'Skips high-level design; runs final summary next.'],
   ]);
 });
 
@@ -787,7 +787,7 @@ test('request: the whole gate request, its summary the one-line form, its artifa
   assert.deepEqual(Object.keys(request), ['node', 'kind', 'question', 'context', 'options', 'multi_select']);
   for (const key of ['version', 'asked_at', 'answer']) assert.equal(Object.hasOwn(request, key), false, `${key} is the writer's`);
   assert.equal(request.kind, 'gate');
-  assert.equal(request.question, 'Specification complete. Ready to go on?');
+  assert.equal(request.question, 'Approve specification?');
   assert.equal(request.context.summary, gateBrief(run, 'specification-approval', '--oneline').stdout.trimEnd());
   assert.deepEqual(request.context.artifacts, ['implementation/spec.md', 'analysis/requirements.md']);
   assert.deepEqual(request.context.checkpoint, checkpointOf(run, 'specification-approval'));

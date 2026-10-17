@@ -270,7 +270,7 @@ Multi-source research with synthesis, optional solution brainstorming, and high-
 
 **Research types**: `technical`, `requirements`, `literature`, `mixed`
 
-**Flags**: `--type=TYPE`, `--brainstorm` / `--no-brainstorm`, `--design` / `--no-design`, `--context=PATH`. `--context=PATH` hands the run a context pack that the first phase copies into `analysis/work-context/` as background. Solution brainstorming and the high-level design are decided at the checkpoints before them. The research checkpoint offers *Continue to brainstorming*, *Continue to the design, skip brainstorming* and *Finish with the research*. When brainstorming ran, its checkpoint offers *Continue to the design* and *Finish without a design*. The flags set which way on is recommended; the checkpoint still asks.
+**Flags**: `--type=TYPE`, `--brainstorm` / `--no-brainstorm`, `--design` / `--no-design`, `--context=PATH`. `--context=PATH` hands the run a context pack that the first phase copies into `analysis/work-context/` as background. Solution brainstorming and the high-level design are decided at the checkpoints before them. The research checkpoint offers *Continue to brainstorming*, *Continue to the design, skip brainstorming* and *Continue to final summary*. When brainstorming ran, its checkpoint offers *Continue to the design* and *Continue to final summary*. Under a parent run the last continue names the parent's next step instead, since the research then skips its own summary. The flags set which way on is recommended; the checkpoint still asks.
 
 **Research also runs as a step inside another run.** A chain can name it from a node, and the node
 then starts a research run instead of a command doing it: the question comes from the node rather
@@ -433,7 +433,7 @@ answer in one line instead ("User guide: on — asked for when the run started")
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
 At a checkpoint the question is one line: what finished, and whether it is ready to go on. Where the run goes if you continue is named by the continue option.
-Where the next phase is optional, the checkpoint before it decides it in the same question, with one continue for each way on: development's specification checkpoint offers *Continue to the specification audit* and *Continue to planning, skip the audit*, and its verification checkpoint *Continue to the browser checks* and *Continue without browser checks*; research's checkpoint after the research offers *Continue to brainstorming*, *Continue to the design, skip brainstorming* and *Finish with the research*. The recommended one gives its reason, and each names where it leads.
+Where the next phase is optional, the checkpoint before it decides it in the same question, with one continue for each way on: development's specification checkpoint offers *Continue to the specification audit* and *Continue to planning, skip the audit*, and its verification checkpoint *Continue to the browser checks* and *Continue without browser checks*; research's checkpoint after the research offers *Continue to brainstorming*, *Continue to the design, skip brainstorming* and *Continue to final summary*. The recommended one gives its reason, and each names where it leads and what it skips.
 Beside the continue option you see the checkpoint at a glance:
 - *Done*: what the stretch since the last checkpoint produced, in a sentence;
 - *Next*: the phase that runs, and any it skips;
