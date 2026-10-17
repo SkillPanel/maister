@@ -118,8 +118,8 @@ display:
     completion:               done
   titles:
     research-foundation:      "Research foundation"
-    foundation-approval:      "Approve research foundation"
-    findings-approval:        "Approve research findings"
+    foundation-approval:      "Approve the research foundation"
+    findings-approval:        "Approve the research findings"
     solution-generation:      "Solution brainstorming"
     solution-convergence:     "Solution convergence"
     convergence-approval:     "Approve brainstorming"
@@ -127,12 +127,14 @@ display:
     design-approval:          "Approve design"
     completion:               "Final summary"
   option_labels:
-    # "Finish with the research" takes the place of a stop: the final summary
-    # still runs, unless the run is embedded and simply ends.
+    # Going on without brainstorming or the design takes the place of a stop.
+    # Its label is a bare "Continue", which the gate brief completes with where
+    # the run goes: the final summary, or under a parent run the parent's next
+    # step, since an embedded run skips the summary and simply ends.
     foundation-approval:
       continue-to-brainstorming: "Continue to brainstorming"
       continue-to-design: "Continue to the design, skip brainstorming"
-      finish-with-research: "Finish with the research"
+      finish-with-research: "Continue"
       revise-research: "Revise the research"
     # The final summary is skipped in an embedded run, which then finishes:
     # the label names no destination and the gate brief names the one that runs.
@@ -140,9 +142,10 @@ display:
       continue-to-completion: "Continue"
       revise-research: "Revise the research"
       stop-research: "Stop here"
+    # Going on without the design is a bare "Continue" for the same reason.
     convergence-approval:
       continue-to-design: "Continue to the design"
-      finish-without-design: "Finish without a design"
+      finish-without-design: "Continue"
       revise-convergence: "Ask the decision areas again"
       stop-research: "Stop here"
     # The final summary is skipped in an embedded run, which then finishes:

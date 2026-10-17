@@ -4,7 +4,7 @@
       "docs-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Documentation complete. Ready to go on?",
+          "ask": "Approve documentation?",
           "closed": [
             {
               "headline": "Done.",
@@ -91,12 +91,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Documentation complete. Ready to go on?"
+        "question": "Approve documentation?"
       },
       "e2e-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "E2E verification complete. Ready to go on?",
+          "ask": "Approve browser checks?",
           "closed": [
             {
               "headline": "Done.",
@@ -189,12 +189,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "E2E verification complete. Ready to go on?"
+        "question": "Approve browser checks?"
       },
       "gap-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Gap analysis complete. Ready to go on?",
+          "ask": "Approve gap analysis?",
           "closed": [
             {
               "headline": "Done.",
@@ -330,12 +330,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Gap analysis complete. Ready to go on?"
+        "question": "Approve gap analysis?"
       },
       "implementation-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation complete. Ready to go on?",
+          "ask": "Approve implementation?",
           "closed": [
             {
               "headline": "Done.",
@@ -428,12 +428,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation complete. Ready to go on?"
+        "question": "Approve implementation?"
       },
       "mockup-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "UI mockups complete. Ready to go on?",
+          "ask": "Approve UI mockups?",
           "closed": [
             {
               "headline": "Done.",
@@ -546,12 +546,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "UI mockups complete. Ready to go on?"
+        "question": "Approve UI mockups?"
       },
       "planning-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation plan complete. Ready to go on?",
+          "ask": "Approve implementation plan?",
           "closed": [
             {
               "headline": "Done.",
@@ -664,12 +664,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation plan complete. Ready to go on?"
+        "question": "Approve implementation plan?"
       },
       "planning-approval-publish": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation plan complete. Ready to go on?",
+          "ask": "Approve implementation plan and publish?",
           "closed": [
             {
               "headline": "Done.",
@@ -787,12 +787,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation plan complete. Ready to go on?"
+        "question": "Approve implementation plan and publish?"
       },
       "spec-audit-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification audit complete. Ready to go on?",
+          "ask": "Approve specification audit?",
           "closed": [
             {
               "headline": "Done.",
@@ -909,12 +909,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification audit complete. Ready to go on?"
+        "question": "Approve specification audit?"
       },
       "specification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification complete. Ready to go on?",
+          "ask": "Approve specification?",
           "closed": [
             {
               "headline": "Done.",
@@ -946,7 +946,7 @@
           "node": "specification-approval",
           "options": [
             {
-              "consequence": "Runs implementation planning next.",
+              "consequence": "Skips specification audit; runs implementation planning next.",
               "effect": "continue",
               "id": "continue-to-planning",
               "label": "Continue to planning, skip the audit",
@@ -1044,7 +1044,7 @@
             "recommended": true
           },
           {
-            "description": "Runs implementation planning next.",
+            "description": "Skips specification audit; runs implementation planning next.",
             "effect": "continue",
             "id": "continue-to-planning",
             "label": "Continue to planning, skip the audit"
@@ -1064,12 +1064,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification complete. Ready to go on?"
+        "question": "Approve specification?"
       },
       "tdd-red-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "The failing test is written. Ready to go on?",
+          "ask": "Approve the failing test?",
           "closed": [
             {
               "headline": "Done.",
@@ -1162,12 +1162,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "The failing test is written. Ready to go on?"
+        "question": "Approve the failing test?"
       },
       "verification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Verification complete. Ready to go on?",
+          "ask": "Approve verification?",
           "closed": [
             {
               "headline": "Done.",
@@ -1211,7 +1211,7 @@
           "node": "verification-approval",
           "options": [
             {
-              "consequence": "Runs finalization next.",
+              "consequence": "Skips browser checks; runs finalization next.",
               "effect": "continue",
               "id": "continue-past-verification",
               "label": "Continue without browser checks",
@@ -1296,7 +1296,7 @@
             "recommended": true
           },
           {
-            "description": "Runs finalization next.",
+            "description": "Skips browser checks; runs finalization next.",
             "effect": "continue",
             "id": "continue-past-verification",
             "label": "Continue without browser checks"
@@ -1308,7 +1308,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Verification complete. Ready to go on?"
+        "question": "Approve verification?"
       }
     },
     "reached": [
@@ -1324,7 +1324,7 @@
       "docs-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Documentation complete. Ready to go on?",
+          "ask": "Approve documentation?",
           "closed": [
             {
               "headline": "Done.",
@@ -1411,12 +1411,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Documentation complete. Ready to go on?"
+        "question": "Approve documentation?"
       },
       "e2e-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "E2E verification complete. Ready to go on?",
+          "ask": "Approve browser checks?",
           "closed": [
             {
               "headline": "Done.",
@@ -1509,12 +1509,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "E2E verification complete. Ready to go on?"
+        "question": "Approve browser checks?"
       },
       "gap-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Gap analysis complete. Ready to go on?",
+          "ask": "Approve gap analysis?",
           "closed": [
             {
               "headline": "Done.",
@@ -1650,12 +1650,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Gap analysis complete. Ready to go on?"
+        "question": "Approve gap analysis?"
       },
       "implementation-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation complete. Ready to go on?",
+          "ask": "Approve implementation?",
           "closed": [
             {
               "headline": "Done.",
@@ -1748,12 +1748,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation complete. Ready to go on?"
+        "question": "Approve implementation?"
       },
       "mockup-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "UI mockups complete. Ready to go on?",
+          "ask": "Approve UI mockups?",
           "closed": [
             {
               "headline": "Done.",
@@ -1866,12 +1866,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "UI mockups complete. Ready to go on?"
+        "question": "Approve UI mockups?"
       },
       "planning-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation plan complete. Ready to go on?",
+          "ask": "Approve implementation plan?",
           "closed": [
             {
               "headline": "Done.",
@@ -1984,12 +1984,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation plan complete. Ready to go on?"
+        "question": "Approve implementation plan?"
       },
       "planning-approval-publish": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation plan complete. Ready to go on?",
+          "ask": "Approve implementation plan and publish?",
           "closed": [
             {
               "headline": "Done.",
@@ -2107,12 +2107,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation plan complete. Ready to go on?"
+        "question": "Approve implementation plan and publish?"
       },
       "spec-audit-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification audit complete. Ready to go on?",
+          "ask": "Approve specification audit?",
           "closed": [
             {
               "headline": "Done.",
@@ -2229,12 +2229,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification audit complete. Ready to go on?"
+        "question": "Approve specification audit?"
       },
       "specification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification complete. Ready to go on?",
+          "ask": "Approve specification?",
           "closed": [
             {
               "headline": "Done.",
@@ -2266,7 +2266,7 @@
           "node": "specification-approval",
           "options": [
             {
-              "consequence": "Runs implementation planning next.",
+              "consequence": "Skips specification audit; runs implementation planning next.",
               "effect": "continue",
               "id": "continue-to-planning",
               "label": "Continue to planning, skip the audit",
@@ -2364,7 +2364,7 @@
             "recommended": true
           },
           {
-            "description": "Runs implementation planning next.",
+            "description": "Skips specification audit; runs implementation planning next.",
             "effect": "continue",
             "id": "continue-to-planning",
             "label": "Continue to planning, skip the audit"
@@ -2384,12 +2384,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification complete. Ready to go on?"
+        "question": "Approve specification?"
       },
       "tdd-red-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "The failing test is written. Ready to go on?",
+          "ask": "Approve the failing test?",
           "closed": [
             {
               "headline": "Done.",
@@ -2482,12 +2482,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "The failing test is written. Ready to go on?"
+        "question": "Approve the failing test?"
       },
       "verification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Verification complete. Ready to go on?",
+          "ask": "Approve verification?",
           "closed": [
             {
               "headline": "Done.",
@@ -2531,7 +2531,7 @@
           "node": "verification-approval",
           "options": [
             {
-              "consequence": "Runs finalization next.",
+              "consequence": "Skips browser checks; runs finalization next.",
               "effect": "continue",
               "id": "continue-past-verification",
               "label": "Continue without browser checks",
@@ -2616,7 +2616,7 @@
             "recommended": true
           },
           {
-            "description": "Runs finalization next.",
+            "description": "Skips browser checks; runs finalization next.",
             "effect": "continue",
             "id": "continue-past-verification",
             "label": "Continue without browser checks"
@@ -2628,7 +2628,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Verification complete. Ready to go on?"
+        "question": "Approve verification?"
       }
     },
     "reached": [
@@ -2660,7 +2660,7 @@
             "label": "More details"
           }
         ],
-        "question": "Documentation complete. Ready to go on?"
+        "question": "Approve documentation?"
       },
       "e2e-approval": {
         "header": "Browser",
@@ -2681,7 +2681,7 @@
             "label": "More details"
           }
         ],
-        "question": "E2E verification complete. Ready to go on?"
+        "question": "Approve browser checks?"
       },
       "gap-approval": {
         "header": "Gap analysis",
@@ -2707,7 +2707,7 @@
             "label": "More details"
           }
         ],
-        "question": "Gap analysis complete. Ready to go on?"
+        "question": "Approve gap analysis?"
       },
       "implementation-approval": {
         "header": "Implemented",
@@ -2728,7 +2728,7 @@
             "label": "More details"
           }
         ],
-        "question": "Implementation complete. Ready to go on?"
+        "question": "Approve implementation?"
       },
       "mockup-approval": {
         "header": "UI mockups",
@@ -2754,7 +2754,7 @@
             "label": "More details"
           }
         ],
-        "question": "UI mockups complete. Ready to go on?"
+        "question": "Approve UI mockups?"
       },
       "planning-approval": {
         "header": "Plan",
@@ -2780,7 +2780,7 @@
             "label": "More details"
           }
         ],
-        "question": "Implementation plan complete. Ready to go on?"
+        "question": "Approve implementation plan?"
       },
       "planning-approval-publish": {
         "header": "Plan",
@@ -2806,7 +2806,7 @@
             "label": "More details"
           }
         ],
-        "question": "Implementation plan complete. Ready to go on?"
+        "question": "Approve implementation plan and publish?"
       },
       "spec-audit-approval": {
         "header": "Spec audit",
@@ -2832,7 +2832,7 @@
             "label": "More details"
           }
         ],
-        "question": "Specification audit complete. Ready to go on?"
+        "question": "Approve specification audit?"
       },
       "specification-approval": {
         "header": "Spec",
@@ -2843,7 +2843,7 @@
             "label": "Continue to the specification audit (Recommended)"
           },
           {
-            "description": "Runs implementation planning next.",
+            "description": "Skips specification audit; runs implementation planning next.",
             "id": "continue-to-planning",
             "label": "Continue to planning, skip the audit"
           },
@@ -2858,7 +2858,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification complete. Ready to go on? Type \"details\" for the full brief."
+        "question": "Approve specification? Type \"details\" for the full brief."
       },
       "tdd-red-approval": {
         "header": "Failing test",
@@ -2879,7 +2879,7 @@
             "label": "More details"
           }
         ],
-        "question": "The failing test is written. Ready to go on?"
+        "question": "Approve the failing test?"
       },
       "verification-approval": {
         "header": "Verification",
@@ -2890,7 +2890,7 @@
             "label": "Continue to the browser checks (Recommended)"
           },
           {
-            "description": "Runs finalization next.",
+            "description": "Skips browser checks; runs finalization next.",
             "id": "continue-past-verification",
             "label": "Continue without browser checks"
           },
@@ -2905,7 +2905,7 @@
             "label": "More details"
           }
         ],
-        "question": "Verification complete. Ready to go on?"
+        "question": "Approve verification?"
       }
     },
     "reached": [
@@ -2921,7 +2921,7 @@
       "execution-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Migration execution complete. Ready to go on?",
+          "ask": "Approve migration execution?",
           "closed": [
             {
               "headline": "Done.",
@@ -3008,12 +3008,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Migration execution complete. Ready to go on?"
+        "question": "Approve migration execution?"
       },
       "gap-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Gap analysis complete. Ready to go on?",
+          "ask": "Approve gap analysis?",
           "closed": [
             {
               "headline": "Done.",
@@ -3138,12 +3138,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Gap analysis complete. Ready to go on?"
+        "question": "Approve gap analysis?"
       },
       "planning-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Migration planning complete. Ready to go on?",
+          "ask": "Approve migration plan?",
           "closed": [
             {
               "headline": "Done.",
@@ -3256,12 +3256,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Migration planning complete. Ready to go on?"
+        "question": "Approve migration plan?"
       },
       "resolution-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Issue resolution complete. Ready to go on?",
+          "ask": "Approve issue resolution?",
           "closed": [
             {
               "headline": "Done.",
@@ -3354,12 +3354,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Issue resolution complete. Ready to go on?"
+        "question": "Approve issue resolution?"
       },
       "specification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification complete. Ready to go on?",
+          "ask": "Approve specification?",
           "closed": [
             {
               "headline": "Done.",
@@ -3472,12 +3472,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification complete. Ready to go on?"
+        "question": "Approve specification?"
       },
       "verification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Verification complete. Ready to go on?",
+          "ask": "Approve verification?",
           "closed": [
             {
               "headline": "Done.",
@@ -3575,7 +3575,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Verification complete. Ready to go on?"
+        "question": "Approve verification?"
       }
     },
     "reached": [
@@ -3591,7 +3591,7 @@
       "execution-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Migration execution complete. Ready to go on?",
+          "ask": "Approve migration execution?",
           "closed": [
             {
               "headline": "Done.",
@@ -3678,12 +3678,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Migration execution complete. Ready to go on?"
+        "question": "Approve migration execution?"
       },
       "gap-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Gap analysis complete. Ready to go on?",
+          "ask": "Approve gap analysis?",
           "closed": [
             {
               "headline": "Done.",
@@ -3808,12 +3808,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Gap analysis complete. Ready to go on?"
+        "question": "Approve gap analysis?"
       },
       "planning-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Migration planning complete. Ready to go on?",
+          "ask": "Approve migration plan?",
           "closed": [
             {
               "headline": "Done.",
@@ -3926,12 +3926,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Migration planning complete. Ready to go on?"
+        "question": "Approve migration plan?"
       },
       "resolution-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Issue resolution complete. Ready to go on?",
+          "ask": "Approve issue resolution?",
           "closed": [
             {
               "headline": "Done.",
@@ -4024,12 +4024,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Issue resolution complete. Ready to go on?"
+        "question": "Approve issue resolution?"
       },
       "specification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification complete. Ready to go on?",
+          "ask": "Approve specification?",
           "closed": [
             {
               "headline": "Done.",
@@ -4142,12 +4142,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification complete. Ready to go on?"
+        "question": "Approve specification?"
       },
       "verification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Verification complete. Ready to go on?",
+          "ask": "Approve verification?",
           "closed": [
             {
               "headline": "Done.",
@@ -4245,7 +4245,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Verification complete. Ready to go on?"
+        "question": "Approve verification?"
       }
     },
     "reached": [
@@ -4277,7 +4277,7 @@
             "label": "More details"
           }
         ],
-        "question": "Migration execution complete. Ready to go on?"
+        "question": "Approve migration execution?"
       },
       "gap-approval": {
         "header": "Gap analysis",
@@ -4303,7 +4303,7 @@
             "label": "More details"
           }
         ],
-        "question": "Gap analysis complete. Ready to go on?"
+        "question": "Approve gap analysis?"
       },
       "planning-approval": {
         "header": "Plan",
@@ -4329,7 +4329,7 @@
             "label": "More details"
           }
         ],
-        "question": "Migration planning complete. Ready to go on?"
+        "question": "Approve migration plan?"
       },
       "resolution-approval": {
         "header": "Fixes",
@@ -4350,7 +4350,7 @@
             "label": "More details"
           }
         ],
-        "question": "Issue resolution complete. Ready to go on?"
+        "question": "Approve issue resolution?"
       },
       "specification-approval": {
         "header": "Spec",
@@ -4376,7 +4376,7 @@
             "label": "More details"
           }
         ],
-        "question": "Specification complete. Ready to go on?"
+        "question": "Approve specification?"
       },
       "verification-approval": {
         "header": "Verification",
@@ -4397,7 +4397,7 @@
             "label": "More details"
           }
         ],
-        "question": "Verification complete. Ready to go on?"
+        "question": "Approve verification?"
       }
     },
     "reached": [
@@ -4413,7 +4413,7 @@
       "bottleneck-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Performance analysis complete. Ready to go on?",
+          "ask": "Approve bottleneck analysis?",
           "closed": [
             {
               "headline": "Done.",
@@ -4538,12 +4538,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Performance analysis complete. Ready to go on?"
+        "question": "Approve bottleneck analysis?"
       },
       "implementation-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation complete. Ready to go on?",
+          "ask": "Approve implementation?",
           "closed": [
             {
               "headline": "Done.",
@@ -4630,12 +4630,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation complete. Ready to go on?"
+        "question": "Approve implementation?"
       },
       "planning-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation plan complete. Ready to go on?",
+          "ask": "Approve implementation plan?",
           "closed": [
             {
               "headline": "Done.",
@@ -4748,12 +4748,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation plan complete. Ready to go on?"
+        "question": "Approve implementation plan?"
       },
       "spec-audit-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification audit complete. Ready to go on?",
+          "ask": "Approve specification audit?",
           "closed": [
             {
               "headline": "Done.",
@@ -4870,12 +4870,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification audit complete. Ready to go on?"
+        "question": "Approve specification audit?"
       },
       "specification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification complete. Ready to go on?",
+          "ask": "Approve specification?",
           "closed": [
             {
               "headline": "Done.",
@@ -4988,12 +4988,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification complete. Ready to go on?"
+        "question": "Approve specification?"
       },
       "verification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Verification complete. Ready to go on?",
+          "ask": "Approve verification?",
           "closed": [
             {
               "headline": "Done.",
@@ -5086,7 +5086,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Verification complete. Ready to go on?"
+        "question": "Approve verification?"
       }
     },
     "reached": [
@@ -5103,7 +5103,7 @@
       "bottleneck-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Performance analysis complete. Ready to go on?",
+          "ask": "Approve bottleneck analysis?",
           "closed": [
             {
               "headline": "Done.",
@@ -5228,12 +5228,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Performance analysis complete. Ready to go on?"
+        "question": "Approve bottleneck analysis?"
       },
       "implementation-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation complete. Ready to go on?",
+          "ask": "Approve implementation?",
           "closed": [
             {
               "headline": "Done.",
@@ -5320,12 +5320,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation complete. Ready to go on?"
+        "question": "Approve implementation?"
       },
       "planning-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Implementation plan complete. Ready to go on?",
+          "ask": "Approve implementation plan?",
           "closed": [
             {
               "headline": "Done.",
@@ -5438,12 +5438,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Implementation plan complete. Ready to go on?"
+        "question": "Approve implementation plan?"
       },
       "spec-audit-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification audit complete. Ready to go on?",
+          "ask": "Approve specification audit?",
           "closed": [
             {
               "headline": "Done.",
@@ -5560,12 +5560,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification audit complete. Ready to go on?"
+        "question": "Approve specification audit?"
       },
       "specification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Specification complete. Ready to go on?",
+          "ask": "Approve specification?",
           "closed": [
             {
               "headline": "Done.",
@@ -5678,12 +5678,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Specification complete. Ready to go on?"
+        "question": "Approve specification?"
       },
       "verification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Verification complete. Ready to go on?",
+          "ask": "Approve verification?",
           "closed": [
             {
               "headline": "Done.",
@@ -5776,7 +5776,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Verification complete. Ready to go on?"
+        "question": "Approve verification?"
       }
     },
     "reached": [
@@ -5814,7 +5814,7 @@
             "label": "More details"
           }
         ],
-        "question": "Performance analysis complete. Ready to go on?"
+        "question": "Approve bottleneck analysis?"
       },
       "implementation-approval": {
         "header": "Implemented",
@@ -5835,7 +5835,7 @@
             "label": "More details"
           }
         ],
-        "question": "Implementation complete. Ready to go on?"
+        "question": "Approve implementation?"
       },
       "planning-approval": {
         "header": "Plan",
@@ -5861,7 +5861,7 @@
             "label": "More details"
           }
         ],
-        "question": "Implementation plan complete. Ready to go on?"
+        "question": "Approve implementation plan?"
       },
       "spec-audit-approval": {
         "header": "Spec audit",
@@ -5887,7 +5887,7 @@
             "label": "More details"
           }
         ],
-        "question": "Specification audit complete. Ready to go on?"
+        "question": "Approve specification audit?"
       },
       "specification-approval": {
         "header": "Spec",
@@ -5913,7 +5913,7 @@
             "label": "More details"
           }
         ],
-        "question": "Specification complete. Ready to go on?"
+        "question": "Approve specification?"
       },
       "verification-approval": {
         "header": "Verification",
@@ -5934,7 +5934,7 @@
             "label": "More details"
           }
         ],
-        "question": "Verification complete. Ready to go on?"
+        "question": "Approve verification?"
       }
     },
     "reached": [
@@ -5951,7 +5951,7 @@
       "characteristics-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Design characteristics detected. Ready to go on?",
+          "ask": "Approve design characteristics?",
           "closed": [
             {
               "headline": "Done.",
@@ -6064,12 +6064,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Design characteristics detected. Ready to go on?"
+        "question": "Approve design characteristics?"
       },
       "context-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Context synthesis complete. Ready to go on?",
+          "ask": "Approve design context?",
           "closed": [
             {
               "headline": "Done.",
@@ -6182,12 +6182,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Context synthesis complete. Ready to go on?"
+        "question": "Approve design context?"
       },
       "direction-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Design direction ready for review. Ready to go on?",
+          "ask": "Approve design direction?",
           "closed": [
             {
               "headline": "Done.",
@@ -6336,12 +6336,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Design direction ready for review. Ready to go on?"
+        "question": "Approve design direction?"
       },
       "problem-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Problem exploration complete. Ready to go on?",
+          "ask": "Approve problem and personas?",
           "closed": [
             {
               "headline": "Done.",
@@ -6460,12 +6460,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Problem exploration complete. Ready to go on?"
+        "question": "Approve problem and personas?"
       },
       "specification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Feature specification complete. Ready to go on?",
+          "ask": "Approve specification and prototypes?",
           "closed": [
             {
               "headline": "Done.",
@@ -6584,7 +6584,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Feature specification complete. Ready to go on?"
+        "question": "Approve specification and prototypes?"
       }
     },
     "reached": [
@@ -6600,7 +6600,7 @@
       "characteristics-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Design characteristics detected. Ready to go on?",
+          "ask": "Approve design characteristics?",
           "closed": [
             {
               "headline": "Done.",
@@ -6713,12 +6713,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Design characteristics detected. Ready to go on?"
+        "question": "Approve design characteristics?"
       },
       "context-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Context synthesis complete. Ready to go on?",
+          "ask": "Approve design context?",
           "closed": [
             {
               "headline": "Done.",
@@ -6831,12 +6831,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Context synthesis complete. Ready to go on?"
+        "question": "Approve design context?"
       },
       "direction-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Design direction ready for review. Ready to go on?",
+          "ask": "Approve design direction?",
           "closed": [
             {
               "headline": "Done.",
@@ -6985,12 +6985,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Design direction ready for review. Ready to go on?"
+        "question": "Approve design direction?"
       },
       "problem-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Problem exploration complete. Ready to go on?",
+          "ask": "Approve problem and personas?",
           "closed": [
             {
               "headline": "Done.",
@@ -7109,12 +7109,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Problem exploration complete. Ready to go on?"
+        "question": "Approve problem and personas?"
       },
       "specification-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Feature specification complete. Ready to go on?",
+          "ask": "Approve specification and prototypes?",
           "closed": [
             {
               "headline": "Done.",
@@ -7233,7 +7233,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Feature specification complete. Ready to go on?"
+        "question": "Approve specification and prototypes?"
       }
     },
     "reached": [
@@ -7270,7 +7270,7 @@
             "label": "More details"
           }
         ],
-        "question": "Design characteristics detected. Ready to go on?"
+        "question": "Approve design characteristics?"
       },
       "context-approval": {
         "header": "Context",
@@ -7296,7 +7296,7 @@
             "label": "More details"
           }
         ],
-        "question": "Context synthesis complete. Ready to go on?"
+        "question": "Approve design context?"
       },
       "direction-approval": {
         "header": "Direction",
@@ -7322,7 +7322,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Design direction ready for review. Ready to go on? Type \"details\" for the full brief."
+        "question": "Approve design direction? Type \"details\" for the full brief."
       },
       "problem-approval": {
         "header": "Problem",
@@ -7348,7 +7348,7 @@
             "label": "More details"
           }
         ],
-        "question": "Problem exploration complete. Ready to go on?"
+        "question": "Approve problem and personas?"
       },
       "specification-approval": {
         "header": "Spec",
@@ -7374,7 +7374,7 @@
             "label": "More details"
           }
         ],
-        "question": "Feature specification complete. Ready to go on?"
+        "question": "Approve specification and prototypes?"
       }
     },
     "reached": [
@@ -7390,7 +7390,7 @@
       "convergence-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Brainstorming complete. Ready to go on?",
+          "ask": "Approve brainstorming?",
           "closed": [
             {
               "headline": "Done.",
@@ -7444,10 +7444,10 @@
               }
             },
             {
-              "consequence": "Runs final summary next.",
+              "consequence": "Skips high-level design; runs final summary next.",
               "effect": "continue",
               "id": "finish-without-design",
-              "label": "Finish without a design",
+              "label": "Continue to final summary",
               "next": {
                 "end": false,
                 "node": "completion",
@@ -7526,10 +7526,10 @@
             "recommended": true
           },
           {
-            "description": "Runs final summary next.",
+            "description": "Skips high-level design; runs final summary next.",
             "effect": "continue",
             "id": "finish-without-design",
-            "label": "Finish without a design"
+            "label": "Continue to final summary"
           },
           {
             "description": "Re-runs Solution convergence with your note, then asks this again.",
@@ -7546,12 +7546,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Brainstorming complete. Ready to go on?"
+        "question": "Approve brainstorming?"
       },
       "design-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "High-level design complete. Ready to go on?",
+          "ask": "Approve design?",
           "closed": [
             {
               "headline": "Done.",
@@ -7664,12 +7664,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "High-level design complete. Ready to go on?"
+        "question": "Approve design?"
       },
       "findings-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Research complete. Ready to go on?",
+          "ask": "Approve the research findings?",
           "closed": [
             {
               "headline": "Done.",
@@ -7782,12 +7782,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Research complete. Ready to go on?"
+        "question": "Approve the research findings?"
       },
       "foundation-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Research complete. Ready to go on?",
+          "ask": "Approve the research foundation?",
           "closed": [
             {
               "headline": "Done.",
@@ -7819,7 +7819,7 @@
           "node": "foundation-approval",
           "options": [
             {
-              "consequence": "Runs solution brainstorming next.",
+              "consequence": "Runs solution brainstorming next; high-level design is decided at a later checkpoint.",
               "effect": "continue",
               "id": "continue-to-brainstorming",
               "label": "Continue to brainstorming",
@@ -7836,7 +7836,7 @@
               }
             },
             {
-              "consequence": "Runs high-level design next.",
+              "consequence": "Skips solution brainstorming and solution convergence; runs high-level design next.",
               "effect": "continue",
               "id": "continue-to-design",
               "label": "Continue to the design, skip brainstorming",
@@ -7864,10 +7864,10 @@
               }
             },
             {
-              "consequence": "Runs final summary next.",
+              "consequence": "Skips solution brainstorming, solution convergence and high-level design; runs final summary next.",
               "effect": "continue",
               "id": "finish-with-research",
-              "label": "Finish with the research",
+              "label": "Continue to final summary",
               "next": {
                 "end": false,
                 "node": "completion",
@@ -7938,23 +7938,23 @@
         },
         "options": [
           {
-            "description": "Runs solution brainstorming next.",
+            "description": "Runs solution brainstorming next; high-level design is decided at a later checkpoint.",
             "effect": "continue",
             "id": "continue-to-brainstorming",
             "label": "Continue to brainstorming",
             "recommended": true
           },
           {
-            "description": "Runs high-level design next.",
+            "description": "Skips solution brainstorming and solution convergence; runs high-level design next.",
             "effect": "continue",
             "id": "continue-to-design",
             "label": "Continue to the design, skip brainstorming"
           },
           {
-            "description": "Runs final summary next.",
+            "description": "Skips solution brainstorming, solution convergence and high-level design; runs final summary next.",
             "effect": "continue",
             "id": "finish-with-research",
-            "label": "Finish with the research"
+            "label": "Continue to final summary"
           },
           {
             "description": "Re-runs Research foundation with your note, then asks this again.",
@@ -7965,7 +7965,7 @@
             "suggestions": []
           }
         ],
-        "question": "Research complete. Ready to go on?"
+        "question": "Approve the research foundation?"
       }
     },
     "reached": [
@@ -7979,7 +7979,7 @@
       "convergence-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Brainstorming complete. Ready to go on?",
+          "ask": "Approve brainstorming?",
           "closed": [
             {
               "headline": "Done.",
@@ -8033,10 +8033,10 @@
               }
             },
             {
-              "consequence": "Runs final summary next.",
+              "consequence": "Skips high-level design; runs final summary next.",
               "effect": "continue",
               "id": "finish-without-design",
-              "label": "Finish without a design",
+              "label": "Continue to final summary",
               "next": {
                 "end": false,
                 "node": "completion",
@@ -8115,10 +8115,10 @@
             "recommended": true
           },
           {
-            "description": "Runs final summary next.",
+            "description": "Skips high-level design; runs final summary next.",
             "effect": "continue",
             "id": "finish-without-design",
-            "label": "Finish without a design"
+            "label": "Continue to final summary"
           },
           {
             "description": "Re-runs Solution convergence with your note, then asks this again.",
@@ -8135,12 +8135,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Brainstorming complete. Ready to go on?"
+        "question": "Approve brainstorming?"
       },
       "design-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "High-level design complete. Ready to go on?",
+          "ask": "Approve design?",
           "closed": [
             {
               "headline": "Done.",
@@ -8253,12 +8253,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "High-level design complete. Ready to go on?"
+        "question": "Approve design?"
       },
       "findings-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Research complete. Ready to go on?",
+          "ask": "Approve the research findings?",
           "closed": [
             {
               "headline": "Done.",
@@ -8371,12 +8371,12 @@
             "label": "Stop here"
           }
         ],
-        "question": "Research complete. Ready to go on?"
+        "question": "Approve the research findings?"
       },
       "foundation-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Research complete. Ready to go on?",
+          "ask": "Approve the research foundation?",
           "closed": [
             {
               "headline": "Done.",
@@ -8408,7 +8408,7 @@
           "node": "foundation-approval",
           "options": [
             {
-              "consequence": "Runs solution brainstorming next.",
+              "consequence": "Runs solution brainstorming next; high-level design is decided at a later checkpoint.",
               "effect": "continue",
               "id": "continue-to-brainstorming",
               "label": "Continue to brainstorming",
@@ -8425,7 +8425,7 @@
               }
             },
             {
-              "consequence": "Runs high-level design next.",
+              "consequence": "Skips solution brainstorming and solution convergence; runs high-level design next.",
               "effect": "continue",
               "id": "continue-to-design",
               "label": "Continue to the design, skip brainstorming",
@@ -8453,10 +8453,10 @@
               }
             },
             {
-              "consequence": "Runs final summary next.",
+              "consequence": "Skips solution brainstorming, solution convergence and high-level design; runs final summary next.",
               "effect": "continue",
               "id": "finish-with-research",
-              "label": "Finish with the research",
+              "label": "Continue to final summary",
               "next": {
                 "end": false,
                 "node": "completion",
@@ -8527,23 +8527,23 @@
         },
         "options": [
           {
-            "description": "Runs solution brainstorming next.",
+            "description": "Runs solution brainstorming next; high-level design is decided at a later checkpoint.",
             "effect": "continue",
             "id": "continue-to-brainstorming",
             "label": "Continue to brainstorming",
             "recommended": true
           },
           {
-            "description": "Runs high-level design next.",
+            "description": "Skips solution brainstorming and solution convergence; runs high-level design next.",
             "effect": "continue",
             "id": "continue-to-design",
             "label": "Continue to the design, skip brainstorming"
           },
           {
-            "description": "Runs final summary next.",
+            "description": "Skips solution brainstorming, solution convergence and high-level design; runs final summary next.",
             "effect": "continue",
             "id": "finish-with-research",
-            "label": "Finish with the research"
+            "label": "Continue to final summary"
           },
           {
             "description": "Re-runs Research foundation with your note, then asks this again.",
@@ -8554,7 +8554,7 @@
             "suggestions": []
           }
         ],
-        "question": "Research complete. Ready to go on?"
+        "question": "Approve the research foundation?"
       }
     },
     "reached": [
@@ -8574,9 +8574,9 @@
             "label": "Continue to the design (Recommended)"
           },
           {
-            "description": "Runs final summary next.",
+            "description": "Skips high-level design; runs final summary next.",
             "id": "finish-without-design",
-            "label": "Finish without a design"
+            "label": "Continue to final summary"
           },
           {
             "description": "Re-runs Solution convergence with your note, then asks this again.",
@@ -8589,7 +8589,7 @@
             "label": "Stop here"
           }
         ],
-        "question": "Brainstorming complete. Ready to go on? Type \"details\" for the full brief."
+        "question": "Approve brainstorming? Type \"details\" for the full brief."
       },
       "design-approval": {
         "header": "Design",
@@ -8615,7 +8615,7 @@
             "label": "More details"
           }
         ],
-        "question": "High-level design complete. Ready to go on?"
+        "question": "Approve design?"
       },
       "findings-approval": {
         "header": "Research",
@@ -8641,25 +8641,25 @@
             "label": "More details"
           }
         ],
-        "question": "Research complete. Ready to go on?"
+        "question": "Approve the research findings?"
       },
       "foundation-approval": {
         "header": "Research",
         "options": [
           {
-            "description": "Runs solution brainstorming next.",
+            "description": "Runs solution brainstorming next; high-level design is decided at a later checkpoint.",
             "id": "continue-to-brainstorming",
             "label": "Continue to brainstorming (Recommended)"
           },
           {
-            "description": "Runs high-level design next.",
+            "description": "Skips solution brainstorming and solution convergence; runs high-level design next.",
             "id": "continue-to-design",
             "label": "Continue to the design, skip brainstorming"
           },
           {
-            "description": "Runs final summary next.",
+            "description": "Skips solution brainstorming, solution convergence and high-level design; runs final summary next.",
             "id": "finish-with-research",
-            "label": "Finish with the research"
+            "label": "Continue to final summary"
           },
           {
             "description": "Re-runs Research foundation with your note, then asks this again.",
@@ -8667,7 +8667,7 @@
             "label": "Revise the research"
           }
         ],
-        "question": "Research complete. Ready to go on? Type \"details\" for the full brief."
+        "question": "Approve the research foundation? Type \"details\" for the full brief."
       }
     },
     "reached": [

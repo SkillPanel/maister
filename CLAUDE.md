@@ -40,7 +40,7 @@ CONTRIBUTING.md                   # Contributor loop (make targets); license inb
 | Command | Purpose |
 |---|---|
 | `make build` | Regenerate `plugins/maister-copilot/` from `plugins/maister/` |
-| `make validate` | Lint the generated variant (flat commands, no colons, the plain picker rendered, no `maister:` prefixes) plus the gate-marker lint, the display-text lint (definition titles, option labels and headers in plain sentence case) over the plugin source, the guide template lint (`tests/guide-template-lint.mjs`: every workflow guide follows the step template) and the gate-rule lint (exactly 15 files carry the gate-rule sentence and 17 its tail) |
+| `make validate` | Lint the generated variant (flat commands, no colons, the plain picker rendered, no `maister:` prefixes) plus the gate-marker lint, the display-text lint (definition titles, option labels and headers in plain sentence case) over the plugin source, the guide template lint (`tests/guide-template-lint.mjs`: every workflow guide follows the step template), the gate-title lint (`tests/gate-title-lint.mjs`: no two gates of one workflow ask the same question) and the gate-rule lint (exactly 15 files carry the gate-rule sentence and 17 its tail) |
 | `make test` | Run the engine verb suite (`node --test`, Node ≥ 20, no dependencies) over the committed fixtures in `tests/` |
 | `make smoke` | Run the engine verbs and the hooks through bash, from paths holding a space (`tests/shell-smoke.mjs`; CI also runs it under pwsh, Windows PowerShell, cmd.exe and Git Bash on Windows) |
 | `make test-mod` | `claude plugin validate` the plugin, then run the hooks module's tests (`tests/mod/`) with `claude plugin test` on a scratch copy; skipped without the `claude` CLI |

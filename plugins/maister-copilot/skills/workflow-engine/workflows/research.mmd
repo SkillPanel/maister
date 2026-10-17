@@ -4,8 +4,8 @@
 
 flowchart TD
   n_research_foundation["Research foundation<br/>research-foundation<br/>direct:research-foundation"]
-  n_foundation_approval{{"Approve research foundation<br/>foundation-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-brainstorming: continue, continue-to-design: continue, finish-with-research: continue, revise-research: revise → research-foundation<br/>when: !${inputs.findings_only}"}}
-  n_findings_approval{{"Approve research findings<br/>findings-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-completion: continue, revise-research: revise → research-foundation, stop-research: stop<br/>when: ${inputs.findings_only}"}}
+  n_foundation_approval{{"Approve the research foundation<br/>foundation-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-brainstorming: continue, continue-to-design: continue, finish-with-research: continue, revise-research: revise → research-foundation<br/>when: !${inputs.findings_only}"}}
+  n_findings_approval{{"Approve the research findings<br/>findings-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-completion: continue, revise-research: revise → research-foundation, stop-research: stop<br/>when: ${inputs.findings_only}"}}
   n_solution_generation{"Solution brainstorming<br/>solution-generation<br/>agent:solution-brainstormer<br/>when: ${foundation-approval.values.brainstorming_enabled}"}
   n_solution_convergence{"Solution convergence<br/>solution-convergence<br/>direct:solution-convergence<br/>when: ${foundation-approval.values.brainstorming_enabled}"}
   n_convergence_approval{{"Approve brainstorming<br/>convergence-approval<br/>gate<br/>Brainstorming complete. Continue?<br/>continue-to-design: continue, finish-without-design: continue, revise-convergence: revise → solution-convergence, stop-research: stop<br/>when: ${foundation-approval.values.brainstorming_enabled}"}}

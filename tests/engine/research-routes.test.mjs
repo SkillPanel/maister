@@ -80,7 +80,7 @@ test('research routes: the foundation gate offers the three ways on and its revi
   assert.deepEqual(picker.options.map(option => [option.id, option.label]), [
     ['continue-to-brainstorming', 'Continue to brainstorming (Recommended)'],
     ['continue-to-design', 'Continue to the design, skip brainstorming'],
-    ['finish-with-research', 'Finish with the research'],
+    ['finish-with-research', 'Continue to final summary'],
     ['revise-research', 'Revise the research'],
   ]);
   assert.equal(picker.details, 'typed', 'four options leave no slot for More details');
@@ -138,7 +138,7 @@ test('research routes: the brainstorming gate offers two continues, its revise a
   const picker = pickerOf(run, 'convergence-approval');
   assert.deepEqual(picker.options.map(option => [option.id, option.label]), [
     ['continue-to-design', 'Continue to the design (Recommended)'],
-    ['finish-without-design', 'Finish without a design'],
+    ['finish-without-design', 'Continue to final summary'],
     ['revise-convergence', 'Ask the decision areas again'],
     ['stop-research', 'Stop here'],
   ]);
@@ -150,7 +150,8 @@ test('research routes: in an embedded run, finishing with the research ends the 
   const run = atFoundation(t, { inputs: { embedded: true } });
   const finish = checkpointOf(run, 'foundation-approval').options.find(option => option.id === 'finish-with-research');
   assert.equal(finish.next.end, true);
-  assert.equal(finish.consequence, 'Finishes the run.');
+  assert.equal(finish.consequence, 'Skips solution brainstorming, solution convergence and high-level design; finishes the run.');
+  assert.equal(pickerOf(run, 'foundation-approval').options.find(option => option.id === 'finish-with-research').label, 'Finish the run');
 });
 
 test('research routes: the closing node names the continue it recommends, with its reason', t => {

@@ -89,8 +89,8 @@ companion's `# Title` line (§ 11).
 | Key | Shape |
 |---|---|
 | `icons` | Node id → one icon hint from the table below |
-| `titles` | Node id → a one-line title; a node without one is shown as its id in title case |
-| `option_labels` | Gate id → option id → a one-line label the operator picks; an option without one is shown as its id in sentence case. A continue option labelled `Continue` alone — or with no label, an option id of `continue` — is completed with where the run actually goes once guards are read ("Continue to implementation planning", "Finish the run"), so a gate whose next step a guard decides never names two destinations. The recorded answer is still the option id |
+| `titles` | Node id → a one-line title; a node without one is shown as its id in title case. A gate's title is also the question its brief asks when its `ask` asks to continue ("Approve the specification?"), so give every gate its own; without one the brief asks the lead of the `ask` |
+| `option_labels` | Gate id → option id → a one-line label the operator picks; an option without one is shown as its id in sentence case. A continue option labelled `Continue` alone — or with no label, an option id of `continue` — is completed with where the run actually goes once guards are read ("Continue to implementation planning", "Finish the run"), so a gate whose next step a guard decides never names two destinations. In a run another run started, the end of this run is named by the parent's next step ("Continue to release notes"), and a stop labelled `Stop here` names the parent it also stops. The recorded answer is still the option id |
 | `headers` | Gate id → a one-line chip of at most 12 characters shown above the gate's question; without one, the title of the node the gate closes when it fits |
 
 <!-- vocabulary: ICON_HINTS -->

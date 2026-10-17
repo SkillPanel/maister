@@ -141,7 +141,7 @@ test('gate-brief --json: the question is the one-line ask; the options are label
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.ok, true);
   // The ask named a destination; the question names where the run actually goes.
-  assert.equal(result.question, 'Analysis complete. Ready to go on?');
+  assert.equal(result.question, 'Approve the scope?');
   assert.doesNotMatch(result.question, /\n|Dashboard|file:\/\//, 'one line, and no path');
   // The sample titles its closing node "Scope analysis", which does not fit a
   // chip; the gate's own title "Approve the scope" is cut to fit.
@@ -225,7 +225,7 @@ test('gate-brief --json: a built-in gate reads its labels and header from the de
   ]);
   assert.equal(result.options[0].description, 'Runs browser checks next.');
   assert.match(result.options[0].preview, /^Next: Browser checks$/m);
-  assert.equal(result.options[1].description, 'Runs user documentation next.');
+  assert.equal(result.options[1].description, 'Skips browser checks; runs user documentation next.');
   assert.match(result.options[1].preview, /^Next: User documentation \(skipping Browser checks\)$/m);
 });
 
@@ -1633,7 +1633,7 @@ test('picker plain: the question carries the glance then the ask, and each title
     '- The fixture corpus is thin',
     'Decided by the run:',
     '- Patch the tokenizer — scope analysis',
-    'Analysis complete. Ready to go on?',
+    'Approve the scope?',
   ].join('\n'));
   assert.deepEqual(result.options, [
     { id: 'continue', label: 'Continue to implementation (Recommended)', recommended: true },
@@ -1804,7 +1804,7 @@ test('gate-brief: each continue that sets the gate\'s values is walked on its ow
   assert.deepEqual(planning.sets, { audit_enabled: false });
   assert.equal(planning.next.node, 'planning');
   assert.deepEqual(planning.next.skipped.map(each => each.node), ['audit']);
-  assert.equal(planning.consequence, 'Runs planning next.');
+  assert.equal(planning.consequence, 'Skips specification audit; runs planning next.');
   assert.equal(checkpoint.recommended.option, 'continue-to-audit', 'without a recommendation the first continue in written order');
   assert.deepEqual(checkpoint.next, audit.next, 'the checkpoint\'s next is the recommended continue\'s');
 });
@@ -1831,11 +1831,11 @@ test('gate-brief: the closing node\'s recommends picks the continue, and its rea
   assert.deepEqual(checkpoint.recommended, { option: 'continue-to-planning', reason: 'the change is two lines' });
   assert.deepEqual(checkpoint.next.node, 'planning');
   const planning = checkpoint.options.find(option => option.id === 'continue-to-planning');
-  assert.equal(planning.consequence, 'Runs planning next. The change is two lines.');
+  assert.equal(planning.consequence, 'Skips specification audit; runs planning next. The change is two lines.');
 
   const rich = picker(run, 'specification-approval');
   assert.equal(rich.options[0].id, 'continue-to-planning');
-  assert.equal(rich.options[0].description, 'Runs planning next. The change is two lines.');
+  assert.equal(rich.options[0].description, 'Skips specification audit; runs planning next. The change is two lines.');
   assert.match(rich.options[0].preview, /^Done: Wrote the specification\.\nNext: Planning \(skipping Specification audit\)/);
   assert.match(rich.options[1].preview, /\nNext: Specification audit/, 'each continue previews its own next');
   // Four options fill the picker, so the full brief is asked for by typing.

@@ -54,6 +54,8 @@ validate:
 	@echo "Checking every workflow guide follows the step template..."
 	@# Structure only: each FAIL line is a finding, and any one fails.
 	@node tests/guide-template-lint.mjs
+	@echo "Checking no two gates of one workflow ask the same question..."
+	@node tests/gate-title-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."
 	@test $$(find plugins/maister-copilot/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)
 	@echo "Checking every Copilot agent has a tool allowlist without the agent tool, and the no-re-entry sentence..."

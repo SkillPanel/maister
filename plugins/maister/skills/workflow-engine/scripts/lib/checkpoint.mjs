@@ -492,7 +492,8 @@ function stopLines(checkpoint, option) {
     out.push(`Why stop: ${why}`);
     if (checkpoint.headline) out.push(`Done: ${checkpoint.headline}`);
   }
-  out.push('Ends the run here.');
+  // The gate brief's own line: under a parent run it names the parent the stop also ends.
+  out.push(option.consequence ?? 'Ends the run here.');
   const kept = [...(option.keeps ?? [])];
   if (checkpoint.run?.dashboard) kept.push('the dashboard');
   if (kept.length) out.push(`Kept: ${andList(kept)}.`);

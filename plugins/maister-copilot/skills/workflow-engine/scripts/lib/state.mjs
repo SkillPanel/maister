@@ -2584,7 +2584,7 @@ function ceilingIn(options) {
  * it does there, and four levels up as well when no ancestor does, so a
  * parent that genuinely does not exist is handled as it always was.
  */
-function childRootOf(runDir, parent) {
+export function childRootOf(runDir, parent) {
   const fourUp = projectRootOf(runDir);
   const holdsParent = root => isFile(path.join(root, parent.run, 'orchestrator-state.yml'));
   if (holdsParent(fourUp)) return fourUp;
