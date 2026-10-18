@@ -278,7 +278,8 @@ questions.
 2. **Records the answer** as one item of the gate's `decisions`, `{option: <the chosen id>}`,
    and marks the node `completed`, in one write. That is the one shape of a gate answer: never a
    flat `answer:` on the summary, which the writer folds into this item anyway. The writer adds
-   the option's label as `decision`, `by: operator`, and the person's name as `answered_by`
+   the option's label as the gate showed it as `decision` (a bare "Continue" completed with
+   where it leads, a stop under a parent scoped to it), `by: operator`, and the person's name as `answered_by`
    with `via` the run's driver kind under a `cockpit` or `dispatch` driver, `terminal` otherwise. When the chosen continue sets gate values, the writer records them on
    the gate's entry in the same write; a `values` sent for a gate is refused
    `state-gate-values-sent`. A revise option — its `note` is `true` — is

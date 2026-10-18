@@ -208,14 +208,17 @@ const SUMMARY_FLOOR = 400;
  * Render the brief for the gate `node` of the run whose state file is `state`.
  * `oneline` folds it onto one flow-safe line for a driven gate request; `json`
  * returns the picker — `{picker, question, header, options, details}`, shaped
- * by the `picker` profile — beside the plain text.
+ * by the `picker` profile — beside the plain text. `doc` is the state already
+ * parsed, read in place of the file.
  */
-export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask = null, questions = undefined }) {
-  let doc;
-  try {
-    doc = parse(fs.readFileSync(state, 'utf8'));
-  } catch (err) {
-    return refuse('state-unreadable', `${state} cannot be read as a state document: ${err.message}`);
+export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask = null, questions = undefined, doc: given = null }) {
+  let doc = given;
+  if (doc === null) {
+    try {
+      doc = parse(fs.readFileSync(state, 'utf8'));
+    } catch (err) {
+      return refuse('state-unreadable', `${state} cannot be read as a state document: ${err.message}`);
+    }
   }
 
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
@@ -443,6 +446,23 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     errors: [],
     warnings,
   };
+}
+
+/**
+ * The label each option of the gate `node` reads as when asked, by option id:
+ * the checkpoint's, which the request and both pickers show — a bare
+ * "Continue" completed with where it leads, a stop under a parent scoped to
+ * it. `doc` is the run's state as the gate was asked from it. Null when the
+ * gate cannot be briefed, so the caller keeps the definition's own labels.
+ */
+export function renderedLabels({ doc, runDir, node }) {
+  try {
+    const result = gateBrief({ state: path.join(runDir, 'orchestrator-state.yml'), doc, node, form: 'checkpoint' });
+    if (!result.ok || !isPlainObject(result.checkpoint) || !Array.isArray(result.checkpoint.options)) return null;
+    return new Map(result.checkpoint.options.map(option => [option.id, option.label]));
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -2118,7 +2138,22 @@ export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, 
     const ready = nodes.find(entry => downstream.has(entry.id)
       && status.get(entry.id) === 'pending'
       && readinessOf(entry, status) !== 'waiting');
-    if (!ready) return { ok: true, next: null, skipped, waiting: blockers(nodes, downstream, status) };
+    if (!ready) {
+      // A node on another branch whose guard already reads false is skipped
+      // when the run reaches it, so nothing downstream waits on it. Its skip
+      // is not this answer's doing, and is listed nowhere.
+      const passed = nodes.find(entry => !downstream.has(entry.id) && entry.id !== gate
+        && status.get(entry.id) === 'pending'
+        && readinessOf(entry, status) === 'ready'
+        && typeof entry.when === 'string'
+        && !skipGuardAsks(entry, nodeKindIn(byId))
+        && falseGuard(entry.when, { byId, recorded, status, inputs, defaults }));
+      if (passed) {
+        status.set(passed.id, 'skipped');
+        continue;
+      }
+      return { ok: true, next: null, skipped, waiting: blockers(nodes, downstream, status) };
+    }
     // An `on: failure` node whose needs all ended well has nothing to recover
     // from: it is skipped exactly as a false guard skips a node.
     if (readinessOf(ready, status) === 'skip') {
@@ -2138,6 +2173,12 @@ export function walk({ graph, recorded: held, gate, inputs = {}, defaults = {}, 
     status.set(ready.id, 'skipped');
     skipped.push(ready.id);
   }
+}
+
+/** Whether a guard reads false now; one that cannot be read yet is not. */
+function falseGuard(when, context) {
+  const guard = evaluate(when, context);
+  return guard.ok && !guard.value;
 }
 
 /**

@@ -104,7 +104,7 @@ import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } fro
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { canAsk, driverFeatures } from './driver.mjs';
-import { atClose, heldApprovalBefore } from './gate-brief.mjs';
+import { atClose, heldApprovalBefore, renderedLabels } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -1208,6 +1208,9 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   // what tells a newly recorded continue from one re-sent (`approveHeld`).
   const answering = answeringIds(patch);
   const answeredBefore = priorAnswers(doc, answering);
+  // Each answered gate's labels as the person was asked them, read from the
+  // run before the patch lands: the answer is recorded under the one it chose.
+  const shown = shownLabels(doc, answering, runDir);
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
   if (regress !== null) clearClassed(doc, regress, changed);
   if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings, () => outstandingHeld(typedOf(doc)).length > 0);
@@ -1226,7 +1229,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     applyContext(doc, block, patch.context, changed);
   }
   if (patch.node_summaries) {
-    applySummaries(doc, patch.node_summaries, patch.nodes, changed, runDir, graphOf, writeWarnings, { notes, policyNow, out });
+    applySummaries(doc, patch.node_summaries, patch.nodes, changed, runDir, graphOf, writeWarnings, { notes, policyNow, out }, shown);
     intended.add('node_summaries');
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
@@ -2800,7 +2803,7 @@ function applyContext(doc, contextKey, context, changed) {
  * a triage sent on a decision is dropped (`sentDecisions`). `asking` is the
  * writer's too, dropped with a note when a patch sends it.
  */
-function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graphOf = null, writeWarnings = [], classing = null) {
+function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graphOf = null, writeWarnings = [], classing = null, shown = new Map()) {
   if (!isPlainObject(summaries)) throw new Refusal('state-patch-invalid', 'the node summaries must be an object');
   let recorded = null;
   let run = null;
@@ -2866,14 +2869,14 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
       if (isGateSummary(recorded, key)) {
         display ??= runDir === null ? displayOf() : displayOfRun(parseState(doc.text()), runDir);
         via ??= answerVia(parseState(doc.text()));
-        entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display, gateHeldRevises(typedNow(), key).map(each => each.id)), runDir, via);
+        entry.decisions = stampAnswers(foldAnswers(entry.decisions, key, display, gateHeldRevises(typedNow(), key).map(each => each.id), shown.get(key)), runDir, via);
         // An approval carrying its attempt is kept once, as an approval, not as an earlier revision.
         const revisions = earlierRevisions(doc, key, entry.decisions).filter(item => !isApproval(item));
         entry.decisions = [...revisions, ...entry.decisions, ...keptApprovals(heldOf(key)?.decisions, entry.decisions)];
       } else {
         via ??= answerVia(parseState(doc.text()));
         const prior = heldOf(key)?.decisions;
-        entry.decisions = stampAnswers(keepProvenance(prior, keepAttempts(prior, runSettled(entry.decisions, via))), runDir, via);
+        entry.decisions = stampAnswers(keepProvenance(prior, keepAttempts(prior, runSettled(entry.decisions, via, prior))), runDir, via);
         const kept = classing !== null && classes() ? writerKept(prior, entry.decisions) : [];
         entry.decisions = [...earlierAnswers(prior, entry.decisions), ...kept, ...entry.decisions];
       }
@@ -3095,13 +3098,16 @@ function assertRecommends(id, recommends, graph) {
  * The option's label goes in `decision` and `by: operator` beside it, once, on
  * the way in; a field the caller already sent is kept.
  */
-function foldAnswers(decisions, gate, display, held = []) {
+function foldAnswers(decisions, gate, display, held = [], rendered = null) {
   const labels = isPlainObject(display?.option_labels) ? display.option_labels : {};
+  // The label the gate was asked with comes first: a bare "Continue" the brief
+  // completed is recorded as the person read it.
+  const asked = option => (rendered instanceof Map && typeof rendered.get(option) === 'string' && rendered.get(option) !== '' ? rendered.get(option) : null);
   // The reserved closing checkpoint's options are the engine's, labelled as its brief labels them.
   // So are the revises a frozen gate offers for held choices, which no
   // definition labels: "Revise <step>".
   const heldRevise = option => held.includes(option);
-  const labelFor = option => (gate === HELD_APPROVAL || heldRevise(option)
+  const labelFor = option => asked(option) ?? (gate === HELD_APPROVAL || heldRevise(option)
     ? heldApprovalLabel(option, id => lowered(titleOf(display?.titles, id)))
     : labelOf(labels, gate, option));
   return decisions.map(decision => {
@@ -3213,6 +3219,7 @@ function foldQuestionAnswer(entry, node, runDir, held, attempt = 1, writeWarning
   const folded = foldAnswer(questions, usableProvenance(entry.answer, node, path.relative(runDir, file), writeWarnings));
   if (!folded.ok) throw refuse(folded.errors.join('; '));
   const { answer: _answer, ...rest } = entry;
+  for (const item of folded.decisions) FOLDED_ANSWERS.add(item);
   const answered = new Set(folded.decisions.map(item => item.question_id));
   const base = Array.isArray(entry.decisions) ? entry.decisions : Array.isArray(held?.decisions) ? held.decisions : [];
   if (attempt === 1) {
@@ -3223,31 +3230,49 @@ function foldQuestionAnswer(entry, node, runDir, held, attempt = 1, writeWarning
     const given = attemptNumber(item) ?? 1;
     return decisionOf(item)?.by === 'operator' && given < attempt ? [{ ...item, attempt: given }] : [];
   });
-  return { ...rest, decisions: [...kept, ...folded.decisions.map(item => ({ ...item, attempt }))] };
+  const again = folded.decisions.map(item => ({ ...item, attempt }));
+  for (const item of again) FOLDED_ANSWERS.add(item);
+  return { ...rest, decisions: [...kept, ...again] };
 }
 
 /**
- * A task node's `decisions` with what the run settled itself credited to it.
- * Under a dispatch driver nobody is asked inside a step — a question there
- * takes its default or is settled by the run — so an item credited to the
- * operator, by its `by` or by the answer shape that reads as one, that carries
- * no person's name, no `via` and no `actor` came from no person: it is
- * recorded `by: run`, and `stampAnswers` then leaves it alone instead of
- * writing the operator's name onto a decision nobody gave. One carrying
- * `on_behalf_of` names the person it was relayed for, and is kept. An answer a person
- * gave reaches a dispatched run with its provenance and is kept as it is; under
- * every other driver an in-session answer arrives bare, so nothing is judged.
+ * The decisions this process folded from a recorded answer block
+ * (`foldQuestionAnswer`): a person's answers whatever provenance the block
+ * carried, so `runSettled` never credits one to the run.
  */
-function runSettled(decisions, via) {
-  if (via !== 'dispatch' || !Array.isArray(decisions)) return decisions;
+const FOLDED_ANSWERS = new WeakSet();
+
+/**
+ * A task node's `decisions` with what the run settled itself credited to it.
+ * Under a cockpit or dispatch driver a person answers only through a recorded
+ * answer — a question set's answer block, folded by the writer — so an item
+ * credited to the operator, by its `by` or by the answer shape that reads as
+ * one, that carries no person's name, no `via` and no `actor` came from no
+ * person: it is recorded `by: run`, and `stampAnswers` then leaves it alone
+ * instead of writing the operator's name onto a decision nobody gave. An
+ * answer the writer folded is kept, and so is one sent again as `prior` holds
+ * it; one carrying `on_behalf_of` names the person it was relayed for, and is
+ * kept too. At the terminal an in-session answer arrives bare, so nothing is
+ * judged.
+ */
+function runSettled(decisions, via, prior = null) {
+  if (!DRIVEN_VIA.has(via) || !Array.isArray(decisions)) return decisions;
   return decisions.map(item => {
     if (!isPlainObject(item) || decisionOf(item)?.by !== 'operator') return item;
     if (!isPlaceholderName(item.answered_by) || Object.hasOwn(item, 'via') || Object.hasOwn(item, 'actor')) return item;
+    if (FOLDED_ANSWERS.has(item) || isRecordedAnswer(item, prior)) return item;
     // A relayed answer names the person it came from: it is theirs, not the run's.
     if (Object.hasOwn(item, ON_BEHALF_OF) && item[ON_BEHALF_OF] !== null) return item;
     const { answered_by: _answeredBy, ...rest } = item;
     return { ...rest, by: 'run' };
   });
+}
+
+/** Is `item` a current operator answer `prior` already holds, sent again? */
+function isRecordedAnswer(item, prior) {
+  if (!Array.isArray(prior) || typeof item.question_id !== 'string') return false;
+  return prior.some(other => isPlainObject(other) && other.question_id === item.question_id
+    && decisionOf(other)?.by === 'operator' && !isEarlierAnswer(other, prior) && sameAnswer(other, item));
 }
 
 /**
@@ -4106,6 +4131,26 @@ function judgedGates(answering, typedNow, runDir, answeredBefore = new Map()) {
 function answeringIds(patch) {
   return isPlainObject(patch.node_summaries)
     ? Object.entries(patch.node_summaries).filter(([, entry]) => recordsAnswer(entry)).map(([id]) => id) : [];
+}
+
+/**
+ * For each of `answering` that is a gate, the labels its options were asked
+ * with (`renderedLabels`), read from the state before this write lands: gate
+ * id → `Map(option → label)`. A gate the brief cannot render is left out, and
+ * its answer keeps the definition's label. Empty with no run directory.
+ */
+function shownLabels(doc, answering, runDir) {
+  const shown = new Map();
+  if (answering.length === 0 || runDir === null || !doc.has('workflow')) return shown;
+  const recorded = recordedNodes(doc);
+  let before = null;
+  for (const id of answering) {
+    if (id === HELD_APPROVAL || !isGateSummary(recorded, id)) continue;
+    before ??= parseState(doc.text());
+    const labels = renderedLabels({ doc: before, runDir, node: id });
+    if (labels !== null) shown.set(id, labels);
+  }
+  return shown;
 }
 
 /**

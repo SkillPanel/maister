@@ -532,3 +532,67 @@ test('dispatch: an anonymous answer relayed on someone\'s behalf stays the opera
   assert.equal(relayed.on_behalf_of, 'lee');
   assert.equal(bare.by, 'run', 'an answer naming nobody is still the run\'s');
 });
+
+test('cockpit: an anonymous operator-shaped decision no recorded answer gave is credited to the run', t => {
+  const asked = { decision: 'Yes', question_id: 'a', question: 'Proceed?', answer: 'Yes' };
+  const run = scratch(t);
+  freeze(run, { orchestrator: { driver: COCKPIT } });
+  write(run, {
+    node_summaries: {
+      analysis: {
+        decisions: [
+          asked,
+          { ...asked, by: 'operator', question_id: 'b', answered_by: 'operator' },
+          { ...asked, by: 'operator', question_id: 'c', answered_by: 'dana', via: 'cockpit' },
+          { ...asked, by: 'operator', question_id: 'd', on_behalf_of: 'lee' },
+        ],
+      },
+    },
+  });
+  const stored = readState(run).node_summaries.analysis.decisions;
+  for (const item of stored.slice(0, 2)) {
+    assert.equal(decisionOf(item).by, 'run', item.question_id);
+    assert.equal(Object.hasOwn(item, 'answered_by'), false, `${item.question_id}: no name stamped`);
+    assert.equal(Object.hasOwn(item, 'via'), false, `${item.question_id}: no via stamped`);
+  }
+  assert.equal(stored[2].by, 'operator', 'an answer carrying its provenance stays the operator\'s');
+  assert.equal(stored[2].answered_by, 'dana');
+  assert.equal(stored[3].by, 'operator', 'a relayed answer stays the operator\'s');
+  assert.equal(stored[3].on_behalf_of, 'lee');
+});
+
+test('cockpit: a question-set answer folded from a bare answer block stays the operator\'s, sent again too', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { driver: COCKPIT } });
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
+  fs.copyFileSync(path.join(FIXTURES, 'gates/question-set.request.yml'), path.join(run.dir, 'gates/analysis.request.yml'));
+  write(run, { node_summaries: { analysis: { answer: { option: 'all', answers: { 'tag-filter': 'all', 'tag-case': 'folded', 'csv-extras': ['timestamp'] } } } } });
+  const folded = readState(run).node_summaries.analysis.decisions;
+  assert.equal(folded.length, 3);
+  for (const item of folded) assert.equal(item.by, 'operator', item.question_id);
+
+  // A closing write re-sends the answers as the node remembers them, bare.
+  const resent = folded.map(({ question_id: id, question, answer, decision }) => ({ question_id: id, question, answer, decision, by: 'operator' }));
+  write(run, { node_summaries: { analysis: { decisions: resent } } });
+  for (const item of readState(run).node_summaries.analysis.decisions) assert.equal(item.by, 'operator', item.question_id);
+});
+
+test('cockpit: an answered gate keeps the operator and the name it was answered by', t => {
+  const run = scratch(t, { fixture: 'gate' });
+  freeze(run, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  write(run, { nodes: { approval: { status: 'completed' } }, node_summaries: { approval: { decisions: [{ option: 'continue', answered_by: 'dana', via: 'cockpit' }] } } });
+  const [item] = readState(run).node_summaries.approval.decisions;
+  assert.equal(item.by, 'operator');
+  assert.equal(item.answered_by, 'dana');
+});
+
+test('terminal: an anonymous operator-shaped decision stays the operator\'s', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { node_summaries: { analysis: { decisions: [{ question_id: 'a', question: 'Proceed?', answer: 'Yes' }] } } });
+  const [item] = readState(run).node_summaries.analysis.decisions;
+  assert.equal(decisionOf(item).by, 'operator');
+  assert.equal(item.answered_by, OPERATOR);
+});
