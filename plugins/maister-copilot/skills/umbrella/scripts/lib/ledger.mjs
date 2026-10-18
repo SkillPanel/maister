@@ -231,6 +231,21 @@ function requireActor(actor) {
   return actor;
 }
 
+/**
+ * The person a relaying side says made the call, on `claim`, `close-out` and
+ * `resolve-followup`: a name on one line, recorded as given and never verified,
+ * beside the actor rather than in place of it. Absent is `undefined`.
+ */
+function optionalOnBehalfOf(args, op, act) {
+  const value = args.on_behalf_of;
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.trim() === '' || /[\r\n]/.test(value)) {
+    throw new Refusal('ledger-args-invalid',
+      `${op} takes args.on_behalf_of as the name, on one line, of the person a relaying side says ${act}, or none`);
+  }
+  return value;
+}
+
 function requireId(id, what = 'the dispatch id') {
   if (typeof id !== 'string' || !SHORT_ID.test(id) || /\s/.test(id)) {
     throw new Refusal('ledger-args-invalid', `${what} ${JSON.stringify(String(id))} is not a short id`);
@@ -380,7 +395,7 @@ function loggedCreations(p) {
  */
 const DECLARED = [
   'version', 'dispatch_id', 'chain', 'target', 'provider', 'session',
-  'status', 'grade', 'created', 'updated', 'constraints', 'followups', 'closeout',
+  'claimed_on_behalf_of', 'status', 'grade', 'created', 'updated', 'constraints', 'followups', 'closeout',
 ];
 const FLOW_MAPS = new Set(['chain', 'target', 'session']);
 const SEQUENCES = new Set(['constraints', 'followups']);
@@ -397,7 +412,8 @@ function renderEntry(entry) {
     }
     if (key === 'closeout' && isPlainObject(value)) {
       lines.push('closeout:');
-      for (const name of ['prs', 'commits', 'summary', 'at', ...Object.keys(value).filter(k => !['prs', 'commits', 'summary', 'at'].includes(k))]) {
+      const known = ['prs', 'commits', 'summary', 'on_behalf_of', 'at'];
+      for (const name of [...known, ...Object.keys(value).filter(k => !known.includes(k))]) {
         if (Object.hasOwn(value, name)) lines.push(`  ${name}: ${flow(value[name], `closeout.${name}`)}`);
       }
       continue;
@@ -846,9 +862,12 @@ function checkSession(session) {
  *
  * `args.session` takes both spellings the transcript uses — a bare session name,
  * which is what the engine has at claim time, and the fuller map.
+ * `claimed_on_behalf_of`, when `args.on_behalf_of` carries it, names the person
+ * a relaying side says claimed it; the log line still names the actor.
  */
 export function claim(call) {
   return guard(call?.dispatch_id ?? null, () => mutate('claim', call, (entry, { args }) => {
+    const onBehalfOf = optionalOnBehalfOf(args, 'claim', 'claimed it');
     if (entry.status !== 'dispatched') {
       throw new Refusal('ledger-status-illegal',
         `${entry.dispatch_id} is ${entry.status}; claim applies only to a dispatched entry, and re-claiming one would re-point a live dispatch at a second session`);
@@ -856,6 +875,7 @@ export function claim(call) {
     const given = typeof args.session === 'string' ? { name: args.session } : requireMap(args.session ?? {}, 'session');
     checkSession(given);
     entry.session = { ...(isPlainObject(entry.session) ? entry.session : {}), ...given };
+    if (onBehalfOf !== undefined) entry.claimed_on_behalf_of = onBehalfOf;
     entry.status = 'claimed';
     return entry;
   }));
@@ -954,9 +974,7 @@ export function resolveFollowup(call) {
     if (args.by !== undefined && (typeof args.by !== 'string' || args.by.trim() === '')) {
       throw new Refusal('ledger-args-invalid', 'resolve-followup takes args.by as a non-empty name, or none to credit the actor');
     }
-    if (args.on_behalf_of !== undefined && (typeof args.on_behalf_of !== 'string' || args.on_behalf_of.trim() === '' || /[\r\n]/.test(args.on_behalf_of))) {
-      throw new Refusal('ledger-args-invalid', 'resolve-followup takes args.on_behalf_of as the name, on one line, of the person a relaying side says resolved it, or none');
-    }
+    const onBehalfOf = optionalOnBehalfOf(args, 'resolve-followup', 'resolved it');
     const existing = Array.isArray(entry.followups) ? entry.followups : [];
     const found = existing.findIndex(item => isPlainObject(item) && item.id === args.id);
     if (found < 0) {
@@ -971,7 +989,7 @@ export function resolveFollowup(call) {
       ...followup,
       status: 'resolved',
       resolved_by: args.by ?? actor,
-      ...(args.on_behalf_of !== undefined ? { on_behalf_of: args.on_behalf_of } : {}),
+      ...(onBehalfOf !== undefined ? { on_behalf_of: onBehalfOf } : {}),
       resolved_at: at,
     };
     entry.followups = existing.map((item, index) => (index === found ? resolved : item));
@@ -983,12 +1001,15 @@ export function resolveFollowup(call) {
  * Close the dispatch out: the grade, what shipped, and the terminal status, in
  * one write. The status transition belongs to the engine everywhere else; here
  * it rides with the close-out because a graded entry that is not closed would
- * describe a state no reader can act on.
+ * describe a state no reader can act on. `closeout.on_behalf_of`, when
+ * `args.on_behalf_of` carries it, names the person a relaying side says closed
+ * it out; the log line still names the actor.
  */
 export function closeOut(call) {
   return guard(call?.dispatch_id ?? null, () => mutate('close-out', call, (entry, { args, at }) => {
     if (args.grade === undefined) throw new Refusal('ledger-args-invalid', 'close-out needs args.grade');
     const grade = requireEnum(args.grade, GRADES, 'grade');
+    const onBehalfOf = optionalOnBehalfOf(args, 'close-out', 'closed it out');
     if (entry.status === 'closed') {
       throw new Refusal('ledger-status-illegal', `${entry.dispatch_id} is already closed`);
     }
@@ -998,6 +1019,7 @@ export function closeOut(call) {
       prs: args.prs === undefined ? [] : requirePullRequests(args.prs, 'closeout.prs'),
       commits: args.commits === undefined ? [] : requireList(args.commits, 'closeout.commits'),
       summary: args.summary ?? null,
+      ...(onBehalfOf !== undefined ? { on_behalf_of: onBehalfOf } : {}),
       at,
     };
     return entry;

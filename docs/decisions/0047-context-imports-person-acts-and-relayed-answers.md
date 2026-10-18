@@ -74,7 +74,8 @@ context pack that cannot be read becomes an `open` risk instead of one line in t
    - The checkpoint's not-as-recommended answers carry it. The dashboard shows "<name> (via
      <operator>)" on the answer chip and on an approval.
    - The umbrella's `resolve-followup` takes an optional `args.on_behalf_of` and records it
-     beside `resolved_by`.
+     beside `resolved_by`. `claim` and `close-out` take it too, under the same rule, and
+     record it as the entry's `claimed_on_behalf_of` and the closeout's `on_behalf_of`.
 
 ### Considered options
 
@@ -91,7 +92,8 @@ context pack that cannot be read becomes an `open` risk instead of one line in t
   - an optional option key, `person_act`, accepted on question sets;
   - a new writer refusal, `state-on-behalf-of-not-operator`;
   - an optional `on_behalf_of` on the checkpoint's not-as-recommended answers, on a projected
-    approval, and on a resolved ledger follow-up.
+    approval, on a resolved ledger follow-up, on a claimed ledger entry and on a ledger
+    close-out.
 - **Nothing changes for an existing run or an existing answer** without the new keys, and an
   older run reads unchanged.
 - **Limits on the person-act rule:**
