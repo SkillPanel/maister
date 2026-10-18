@@ -526,7 +526,9 @@ past it — a truncated prompt silently loses the close-out contract at the bott
 **`ledger`** — run one ledger op. The ops are `create-entry`, `claim`, `update-status`,
 `add-constraint`, `add-followup`, `resolve-followup`, `close-out` and the read-only `query`.
 `resolve-followup` marks a follow-up resolved once the held command it asked a grant for has
-run. Each one reads,
+run. `claim`, `close-out` and `resolve-followup` take an optional `on_behalf_of`: the name, on
+one line, of the person a relaying side says acted, recorded beside the actor and never
+verified. Each one reads,
 mutates, writes atomically, regenerates the index and appends exactly one log line after the
 rename. Ids are allocated under a lock and never reused. `ledger-locked` is the one refusal
 whose recovery is to re-issue the same op. A dispatch's entry is opened by `envelope`, not by

@@ -408,7 +408,11 @@ command has run — never the worker's, which only reports the hold. It moves an
 `open` or `dispatched` follow-up to `resolved` with `resolved_by` and
 `resolved_at` — and `on_behalf_of` when the call names the person a relaying
 side says resolved it, recorded as given and never verified — on a closed
-entry too, and refuses any other move;
+entry too, and refuses any other move. `claim` and `close-out` take the same
+optional `on_behalf_of`, held to the same rule — a name on one line, or a
+`ledger-args-invalid` refusal — and record it as `claimed_on_behalf_of` on the
+entry and as `on_behalf_of` in its `closeout`. The actor stays the caller,
+named on the log line, and an op sent without it records nothing new;
 query takes no lock at all. Conflicts resolve on read by update time and actor —
 the engine wins on status, the daemon wins on follow-ups and close-out.
 

@@ -276,7 +276,7 @@ test('resolve-followup: a resolved or dismissed follow-up is final, refused ledg
 test('resolve-followup: no id, an unknown id or an empty name is refused ledger-args-invalid with nothing written', (t) => {
   const ws = withFollowups(t);
   const before = snapshot(ws.ledger);
-  for (const args of [{}, { id: 'f-none' }, { id: 'f-open', by: ' ' }, { id: 'f-open', on_behalf_of: '' }, { id: 'f-open', on_behalf_of: 7 }]) {
+  for (const args of [{}, { id: 'f-none' }, { id: 'f-open', by: ' ' }, { id: 'f-open', on_behalf_of: '' }, { id: 'f-open', on_behalf_of: 'Lee\nExample' }, { id: 'f-open', on_behalf_of: 7 }]) {
     const refused = ledger(ws, 'resolve-followup', args, 'd-0001');
     assert.equal(refused.code, 1, JSON.stringify(args));
     assert.equal(refused.report.errors[0].code, 'ledger-args-invalid', JSON.stringify(args));
@@ -289,4 +289,72 @@ test('add-followup: resolved is in the follow-up status enum', (t) => {
   assert.equal(envelope(ws, 'api').code, 0);
   assert.equal(ledger(ws, 'add-followup', { id: 'f-done', status: 'resolved' }, 'd-0001').code, 0);
   assert.equal(ledger(ws, 'add-followup', { id: 'f-bad', status: 'cleared' }, 'd-0001').report.errors[0].code, 'ledger-args-invalid');
+});
+
+// claim and close-out: the person a relaying side says acted, beside the actor
+
+const entryOf = (ws) => ledger(ws, 'query', {}, 'd-0001').report.entry;
+const BAD_NAMES = ['', '  ', 'Lee\nExample', 'Lee\r\nExample', 7, null, ['Lee']];
+
+test('claim: on_behalf_of is recorded as claimed_on_behalf_of and read back by query, the log still naming the actor', (t) => {
+  const ws = workspace(t);
+  assert.equal(envelope(ws, 'api').code, 0);
+  const claimed = ledger(ws, 'claim', { session: 'worker-1', on_behalf_of: 'Lee Example' }, 'd-0001');
+  assert.equal(claimed.code, 0, JSON.stringify(claimed.report));
+  assert.equal(claimed.report.entry.claimed_on_behalf_of, 'Lee Example');
+  const entry = entryOf(ws);
+  assert.equal(entry.claimed_on_behalf_of, 'Lee Example');
+  assert.equal(entry.status, 'claimed');
+  assert.equal(entry.session.name, 'worker-1');
+  assert.match(logLines(ws).at(-1), /^\S+ claim d-0001 engine$/);
+});
+
+test('claim: without on_behalf_of the entry carries no such key', (t) => {
+  const ws = workspace(t);
+  assert.equal(envelope(ws, 'api').code, 0);
+  assert.equal(ledger(ws, 'claim', { session: 'worker-1' }, 'd-0001').code, 0);
+  assert.equal(Object.hasOwn(entryOf(ws), 'claimed_on_behalf_of'), false);
+});
+
+test('claim: an on_behalf_of that is not a name on one line is refused ledger-args-invalid with nothing written', (t) => {
+  const ws = workspace(t);
+  assert.equal(envelope(ws, 'api').code, 0);
+  const before = snapshot(ws.ledger);
+  for (const on_behalf_of of BAD_NAMES) {
+    const refused = ledger(ws, 'claim', { session: 'worker-1', on_behalf_of }, 'd-0001');
+    assert.equal(refused.code, 1, JSON.stringify(on_behalf_of));
+    assert.equal(refused.report.errors[0].code, 'ledger-args-invalid', JSON.stringify(on_behalf_of));
+  }
+  assert.deepEqual(snapshot(ws.ledger), before);
+});
+
+test('close-out: on_behalf_of is recorded in the closeout and read back by query, the log still naming the actor', (t) => {
+  const ws = workspace(t);
+  assert.equal(envelope(ws, 'api').code, 0);
+  const closed = ledger(ws, 'close-out', { grade: 'success', summary: 'shipped', on_behalf_of: 'Lee Example' }, 'd-0001');
+  assert.equal(closed.code, 0, JSON.stringify(closed.report));
+  const entry = entryOf(ws);
+  assert.equal(entry.closeout.on_behalf_of, 'Lee Example');
+  assert.equal(entry.closeout.summary, 'shipped');
+  assert.equal(entry.status, 'closed');
+  assert.match(logLines(ws).at(-1), /^\S+ close-out d-0001 engine$/);
+});
+
+test('close-out: without on_behalf_of the closeout carries no such key', (t) => {
+  const ws = workspace(t);
+  assert.equal(envelope(ws, 'api').code, 0);
+  assert.equal(ledger(ws, 'close-out', { grade: 'failed' }, 'd-0001').code, 0);
+  assert.equal(Object.hasOwn(entryOf(ws).closeout, 'on_behalf_of'), false);
+});
+
+test('close-out: an on_behalf_of that is not a name on one line is refused ledger-args-invalid with nothing written', (t) => {
+  const ws = workspace(t);
+  assert.equal(envelope(ws, 'api').code, 0);
+  const before = snapshot(ws.ledger);
+  for (const on_behalf_of of BAD_NAMES) {
+    const refused = ledger(ws, 'close-out', { grade: 'success', on_behalf_of }, 'd-0001');
+    assert.equal(refused.code, 1, JSON.stringify(on_behalf_of));
+    assert.equal(refused.report.errors[0].code, 'ledger-args-invalid', JSON.stringify(on_behalf_of));
+  }
+  assert.deepEqual(snapshot(ws.ledger), before);
 });
