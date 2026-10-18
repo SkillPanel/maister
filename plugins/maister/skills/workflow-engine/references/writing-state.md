@@ -48,7 +48,10 @@ able to write:
   and `attempt` (none is the first) — a question asked again replaces its own answer. That holds
   across a revise, so a node that re-runs records only what it settled this time; a question set
   a driver asks again in the node's new attempt keeps the earlier attempt's answers as history
-  (`references/in-node-questions.md` § *In-node questions*).
+  (`references/in-node-questions.md` § *In-node questions*). **Under a `cockpit` or `dispatch`
+  driver, a person answers only through a recorded answer**: an operator-shaped item the node
+  sends with no name, `via` or `actor` is recorded `by: run`, unless the writer folded it from an
+  answer block, already holds it as an answer, or it carries `on_behalf_of`.
 - `project_context`, `related_tasks`, `verification_context`, `external_research` — the four
   optional top-level blocks, each a **top-level sibling** of `orchestrator:` and of the context
   block. A mapping is merged key by key; `related_tasks` is a list and is replaced whole, so a

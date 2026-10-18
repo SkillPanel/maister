@@ -374,8 +374,9 @@ default this run actually took. A node that had nothing to ask records nothing. 
 way, `by: operator` (`references/gates.md` § *Before every gate*). `by: operator` is for an
 answer a person gave and nothing else: a question the run settles without asking anybody —
 under any permission mode, and under a driver that asks nobody — is `{decision, by: run,
-rationale}`, never written in the answer shape. Under a dispatch driver the writer credits an
-operator-shaped item with no name, `via` or `actor` to the run. The older string form,
+rationale}`, never written in the answer shape. Under a `cockpit` or `dispatch` driver the
+writer credits an operator-shaped item with no name, `via` or `actor` to the run, unless it is an
+answer the writer folded from a recorded answer block or one it already holds, sent again. The older string form,
 `defaulted: <id> -> <taken>`, is still read as `by: default`.
 
 **A run started under a driver has its inputs** (`orchestrator.options.inputs`, engine Step 4):
