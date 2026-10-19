@@ -179,6 +179,8 @@ Read the new version's entry in the [changelog](CHANGELOG.md) before you upgrade
 
 3.0 runs every workflow on the workflow engine, so it needs Node.js (see [Prerequisites](#prerequisites)), and it resumes only task directories its engine started. Before you upgrade, finish any task still in flight on 2.x, or plan to start it over on 3.0. Trying is safe: given a 2.x task directory, `/maister:work`, `/maister:run` and each workflow's own command say so and change nothing in it.
 
+A development or research task in flight can also continue on 3.0 as a new run: start it with `--context=<the 2.x task directory>`, for example `/maister:development "finish the export feature" --context=.maister/tasks/development/2026-05-04-export`. The new run's first phase copies the whole folder — its state file, analysis, specification, plan and any other files — into the new task's `analysis/work-context/` and reads it as background for every phase. Nothing is resumed: the new run starts from its first phase and decides each step again, and the 2.x folder is left as it was. Performance, migration and product-design runs take no `--context`; finish those on 2.x or start them over.
+
 Finished task directories need nothing. Those written by 2.2.3 or newer stay listed and shown in the dashboard like any other; older ones are listed by directory name, date and type only. There is nothing to migrate.
 
 The [3.0.0 changelog entry](CHANGELOG.md#300) lists every breaking change.

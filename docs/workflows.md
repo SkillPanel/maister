@@ -556,6 +556,13 @@ To finish a 2.x task, install the 2.x line as the README's
 [Staying on 2.x](../README.md#staying-on-2x) section describes, and resume it there. To start the
 work over on 3.0, run the command again without a task path.
 
+A development or research task can instead continue as a new 3.0 run started with
+`--context=<the 2.x task directory>`. The new run's first phase copies that folder whole, its
+`orchestrator-state.yml` included, into `analysis/work-context/` and reads it as background for
+every phase, never as a specification. Nothing of the 2.x state is resumed: the run starts at its
+first phase and asks every gate again, and the 2.x folder is not changed. Performance, migration
+and product-design take no `--context`.
+
 ## Task Directory Structure
 
 All workflows create structured directories in `.maister/tasks/`:

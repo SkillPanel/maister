@@ -35,7 +35,8 @@ export const WRITTEN_BY_2X = [
   'readable in place. To finish it, install the 2.x line and resume it there: ',
   '`/plugin marketplace add SkillPanel/maister#release/2.x`, then `/plugin install maister@maister-plugins-2x` ',
   '(uninstall any other maister channel first, for example `/plugin uninstall maister@maister-plugins`). ',
-  'To start the work over on 3.0, run the command again without a task path.',
+  'To start the work over on 3.0, run the command again without a task path; a development or research run ',
+  'started with `--context=<this task directory>` reads this task\'s files as background.',
 ].join('');
 
 /**
