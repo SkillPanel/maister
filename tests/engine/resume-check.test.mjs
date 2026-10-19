@@ -51,6 +51,7 @@ test('resume-check: the refusal says 2.x, names both install lines, and guesses 
   assert.match(message, /artifacts are still readable in place/);
   assert.ok(message.includes('`/plugin marketplace add SkillPanel/maister#release/2.x`'));
   assert.ok(message.includes('`/plugin install maister@maister-plugins-2x`'));
+  assert.ok(message.includes('`--context=<this task directory>`'), 'names the context-pack route on 3.0');
   assert.doesNotMatch(message, /\b2\.\d+\.\d+\b/, 'no exact 2.x version: the state never recorded one');
 });
 

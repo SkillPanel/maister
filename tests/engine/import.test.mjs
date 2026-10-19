@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { freeze, scratch, verb } from '../helpers.mjs';
+import { FIXTURES, freeze, scratch, sibling, verb } from '../helpers.mjs';
 
 // `import` is the one way a node brings context into its run: each source
 // copied byte for byte, a directory recursively, never by a shell copy. It
@@ -54,6 +54,26 @@ test('import: a text file, a binary file and a directory are copied byte for byt
   assert.deepEqual(fs.readFileSync(path.join(into, 'screen.png')), fs.readFileSync(path.join(run.root, 'sources/screen.png')));
   assert.equal(fs.readFileSync(path.join(into, 'pack/nested/deep.txt'), 'utf8'), 'deep\n');
   assert.deepEqual(fs.readFileSync(run.state), state, 'the verb writes no state');
+});
+
+// A task directory the 2.x plugin wrote cannot be resumed, but it can be a
+// context pack: `--context` names it, and the first node imports it whole —
+// its state file and everything beside it, read as nothing more than files.
+test('import: a 2.x task directory is copied whole as a context pack', t => {
+  const run = scratch(t);
+  freeze(run);
+  const earlier = sibling(run, { type: 'development', name: '2025-12-01-earlier' });
+  fs.cpSync(path.join(FIXTURES, 'runs', 'prose-2x'), earlier.dir, { recursive: true });
+  fs.mkdirSync(path.join(earlier.dir, 'analysis'));
+  fs.writeFileSync(path.join(earlier.dir, 'analysis', 'codebase-analysis.md'), '# Analysis\n');
+  const { code, stderr, report } = importing(run, ['--to=analysis/work-context', `--from=${earlier.path}`]);
+  assert.equal(code, 0, stderr);
+  assert.deepEqual(report.skipped, []);
+  assert.deepEqual(report.copied, [{ from: earlier.path, to: 'analysis/work-context/2025-12-01-earlier', files: 3 }]);
+  const into = path.join(run.dir, 'analysis/work-context/2025-12-01-earlier');
+  for (const file of ['orchestrator-state.yml', 'dashboard-data.js', 'analysis/codebase-analysis.md']) {
+    assert.deepEqual(fs.readFileSync(path.join(into, file)), fs.readFileSync(path.join(earlier.dir, file)), file);
+  }
 });
 
 test('import: an absolute source is taken as it is', t => {
