@@ -58,11 +58,11 @@ const DRIVERS = {
 
 /** The in-node question ids each node-prose file names, counted by hand. */
 const IN_NODE_COUNTS = {
-  development: 12,
+  development: 11,
   migration: 4,
   performance: 7,
   'product-design': 12,
-  research: 6,
+  research: 5,
 };
 
 /** The built-in default policy's hash, which every run frozen under it records. */

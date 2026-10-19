@@ -38,10 +38,8 @@ question, and any supplied type, to `research_context`; step 1 writes a
 classified type over an absent one.
 
 **Steps 1–3 each end with one milestone write**: this node's `node_summaries`
-entry, listing every artifact written so far,
-with `steps_completed` — `initialize`, `plan`, `gather`,
-`synthesize`, as far as reached, on every milestone and the closing write — and
-the context fields the step settled as `context`. No `nodes` patch: only the
+entry, listing every artifact written so far, and the context fields the step
+settled as `context`. No `nodes` patch: only the
 closing write changes the status.
 
 ### Step 1 — initialize (inline)
@@ -111,16 +109,9 @@ with nothing to escape permitted; the write refuses anything else, failing this
 node.
 
 **Asks.** Before step 1, when the invocation supplied no question, ask the
-operator for it as free text; never invent one. Step 1 asks the clarification
-it describes.
-
-**With question sets** (`research-question`): never reached either — the start
-brief supplies the question.
-
-**Without question sets** (`research-question`): none, because the
-question is never reached — the start brief supplied it and the freeze persisted
-it. A non-terminal run that has no research question is `RUN-FAILED`, never a
-run with an invented one.
+operator for it as free text; never invent one. A non-terminal run that has no
+research question is `RUN-FAILED`, never a run with an invented one. Step 1
+asks the clarification it describes.
 
 **With question sets** (`question-clarification`): its sharpened readings
 generated before it suspends.
