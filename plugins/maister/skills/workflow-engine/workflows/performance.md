@@ -282,8 +282,8 @@ the first verification pass does not run it again, and it runs on every pass
 after a fix changes code. Never list it under "always runs".
 
 Ask which additional verification checks to run, as bundles in one single-select:
-**"Code review (Recommended)"**, its reason in the description, then
-**"Code review and production readiness"**, then **"No additional checks"**.
+**"Code review only (Recommended)"**, its reason in the description, then
+**"All four reviews"**, then **"No additional checks"**.
 
 **With question sets** (`standard-verifications`): asked through the cockpit, in
 this node's one request.

@@ -102,11 +102,6 @@
         },
         "in_node": [
           {
-            "id": "task-description",
-            "node": "intake",
-            "transport": "question-set"
-          },
-          {
             "id": "clarifications",
             "node": "codebase-analysis",
             "transport": "question-set"
@@ -264,11 +259,6 @@
         },
         "in_node": [
           {
-            "id": "task-description",
-            "node": "intake",
-            "transport": "default"
-          },
-          {
             "id": "clarifications",
             "node": "codebase-analysis",
             "transport": "default"
@@ -425,11 +415,6 @@
         },
         "in_node": [
           {
-            "id": "task-description",
-            "node": "intake",
-            "transport": "in-session"
-          },
-          {
             "id": "clarifications",
             "node": "codebase-analysis",
             "transport": "in-session"
@@ -575,10 +560,6 @@
       }
     ],
     "in_node": [
-      {
-        "id": "task-description",
-        "node": "intake"
-      },
       {
         "id": "clarifications",
         "node": "codebase-analysis"
@@ -1763,11 +1744,6 @@
         },
         "in_node": [
           {
-            "id": "research-question",
-            "node": "research-foundation",
-            "transport": "question-set"
-          },
-          {
             "id": "question-clarification",
             "node": "research-foundation",
             "transport": "question-set"
@@ -1837,11 +1813,6 @@
         },
         "in_node": [
           {
-            "id": "research-question",
-            "node": "research-foundation",
-            "transport": "default"
-          },
-          {
             "id": "question-clarification",
             "node": "research-foundation",
             "transport": "default"
@@ -1909,11 +1880,6 @@
         },
         "in_node": [
           {
-            "id": "research-question",
-            "node": "research-foundation",
-            "transport": "in-session"
-          },
-          {
             "id": "question-clarification",
             "node": "research-foundation",
             "transport": "in-session"
@@ -1978,10 +1944,6 @@
       }
     ],
     "in_node": [
-      {
-        "id": "research-question",
-        "node": "research-foundation"
-      },
       {
         "id": "question-clarification",
         "node": "research-foundation"
