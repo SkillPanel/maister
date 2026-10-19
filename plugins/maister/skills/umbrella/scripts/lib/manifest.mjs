@@ -413,10 +413,6 @@ function renderManifest({ umbrellaId, members }) {
   // people — is emitted null or empty rather than invented, so an operator
   // editing the file is filling a blank in rather than correcting a fiction.
   lines.push(`branch_convention: ${scalar('feature/{run_id}-{member}', 'branch_convention')}`);
-  lines.push('coordination:');
-  lines.push('  branch: maister/coordination');
-  lines.push(`  worktree: ${scalar(`${FRAMEWORK_DIR}/umbrella/.coordination`, 'coordination.worktree')}`);
-  lines.push(`  retention: ${flow({ days: 90 }, 'coordination.retention')}`);
   lines.push('tracker:');
   lines.push('  kind: null');
   lines.push('  project: null');
@@ -1126,17 +1122,9 @@ function checkManifest(doc, file, errors, warnings) {
   checkBranchConvention(doc, fail);
   checkNullableString(doc, 'knowledge', fail);
 
-  if (Object.hasOwn(doc, 'coordination')) {
-    if (!isMap(doc.coordination)) fail('coordination', 'coordination is a mapping');
-    else {
-      checkNullableString(doc.coordination, 'branch', fail, 'coordination');
-      checkNullableString(doc.coordination, 'worktree', fail, 'coordination');
-      if (Object.hasOwn(doc.coordination, 'retention')) {
-        if (!isMap(doc.coordination.retention)) fail('coordination.retention', 'retention is a mapping');
-        else checkNullableInteger(doc.coordination.retention, 'days', fail, 'coordination.retention');
-      }
-    }
-  }
+  // A `coordination:` block, which earlier workspaces were scaffolded with, is
+  // read by nothing: it is accepted whatever it holds, like any other key this
+  // check does not know, so neither a refusal nor a warning implies it matters.
 
   if (Object.hasOwn(doc, 'tracker')) {
     if (!isMap(doc.tracker)) fail('tracker', 'tracker is a mapping');
