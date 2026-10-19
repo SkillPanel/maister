@@ -1,6 +1,6 @@
 # ADR-0002 — Coordination branch
 
-**Status**: Accepted · **Date**: 2026-08-26 · **Sources**: `plugins/maister/skills/umbrella/scripts/lib/manifest.mjs` (`init`); ADR-0003
+**Status**: Accepted, closed 2026-10-19 · **Date**: 2026-08-26 · **Sources**: `plugins/maister/skills/umbrella/scripts/lib/manifest.mjs` (`init`); ADR-0003
 
 ## TL;DR
 Cross-repo coordination state lives on an orphan branch `maister/coordination` in the umbrella repository, mounted as a worktree at `.maister/umbrella/` and never merged with `main` in either direction. Git is the transport: every machine fetches, rebases and pushes the same append-only tree.
@@ -8,7 +8,7 @@ Cross-repo coordination state lives on an orphan branch `maister/coordination` i
 ## ADR-0002: Coordination branch {#adr-0002}
 
 ### Status
-Accepted.
+Accepted, closed 2026-10-19. No shipped component writes or reads the coordination branch: `umbrella init` no longer scaffolds the `coordination:` block, and a manifest that still carries one is accepted and ignored.
 
 ### Context
 A chain run spans several repositories and several operators' machines, and its state has to survive every daemon on every one of them being killed. Nothing may be written into member repositories, and nothing may reach the umbrella repository's `main` — coordination traffic must not look like project history or trigger anybody's CI.
