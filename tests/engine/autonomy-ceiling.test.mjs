@@ -81,9 +81,9 @@ test('removing a recorded autonomy ceiling is widening, by every route', t => {
   frozen(QUESTIONS.engine, run, { options: { ceiling: 'advice', note: 'kept' } });
 
   // A non-map options would replace the whole map: dropped, the rest of the patch applied.
-  const replaced = send(QUESTIONS.engine, run, { orchestrator: { options: null, started_phase: 'scoping' } });
+  const replaced = send(QUESTIONS.engine, run, { orchestrator: { options: null, next_phase: 'scoping' } });
   assert.equal(replaced.stderr, CEILING_NOTE);
-  assert.equal(readState(run).orchestrator.started_phase, 'scoping');
+  assert.equal(readState(run).orchestrator.next_phase, 'scoping');
   assert.deepEqual(readState(run).orchestrator.options, { ceiling: 'advice', note: 'kept' });
 
   for (const value of [null, '', 3]) {

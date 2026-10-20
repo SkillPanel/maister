@@ -9,7 +9,8 @@ import { ENGINE_DIR, FIXTURES, freeze, scratch, scratchPlugin, run, sibling, ver
 // how it runs, its guard, its attempt, its inputs filled in, the files it
 // writes, the questions it asks under this run's driver, the checkpoint it
 // feeds, its brief: data and the convention rows that apply — then the step's
-// own section of the guide. Read-only, as `run-context` is. Lines that would
+// own section of the guide. Its one write is the start of a ready step
+// (`run-status.test.mjs`); nothing else is written. Lines that would
 // say only the default are left out, and a row that may apply later is named
 // on one line rather than printed whole.
 
@@ -353,12 +354,16 @@ test('node-brief: three refusals and the usage errors, none of which writes a fi
     assert.ok(result.stderr.includes(message), result.stderr);
   }
 
-  for (const node of ['scope', 'draft', 'approval', 'audit', 'audit-approval', 'wrap-up']) {
+  // None of these is a step ready to start, so briefing them writes nothing.
+  for (const node of ['draft', 'approval', 'audit', 'audit-approval', 'wrap-up']) {
     assert.equal(nodeBrief(sample.state, node).code, 0, node);
   }
   const after = snapshot(sample.root);
   delete after[path.join('.maister', 'tasks', 'development', '2026-01-06-other', 'orchestrator-state.yml')];
   assert.deepEqual(after, before);
+  // The one write a brief makes: the start of the step ready to run.
+  assert.equal(nodeBrief(sample.state, 'scope').code, 0);
+  assert.notDeepEqual(snapshot(sample.root), after, 'briefing the ready step records its start');
   assert.ok(Object.keys(before).some(file => file.includes(`${path.sep}display${path.sep}`)), 'the snapshot covers the run\'s display files');
   assert.ok(!fs.existsSync(path.join(sample.dir, 'display', 'next.json')), 'no gate panel is written');
 
@@ -368,7 +373,7 @@ test('node-brief: three refusals and the usage errors, none of which writes a fi
   const header = source.slice(0, source.indexOf('\nimport '));
   assert.doesNotMatch(header, /docs\//, 'the header cites no file under docs/');
   const skill = fs.readFileSync(SKILL, 'utf8');
-  for (const code of [...REFUSALS, 'node-brief-graph-drift', 'node-brief-definition-unread', 'node-brief-conventions-unread']) {
+  for (const code of [...REFUSALS, 'node-brief-graph-drift', 'node-brief-definition-unread', 'node-brief-conventions-unread', 'node-brief-start-unrecorded']) {
     assert.ok(header.includes(`\`${code}\``), `the module header does not list ${code}`);
   }
   for (const code of REFUSALS) {

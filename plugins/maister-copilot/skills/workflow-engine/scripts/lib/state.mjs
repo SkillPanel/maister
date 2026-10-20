@@ -400,11 +400,10 @@ const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
  *                   writer to merge with and a replacing write is what the key
  *                   means.
  *   completed_phases, failed_phases
- *                   Sequences. There is no key to merge on; a caller that means
- *                   to append sends the whole list, the same rule
- *                   `related_tasks` follows at the top level. Both start as
- *                   empty lists the freeze writes (`seedSequences`).
- *   the scalars     `started_phase`, `created`, `updated`, `task_path`,
+ *                   Sequences the writer derives from the node statuses on
+ *                   every write (`derivePhases`), so no patch sets them. Both
+ *                   start as empty lists the freeze writes (`seedSequences`).
+ *   the scalars     `started_phase` (derived beside them), `created`, `updated`, `task_path`,
  *                   `next_phase`, `type` — one value each, so a write of one is
  *                   a replacement by definition.
  *
@@ -1171,6 +1170,13 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     orchestrator = rest;
     notes.push(FACT_NOTE);
   }
+  // The phase fields are derived from the node statuses on every write
+  // (`derivePhases`), so a value a patch sends for one is dropped, with a note.
+  const sentPhases = isPlainObject(orchestrator) ? PHASE_FIELDS.filter(key => Object.hasOwn(orchestrator, key)) : [];
+  if (sentPhases.length) {
+    orchestrator = Object.fromEntries(Object.entries(orchestrator).filter(([key]) => !PHASE_FIELDS.includes(key)));
+    notes.push(phasesNote(sentPhases));
+  }
 
   // The policy, loaded at most once per write and only by a rule that reads it.
   const freezing = Boolean(patch.workflow) && !doc.has('workflow');
@@ -1249,6 +1255,8 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     applyTopLevel(doc, key, patch[key], changed);
     intended.add(key);
   }
+
+  derivePhases(doc, changed);
 
   // Every write moves the run's clock. Set last so it reflects the whole write
   // rather than the moment the first section was touched.
@@ -2518,6 +2526,58 @@ function seedSequences(doc, orchestrator, changed) {
     if (doc.locate(['orchestrator', key])) continue;
     doc.set(['orchestrator', key], [`  ${key}: ${empty}`]);
     changed.push(`orchestrator.${key}`);
+  }
+}
+
+/** The `orchestrator` keys the writer derives from the node statuses. */
+const PHASE_FIELDS = ['completed_phases', 'failed_phases', 'started_phase'];
+
+function phasesNote(keys) {
+  return `ignored the supplied ${keys.map(key => `orchestrator.${key}`).join(', ')}; the writer derives them from workflow.nodes on every write`;
+}
+
+/**
+ * `orchestrator.completed_phases`, `failed_phases` and `started_phase`, derived
+ * from `workflow.nodes` by every write of a frozen run.
+ *
+ * The freeze seeds them (`seedSequences`) and nothing after it wrote them: the
+ * prose left them to the orchestrating model, and runs showed it keeps them
+ * one run and not the next. The node statuses are already the record, so the
+ * writer reads the fields off them rather than trusting a second copy.
+ *
+ * A phase is a frozen node other than a gate — a checkpoint is not a phase, the
+ * rule the display files count by — and the reserved closing checkpoint is no
+ * frozen node. Both lists keep frozen order. `started_phase` is the first phase
+ * under way; with none under way, the one started last by its `started` stamp,
+ * or its `completed` one when it was recorded ended without a start (frozen
+ * order breaks a tie); null before any has started. A key whose value
+ * is already right is not rewritten, so a write that moves no node leaves them.
+ */
+function derivePhases(doc, changed) {
+  if (!doc.has('workflow')) return;
+  const typed = typedOf(doc);
+  const nodes = isPlainObject(typed.workflow?.nodes) ? typed.workflow.nodes : {};
+  const phases = Object.keys(nodes).filter(id => id !== HELD_APPROVAL && isPlainObject(nodes[id]) && nodes[id].kind !== 'gate');
+  const status = id => (typeof nodes[id].status === 'string' ? nodes[id].status : 'pending');
+  let started = phases.find(id => ONGOING.has(status(id))) ?? null;
+  if (started === null) {
+    // A step recorded ended without a start carries only its `completed` stamp.
+    const stampOf = id => [nodes[id].started, nodes[id].completed].find(value => typeof value === 'string') ?? '';
+    for (const id of phases) {
+      if (status(id) === 'pending' || status(id) === 'skipped') continue;
+      if (started === null || stampOf(id) >= stampOf(started)) started = id;
+    }
+  }
+  const derived = {
+    completed_phases: phases.filter(id => status(id) === 'completed'),
+    failed_phases: phases.filter(id => status(id) === 'failed'),
+    started_phase: started,
+  };
+  const recorded = isPlainObject(typed.orchestrator) ? typed.orchestrator : {};
+  for (const key of PHASE_FIELDS) {
+    if (Object.hasOwn(recorded, key) && JSON.stringify(recorded[key]) === JSON.stringify(derived[key])) continue;
+    doc.set(['orchestrator', key], [`  ${key}: ${flow(derived[key], `orchestrator.${key}`)}`]);
+    if (!changed.includes(`orchestrator.${key}`)) changed.push(`orchestrator.${key}`);
   }
 }
 

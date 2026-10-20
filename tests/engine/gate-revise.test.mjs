@@ -119,11 +119,10 @@ test('a revise answered in a driven session is stamped with the driver\'s kind, 
 
 test('the phases the stretch owned leave completed_phases; the others stay', t => {
   const run = atGate(t);
-  write(run, {
-    orchestrator: { completed_phases: ['draft', 'review', 'side-note'] },
-  });
+  assert.deepEqual(readState(run).orchestrator.completed_phases, ['draft', 'figures', 'review', 'side-note']);
   revise(run);
-  assert.deepEqual(readState(run).orchestrator.completed_phases, ['side-note']);
+  assert.deepEqual(readState(run).orchestrator.completed_phases, ['side-note'], 'the writer derives the list from the reset');
+  assert.equal(readState(run).orchestrator.started_phase, 'side-note');
 });
 
 test('a skipped guarded node in the stretch is reset too, and its guard is read again', t => {

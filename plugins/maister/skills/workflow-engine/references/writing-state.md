@@ -99,8 +99,13 @@ Each refusal has its row under *When a write is refused*.
 **It seeds what every run carries**, each only when the patch does not supply it and the file
 does not already hold it: `orchestrator.completed_phases: []` and `orchestrator.failed_phases: []`
 at the top of the block, `orchestrator.task_ids: {}`, and `orchestrator.created` from its own
-clock — a child run's freeze included. A later write of either phase list replaces the whole
-list, so a caller that means to append sends the whole list.
+clock — a child run's freeze included.
+
+**The phase fields are the writer's.** On every write of a frozen run it derives
+`orchestrator.completed_phases`, `failed_phases` and `started_phase` from `workflow.nodes`: the
+non-gate nodes recorded `completed`, and those recorded `failed`, in frozen order; and the first
+non-gate node under way, else the one started last, else null. A value a patch sends for any of
+them is dropped with one `note:` line; never send them.
 
 **It records `orchestrator.policy_hash`** — which autonomy policy the run applies. The policy is
 an optional file, `policy/autonomy-policy.json` in this skill's folder; none ships, and without
@@ -186,7 +191,8 @@ write, not one write per thing.** The writer applies every key present in a sing
 number of entries ride in one patch. There are four moments:
 
 - **A node starts.** One patch: the node's `status: running`, and the `orchestrator` scalars
-  the start moves.
+  the start moves. For a ready `agent:`, `skill:` or `direct:` step, `node-brief` makes this write
+  itself and says so on its `started:` line; then there is nothing left to send.
 - **A node ends.** One patch: the node's status, its `node_summaries` entry and the `orchestrator`
   scalars the outcome moves. The writer mirrors the node's status onto its summary whichever
   arrives first; a summary written with its own `status` keeps it until the node's status

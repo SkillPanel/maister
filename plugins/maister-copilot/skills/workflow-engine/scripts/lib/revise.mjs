@@ -21,8 +21,9 @@
  * reset: every node of the stretch `pending`, its `started`, `completed` and
  * `values` removed, its `attempt` one higher; the gate's decision — the option,
  * who answered and when, the attempt it was taken at, its target and the note —
- * appended to the gate's summary; and `orchestrator.completed_phases` without
- * the phases the stretch owned. The dashboard is re-projected by that write.
+ * appended to the gate's summary. The writer derives `orchestrator.completed_phases`
+ * from the reset statuses, so the phases the stretch owned leave it with no
+ * key of this patch's. The dashboard is re-projected by that write.
  * Nothing downstream of the gate is touched, and nothing beside the stretch.
  *
  * The reserved closing checkpoint `held-approval` is revised by its own rule
@@ -147,9 +148,6 @@ export function gateRevise({ state, node, option, input }) {
     nodes: Object.fromEntries(stretch.map(id => [id, { status: 'pending' }])),
     node_summaries: { [node]: summary },
   };
-  const phases = trimmedPhases(doc, stretch);
-  if (phases) patch.orchestrator = { completed_phases: phases };
-
   const result = writeState({ state, patch, regress: new Set(stretch) });
   if (!result.ok) return result;
   return { ...result, revision: { gate: node, option, reruns, revision: attempt, ceiling: REVISION_CEILING, reset: stretch } };
@@ -183,19 +181,6 @@ function decisionsOf(doc, node) {
 function summaryOf(doc, node) {
   const map = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
   return Object.hasOwn(map, node) && isPlainObject(map[node]) ? JSON.parse(JSON.stringify(map[node])) : {};
-}
-
-/**
- * `orchestrator.completed_phases` without the node ids of the stretch, or null
- * when the list does not change, so an unchanged list is not rewritten.
- */
-function trimmedPhases(doc, stretch) {
-  const orchestrator = isPlainObject(doc.orchestrator) ? doc.orchestrator : {};
-  const listed = Array.isArray(orchestrator.completed_phases) ? orchestrator.completed_phases : [];
-  if (!listed.length) return null;
-  const owned = new Set(stretch);
-  const kept = listed.filter(phase => !owned.has(phase));
-  return kept.length === listed.length ? null : kept;
 }
 
 /**
@@ -336,9 +321,7 @@ function heldApprovalRevise({ state, option, input }) {
     node_summaries: { [HELD_APPROVAL]: summary },
   };
   if (isPlainObject(doc.task) && doc.task.status === 'completed') patch.task = { status: 'in_progress' };
-  const phases = trimmedPhases(doc, stretch);
-  if (phases) patch.orchestrator = { completed_phases: phases };
-  if (pending !== null) patch.orchestrator = { ...patch.orchestrator, gate_pending: null };
+  if (pending !== null) patch.orchestrator = { gate_pending: null };
 
   const result = writeState({ state, patch, regress: new Set(resets) });
   if (!result.ok) return result;
