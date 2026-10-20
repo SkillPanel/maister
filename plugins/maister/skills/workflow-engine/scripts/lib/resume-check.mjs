@@ -16,6 +16,10 @@
  * directory under any type folder that carries no `workflow:` block is a 2.x
  * one. No message here spells a command's namespaced name: this file ships to
  * every host unchanged, and each host names the plugin's commands its own way.
+ * The install line it gives is the one for the host this copy ships in, told
+ * apart by the plugin's own manifest name: the Copilot CLI variant renames
+ * itself, and installs from Copilot's shell commands rather than Claude Code's
+ * slash commands.
  *
  * It reads the state file and never writes: not the state, not the dashboard,
  * not anything else in the directory. Zero dependencies, `node:` builtins only,
@@ -24,20 +28,48 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { dashboardUrl, legacyMirrorWarning } from './state.mjs';
 import { openRevision } from './revise.mjs';
 
-/** What an operator reads when a 2.x directory is offered for resume. */
-export const WRITTEN_BY_2X = [
-  'This task was started on the maister 2.x plugin — its `orchestrator-state.yml` has no `workflow:` block — ',
-  'and maister 3.0 does not resume it. Nothing in the directory was changed, and its artifacts are still ',
-  'readable in place. To finish it, install the 2.x line and resume it there: ',
-  '`/plugin marketplace add SkillPanel/maister#release/2.x`, then `/plugin install maister@maister-plugins-2x` ',
-  '(uninstall any other maister channel first, for example `/plugin uninstall maister@maister-plugins`). ',
-  'To start the work over on 3.0, run the command again without a task path; a development or research run ',
-  'started with `--context=<this task directory>` reads this task\'s files as background.',
-].join('');
+/** The manifest name the Copilot CLI variant carries. */
+const COPILOT_VARIANT = 'maister-copilot';
+
+/** The 2.x line's install commands, per host. */
+const INSTALL_2X = {
+  claude: '`/plugin marketplace add SkillPanel/maister#release/2.x`, then `/plugin install maister@maister-plugins-2x` '
+    + '(uninstall any other maister channel first, for example `/plugin uninstall maister@maister-plugins`). ',
+  copilot: '`copilot plugin marketplace add SkillPanel/maister#release/2.x`, then '
+    + '`copilot plugin install maister-copilot@maister-plugins-2x` (uninstall any other maister channel first, '
+    + 'for example `copilot plugin uninstall maister-copilot@maister-plugins`). ',
+};
+
+/**
+ * What an operator reads when a 2.x directory is offered for resume, with the
+ * install line for the plugin named `pluginName` (this copy's own by default).
+ */
+export function writtenBy2x(pluginName = ownPluginName()) {
+  return [
+    'This task was started on the maister 2.x plugin — its `orchestrator-state.yml` has no `workflow:` block — ',
+    'and maister 3.0 does not resume it. Nothing in the directory was changed, and its artifacts are still ',
+    'readable in place. To finish it, install the 2.x line and resume it there: ',
+    INSTALL_2X[pluginName === COPILOT_VARIANT ? 'copilot' : 'claude'],
+    'To start the work over on 3.0, run the command again without a task path; a development or research run ',
+    'started with `--context=<this task directory>` reads this task\'s files as background.',
+  ].join('');
+}
+
+/** This copy's plugin name, read off the manifest four directories up; null when unreadable. */
+function ownPluginName() {
+  try {
+    const root = fileURLToPath(new URL('../../../../', import.meta.url));
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
+    return typeof manifest?.name === 'string' ? manifest.name : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Judge the run whose state file is `state`.
@@ -70,7 +102,7 @@ export function resumeCheck({ state }) {
 
   const dir = path.dirname(path.resolve(state));
   const workflow = doc.workflow;
-  if (!isPlainObject(workflow)) return refuse('written-by-2x', WRITTEN_BY_2X);
+  if (!isPlainObject(workflow)) return refuse('written-by-2x', writtenBy2x());
 
   if (typeof workflow.name !== 'string' || workflow.name === '') {
     return refuse('state-unreadable', `${state} carries a workflow block with no name, so there is no workflow to resume`);

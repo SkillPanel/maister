@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { freeze, legacyMirror, scratch, verb, write } from '../helpers.mjs';
+import { ROOT, freeze, legacyMirror, run as runScript, scratch, verb, write } from '../helpers.mjs';
 
 /** Run `resume-check` against a run and parse the JSON it always prints. */
 function resumeCheck(run) {
@@ -53,6 +53,20 @@ test('resume-check: the refusal says 2.x, names both install lines, and guesses 
   assert.ok(message.includes('`/plugin install maister@maister-plugins-2x`'));
   assert.ok(message.includes('`--context=<this task directory>`'), 'names the context-pack route on 3.0');
   assert.doesNotMatch(message, /\b2\.\d+\.\d+\b/, 'no exact 2.x version: the state never recorded one');
+});
+
+test('resume-check: the Copilot variant gives the 2.x install line in Copilot CLI commands', t => {
+  const run = scratch(t, { fixture: 'prose-2x' });
+  const variantEngine = path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs');
+  const result = runScript(variantEngine, ['resume-check', `--state=${run.state}`]);
+  assert.equal(result.code, 1, result.stderr);
+  const { code, message } = JSON.parse(result.stdout);
+  assert.equal(code, 'written-by-2x');
+  assert.match(message, /started on the maister 2\.x plugin/);
+  assert.ok(message.includes('`copilot plugin marketplace add SkillPanel/maister#release/2.x`'));
+  assert.ok(message.includes('`copilot plugin install maister-copilot@maister-plugins-2x`'));
+  assert.ok(message.includes('`copilot plugin uninstall maister-copilot@maister-plugins`'));
+  assert.doesNotMatch(message, /\/plugin /, 'no Claude Code slash command');
 });
 
 test('resume-check: a 2.x product-design directory is refused the same way and left untouched', t => {
