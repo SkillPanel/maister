@@ -329,13 +329,18 @@ When run without arguments, the plugin extracts the design brief from your conve
 **Flags**: `--research=PATH`, `--no-visual`, `--simple`, `--full`
 
 `--simple` runs the short design: no characteristics or context checkpoint, no personas, no
-brainstorm of alternatives or direction checkpoint, and no prototypes unless the description asks
-for screens. The specification states the approach itself, and you approve the problem and the
+brainstorm of alternatives or direction checkpoint, and no prototypes unless the design turns on
+layout or presentation — the intake judges that, says why, and lets you override it in the same
+question that asks for additional context. The specification states the approach itself, and you approve the problem and the
 specification before the brief and its delivery scope.
 
 `--full` runs the full design whatever the description suggests: the design is treated as
 complex, so personas are drafted and every phase goes to its deepest. Without it the depth
 follows what the run detects, and a short description of a modest change gets no personas.
+
+For a single bounded design question, `/maister:quick-design` is lighter still: it runs in the
+session rather than on the engine, asks one question set and writes a one-page `decision.md` under
+`.maister/tasks/design/` (see [Commands](commands.md#maisterquick-design-design-question)).
 
 ### How it runs
 
@@ -574,6 +579,7 @@ All workflows create structured directories in `.maister/tasks/`:
 ├── migrations/            # Migrations
 ├── research/              # Research
 ├── product-design/        # Product design
+├── design/                # Quick design: decision.md, and mockups/ when made — no state or dashboard
 └── <name>/                # A workflow your project defines, started by name
 ```
 
