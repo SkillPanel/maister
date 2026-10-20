@@ -54,8 +54,13 @@
  * table of the `SKILL.md` beside this module, found from its own location so a
  * generated variant reads its own copy.
  *
- * What it does not do. It writes nothing — no state, no dashboard, no
- * `display/` file — and returns `{ok, text, errors, warnings}`.
+ * What it writes. One thing: the start of a step it briefs (`recordStart`).
+ * The brief is what every step is run from, so a step cannot be begun without
+ * it, and the start it records is what the status line and the dashboard read
+ * as the step under way. A `skill:` step hands the session to a skill whose own
+ * instructions take over, and the start the prose asked for was the write runs
+ * dropped. Nothing else — a refusal, a gate, a step not ready to run — writes
+ * anything. It returns `{ok, text, errors, warnings}`.
  *
  * Refusals, each with a recovery row in the engine skill:
  * - `node-brief-state-unreadable` — `--state` cannot be read or parsed.
@@ -74,6 +79,9 @@
  *   unknown.
  * - `node-brief-conventions-unread` — the conventions table cannot be read;
  *   one `convention: see rules` line stands for its rows.
+ * - `node-brief-start-unrecorded` — the state writer refused the step's start;
+ *   the brief prints without its `started:` line and the start is the session's
+ *   own write.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -84,9 +92,9 @@ import { fileURLToPath } from 'node:url';
 
 import { parse, isPlainObject } from './state-read.mjs';
 import { guideRows, proseSection, readerRows, sectionNameOf } from './graph.mjs';
-import { closingCandidates, evaluate, reread } from './gate-brief.mjs';
+import { closingCandidates, evaluate, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
-import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf } from './state.mjs';
+import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, writeState } from './state.mjs';
 import { owedCompanions } from './companions.mjs';
 import { briefOfRun } from './brief.mjs';
 import { openRevision } from './revise.mjs';
@@ -191,6 +199,12 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
   const lines = gate
     ? gateLines({ node, title, resolved, context, convention, rules: pointer })
     : stepLines({ node, title, resolved, entry, context, convention, table, rules: pointer, origin, section, sources });
+  // After the header is rendered, so it reads the statuses the brief found.
+  if (!gate && startable(node, resolved, nodes, context)) {
+    const started = writeState({ state, patch: { nodes: { [node]: { status: 'running' } } } });
+    if (started.ok) lines.splice(2, 0, STARTED);
+    else warnings.push(`node-brief-start-unrecorded: ${started.errors.map(error => error.code).join(', ')}`);
+  }
   lines.push('');
   if (resolved === null) {
     lines.push(gate ? askIt : current.graph === null ? UNKNOWN_SECTION : GONE_SECTION);
@@ -200,6 +214,39 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
     lines.push(printed ?? NO_SECTION);
   }
   return { ok: true, text: `${lines.join('\n')}\n`, errors: [], warnings };
+}
+
+const STARTED = 'started: recorded running by this brief — the start needs no write of its own';
+
+/** The terminal task statuses, after which nothing starts. */
+const RUN_ENDED = new Set(['completed', 'failed', 'stopped']);
+
+/**
+ * Whether the brief records this step's start: a step the engine runs here —
+ * `agent:`, `skill:` or `direct:`, never a dispatch, whose `waiting` is the
+ * close-out's, nor a `workflow:` step, whose start brackets its child's
+ * freeze — still `pending`, in a run neither ended nor waiting on a gate, and
+ * ready by the ready-set rule: its needs settled and its guard true. And the
+ * step the walk reaches next: while an earlier node in frozen order is pending
+ * and not waiting on its needs, that node is due first — run, asked, or
+ * recorded skipped, which must land before a later start. Otherwise the brief
+ * writes nothing and the start is the session's own write, as it always was.
+ */
+function startable(node, resolved, nodes, context) {
+  if (resolved === null || context.status.get(node) !== 'pending') return false;
+  const uses = typeof resolved.uses === 'string' ? resolved.uses : '';
+  if (!['agent', 'skill', 'direct'].includes(uses.slice(0, uses.indexOf(':')))) return false;
+  if (typeof resolved.dir === 'string' && resolved.dir !== '') return false;
+  const orchestrator = isPlainObject(context.doc.orchestrator) ? context.doc.orchestrator : {};
+  if (isPlainObject(orchestrator.gate_pending)) return false;
+  if (RUN_ENDED.has(context.doc.task?.status)) return false;
+  if (readinessOf(resolved, context.status) !== 'ready') return false;
+  if (typeof resolved.when === 'string') {
+    const guard = evaluate(resolved.when, context);
+    if (!guard.ok || !guard.value) return false;
+  }
+  const earlier = nodes.slice(0, nodes.findIndex(entry => entry.id === node));
+  return !earlier.some(entry => context.status.get(entry.id) === 'pending' && readinessOf(entry, context.status) !== 'waiting');
 }
 
 /** A path as a shell reads it: bare, or in single quotes when it holds whitespace. */

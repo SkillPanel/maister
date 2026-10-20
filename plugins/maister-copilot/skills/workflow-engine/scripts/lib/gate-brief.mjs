@@ -2274,8 +2274,11 @@ function settles(state, on) {
   return ENDED_BADLY.has(state) && (on === 'failure' || on === 'always');
 }
 
-/** `readiness` for a graph node, read off the statuses its needs hold now. */
-function readinessOf(entry, status) {
+/**
+ * `readiness` for a graph node, read off the statuses its needs hold now.
+ * Exported for `node-brief`, which records a step's start only once it is ready.
+ */
+export function readinessOf(entry, status) {
   return readiness(list(entry.needs).map(need => status.get(need)), entry.on);
 }
 

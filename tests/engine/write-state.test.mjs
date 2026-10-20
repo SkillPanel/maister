@@ -88,16 +88,17 @@ test('freeze: seeds completed_phases and failed_phases as empty lists at the top
   assert.match(text, /^orchestrator:\n  completed_phases: \[\]\n  failed_phases: \[\]\n/);
 });
 
-test('freeze: seeds started_phase as null, and a later write replaces it', t => {
+test('freeze: seeds started_phase as null, and the node statuses replace it', t => {
   const run = scratch(t);
   freeze(run);
   assert.match(fs.readFileSync(run.state, 'utf8'), /^ {2}started_phase: null$/m);
   assert.equal(readState(run).orchestrator.started_phase, null);
-  write(run, { orchestrator: { started_phase: 'analysis' } });
+  write(run, { nodes: { analysis: { status: 'running' } } });
   assert.equal(readState(run).orchestrator.started_phase, 'analysis');
   const supplied = scratch(t);
-  freeze(supplied, { orchestrator: { started_phase: 'intake' } });
-  assert.equal(readState(supplied).orchestrator.started_phase, 'intake', 'a value the freeze patch supplies is kept');
+  const result = write(supplied, freezePatch({ orchestrator: { started_phase: 'intake' } }).patch);
+  assert.equal(readState(supplied).orchestrator.started_phase, null, 'a value the freeze patch supplies is derived over');
+  assert.match(result.stderr, /^note: ignored the supplied orchestrator\.started_phase;/m);
 });
 
 test('freeze: stamps created from the write\'s clock, and a supplied value is kept', t => {
@@ -113,12 +114,13 @@ test('freeze: stamps created from the write\'s clock, and a supplied value is ke
   assert.equal(readState(supplied).orchestrator.created, '2026-01-05T09:00:00Z', 'a value the freeze patch supplies is kept');
 });
 
-test('freeze: a sequence the patch supplies is not re-seeded', t => {
+test('freeze: a sequence the patch supplies is derived over, at the top of the block', t => {
   const run = scratch(t);
   write(run, freezePatch({ task: { title: 'Seeded' }, orchestrator: { completed_phases: ['intake'] } }).patch);
   const state = readState(run);
-  assert.deepEqual(state.orchestrator.completed_phases, ['intake']);
+  assert.deepEqual(state.orchestrator.completed_phases, []);
   assert.deepEqual(state.orchestrator.failed_phases, []);
+  assert.match(fs.readFileSync(run.state, 'utf8'), /^orchestrator:\n  completed_phases: \[\]\n  failed_phases: \[\]\n/);
 });
 
 // The startup banner: the freeze write prints it before the changed paths, once.

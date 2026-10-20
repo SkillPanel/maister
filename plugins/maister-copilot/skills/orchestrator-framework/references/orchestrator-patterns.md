@@ -202,10 +202,10 @@ mockup_format: html   # UI mockups: html (visual companion) or ascii (ascii-mock
 
 ```yaml
 orchestrator:
-  # Phase tracking
-  started_phase: [phase-name]
-  completed_phases: []
-  failed_phases: []
+  # Phase tracking — derived by the state writer from workflow.nodes on every write
+  started_phase: [phase-name]  # the non-gate node under way, else the one started last, else null
+  completed_phases: []         # non-gate nodes recorded completed, in frozen order
+  failed_phases: []            # non-gate nodes recorded failed, in frozen order
 
   # Optional phase flags — shared keys only; `options` is an open map
   options:
