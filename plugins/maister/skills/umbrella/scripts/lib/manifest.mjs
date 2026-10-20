@@ -80,7 +80,7 @@ import { randomBytes } from 'node:crypto';
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
 import { driverCapability } from './envelope.mjs';
-import { validate as validateGraph } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
+import { locate as locateWorkflow, TARGET_NAME, validate as validateGraph } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
 
 /** The refusal names `commit` and `openTemp` report under, kept in one place. */
 const CODES = { unwritable: 'umbrella-unwritable', tempExists: 'umbrella-temp-exists' };
@@ -783,7 +783,7 @@ export function validate(root, { definitions = [] } = {}) {
 
   let members = null;
   if (manifest.doc !== null) {
-    members = checkManifest(manifest.doc, manifestPath, errors, warnings);
+    members = checkManifest(manifest.doc, manifestPath, errors, warnings, base);
   }
 
   for (const file of definitions) {
@@ -1073,7 +1073,7 @@ function locate(entry, file) {
  * ride along because the node check that reads them has no second chance to
  * open the manifest.
  */
-function checkManifest(doc, file, errors, warnings) {
+function checkManifest(doc, file, errors, warnings, base) {
   const fail = (dotted, message) => errors.push({ file, node: null, path: dotted, message });
   const warn = (dotted, message) => warnings.push({ file, node: null, path: dotted, message });
 
@@ -1114,6 +1114,7 @@ function checkManifest(doc, file, errors, warnings) {
       } else if (entry.autonomy === RETIRED_TIER) {
         warnings.push(retiredTier(file, null, `${at}.autonomy`));
       }
+      if (Object.hasOwn(entry, 'workflows')) checkMemberWorkflows(entry, at, base, fail, warn);
       members.names.add(name);
     }
   }
@@ -1199,6 +1200,51 @@ function checkManifest(doc, file, errors, warnings) {
   }
 
   return members;
+}
+
+/**
+ * The kinds of work a member may name its own workflow for. A planner choosing
+ * a member's workflow by the kind of work reads `members.<name>.workflows`
+ * first and falls back to the built-in of the same kind when it is absent.
+ */
+const WORK_KINDS = ['fix', 'change', 'plan', 'development', 'design'];
+
+/**
+ * A member's `workflows:` — a mapping from a kind of work to the name of a
+ * workflow that member keeps. The name is looked up the way a run in that
+ * member would look it up, and only a workflow the member itself holds under
+ * `.maister/workflows/` counts: a name that reaches no file, or only the
+ * built-in, says nothing a default would not. A member not yet on disk is
+ * judged on shape alone, since a workspace is often described before every
+ * member is checked out. A kind outside the known set is warned about and kept,
+ * so a planner that learns a new kind is not refused by an older validator.
+ */
+function checkMemberWorkflows(entry, at, base, fail, warn) {
+  const dotted = `${at}.workflows`;
+  if (!isMap(entry.workflows)) {
+    fail(dotted, `workflows is a mapping from a kind of work (${WORK_KINDS.join(', ')}) to the name of a workflow this member keeps`);
+    return;
+  }
+  const checkout = typeof entry.path === 'string' && entry.path !== '' && !entry.path.startsWith('/')
+    ? path.resolve(base, entry.path) : null;
+  const present = checkout !== null && isDirectory(checkout);
+  for (const [kind, name] of Object.entries(entry.workflows)) {
+    const key = `${dotted}.${kind}`;
+    if (!WORK_KINDS.includes(kind)) {
+      warn(key, `"${kind}" is not a kind of work this build knows (${WORK_KINDS.join(', ')}); the entry is kept, and nothing that chooses by kind will read it`);
+    }
+    if (typeof name !== 'string' || !TARGET_NAME.test(name)) {
+      fail(key, `a workflow name is lowercase letters, digits and hyphens, starting with a letter, as in ${kind}: frontend-change`);
+      continue;
+    }
+    if (!present) continue;
+    const found = locateWorkflow({ name, project: checkout });
+    if (!found.ok) {
+      fail(key, `in the member at ${entry.path}, ${found.errors.map((each) => each.message).join('; ')}. Add .maister/workflows/${name}.yml to the member, or correct the name`);
+    } else if (found.from === 'builtin') {
+      fail(key, `"${name}" is the built-in workflow, not one the member at ${entry.path} keeps under .maister/workflows/. Name the member's own workflow, or remove the entry and let the built-in be chosen`);
+    }
+  }
 }
 
 function checkPerson(person, at, members, fail) {

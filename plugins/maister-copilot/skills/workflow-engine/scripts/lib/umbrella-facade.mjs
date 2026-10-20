@@ -18,4 +18,5 @@
 
 export { readDefinition } from './definition.mjs';
 export { bareWorkflowName, locateTarget, resolve, TARGET_NAME, TARGET_REF, validate } from './graph.mjs';
+export { locate } from './locate.mjs';
 export { ASK_LEVELS, effectiveCeiling, loadPolicy, narrowerLevel } from './policy.mjs';
