@@ -14,10 +14,8 @@ Copilot.
 - **GitHub Copilot CLI 1.0.100 or newer.** That release is the first whose hook input names the
   subagent that made a call, which the destructive-command guard needs.
 - **Node.js 20 or newer.** Every workflow runs on the workflow engine, which needs it. Without
-  Node, a workflow command stops before it creates a task folder and says why.
-- **`jq` on `PATH`. Required, not optional.** The destructive-command guard reads the subagent's
-  identity with it, and fails closed: without `jq` it denies every shell call a subagent makes, so
-  a workflow's agents cannot run tests, builds or the engine's commands and the run stalls.
+  Node, a workflow command stops before it creates a task folder and says why. The plugin's hooks
+  run on Node too, so they need neither bash nor `jq`.
 
 ### From the marketplace
 
@@ -124,7 +122,7 @@ when you are not sure which one you need. To choose yourself:
 | Command | Use it for |
 |---|---|
 | `development` | Features, enhancements and bug fixes: analysis, specification, plan, test-driven implementation and verification, with a pause for your review between phases. |
-| `research` | A question to answer before building: gathers evidence from the codebase and the pages it can fetch, and writes a report with a recommendation. |
+| `research` | A question to answer before building: gathers evidence from the codebase and the pages it can fetch, and writes a report with a recommendation. See [Research and the web](#research-and-the-web). |
 | `performance` | Slow code: finds bottlenecks by reading the code (N+1 queries, missing indexes, quadratic loops, blocking I/O), then fixes them like a development run. |
 | `migration` | Moving to another library, platform or architecture pattern, step by step, with rollback planning and compatibility checks. |
 | `product-design` | A fuzzy idea: explores the problem and options with you, prototypes screens, and ends with a product brief. |
@@ -135,6 +133,32 @@ when you are not sure which one you need. To choose yourself:
 
 The five workflows at the top are described in full, with their flags, in
 [Workflow Details](workflows.md); every command is listed in [Commands](commands.md).
+
+### Research and the web
+
+Copilot CLI has web search built in, but GitHub turns it on account by account, on its side, and
+not every account has it yet. To get it:
+
+1. Turn on "Copilot can search the web using model native search" in your GitHub Copilot settings.
+2. Sign out and back in (`/logout`, then `/login`) so new sessions pick up the change.
+
+Even then a session may have no search until GitHub enables it for your account. There is no
+local switch for it; `--experimental` does not turn it on. When search is available, Copilot shows
+"Searching the web" in the session. Maister's research agents name Copilot's search tool, so they
+use it wherever Copilot offers it to them; check a research run's sources to see whether it did.
+
+Until then, the research agents read pages at addresses they already know or that you give them.
+
+- **Give the run its sources.** Put the URLs that matter in the research question.
+- **What works well:** questions about your codebase and about well-documented libraries, whose
+  official docs and READMEs the agents can read.
+- **What is weak:** anything that needs discovery, such as recent releases, vendor or market scans
+  and third-party comparisons. The run leans on the model's own knowledge instead.
+- **Allow the sites it needs.** Fetches follow Copilot's URL permission rules (`url(...)` rules,
+  `--allow-url`, `--allow-all-urls`). A subagent cannot stop to ask, so under stricter settings
+  allow the domains a research task needs before you start it.
+- **A search server you add does not reach research.** A search MCP server added to Copilot
+  reaches Copilot's built-in agents, but not Maister's research agents, whose tool lists are fixed.
 
 ### Where the work goes
 
@@ -286,9 +310,9 @@ consider a lighter model for the implementer subagents, as above.
 
 ## Differences from Claude Code
 
-- **No web search in research.** Copilot gives the research agents `web_fetch`, which reads a page
-  whose address it already knows, and no search tool. Research draws on the codebase and those
-  pages. Give it the URLs that matter in the task.
+- **Web search depends on your account.** Research can search the web only once GitHub has
+  enabled search for your account; until then it reads pages at addresses it knows. See
+  [Research and the web](#research-and-the-web).
 - **No reminder after compaction.** On Claude Code, a reminder after a compacted context points
   the model back at the run's state. Copilot has no such moment. If a workflow loses its place
   after `/compact`, run the workflow's command again with the task folder, as in
@@ -298,8 +322,8 @@ consider a lighter model for the implementer subagents, as above.
   Copilot itself to block edits while planning, enter `/plan` first.
 - **Missing folders.** Copilot's file tool does not create a missing parent folder. Maister's agents
   create a folder before writing into it.
-- **The guard is a plugin hook.** Copilot loads it from the plugin, so it needs no setup beyond
-  `jq`, which it cannot run without (see [Requirements](#requirements)).
+- **The guard is a plugin hook.** Copilot loads it from the plugin and runs it with Node, so it
+  needs no setup.
 - **`MAISTER_PLUGIN_ROOT` is optional.** Copilot tells each skill where it lives, and the scripts
   find the plugin from their own location. Set the variable only if a model keeps guessing the
   plugin's folder wrong, pointing it at the folder that holds `.claude-plugin/plugin.json`
@@ -341,8 +365,7 @@ blocked"). Copilot's shell validator refused the command shape. The agent normal
 way; nothing needs changing on your side.
 
 **"Denied by preToolUse hook".** The destructive-command guard stopped a subagent's destructive
-command. That is intended. If every subagent shell call is denied, `jq` is missing from `PATH`:
-install it and start a new session.
+command. That is intended.
 
 **A command is unknown, or a workflow is missing.** Check what loaded:
 

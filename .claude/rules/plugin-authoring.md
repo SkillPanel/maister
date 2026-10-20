@@ -34,7 +34,7 @@ Applies when editing skills, agents, commands, hooks, or references under `plugi
 
 **Carve-out.** Rules 1, 2 and 5 and the length targets above describe *prose* references. They do not apply to:
 
-- `hooks/*.mjs` and `hooks/*.sh` — executable code, written to be read as code.
+- `hooks/*.mjs` — executable code, written to be read as code.
 - `skills/*/scripts/*.mjs` and `skills/*/server/*.mjs` — executable code shipped with a skill, written to be read as code. A skill's script directory holds the tooling its prose invokes; its server directory holds a local companion process.
 - `lib/*.mjs` — executable code shared by more than one skill, written to be read as code. It sits at the plugin root because no single skill owns it.
 
@@ -45,8 +45,8 @@ repository.
 
 - **Skill**: `skills/<name>/SKILL.md` (uppercase) with `name` + `description` frontmatter — the description is what the Skill tool and users see. Optional `references/`, `assets/`. A workflow is not a skill of its own: it is a definition under `skills/workflow-engine/workflows/` with a thin hand-off skill, built to `skills/orchestrator-framework/references/orchestrator-creation-checklist.md`.
 - **Command**: `commands/<name>.md`, flat (no subdirectories) and no colons in `name` — the Copilot build requires both. Invoke a skill; don't embed logic.
-- **Agent**: `agents/<name>.md` with `name`, `description`, `tools` frontmatter. Read-only unless it must write. If it truly needs destructive Bash, add it to the `case` whitelist in `hooks/block-destructive-commands.sh` — default is *not* whitelisted.
-- **Hook**: script alongside `hooks/hooks.json`, registered there with a `${CLAUDE_PLUGIN_ROOT}`-anchored path. Node hooks (`*.mjs`) use the exec form — `command: node` with the script path in `args` — so nothing depends on a shebang or an executable bit. Shell hooks (`*.sh`) are invoked as `bash "${CLAUDE_PLUGIN_ROOT}/hooks/<name>.sh"` for the same reason. The Copilot variant ships only the hooks Copilot CLI can run, registered by `platforms/copilot-cli/hooks.json`; a shell hook it ships writes its JSON output under one `HOOK_SHAPE=claude` line, which the build switches to Copilot's top-level shape — so a new hook for both hosts follows the same switch, and one Copilot cannot run stays out of that file.
+- **Agent**: `agents/<name>.md` with `name`, `description`, `tools` frontmatter. Read-only unless it must write. If it truly needs destructive Bash, add it to the whitelist in `hooks/block-destructive-commands.mjs` — default is *not* whitelisted.
+- **Hook**: script alongside `hooks/hooks.json`, registered there with a `${CLAUDE_PLUGIN_ROOT}`-anchored path. Every hook is a zero-dependency Node `*.mjs` in the exec form — `command: node` with the script path in `args` — so nothing depends on a shebang, an executable bit, bash or jq; `make validate` refuses a shell hook. The Copilot variant ships only the hooks Copilot CLI can run, registered by `platforms/copilot-cli/hooks.json` in Copilot's exec form (`exec: node` with the same `args`); a hook it ships writes its JSON output under one `const HOOK_SHAPE = 'claude';` line, which the build switches to Copilot's top-level shape — so a new hook for both hosts follows the same switch, and one Copilot cannot run stays out of that file.
 
 ## Adding a refusal to the umbrella runtime
 

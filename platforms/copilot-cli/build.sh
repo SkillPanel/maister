@@ -24,14 +24,14 @@ cp -r "$CORE" "$OUT"
 #   - display.mjs is a Claude Code hooks module, so it goes, with its state
 #     contract, the API declarations and the tsconfig.json Claude Code lays
 #     beside a plugin it loads from a folder;
-#   - post-compact-reminder.sh: Copilot starts no session after compaction
+#   - post-compact-reminder.mjs: Copilot starts no session after compaction
 #     (a start's source is startup, resume or new) and applies no matcher to a
 #     SessionStart hook, so the compact-only reminder would speak at every start;
 #   - edition-check.mjs: the collision it looks for is between editions that
 #     share the plugin name, which this renamed variant never carries.
 # The two scripts that stay are switched to Copilot's output shape further down.
 rm -rf "$OUT/types" "$OUT/.claude-plugin/types" "$OUT/tsconfig.json" \
-  "$OUT/hooks/display.mjs" "$OUT/hooks/post-compact-reminder.sh" "$OUT/hooks/edition-check.mjs"
+  "$OUT/hooks/display.mjs" "$OUT/hooks/post-compact-reminder.mjs" "$OUT/hooks/edition-check.mjs"
 cp "$ROOT/platforms/copilot-cli/hooks.json" "$OUT/hooks/hooks.json"
 
 # 1. Update plugin.json name and description, and drop the dropped contract
@@ -81,9 +81,11 @@ find "$OUT/skills" -name "*.md" | while read f; do
   sedi -e 's#\.claude/CLAUDE\.md#AGENTS.md#g' -e 's/CLAUDE\.md/.github\/copilot-instructions.md/g' "$f"
 done
 
-# 6. Replace AskUserQuestion with copilot's ask_user tool
+# 6. Replace AskUserQuestion with copilot's ask_user tool, and Claude Code's
+#    web tools with this host's: web_fetch by name, and web search as a plain
+#    phrase, since a session may offer no search tool at all.
 find "$OUT" -name "*.md" | while read f; do
-  sedi 's/AskUserQuestion/ask_user/g' "$f"
+  sedi -e 's/AskUserQuestion/ask_user/g' -e 's/WebFetch/web_fetch/g' -e 's/WebSearch/web search/g' "$f"
 done
 
 # 6a. Plan without a plan-mode tool. quick-plan and quick-bugfix enter Claude
@@ -130,21 +132,23 @@ find "$OUT" -name "*.md" | while read f; do
 done
 
 # 6d. The hook scripts: Copilot's output shape and this variant's names. Each
-#     script names its shape on one line, HOOK_SHAPE=claude; Copilot reads a
-#     SessionStart's context and a PreToolUse's decision only at the top level
-#     of the output and drops Claude's hookSpecificOutput wrapper. The reminder
+#     script names its shape on one line, `const HOOK_SHAPE = 'claude';`;
+#     Copilot reads a SessionStart's context and a PreToolUse's decision only
+#     at the top level of the output and drops Claude's hookSpecificOutput
+#     wrapper. The hooks are Node, run by Node alone, so neither bash nor jq is
+#     needed to run them on either host. The reminder
 #     text gets the same renames as the skills, the skill tool's own name and
 #     Copilot's autonomy settings in place of Claude Code's permission modes.
-for f in "$OUT"/hooks/*.sh; do
+for f in "$OUT"/hooks/*.mjs; do
   sedi -E \
-    -e 's/^HOOK_SHAPE=claude$/HOOK_SHAPE=copilot/' \
+    -e "s/^const HOOK_SHAPE = 'claude';\$/const HOOK_SHAPE = 'copilot';/" \
     -e "s#/maister:#/$NS:#g" \
     -e 's/AskUserQuestion/ask_user/g' \
     -e 's/the Skill tool/the skill tool/g' \
     -e 's#regardless of permission mode \(auto / acceptEdits / bypassPermissions\)#regardless of mode or permissions (autopilot / allow-all)#g' \
     "$f"
-  if ! grep -q '^HOOK_SHAPE=copilot$' "$f"; then
-    echo "build: $f names no HOOK_SHAPE=claude line; Copilot would drop its output" >&2
+  if ! grep -q "^const HOOK_SHAPE = 'copilot';\$" "$f"; then
+    echo "build: $f names no HOOK_SHAPE line; Copilot would drop its output" >&2
     exit 1
   fi
 done
@@ -157,7 +161,7 @@ done
 #    path from the skill's base directory, which the CLI hands every skill, and
 #    the variant's README.md says when exporting it helps. Skills and their
 #    references only: hooks.json keeps CLAUDE_PLUGIN_ROOT, which the hooks do
-#    get, and no .mjs is rewritten -- the runtime code reads the variable at
+#    get, and no .mjs is rewritten for it -- the runtime code reads the variable at
 #    call time and already falls back to its own module location.
 find "$OUT/skills" -name "*.md" | while read f; do
   sedi 's/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g' "$f"
@@ -176,8 +180,10 @@ done
 #      family or a session does not have are ignored. The `web` alias is the
 #      documented route to web search, but a session with no search tool of
 #      its own -- the main agent's included -- gives none to its agents, by
-#      alias or by name. The agents that drive the browser add the
-#      plugin's Playwright MCP server.
+#      alias or by name. The research agents also name the GitHub server's
+#      web_search, so they use it in a session that offers it; where it is
+#      absent the name is ignored. The agents that drive
+#      the browser add the plugin's Playwright MCP server.
 #    - One sentence after the frontmatter, for the skill tool, which the CLI
 #      grants whatever the allowlist says.
 #    The agent also gets DIR_RULE: Copilot's create tool refuses a path whose
@@ -194,6 +200,7 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
   tools='"execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"'
   case "$(basename "$f" .md)" in
     e2e-test-verifier|user-docs-generator) tools="$tools, \"playwright/*\"" ;;
+    information-gatherer|research-planner) tools="$tools, \"github-mcp-server/web_search\"" ;;
   esac
   awk -v tools="tools: [$tools]" -v dirrule="$DIR_RULE" '
     NR==1 && $0=="---" { fm=1; print; next }

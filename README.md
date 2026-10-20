@@ -22,8 +22,7 @@ Describe what you want to build, and the plugin handles the rest - from specific
 ### Prerequisites
 
 - [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.100+ with the `maister-copilot` variant — see [Maister on GitHub Copilot CLI](docs/copilot.md))
-- `jq` on `PATH` — the destructive-command guard uses it to judge a subagent's shell commands, and denies them all without it
-- Node.js 20 or newer — required, with no fallback. Every workflow runs on the workflow engine, which needs it: without Node, a workflow command stops before it creates a task directory and says why. HTML mockups need it too
+- Node.js 20 or newer — required, with no fallback. Every workflow runs on the workflow engine, which needs it: without Node, a workflow command stops before it creates a task directory and says why. The plugin's hooks and HTML mockups need it too
 
 ### Installation
 

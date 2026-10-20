@@ -1,6 +1,6 @@
 ---
 name: information-gatherer
-tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo", "github-mcp-server/web_search"]
 description: Information gathering specialist executing systematic data collection across multiple sources including codebase, documentation, configuration files, and web resources. Maintains source citations and organizes findings with evidence.
 color: green
 ---
@@ -41,13 +41,13 @@ You always write your findings to the files below — the synthesizer reads them
 | `codebase` | File patterns, key files, directories | `codebase-*.md` | Glob, Grep, Read |
 | `documentation` | Project docs, code docs, inline comments | `docs-*.md` | Read, Grep |
 | `configuration` | package.json, .env, config files | `config-*.md` | Read |
-| `external` | URLs, web resources, framework docs | `external-*.md` | WebSearch, WebFetch |
+| `external` | URLs, web resources, framework docs | `external-*.md` | web search, web_fetch |
 | `all` | All of the above | All files + `00-summary.md` | All tools |
 
 **Custom Categories**: The `source_category` parameter also accepts custom category IDs defined by the research-planner's gathering strategy (e.g., `external-apis`, `project-a-codebase`, `legacy-system`). When a custom category is provided:
 - Read the Gathering Strategy section from `planning/research-plan.md` to understand the focus area
 - Name output files using the category ID as prefix: `analysis/findings/[category-id]-*.md`
-- Apply the most appropriate tools based on the focus area (codebase-focused → Glob/Grep/Read, external-focused → WebSearch/WebFetch, docs-focused → Read/Grep)
+- Apply the most appropriate tools based on the focus area (codebase-focused → Glob/Grep/Read, external-focused → web search/web_fetch, docs-focused → Read/Grep)
 
 **When source_category is NOT `all`**:
 - Filter `planning/sources.md` to only include matching category (or use gathering strategy focus area for custom categories)

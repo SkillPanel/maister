@@ -242,7 +242,7 @@ on the 2.x plugin is refused with a message that says where to finish it.
 ### With Task Classifier
 
 The `/work` command delegates classification to the task-classifier subagent via Task tool, which:
-- Fetches issue details from GitHub/Jira/Azure DevOps (via MCP, CLI tools, or WebFetch)
+- Fetches issue details from GitHub/Jira/Azure DevOps (via MCP, CLI tools, or web_fetch)
 - Analyzes codebase context for better classification
 - Asks the user nothing — this command owns the one question, when there is one
 - Returns a ranked classification with a reason for each candidate

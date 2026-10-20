@@ -1,9 +1,9 @@
 # ADR-0007 — Hook runtime and artifact homes
 
-**Status**: Accepted · **Date**: 2026-08-26 · **Sources**: `plugins/maister/hooks/hooks.json`, `hooks/block-destructive-commands.sh`
+**Status**: Accepted · **Date**: 2026-08-26 · **Sources**: `plugins/maister/hooks/hooks.json`, `hooks/block-destructive-commands.mjs`
 
 ## TL;DR
-The plugin's Node hooks are zero-dependency modules invoked in exec form; the destructive-command guard stays bash. Node ≥ 20 is a prerequisite for every session (see the 2026-09-11 amendment). No hook writes anything into the consumer's tree. The gate-enforcement hook set is a Pro Edition feature and does not live in this repository.
+The plugin's Node hooks are zero-dependency modules invoked in exec form; the destructive-command guard stayed bash until the 2026-10-20 amendment. Node ≥ 20 is a prerequisite for every session (see the 2026-09-11 amendment). No hook writes anything into the consumer's tree. The gate-enforcement hook set is a Pro Edition feature and does not live in this repository.
 
 ## ADR-0007: Hook runtime and artifact homes {#adr-0007}
 
@@ -58,3 +58,9 @@ The literal `git push origin HEAD` arm, on the same machine and in the same invo
 
 ### Amendment 2026-09-20 — the gate hooks are a Pro Edition feature
 The per-call gate-enforcement hook, the Stop nudge, the liveness beacon and the `--settings` template that registers them are a Pro Edition feature and do not live in this repository. Open `hooks.json` registers only the session-start hooks and the destructive-command guard.
+
+### Amendment 2026-10-20 — every hook is Node, on both hosts
+
+The destructive-command guard and the two session-start reminders are now Node `.mjs` too, and the bash scripts are gone. The guard was kept in bash while it was advisory and Node was not guaranteed; neither holds any longer. It fails closed, so on bash it needed `jq` on every machine — without it every subagent shell call was denied — and Node is required anyway, since every workflow runs on the Node engine. A bash hook was also a Windows problem: no bash without Git for Windows.
+
+Behaviour is unchanged: the same destructive patterns, the main agent let through, the whitelist matched on the bare name and this plugin's own `maister:` and `maister-copilot:` spellings, the deny in each host's PreToolUse shape behind the same build-time `HOOK_SHAPE` switch, and the reminders' text byte for byte. The guard now fails closed only on input it cannot parse. Claude Code runs every hook as `command: node` with the script in `args`; Copilot CLI's `hooks.json` uses its own exec form, `exec: node` with the same `args`, which it expands `${CLAUDE_PLUGIN_ROOT}` inside. Verified live on Copilot CLI 1.0.100: the session-start reminder reached the model, a `task-group-implementer`'s `git stash list` was denied by the hook, and `docs-operator`'s and the main session's ran. `make validate` refuses a shell hook or a shell-form entry from now on.

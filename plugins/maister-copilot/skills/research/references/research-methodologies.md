@@ -113,8 +113,8 @@ Research type classification determines which methodology to apply. Use question
 5. **Recommendation**: Synthesize into actionable recommendations
 
 **Tools**:
-- WebSearch: Find authoritative sources
-- WebFetch: Read external documentation
+- web search: Find authoritative sources
+- web_fetch: Read external documentation
 - Read: Internal documentation review
 
 **Expected Timeline**: 2-3 phases

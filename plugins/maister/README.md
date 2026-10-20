@@ -48,13 +48,12 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 
 ## Requirements
 
-- **Node.js 20 or newer** is required. Every workflow runs on the workflow engine, which needs it; without Node.js, a workflow command stops before it creates a task folder and says why.
-- **`jq`** on `PATH`. The destructive-command guard uses it to judge a subagent's shell commands, and denies them all without it.
+- **Node.js 20 or newer** is required. Every workflow runs on the workflow engine, which needs it; without Node.js, a workflow command stops before it creates a task folder and says why. The plugin's hooks run on it too.
 - **Playwright MCP** is bundled (`.mcp.json`, pinned version) and starts locally via `npx`, so it is available in Claude Code but not on claude.ai on the web. It drives the optional browser steps of the development workflow, browser checks and user documentation with screenshots, which you switch on when verification options are offered, and opens the HTML mockup gallery. Without a browser, mockups can be produced as ASCII instead, and the browser steps are left off.
 
 ## Hooks
 
-The plugin registers four hooks. None of them sends data anywhere:
+The plugin registers four hooks, each a Node script with no dependencies. None of them sends data anywhere:
 
 - **SessionStart**: injects a short reminder to run `/maister:*` commands through their skill and to ask at every workflow checkpoint.
 - **SessionStart (after compaction)**: when the project has `.maister/tasks/`, reminds Claude to re-read the active workflow's `orchestrator-state.yml` so a long workflow resumes at the right step.

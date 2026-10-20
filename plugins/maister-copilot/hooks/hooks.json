@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/skill-invocation-reminder.sh\"",
+            "exec": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/skill-invocation-reminder.mjs"],
             "timeout": 10
           }
         ]
@@ -18,7 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/block-destructive-commands.sh\"",
+            "exec": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/block-destructive-commands.mjs"],
             "timeout": 5
           }
         ]
