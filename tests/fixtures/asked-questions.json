@@ -1325,6 +1325,11 @@
             "transport": "question-set"
           },
           {
+            "id": "mockups",
+            "node": "intake",
+            "transport": "question-set"
+          },
+          {
             "id": "problem-questions",
             "node": "problem-exploration",
             "transport": "question-set"
@@ -1433,6 +1438,11 @@
         "in_node": [
           {
             "id": "additional-context",
+            "node": "intake",
+            "transport": "default"
+          },
+          {
+            "id": "mockups",
             "node": "intake",
             "transport": "default"
           },
@@ -1548,6 +1558,11 @@
             "transport": "in-session"
           },
           {
+            "id": "mockups",
+            "node": "intake",
+            "transport": "in-session"
+          },
+          {
             "id": "problem-questions",
             "node": "problem-exploration",
             "transport": "in-session"
@@ -1651,6 +1666,10 @@
     "in_node": [
       {
         "id": "additional-context",
+        "node": "intake"
+      },
+      {
+        "id": "mockups",
         "node": "intake"
       },
       {
