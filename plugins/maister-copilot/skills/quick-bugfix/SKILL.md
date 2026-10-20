@@ -4,6 +4,8 @@ description: Quick bug fix with TDD red/green gates and complexity escalation
 argument-hint: "[bug description]"
 ---
 
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
+
 # Quick Bug Fix
 
 Lightweight TDD-driven bug fix workflow with planning mode. Analyze the bug, present a fix plan for approval, then reproduce with a failing test, fix, and verify. No orchestrator state, no task directory, no subagents.
@@ -79,13 +81,13 @@ Use ask_user — "This bug looks bigger than a quick fix: \<the signals, in a fe
 
 **If no escalation needed or user chooses to continue:** proceed to Step 4.
 
-### Step 4: Enter Planning Mode
+### Step 4: Plan the Fix
 
-**Use the `EnterPlanMode` tool to present the fix plan for user approval.**
+**Draft the fix plan without creating, editing or deleting any project file, then present it and ask for approval with `ask_user`; write the test and the fix only after it is approved.** This host has no plan-mode tool for you to enter. If the session is already in Copilot's plan mode (the user started it with `/plan` or `--plan`), the host itself blocks edits: present the plan with `exit_plan_mode`, which asks for that approval and leaves plan mode.
 
 Standards context from Step 2 and analysis from Step 3 MUST inform the plan.
 
-**Plan file content:**
+**Plan content:**
 
 ```markdown
 ## Bug Analysis
@@ -112,9 +114,9 @@ If no standards exist: "No Maister standards found. Consider running `/maister-c
 - [ ] [Guideline from standard file] (from `standards/[path]`)
 ```
 
-### ExitPlanMode Gate: Mandatory Sections
+### Approval Gate: Mandatory Sections
 
-**BLOCKING: Do NOT call `ExitPlanMode` until the plan file contains:**
+**BLOCKING: Do NOT ask for approval until the plan contains:**
 
 1. **"## Bug Analysis"** — root cause hypothesis with evidence
 2. **"## Proposed Fix"** — what changes and why
@@ -122,7 +124,7 @@ If no standards exist: "No Maister standards found. Consider running `/maister-c
 4. **"## Applicable Standards"** — standards read and key guidelines
 5. **"## Standards Compliance Checklist"** — checkboxes for applicable guidelines
 
-If any section is missing, add it before calling ExitPlanMode.
+If any section is missing, add it before asking for approval.
 
 ### Step 5: TDD Red Gate
 

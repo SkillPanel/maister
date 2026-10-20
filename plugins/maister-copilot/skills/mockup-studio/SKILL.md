@@ -4,6 +4,8 @@ description: Generates UI mockups (rendered HTML/CSS via a browser visual compan
 user-invocable: true
 ---
 
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
+
 # Mockup Studio
 
 The single, reusable engine for generating UI mockups in the maister plugin. It runs in the **main agent context** (not a subagent), so it can start a local visual-companion server (Bash), open a browser (Playwright MCP), and run interactive `ask_user` refinement gates.

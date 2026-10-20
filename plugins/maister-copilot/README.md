@@ -97,6 +97,17 @@ Copilot's `web` alias, but an agent gets only the tools its session has. Where t
 no web search tool of its own, the agents can still fetch a page whose URL they know, and the
 research draws on the codebase and those pages.
 
+**Planning without a plan-mode tool.** `/maister-copilot:quick-plan` and
+`/maister-copilot:quick-bugfix` draft their plan without editing files and ask you to approve
+it before any change is made; the model keeps to that on its own. If you want the host to block
+edits while the plan is drafted, start the session in Copilot's plan mode (`/plan`, or
+`copilot --plan`): the plan is then presented for approval with Copilot's own plan dialog, and
+approving it leaves plan mode so the implementation can go ahead.
+
+**Directories before files.** Copilot's file-create tool does not make a missing directory,
+where Claude Code's does. Every skill and agent in this variant says to create a file's
+directory first, so a fresh project's `.maister/` tree is built without failed writes.
+
 ## Requirements
 
 - GitHub Copilot CLI 1.0.100 or newer. That is the release this variant was verified on, and

@@ -5,6 +5,8 @@ argument-hint: "init [--root DIR] [--members-root DIR] [--force] | validate [--d
 user-invocable: true
 ---
 
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
+
 # Umbrella Runtime
 
 The coordination half of a multi-repository run. A workspace manifest says which

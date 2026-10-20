@@ -4,6 +4,8 @@ description: Runs a workflow definition — a graph of nodes with declared needs
 user-invocable: false
 ---
 
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
+
 # Workflow Engine
 
 The execution half of the workflow grammar. A definition file says which nodes exist,
