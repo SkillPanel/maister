@@ -110,8 +110,8 @@ framework and restates none of it.
 Run `node --version` once. On failure, or on a version below 20, stop immediately, before any
 task directory exists: print `RUN-FAILED: node-unavailable`. A terminal-driver run tells the
 operator that this workflow needs Node.js 20 or newer, and that an install which cannot run it
-stays on the 2.x line (`/plugin marketplace add SkillPanel/maister#release/2.x`, then
-`/plugin install maister@maister-plugins-2x`). A dispatched worker reports `blocked` through the
+stays on the 2.x line (`copilot plugin marketplace add SkillPanel/maister#release/2.x`, then
+`copilot plugin install maister-copilot@maister-plugins-2x`). A dispatched worker reports `blocked` through the
 outbox verb and stops. There is no second interpreter to hand the run to. Never run such a
 workflow by hand.
 
