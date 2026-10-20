@@ -178,8 +178,10 @@ done
 #      family or a session does not have are ignored. The `web` alias is the
 #      documented route to web search, but a session with no search tool of
 #      its own -- the main agent's included -- gives none to its agents, by
-#      alias or by name. The agents that drive the browser add the
-#      plugin's Playwright MCP server.
+#      alias or by name. The research agents also name the GitHub server's
+#      web_search, which the CLI offers only when the account allows web
+#      search; where it is absent the name is ignored. The agents that drive
+#      the browser add the plugin's Playwright MCP server.
 #    - One sentence after the frontmatter, for the skill tool, which the CLI
 #      grants whatever the allowlist says.
 #    The agent also gets DIR_RULE: Copilot's create tool refuses a path whose
@@ -196,6 +198,7 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
   tools='"execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"'
   case "$(basename "$f" .md)" in
     e2e-test-verifier|user-docs-generator) tools="$tools, \"playwright/*\"" ;;
+    information-gatherer|research-planner) tools="$tools, \"github-mcp-server/web_search\"" ;;
   esac
   awk -v tools="tools: [$tools]" -v dirrule="$DIR_RULE" '
     NR==1 && $0=="---" { fm=1; print; next }

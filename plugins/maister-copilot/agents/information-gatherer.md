@@ -1,6 +1,6 @@
 ---
 name: information-gatherer
-tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo", "github-mcp-server/web_search"]
 description: Information gathering specialist executing systematic data collection across multiple sources including codebase, documentation, configuration files, and web resources. Maintains source citations and organizes findings with evidence.
 color: green
 ---

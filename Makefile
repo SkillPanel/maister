@@ -67,6 +67,11 @@ validate:
 	  ! echo "$$t" | grep -qE '"(agent|task|Task|custom-agent|\*)"' || { echo "FAIL: $$f grants a dispatch tool: $$t"; exit 1; }; \
 	  grep -q '^\*\*You are a dispatched agent: do this task' "$$f" || { echo "FAIL: $$f lacks the no-re-entry sentence"; exit 1; }; \
 	done
+	@echo "Checking the research agents name the GitHub server's web search..."
+	@for n in information-gatherer research-planner; do \
+	  awk 'NR==1 && $$0=="---"{fm=1; next} fm && $$0=="---"{exit} fm && /^tools:/{print}' "plugins/maister-copilot/agents/$$n.md" | grep -qF '"github-mcp-server/web_search"' \
+	    || { echo "FAIL: maister-copilot:$$n does not name github-mcp-server/web_search, so it gets no web search where the account allows it"; exit 1; }; \
+	done
 	@echo "Checking every Copilot agent runs on a model Copilot knows..."
 	@! grep -nE '^models?:(.*[[,[:space:]])?(inherit|haiku|sonnet|opus|fast|default)([],[:space:]]|$$)' plugins/maister-copilot/agents/*.md || (echo "FAIL: a Claude Code model alias survives in a variant agent; Copilot runs it on a model of its own choosing" && exit 1)
 	@echo "Checking every Copilot agent and skill says to create a file's directory first..."

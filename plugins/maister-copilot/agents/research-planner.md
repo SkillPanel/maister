@@ -1,6 +1,6 @@
 ---
 name: research-planner
-tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo", "github-mcp-server/web_search"]
 description: Research planning specialist creating structured research plans from research questions. Analyzes objectives, determines methodology, identifies data sources (codebase, documentation, web), and defines analysis frameworks.
 color: blue
 ---
