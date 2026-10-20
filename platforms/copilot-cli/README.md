@@ -38,7 +38,8 @@ access to it.
 
 - GitHub Copilot CLI 1.0.100 or newer
 - Node.js 20 or newer: every workflow runs on the workflow engine, which needs it
-- `jq` on `PATH`, for the destructive-command guard
+- `jq` on `PATH`, required: the destructive-command guard fails closed, so without `jq` every
+  shell call a subagent makes is denied and a run stalls
 
 ## Run a workflow
 

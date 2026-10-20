@@ -15,8 +15,9 @@ Copilot.
   subagent that made a call, which the destructive-command guard needs.
 - **Node.js 20 or newer.** Every workflow runs on the workflow engine, which needs it. Without
   Node, a workflow command stops before it creates a task folder and says why.
-- **`jq` on `PATH`.** The destructive-command guard reads the subagent's identity with it. Without
-  `jq`, every shell call a subagent makes is denied.
+- **`jq` on `PATH`. Required, not optional.** The destructive-command guard reads the subagent's
+  identity with it, and fails closed: without `jq` it denies every shell call a subagent makes, so
+  a workflow's agents cannot run tests, builds or the engine's commands and the run stalls.
 
 ### From the marketplace
 
@@ -284,7 +285,7 @@ consider a lighter model for the implementer subagents, as above.
 - **Missing folders.** Copilot's file tool does not create a missing parent folder. Maister's agents
   create a folder before writing into it.
 - **The guard is a plugin hook.** Copilot loads it from the plugin, so it needs no setup beyond
-  `jq`.
+  `jq`, which it cannot run without (see [Requirements](#requirements)).
 - **`MAISTER_PLUGIN_ROOT` is optional.** Copilot tells each skill where it lives, and the scripts
   find the plugin from their own location. Set the variable only if a model keeps guessing the
   plugin's folder wrong, pointing it at the folder that holds `.claude-plugin/plugin.json`
@@ -326,7 +327,8 @@ blocked"). Copilot's shell validator refused the command shape. The agent normal
 way; nothing needs changing on your side.
 
 **"Denied by preToolUse hook".** The destructive-command guard stopped a subagent's destructive
-command. That is intended. If every subagent shell call is denied, `jq` is missing from `PATH`.
+command. That is intended. If every subagent shell call is denied, `jq` is missing from `PATH`:
+install it and start a new session.
 
 **A command is unknown, or a workflow is missing.** Check what loaded:
 
