@@ -2,7 +2,6 @@
 name: gap-analyzer
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Compares current vs desired state, identifies gaps with user journey and data lifecycle analysis. Reports findings for orchestrator to act on. Adapts analysis based on detected task characteristics.
-model: inherit
 color: blue
 ---
 

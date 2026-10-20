@@ -2,7 +2,6 @@
 name: ascii-mockup-generator
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Generates ASCII mockups showing UI layout and integration with existing components. Analyzes codebase to identify current layout patterns, reusable components, and navigation structure. Creates annotated diagrams showing where new UI elements fit. The ASCII rendering path of the mockup-studio skill (HTML is the default; this is the no-Node/no-browser fallback). Invoked by mockup-studio.
-model: inherit
 color: cyan
 ---
 

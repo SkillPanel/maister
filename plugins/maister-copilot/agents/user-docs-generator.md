@@ -2,7 +2,6 @@
 name: user-docs-generator
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo", "playwright/*"]
 description: Generates end-user documentation with screenshots using Playwright. Creates easy-to-understand guides for non-technical users. Use after features are implemented to create user-facing documentation.
-model: inherit
 color: blue
 ---
 

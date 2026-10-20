@@ -2,7 +2,6 @@
 name: code-quality-pragmatist
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Pragmatic code review specialist detecting over-engineering, unnecessary complexity, and developer experience issues. Evaluates pattern appropriateness for project scale, identifies intrusive automation, and recommends simplifications. Reports simplifications without applying them, and always writes its review to report_path.
-model: inherit
 color: purple
 ---
 

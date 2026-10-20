@@ -2,7 +2,6 @@
 name: solution-brainstormer
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Generates structured solution alternatives from research synthesis, grouped by decision area. Produces multi-perspective trade-off analysis with scope guardrails, a recommendation per area, and a decision areas file the convergence step asks from. Non-interactive content generator.
-model: inherit
 color: orange
 ---
 

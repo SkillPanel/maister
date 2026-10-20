@@ -2,7 +2,6 @@
 name: html-companion-writer
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Generates an HTML companion report from a single finalized markdown artifact, following the shared style guide. Used by workflow nodes that write artifacts inline (e.g. product-design's convergence, specification and brief) and therefore have no artifact-producing subagent to attach a companion to. Reads one md file, writes its sibling .html. Does not interact with users.
-model: inherit
 color: cyan
 ---
 

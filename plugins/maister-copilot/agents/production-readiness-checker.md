@@ -2,7 +2,6 @@
 name: production-readiness-checker
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Automated production deployment readiness verification. Analyzes configuration management, monitoring setup, error handling, performance scalability, security hardening, and deployment considerations. Provides GO/NO-GO deployment recommendation with categorized blockers and concerns. Reports issues without modifying the code under review, and always writes its report to report_path. Does not interact with users.
-model: inherit
 color: red
 ---
 

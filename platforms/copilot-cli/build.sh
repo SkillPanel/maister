@@ -178,6 +178,30 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
   ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 done
 
+# 8b. Run each agent on a model Copilot knows. Source agents name Claude Code's
+#     model aliases: `inherit`, which Copilot does not know and answers with
+#     'auto' -- a model of its own choosing, not the session's -- and `haiku`
+#     for the lightweight ones. An agent with no model runs on the session's,
+#     so `inherit` is dropped; `haiku` becomes a list of lightweight models in
+#     `model`, which the runtime tries in order. (Copilot 1.0.100 did not apply
+#     the same list given as `models` to a plugin agent: it ran on the
+#     session's model.) Any other alias stops the build
+#     rather than shipping an agent on a model nobody chose.
+LIGHT_MODELS='[claude-haiku-5.5, claude-haiku-4.5, gpt-5.4-mini]'
+find "$OUT/agents" -name "*.md" | sort | while read f; do
+  awk -v light="$LIGHT_MODELS" -v file="$f" '
+    NR==1 && $0=="---" { fm=1; print; next }
+    fm==1 && $0=="---" { fm=2 }
+    fm==1 && /^model:[[:space:]]*inherit[[:space:]]*$/ { next }
+    fm==1 && /^model:[[:space:]]*haiku[[:space:]]*$/ { print "model: " light; next }
+    fm==1 && /^model:[[:space:]]*(sonnet|opus|fast|default)[[:space:]]*$/ {
+      print "build: " file " names the Claude Code model alias " $2 ", which Copilot does not know" > "/dev/stderr"; bad=1
+    }
+    { print }
+    END { exit bad }
+  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f" || { rm -f "$f.tmp"; exit 1; }
+done
+
 # 9. Render the question picker for a tool without option previews.
 #    The source is written for the rich picker: option previews, and an ask
 #    whose fields the tool takes by name. Copilot's ask_user takes a message and

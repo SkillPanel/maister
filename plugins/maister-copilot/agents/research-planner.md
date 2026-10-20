@@ -2,7 +2,6 @@
 name: research-planner
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Research planning specialist creating structured research plans from research questions. Analyzes objectives, determines methodology, identifies data sources (codebase, documentation, web), and defines analysis frameworks.
-model: inherit
 color: blue
 ---
 

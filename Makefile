@@ -65,6 +65,8 @@ validate:
 	  ! echo "$$t" | grep -qE '"(agent|task|Task|custom-agent|\*)"' || { echo "FAIL: $$f grants a dispatch tool: $$t"; exit 1; }; \
 	  grep -q '^\*\*You are a dispatched agent: do this task' "$$f" || { echo "FAIL: $$f lacks the no-re-entry sentence"; exit 1; }; \
 	done
+	@echo "Checking every Copilot agent runs on a model Copilot knows..."
+	@! grep -nE '^models?:(.*[[,[:space:]])?(inherit|haiku|sonnet|opus|fast|default)([],[:space:]]|$$)' plugins/maister-copilot/agents/*.md || (echo "FAIL: a Claude Code model alias survives in a variant agent; Copilot runs it on a model of its own choosing" && exit 1)
 	@echo "Checking no CLAUDE.md references in skills..."
 	@! grep -ri 'CLAUDE\.md' plugins/maister-copilot/skills/ 2>/dev/null || (echo "FAIL: CLAUDE.md references found in skills" && exit 1)
 	@echo "Checking the variant names no Explore agent type (Copilot's is explore)..."
