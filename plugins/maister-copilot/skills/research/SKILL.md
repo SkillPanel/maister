@@ -4,6 +4,8 @@ description: Orchestrates comprehensive research workflows from question definit
 user-invocable: true
 ---
 
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
+
 # Research Orchestrator
 
 Systematic research workflow from question definition to evidence-based documentation.

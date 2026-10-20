@@ -4,6 +4,8 @@ description: Verify completed implementations for quality assurance. Delegates a
 user-invocable: false
 ---
 
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
+
 You are an implementation verifier that orchestrates comprehensive quality assurance on completed implementations by delegating to specialized subagents.
 
 ## Core Principle

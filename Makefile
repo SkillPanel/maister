@@ -69,6 +69,14 @@ validate:
 	done
 	@echo "Checking every Copilot agent runs on a model Copilot knows..."
 	@! grep -nE '^models?:(.*[[,[:space:]])?(inherit|haiku|sonnet|opus|fast|default)([],[:space:]]|$$)' plugins/maister-copilot/agents/*.md || (echo "FAIL: a Claude Code model alias survives in a variant agent; Copilot runs it on a model of its own choosing" && exit 1)
+	@echo "Checking every Copilot agent and skill says to create a file's directory first..."
+	@for f in plugins/maister-copilot/agents/*.md plugins/maister-copilot/skills/*/SKILL.md; do \
+	  grep -q "^\*\*Create a file's directory before the file\.\*\* On this host" "$$f" || { echo "FAIL: $$f lacks the create-the-directory-first sentence; Copilot's create tool makes no missing directory"; exit 1; }; \
+	done
+	@echo "Checking the variant names no Claude Code plan-mode tool, and quick-plan and quick-bugfix plan without one..."
+	@! grep -rnE 'EnterPlanMode|ExitPlanMode' plugins/maister-copilot/ 2>/dev/null || (echo "FAIL: a Claude Code plan-mode tool survives in the variant; Copilot has none" && exit 1)
+	@grep -q '^2\. \*\*Plan without editing\*\*.*ask for approval with `ask_user`' plugins/maister-copilot/skills/quick-plan/SKILL.md || (echo "FAIL: the variant's quick-plan lacks its plan-without-editing step" && exit 1)
+	@grep -q '^\*\*Draft the fix plan without creating, editing or deleting any project file.*ask for approval with `ask_user`' plugins/maister-copilot/skills/quick-bugfix/SKILL.md || (echo "FAIL: the variant's quick-bugfix lacks its plan-without-editing step" && exit 1)
 	@echo "Checking no CLAUDE.md references in skills..."
 	@! grep -ri 'CLAUDE\.md' plugins/maister-copilot/skills/ 2>/dev/null || (echo "FAIL: CLAUDE.md references found in skills" && exit 1)
 	@echo "Checking the variant names no Explore agent type (Copilot's is explore)..."

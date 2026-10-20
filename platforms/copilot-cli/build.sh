@@ -86,6 +86,31 @@ find "$OUT" -name "*.md" | while read f; do
   sedi 's/AskUserQuestion/ask_user/g' "$f"
 done
 
+# 6a. Plan without a plan-mode tool. quick-plan and quick-bugfix enter Claude
+#     Code's plan mode with EnterPlanMode and leave it with ExitPlanMode; Copilot
+#     has neither -- its plan mode is one the user starts with /plan or --plan,
+#     left through an exit_plan_mode tool offered only inside it. The passages
+#     are rewritten into what to do here: draft the plan without editing, ask
+#     for approval with the question tool, then implement. A session the user
+#     started in plan mode has the host block edits, and exit_plan_mode asks
+#     for the approval that leaves it. Any spelling that survives stops the build.
+sedi \
+  -e 's|^2\. \*\*Enter plan mode\*\* .*$|2. **Plan without editing** — This host has no plan-mode tool for you to enter. Explore the codebase, design the approach and write the plan without creating, editing or deleting any project file and without running a command that changes one. Then present the plan and ask for approval with `ask_user`; implement only after it is approved. If the session is already in Copilot'"'"'s plan mode (the user started it with `/plan` or `--plan`), the host itself blocks edits: present the plan with `exit_plan_mode`, which asks for that approval and leaves plan mode.|' \
+  -e 's|Do not call `ExitPlanMode` until the plan|Do not ask for approval until the plan|' \
+  "$OUT/skills/quick-plan/SKILL.md"
+sedi \
+  -e 's|^### Step 4: Enter Planning Mode$|### Step 4: Plan the Fix|' \
+  -e 's|^\*\*Use the `EnterPlanMode` tool to present the fix plan for user approval\.\*\*$|**Draft the fix plan without creating, editing or deleting any project file, then present it and ask for approval with `ask_user`; write the test and the fix only after it is approved.** This host has no plan-mode tool for you to enter. If the session is already in Copilot'"'"'s plan mode (the user started it with `/plan` or `--plan`), the host itself blocks edits: present the plan with `exit_plan_mode`, which asks for that approval and leaves plan mode.|' \
+  -e 's|^\*\*Plan file content:\*\*$|**Plan content:**|' \
+  -e 's|^### ExitPlanMode Gate: Mandatory Sections$|### Approval Gate: Mandatory Sections|' \
+  -e 's|Do NOT call `ExitPlanMode` until the plan file contains|Do NOT ask for approval until the plan contains|' \
+  -e 's|add it before calling ExitPlanMode\.|add it before asking for approval.|' \
+  "$OUT/skills/quick-bugfix/SKILL.md"
+if grep -rlE 'EnterPlanMode|ExitPlanMode' "$OUT" >&2; then
+  echo "build: a Claude Code plan-mode tool survives in the files above; Copilot has none" >&2
+  exit 1
+fi
+
 # 6b. Name the agent type Copilot knows. Its built-in read-only search agent is
 #     `explore`, lowercase, and its task tool takes the type as agent_type; a
 #     dispatch of `Explore` is refused as an unknown agent type. Only a
@@ -155,8 +180,12 @@ done
 #      plugin's Playwright MCP server.
 #    - One sentence after the frontmatter, for the skill tool, which the CLI
 #      grants whatever the allowlist says.
+#    The agent also gets DIR_RULE: Copilot's create tool refuses a path whose
+#    directory is missing, where Claude Code's Write makes it. Step 8c gives
+#    every skill the same rule.
 #    Source agents declare no tools: of their own; one that did would be
 #    silently overridden here, so the build refuses it instead.
+DIR_RULE='**Create a file'"'"'s directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.'
 find "$OUT/agents" -name "*.md" | sort | while read f; do
   if awk 'NR==1 && $0=="---"{fm=1; next} fm && $0=="---"{exit} fm && /^tools:/{found=1} END{exit !found}' "$f"; then
     echo "build: $f already declares tools:; the Copilot allowlist would override it" >&2
@@ -166,12 +195,13 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
   case "$(basename "$f" .md)" in
     e2e-test-verifier|user-docs-generator) tools="$tools, \"playwright/*\"" ;;
   esac
-  awk -v tools="tools: [$tools]" '
+  awk -v tools="tools: [$tools]" -v dirrule="$DIR_RULE" '
     NR==1 && $0=="---" { fm=1; print; next }
     fm==1 && /^name:/ { print; print tools; next }
     fm==1 && $0=="---" {
       fm=2; print; print ""
       print "**You are a dispatched agent: do this task'"'"'s work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name."
+      print ""; print dirrule
       next
     }
     { print }
@@ -200,6 +230,17 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
     { print }
     END { exit bad }
   ' "$f" > "$f.tmp" && mv "$f.tmp" "$f" || { rm -f "$f.tmp"; exit 1; }
+done
+
+# 8c. Every skill gets DIR_RULE too, after its frontmatter: the main session
+#     writes task directories, docs and state files with the same create tool
+#     the agents use.
+find "$OUT/skills" -name "SKILL.md" | sort | while read f; do
+  awk -v dirrule="$DIR_RULE" '
+    NR==1 && $0=="---" { fm=1; print; next }
+    fm==1 && $0=="---" { fm=2; print; print ""; print dirrule; next }
+    { print }
+  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 done
 
 # 9. Render the question picker for a tool without option previews.

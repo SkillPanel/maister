@@ -4,6 +4,8 @@ description: Implement a task directly with Maister standards enforcement (no pl
 argument-hint: "[task description]"
 ---
 
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
+
 # Quick Dev — Direct Development with Standards Enforcement
 
 This works exactly as if you asked the main agent to implement the task directly — no plan mode. The one addition: discover and enforce the project's coding standards from `.maister/docs/`.

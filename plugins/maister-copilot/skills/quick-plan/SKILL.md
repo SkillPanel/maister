@@ -4,6 +4,8 @@ description: Enter planning mode with Maister standards enforcement
 argument-hint: "[task description]"
 ---
 
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
+
 # Quick Plan — Plan Mode with Standards Enforcement
 
 This works exactly like Claude Code's built-in plan mode, with one addition: the resulting plan must discover and enforce the project's coding standards from `.maister/docs/`.
@@ -12,7 +14,7 @@ This works exactly like Claude Code's built-in plan mode, with one addition: the
 
 1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask with `ask_user`: "What would you like to plan?"
 
-2. **Enter plan mode** — Call `EnterPlanMode` and let plan mode run exactly as it normally does (explore the codebase, design the approach, write the plan, then `ExitPlanMode` for approval). Do not redefine its phases.
+2. **Plan without editing** — This host has no plan-mode tool for you to enter. Explore the codebase, design the approach and write the plan without creating, editing or deleting any project file and without running a command that changes one. Then present the plan and ask for approval with `ask_user`; implement only after it is approved. If the session is already in Copilot's plan mode (the user started it with `/plan` or `--plan`), the host itself blocks edits: present the plan with `exit_plan_mode`, which asks for that approval and leaves plan mode.
 
 3. **Discover and enforce standards (the addition)** — While planning:
    - Read `.maister/docs/INDEX.md` to find which standards exist.
@@ -21,6 +23,6 @@ This works exactly like Claude Code's built-in plan mode, with one addition: the
 
    If `.maister/docs/INDEX.md` does not exist, plan normally and note in the plan: "No Maister standards found. Consider running `/maister-copilot:init`."
 
-Do not call `ExitPlanMode` until the plan reflects the applicable standards and includes the Standards Compliance Checklist (or the "no standards found" note).
+Do not ask for approval until the plan reflects the applicable standards and includes the Standards Compliance Checklist (or the "no standards found" note).
 
 4. **After approval — implement and verify (mandatory)** — Once the plan is approved and you implement it, go through the `## Standards Compliance Checklist` and verify each item — mark pass/fail and report it. Address any failure before marking the task complete.

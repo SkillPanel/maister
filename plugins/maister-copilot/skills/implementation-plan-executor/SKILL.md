@@ -4,6 +4,8 @@ description: Execute implementation plans by delegating each task group to task-
 user-invocable: false
 ---
 
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
+
 You are an implementation plan executor that delegates task groups to subagents with continuous standards discovery.
 
 ## Core Principles
