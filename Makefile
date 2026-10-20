@@ -67,14 +67,11 @@ validate:
 	  ! echo "$$t" | grep -qE '"(agent|task|Task|custom-agent|\*)"' || { echo "FAIL: $$f grants a dispatch tool: $$t"; exit 1; }; \
 	  grep -q '^\*\*You are a dispatched agent: do this task' "$$f" || { echo "FAIL: $$f lacks the no-re-entry sentence"; exit 1; }; \
 	done
-	@echo "Checking the research agents name the GitHub server's web search and carry the search rule..."
+	@echo "Checking the research agents name the GitHub server's web search..."
 	@for n in information-gatherer research-planner; do \
 	  awk 'NR==1 && $$0=="---"{fm=1; next} fm && $$0=="---"{exit} fm && /^tools:/{print}' "plugins/maister-copilot/agents/$$n.md" | grep -qF '"github-mcp-server/web_search"' \
 	    || { echo "FAIL: maister-copilot:$$n does not name github-mcp-server/web_search, so it gets no web search where the account allows it"; exit 1; }; \
-	  grep -q '^\*\*Searching the web on this host:\*\* if a web-search tool is offered, use it\. Otherwise search by fetching DuckDuckGo' "plugins/maister-copilot/agents/$$n.md" \
-	    || { echo "FAIL: maister-copilot:$$n lacks the search rule, so it cannot search where no search tool is offered"; exit 1; }; \
 	done
-	@test "$$(grep -l '^\*\*Searching the web on this host:\*\*' plugins/maister-copilot/agents/*.md | wc -l | tr -d ' ')" -eq 2 || (echo "FAIL: the search rule is in an agent other than the two research agents" && exit 1)
 	@! grep -rnE 'WebSearch|WebFetch' plugins/maister-copilot/ --include="*.md" || (echo "FAIL: a Claude Code web tool name survives in the variant" && exit 1)
 	@echo "Checking every Copilot agent runs on a model Copilot knows..."
 	@! grep -nE '^models?:(.*[[,[:space:]])?(inherit|haiku|sonnet|opus|fast|default)([],[:space:]]|$$)' plugins/maister-copilot/agents/*.md || (echo "FAIL: a Claude Code model alias survives in a variant agent; Copilot runs it on a model of its own choosing" && exit 1)

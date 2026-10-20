@@ -83,8 +83,7 @@ done
 
 # 6. Replace AskUserQuestion with copilot's ask_user tool, and Claude Code's
 #    web tools with this host's: web_fetch by name, and web search as a plain
-#    phrase, since a session may offer no search tool at all -- the research
-#    agents' search rule (step 8) says what to do then.
+#    phrase, since a session may offer no search tool at all.
 find "$OUT" -name "*.md" | while read f; do
   sedi -e 's/AskUserQuestion/ask_user/g' -e 's/WebFetch/web_fetch/g' -e 's/WebSearch/web search/g' "$f"
 done
@@ -183,19 +182,16 @@ done
 #      its own -- the main agent's included -- gives none to its agents, by
 #      alias or by name. The research agents also name the GitHub server's
 #      web_search, so they use it in a session that offers it; where it is
-#      absent, as in practice it is, the name is ignored and SEARCH_RULE applies. The agents that drive
+#      absent the name is ignored. The agents that drive
 #      the browser add the plugin's Playwright MCP server.
 #    - One sentence after the frontmatter, for the skill tool, which the CLI
 #      grants whatever the allowlist says.
 #    The agent also gets DIR_RULE: Copilot's create tool refuses a path whose
 #    directory is missing, where Claude Code's Write makes it. Step 8c gives
-#    every skill the same rule. The two research agents also get SEARCH_RULE:
-#    a CLI session offers no web-search tool in practice, so they search by
-#    fetching a results page, and stop at a block rather than work around it.
+#    every skill the same rule.
 #    Source agents declare no tools: of their own; one that did would be
 #    silently overridden here, so the build refuses it instead.
 DIR_RULE='**Create a file'"'"'s directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.'
-SEARCH_RULE='**Searching the web on this host:** if a web-search tool is offered, use it. Otherwise search by fetching DuckDuckGo'"'"'s HTML results page with web_fetch, https://html.duckduckgo.com/html/?q=<url-encoded query>; read the result titles and links, then fetch the pages you use and cite those pages, not the results page. Keep queries few and specific. If the response is a block, CAPTCHA or challenge page, or the fetch is denied, stop searching, say so in your findings and continue from the sources you have; never try to get around it.'
 find "$OUT/agents" -name "*.md" | sort | while read f; do
   if awk 'NR==1 && $0=="---"{fm=1; next} fm && $0=="---"{exit} fm && /^tools:/{found=1} END{exit !found}' "$f"; then
     echo "build: $f already declares tools:; the Copilot allowlist would override it" >&2
@@ -206,18 +202,13 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
     e2e-test-verifier|user-docs-generator) tools="$tools, \"playwright/*\"" ;;
     information-gatherer|research-planner) tools="$tools, \"github-mcp-server/web_search\"" ;;
   esac
-  searchrule=
-  case "$(basename "$f" .md)" in
-    information-gatherer|research-planner) searchrule=$SEARCH_RULE ;;
-  esac
-  awk -v tools="tools: [$tools]" -v dirrule="$DIR_RULE" -v searchrule="$searchrule" '
+  awk -v tools="tools: [$tools]" -v dirrule="$DIR_RULE" '
     NR==1 && $0=="---" { fm=1; print; next }
     fm==1 && /^name:/ { print; print tools; next }
     fm==1 && $0=="---" {
       fm=2; print; print ""
       print "**You are a dispatched agent: do this task'"'"'s work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name."
       print ""; print dirrule
-      if (searchrule != "") { print ""; print searchrule }
       next
     }
     { print }
