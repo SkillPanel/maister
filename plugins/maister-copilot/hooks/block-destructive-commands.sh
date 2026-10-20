@@ -15,9 +15,11 @@
 #
 # The deny goes out in the host's PreToolUse output shape: Claude Code reads it
 # under hookSpecificOutput, GitHub Copilot CLI as a top-level permissionDecision.
-# The Copilot build sets HOOK_SHAPE to copilot in the variant's copy. A host may
-# name a plugin's agent with its plugin as a prefix (`maister-copilot:docs-operator`),
-# so the whitelist is matched on the name after the last colon.
+# The Copilot build sets HOOK_SHAPE to copilot in the variant's copy. A host
+# names a plugin's agent with its plugin as a prefix (`maister-copilot:docs-operator`),
+# so the whitelist is matched on the bare name or on this plugin's own spellings
+# of it, `maister:` and `maister-copilot:`. Another plugin's or a project's agent
+# of the same name is judged like any other.
 HOOK_SHAPE=copilot
 
 # One deny payload, in the host's shape, from a reason that is already JSON-escaped.
@@ -57,7 +59,11 @@ fi
 # Note: task-group-implementer is NOT whitelisted — destructive commands are blocked
 # to prevent rogue git stash/reset --hard from clobbering sibling implementers
 # running in parallel waves.
-case "${AGENT_TYPE##*:}" in
+case "$AGENT_TYPE" in
+  maister:*|maister-copilot:*) AGENT_NAME=${AGENT_TYPE#*:} ;;
+  *) AGENT_NAME=$AGENT_TYPE ;;
+esac
+case "$AGENT_NAME" in
   test-suite-runner|e2e-test-verifier|user-docs-generator|docs-operator)
     exit 0
     ;;

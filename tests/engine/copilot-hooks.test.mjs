@@ -66,11 +66,19 @@ for (const [tree, dir, decisionOf] of [
     }
   });
 
-  test(`guard (${tree}): a whitelisted agent is let through under its plugin-scoped name too`, { skip: !hasBash && 'no bash' }, () => {
-    for (const agent of ['docs-operator', 'maister:docs-operator', 'maister-copilot:test-suite-runner']) {
+  test(`guard (${tree}): a whitelisted agent is let through under this plugin's spellings of its name`, { skip: !hasBash && 'no bash' }, () => {
+    for (const agent of ['docs-operator', 'maister:docs-operator', 'maister-copilot:docs-operator', 'maister-copilot:test-suite-runner']) {
       const result = guard(dir, agent, 'git stash');
       assert.equal(result.code, 0, result.stderr);
       assert.equal(result.stdout, '', agent);
+    }
+  });
+
+  test(`guard (${tree}): another plugin's or project's agent of a whitelisted name is judged like any other`, { skip: !hasJq && 'no jq' }, () => {
+    for (const agent of ['other:docs-operator', 'foo:test-suite-runner', 'maister-pro:docs-operator']) {
+      const result = guard(dir, agent, 'git stash');
+      assert.equal(result.code, 0, result.stderr);
+      assert.equal(decisionOf(result.json), 'deny', `${agent}: ${result.stdout}`);
     }
   });
 

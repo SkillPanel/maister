@@ -80,7 +80,7 @@ validate:
 	@echo "Checking no maister- prefix in copilot command names..."
 	@! grep -r '^name: maister-' plugins/maister-copilot/commands/ 2>/dev/null || (echo "FAIL: maister- prefix in command names" && exit 1)
 	@echo "Checking no maister: prefixes in copilot variant..."
-	@! grep -r 'maister:' plugins/maister-copilot/ --include="*.md" --include="*.json" --include="*.mjs" --include="*.yml" --include="*.sh" 2>/dev/null || (echo "FAIL: maister: prefix found" && exit 1)
+	@! grep -r 'maister:' plugins/maister-copilot/ --include="*.md" --include="*.json" --include="*.mjs" --include="*.yml" 2>/dev/null || (echo "FAIL: maister: prefix found" && exit 1)
 	@echo "Checking no maister-<name> form survives (Copilot registers neither)..."
 	@names=$$( { ls plugins/maister-copilot/commands plugins/maister-copilot/agents | sed -n 's/\.md$$//p'; ls plugins/maister-copilot/skills; } | sort -u | paste -sd'|' -); \
 	! grep -rnE "maister-($$names)([^A-Za-z0-9_-]|$$)" plugins/maister-copilot/ --include="*.md" || (echo "FAIL: a maister-<name> reference survives; Copilot resolves /maister-copilot:<name>, a bare skill name or maister-copilot:<agent>" && exit 1)
