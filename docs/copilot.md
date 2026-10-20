@@ -198,6 +198,17 @@ question, not just the options.
 Every pause between phases asks in the session, whatever your permission settings. Allow-all
 approves tools; it does not answer a workflow's questions.
 
+### Run workflows in interactive mode, not autopilot
+
+Copilot's autopilot mode answers questions itself: a question that would wait for you is answered
+with the model's best guess ("Making best guess on autopilot"). In autopilot, Copilot would answer
+every one of Maister's approvals for you, and the run would go from analysis to implementation
+without you seeing a single phase. If you want to answer the gates, run workflows in Copilot's
+interactive mode.
+
+This is not the same as allow-all. Allow-all approves tool calls and still leaves every question
+to you; autopilot answers the questions too.
+
 ## Permissions
 
 Maister runs under Copilot's own permission settings and adds none of its own, apart from the
@@ -215,7 +226,9 @@ flowing:
 - **Allow all** (`/allow-all`, or start with `--allow-all-tools`). Every tool runs without asking,
   for the whole session: file edits, shell commands and the engine's writes alike. Use it in a
   project where you are happy for the run to change files and run commands unattended. Copilot
-  still asks about a few command shapes even then.
+  still asks about a few command shapes even then. Allow-all leaves the workflow's questions to
+  you; autopilot does not (see
+  [Run workflows in interactive mode, not autopilot](#run-workflows-in-interactive-mode-not-autopilot)).
 
 ### Subagents cannot ask
 
@@ -224,10 +237,11 @@ permission: a command it needs that your settings do not already allow is denied
 reports "Permission denied and could not request permission from user". The agent then works
 around it or the step fails.
 
-So allow, up front, what the subagents need. The one that matters is the plugin's own folder,
-where the engine's scripts live. An installed plugin sits under `~/.copilot/installed-plugins/`;
-when Copilot offers to allow that folder for the session, allow it. A local checkout loaded with
-`--plugin-dir` is outside your project, so add it with `--add-dir` as shown in
+So anything a subagent needs must already be allowed before it runs. The plugin's own folder,
+where the engine's scripts live, already is when the plugin is installed: Copilot allows commands
+touching a folder under `~/.copilot/installed-plugins/` without asking, in the main session and in
+subagents. Only a local checkout loaded with `--plugin-dir` from outside your project needs
+allowing; add it with `--add-dir` as shown in
 [Running a local checkout](#running-a-local-checkout).
 
 ### Copilot's shell validator
@@ -318,8 +332,8 @@ folder first. When the guesses come from the codebase analysis, give `explore` a
 `/subagents`.
 
 **"Permission denied and could not request permission from user".** A subagent needed something
-your settings do not allow, and subagents cannot ask. Allow the plugin's folder for the session, or
-add it with `--add-dir` for a local checkout, and approve `node` for the session; see
+your settings do not allow, and subagents cannot ask. Approve `node` for the session, or the
+command shape it needed; for a local checkout, add its folder with `--add-dir`. See
 [Subagents cannot ask](#subagents-cannot-ask).
 
 **"Command blocked: contains dangerous shell expansion patterns"** (or a similar "Command
