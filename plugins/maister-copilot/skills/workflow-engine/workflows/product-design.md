@@ -44,7 +44,7 @@ risk.
 | `context-approval` | a correction to the context shows up as one to the problem statement built on it, which `problem-approval` revises |
 | `persona-exploration` | the intake records `personas_enabled` false |
 | `idea-generation`, `idea-convergence`, `direction-approval` | the specification states the approach itself, and its gate approves it |
-| `visual-prototyping`, unless the description asks for screens | the intake records `prototyping_enabled` true only then |
+| `visual-prototyping`, unless the decision turns on layout or presentation | the intake judges that, says why, and records `prototyping_enabled` from it; the operator can override it in the intake's request |
 
 Two gates remain, `problem-approval` and `specification-approval`, beside the
 brief's own approval inside `review-handoff`.
@@ -114,29 +114,41 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    *Files* and the read-again option each say a person put files in the
    folder, so both are marked `person_act` and neither is ever recommended
    (`references/in-node-questions.md` § *An option only a person can take*).
+   **A simple run asks a second question in the same request**, the mockup
+   override: *"Draw mockups of the screens?"*, with *"Draw the screens"* and
+   *"No screens"*, the intake's mockup judgment (step 6, made with the
+   detection in step 4) recommended and its reason
+   in that option's description. The answer decides `prototyping_enabled`.
    Under this picker the four options are one property of type array, none of them the default, and
-   the links and topics a text property beside it.
+   the links and topics a text property beside it; a simple run's mockup override is an enum
+   property of its two options, the judgment its default.
 6. **Record the three values** in the patch that marks the node `completed`,
    since they guard later nodes: `personas_enabled` (greenfield or complex),
    `prototyping_enabled` (UI-focused) and `complexity_level`. A simple run
-   records `personas_enabled` false and `prototyping_enabled` true only when the
-   description asks for screens; a full run records `personas_enabled` true.
+   records `personas_enabled` false, and judges `prototyping_enabled` by
+   whether the decision turns on how something looks or is laid out — placing,
+   grouping or showing information on a screen, comparing layouts, a new screen
+   or card — rather than on behaviour, data, policy or wording only; the
+   override in step 5 has the last word. A full run records
+   `personas_enabled` true.
 
 A simple run skips `characteristics-approval`; the characteristics are still
 recorded, and the brief names them.
 
 **Asks.**
 
-**With question sets** (`additional-context`): asked in this node's one
-request. A folder still empty after a Files answer is not asked about again,
+**With question sets** (`additional-context`, and `mockups` in a simple run):
+asked in this node's one request. A folder still empty after a Files answer is not asked about again,
 and the run goes on without files.
 
-**Without question sets** (`additional-context`): no additional context; the
-lists stay empty rather than half-gathered.
+**Without question sets** (`additional-context`, `mockups`): no additional context; the
+lists stay empty rather than half-gathered. In a simple run the mockup
+judgment stands.
 
 **Summary.** A `headline` naming the kind of design, its complexity and which
 optional parts will run. In `summary`, each characteristic that holds with its
-one-line rationale. In `risks`, each characteristic detected on thin evidence
+one-line rationale; a simple run adds the mockup choice and its reason, e.g.
+*"Mockups: yes — the options differ in card layout"*, naming an override. In `risks`, each characteristic detected on thin evidence
 as `{risk, tag: open, change}`, its `change` the correction, so the gate's
 revise offers it.
 

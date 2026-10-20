@@ -16,8 +16,9 @@
 # specification gates and nothing else between them, and the specification
 # states the approach itself. The depth is a bool because an input is a string,
 # a bool or a path, and only a bool can guard. Under it the intake also turns
-# the personas off and the prototypes off unless the description asks for
-# screens, so those two guards need no second reference. The `full` input goes
+# the personas off and the prototypes off unless the decision turns on layout or
+# presentation, a judgment the operator can override in the intake's own
+# request, so those two guards need no second reference. The `full` input goes
 # the other way without a guard of its own: the intake records the design
 # complex, which turns the personas on through the guard they already have.
 #
@@ -86,7 +87,7 @@ inputs:
   # The design depth. False is the full workflow; true is the shortest run that
   # still yields a brief and a delivery scope to approve: no characteristics or
   # context gate, no personas, no brainstorm or direction gate, and no
-  # prototypes unless the description asks for screens.
+  # prototypes unless the decision turns on layout or presentation.
   simple: {type: bool, required: false, default: false}
   # The full design, whatever the detected complexity: the intake records the
   # design complex, so the personas are drafted and every stretch goes to its
@@ -240,8 +241,8 @@ nodes:
         # Derived from the design characteristics: greenfield or complex for
         # the first, UI-focused for the second. A revise at the
         # characteristics gate derives them again. A simple run records the
-        # first false, the second true only when the description asks for
-        # screens, and the complexity `simple`; a full run records the first
+        # first false, the second true only when the decision turns on layout
+        # or presentation, and the complexity `simple`; a full run records the first
         # true and the complexity `complex`.
         personas_enabled: bool
         prototyping_enabled: bool

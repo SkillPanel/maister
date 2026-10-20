@@ -129,6 +129,7 @@ when you are not sure which one you need. To choose yourself:
 | `quick-plan` | A bounded change: drafts a plan that follows your standards, asks you to approve it, then implements it. |
 | `quick-dev` | A small change you want made directly, with your standards applied and checked at the end. |
 | `quick-bugfix` | A bug with a clear symptom: reproduces it with a failing test first, then fixes it. |
+| `quick-design` | A small design question: lays out the options, recommends one, asks you once and writes a one-page decision record. |
 | `reviews-code`, `reviews-pragmatic`, `reviews-production-readiness`, `reviews-reality-check`, `reviews-spec-audit` | One review on its own: code quality and security, over-engineering, deployment readiness, whether finished work really works, and a specification audit. |
 
 The five workflows at the top are described in full, with their flags, in

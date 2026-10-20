@@ -213,13 +213,13 @@ is woken, while in the terminal the research runs in the same session and the pa
 
 ### `/maister:product-design [description | task-path]`
 
-Starts the interactive product/feature design workflow (ten phases and five checkpoints, of which `--simple` keeps the problem and specification checkpoints and skips the personas, the brainstorm and, unless asked for, the prototypes) or resumes an existing one. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Can be run without arguments — the plugin extracts the design brief from your conversation.
+Starts the interactive product/feature design workflow (ten phases and five checkpoints, of which `--simple` keeps the problem and specification checkpoints and skips the personas, the brainstorm and, unless the design turns on layout or presentation, the prototypes) or resumes an existing one. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Can be run without arguments — the plugin extracts the design brief from your conversation.
 
 | Flag | Description |
 |------|-------------|
 | `--research=PATH` | Start design informed by a completed research task |
 | `--no-visual` | Skip browser-based visual companion (use ASCII mockups only) |
-| `--simple` | Short design: two checkpoints (problem, specification), no personas, no brainstorm of alternatives, prototypes only when asked for |
+| `--simple` | Short design: two checkpoints (problem, specification), no personas, no brainstorm of alternatives, prototypes only when the design turns on layout or presentation (you can override that when asked for additional context) |
 | `--full` | Full design whatever the detected complexity: personas drafted and every phase at its deepest |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
@@ -584,3 +584,11 @@ Lightweight TDD-driven bug fix without a full orchestrator workflow. Analyzes th
 **When to use**: Simple, isolated bugs where you can quickly identify the root cause. If the bug is too complex (multiple files, unclear root cause, architectural impact), the skill suggests escalating to `/maister:development`.
 
 No task directory created — works directly in your codebase.
+
+### `/maister:quick-design [design question]`
+
+Settles one small design question in the session: frames it (what is known, the decisions already taken, the standards that apply), lays out two to four options per decision area with what changes, pros, cons and rough cost, recommends one, and asks every decision area in one question set. It decides on its own whether mockups help — they do when the decision turns on layout or presentation — and sketches one per option with the mockup studio; the same question set lets you ask for mockups or skip them. Points it cannot settle become "unknown, to check" lines rather than stopping it.
+
+Writes `decision.md` under `.maister/tasks/design/YYYY-MM-DD-name/`: about a page in ADR style (context, options considered, decision and reason, consequences, unknowns, proposed issues or slices), with the mockups beside it when they were made.
+
+**When to use**: A bounded design question with at most three decision areas. When it needs research or has more, the skill recommends `/maister:product-design` or `/maister:research` instead and says why.
