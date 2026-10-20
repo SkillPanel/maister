@@ -169,7 +169,9 @@ wrote through the node's `with: decision_areas` and renders each area from it. T
 its check and the few labels the verb adds are in `references/decision-areas.md`. The area ids,
 and the order they are asked in, are the file's.
 
-**In session, one area per call**, in the file's order, each from its picker:
+**In session, one area per call**, in the file's order, each from its picker, with the plugin
+root written as its absolute path rather than the variable (the invocation contract in this
+skill's `SKILL.md` says why):
 
 ```
 node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<run>/orchestrator-state.yml --node=<the convergence node> --area=<area id> --json --picker=plain

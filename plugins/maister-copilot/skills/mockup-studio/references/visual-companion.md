@@ -5,9 +5,12 @@ Documents the browser-based visual companion architecture used by the `mockup-st
 The server lives at `${MAISTER_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs`.
 
 The plugin root is this plugin's own directory — the one holding
-`.claude-plugin/plugin.json` — and the variable naming it is set in the session
-environment. Use it as written; do not work the directory out and substitute a
-path of your own.
+`.claude-plugin/plugin.json`, two levels above the base directory the loader
+shows for the `mockup-studio` skill. Run the server by that absolute path, never
+through the variable: wherever a command here reads `${MAISTER_PLUGIN_ROOT}`,
+write the directory in its place, because a host that leaves the variable unset
+would start `node /skills/…`, which fails. A root holding a space goes in single
+quotes.
 
 ---
 
