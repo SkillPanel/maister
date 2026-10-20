@@ -390,6 +390,57 @@ test('workflows: an overlay for a name no built-in carries is not a workflow', t
 });
 
 // ---------------------------------------------------------------------------
+// the plugin root
+// ---------------------------------------------------------------------------
+
+// The plugin tier is the tree the engine ships in, whatever a plugin-root
+// variable says. A variable exported for one host reaches the other host's
+// shell, and a stale one names an install that is not running: neither may
+// redirect the built-ins, this plugin's skills and agents, or the prose beside
+// a built-in definition. The decoy is a whole plugin tree that carries every
+// name the real one does, plus one only it has.
+test('plugin root: a plugin-root variable naming another tree redirects nothing', async t => {
+  const w = world(t);
+  const research = fs.readFileSync(path.join(BUILTIN_WORKFLOWS, 'research.yml'), 'utf8');
+  put(w, {
+    'decoy/.claude-plugin/plugin.json': '{"name": "maister"}\n',
+    'decoy/agents/code-reviewer.md': executor('code-reviewer'),
+    'decoy/skills/workflow-engine/workflows/research.yml': research,
+    'decoy/skills/workflow-engine/workflows/research.md': '# Decoy prose\n',
+    'decoy/skills/workflow-engine/workflows/decoy-only.yml': research.replace(/^name: .*$/m, 'name: decoy-only'),
+  });
+  const decoy = path.join(w.root, 'decoy');
+  const variants = {
+    CLAUDE_PLUGIN_ROOT: { CLAUDE_PLUGIN_ROOT: decoy },
+    MAISTER_PLUGIN_ROOT: { MAISTER_PLUGIN_ROOT: decoy },
+    'both variables': { CLAUDE_PLUGIN_ROOT: decoy, MAISTER_PLUGIN_ROOT: decoy },
+  };
+  for (const [label, override] of Object.entries(variants)) {
+    await t.test(label, () => {
+      const env = { ...w.env, ...override };
+      const { found, warnings } = where(w,
+        { review: 'agent:code-reviewer', own: 'agent:maister:code-reviewer', child: 'workflow:research', decoy: 'workflow:decoy-only' },
+        { env, with: { question: 'What is left open?' } });
+      assert.deepEqual(found, {
+        review: { from: 'plugin', at: path.join(PLUGIN, 'agents/code-reviewer.md') },
+        own: { from: 'plugin', at: path.join(PLUGIN, 'agents/code-reviewer.md') },
+        child: { from: 'builtin', at: path.join(BUILTIN_WORKFLOWS, 'research.yml') },
+      });
+      assert.deepEqual(warnings, ['unresolved-reference:decoy:workflow:decoy-only']);
+
+      const located = run(ENGINE, ['locate', '--name=research'], undefined, env, w.project);
+      const report = JSON.parse(located.stdout);
+      assert.equal(located.code, 0, located.stdout + located.stderr);
+      assert.equal(report.definition, path.join(BUILTIN_WORKFLOWS, 'research.yml'));
+      assert.equal(report.companion, path.join(BUILTIN_WORKFLOWS, 'research.md'));
+
+      const missing = run(ENGINE, ['locate', '--name=decoy-only'], undefined, env, w.project);
+      assert.equal(missing.code, 1, missing.stdout + missing.stderr);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // isolation
 // ---------------------------------------------------------------------------
 

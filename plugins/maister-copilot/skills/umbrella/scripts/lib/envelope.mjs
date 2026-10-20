@@ -1213,18 +1213,14 @@ function isFile(target) {
 }
 
 /**
- * The plugin root, declared by the host or derived from this file's location.
- * Resolved through `fileURLToPath` rather than `url.pathname`, which on Windows
- * yields a leading-slash path no `fs` call can stat.
+ * The plugin root, derived from this file's location and never from the
+ * environment: a built-in definition is read from the tree this runtime ships
+ * in, whatever a plugin-root variable says (the workflow engine's `pluginRoot`
+ * gives the reason). Resolved through `fileURLToPath` rather than
+ * `url.pathname`, which on Windows yields a leading-slash path no `fs` call can
+ * stat.
  */
 function pluginRoot() {
-  // Two spellings, one value. `CLAUDE_PLUGIN_ROOT` is the host's; the Copilot
-  // variant's skills name `MAISTER_PLUGIN_ROOT`, because that CLI exports no
-  // plugin-directory variable of its own and its install notes ask the
-  // operator for this one. Reading both here keeps the instruction a skill
-  // gives and the path this runtime resolves from being two different answers.
-  const declared = process.env.CLAUDE_PLUGIN_ROOT || process.env.MAISTER_PLUGIN_ROOT;
-  if (declared) return declared;
   const here = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(here, '..', '..', '..', '..');
 }
