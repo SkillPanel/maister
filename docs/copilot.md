@@ -122,7 +122,7 @@ when you are not sure which one you need. To choose yourself:
 | Command | Use it for |
 |---|---|
 | `development` | Features, enhancements and bug fixes: analysis, specification, plan, test-driven implementation and verification, with a pause for your review between phases. |
-| `research` | A question to answer before building: gathers evidence from the codebase and the pages it can fetch, and writes a report with a recommendation. |
+| `research` | A question to answer before building: gathers evidence from the codebase and the pages it can fetch, and writes a report with a recommendation. See [Research and the web](#research-and-the-web). |
 | `performance` | Slow code: finds bottlenecks by reading the code (N+1 queries, missing indexes, quadratic loops, blocking I/O), then fixes them like a development run. |
 | `migration` | Moving to another library, platform or architecture pattern, step by step, with rollback planning and compatibility checks. |
 | `product-design` | A fuzzy idea: explores the problem and options with you, prototypes screens, and ends with a product brief. |
@@ -133,6 +133,27 @@ when you are not sure which one you need. To choose yourself:
 
 The five workflows at the top are described in full, with their flags, in
 [Workflow Details](workflows.md); every command is listed in [Commands](commands.md).
+
+### Research and the web
+
+Maister's research agents get Copilot's `web_fetch` and nothing else from the web: it reads a page
+at an address it already knows. Nothing in the session can query a search engine on a default
+account. Copilot's GitHub server has a web search tool, but it is not offered even when you ask
+for it with `--add-github-mcp-tool web_search`. GitHub's "Copilot can search the web" setting may
+control it, so check that setting in your GitHub Copilot settings.
+
+- **What works well:** questions about your codebase and about well-documented libraries, whose
+  official docs and READMEs the agents can read.
+- **What is weak:** anything that needs discovery, such as recent releases, vendor or market scans
+  and third-party comparisons. The run cannot find sources it does not already know, and leans on
+  the model's own knowledge instead.
+- **Give the run its sources.** Put the URLs that matter in the research question.
+- **Allow the sites it needs.** Fetches follow Copilot's URL permission rules (`url(...)` rules,
+  `--allow-url`, `--allow-all-urls`). A subagent cannot stop to ask, so if you run with stricter
+  settings, allow the domains a research task needs before you start it.
+- **A search server you add does not reach research.** A search MCP server added to Copilot is
+  visible to Copilot's built-in agents, but not to Maister's research agents, whose tool lists are
+  fixed.
 
 ### Where the work goes
 
@@ -284,9 +305,8 @@ consider a lighter model for the implementer subagents, as above.
 
 ## Differences from Claude Code
 
-- **No web search in research.** Copilot gives the research agents `web_fetch`, which reads a page
-  whose address it already knows, and no search tool. Research draws on the codebase and those
-  pages. Give it the URLs that matter in the task.
+- **No web search in research.** Research can read a web page it has the address of, but cannot
+  search for one. See [Research and the web](#research-and-the-web).
 - **No reminder after compaction.** On Claude Code, a reminder after a compacted context points
   the model back at the run's state. Copilot has no such moment. If a workflow loses its place
   after `/compact`, run the workflow's command again with the task folder, as in
