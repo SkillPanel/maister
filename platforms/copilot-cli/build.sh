@@ -187,7 +187,7 @@ done
 #     the same list given as `models` to a plugin agent: it ran on the
 #     session's model.) Any other alias stops the build
 #     rather than shipping an agent on a model nobody chose.
-LIGHT_MODELS='[claude-haiku-5.5, claude-haiku-4.5, gpt-5.4-mini]'
+LIGHT_MODELS='[claude-haiku-5.5, claude-haiku-4.5, gpt-6-luna]'
 find "$OUT/agents" -name "*.md" | sort | while read f; do
   awk -v light="$LIGHT_MODELS" -v file="$f" '
     NR==1 && $0=="---" { fm=1; print; next }

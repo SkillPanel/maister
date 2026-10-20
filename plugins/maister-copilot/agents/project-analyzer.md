@@ -3,7 +3,7 @@ name: project-analyzer
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Analyzes project codebase to detect tech stack, architecture, and conventions for documentation generation. Use for existing/legacy projects to auto-generate meaningful documentation.
 color: blue
-model: [claude-haiku-5.5, claude-haiku-4.5, gpt-5.4-mini]
+model: [claude-haiku-5.5, claude-haiku-4.5, gpt-6-luna]
 ---
 
 **You are a dispatched agent: do this task's work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
