@@ -21,7 +21,7 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 ### Prerequisites
 
-- [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.80+ with the `maister-copilot` variant)
+- [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.100+ with the `maister-copilot` variant)
 - `jq` on `PATH` — the destructive-command guard uses it to judge a subagent's shell commands, and denies them all without it
 - Node.js 20 or newer — required, with no fallback. Every workflow runs on the workflow engine, which needs it: without Node, a workflow command stops before it creates a task directory and says why. HTML mockups need it too
 
@@ -34,11 +34,11 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 After installing, restart Claude Code (`/exit` and relaunch) to ensure the plugin is fully loaded. To move to a newer version later, see [Upgrading](#upgrading).
 
-On GitHub Copilot CLI, install the `maister-copilot` variant with `copilot plugin install` — from a registered marketplace (`copilot plugin marketplace add SkillPanel/maister`, then `copilot plugin install maister-copilot@maister-plugins`) or straight from the repository subdirectory (`copilot plugin install SkillPanel/maister:plugins/maister-copilot`). To run a local checkout instead, load it with `copilot --plugin-dir /path/to/maister/plugins/maister-copilot`; add `--add-dir` for the same path when the checkout sits outside your working directory, which grants file access to it. `--add-dir` on its own does not load a plugin.
+On GitHub Copilot CLI, install the `maister-copilot` variant with `copilot plugin install` — from a registered marketplace (`copilot plugin marketplace add SkillPanel/maister`, then `copilot plugin install maister-copilot@maister-plugins`) or straight from the repository subdirectory (`copilot plugin install SkillPanel/maister:plugins/maister-copilot`). To run a local checkout instead, load it with `copilot --plugin-dir /path/to/maister/plugins/maister-copilot`; add `--add-dir` for the same path when the checkout sits outside your working directory, which grants file access to it. `--add-dir` on its own does not load a plugin. The beta channel installs the same way from `SkillPanel/maister#beta` as `maister-copilot@maister-plugins-beta`.
 
 **Copilot names the commands under the plugin.** Every command and workflow in this README is typed `/maister-copilot:<name>` on Copilot CLI, where Claude Code takes `/maister:<name>` — `/maister-copilot:development`, `/maister-copilot:init`, `/maister-copilot:reviews-code`. A bare `/development` is reported as an unknown command.
 
-**Then export the plugin root.** Copilot CLI exports no plugin-directory variable of its own, and several of the variant's skills — the workflow engine's among them — tell an agent to run a script under the plugin's own directory. With the variable unset those instructions do not resolve, and the agent works the path out and substitutes one — the guessing the variable exists to remove. Point it at the directory holding `.claude-plugin/plugin.json`, which is a different place on each install path:
+**The plugin root is optional.** Several of the variant's skills — the workflow engine's among them — tell an agent to run a script under the plugin's own directory, spelled `${MAISTER_PLUGIN_ROOT}`. Nothing has to be set: Copilot CLI hands every skill its base directory, the agent builds the script's path from it, and the scripts resolve the plugin from their own location. Export the variable when you want the path fixed rather than worked out — when you run the engine's scripts by hand, or a model keeps guessing the directory. Point it at the directory holding `.claude-plugin/plugin.json`, which is a different place on each install path:
 
 ```bash
 # installed from a marketplace — <marketplace> is the one you added, e.g. maister-plugins
@@ -50,6 +50,8 @@ export MAISTER_PLUGIN_ROOT=/path/to/maister/plugins/maister-copilot
 ```
 
 `copilot plugin list` names what is installed. Put the export in your shell profile: it is read at spawn time and there is no flag for it. On Claude Code nothing is needed here — that host exports the same directory under its own name.
+
+**Hooks on Copilot.** The variant ships the session-start reminder and the destructive-command guard, which Copilot CLI loads from the plugin. Claude Code's second reminder, the one that runs after a session's context is compacted, has no Copilot equivalent — Copilot starts no session after compaction — so after a long Copilot session is compacted, tell the model to re-read the run's `orchestrator-state.yml` before it continues a workflow.
 
 **Two directory flags, and only one of them loads a plugin.** Both hosts have them and they are easy to confuse:
 
@@ -201,7 +203,7 @@ If another channel is installed, uninstall it first (for example `/plugin uninst
 
 The 2.x line receives fixes only — no new features — for six months after 3.0.0 is released.
 
-On GitHub Copilot CLI, check out the `release/2.x` branch and load its `plugins/maister-copilot` directory with `copilot --plugin-dir`, as described under [Installation](#installation).
+On GitHub Copilot CLI, the 2.x line installs the same way: `copilot plugin marketplace add SkillPanel/maister#release/2.x`, then `copilot plugin install maister-copilot@maister-plugins-2x`.
 
 ## Beta Channel
 
@@ -255,7 +257,7 @@ To switch back to the free edition:
 /plugin install maister@maister-plugins
 ```
 
-GitHub Copilot CLI follows the same two-command flow with `copilot plugin marketplace add` / `copilot plugin install`, using the plugin-root export described in [Installation](#installation).
+GitHub Copilot CLI follows the same two-command flow with `copilot plugin marketplace add` / `copilot plugin install`, as described in [Installation](#installation).
 
 ## Best Practices
 
