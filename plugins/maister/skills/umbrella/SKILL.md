@@ -290,6 +290,15 @@ name that finds nothing, or finds only the built-in, is refused at
 remove the entry and let the built-in be chosen. A member not yet checked out
 is judged on shape alone. A kind outside the list is warned about and kept.
 
+A chain node's `workflow:` target is looked up the same way when the node
+carries `dir:`: in that member, rooted at its checkout, as the worker will
+resolve it. A name the member keeps, or a built-in, resolves, its row in
+`resolved` naming the `member`; any other name is the graph checker's
+`unresolved-reference` warning, even when the workspace holds a workflow of
+that name. A member not yet on disk cannot be searched, so its nodes keep the
+workspace lookup: a built-in resolves and any other name warns. A node with no
+`dir:` is always looked up in the workspace.
+
 **`prune`** — once a generated chain's runs have closed, or whenever the
 generated home needs tidying. A generated chain is one the planner published
 with its generated flag: authored for one ticket, carrying that ticket's text,
