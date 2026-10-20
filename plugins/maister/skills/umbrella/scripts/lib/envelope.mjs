@@ -81,13 +81,14 @@
  * `dispatch-graph-drifted`, `dispatch-autonomy-unresolved`,
  * `dispatch-autonomy-unknown`, `dispatch-workflow-not-driver-capable`,
  * `dispatch-run-unresolved`, `dispatch-permissions-override-unsupported`,
- * `dispatch-closeout-impossible`, `dispatch-siblings-invalid`,
+ * `dispatch-closeout-impossible`, `dispatch-no-git-host`, `dispatch-siblings-invalid`,
  * `dispatch-envelope-exists`, `dispatch-id-mismatch`, `dispatch-unwritable`,
  * `dispatch-temp-exists`, and `value-not-flow-safe` from the shared emitter.
  * A refusal of the entry's creation is reported under the ledger's own code.
  * Each is documented with its recovery in `SKILL.md`.
  */
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -344,6 +345,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const statement = statementOf({ defined, overrides });
   const permissions = permissionsOf(autonomy);
   const prRequired = closeoutPrOf({ node, defined, autonomy, permissions, overrides });
+  assertGitHost({ node, member, defined, entry, manifest, root, prRequired });
   const siblings = siblingsOf(overrides, members);
 
   return {
@@ -683,6 +685,61 @@ function closeoutPrOf({ node, defined, autonomy, permissions, overrides }) {
       `a pull request is required for the node "${node}" while the autonomy tier "${autonomy}" can never open one — it denies ${CAN.prCreate} and has no operator to approve it — so the worker would be told to do what its own permissions forbid. Dispatch at a tier that permits it, or drop the declaration and let the tier decide.`);
   }
   return declared;
+}
+
+/**
+ * A node that publishes needs somewhere to publish to, and that is known before
+ * any worker starts.
+ *
+ * `publish: true` tells the worker to push its branch and open a pull request.
+ * With no git host behind the member, the worker can do neither and finds out
+ * only at its close-out, after the whole run. So a host is resolved here, from
+ * the two places one can be said: the manifest's `git_host.kind`, which names
+ * the host for every member, and otherwise the member checkout's own remotes,
+ * one of which must point at a host rather than at a path on this machine — a
+ * local bare repository or a `file://` mirror takes a push but never a pull
+ * request. A publishing node whose close-out was declared `false` is left
+ * alone: that is how a chain says its remote has no host, and its worker is not
+ * told to open anything.
+ */
+function assertGitHost({ node, member, defined, entry, manifest, root, prRequired }) {
+  if (mapOf(defined.with).publish !== true || prRequired !== true) return;
+  const kind = mapOf(manifest?.git_host).kind;
+  if (typeof kind === 'string' && kind.trim() !== '') return;
+  const base = rootOf(root);
+  const checkout = base === null ? null : path.resolve(base, entry.path ?? member);
+  if (checkout !== null && remoteUrls(checkout).some(hostedRemote)) return;
+  throw new Refusal('dispatch-no-git-host',
+    `the node "${node}" sets publish: true, so its worker would push a branch and open a pull request, but no git host resolves for the member "${member}": the manifest's git_host.kind is not set and ${checkout === null ? 'no workspace root was given to read the member\'s remotes from' : `the checkout at ${checkout} has no remote on a host`}. Set git_host.kind in .maister/umbrella.yml, give the member a remote on its git host, or drop publish from the node's with: map.`);
+}
+
+/**
+ * Every remote URL a checkout configures; none when it is not a git checkout.
+ * The checkout's own git entry is required first, because git run in a plain
+ * directory walks up and would answer with the remotes of whatever repository
+ * holds the workspace.
+ */
+function remoteUrls(checkout) {
+  if (!fs.existsSync(path.join(checkout, '.git'))) return [];
+  try {
+    const out = execFileSync('git', ['-C', checkout, 'config', '--get-regexp', '^remote\\..*\\.url$'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return out.split('\n').map((line) => line.split(' ').slice(1).join(' ').trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Whether a remote URL names a host: a URL whose scheme is not `file`, or the
+ * scp-like `user@host:path`. A plain path is a repository on this machine. The
+ * host of the scp form is at least two characters, so a Windows drive letter is
+ * read as the path it is.
+ */
+function hostedRemote(url) {
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(url);
+  if (scheme) return scheme[1].toLowerCase() !== 'file';
+  return /^(?:[^@/\\\s]+@)?[^/\\:\s]{2,}:/.test(url);
 }
 
 /**

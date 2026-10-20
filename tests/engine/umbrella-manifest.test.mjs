@@ -69,3 +69,75 @@ test('validate: a coordination block of any shape is accepted silently, since no
     assert.deepEqual(report.warnings, [], block);
   }
 });
+
+// A member may name its own workflow for a kind of work, so whatever chooses a
+// member's workflow by kind reads the member's choice before the built-in. The
+// mapping is judged for shape always, and each name is looked up in the
+// member's own `.maister/workflows/` whenever the member is on disk.
+
+/** Declare the member `web` at `repos/web` with the given `workflows:` value. */
+function webMember(ws, workflows) {
+  const text = fs.readFileSync(ws.manifest, 'utf8');
+  fs.writeFileSync(ws.manifest, text.replace('members: {}',
+    `members:\n  web:\n    path: repos/web\n    kind: repo\n    workflows: ${workflows}`));
+}
+
+/** Put `web` on disk, holding its own workflow `name` when one is given. */
+function webCheckout(ws, name = null) {
+  const home = path.join(ws.root, 'repos/web/.maister/workflows');
+  fs.mkdirSync(home, { recursive: true });
+  if (name !== null) {
+    fs.writeFileSync(path.join(home, `${name}.yml`),
+      `name: ${name}\nversion: 1\nnodes:\n  only:\n    uses: direct:only\n    needs: []\n`);
+  }
+}
+
+const atWorkflows = (report) => [...report.errors, ...report.warnings].filter((entry) => entry.path.startsWith('members.web.workflows'));
+
+test('validate: a member mapping a kind to a workflow it keeps passes with no finding', (t) => {
+  const ws = workspace(t);
+  webMember(ws, '{change: frontend-change}');
+  webCheckout(ws, 'frontend-change');
+  const { code, report } = validate(ws);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(atWorkflows(report), []);
+});
+
+test('validate: a workflows value that is not a kind-to-name mapping is refused at its path', (t) => {
+  for (const [value, at] of [['frontend-change', 'members.web.workflows'], ['{change: Frontend_Change}', 'members.web.workflows.change']]) {
+    const ws = workspace(t);
+    webMember(ws, value);
+    const { code, report } = validate(ws);
+    assert.equal(code, 1, value);
+    assert.deepEqual(report.errors.map((entry) => entry.path), [at], value);
+  }
+});
+
+test('validate: an unknown kind of work is warned about, not refused', (t) => {
+  const ws = workspace(t);
+  webMember(ws, '{refactor: frontend-change}');
+  webCheckout(ws, 'frontend-change');
+  const { code, report } = validate(ws);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(report.warnings.map((entry) => entry.path), ['members.web.workflows.refactor']);
+});
+
+test('validate: a named workflow the member on disk does not keep is refused', (t) => {
+  for (const name of ['frontend-change', 'development']) {
+    const ws = workspace(t);
+    webMember(ws, `{change: ${name}}`);
+    webCheckout(ws);
+    const { code, report } = validate(ws);
+    assert.equal(code, 1, name);
+    assert.deepEqual(report.errors.map((entry) => entry.path), ['members.web.workflows.change'], name);
+    assert.match(report.errors[0].message, new RegExp(name));
+  }
+});
+
+test('validate: control — a member not yet on disk is judged on shape alone', (t) => {
+  const ws = workspace(t);
+  webMember(ws, '{change: frontend-change, fix: web-fix}');
+  const { code, report } = validate(ws);
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(atWorkflows(report), []);
+});

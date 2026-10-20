@@ -6,6 +6,7 @@ import path from 'node:path';
 import { ROOT } from '../helpers.mjs';
 import * as facade from '../../plugins/maister/skills/workflow-engine/scripts/lib/umbrella-facade.mjs';
 import * as definition from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
+import * as locateModule from '../../plugins/maister/skills/workflow-engine/scripts/lib/locate.mjs';
 import * as graph from '../../plugins/maister/skills/workflow-engine/scripts/lib/graph.mjs';
 import * as policy from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
 
@@ -17,6 +18,7 @@ const CONTRACT = {
   bareWorkflowName: ['function', graph],
   effectiveCeiling: ['function', policy],
   loadPolicy: ['function', policy],
+  locate: ['function', locateModule],
   locateTarget: ['function', graph],
   narrowerLevel: ['function', policy],
   readDefinition: ['function', definition],
