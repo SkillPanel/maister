@@ -23,7 +23,8 @@ author to date.
 committed generated variant matches a fresh `make build` byte for byte, plus the flat-command,
 no-colon, picker-rendering and plugin-root-vocabulary lints, and the guide template lint
 (`tests/guide-template-lint.mjs`), which holds every workflow guide to the step template's
-structure.
+structure, and the frontmatter lint (`tests/frontmatter-lint.mjs`), which holds every skill,
+agent and command frontmatter to valid YAML.
 
 `make test` runs the workflow engine's verbs the way a driver runs them — `validate`,
 `resolve`, `write-state` (the freeze, merges and refusals), the dashboard projection, a gate

@@ -77,6 +77,11 @@ umbrella's, plus 20,000 seeded random values parsed in process.
   each built-in and prints the words of every node's `node-brief` output as a diagnostic table;
   it fails only on a brief that does not print.
 
+- `frontmatter-lint.mjs` — not a test: the lint `make validate` runs over every `SKILL.md`, agent
+  and command frontmatter in both plugin trees (or each `--file=<md>` given), for the YAML subset
+  this repository writes. `frontmatter-lint.test.mjs` runs it as a subprocess on both trees and on
+  the samples under `fixtures/frontmatter/`, one bad sample per rule.
+
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.
 

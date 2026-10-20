@@ -743,23 +743,21 @@ function editDistance(a, b) {
 // ---------------------------------------------------------------------------
 
 /**
- * Where `skill:`, `agent:` and `workflow:` targets are looked up. Read at call
- * time rather than at import time so a caller can point it at another tree, and
- * derived from this file's own location when the environment says nothing —
- * which is the normal case, since the engine is invoked by absolute path.
+ * Where `skill:`, `agent:` and `workflow:` targets are looked up: the plugin
+ * tree this file ships in, derived from its own location.
+ *
+ * No environment variable redirects it. The variable a skill names for the
+ * plugin root can point at another tree — an export meant for one host reaches
+ * the other host's shell too, and a stale one outlives the install it named —
+ * and the built-in definitions, prose and skills read through it must be the
+ * ones beside the code that is running. Every host invokes the engine by its
+ * absolute path, so the module's location is always that tree.
  *
  * Rooting resolution here is what makes one shipped definition correct under
  * every generated variant: the skill and agent directory names are unprefixed
  * everywhere, so a bare target name resolves without a rewrite pass.
  */
 export function pluginRoot() {
-  // Two spellings, one value. `CLAUDE_PLUGIN_ROOT` is the host's; the Copilot
-  // variant's skills name `MAISTER_PLUGIN_ROOT`, because that CLI exports no
-  // plugin-directory variable of its own and its install notes ask the
-  // operator for this one. Reading both here keeps the instruction a skill
-  // gives and the path this runtime resolves from being two different answers.
-  const declared = process.env.CLAUDE_PLUGIN_ROOT || process.env.MAISTER_PLUGIN_ROOT;
-  if (declared) return declared;
   const here = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(here, '..', '..', '..', '..');
 }

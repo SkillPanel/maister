@@ -154,19 +154,13 @@ const gatesReference = root => `${root}/skills/workflow-engine/references/gates.
 
 /**
  * The plugin install this runtime is executing out of, used when a caller names
- * no root. The environment variable is honoured first where it *is* set — a
- * hook or an MCP subprocess — and the module's own location is the fallback,
- * which is what makes the default correct inside a headless worker where the
- * variable is absent.
+ * no root: the module's own location, never a plugin-root variable. A seed
+ * names the scripts a worker runs, and they must be the ones of this install —
+ * a variable exported for one host reaches the other host's shell too, and a
+ * stale one names an install that is not running. A caller that pins a root
+ * passes `pluginRoot` to `buildSeed`.
  */
 function defaultPluginRoot() {
-  // Two spellings, one value. `CLAUDE_PLUGIN_ROOT` is the host's; the Copilot
-  // variant's skills name `MAISTER_PLUGIN_ROOT`, because that CLI exports no
-  // plugin-directory variable of its own and its install notes ask the
-  // operator for this one. Reading both here keeps the instruction a skill
-  // gives and the path this runtime resolves from being two different answers.
-  const declared = process.env.CLAUDE_PLUGIN_ROOT || process.env.MAISTER_PLUGIN_ROOT;
-  if (declared) return declared;
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 }
 
