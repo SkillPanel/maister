@@ -80,7 +80,7 @@ import { randomBytes } from 'node:crypto';
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
 import { driverCapability } from './envelope.mjs';
-import { locate as locateWorkflow, TARGET_NAME, validate as validateGraph } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
+import { bareWorkflowName, locate as locateWorkflow, TARGET_NAME, validate as validateGraph } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
 
 /** The refusal names `commit` and `openTemp` report under, kept in one place. */
 const CODES = { unwritable: 'umbrella-unwritable', tempExists: 'umbrella-temp-exists' };
@@ -807,6 +807,7 @@ export function validate(root, { definitions = [] } = {}) {
     // The workspace is the project a `skill:` or `agent:` target is first
     // looked for in: a chain authored here may name a skill kept beside it.
     const report = validateGraph({ definition, overlays: [], profile: null, mode: 'resolved', project: base });
+    if (members !== null) resolveInMembers(definition.doc, members, base, report);
     errors.push(...report.errors.map((entry) => locate(entry, file)));
     warnings.push(...report.warnings.map((entry) => locate(entry, file)));
     resolved.push(...report.resolved.map((entry) => ({ file, ...entry })));
@@ -838,6 +839,40 @@ export function validate(root, { definitions = [] } = {}) {
   }));
 
   return { ok: errors.length === 0, root: base, manifest: relative(base, manifestPath), definitions: judged, errors, warnings, resolved };
+}
+
+/**
+ * A node carrying `dir:` runs its `workflow:` target in the member, so the
+ * member is where the name is looked up — the same `locate` rooted at the
+ * member's checkout that judges `members.<name>.workflows`, and that the worker
+ * resolves the name with. The graph checker looked it up in the workspace, so
+ * its verdict for such a node is replaced: a name the member holds, or a
+ * built-in, resolves with `member` saying whose it is; any other name keeps the
+ * `unresolved-reference` warning. A member not on disk cannot be searched, and
+ * its nodes keep the workspace lookup — a built-in resolves, anything else
+ * warns — because a workspace is often described before every member is
+ * checked out. Nodes with no `dir:` are left to the graph checker.
+ */
+function resolveInMembers(doc, members, base, report) {
+  if (!isMap(doc) || !isMap(doc.nodes)) return;
+  for (const [id, node] of Object.entries(doc.nodes)) {
+    if (!isMap(node) || typeof node.dir !== 'string' || !members.checkouts.has(node.dir)) continue;
+    if (typeof node.uses !== 'string' || !node.uses.startsWith('workflow:')) continue;
+    const name = bareWorkflowName(node.uses.slice('workflow:'.length));
+    if (name === null || !TARGET_NAME.test(name)) continue;
+    const checkout = path.resolve(base, members.checkouts.get(node.dir));
+    if (!isDirectory(checkout)) continue;
+    const unresolved = `unresolved-reference:${id}:${node.uses}`;
+    report.warnings = report.warnings.filter((entry) => entry !== unresolved);
+    report.resolved = report.resolved.filter((entry) => entry.node !== id);
+    const found = locateWorkflow({ name, project: checkout });
+    if (found.ok) {
+      const at = path.resolve(checkout, found.overlays[0] ?? found.definition);
+      report.resolved.push({ node: id, target: node.uses, at, from: found.from, member: node.dir });
+    } else {
+      report.warnings.push(unresolved);
+    }
+  }
 }
 
 /**
@@ -1093,7 +1128,7 @@ function checkManifest(doc, file, errors, warnings, base) {
   } else if (!isMap(doc.members)) {
     fail('members', 'members must be a mapping from member name to its entry');
   } else {
-    members = { names: new Set(), paths: new Set(), providers: new Map() };
+    members = { names: new Set(), paths: new Set(), providers: new Map(), checkouts: new Map() };
     for (const [name, entry] of Object.entries(doc.members)) {
       const at = `members.${name}`;
       if (!isMap(entry)) {
@@ -1102,7 +1137,10 @@ function checkManifest(doc, file, errors, warnings, base) {
       }
       if (typeof entry.path !== 'string' || entry.path === '') fail(`${at}.path`, 'a member declares a path, as a non-empty string');
       else if (entry.path.startsWith('/')) fail(`${at}.path`, 'a member path is relative to the workspace, so it cannot begin with "/"');
-      else members.paths.add(entry.path);
+      else {
+        members.paths.add(entry.path);
+        members.checkouts.set(name, entry.path);
+      }
       if (Object.hasOwn(entry, 'kind') && typeof entry.kind !== 'string') fail(`${at}.kind`, 'kind is a string');
       if (Object.hasOwn(entry, 'default_provider') && !PROVIDERS.includes(entry.default_provider)) {
         fail(`${at}.default_provider`, `default_provider is one of ${PROVIDERS.join(', ')}`);

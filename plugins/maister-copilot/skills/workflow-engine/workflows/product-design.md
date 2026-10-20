@@ -137,13 +137,18 @@ recorded, and the brief names them.
 
 **Asks.**
 
-**With question sets** (`additional-context`, and `mockups` in a simple run):
-asked in this node's one request. A folder still empty after a Files answer is not asked about again,
+**With question sets** (`additional-context`): asked in this node's one
+request. A folder still empty after a Files answer is not asked about again,
 and the run goes on without files.
 
-**Without question sets** (`additional-context`, `mockups`): no additional context; the
-lists stay empty rather than half-gathered. In a simple run the mockup
-judgment stands.
+**Without question sets** (`additional-context`): no additional context; the
+lists stay empty rather than half-gathered.
+
+**With question sets** (`mockups`): a simple run only, in the same request as
+the additional context, the mockup judgment its recommended option.
+
+**Without question sets** (`mockups`): the mockup judgment stands, and
+`prototyping_enabled` is recorded from it.
 
 **Summary.** A `headline` naming the kind of design, its complexity and which
 optional parts will run. In `summary`, each characteristic that holds with its

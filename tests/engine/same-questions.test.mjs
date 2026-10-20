@@ -61,7 +61,7 @@ const IN_NODE_COUNTS = {
   development: 11,
   migration: 4,
   performance: 7,
-  'product-design': 12,
+  'product-design': 13,
   research: 5,
 };
 
