@@ -37,9 +37,8 @@ access to it.
 ## Requirements
 
 - GitHub Copilot CLI 1.0.100 or newer
-- Node.js 20 or newer: every workflow runs on the workflow engine, which needs it
-- `jq` on `PATH`, required: the destructive-command guard fails closed, so without `jq` every
-  shell call a subagent makes is denied and a run stalls
+- Node.js 20 or newer: every workflow runs on the workflow engine, which needs it, and the
+  plugin's hooks run on it too
 
 ## Run a workflow
 

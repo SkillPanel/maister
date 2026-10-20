@@ -14,10 +14,8 @@ Copilot.
 - **GitHub Copilot CLI 1.0.100 or newer.** That release is the first whose hook input names the
   subagent that made a call, which the destructive-command guard needs.
 - **Node.js 20 or newer.** Every workflow runs on the workflow engine, which needs it. Without
-  Node, a workflow command stops before it creates a task folder and says why.
-- **`jq` on `PATH`. Required, not optional.** The destructive-command guard reads the subagent's
-  identity with it, and fails closed: without `jq` it denies every shell call a subagent makes, so
-  a workflow's agents cannot run tests, builds or the engine's commands and the run stalls.
+  Node, a workflow command stops before it creates a task folder and says why. The plugin's hooks
+  run on Node too, so they need neither bash nor `jq`.
 
 ### From the marketplace
 
@@ -298,8 +296,8 @@ consider a lighter model for the implementer subagents, as above.
   Copilot itself to block edits while planning, enter `/plan` first.
 - **Missing folders.** Copilot's file tool does not create a missing parent folder. Maister's agents
   create a folder before writing into it.
-- **The guard is a plugin hook.** Copilot loads it from the plugin, so it needs no setup beyond
-  `jq`, which it cannot run without (see [Requirements](#requirements)).
+- **The guard is a plugin hook.** Copilot loads it from the plugin and runs it with Node, so it
+  needs no setup.
 - **`MAISTER_PLUGIN_ROOT` is optional.** Copilot tells each skill where it lives, and the scripts
   find the plugin from their own location. Set the variable only if a model keeps guessing the
   plugin's folder wrong, pointing it at the folder that holds `.claude-plugin/plugin.json`
@@ -341,8 +339,7 @@ blocked"). Copilot's shell validator refused the command shape. The agent normal
 way; nothing needs changing on your side.
 
 **"Denied by preToolUse hook".** The destructive-command guard stopped a subagent's destructive
-command. That is intended. If every subagent shell call is denied, `jq` is missing from `PATH`:
-install it and start a new session.
+command. That is intended.
 
 **A command is unknown, or a workflow is missing.** Check what loaded:
 

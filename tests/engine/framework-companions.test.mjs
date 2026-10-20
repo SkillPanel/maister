@@ -10,12 +10,12 @@ import { ROOT } from '../helpers.mjs';
 // The post-compaction hook runs in a project with a task directory and prints
 // its reminder as hook JSON.
 
-const HOOK = path.join(ROOT, 'plugins/maister/hooks/post-compact-reminder.sh');
+const HOOK = path.join(ROOT, 'plugins/maister/hooks/post-compact-reminder.mjs');
 
 test('the post-compact hook exits 0 with hook JSON and stays LF', () => {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'maister framework '));
   fs.mkdirSync(path.join(project, '.maister', 'tasks'), { recursive: true });
-  const result = spawnSync('bash', [HOOK], { encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: project } });
+  const result = spawnSync(process.execPath, [HOOK], { encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: project } });
   assert.equal(result.status, 0, result.stderr);
   const context = JSON.parse(result.stdout).hookSpecificOutput.additionalContext;
   assert.equal(typeof context, 'string');

@@ -18,8 +18,8 @@
  * the patch file under every shell; the node writes travel as a here-string
  * (`<<< '<json>'`, an apostrophe written `'\''`) under bash and zsh, and in the
  * patch file under every shell on Windows. Then the hooks, each started as `hooks.json`
- * starts it: the edition check under `node`, the two session-start reminders
- * and the destructive-command guard under `bash` (Git Bash on Windows).
+ * starts it, under `node` in the exec form: the edition check, the two
+ * session-start reminders and the destructive-command guard.
  *
  * Prints one `ok`/`FAIL` line per check and exits 1 when any check failed.
  * Node >= 20, no dependencies; everything is written under the OS temp
@@ -248,20 +248,17 @@ try {
 
   // --- the hooks ------------------------------------------------------------
   // Each hook is started from its `hooks.json` entry the way the host starts
-  // it: `${CLAUDE_PLUGIN_ROOT}` replaced by the plugin root, an exec-form entry
-  // (`command` plus `args`) spawned directly, a shell-form entry handed whole to
-  // bash — Git Bash on Windows, which is where the host runs it. The host sets
-  // CLAUDE_PROJECT_DIR for a hook, in the platform's own spelling.
+  // it: `${CLAUDE_PLUGIN_ROOT}` replaced by the plugin root and the exec-form
+  // entry (`command` plus `args`) spawned directly, no shell between. The host
+  // sets CLAUDE_PROJECT_DIR for a hook, in the platform's own spelling.
   const registry = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'hooks', 'hooks.json'), 'utf8')).hooks;
   const entries = Object.values(registry).flat().flatMap(group => group.hooks);
   const entryFor = script => entries.find(entry => [entry.command, ...(entry.args ?? [])].some(part => part.includes(`/hooks/${script}`)));
   const expand = text => text.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginRoot);
-  const bash = bashPath();
-
   function hook(script, input) {
     const entry = entryFor(script);
     if (!entry) return { code: null, stdout: '', stderr: `hooks.json registers no ${script}`, line: script };
-    const [command, args] = entry.args ? [expand(entry.command), entry.args.map(expand)] : [bash, ['-c', expand(entry.command)]];
+    const [command, args] = [expand(entry.command), (entry.args ?? []).map(expand)];
     const result = spawnSync(command, args, { input, cwd: project, env: { ...env, CLAUDE_PROJECT_DIR: project }, encoding: 'utf8' });
     return {
       code: result.error ? null : result.status,
@@ -274,29 +271,23 @@ try {
   const edition = hook('edition-check.mjs', JSON.stringify({ hook_event_name: 'SessionStart', cwd: project }));
   check('edition-check: one edition, exit 0 and silent', edition.code === 0 && edition.stdout === '', show(edition));
 
-  if (!bash) {
-    process.stdout.write('skip  the bash hooks: no bash on this machine\n');
-  } else {
-    // post-compact-reminder speaks only when the project holds `.maister/tasks`,
-    // which this one does, read through the platform's spelling of the path.
-    for (const script of ['skill-invocation-reminder.sh', 'post-compact-reminder.sh']) {
-      const reminder = hook(script, JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup' }));
-      const out = json(reminder.stdout);
-      check(`${script}: exit 0 with additional context`, reminder.code === 0 && typeof out?.hookSpecificOutput?.additionalContext === 'string', show(reminder));
-    }
-
-    const guard = (agent, command) => hook('block-destructive-commands.sh', JSON.stringify({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, ...(agent ? { agent_type: agent } : {}),
-    }));
-    const main = guard(null, 'git stash');
-    check('guard: the main agent is let through', main.code === 0 && main.stdout === '', show(main));
-    const allowed = guard('test-suite-runner', 'git stash');
-    check('guard: a whitelisted subagent is let through', allowed.code === 0 && allowed.stdout === '', show(allowed));
-    const denied = guard('code-reviewer', 'git reset --hard HEAD');
-    const decision = json(denied.stdout)?.hookSpecificOutput?.permissionDecision;
-    const jq = spawnSync(bash, ['-c', 'command -v jq'], { env, encoding: 'utf8' }).status === 0;
-    check(`guard: a subagent's destructive command is denied${jq ? '' : ' (no jq: fail-closed)'}`, decision === 'deny' && denied.code === (jq ? 0 : 2), show(denied));
+  // post-compact-reminder speaks only when the project holds `.maister/tasks`,
+  // which this one does, read through the platform's spelling of the path.
+  for (const script of ['skill-invocation-reminder.mjs', 'post-compact-reminder.mjs']) {
+    const reminder = hook(script, JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup' }));
+    const out = json(reminder.stdout);
+    check(`${script}: exit 0 with additional context`, reminder.code === 0 && typeof out?.hookSpecificOutput?.additionalContext === 'string', show(reminder));
   }
+
+  const guard = (agent, command) => hook('block-destructive-commands.mjs', JSON.stringify({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, ...(agent ? { agent_type: agent } : {}),
+  }));
+  const main = guard(null, 'git stash');
+  check('guard: the main agent is let through', main.code === 0 && main.stdout === '', show(main));
+  const allowed = guard('test-suite-runner', 'git stash');
+  check('guard: a whitelisted subagent is let through', allowed.code === 0 && allowed.stdout === '', show(allowed));
+  const denied = guard('code-reviewer', 'git reset --hard HEAD');
+  check('guard: a subagent\'s destructive command is denied', denied.code === 0 && json(denied.stdout)?.hookSpecificOutput?.permissionDecision === 'deny', show(denied));
 
   // --- line endings -----------------------------------------------------------
   const carried = [...walk(path.join(SOURCE_PLUGIN, 'hooks')), ...walk(path.join(SOURCE_PLUGIN, 'skills', 'workflow-engine', 'scripts')), ...walk(path.join(SOURCE_PLUGIN, 'lib'))]

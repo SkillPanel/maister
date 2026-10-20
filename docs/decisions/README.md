@@ -51,7 +51,7 @@ Alternatives are not restated: each ADR states in its own Considered Options why
 | [ADR-0003](0003-event-schema.md) | Event schema | Accepted | 2026-08-26 | — |
 | [ADR-0004](0004-tracker-mirror.md) | Tracker mirror | Accepted | 2026-08-26 | — |
 | [ADR-0006](0006-compatibility-floor.md) | Compatibility floor 2.2.3 and tolerance rules | Accepted | 2026-08-26 | The "render and resume forever" compatibility scope (narrowed: no resume below the floor) |
-| [ADR-0007](0007-hook-runtime-and-artifact-homes.md) | Hook runtime and artifact homes | Accepted | 2026-08-26 | — |
+| [ADR-0007](0007-hook-runtime-and-artifact-homes.md) | Hook runtime and artifact homes | Accepted | 2026-08-26 | Amended 2026-10-20: every hook is Node in exec form on both hosts; no hook needs bash or jq |
 | [ADR-0008](0008-direct-scheme-for-workflow-node-references.md) | The `direct:` scheme for workflow node references | Accepted | 2026-08-26 | Amended by ADR-0044: a `direct:` node with no section validates from conventions |
 | [ADR-0009](0009-terminal-mode-gate-state.md) | Terminal-mode gate state | Accepted | 2026-08-26 | — |
 | [ADR-0010](0010-built-in-workflow-node-ids.md) | Built-in workflow node ids as public API | Accepted | 2026-08-26 | — |

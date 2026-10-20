@@ -88,7 +88,7 @@ validate:
 	@echo "Checking the variant's hooks: every script hooks.json names exists, in Copilot's output shape..."
 	@for rel in $$(grep -o 'hooks/[A-Za-z0-9_.-]*\.\(sh\|mjs\)' plugins/maister-copilot/hooks/hooks.json | sort -u); do test -f "plugins/maister-copilot/$$rel" || { echo "FAIL: the variant's hooks.json names plugins/maister-copilot/$$rel, which does not exist"; exit 1; }; done
 	@! grep -q '"modules"' plugins/maister-copilot/hooks/hooks.json || (echo "FAIL: the variant's hooks.json lists a Claude Code hooks module" && exit 1)
-	@for f in plugins/maister-copilot/hooks/*.sh; do grep -q '^HOOK_SHAPE=copilot$$' "$$f" || { echo "FAIL: $$f emits Claude Code's output shape, which Copilot drops"; exit 1; }; done
+	@for f in plugins/maister-copilot/hooks/*.mjs; do grep -q "^const HOOK_SHAPE = 'copilot';$$" "$$f" || { echo "FAIL: $$f emits Claude Code's output shape, which Copilot drops"; exit 1; }; done
 	@echo "Checking no maister- prefix in copilot command names..."
 	@! grep -r '^name: maister-' plugins/maister-copilot/commands/ 2>/dev/null || (echo "FAIL: maister- prefix in command names" && exit 1)
 	@echo "Checking no maister: prefixes in copilot variant..."
@@ -155,6 +155,10 @@ validate:
 	@test -z "$$(git diff --stat -- plugins/maister-copilot/ 2>/dev/null)" || (echo "FAIL: plugins/maister-copilot/ differs from a fresh make build — run make build and git add the result" && git diff --stat -- plugins/maister-copilot/ && exit 1)
 	@echo "Checking the hooks take no Python dependency..."
 	@! grep -rn 'python3' plugins/maister/hooks/ 2>/dev/null || (echo "FAIL: a hook reaches for python3" && exit 1)
+	@echo "Checking no hook needs bash or jq..."
+	@test -z "$$(find plugins/maister/hooks plugins/maister-copilot/hooks -name '*.sh' 2>/dev/null)" || (echo "FAIL: a shell hook is shipped; hooks are Node, run in the exec form" && exit 1)
+	@! grep -nE '"(command|exec)": *"(bash|sh)\b|"bash":|"powershell":' plugins/maister/hooks/hooks.json platforms/copilot-cli/hooks.json plugins/maister-copilot/hooks/hooks.json || (echo "FAIL: a hooks.json entry runs a hook through a shell" && exit 1)
+	@! grep -n 'child_process' plugins/maister/hooks/*.mjs plugins/maister-copilot/hooks/*.mjs || (echo "FAIL: a hook starts a process, which may need a shell or jq" && exit 1)
 	@echo "All checks passed"
 
 # The engine verb suite: every verb run as a driver runs it, against committed
