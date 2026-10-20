@@ -144,7 +144,8 @@ not every account has it yet. To get it:
 
 Even then a session may have no search until GitHub enables it for your account. There is no
 local switch for it; `--experimental` does not turn it on. When search is available, Copilot shows
-"Searching the web" in the session, and Maister's research agents use it automatically.
+"Searching the web" in the session. Maister's research agents name Copilot's search tool, so they
+use it wherever Copilot offers it to them; check a research run's sources to see whether it did.
 
 Until then, the research agents read pages at addresses they already know or that you give them.
 
