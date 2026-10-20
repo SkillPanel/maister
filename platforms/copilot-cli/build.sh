@@ -17,12 +17,22 @@ sedi() {
 
 rm -rf "$OUT"
 cp -r "$CORE" "$OUT"
-# Copilot resolves hooks from the consumer repository and does not read a
-# plugin's hooks.json, so the Claude-shaped hooks directory is dropped. The
-# Claude Code hooks module goes with it, so its state contract does too, and so
-# do the API declarations and the tsconfig.json Claude Code lays beside a
-# plugin it loads from a folder.
-rm -rf "$OUT/hooks" "$OUT/types" "$OUT/.claude-plugin/types" "$OUT/tsconfig.json"
+# The hooks. Copilot CLI loads a plugin's hooks/hooks.json -- Claude's nested
+# matcher format and PascalCase events included -- and runs each command with
+# CLAUDE_PLUGIN_ROOT set to the plugin's directory. What only Claude Code can
+# run is dropped, and the variant's own hooks.json registers the rest:
+#   - display.mjs is a Claude Code hooks module, so it goes, with its state
+#     contract, the API declarations and the tsconfig.json Claude Code lays
+#     beside a plugin it loads from a folder;
+#   - post-compact-reminder.sh: Copilot starts no session after compaction
+#     (a start's source is startup, resume or new) and applies no matcher to a
+#     SessionStart hook, so the compact-only reminder would speak at every start;
+#   - edition-check.mjs: the collision it looks for is between editions that
+#     share the plugin name, which this renamed variant never carries.
+# The two scripts that stay are switched to Copilot's output shape further down.
+rm -rf "$OUT/types" "$OUT/.claude-plugin/types" "$OUT/tsconfig.json" \
+  "$OUT/hooks/display.mjs" "$OUT/hooks/post-compact-reminder.sh" "$OUT/hooks/edition-check.mjs"
+cp "$ROOT/platforms/copilot-cli/hooks.json" "$OUT/hooks/hooks.json"
 
 # 1. Update plugin.json name and description, and drop the dropped contract
 sedi 's/"name": "maister"/"name": "maister-copilot"/' "$OUT/.claude-plugin/plugin.json"
@@ -63,9 +73,12 @@ find "$OUT" -name "*.md" | while read f; do
     "$f"
 done
 
-# 5. Replace CLAUDE.md references with copilot equivalents in skills
+# 5. Replace CLAUDE.md references with copilot equivalents in skills.
+#    A path that only puts CLAUDE.md in a directory (`.claude/CLAUDE.md`) is
+#    turned first into AGENTS.md, which Copilot reads, so the general pass never
+#    leaves a directory in front of .github/.
 find "$OUT/skills" -name "*.md" | while read f; do
-  sedi 's/CLAUDE\.md/.github\/copilot-instructions.md/g' "$f"
+  sedi -e 's#\.claude/CLAUDE\.md#AGENTS.md#g' -e 's/CLAUDE\.md/.github\/copilot-instructions.md/g' "$f"
 done
 
 # 6. Replace AskUserQuestion with copilot's ask_user tool
@@ -73,16 +86,54 @@ find "$OUT" -name "*.md" | while read f; do
   sedi 's/AskUserQuestion/ask_user/g' "$f"
 done
 
+# 6b. Name the agent type Copilot knows. Its built-in read-only search agent is
+#     `explore`, lowercase, and its task tool takes the type as agent_type; a
+#     dispatch of `Explore` is refused as an unknown agent type. Only a
+#     dispatch's type is rewritten -- the word in prose stays.
+find "$OUT" -name "*.md" | while read f; do
+  sedi -E "s/subagent_type([=:][[:space:]]*[\"'\`]?)Explore([^A-Za-z]|\$)/agent_type\1explore\2/g" "$f"
+done
+
+# 6c. Give install commands in Copilot's form. Claude Code installs from a
+#     slash command and names the plugin `maister`; Copilot installs from its
+#     shell command under the manifest name.
+find "$OUT" -name "*.md" | while read f; do
+  sedi -E \
+    -e 's#/plugin marketplace add #copilot plugin marketplace add #g' \
+    -e "s#/plugin (install|uninstall) maister@#copilot plugin \\1 $NS@#g" \
+    "$f"
+done
+
+# 6d. The hook scripts: Copilot's output shape and this variant's names. Each
+#     script names its shape on one line, HOOK_SHAPE=claude; Copilot reads a
+#     SessionStart's context and a PreToolUse's decision only at the top level
+#     of the output and drops Claude's hookSpecificOutput wrapper. The reminder
+#     text gets the same renames as the skills, the skill tool's own name and
+#     Copilot's autonomy settings in place of Claude Code's permission modes.
+for f in "$OUT"/hooks/*.sh; do
+  sedi -E \
+    -e 's/^HOOK_SHAPE=claude$/HOOK_SHAPE=copilot/' \
+    -e "s#/maister:#/$NS:#g" \
+    -e 's/AskUserQuestion/ask_user/g' \
+    -e 's/the Skill tool/the skill tool/g' \
+    -e 's#regardless of permission mode \(auto / acceptEdits / bypassPermissions\)#regardless of mode or permissions (autopilot / allow-all)#g' \
+    "$f"
+  if ! grep -q '^HOOK_SHAPE=copilot$' "$f"; then
+    echo "build: $f names no HOOK_SHAPE=claude line; Copilot would drop its output" >&2
+    exit 1
+  fi
+done
+
 # 7. Rename the plugin-root variable in every exec form.
-#    CLAUDE_PLUGIN_ROOT is a Claude Code variable and is absent from this CLI's
-#    environment, which exposes only its own four — so a skill telling an agent
-#    to run `node ${CLAUDE_PLUGIN_ROOT}/...` here is stating something false and
-#    leaves the agent to work the directory out and substitute a path. The
-#    variant names its own variable instead, and the variant's README.md
-#    says how to export it. Skills and their references only: hooks.json is a Claude
-#    surface this variant does not inherit, and no .mjs is rewritten — the
-#    runtime code reads the variable at call time and already falls back to its
-#    own module location.
+#    CLAUDE_PLUGIN_ROOT is absent from the shell this CLI gives an agent -- it
+#    sets the variable only for the hooks it runs -- so a skill telling an agent
+#    to run `node ${CLAUDE_PLUGIN_ROOT}/...` here names an empty variable. The
+#    variant names its own variable instead; with it unset the agent builds the
+#    path from the skill's base directory, which the CLI hands every skill, and
+#    the variant's README.md says when exporting it helps. Skills and their
+#    references only: hooks.json keeps CLAUDE_PLUGIN_ROOT, which the hooks do
+#    get, and no .mjs is rewritten -- the runtime code reads the variable at
+#    call time and already falls back to its own module location.
 find "$OUT/skills" -name "*.md" | while read f; do
   sedi 's/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g' "$f"
 done
@@ -94,10 +145,13 @@ done
 #    depth limit stops it, and an implementer loads an orchestrator skill from
 #    inside itself. Two measures, because the CLI enforces only one of them:
 #    - A tool allowlist without the agent tool, so no agent can dispatch
-#      another. It names both the CLI's aliases and its own tool names (the
-#      aliases alone resolve no search, fetch or todo tool, and a model family
-#      that edits by patch gets apply_patch only by name); names a model family
-#      does not have are ignored. The agents that drive the browser add the
+#      another. It names both the CLI's aliases and its own tool names (before
+#      1.0.100 the aliases resolved no search, fetch or todo tool, and a model
+#      family that edits by patch gets apply_patch only by name); names a model
+#      family or a session does not have are ignored. The `web` alias is the
+#      documented route to web search, but a session with no search tool of
+#      its own -- the main agent's included -- gives none to its agents, by
+#      alias or by name. The agents that drive the browser add the
 #      plugin's Playwright MCP server.
 #    - One sentence after the frontmatter, for the skill tool, which the CLI
 #      grants whatever the allowlist says.
@@ -122,6 +176,30 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
     }
     { print }
   ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+done
+
+# 8b. Run each agent on a model Copilot knows. Source agents name Claude Code's
+#     model aliases: `inherit`, which Copilot does not know and answers with
+#     'auto' -- a model of its own choosing, not the session's -- and `haiku`
+#     for the lightweight ones. An agent with no model runs on the session's,
+#     so `inherit` is dropped; `haiku` becomes a list of lightweight models in
+#     `model`, which the runtime tries in order. (Copilot 1.0.100 did not apply
+#     the same list given as `models` to a plugin agent: it ran on the
+#     session's model.) Any other alias stops the build
+#     rather than shipping an agent on a model nobody chose.
+LIGHT_MODELS='[claude-haiku-5.5, claude-haiku-4.5, gpt-6-luna]'
+find "$OUT/agents" -name "*.md" | sort | while read f; do
+  awk -v light="$LIGHT_MODELS" -v file="$f" '
+    NR==1 && $0=="---" { fm=1; print; next }
+    fm==1 && $0=="---" { fm=2 }
+    fm==1 && /^model:[[:space:]]*inherit[[:space:]]*$/ { next }
+    fm==1 && /^model:[[:space:]]*haiku[[:space:]]*$/ { print "model: " light; next }
+    fm==1 && /^model:[[:space:]]*(sonnet|opus|fast|default)[[:space:]]*$/ {
+      print "build: " file " names the Claude Code model alias " $2 ", which Copilot does not know" > "/dev/stderr"; bad=1
+    }
+    { print }
+    END { exit bad }
+  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f" || { rm -f "$f.tmp"; exit 1; }
 done
 
 # 9. Render the question picker for a tool without option previews.

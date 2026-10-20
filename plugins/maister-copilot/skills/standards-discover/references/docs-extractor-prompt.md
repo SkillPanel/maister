@@ -12,7 +12,7 @@ Find and parse documentation files, extract explicitly stated standards, return 
 2. **CONTRIBUTING.md** — PR requirements, commit conventions, testing requirements, code review standards
 3. **ARCHITECTURE.md** / `docs/architecture/` — Design patterns, architectural decisions
 4. **ADRs** (Architecture Decision Records) — `adr/`, `decisions/`, `docs/decisions/` directories
-5. **.github/copilot-instructions.md** / `.claude/.github/copilot-instructions.md` — AI-specific coding instructions and project conventions
+5. **.github/copilot-instructions.md** / `AGENTS.md` — AI-specific coding instructions and project conventions
 6. **Code of Conduct**, **STYLEGUIDE.md** — If present
 
 ## What to Extract

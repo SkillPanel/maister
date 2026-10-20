@@ -2,7 +2,6 @@
 name: test-suite-runner
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Runs the full test suite and analyzes results. Identifies test command from project config, executes all tests (not just feature tests), reports pass/fail counts, flags regressions in unrelated areas, and categorizes failures. Reports failures without fixing them, and always writes its results file. Does not interact with users.
-model: inherit
 color: red
 ---
 

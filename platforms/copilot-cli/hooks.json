@@ -1,0 +1,28 @@
+{
+  "description": "Maister plugin hooks for workflow enforcement: the session-start reminder and the destructive-command guard",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/skill-invocation-reminder.sh\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/block-destructive-commands.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -65,8 +65,20 @@ validate:
 	  ! echo "$$t" | grep -qE '"(agent|task|Task|custom-agent|\*)"' || { echo "FAIL: $$f grants a dispatch tool: $$t"; exit 1; }; \
 	  grep -q '^\*\*You are a dispatched agent: do this task' "$$f" || { echo "FAIL: $$f lacks the no-re-entry sentence"; exit 1; }; \
 	done
+	@echo "Checking every Copilot agent runs on a model Copilot knows..."
+	@! grep -nE '^models?:(.*[[,[:space:]])?(inherit|haiku|sonnet|opus|fast|default)([],[:space:]]|$$)' plugins/maister-copilot/agents/*.md || (echo "FAIL: a Claude Code model alias survives in a variant agent; Copilot runs it on a model of its own choosing" && exit 1)
 	@echo "Checking no CLAUDE.md references in skills..."
 	@! grep -ri 'CLAUDE\.md' plugins/maister-copilot/skills/ 2>/dev/null || (echo "FAIL: CLAUDE.md references found in skills" && exit 1)
+	@echo "Checking the variant names no Explore agent type (Copilot's is explore)..."
+	@! grep -rnE "(subagent_type|agent_type)[[:space:]]*[=:][[:space:]]*[^[:alnum:][:space:]]?Explore" plugins/maister-copilot/ --include="*.md" 2>/dev/null || (echo "FAIL: an Explore agent type survives in the variant; Copilot refuses it as unknown" && exit 1)
+	@echo "Checking the variant gives no Claude Code plugin command..."
+	@! grep -rnE '/plugin (install|uninstall|marketplace)' plugins/maister-copilot/skills plugins/maister-copilot/agents plugins/maister-copilot/commands --include="*.md" 2>/dev/null || (echo "FAIL: a Claude Code /plugin command survives in the variant; Copilot installs with copilot plugin" && exit 1)
+	@echo "Checking no rewritten instructions path sits under a directory..."
+	@! grep -rnE '[A-Za-z0-9_.-]/\.github/copilot-instructions\.md' plugins/maister-copilot/ 2>/dev/null || (echo "FAIL: a CLAUDE.md path under a directory was rewritten into a path that does not exist" && exit 1)
+	@echo "Checking the variant's hooks: every script hooks.json names exists, in Copilot's output shape..."
+	@for rel in $$(grep -o 'hooks/[A-Za-z0-9_.-]*\.\(sh\|mjs\)' plugins/maister-copilot/hooks/hooks.json | sort -u); do test -f "plugins/maister-copilot/$$rel" || { echo "FAIL: the variant's hooks.json names plugins/maister-copilot/$$rel, which does not exist"; exit 1; }; done
+	@! grep -q '"modules"' plugins/maister-copilot/hooks/hooks.json || (echo "FAIL: the variant's hooks.json lists a Claude Code hooks module" && exit 1)
+	@for f in plugins/maister-copilot/hooks/*.sh; do grep -q '^HOOK_SHAPE=copilot$$' "$$f" || { echo "FAIL: $$f emits Claude Code's output shape, which Copilot drops"; exit 1; }; done
 	@echo "Checking no maister- prefix in copilot command names..."
 	@! grep -r '^name: maister-' plugins/maister-copilot/commands/ 2>/dev/null || (echo "FAIL: maister- prefix in command names" && exit 1)
 	@echo "Checking no maister: prefixes in copilot variant..."
@@ -91,7 +103,7 @@ validate:
 	@# CLAUDE.md's list of copies (The gate rule).
 	@full='when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.'; \
 	tail='ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.'; \
-	want_full=15; want_tail=17; \
+	want_full=15; want_tail=18; \
 	nf=$$(grep -rlF -- "$$full" CLAUDE.md plugins/ | wc -l | tr -d ' '); \
 	nt=$$(grep -rlF -- "$$tail" CLAUDE.md plugins/ | wc -l | tr -d ' '); \
 	if test "$$nf" -eq "$$want_full" && test "$$nt" -eq "$$want_tail"; then \

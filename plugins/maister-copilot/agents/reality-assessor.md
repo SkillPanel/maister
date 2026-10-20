@@ -2,7 +2,6 @@
 name: reality-assessor
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Reality assessment specialist. Checks whether completed work actually solves the stated problem end-to-end — claimed vs. actual completion, error paths, integration — and writes a pragmatic action plan. Reports gaps without fixing them, and always writes its assessment to report_path.
-model: inherit
 color: pink
 ---
 

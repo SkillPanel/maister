@@ -2,7 +2,6 @@
 name: e2e-test-verifier
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo", "playwright/*"]
 description: Executes runtime browser verification using Playwright MCP tools to verify implementation behavior against specifications. Does NOT generate test files — performs live interactive verification with evidence collection.
-model: inherit
 color: green
 ---
 

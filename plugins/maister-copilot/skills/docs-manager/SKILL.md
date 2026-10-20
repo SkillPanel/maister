@@ -180,7 +180,7 @@ Use this to add new documentation to the project, either from plugin baseline or
    - Take the category (project/ or standards/category/), filename and purpose from the caller; any missing goes back as a decision needed
    - Create a template file with appropriate frontmatter and structure
 4. Update INDEX.md to include the new documentation (see "Manage INDEX.md" operation)
-5. If this is a technical standard and corresponds to a Claude Code Skill, ensure consistency
+5. If this is a technical standard and corresponds to a project skill, ensure consistency
 
 **Result:** New documentation is added to the project and indexed in INDEX.md.
 
@@ -202,7 +202,7 @@ Use this to help the user update or modify existing project documentation.
    - Check if INDEX.md needs updating (if the purpose/description changed significantly)
    - If updating tech-stack.md or architecture.md, suggest reviewing .github/copilot-instructions.md for consistency
 6. For technical standards:
-   - If a corresponding Claude Code Skill exists, suggest reviewing it for consistency
+   - If a corresponding project skill exists, suggest reviewing it for consistency
    - Standards should align with actual code patterns in the project
 
 **Result:** Documentation is updated to reflect current project state and team decisions.
@@ -289,7 +289,7 @@ Use this to check that documentation is consistent, up-to-date, and properly int
    - Check if they contain placeholder text vs. actual project information
    - Warn if critical documentation is missing or empty
 5. **Check standards consistency:**
-   - If Claude Code Skills exist, check if corresponding standards documentation exists
+   - If project skills exist, check if corresponding standards documentation exists
    - If standards exist without skills, suggest creating skills (if appropriate)
    - Report any inconsistencies
 6. **Generate validation report:**

@@ -2,7 +2,6 @@
 name: task-group-implementer
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Execute a single task group from an implementation plan with continuous standards discovery. Writes code, runs tests, returns structured execution report. Does NOT mark checkboxes - main agent handles progress tracking.
-model: inherit
 color: green
 ---
 

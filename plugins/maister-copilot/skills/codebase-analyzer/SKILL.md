@@ -92,7 +92,7 @@ If combining roles into one agent, also read `references/combined.md` for mergin
 
 **3b. Adapt templates** — Replace `[description]` with the actual task description. Select the correct task-type section (Bug / Enhancement / Feature).
 
-**3c. Launch agents** — Use the Task tool with `subagent_type="Explore"` — one call per selected role, all in ONE message.
+**3c. Launch agents** — Use the Task tool with `agent_type="explore"` — one call per selected role, all in ONE message.
 
 **IMPORTANT**: Every Explore agent prompt MUST include this instruction:
 > IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
