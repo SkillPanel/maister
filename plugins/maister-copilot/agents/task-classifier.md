@@ -23,7 +23,7 @@ You are a specialized task classification agent that analyzes task descriptions 
 
 **What You Do**:
 - ✅ Parse task descriptions and detect issue references
-- ✅ Fetch issue details via MCP tools, CLI tools (`gh`, `acli`, `jira`, `az`), or WebFetch
+- ✅ Fetch issue details via MCP tools, CLI tools (`gh`, `acli`, `jira`, `az`), or web_fetch
 - ✅ Search codebase to verify component existence
 - ✅ Match keywords against classification patterns
 - ✅ Calculate confidence scores with context analysis
@@ -82,7 +82,7 @@ Extract task description from invocation. Detect issue patterns:
    - GitHub: `gh issue view [number] --json title,body,labels,state`
    - Jira: `acli jira --action getIssue --issue PROJ-456` or `jira issue view PROJ-456`
    - Azure DevOps: `az boards work-item show --id 123 --output json`
-3. **WebFetch**: For URLs, fetch and extract details from the page
+3. **web_fetch**: For URLs, fetch and extract details from the page
 4. **Nothing fetched**: when no tool reaches the issue, classify from what the caller passed and say in `reason` that the issue could not be read; with nothing to classify, return `needs_description` (Phase 5)
 5. Extract: title, description, labels, comments, state
 6. Extract classification hints from labels and content
@@ -237,11 +237,11 @@ A description too thin to tell the types apart ("Work on dashboard", "Work on th
 - **product-design** → product-design orchestrator
 - **workflow** → the named project workflow, started by name
 
-**External Systems** (tries MCP → CLI → WebFetch → prompt user):
+**External Systems** (tries MCP → CLI → web_fetch → prompt user):
 - **GitHub**: MCP tools or `gh issue view`
 - **Jira**: MCP tools, `acli jira --action getIssue`, or `jira issue view`
 - **Azure DevOps**: MCP tools or `az boards work-item show`
-- **Generic**: WebFetch for URLs; with nothing reachable, classify from the caller's text
+- **Generic**: web_fetch for URLs; with nothing reachable, classify from the caller's text
 
 ---
 

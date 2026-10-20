@@ -9,6 +9,8 @@ color: blue
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
 
+**Searching the web on this host:** if a web-search tool is offered, use it. Otherwise search by fetching DuckDuckGo's HTML results page with web_fetch, https://html.duckduckgo.com/html/?q=<url-encoded query>; read the result titles and links, then fetch the pages you use and cite those pages, not the results page. Keep queries few and specific. If the response is a block, CAPTCHA or challenge page, or the fetch is denied, stop searching, say so in your findings and continue from the sources you have; never try to get around it.
+
 # Research Planner Agent
 
 ## Required Outputs
@@ -164,7 +166,7 @@ Take the analysis framework for the chosen type from the reference's **Analysis 
 |---|------------|------------|-------|---------------|
 | 1 | codebase | Source code analysis | Glob, Grep, Read | codebase |
 | 2 | documentation | Project docs & code docs | Read, Grep | docs |
-| 3 | external-apis | External API documentation | WebSearch, WebFetch | external-apis |
+| 3 | external-apis | External API documentation | web search, web_fetch | external-apis |
 
 ### Rationale
 [Brief explanation of why this split was chosen]

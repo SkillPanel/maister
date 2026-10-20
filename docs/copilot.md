@@ -16,9 +16,6 @@ Copilot.
 - **Node.js 20 or newer.** Every workflow runs on the workflow engine, which needs it. Without
   Node, a workflow command stops before it creates a task folder and says why. The plugin's hooks
   run on Node too, so they need neither bash nor `jq`.
-- **Optional: web search for research.** Research searches the web only if your GitHub Copilot
-  settings allow "Copilot can search the web using model native search". See
-  [Research and the web](#research-and-the-web).
 
 ### From the marketplace
 
@@ -139,25 +136,25 @@ The five workflows at the top are described in full, with their flags, in
 
 ### Research and the web
 
-Maister's research agents always get Copilot's `web_fetch`, which reads a page at an address it
-already knows. On their own they cannot query a search engine.
+Maister's research agents read web pages with Copilot's `web_fetch`, which fetches a page at an
+address it is given. Copilot CLI sessions offer no web-search tool in practice, even with the
+GitHub account setting "Copilot can search the web using model native search" turned on. Where
+Copilot does offer a search tool, the agents use it.
 
-**Web search depends on your GitHub account.** In your GitHub Copilot settings, the setting
-"Copilot can search the web using model native search" allows it, and an organisation can turn it
-off for its members. Even with it on, a session may not offer search right away or on every model.
-To check, ask Copilot in a session to search the web for something recent: if it answers that it
-has no search tool, that session has none. When the account allows it, Copilot's built-in GitHub
-server offers a `web_search` tool. Maister's research agents name it, so they use it whenever it
-is offered, and it costs nothing when it is absent.
+Without one, the research agents search by fetching DuckDuckGo's HTML results page, then fetch
+the pages they use and cite those, not the results page.
 
-- **What works well without search:** questions about your codebase and about well-documented
-  libraries, whose official docs and READMEs the agents can read.
-- **What is weak without search:** anything that needs discovery, such as recent releases, vendor
-  or market scans and third-party comparisons. The run leans on the model's own knowledge instead.
-- **Give the run its sources.** Put the URLs that matter in the research question.
+- **Results are thinner than a search API:** one page of titles and links per query. Questions
+  about your codebase and well-documented libraries do well; discovery (recent releases, vendor or
+  market scans, third-party comparisons) is weaker, and the run leans more on the model's own
+  knowledge.
+- **Give the run its sources.** Putting the URLs that matter in the research question still gives
+  the best results.
 - **Allow the sites it needs.** Fetches follow Copilot's URL permission rules (`url(...)` rules,
-  `--allow-url`, `--allow-all-urls`). A subagent cannot stop to ask, so if you run with stricter
-  settings, allow the domains a research task needs before you start it.
+  `--allow-url`, `--allow-all-urls`). A subagent cannot stop to ask, so under stricter settings
+  allow `duckduckgo.com` and the sites a research task needs before you start it.
+- **If a site blocks automated reads,** the run says so in its findings and continues with the
+  sources it has.
 - **A search server you add does not reach research.** A search MCP server added to Copilot
   reaches Copilot's built-in agents, but not Maister's research agents, whose tool lists are fixed.
 
@@ -311,9 +308,9 @@ consider a lighter model for the implementer subagents, as above.
 
 ## Differences from Claude Code
 
-- **Web search in research depends on your account.** Research always reads a web page it has the
-  address of; it can search only where your GitHub account allows web search. See
-  [Research and the web](#research-and-the-web).
+- **Research searches through a results page.** With no web-search tool in the session, the
+  research agents search by fetching DuckDuckGo's results page, which is thinner than a search
+  API. See [Research and the web](#research-and-the-web).
 - **No reminder after compaction.** On Claude Code, a reminder after a compacted context points
   the model back at the run's state. Copilot has no such moment. If a workflow loses its place
   after `/compact`, run the workflow's command again with the task folder, as in

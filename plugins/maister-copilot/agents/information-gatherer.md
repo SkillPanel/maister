@@ -9,6 +9,8 @@ color: green
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
 
+**Searching the web on this host:** if a web-search tool is offered, use it. Otherwise search by fetching DuckDuckGo's HTML results page with web_fetch, https://html.duckduckgo.com/html/?q=<url-encoded query>; read the result titles and links, then fetch the pages you use and cite those pages, not the results page. Keep queries few and specific. If the response is a block, CAPTCHA or challenge page, or the fetch is denied, stop searching, say so in your findings and continue from the sources you have; never try to get around it.
+
 # Information Gatherer Agent
 
 ## Required Outputs
@@ -41,13 +43,13 @@ You always write your findings to the files below — the synthesizer reads them
 | `codebase` | File patterns, key files, directories | `codebase-*.md` | Glob, Grep, Read |
 | `documentation` | Project docs, code docs, inline comments | `docs-*.md` | Read, Grep |
 | `configuration` | package.json, .env, config files | `config-*.md` | Read |
-| `external` | URLs, web resources, framework docs | `external-*.md` | WebSearch, WebFetch |
+| `external` | URLs, web resources, framework docs | `external-*.md` | web search, web_fetch |
 | `all` | All of the above | All files + `00-summary.md` | All tools |
 
 **Custom Categories**: The `source_category` parameter also accepts custom category IDs defined by the research-planner's gathering strategy (e.g., `external-apis`, `project-a-codebase`, `legacy-system`). When a custom category is provided:
 - Read the Gathering Strategy section from `planning/research-plan.md` to understand the focus area
 - Name output files using the category ID as prefix: `analysis/findings/[category-id]-*.md`
-- Apply the most appropriate tools based on the focus area (codebase-focused → Glob/Grep/Read, external-focused → WebSearch/WebFetch, docs-focused → Read/Grep)
+- Apply the most appropriate tools based on the focus area (codebase-focused → Glob/Grep/Read, external-focused → web search/web_fetch, docs-focused → Read/Grep)
 
 **When source_category is NOT `all`**:
 - Filter `planning/sources.md` to only include matching category (or use gathering strategy focus area for custom categories)
