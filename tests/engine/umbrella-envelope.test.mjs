@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 import { freeze, umbrella } from '../helpers.mjs';
 
@@ -249,8 +250,24 @@ function published(result) {
   return JSON.parse(result.stdout);
 }
 
+/** Name the workspace's git host in its manifest. */
+function gitHost(ws, kind = 'github') {
+  const text = fs.readFileSync(ws.manifest, 'utf8');
+  fs.writeFileSync(ws.manifest, text.replace(/^git_host:\n {2}kind: null$/m, `git_host:\n  kind: ${kind}`));
+}
+
+/** Make the member `alpha` a git checkout with one remote at `url`. */
+function remote(ws, url) {
+  const checkout = path.join(ws.root, 'repos', 'alpha');
+  for (const args of [['init', '-q'], ['remote', 'add', 'origin', url]]) {
+    const run = spawnSync('git', ['-C', checkout, ...args], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+  }
+}
+
 test('envelope: a node that publishes owes a pull request, even at a tier that cannot open one alone', (t) => {
   const ws = workspace(t);
+  gitHost(ws);
   const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true'])));
   assert.equal(envelope.closeout_contract.pr_required, true);
 });
@@ -269,6 +286,52 @@ test('envelope: a declared false outranks publish, from the node and from the ov
   const overridden = workspace(t);
   const fromOverride = published(dispatch(overridden, publishChain(overridden, ['publish: true']), { closeout_contract: { pr_required: false } }));
   assert.equal(fromOverride.envelope.closeout_contract.pr_required, false);
+});
+
+// Publishing needs a git host behind the member — the manifest's git_host.kind,
+// or a remote of the member's own on a host — and a dispatch that has neither is
+// refused before its entry is opened or its envelope published.
+
+test('envelope: publish with no git host is refused dispatch-no-git-host, and nothing is written', (t) => {
+  const ws = workspace(t);
+  const result = dispatch(ws, publishChain(ws, ['publish: true']));
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.errors[0].code, 'dispatch-no-git-host');
+  assert.match(report.errors[0].message, /git_host\.kind/);
+  assert.match(report.errors[0].message, /remote/);
+  assert.match(report.errors[0].message, /drop publish/);
+  const run = path.join(ws.root, '.maister/umbrella/runs/2026-01-05-chain');
+  assert.equal(fs.existsSync(path.join(run, 'dispatch/dev.envelope.yml')), false, 'no envelope is published');
+  const entries = path.join(ws.root, '.maister/umbrella/ledger/entries');
+  assert.deepEqual(fs.existsSync(entries) ? fs.readdirSync(entries) : [], [], 'no ledger entry is opened');
+});
+
+test('envelope: publish with git_host.kind set is dispatched', (t) => {
+  const ws = workspace(t);
+  gitHost(ws);
+  assert.equal(published(dispatch(ws, publishChain(ws, ['publish: true']))).envelope.closeout_contract.pr_required, true);
+});
+
+test('envelope: publish with no git_host but a member remote on a host is dispatched', (t) => {
+  for (const url of ['git@github.com:acme/alpha.git', 'https://gitlab.example.com/acme/alpha.git']) {
+    const ws = workspace(t);
+    remote(ws, url);
+    assert.equal(published(dispatch(ws, publishChain(ws, ['publish: true']))).envelope.closeout_contract.pr_required, true, url);
+  }
+});
+
+test('envelope: a member remote on a local path is no git host, so publish is refused', (t) => {
+  const ws = workspace(t);
+  remote(ws, path.join(ws.root, 'bare.git'));
+  const result = dispatch(ws, publishChain(ws, ['publish: true']));
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  assert.equal(JSON.parse(result.stdout).errors[0].code, 'dispatch-no-git-host');
+});
+
+test('envelope: control — no publish and no git host is dispatched as before', (t) => {
+  const ws = workspace(t);
+  assert.equal(published(dispatch(ws, publishChain(ws, []))).envelope.closeout_contract.pr_required, false);
 });
 
 test('validate: publish beside a declared pr_required false is a named warning, not a refusal', (t) => {

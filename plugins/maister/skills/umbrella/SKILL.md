@@ -272,6 +272,24 @@ keys are surface-scoped: the workspace checker warns only on the manifest's own
 reserved key, and the workflow keys are the graph checker's to warn about. Both
 streams merge into one report.
 
+A member entry may name the member's own workflow for a kind of work, so
+whatever chooses a member's workflow by kind takes the member's choice before
+the built-in of that kind. The optional key is `workflows:`, a mapping from a
+kind — `fix`, `change`, `plan`, `development` or `design` — to a workflow name:
+
+```yaml
+members:
+  web: {path: repos/web, kind: repo, workflows: {change: frontend-change}}
+```
+
+`validate` refuses a value that is not such a mapping, or a name that is not a
+workflow name. When the member is on disk, each name is looked up in the
+member's own `.maister/workflows/` the way a run there would look it up, and a
+name that finds nothing, or finds only the built-in, is refused at
+`members.<member>.workflows.<kind>`: point it at the member's own workflow, or
+remove the entry and let the built-in be chosen. A member not yet checked out
+is judged on shape alone. A kind outside the list is warned about and kept.
+
 **`prune`** — once a generated chain's runs have closed, or whenever the
 generated home needs tidying. A generated chain is one the planner published
 with its generated flag: authored for one ticket, carrying that ticket's text,
@@ -366,6 +384,12 @@ A node whose `with:` map sets `publish: true` and declares nothing owes a pull
 request at every tier: the run it dispatches pushes its branch and opens one,
 and the gate approving its plan grants both. A declared `false` still wins, and
 `validate` warns `publish-pr-declined` at the declaration, keeping it as written.
+Such a node needs a git host behind its member, and the envelope resolves one
+before anything is written: the manifest's `git_host.kind`, else a remote of the
+member's own checkout that points at a host — a URL with a scheme other than
+`file://`, or `user@host:path`. A remote that is a path on this machine is no
+host. Neither found refuses `dispatch-no-git-host`. A node without
+`publish: true`, or one whose close-out is declared `false`, is not asked.
 
 **`seed`** — after the envelope, to render the prompt the worker starts from. It
 is a pure function of the envelope, so its output is reproducible and testable.
@@ -603,6 +627,7 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-run-unresolved` | The node would be dispatched into a per-run worktree, but no run id resolves, and a worktree named after nothing would be shared by every run of the chain. Point `--run` at the run directory whose basename is the run id, or record the run's task path in its state, or set `defaults.worktree: false` to work in the member checkout itself. Nothing was written. |
 | `dispatch-permissions-override-unsupported` | The dispatch carries a `permissions` override. Permissions belong to the autonomy tier and to nothing else: each tier renders one fixed allow and deny list, and a per-dispatch override would hand a worker permissions its tier never granted. The field is refused rather than ignored, because a discarded security override leaves the caller believing it was applied. Drop `permissions` from the override document and dispatch the node at the tier whose permissions you mean. Nothing was written. |
 | `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. Nothing was written. |
+| `dispatch-no-git-host` | The node sets `publish: true` and owes a pull request, but no git host resolves for its member: the manifest's `git_host.kind` is unset and the member's checkout has no remote on a host. The worker could neither push for review nor open the pull request, and would find out only at its close-out. Set `git_host.kind` in the manifest, give the member a remote on its git host, or drop `publish` from the node's `with:` map. Nothing was written. |
 | `dispatch-siblings-invalid` | The dispatch override carries a `siblings` field that is not a list of `{member, branch, worktree}`, each a non-empty string. It is refused rather than trimmed, because a worker sent to half a path reads the wrong tree. Correct the list the caller builds from the outcome's recorded dispatches, or leave the field out, and re-run. Nothing was written. |
 | `dispatch-envelope-exists` | An envelope for this node is already published. The runtime never overwrites one, because a worker may already hold it. The check runs before the ledger entry is opened, so nothing was written. If the dispatch really is being redone, it is a new dispatch. |
 | `dispatch-id-mismatch` | The overrides name a `dispatch_id` whose ledger entry records a different run or node, and an envelope under that id would hand this node's work to another dispatch's records. Nothing was written. Drop `dispatch_id` from the overrides — the verb then uses this node's own entry, or opens one — or name the id the node's entry carries. |
