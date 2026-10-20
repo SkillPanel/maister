@@ -54,6 +54,8 @@ validate:
 	@echo "Checking every workflow guide follows the step template..."
 	@# Structure only: each FAIL line is a finding, and any one fails.
 	@node tests/guide-template-lint.mjs
+	@echo "Checking every skill, agent and command frontmatter is valid YAML..."
+	@node tests/frontmatter-lint.mjs
 	@echo "Checking no two gates of one workflow ask the same question..."
 	@node tests/gate-title-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."
