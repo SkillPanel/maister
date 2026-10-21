@@ -633,6 +633,7 @@ result is validated as a whole: an overlay that breaks the graph is an error, ne
 | `display` | Icons, titles, option labels and headers, including for added nodes (§ 3.1) |
 | `html_companions` | Companions owed, including by added nodes; a node's list replaces the base's (§ 3.2) |
 | `brief` | Brief data, including for added nodes; merged key by key, `null` removing (§ 3.3) |
+| `subagents` | The models and effort this workflow's subagents run on, without `tiers` (*Subagent models* below) |
 
 **Fold order:** the base, then for each overlay in order its `disable`, its `tune`, its `add`;
 then the selected profile's `disable`, `tune` and `add`. Validation reads the graph that results.
@@ -679,9 +680,18 @@ refused, because the node's dependents no longer wait for it. To change what a n
 | `display` | As above; the profile's wins |
 | `html_companions` | As above; the profile's wins |
 | `brief` | As above; the profile's wins, key by key |
+| `subagents` | As above; the profile's wins over the overlay's |
 
 Every profile is validated whether or not it is selected, and a finding only one profile produces
 is prefixed with its name. Selecting a profile no overlay declares is an error.
+
+**Subagent models.** `subagents` says which model and effort the workflow's subagents run on,
+in the shape of the `subagents` key of the project's `.maister/config.yml`, without `tiers`: only
+the project remaps the ladder. The freeze reads the project's block, the overlays' and the
+selected profile's, and records them in the run; a profile's entry wins over an overlay's, and an
+overlay's over the project's. `dispatch-model` prints what an agent resolves to. A block with an
+error is refused whole and the shipped defaults apply; its findings are warnings, never errors,
+because a refused block stops no run. The block is no graph data, so it moves no hash.
 
 **Identity.** An overlay and an eject that declare the same graph hash the same, because the
 recorded identity covers the resolved nodes and the exposed outputs and nothing about where they
@@ -787,6 +797,10 @@ Warnings never block, and each one is worth reading:
 | `brief-unknown-option:<path>:<node>` | A recommended option that is not a continue option of a gate the node feeds |
 | `brief-retired-key:<path>:<node>` | A `summary_keys` entry: the phase-summary mirror it named is retired and nothing reads it; remove the key |
 | `orphan-prose-section:<companion>:<name>` | A `` ## `name` `` heading outside a fence that no node of the definition or overlay beside it finds its section by (§ 11) — a renamed node or a mistyped `direct:` target; rename the heading to the name, or delete the section. A node an overlay or profile disables still counts |
+| `subagents-error:<file>:<path>` | A `subagents` block the engine cannot apply — a `claude` cell or a pinned `model` that is not `haiku`, `sonnet`, `opus`, `fable` or `inherit`, a Claude Code alias in a `copilot` cell, an unknown tier or preset, an effort outside `low` … `max`, `allowed` outside the ladder, `tiers` in an overlay or profile, or a value of the wrong shape; the whole block is refused and the shipped defaults apply |
+| `subagents-unknown-agent:<file>:<path>` | An agent no tier provides; the built-in `Explore`, `general-purpose` and `Plan` are known in any case |
+| `subagents-premium-model:<file>:<path>` | A `copilot` cell naming a model Copilot bills above one request, without `premium: true` beside it |
+| `subagents-unknown-key:<file>:<path>` | A key the `subagents` block does not take at that level; it is ignored |
 | `reserved-key:<key>` | A reserved key (§ 10), parsed and ignored |
 | `newer-format` | A version above 1: only the structure and the cycle check ran |
 

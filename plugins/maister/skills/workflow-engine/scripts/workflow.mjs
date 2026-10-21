@@ -517,6 +517,16 @@ async function runValidate(flags) {
     profile: flags.profile ?? null,
     mode: flags.definition ? 'resolved' : 'standalone',
   });
+  // The subagents blocks a run of these files would read — the project's
+  // config.yml, each overlay and every profile — judged here rather than in
+  // the graph pass: none of it is graph data, and none of it stops a run, so
+  // every finding is a warning, a refused block included.
+  const subagents = await loadModule('subagents.mjs');
+  const warnings = entryOf(subagents, 'subagentsWarnings', 'subagents.mjs')({
+    project: entryOf(module, 'projectRoot', VERBS.validate.module)(),
+    overlays: sources.overlays,
+  });
+  result.warnings.push(...warnings);
   report(result);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
