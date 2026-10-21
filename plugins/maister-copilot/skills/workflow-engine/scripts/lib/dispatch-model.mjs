@@ -83,10 +83,15 @@ export function dispatchModel({ state = null, agents, node = null, tier = null, 
   }
 
   const lines = [];
+  const ignored = [];
   for (const agent of agents) {
     const answer = resolveAgent(agent, { block, workflow, node, tier, host, used });
     lines.push(`${agent}: model ${answer.model}, effort ${answer.effort} — source: ${answer.source}`);
     if (answer.budget) notes.push(budgetNote(agent, answer.budget));
+    if (answer.tierIgnored) ignored.push(agent);
+  }
+  if (ignored.length) {
+    notes.push(`note: --tier=${tier} was ignored for ${ignored.join(', ')}: a plan tier applies only to an agent whose entry is choose: by-plan-tier, so ${ignored.length === 1 ? 'it resolves' : 'they resolve'} as without one`);
   }
   const text = [...lines, ...(notes.length ? ['', ...new Set(notes)] : [])].map(line => `${line}\n`).join('');
   return { ok: true, text, errors: [], warnings };

@@ -27,8 +27,9 @@
  *
  * Precedence, first hit wins:
  *
- *   1. the plan tier a caller passes, clamped to the `allowed` and `ceiling`
- *      of the agent's `choose: by-plan-tier` entry;
+ *   1. the plan tier a caller passes, when the agent's entry is
+ *      `choose: by-plan-tier`, clamped to that entry's `allowed` and
+ *      `ceiling` — for any other agent the tier is not read;
  *   2. the profile, 3. the overlay, then the project, and last the shipped
  *      defaults — each layer read as `workflows.<w>.nodes.<n>.agents`, then
  *      `workflows.<w>.agents`, then `agents`, then `default`;
@@ -557,10 +558,12 @@ function stable(value) {
 // ---------------------------------------------------------------------------
 
 /**
- * The model and effort for one agent: `{model, effort, source, budget}`, where
- * `model` and `effort` are a value or `OMIT`, `source` names the level that
- * answered, and `budget` is `{tier, limit, used}` when the answer is a rung the
- * agent's policy budgets, else null.
+ * The model and effort for one agent: `{model, effort, source, budget,
+ * tierIgnored}`, where `model` and `effort` are a value or `OMIT`, `source`
+ * names the level that answered, `budget` is `{tier, limit, used}` when the
+ * answer is a rung the agent's policy budgets, else null, and `tierIgnored`
+ * says a plan tier was passed for an agent whose entry is no
+ * `choose: by-plan-tier`, so it was not read.
  *
  * `block` is the recorded block (null for the shipped defaults alone),
  * `workflow` and `node` the scope (null outside a run), `tier` the plan tier a
@@ -596,16 +599,22 @@ export function resolveAgent(agent, { block = null, workflow = null, node = null
   // A pinned model is Claude Code's; on Copilot the next level answers.
   const usable = hits.filter(hit => !(host === 'copilot' && isPin(hit.entry)));
   const hit = usable[0] ?? null;
-  const policy = usable.find(each => each.entry.choose === BY_PLAN_TIER) ?? null;
   const ladder = ladderOf(frozen);
+  const planned = hit !== null && hit.entry.choose === BY_PLAN_TIER;
 
-  if (tier !== null) {
-    const rung = policy ? clamp(tier, policy.entry) : tier;
-    const source = policy
-      ? `plan tier ${tier}${rung === tier ? '' : `, clamped to ${rung}`} within ${policy.source}`
-      : `plan tier ${tier}`;
-    return { ...fromRung(ladder, rung, host, null), source, budget: budgetOf(policy, rung, used) };
+  // A plan tier is read only by an agent the plan chooses for: any other
+  // resolves as if none were passed, so a planner's tier never escalates an
+  // agent that has no allowed set, ceiling or budget.
+  if (tier !== null && planned) {
+    const rung = clamp(tier, hit.entry);
+    const source = `plan tier ${tier}${rung === tier ? '' : `, clamped to ${rung}`} within ${hit.source}`;
+    return { ...fromRung(ladder, rung, host, hit.entry.effort), source, budget: budgetOf(hit, rung, used), tierIgnored: false };
   }
+  return { ...unplanned(hit, { frozen, ladder, host, used }), tierIgnored: tier !== null };
+}
+
+/** The answer for an agent no plan tier applies to: its first usable hit, or the host. */
+function unplanned(hit, { frozen, ladder, host, used }) {
   if (hit === null) return { model: OMIT, effort: OMIT, source: 'host', budget: null };
   const { entry } = hit;
   if (entry.choose === BY_PLAN_TIER) {

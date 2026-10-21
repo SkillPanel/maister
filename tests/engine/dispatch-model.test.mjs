@@ -46,12 +46,40 @@ function lineOf(run, agent, args = [], options = {}) {
 // precedence, one level each
 // ---------------------------------------------------------------------------
 
-test('level 1: the plan tier wins over every scope', t => {
+test('level 1: the plan tier wins for an agent whose entry is choose: by-plan-tier', t => {
   const run = scratch(t);
-  config(run, 'subagents:\n  agents:\n    task-group-implementer: { model: opus }\n');
+  config(run, 'subagents:\n  default: { tier: deep }\n  agents:\n    task-group-implementer: { choose: by-plan-tier, unassessed: deep }\n');
   freezeRun(run);
   assert.equal(lineOf(run, 'task-group-implementer', ['--tier=light']),
-    'task-group-implementer: model haiku, effort omit — source: plan tier light');
+    'task-group-implementer: model haiku, effort omit — source: plan tier light within project agents.task-group-implementer');
+});
+
+test('--tier is ignored for an agent whose entry is no by-plan-tier policy, with one note naming them', t => {
+  const run = scratch(t);
+  config(run, 'subagents:\n  agents:\n    spec-auditor: { model: sonnet }\n    task-group-implementer: { choose: by-plan-tier, ceiling: standard }\n');
+  freezeRun(run);
+  const result = dispatch(run, ['--agent=explore,task-group-implementer,spec-auditor,task-classifier', '--tier=deep'], { host: 'copilot' });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, [
+    'explore: model omit, effort omit — source: shipped default',
+    'task-group-implementer: model claude-sonnet-5.5, effort omit — source: plan tier deep, clamped to standard within project agents.task-group-implementer',
+    'spec-auditor: model omit, effort omit — source: shipped default',
+    'task-classifier: model claude-haiku-5.5, effort omit — source: shipped agents.task-classifier, tier light',
+    '',
+    'note: --tier=deep was ignored for explore, spec-auditor, task-classifier: a plan tier applies only to an agent whose entry is choose: by-plan-tier, so they resolve as without one',
+    '',
+  ].join('\n'));
+
+  // One agent, on Claude Code: its pin answers and the note is singular.
+  const one = dispatch(run, ['--agent=spec-auditor', '--tier=light']);
+  assert.equal(one.stdout, 'spec-auditor: model sonnet, effort omit — source: project agents.spec-auditor\n\n'
+    + 'note: --tier=light was ignored for spec-auditor: a plan tier applies only to an agent whose entry is choose: by-plan-tier, so it resolves as without one\n');
+
+  // With no config the shipped defaults hold no policy, so the tier is ignored for every agent.
+  const bare = scratch(t);
+  assert.equal(dispatch(bare, ['--agent=task-group-implementer', '--tier=deep'], { state: false }).stdout,
+    'task-group-implementer: model omit, effort omit — source: shipped default\n\n'
+    + 'note: --tier=deep was ignored for task-group-implementer: a plan tier applies only to an agent whose entry is choose: by-plan-tier, so it resolves as without one\n');
 });
 
 test('level 2: the selected profile wins over the overlay', t => {
