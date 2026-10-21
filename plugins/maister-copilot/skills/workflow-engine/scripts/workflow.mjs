@@ -98,6 +98,12 @@
  *   sync-plan      --plan                                     JSON on stdout
  *                  (the plan companion's progress markers set from the
  *                  markdown plan's checkboxes; a no-op without a companion)
+ *   dispatch-model --agent (comma-separated), --host, optional --state,
+ *                  --node (with --state) and --tier         one line per agent
+ *                  naming the model and effort its call carries, or `omit`,
+ *                  and the level that answered; then any notes — the run's
+ *                  frozen block with --state, else the project's config.yml
+ *                  — read-only
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -236,6 +242,10 @@ const VERBS = {
   // run, and the companion it keeps in step sits beside the plan either way.
   // The run's `html_output` switch is looked up from there when a run exists.
   'sync-plan': { module: 'plan-sync.mjs', flags: ['plan'] },
+  // The model and effort of an agent call, resolved once by the engine so a
+  // fan-out copies the value. `--state` is optional: a skill run outside any
+  // run reads the project's config.yml instead, with no workflow or node scope.
+  'dispatch-model': { module: 'dispatch-model.mjs', flags: ['state', 'agent', 'node', 'tier', 'host'] },
 };
 
 /** This plugin's root, three levels above this file: what the edition check locates. */
@@ -517,6 +527,16 @@ async function runValidate(flags) {
     profile: flags.profile ?? null,
     mode: flags.definition ? 'resolved' : 'standalone',
   });
+  // The subagents blocks a run of these files would read — the project's
+  // config.yml, each overlay and every profile — judged here rather than in
+  // the graph pass: none of it is graph data, and none of it stops a run, so
+  // every finding is a warning, a refused block included.
+  const subagents = await loadModule('subagents.mjs');
+  const warnings = entryOf(subagents, 'subagentsWarnings', 'subagents.mjs')({
+    project: entryOf(module, 'projectRoot', VERBS.validate.module)(),
+    overlays: sources.overlays,
+  });
+  result.warnings.push(...warnings);
   report(result);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
@@ -1201,6 +1221,33 @@ async function runImport(flags) {
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
+/**
+ * `dispatch-model` reports like `node-brief`: the text on stdout, a refusal on
+ * stderr with its code first at exit 1, and a finding about the project's
+ * config.yml as one `warning:` line each, exit 0.
+ */
+async function runDispatchModel(flags) {
+  if (!flags.host) throw new UsageError('dispatch-model needs --host=claude or --host=copilot');
+  const module = await loadModule(VERBS['dispatch-model'].module);
+  const subagents = await loadModule('subagents.mjs');
+  if (!subagents.HOSTS.includes(flags.host)) throw new UsageError(`--host is claude or copilot, not "${flags.host}"`);
+  const agents = String(flags.agent ?? '').split(',').map(each => each.trim()).filter(Boolean);
+  if (!agents.length) throw new UsageError('dispatch-model needs --agent, one name or several joined by commas');
+  if (flags.tier !== undefined && !subagents.LADDER.includes(flags.tier)) {
+    throw new UsageError(`--tier is ${subagents.LADDER.slice(0, -1).join(', ')} or ${subagents.LADDER.at(-1)}, not "${flags.tier}"`);
+  }
+  if (flags.node && !flags.state) throw new UsageError('dispatch-model takes --node only with --state: outside a run there is no node to scope by');
+  const resolve = entryOf(module, 'dispatchModel', VERBS['dispatch-model'].module);
+  const result = resolve({ state: flags.state ?? null, agents, node: flags.node ?? null, tier: flags.tier ?? null, host: flags.host });
+  if (!result.ok) {
+    for (const error of result.errors) process.stderr.write(`${error.message}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(result.text);
+  for (const warning of result.warnings) process.stderr.write(`warning: ${warning}\n`);
+  return EXIT.OK;
+}
+
 const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
@@ -1220,6 +1267,7 @@ const RUNNERS = {
   'subrun-path': runSubrunPath,
   import: runImport,
   'sync-plan': runSyncPlan,
+  'dispatch-model': runDispatchModel,
 };
 
 // ---------------------------------------------------------------------------

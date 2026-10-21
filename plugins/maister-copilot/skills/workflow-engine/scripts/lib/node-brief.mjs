@@ -100,6 +100,7 @@ import { briefOfRun } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
 import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
+import { resolveAgent, shippedHost } from './subagents.mjs';
 
 /** The engine skill beside this module, whose conventions table the brief prints rows of. */
 const SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
@@ -264,6 +265,22 @@ function refuse(code, message) {
   return { ok: false, text: '', errors: [{ code, message: `${code}: ${message}` }], warnings: [] };
 }
 
+/**
+ * The model and effort an `agent:` step's call carries, as `dispatch-model`
+ * resolves them from the block the run froze, for the host this plugin ships
+ * for — `omit` leaving the field off the call.
+ */
+function modelText(agent, node, doc) {
+  const options = isPlainObject(doc.orchestrator) && isPlainObject(doc.orchestrator.options) ? doc.orchestrator.options : {};
+  const answer = resolveAgent(agent, {
+    block: isPlainObject(options.subagents) ? options.subagents : null,
+    workflow: typeof doc.workflow?.name === 'string' ? doc.workflow.name : null,
+    node,
+    host: shippedHost(),
+  });
+  return `model ${answer.model}, effort ${answer.effort} (source: ${answer.source})`;
+}
+
 function entryOf(recorded, id) {
   return isPlainObject(recorded[id]) ? recorded[id] : {};
 }
@@ -284,7 +301,8 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   const dispatched = typeof resolved?.dir === 'string' && resolved.dir !== '';
   const how = dispatched ? `dispatched to ${shown(interpolate(resolved.dir, context))}` : known?.how ?? 'unknown';
 
-  const lines = [`## Node: ${node} — ${title}`, `runs: ${uses ?? scheme} — ${how}`];
+  const model = scheme === 'agent' && uses && !dispatched ? `, ${modelText(uses.slice(uses.indexOf(':') + 1), node, context.doc)}` : '';
+  const lines = [`## Node: ${node} — ${title}`, `runs: ${uses ?? scheme} — ${how}${model}`];
   if (resolved && typeof resolved.when === 'string') lines.push(whenLine(resolved.when, context));
   const attempt = attemptOf(entry);
   const status = entry.status ?? 'pending';
