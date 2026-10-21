@@ -235,6 +235,12 @@ try {
   check('subrun-path names the child directory with /, under the project root',
     placed.code === 0 && child?.ok === true && /^\.maister\/tasks\/research\/[^/\\]+-research$/.test(child.task_path ?? '') && child.existing === 'absent', show(placed));
 
+  // --- dispatch-model -------------------------------------------------------
+  const modelled = call('dispatch-model', [flag('state', statePath), '--agent=task-classifier,Explore', '--host=claude']);
+  check('dispatch-model prints one line per agent from a run in a path holding a space',
+    modelled.code === 0 && modelled.stdout === 'task-classifier: model haiku, effort omit — source: shipped agents.task-classifier, tier light\n'
+      + 'Explore: model omit, effort omit — source: shipped default\n', show(modelled));
+
   // --- import -----------------------------------------------------------------
   const source = path.join(project, 'context pack');
   fs.mkdirSync(source, { recursive: true });

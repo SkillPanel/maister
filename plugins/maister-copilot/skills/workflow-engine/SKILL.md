@@ -245,7 +245,7 @@ ordinary resume from the frozen state. **Never drop one silently.**
 
 ## The invocation contract
 
-One script, seventeen verbs, one exit-code table — `0` success, `1` the input was rejected
+One script, eighteen verbs, one exit-code table — `0` success, `1` the input was rejected
 (the report is still printed), `2` an internal failure where nothing ran.
 
 ```
@@ -318,8 +318,9 @@ write a question set there themselves.
 | `subrun-path` | `--state` (the parent's), `--node` (its `workflow:` node) | JSON on stdout: `{ok, node, workflow, task_path, run_id, recorded, existing}` — the child run's directory relative to the project root and its run id, as the parent recorded them (`recorded: true`) or as the sub-run naming rule gives them, with `existing` `absent`, `empty` or `adopt` (*Sub-runs*). The only source of a child's directory: never work it out by hand. Exit `1` with `{ok: false, code, message}` for the refusals below and for `subrun-on-dir-node`, `subrun-recursion`, `subrun-target-unresolved` and `subrun-child-foreign` (`references/sub-runs.md`); a definition that drifted since the freeze is one `warning: subrun-path-graph-drift` line, exit `0` — reads the run, writes nothing |
 | `import` | `--state`, `--to=<folder of the run>`, repeatable `--from=<file or directory>` (absolute, or relative to the project root), optional `--as=<name>` with a single `--from` | Each source copied into `<to>/<its name>` (`<to>/<as>` when renamed), byte for byte, a directory recursively and a link as what it points at, replacing an earlier copy; JSON on stdout: `{ok, to, copied: [{from, to, files}], skipped: [{from, code, message}]}`, every path relative to the run and spelled with `/`. **The only way a node brings context into its run: never a shell copy**, which a driven session's permissions refuse, and never the file tools, which cannot carry a binary. A source it could not copy is listed under `skipped` — `import-source-missing`, `import-source-overlaps` (it holds the destination or lies in it) or `import-copy-failed` — the rest are still copied, and the exit is `1`; what a skipped source means for the step is the step's to record. Exit `1` with `{ok: false, code, message}` for the refusals below — writes the copies, never state |
 | `sync-plan` | `--plan` (the run's `implementation/implementation-plan.md`) | sets the plan companion's `data-group` / `data-step` markers to the plan's checkbox state; JSON on stdout with `written` and the groups the companion has no marker for — idempotent, and a no-op that names its reason when there is no companion or the run's `html_output` is off |
+| `dispatch-model` | `--agent=<name>[,<name>…]`, `--host=claude` or `--host=copilot`, optional `--state` (the run's), `--node` (with `--state`, the node that dispatches) and `--tier=light\|standard\|deep` (a task group's plan tier) | One line per agent, in the order asked: `<agent>: model <model>, effort <effort> — source: <level>`, where `omit` means the call carries no such field and the host decides. Copy the values into the agent call beside its type. Then, after a blank line, any `note:` lines: the agent's budget on the rung, saying to ask first once it is used up, and one note when the project's `.maister/config.yml` changed since the freeze, the run keeping what it froze. With `--state` it reads the block the freeze recorded and scopes by the run's workflow and `--node`; without it, outside a run, it reads `.maister/config.yml`, and a finding about it is one `warning: subagents-…` line, exit `0` — reads only |
 
-`run-context`, `prior-context` with `--node`, and `node-brief` refuse with exit `1`, an empty stdout and the code first on stderr; nothing was written:
+`run-context`, `prior-context` with `--node`, `node-brief` and `dispatch-model` refuse with exit `1`, an empty stdout and the code first on stderr; nothing was written:
 
 | Refusal | Response |
 |---|---|
@@ -329,6 +330,9 @@ write a question set there themselves.
 | `node-brief-state-unreadable` | `--state` cannot be read or parsed as a state document, and nothing was read further. Point `--state` at the run's `orchestrator-state.yml` — the run directory this node belongs to — and run the verb again. |
 | `node-brief-not-a-run` | The file carries no `workflow:` block: the engine never froze it, so it has no nodes to brief. Run the verb on the state of a frozen run — freeze it first through `write-state` (Step 4) — and never write the block by hand. |
 | `node-brief-unknown-node` | `--node` is not a node of the run's frozen graph, or names `held-approval`, which is briefed by `gate-brief`. Name the node about to run, exactly as `workflow.nodes` spells it, and run the verb again; no state write fixes this. |
+| `dispatch-model-state-unreadable` | `--state` cannot be read or parsed as a state document, and nothing was read further. Point `--state` at the run's `orchestrator-state.yml`, or leave it off outside a run, and run the verb again. |
+| `dispatch-model-not-a-run` | The file carries no `workflow:` block: the engine never froze it, so it recorded no subagents block. Run the verb on a frozen run's state, or without `--state` when no run is under way. |
+| `dispatch-model-unknown-node` | `--node` is not a node of the run's frozen graph. Name the node that dispatches, exactly as `workflow.nodes` spells it, and run the verb again; no state write fixes this. |
 
 `subrun-path` refuses with exit `1` and the refusal as JSON on stdout, like `resume-check`; nothing was written:
 
