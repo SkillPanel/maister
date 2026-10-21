@@ -54,7 +54,7 @@
 # The node prose lives beside this file in `development.md`, one section per
 # step that needs one; `node-brief` prints each node's derived facts and then
 # its section. Every `direct:` node is executed from that output, and the
-# eleven operator questions asked inside nodes, in nine asks, appear only in
+# twelve operator questions asked inside nodes, in ten asks, appear only in
 # that prose, each with the default its Without line gives — a reader of
 # `nodes:` alone cannot see them, and neither can the generated diagram. The
 # recovery budgets sit in `brief:`, never in `with:`: a budget written there

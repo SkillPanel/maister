@@ -16,8 +16,7 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 2. Delegate ALL verifications to subagents — the test suite first and alone, then everything else in parallel with its result
 3. Compile all results into verification report
 4. Record each verification cycle in the workflow state, which keeps the operator dashboard current
-5. Update roadmap if exists (optional)
-6. Output summary with overall verdict
+5. Output summary with overall verdict
 
 ## State and Dashboard: Through the Engine
 
@@ -25,7 +24,7 @@ The verification phase can run many cycles under this skill: the initial pass, t
 
 - **The writes of a cycle**: one at entry, which clears the previous cycle's verdict (Phase 1); one as the reviews are dispatched, naming them (Phase 2, Step 3b); one as each review returns, adding it to the done list (Step 4); and one once this cycle's report is written (Phase 3). The status line redraws only on a state write, so the per-review writes are what move it review by review rather than all at once at the report. `verification_context` merges key by key, so none of them touches `fixes_applied`, `decisions_made` or `reverify_count`. Those belong to the caller's fix loop, which also records each fix it applies in its node summary's `fixes_applied` as `{finding, change}`, never as a decision: the gate lists the fixes apart from what was decided. `reviews` is one of those keys and is replaced whole, so every write of it carries both lists: `chosen` as Step 3b recorded it, and `done` as it stands. A cycle that dispatches no reviews — a `recheck: tests-only` — skips the dispatch and per-review writes.
 - **Orchestrator mode only.** A standalone run has no `orchestrator-state.yml`, so it has no workflow run and no dashboard. The report is that run's record, and there is nothing to write. `html_output` does not gate these writes: they are state, and the writer itself decides whether a dashboard is published.
-- **Never blocks**: a refused write is noted in the Phase 5 summary and the verdict stands regardless.
+- **Never blocks**: a refused write is noted in the Phase 4 summary and the verdict stands regardless.
 
 ## Output Artifacts
 
@@ -137,7 +136,7 @@ Task tool call (if NOT skip_test_suite) — **the only Task call in its message*
 Task tool call (always):
 - subagent_type: `maister:implementation-completeness-checker`
 - description: `Check implementation completeness`
-- prompt: Include task_path, report_path (`[task_path]/verification/completeness-report.md`). The subagent checks plan completion, standards compliance, and documentation completeness.
+- prompt: Include task_path, report_path (`[task_path]/verification/completeness-report.md`) and docs_check — `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, as an absolute path. The subagent checks plan completion, standards compliance, and documentation completeness, the docs index included.
 
 Task tool call (if code_review_enabled):
 - subagent_type: `maister:code-reviewer`
@@ -227,21 +226,13 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Lead with the verdict banner (✅ Passed / ⚠️ Passed with Issues / ❌ Failed) and issue counts; then findings table sorted critical→info with severity badges, per-check section status, fixes-applied list. Link to the md twin in the header
    - Same content as the md — restructure and visualize, never add findings
    - Never block on it: if generation fails, keep the md, return `companion: failed`, note the miss, continue
-5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 5 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
+5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 4 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
 6. **Record this cycle** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status` set to this cycle's verdict, `reviews.done` set to the reviews that returned (their short names, as Step 3b recorded them), and `issues_found` set to the report's issues, in the issue shape of `../orchestrator-framework/references/orchestrator-patterns.md` § 4. Keep each issue's original severity, and set `fixed: true` on the ones fixed since. Registering the report and its companion as artifacts is not part of this write: the caller's closing `node_summaries` write carries it. This is the state counterpart of the **Re-verification rule** above. The canonical report and the recorded verdict change together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
 7. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
 
 ---
 
-## Phase 4: Update Roadmap (Optional)
-
-1. **Check for roadmap** at `.maister/docs/project/roadmap.md`
-2. **If exists**, find matching items and mark complete
-3. **Document** what was updated or why no matches found
-
----
-
-## Phase 5: Finalize & Output
+## Phase 4: Finalize & Output
 
 Output summary to user:
 

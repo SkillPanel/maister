@@ -361,7 +361,8 @@ rather than leaving the run without one.
 
 ## `finalization`
 
-**Does.** Writes no files, and **always runs**.
+**Does.** Writes no files of its own beyond the roadmap ticks and the standards
+chosen below, and **always runs**.
 
 1. **Inventory the outputs**: the current-state analysis, the clarifications,
    the target-state plan, the requirements, the specification, the rollback
@@ -374,8 +375,20 @@ rather than leaving the run without one.
 2. **Present the executive summary**: what was migrated and to what, the
    strategy used, the verification verdict with any issues left open, whether
    the rollback procedure was tested and whether it is still available.
-3. **Set the task status to completed**.
-4. **Guide the next steps**, this workflow's own four: exercise the migrated
+3. **Tick the roadmap** when the project keeps one at
+   `.maister/docs/project/roadmap.md`: mark done the items this run completed,
+   matched against the specification, and say which, or that none matched. A
+   tick changes no document's purpose, so its index entry stays as it is.
+4. **Offer the standard candidates** the work log records — the implementers'
+   and the fix loop's — as *Asks* below says, before the check, so a standard
+   added here is in its view.
+5. **Run the docs index check** from the project root: docs-manager's
+   `scripts/docs-check.mjs` under the plugin root, by its absolute path. Its
+   result goes under **Done** when it passes, warnings named in a line; each
+   failure goes under **Needs you** with its fix, a refresh of the index
+   (`/maister:standards-update --refresh-index`). INDEX.md is never edited here.
+6. **Set the task status to completed**.
+7. **Guide the next steps**, this workflow's own four: exercise the migrated
    system by hand before trusting it; keep the rollback plan reachable until the
    new system has run in production long enough to trust; watch the data and
    the error rates after deployment, closely for a data migration; and retire
@@ -383,7 +396,7 @@ rather than leaving the run without one.
    for a while. Suggest a fresh session for whatever comes next.
 
 **Close for whoever reads the end**, as the engine's *Operator visibility*
-says. **Next** holds every one of step 4's next steps, a line each — all four,
+says. **Next** holds every one of step 7's next steps, a line each — all four,
 then the fresh-session suggestion, none dropped or merged.
 
 **No close-out while a choice is held**: when the freeze recorded
@@ -396,4 +409,22 @@ verb before this node ends** — the grade and the summary the seed's close-out
 contract asks for, drawn from the executive summary above. The engine refuses a
 dispatched run that reaches its end with no close-out in the outbox
 (`RUN-FAILED: closeout-unpublished`). Under a terminal driver there is no
-outbox, and step 4 is what the operator gets instead.
+outbox, and step 7 is what the operator gets instead.
+
+**Asks.** Only when the work log records standard candidates: one multi-select
+question, each candidate an option — its label the convention in a few words,
+its description the candidate line as written — the question saying that each
+chosen one is added through standards-update, which asks where it goes. Each
+chosen candidate is added with `maister:standards-update`, its line as the
+description, one after another; an unchosen one is dropped. With no candidates,
+nothing is asked.
+
+**With question sets** (`standard-candidates`): the same multi-select, with the
+multi-choice flag, as this node's one request in its attempt; the chosen
+candidates go under **Next**, each as the
+`/maister:standards-update "<candidate>"` command to run, since adding one asks
+its own questions in session.
+
+**Without question sets** (`standard-candidates`): nothing is asked; every
+candidate goes under **Next** as its `/maister:standards-update "<candidate>"`
+command.

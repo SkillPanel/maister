@@ -45,6 +45,7 @@ The Task prompt MUST include:
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to task directory |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/completeness-report.md` relative to task_path) |
+| `docs_check` | Orchestrator (optional) | Absolute path of docs-manager's `docs-check.mjs`; without it, find that script under this plugin's docs-manager skill |
 
 **CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
 
@@ -115,6 +116,7 @@ The Task prompt MUST include:
 3. **Verify spec alignment** — all core requirements from spec appear in implementation
 4. **Verify story coverage** — when the spec's User Stories section lists stories by id, check each one: the plan steps that build it, and code evidence for its action, its state change (what is stored and what is audited) and what is visible afterwards. Record each as covered, partial (naming the part with no evidence) or missing. A missing story is a critical issue and not fixable — the requirement the user accepted was not built; a partial one is a warning
 5. **Check user documentation** if spec requires it
+6. **Run the docs index check** from the project root (`node <docs_check>`) when the project has `.maister/docs/`. Report each of its failures — a document with no entry, a dead or duplicate entry, a conflict marker — as a `documentation` issue, `severity: warning`, `fixable: true`, suggestion "refresh the index through docs-operator", its `location` the path the check names; report its warnings as `info` issues, and a `standards-file-over-guide` warning with the suggestion to split the file through standards-update. Never write a finding asking for INDEX.md prose to change ("the index still says …"): the index is refreshed, never edited. A stale fact is a finding against the document that holds it, and only when the spec changed that fact.
 
 **Status**:
 - ✅ Complete: All documentation present and thorough
@@ -204,7 +206,7 @@ issue_counts:
 - Stories: cite, per story, the plan step and the file and line for each part, or name the part with none
 
 ### Fixable Assessment
-- `true`: Missing work-log entry, unchecked plan step that has code, minor formatting
+- `true`: Missing work-log entry, unchecked plan step that has code, minor formatting, a docs index check failure (fixed by a refresh)
 - `false`: Architecture decisions, missing implementation, unclear requirements
 
 ---
