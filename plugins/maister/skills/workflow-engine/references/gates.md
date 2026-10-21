@@ -167,7 +167,9 @@ its *Done* reads `Skipped.` and the held choices lead.
 
 **What the checkpoint shows is the verb's to compose.** The one-line ask (`<what finished> Ready
 to go on?`, about the work approved, never where the run goes), the glance each continue
-previews — *Done*, *Next*, *Review*, open risks, fixes, decisions and the user's own choices —
+previews — *Done*, *Found* (the closed step's `summary`, left out when *Done* was drawn from
+it), *Next*, *Review*, open risks, fixes, decisions and the user's own choices, every item whole
+and those that do not fit counted toward More details —
 the revise and stop previews, More details, and the held choices, which lead every surface
 whenever one waits, are all selected, ordered and trimmed by `gate-brief`. Relay them as they
 stand; never re-select, re-order or re-word them.

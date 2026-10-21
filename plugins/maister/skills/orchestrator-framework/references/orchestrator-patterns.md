@@ -306,8 +306,8 @@ Every `node_summaries.<node>` entry uses this base shape (a workflow's guide may
 ```yaml
 node_summaries:
   <node>:
-    headline: null       # one sentence (≤ 220 chars) for the stretch a gate closes; on the node the gate needs
-    summary: null        # 1-2 sentence prose summary; the top findings go here, never in risks
+    headline: null       # one sentence (≤ 220 chars) for the stretch a gate closes; on the node the gate needs; a gate shows it as Done
+    summary: null        # 1-2 sentence prose summary; the top findings go here, never in risks; a gate shows it whole as Found
     decisions: []        # [{decision, by, rationale?}] — by: run | audit | default | operator
     fixes_applied: []    # [{finding, change}] — what the phase fixed without asking
     risks: []            # [{risk, tag, change?}] — tag: open | tradeoff | followup | stop | resolved

@@ -16,12 +16,16 @@
  *
  * - **rich** (a picker that shows option previews): the question is the one-line
  *   ask; the continue option's preview is the checkpoint at a glance — *Done*,
- *   *Next*, *Review*, up to three risks still open, a stop first, how many fixes
- *   the run applied with up to three of them, up to three decisions the run
- *   made and one counted line for the user's own choices — within
- *   `FOCUS_LINES` lines and `FOCUS_BUDGET` characters, the decisions and then
- *   the fixes giving way to the risks; revise and stop preview what choosing
- *   them does; More details previews the full brief, risks grouped by tag.
+ *   *Found* (the closed step's summary), *Next*, *Review*, up to three risks
+ *   still open, a stop first, how many fixes the run applied with up to three
+ *   of them, up to three decisions the run made and one counted line for the
+ *   user's own choices — within `FOCUS_LINES` lines and `FOCUS_BUDGET`
+ *   characters. Every item is shown whole, never cut mid-word: when the room
+ *   runs short, whole items give way from the end to a count, the decisions
+ *   and then the fixes before the risks; *Done*, *Found* and *Next* are never
+ *   cut while the preview fits `PREVIEW_BUDGET`. Revise and stop preview what
+ *   choosing them does; More details previews the full brief, risks grouped
+ *   by tag.
  * - **plain** (a picker that shows labels only): the same selection carried in
  *   the question, the ask last so it stays on screen, and each option's title
  *   carrying its consequence after a dash.
@@ -36,8 +40,8 @@
  */
 
 /** Most lines, and characters, of the continue option's preview. */
-export const FOCUS_LINES = 9;
-export const FOCUS_BUDGET = 900;
+export const FOCUS_LINES = 16;
+export const FOCUS_BUDGET = 1600;
 
 /** Most lines of the revise and the stop previews. */
 export const REVISE_LINES = 8;
@@ -46,9 +50,11 @@ export const STOP_LINES = 7;
 /** Most characters of any preview; Claude Code withholds a longer one whole. */
 export const PREVIEW_BUDGET = 2000;
 
-/** How many decisions the run made a glance shows, and how long each may run. */
+/** How many decisions the run made a glance shows. */
 const DECIDED_CAP = 3;
-const DECISION_MAX = 110;
+
+/** What closes a *Found* or *Done* sentence cut to keep a preview within `PREVIEW_BUDGET`. */
+const SENTENCE_CUT = '(The rest is under More details.)';
 
 /** How long a recommendation's reason may run in a labels-only title before it is cut. */
 const REASON_MAX = 120;
@@ -298,15 +304,14 @@ function fixText(fix) {
 }
 
 /**
- * One decision line: its text, cut, and where it was settled. A decision that
- * carries its class names it after the text, then the first sentence of why.
+ * One decision line: its text, whole, and where it was settled. A decision
+ * that carries its class names it after the text, then the first sentence of why.
  */
-function decisionLine(item, max = DECISION_MAX) {
+function decisionLine(item) {
   const suffix = item.source ? ` — ${item.source}` : '';
-  const room = Math.max(20, max);
-  if (!item.class) return `- ${clip(item.decision, room)}${suffix}`;
-  const lead = item.rationale ? `: ${clip(leadOf(item.rationale), room)}` : '';
-  return `- ${clip(item.decision, room)} (${item.class})${lead}${suffix}`;
+  if (!item.class) return `- ${item.decision}${suffix}`;
+  const lead = item.rationale ? `: ${leadOf(item.rationale)}` : '';
+  return `- ${item.decision} (${item.class})${lead}${suffix}`;
 }
 
 /** A text's first sentence, or the whole text when it has no sentence end. */
@@ -326,11 +331,43 @@ function heldOf(checkpoint) {
   return (checkpoint.held ?? []).map(item => ({ ...item, source: stepOf(item) === null ? null : lowered(stepOf(item)) }));
 }
 
-/** One held line at a glance: the question, the choice made, and the step. */
-function heldLine(item, max) {
-  const room = Math.max(20, max);
-  const asked = item.question ? `${clip(item.question, room)}: ` : '';
-  return `- ${asked}${clip(item.decision, room)}${item.source ? ` — ${item.source}` : ''}`;
+/**
+ * One held line at a glance, whole: the question, the choice made, and the
+ * step. It is what a continue approves, so it is never cut.
+ */
+function heldLine(item) {
+  const asked = item.question ? `${item.question}: ` : '';
+  return `- ${asked}${item.decision}${item.source ? ` — ${item.source}` : ''}`;
+}
+
+/**
+ * The *Found* text: the summary of the closed step the *Done* sentence came
+ * from — the one whose headline it is, as `gate-brief` picked it — on one
+ * line. '' when no closed step's headline is the *Done* sentence, or when that
+ * headline was drawn from the summary itself (the summary opens with it, an
+ * ellipsis aside), so the same words are never shown twice.
+ */
+function foundOf(checkpoint) {
+  const headline = checkpoint.headline;
+  if (!headline) return '';
+  const lead = (checkpoint.closed ?? []).find(each => each.headline === headline);
+  const summary = String(lead?.summary ?? '').replace(/\s+/g, ' ').trim();
+  if (!summary) return '';
+  return summary.startsWith(headline.replace(/…$/, '').trimEnd()) ? '' : summary;
+}
+
+/**
+ * `text` cut to at most `max` characters at the end of a sentence, closed by
+ * `SENTENCE_CUT`; with no sentence end in reach, cut at a word. Only a preview
+ * that would otherwise run past `PREVIEW_BUDGET` is cut this way.
+ */
+function sentencesWithin(text, max) {
+  if (text.length <= max) return text;
+  const room = Math.max(0, max - SENTENCE_CUT.length - 1);
+  const ends = [...text.matchAll(/[.!?](?=\s|$)/g)]
+    .filter(end => end.index < room && !ABBREVIATION.test(text.slice(0, end.index)));
+  const kept = ends.length ? text.slice(0, ends.at(-1).index + 1) : clip(text, room);
+  return `${kept} ${SENTENCE_CUT}`;
 }
 
 /**
@@ -357,22 +394,27 @@ function openRisks(checkpoint) {
 }
 
 /**
- * The checkpoint at a glance, as lines: *Done*, *Next* — one line for each of
- * `ways` when there are several, named by its label — *Review*, the risks
- * still open — a stop first — how many fixes the run applied and up to three
- * of them, the decisions the run made and the user's own choices counted. An open
- * risk is what the user weighs before going on, so it comes ahead of the fixes
- * and the decisions and outlasts them; a fix changed the work without the user
+ * The checkpoint at a glance, as lines: *Done*, *Found* — what the closed step
+ * found, its summary (`foundOf`) — *Next*, one line for each of `ways` when
+ * there are several, named by its label — *Review*, the risks still open — a
+ * stop first — how many fixes the run applied and up to three of them, the
+ * decisions the run made and the user's own choices counted. An open risk is
+ * what the user weighs before going on, so it comes ahead of the fixes and the
+ * decisions and outlasts them; a fix changed the work without the user
  * choosing it, so it outlasts what was decided. A trade-off, a follow-up and a
- * settled risk are one focus away, in More details. Within `lines` and
- * `budget`, the items are cut while the text runs long, then the decisions
- * dropped from the end down to their count, then the fixes, then the risks
- * down to one, then the *Done* sentence is cut, then the one risk left
- * gives way to a count, and last the choices held for the user's approval —
- * listed after *Review*, ahead of everything else — down to one and a count;
- * *Next* is never cut.
+ * settled risk are one focus away, in More details.
+ *
+ * Every item is drawn whole: a risk or a decision cut mid-word reads as a
+ * different one. Within `lines` and `budget`, whole items give way from the
+ * end to a "(+N more under More details)" count — the decisions first, then
+ * the fixes, then the risks down to one — then the one risk left gives way to
+ * a count, and last the choices held for the user's approval, listed after
+ * *Review* ahead of everything else, down to one and a count. *Done*, *Found*
+ * and *Next* are never cut for `budget`; only when what is left still runs
+ * past `cap` — the most a preview may hold — is *Found* cut at a sentence end,
+ * then *Done*, each closed by a pointer to More details. *Next* is never cut.
  */
-function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, markdown = false, ways = waysOf(checkpoint), approving = false }) {
+function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, cap = Infinity, markdown = false, ways = waysOf(checkpoint), approving = false }) {
   const items = decided(checkpoint);
   const held = heldOf(checkpoint);
   const fixes = checkpoint.fixes ?? [];
@@ -382,10 +424,12 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
   const risks = openRisks(checkpoint);
   const review = reviewText(checkpoint.review, companion);
   const choices = choicesLine(checkpoint);
-  const view = { held: held.length, fixes: Math.min(fixes.length, FIXED_CAP), shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), item: DECISION_MAX, done: Infinity };
+  const found = foundOf(checkpoint);
+  const view = { held: held.length, fixes: Math.min(fixes.length, FIXED_CAP), shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), done: Infinity, found: Infinity };
   const draw = () => {
     const out = [];
-    if (checkpoint.headline) out.push(`Done: ${clip(checkpoint.headline, view.done)}`);
+    if (checkpoint.headline) out.push(`Done: ${sentencesWithin(checkpoint.headline, view.done)}`);
+    if (found) out.push(`Found: ${sentencesWithin(found, view.found)}`);
     out.push(...nexts);
     if (review) out.push(`Review: ${review}`);
     if (held.length) {
@@ -394,26 +438,26 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
       const doing = approving ? approvesHeld(checkpoint.held) : '';
       const what = doing ? ` — continuing ${doing}` : '';
       out.push(`${HELD_HEADING}${rest > 0 ? ` (+${rest} more under More details)` : ''}${what}:`);
-      out.push(...held.slice(0, view.held).map(item => heldLine(item, view.item)));
+      out.push(...held.slice(0, view.held).map(heldLine));
     }
     if (view.risks > 0) {
       const rest = risks.length - view.risks;
       out.push(`Open risks${rest > 0 ? ` (+${rest} more under More details)` : ''}:`);
-      out.push(...risks.slice(0, view.risks).map(risk => `- ${clip(risk.risk, Math.max(20, view.item))}`));
+      out.push(...risks.slice(0, view.risks).map(risk => `- ${risk.risk}`));
     } else if (risks.length) {
       out.push(`Open risks: ${risks.length}, under More details.`);
     }
     if (view.fixes > 0) {
       const rest = fixes.length - view.fixes;
       out.push(`${FIXED_HEADING}: ${fixes.length}${rest > 0 ? ` (+${rest} more under More details)` : ''}`);
-      out.push(...fixes.slice(0, view.fixes).map(fix => `- ${clip(fixText(fix), Math.max(20, view.item))}`));
+      out.push(...fixes.slice(0, view.fixes).map(fix => `- ${fixText(fix)}`));
     } else if (fixes.length) {
       out.push(`${FIXED_HEADING}: ${fixes.length}, under More details.`);
     }
     if (view.shown > 0) {
       const rest = items.length - view.shown;
       out.push(`${decidedHeading(items)}${rest > 0 ? ` (+${rest} more under More details)` : ''}:`);
-      out.push(...items.slice(0, view.shown).map(item => decisionLine(item, view.item)));
+      out.push(...items.slice(0, view.shown).map(decisionLine));
     } else if (items.length) {
       out.push(`${decidedHeading(items)}: ${items.length} ${items.length === 1 ? 'decision' : 'decisions'}, under More details.`);
     }
@@ -426,14 +470,8 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
     return out.flatMap((line, index) => (index > 0 && !line.startsWith('- ') && out[index - 1].startsWith('- ') ? ['', line] : [line]));
   };
   let out = draw();
-  const long = () => out.join('\n').length > budget;
-  const fits = () => out.length <= lines && !long();
-  // Cutting an item saves characters, never a line: it answers the character
-  // budget alone, and a glance with too many lines drops items instead.
-  while (long() && view.item > 40) {
-    view.item -= 10;
-    out = draw();
-  }
+  const size = () => out.join('\n').length;
+  const fits = () => out.length <= lines && size() <= budget;
   while (!fits() && view.shown > 0) {
     view.shown--;
     out = draw();
@@ -446,10 +484,6 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
     view.risks--;
     out = draw();
   }
-  if (!fits() && checkpoint.headline) {
-    view.done = Math.max(40, checkpoint.headline.length - (out.join('\n').length - budget));
-    out = draw();
-  }
   if (!fits() && view.risks > 0) {
     view.risks = 0;
     out = draw();
@@ -458,6 +492,16 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
   // user continuing approves them, so at least one stays named.
   while (!fits() && view.held > 1) {
     view.held--;
+    out = draw();
+  }
+  // The last resort, for a preview the tool would otherwise withhold whole:
+  // *Found* gives up its later sentences, then *Done*.
+  if (size() > cap && found) {
+    view.found = Math.max(0, found.length - (size() - cap));
+    out = draw();
+  }
+  if (size() > cap && checkpoint.headline) {
+    view.done = Math.max(0, checkpoint.headline.length - (size() - cap));
     out = draw();
   }
   return out;
@@ -825,7 +869,7 @@ function answerFields(option, profile) {
 export function richPicker(checkpoint) {
   const options = ordered(checkpoint).map(option => {
     let lines;
-    if (option.effect === 'continue') lines = glance(checkpoint, { companion: 'beside', markdown: true, ways: option.next !== undefined ? [option] : [], approving: true });
+    if (option.effect === 'continue') lines = glance(checkpoint, { companion: 'beside', cap: PREVIEW_BUDGET, markdown: true, ways: option.next !== undefined ? [option] : [], approving: true });
     else if (option.effect === 'revise') lines = reviseLines(option);
     else lines = stopLines(checkpoint, option);
     return {

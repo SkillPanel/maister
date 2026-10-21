@@ -518,6 +518,7 @@ test('checkpoint: the per-continue Next lines come in the options\' order on eve
 
 const SPEC_GLANCE = [
   'Done: The revised spec makes null mean "not given" for tags and list, and keeps 11 requirements: tags with addTag/removeTag, the all-of filter, toCsv and both copy-leak fixes.',
+  'Found: Revised as you asked: null now counts as a missing value. Everything else is unchanged.',
   'Next: Specification audit',
   'Review: implementation/spec.md (HTML beside it), analysis/requirements.md',
   'Open risks:',
@@ -532,12 +533,11 @@ const SPEC_GLANCE = [
 
 /**
  * The glance as the rich preview shows it: markdown, so a line after a bullet
- * stands apart from it, and within nine lines, so the open risks stay and the
- * decisions give way to a count.
+ * stands apart from it.
  */
 const SPEC_PREVIEW = [
-  ...SPEC_GLANCE.slice(0, 6), '',
-  'Decided by the run: 3 decisions, under More details.',
+  ...SPEC_GLANCE.slice(0, 7), '',
+  ...SPEC_GLANCE.slice(7, 11), '',
   SPEC_GLANCE.at(-1),
 ];
 
@@ -553,7 +553,7 @@ test('rich: the specification gate renders as designed — a one-line ask, the g
   const [focused, other, revise, stop] = rich.options;
   assert.match(other.preview, /^Next: Implementation planning \(skipping Specification audit\)$/m, 'each continue previews where it leads');
   assert.equal(focused.preview, SPEC_PREVIEW.join('\n'));
-  assert.ok(focused.preview.length <= 900 && focused.preview.split('\n').length <= 9);
+  assert.ok(focused.preview.length <= FOCUS_BUDGET && focused.preview.split('\n').length <= FOCUS_LINES);
   assert.doesNotMatch(focused.preview, /breaking changes|formula guard|→/, 'no trade-off at the glance, and no risk\'s change');
   assert.equal(revise.preview, [
     'Re-runs: Specification, then asks this checkpoint again.',
@@ -622,7 +622,8 @@ test('rich: the research convergence gate recommending no design goes on to what
   assert.equal(rich.question, 'Approve brainstorming? Type "details" for the full brief.');
   const glance = rich.options[0].preview.split('\n');
   assert.equal(glance[0], 'Done: The nine decision areas add up to one 2.0.0 release that is projected to close every path that can corrupt a stored note.');
-  assert.match(glance[1], /^Next: Final summary \(skipping .*High-level design.*\)$/);
+  assert.equal(glance[1], 'Found: Converged on nine areas.');
+  assert.match(glance[2], /^Next: Final summary \(skipping .*High-level design.*\)$/);
   assert.ok(glance.includes('- Ship every change together as one 2.0.0 release — solution convergence'));
   assert.equal(glance.at(-1), 'You made 10 choices, all as recommended.');
   assert.equal(glance.at(-2), '', 'the user\'s choices stand apart from the last decision');
@@ -660,7 +661,7 @@ test('glance: open risks come ahead of the decisions, which give way first when 
   ];
   const run = atSpecGate(t, { decisions, risks });
   const glance = pickerOf(run, 'specification-approval', 'rich').options[0].preview.split('\n');
-  assert.ok(glance.length <= 9 && glance.join('\n').length <= 900, glance.join('\n'));
+  assert.ok(glance.length <= FOCUS_LINES && glance.join('\n').length <= FOCUS_BUDGET, glance.join('\n'));
   const at = text => glance.indexOf(text);
   assert.ok(at('Open risks:') > -1, glance.join('\n'));
   assert.ok(at('- The type module setting may break the build script') > at('Open risks:'));
@@ -1094,16 +1095,37 @@ test('fixes: every surface shows them as "Fixed by the run", never under the dec
   assertFits(panel.glance);
 });
 
-test('fixes: when the lines run short the decisions give way to their count before the fixes do', t => {
+/**
+ * The rich glance of a gate's checkpoint as its closing step's findings grow
+ * a sentence at a time, each as lines: *Found* never gives way, so the items
+ * behind it do, in their order, until the risks are only a count.
+ */
+function asFindingsGrow(checkpoint) {
+  const glances = [];
+  for (let count = 0; count < 80; count++) {
+    const grown = structuredClone(checkpoint);
+    const lead = grown.closed.find(each => each.headline === grown.headline);
+    lead.summary = [lead.summary, ...Array(count).fill('Every entry point was checked again after the fixes.')].join(' ');
+    const glance = richPicker(grown).options[0].preview.split('\n');
+    glances.push(glance);
+    if (glance.some(line => /^Open risks: \d+, under More details\.$/.test(line))) break;
+  }
+  return glances;
+}
+
+test('fixes: as the findings grow the decisions give way to their count before the fixes do', t => {
   const decisions = [{ decision: 'The repeated missing-note lookup is one helper', by: 'audit' }];
   const risks = [{ risk: 'Export size is unbounded', tag: 'open', change: 'Cap the export' }];
-  const glance = pickerOf(atVerificationGate(t, { fixes_applied: FIXES, decisions, risks }), 'verification-approval', 'rich')
-    .options[0].preview.split('\n');
-  assert.ok(glance.length <= 9, glance.join('\n'));
-  const at = glance.indexOf('Fixed by the run: 2 (+1 more under More details)');
-  assert.equal(glance[at + 1], fixLines(FIXES)[0], glance.join('\n'));
-  assert.ok(glance.includes('Decided by the audit: 1 decision, under More details.'), glance.join('\n'));
-  assert.ok(glance.includes('- Export size is unbounded'), glance.join('\n'));
+  const glances = asFindingsGrow(checkpointOf(atVerificationGate(t, { fixes_applied: FIXES, decisions, risks }), 'verification-approval'));
+  const fixesShown = glance => fixLines(FIXES).filter(line => glance.includes(line)).length;
+  for (const glance of glances) {
+    assert.ok(glance.join('\n').length <= FOCUS_BUDGET || !glance.some(line => line.startsWith('- ')), glance.join('\n'));
+    if (fixesShown(glance) < 2) assert.ok(glance.includes('Decided by the audit: 1 decision, under More details.'), glance.join('\n'));
+    if (fixesShown(glance) > 0) assert.ok(glance.includes('- Export size is unbounded'), glance.join('\n'));
+  }
+  const one = glances.find(glance => fixesShown(glance) === 1);
+  assert.ok(one, 'the fixes give way one at a time');
+  assert.equal(one[one.indexOf('Fixed by the run: 2 (+1 more under More details)') + 1], fixLines(FIXES)[0], one.join('\n'));
 });
 
 test('fixes: past three the glance counts the rest under More details, which lists every one', t => {
@@ -1116,16 +1138,20 @@ test('fixes: past three the glance counts the rest under More details, which lis
   assert.ok(rich.more_details.includes(['**Fixed by the run**', ...fixLines(many)].join('\n')), rich.more_details);
 });
 
-test('fixes: when the lines run short they outlast the decisions and give way to a count before the open risks do', t => {
+test('fixes: as the findings grow they outlast the decisions and give way to a count before the open risks do', t => {
   const many = Array.from({ length: 5 }, (_, index) => ({ finding: `Issue ${index + 1} was open`, change: `Fixed issue ${index + 1}` }));
   const risks = Array.from({ length: 3 }, (_, index) => ({ risk: `Open issue ${index + 1}`, tag: 'open', change: `Settle issue ${index + 1}` }));
   const decisions = Array.from({ length: 4 }, (_, index) => ({ decision: `Review finding ${index + 1} holds`, by: 'audit' }));
-  const glance = pickerOf(atVerificationGate(t, { fixes_applied: many, risks, decisions }), 'verification-approval', 'rich')
-    .options[0].preview.split('\n');
-  assert.ok(glance.length <= 9 && glance.join('\n').length <= 900, glance.join('\n'));
-  assert.ok(glance.includes('Fixed by the run: 5, under More details.'), glance.join('\n'));
-  assert.ok(glance.includes('Decided by the audit: 4 decisions, under More details.'), glance.join('\n'));
-  for (const risk of risks) assert.ok(glance.includes(`- ${risk.risk}`), `${risk.risk} stays in view: ${glance.join('\n')}`);
+  const glances = asFindingsGrow(checkpointOf(atVerificationGate(t, { fixes_applied: many, risks, decisions }), 'verification-approval'));
+  const shown = (glance, texts) => texts.filter(text => glance.includes(text)).length;
+  const fixes = fixLines(many.slice(0, 3));
+  const risked = risks.map(risk => `- ${risk.risk}`);
+  for (const glance of glances) {
+    if (shown(glance, fixes) < 3) assert.ok(glance.includes('Decided by the audit: 4 decisions, under More details.'), glance.join('\n'));
+    if (shown(glance, risked) < 3) assert.ok(glance.includes('Fixed by the run: 5, under More details.'), glance.join('\n'));
+  }
+  assert.ok(glances.some(glance => glance.includes('Fixed by the run: 5, under More details.') && shown(glance, risked) === 3),
+    'the fixes are counted while all three risks stay in view');
 });
 
 test('fixes: one a fix loop logged as a string is shown as the change it names', t => {
@@ -1255,10 +1281,12 @@ test('held: many held choices are cut to one and a count, never to none; no held
       },
     },
   });
+  // Each held question is long, so the characters run out: a held choice is shown whole or not at all.
+  checkpoint.held = checkpoint.held.map((item, index) => ({ ...item, question: long(`question${index}-`, 50) }));
   const glance = richPicker(checkpoint).options[0].preview.split('\n').filter(line => line !== '');
   assert.ok(glance.length <= FOCUS_LINES && glance.join('\n').length <= FOCUS_BUDGET, glance.join('\n'));
   assert.ok(glance.includes('Held for your approval (+11 more under More details) — continuing approves 12 held choices:'), glance.join('\n'));
-  assert.ok(glance.some(line => line.startsWith('- Which wave order 1?')), glance.join('\n'));
+  assert.ok(glance.includes(`- ${long('question0-', 50)}: Order 1 first — planning`), glance.join('\n'));
   const panel = panelOfCheckpoint(checkpoint);
   assertFits(panel.glance);
   assert.ok(panel.glance.some(line => line.startsWith('Held: 12 ·')), panel.glance.join('\n'));

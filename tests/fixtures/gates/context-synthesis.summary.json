@@ -1,0 +1,39 @@
+{
+  "headline": "Calendars are shared only inside the organisation today; guests see free/busy through emailed invites, and the sharing model, the permission service and the invite flow are the three places this design has to change.",
+  "summary": "Sharing is per calendar and per member, enforced by the permission service on every read. Guests have no identity: an invite carries a signed link that expires with the event. Two teams already export free/busy to outside tools by hand. The mobile client caches calendars for a week, so a revoked share can stay visible offline. No audit log records who viewed a shared calendar, and support has asked for one.",
+  "decisions": [
+    {
+      "decision": "Guests get a signed link, never an account of their own",
+      "by": "run",
+      "rationale": "The invite flow already signs links. Accounts would need a second identity store."
+    },
+    {
+      "decision": "Free/busy is the default share; event details need an explicit grant",
+      "by": "run"
+    },
+    {
+      "decision": "A share can be revoked by the calendar owner and by an organisation admin",
+      "by": "run"
+    },
+    {
+      "decision": "The week-long mobile cache stays; a revoke is enforced on the next sync",
+      "by": "run"
+    },
+    {
+      "decision": "Viewing a shared calendar is written to a new audit log",
+      "by": "run"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Sharing is per member today, so a guest link scoped to a whole team calendar has no permission row to check against and may need a new kind of grant in the permission service",
+      "tag": "open",
+      "change": "scope the first release to single-member calendars"
+    },
+    {
+      "risk": "The mobile cache keeps a revoked share visible for up to a week offline, so a guest removed from a project can still read its schedule on a phone until the next sync runs",
+      "tag": "open",
+      "change": "shorten the cache for shared calendars to one day"
+    }
+  ]
+}

@@ -441,16 +441,21 @@ At a checkpoint the question is one line: what finished, and whether it is ready
 Where the next phase is optional, the checkpoint before it decides it in the same question, with one continue for each way on: development's specification checkpoint offers *Continue to the specification audit* and *Continue to planning, skip the audit*, and its verification checkpoint *Continue to the browser checks* and *Continue without browser checks*; research's checkpoint after the research offers *Continue to brainstorming*, *Continue to the design, skip brainstorming* and *Continue to final summary*. The recommended one gives its reason, and each names where it leads and what it skips.
 Beside the continue option you see the checkpoint at a glance:
 - *Done*: what the stretch since the last checkpoint produced, in a sentence;
+- *Found*: what the phase found, its summary in full;
 - *Next*: the phase that runs, and any it skips;
 - *Review*: the files to open, named inside the task folder;
+- up to three risks still open, a reason to stop first;
 - how many fixes the run made without asking, with up to three of them named — what was wrong and what changed;
 - up to three decisions the run made, each marked with the phase that settled it, an audit or a default;
 - one line counting your own choices and naming any that differ from the recommendation.
 
+Every risk, fix and decision is shown whole. When they do not all fit, the last ones give way to a
+count of how many more are under **More details** — decisions first, then fixes, then risks.
+
 On GitHub Copilot CLI, which shows no previews, the same glance is the question itself, with the
 ask as its last line.
 
-Risks are kept to **More details**, grouped by what they are:
+**More details** lists every risk, grouped by what they are:
 - *Open*: still yours to change, and with any reason to stop the source of a revise's suggested notes;
 - *Trade-offs accepted*: consequences of a choice already made;
 - *Follow-ups*: for after this run.
