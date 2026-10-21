@@ -108,10 +108,7 @@ short hyphenated phrase (`adapter-scope-bounded`) is preferred, a plain sentence
 with nothing to escape permitted; the write refuses anything else, failing this
 node.
 
-**Asks.** Before step 1, when the invocation supplied no question, ask the
-operator for it as free text; never invent one. A non-terminal run that has no
-research question is `RUN-FAILED`, never a run with an invented one. Step 1
-asks the clarification it describes.
+**Asks.** Step 1 asks the clarification it describes.
 
 **With question sets** (`question-clarification`): its sharpened readings
 generated before it suspends.

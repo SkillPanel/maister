@@ -1,6 +1,6 @@
 ---
 name: maister:umbrella
-description: "The workspace runtime the maister cockpit uses for multi-repository runs — an umbrella directory whose members are checkouts of separate repositories, coordinated as one unit. A terminal user working in one repository does not need it. While the cockpit drives a chain, a workflow's orchestrator and the cockpit daemon use the same script to build the dispatch envelope a node hands to a worker in a member repository, render that worker's seed prompt, and keep the dispatch ledger and the per-dispatch outbox that carry results back. Setting a workspace up for the cockpit is the one place a person reaches it, as `/maister:umbrella <verb>`: `init` turns a directory into a workspace, `validate` judges it together with any chain files, and `prune` deletes the generated per-ticket chains whose runs have all closed. Seven verbs behind one script, every write atomic and every rejection named."
+description: "The workspace runtime the maister cockpit uses for multi-repository runs — an umbrella directory whose members are checkouts of separate repositories, coordinated as one unit. A terminal user working in one repository does not need it. While the cockpit drives a chain, a workflow's orchestrator and the cockpit daemon use the same script to build the dispatch envelope a node hands to a worker in a member repository, render that worker's seed prompt, and keep the dispatch ledger and the per-dispatch outbox that carry results back. Setting a workspace up for the cockpit is the one place a person reaches it, as `/maister:umbrella <verb>`: `init` turns a directory into a workspace, `validate` judges it together with any chain files, and `prune` deletes the generated per-ticket chains whose runs have all closed. Eight verbs behind one script, every write atomic and every rejection named."
 argument-hint: "init [--root DIR] [--members-root DIR] [--force] | validate [--definition FILE ...] | prune [--root DIR] [--name STEM] [--dry-run]"
 user-invocable: true
 ---
@@ -15,12 +15,12 @@ that makes it visible, and an outbox that carries the answer back.
 
 **This is the cockpit's runtime, not a terminal feature.** Its users are runs
 the cockpit drives across several repositories; a terminal user working in one
-repository never needs it. Three of the seven verbs set a workspace up for the
+repository never needs it. Three of the eight verbs set a workspace up for the
 cockpit: `/maister:umbrella init` turns a directory into a workspace,
 `/maister:umbrella validate` judges it, and `/maister:umbrella prune` deletes
 the generated chains whose runs have closed — the section *When a user invokes
 this skill* below says how each argument maps onto the script and what to
-report back. The other four verbs are machinery, reached by name by a
+report back. The other five verbs are machinery, reached by name by a
 workflow's orchestrator and by the cockpit daemon while a run is in flight; a
 user never needs them, and this skill never offers them.
 
@@ -33,7 +33,7 @@ the turn ends.
 
 ## Invocation
 
-One script, seven verbs, the exec form:
+One script, eight verbs, the exec form:
 
 ```
 node ${CLAUDE_PLUGIN_ROOT}/skills/umbrella/scripts/umbrella.mjs <verb> [flags]
@@ -56,6 +56,7 @@ or newer, no dependencies to install.
 | `init` | Scaffold a workspace: manifest, workflow directory, ledger, outbox | `--root` | `--members-root`, `--force`, `--scaffold` | — |
 | `validate` | Judge the workspace, and the named workflow definitions with it | `--root` | `--definition` (repeatable) | — |
 | `prune` | Delete the generated chains whose runs have all closed | `--root` | `--name`, `--dry-run` | — |
+| `runs` | List the workspace's runs, one JSON array | `--root` | — | — |
 | `envelope` | Build and publish one node's dispatch envelope | `--run`, `--node`, `--ledger`, `--root` | `--input-file` | overrides (JSON) |
 | `seed` | Render the worker prompt for an envelope | `--envelope` | `--siblings` | — |
 | `ledger` | Run one ledger op | `--ledger`, `--op`, `--actor` | `--dispatch-id`, `--run` with `--input-file` | the op's `args` (JSON) |
@@ -166,11 +167,11 @@ report is for machines; what goes back to the user is plain language:
 - **Exit `2`** — the runtime did not start. Quote the stderr message verbatim,
   and do not do by hand what the script would not do.
 
-Any other first word — `envelope`, `seed`, `ledger`, `outbox`, or a word that
+Any other first word — `runs`, `envelope`, `seed`, `ledger`, `outbox`, or a word that
 is no verb at all — is not a user command. Say so, run nothing, and point at the
 plugin's command reference, under *Umbrella*, where the
 machine-facing verbs are documented for an operator reading a ledger or an
-outbox by hand. Never guess which of the four was meant and never run one to be
+outbox by hand. Never guess which of the five was meant and never run one to be
 helpful: a ledger op typed by hand is the drift this runtime exists to remove.
 A word that asks to *run* something is the one worth answering rather than only
 refusing: a chain — a definition whose nodes dispatch into members — is started
@@ -321,6 +322,20 @@ ever a candidate: a reusable chain at the top of the workflow directory is
 never touched, whatever `--name` says. `--dry-run` reports every decision and
 deletes nothing. The cockpit calls the same verb after a run closes, so there
 is one deletion rule and it lives here.
+
+**`runs`** — when a caller needs to know which runs a workspace holds. Run
+directories under `.maister/umbrella/runs/` are named by opaque ids, so the verb
+reads each state and prints one JSON array, a run to an element, in id order:
+`id`, `workflow` (the workflow's name), `title`, `description` (the task
+description, or a research run's question), `status`, `created` and `updated`
+(the times the engine stamped), `root` (the run's checkout, derived the way a
+resume derives it) and `state` (the state file, relative to the workspace). A
+field the state does not carry is `null`. A copy set aside beside a run
+(`<run>.moved-<digits>`, `<run>.failed-<digits>`) is not a run and is left out,
+as is a folder with no state file yet. A state that cannot be read is listed as
+`{id, state, error}`, the error naming the cause, so one bad run never hides
+the others. It writes nothing; a root that is not a directory is the one
+refusal.
 
 **`envelope`** — when a workflow node names a member directory and the run is
 ready to hand that work out. The envelope is the contract between the run and
@@ -609,7 +624,7 @@ move for exactly one code, `ledger-locked`, and is the failure mode for every
 other.** A refusal is a correct answer, not an obstacle; reaching for an editor
 tool because the script said no is the drift this whole design removes.
 
-### Workspace — `init`, `validate` and `prune`
+### Workspace — `init`, `validate`, `prune` and `runs`
 
 | Refusal | Response |
 |---|---|

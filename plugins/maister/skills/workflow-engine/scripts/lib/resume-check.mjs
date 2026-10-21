@@ -143,9 +143,10 @@ export function resumeCheck({ state }) {
  * `orchestrator.driver.cwd` names the directory the run was started in, which a
  * run moved to another machine no longer has. A child run's root is found
  * through its parent link (`childRootOf`), every other run's four levels up
- * (`projectRootOf`), under either run root.
+ * (`projectRootOf`), under either run root. The umbrella's run listing reports
+ * the same root through the facade.
  */
-function runRoot(doc, dir) {
+export function runRoot(doc, dir) {
   const parent = isPlainObject(doc.orchestrator) ? doc.orchestrator.parent : null;
   return isPlainObject(parent) && typeof parent.run === 'string' && parent.run !== ''
     ? childRootOf(dir, parent)

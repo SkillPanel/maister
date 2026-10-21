@@ -1,8 +1,9 @@
 /**
- * The umbrella manifest: member discovery, `init` and `validate`.
+ * The umbrella manifest: member discovery, `init`, `validate`, `prune` and the
+ * run listing `runs`.
  *
- * Zero dependencies, `node:` builtins only, Node >= 20. Both exports are
- * **synchronous** — the entry point calls them without `await` — and neither
+ * Zero dependencies, `node:` builtins only, Node >= 20. Every verb's export is
+ * **synchronous** — the entry point calls them without `await` — and none
  * throws past its own boundary: a refusal comes back as `{ok: false, errors}`
  * so the caller can print a report and exit 1, and an unexpected fault is left
  * to propagate as the internal failure it is.
@@ -81,7 +82,7 @@ import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { isSetAside } from '../../../../lib/run-dirs.mjs';
 import { readDefinition } from './definition.mjs';
 import { driverCapability } from './envelope.mjs';
-import { bareWorkflowName, locate as locateWorkflow, TARGET_NAME, validate as validateGraph } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
+import { bareWorkflowName, locate as locateWorkflow, runRoot, TARGET_NAME, validate as validateGraph } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
 
 /** The refusal names `commit` and `openTemp` report under, kept in one place. */
 const CODES = { unwritable: 'umbrella-unwritable', tempExists: 'umbrella-temp-exists' };
@@ -998,6 +999,43 @@ export function prune(root, { name = null, dryRun = false } = {}) {
 }
 
 /**
+ * List the workspace's runs: every folder under `.maister/umbrella/runs/` that
+ * holds a state file, set-aside copies left out, in id order. Each run carries
+ * enough to tell it from the others — its workflow, title, task description,
+ * status, the times the engine stamped and its checkout as `resume-check`
+ * derives it — and the state file it was read from. A state that cannot be
+ * read is listed by id with an `error` naming the cause, so one bad run never
+ * hides the rest. A pure read: nothing is written.
+ */
+export function runs(root) {
+  try {
+    const base = path.resolve(root);
+    if (!isDirectory(base)) {
+      throw new Refusal('umbrella-root-unusable',
+        `${root} is not a directory, so there are no runs to list. Pass --root pointing at the workspace itself.`);
+    }
+    const read = readRuns(base);
+    const listed = [
+      ...read.entries.map((run) => ({
+        id: run.id,
+        workflow: run.workflow,
+        title: run.title,
+        description: run.description,
+        status: run.status,
+        created: run.created,
+        updated: run.updated,
+        root: run.root,
+        state: run.state,
+      })),
+      ...read.unreadable,
+    ].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    return { ok: true, runs: listed };
+  } catch (err) {
+    return refused(err);
+  }
+}
+
+/**
  * One run that is holding a chain back, in the words an operator can act on.
  *
  * The run id alone was true and not actionable: it said which run, not what that
@@ -1030,8 +1068,10 @@ function generatedStems(home) {
 }
 
 /**
- * Every run under the workspace, with the definition file its state names and
- * whether it has closed. A copy set aside beside a run (`isSetAside`) is not a
+ * Every run under the workspace, with the definition file its state names,
+ * whether it has closed, and what `runs` lists to identify it. A state that
+ * cannot be read is a warning, and the same run is listed in `unreadable` by
+ * id for `runs` to report. A copy set aside beside a run (`isSetAside`) is not a
  * run and is left out: it neither holds a chain back nor names one. The source is resolved the way the envelope resolves
  * it — workspace-relative first, then run-relative, then as given — so a state
  * the engine wrote reads back the same here as it does at dispatch.
@@ -1040,7 +1080,8 @@ function readRuns(base) {
   const runsDir = path.join(base, FRAMEWORK_DIR, ...RUNS_DIR);
   const entries = [];
   const warnings = [];
-  if (!isDirectory(runsDir)) return { entries, warnings };
+  const unreadable = [];
+  if (!isDirectory(runsDir)) return { entries, warnings, unreadable };
   for (const id of fs.readdirSync(runsDir).sort()) {
     if (isSetAside(id)) continue;
     const run = path.join(runsDir, id);
@@ -1048,18 +1089,31 @@ function readRuns(base) {
     if (!isFile(stateFile)) continue;
     const read = readDefinition(stateFile);
     if (read.doc === null || !isMap(read.doc)) {
+      const cause = read.errors.map((each) => each.message).join('; ') || 'not a mapping';
       warnings.push({
         code: 'run-state-unreadable',
         path: relative(base, stateFile),
-        message: `${relative(base, stateFile)} could not be read (${read.errors.map((each) => each.message).join('; ') || 'not a mapping'}), so which chain it names is unknown and every generated chain is held back until it is repaired or removed.`,
+        message: `${relative(base, stateFile)} could not be read (${cause}), so which chain it names is unknown and every generated chain is held back until it is repaired or removed.`,
       });
+      unreadable.push({ id, state: relative(base, stateFile), error: `the state could not be read: ${cause}` });
       continue;
     }
-    const source = isMap(read.doc.workflow) ? read.doc.workflow.source : null;
-    const status = isMap(read.doc.task) ? read.doc.task.status : null;
-    const pending = isMap(read.doc.orchestrator) ? read.doc.orchestrator.gate_pending : null;
+    const workflow = isMap(read.doc.workflow) ? read.doc.workflow : {};
+    const task = isMap(read.doc.task) ? read.doc.task : {};
+    const orchestrator = isMap(read.doc.orchestrator) ? read.doc.orchestrator : {};
+    const inputs = isMap(orchestrator.options) && isMap(orchestrator.options.inputs) ? orchestrator.options.inputs : {};
+    const source = workflow.source;
+    const status = task.status;
+    const pending = orchestrator.gate_pending;
     entries.push({
       id,
+      workflow: textOrNull(workflow.name),
+      title: textOrNull(task.title),
+      description: textOrNull(inputs.task_description) ?? textOrNull(inputs.question),
+      status: textOrNull(status),
+      created: textOrNull(orchestrator.created),
+      updated: textOrNull(orchestrator.updated),
+      root: runRoot(read.doc, run),
       file: sourceFile(base, run, source),
       closed: CLOSED_STATUSES.includes(status) && (pending === null || pending === undefined),
       // The gate a run is parked on, when it is parked on one. Carried so the
@@ -1069,7 +1123,12 @@ function readRuns(base) {
       state: relative(base, stateFile),
     });
   }
-  return { entries, warnings };
+  return { entries, warnings, unreadable };
+}
+
+/** A string value as it stands; anything else — absent, a number, a map — as null. */
+function textOrNull(value) {
+  return typeof value === 'string' && value !== '' ? value : null;
 }
 
 /** The file a state's `workflow.source` names, or null when it names none or a built-in. */

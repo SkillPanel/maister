@@ -6,11 +6,13 @@
  * Windows checkout with no POSIX shell as it does anywhere else. Zero
  * dependencies, `node:` builtins only, Node >= 20.
  *
- * Seven verbs, one contract:
+ * Eight verbs, one contract:
  *
  *   init      --root [--members-root --force --scaffold]        JSON on stdout
  *   validate  --root [--definition…]                            JSON on stdout
  *   prune     --root [--name --dry-run]                         JSON on stdout
+ *   runs      --root                                            JSON on stdout
+ *             (one array, a run to an element; a pure read)
  *   envelope  --run --node --ledger --root [--input-file]        JSON on stdout
  *             (overrides in the input file, or on stdin; opens the
  *             dispatch's ledger entry when none records the node)
@@ -89,6 +91,12 @@ const VERBS = {
     module: 'manifest.mjs',
     entry: 'prune',
     flags: ['root', 'name', 'dry-run'],
+    required: ['root'],
+  },
+  runs: {
+    module: 'manifest.mjs',
+    entry: 'runs',
+    flags: ['root'],
     required: ['root'],
   },
   envelope: {
@@ -429,6 +437,19 @@ async function runPrune(flags) {
 }
 
 /**
+ * List the workspace's runs. Accepted, the report is the array itself rather
+ * than a wrapper, so a caller reads the runs without unpacking a key; a
+ * refusal is the usual `{ok: false, errors}` at exit 1.
+ */
+async function runRuns(flags) {
+  const runs = await implementationOf('runs');
+  const result = runs(flags.root);
+  if (!result.ok) return finish(result);
+  report(result.runs);
+  return EXIT.OK;
+}
+
+/**
  * Build and publish one node's dispatch envelope, opening its ledger entry in
  * `--ledger` when none records the node yet. `--root` is required rather than
  * derived: the manifest is consulted unconditionally, and walking up from the
@@ -515,6 +536,7 @@ const RUNNERS = {
   init: runInit,
   validate: runValidate,
   prune: runPrune,
+  runs: runRuns,
   envelope: runEnvelope,
   seed: runSeed,
   ledger: runLedger,
