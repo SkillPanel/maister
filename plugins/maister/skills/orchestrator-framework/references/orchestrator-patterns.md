@@ -81,8 +81,8 @@ A gate is not the only question a phase asks. A phase may ask its own — a clar
 | The run's driver | A question a phase asks inside itself is |
 |---|---|
 | absent, or `kind: terminal` | asked in session, exactly as the phase describes it |
-| `kind: cockpit` whose `features` list `question-sets` | **suspended to the operator**: every question the phase can form at its first asking point goes out as one `kind: question` request, and the phase resumes `running` with the answers recorded as `by: operator` decisions |
-| any other — `dispatch`, or a cockpit without that feature | **never asked**; the phase takes the default its *Without question sets* line names, and records that it did |
+| `kind: cockpit` whose `features` list `question-sets`, in a run that is not dispatched | **suspended to the operator**: every question the phase can form at its first asking point goes out as one `kind: question` request, and the phase resumes `running` with the answers recorded as `by: operator` decisions |
+| any other — a dispatched run, or a cockpit without that feature | **never asked**; the phase takes the default its *Without question sets* line names, and records that it did |
 
 The workflow engine's `references/in-node-questions.md` holds the mechanism — one request per attempt, written to disk before suspending, what is recorded, and the policy that classes questions when the freeze recorded `orchestrator.classes_questions`. Asking in session under a driver is the defect this rule prevents: nobody is in the session to answer.
 
@@ -216,9 +216,9 @@ orchestrator:
 
   # Who drives the run — absent means terminal; written whole, never merged
   driver:
-    kind: terminal | cockpit | dispatch  # The gate rule keys on this (§ 2)
+    kind: terminal | cockpit | dispatch  # The gate rule keys on this (§ 2); dispatch is the legacy form of a dispatched run
     cwd: [absolute path]                 # Required beside cockpit or dispatch; where the run was started — the run is located by its state file, never by this
-    dispatch_id: [id]                    # Optional; a dispatched run records its dispatch, so runs sharing one checkout are told apart
+    dispatch_id: [id]                    # A dispatched run's: {kind: cockpit, cwd, dispatch_id} is how a dispatch seed records one, never given question sets (workflow-engine skill, "A dispatched run is told by its dispatch_id"); also tells apart runs sharing one checkout
     session: {id: [session id]}          # A cockpit's, set when it adopts the run; the engine never writes one
     features: []                         # What the driver carries, e.g. question-sets (§ 2.2); a sub-run's freeze copies its parent's, else the engine only reads it
 

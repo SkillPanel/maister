@@ -60,12 +60,14 @@ a run an operator would believe was suspended.
 ## Walk two — a cockpit or dispatch driver, freeze, print, end the turn
 
 W1, W2 and W3 are identical but for one field: W2's `orchestrator.driver` is
-`{kind: cockpit, cwd: <project root>}` (or `{kind: dispatch, cwd: …}`) and carries **no
+`{kind: cockpit, cwd: <project root>}` (a legacy `{kind: dispatch, cwd: …}` parent's child may
+record its parent's kind) and carries **no `dispatch_id`**, which belongs to the dispatched run
+alone, and **no
 `session`**. The daemon assigns a session when it adopts the run; the engine never writes one.
 Nor does W2 send `features`: the writer copies the parent's driver features into the child at the
 freeze, as it copies the autonomy ceiling, so a child of a cockpit that shows question sets asks
-its in-node questions too, and never gains a feature its parent lacks (the engine skill,
-*Sub-runs*).
+its in-node questions too, and never gains a feature its parent lacks — nor `question-sets` from
+a dispatched parent, which never carried them (the engine skill, *Sub-runs*).
 
 Then, and only then:
 

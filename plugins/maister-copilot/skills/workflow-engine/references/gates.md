@@ -10,7 +10,7 @@ later guard reads, and may offer no stop when one of them is the way to the end 
 | `orchestrator.driver.kind` | The gate is |
 |---|---|
 | absent, or `terminal` | asked in session and answered in the same turn |
-| `cockpit`, `dispatch` | written to a request file; the run suspends and a later turn answers it |
+| `cockpit`, `dispatch` | written to a request file; the run suspends and a later turn answers it — a dispatched run's too, under either form (engine skill, *A dispatched run is told by its `dispatch_id`*) |
 
 Decide which of the two applies once, when the run starts, from the driver block the state
 file already carries. A gate never changes mode partway through a run.
@@ -34,6 +34,11 @@ Send the answer only**: never compose provenance stamps, triage, settlement or a
   driven answer's from the request file's answer block. An answer given at the terminal gains
   `actor: {kind: person, id: <answered_by>}`. The five keys are record-only: `prior-context`
   never prints them.
+- **The actor's role.** `actor` is `{kind, id}`, and `kind` names the role of whoever acted:
+  `person` — a person answering for themselves, the kind a terminal answer gains — or
+  `coordinator` — the cockpit's coordinator answering on a person's behalf, which names that
+  person in `on_behalf_of`. The writer records the kind as sent, whatever it names, and the
+  checkpoint counts operator answers by it.
 - **On whose behalf.** A hub may relay a person's answer to this machine. The answer then
   carries `on_behalf_of`: the name of the person the relaying side says gave it.
   - `by` stays `operator`, and `answered_by` stays the machine's operator, who still writes the
@@ -125,7 +130,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   revise option the answer named; when that option is gone because the gate reached its ceiling
   of ten, ask the gate again without `--reask`, with its continue and stop options.
 - **`gate-brief-questions-unsupported`**: a question set was sent, but the run's driver carries
-  none — only a cockpit whose features list `question-sets` does. Nothing is written. Do not
+  none — only a cockpit whose features list `question-sets`, in a run that is not dispatched, does. Nothing is written. Do not
   suspend: in a terminal run ask the questions in session; under any other driver take the
   default the node's *Without question sets* line names and record it `by: default`.
 - **`gate-brief-not-askable`**: the question set names a gate, which is asked from its own
@@ -262,7 +267,7 @@ questions.
    flat `answer:` on the summary, which the writer folds into this item anyway. The writer adds
    the option's label as the gate showed it as `decision` (a bare "Continue" completed with
    where it leads, a stop under a parent scoped to it), `by: operator`, and the person's name as `answered_by`
-   with `via` the run's driver kind under a `cockpit` or `dispatch` driver, `terminal` otherwise. When the chosen continue sets gate values, the writer records them on
+   with `via` `dispatch` in a dispatched run, `cockpit` under a cockpit driving its run directly, `terminal` otherwise. When the chosen continue sets gate values, the writer records them on
    the gate's entry in the same write; a `values` sent for a gate is refused
    `state-gate-values-sent`. A revise option — its `note` is `true` — is
    recorded by `gate-revise` instead, after its note is asked at once (*Revising at a gate*). The option is one of the gate's own ids, spelled as
@@ -450,7 +455,7 @@ When no checkpoint follows a held choice, the run raises one of its own before i
 the held rule (engine § *The ready set*). `held-approval` is a reserved id, never a node of the
 frozen graph, so no definition and no `graph_hash` changes. In a run that records
 `classes_questions`, the closing node runs `gate-brief --node=held-approval` before its closing
-patch and, under dispatch, before its close-out (engine § *Ending a dispatched run*):
+patch and, in a dispatched run, before its close-out (engine § *Ending a dispatched run*):
 - `gate-brief-nothing-held` — nothing waits: close the run as usual;
 - otherwise it is asked like a gate, by the run's driver: in session with the picker, or suspended
   with `gate-request` — the writer accepts its `status` writes for exactly this. The brief

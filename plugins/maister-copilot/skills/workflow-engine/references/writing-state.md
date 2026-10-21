@@ -16,8 +16,10 @@ able to write:
 
 - `orchestrator` and `task` — the two required core blocks. Scalars replace, and so does
   `orchestrator.driver`, which is one contract-shaped value written whole — a dispatched run's
-  carries an optional `dispatch_id` beside `kind` and `cwd`, the dispatch it runs, which the
-  writer keeps and the engine never reads. `cwd` is absolute and records the directory the run
+  is `{kind: cockpit, cwd, dispatch_id}`, the dispatch it runs, which the writer keeps; the engine
+  reads the id only to know the run is dispatched (engine skill, *A dispatched run is told by its
+  `dispatch_id`*), and a legacy `{kind: dispatch, …}` reads as a dispatched run with or without
+  one. `cwd` is absolute and records the directory the run
   was started in, which a driver needs to start a session there again; nothing reads it to find
   the run. A run is located by its state file, four levels below its checkout under one of two
   roots — `<checkout>/.maister/tasks/<type>/<date-name>`, or
@@ -59,7 +61,11 @@ able to write:
   (`references/in-node-questions.md` § *In-node questions*). **Under a `cockpit` or `dispatch`
   driver, a person answers only through a recorded answer**: an operator-shaped item the node
   sends with no name, `via` or `actor` is recorded `by: run`, unless the writer folded it from an
-  answer block, already holds it as an answer, or it carries `on_behalf_of`.
+  answer block, already holds it as an answer, or it carries `on_behalf_of`. An answer given in a
+  dispatched run's session is stamped `via: dispatch` on either driver form, one under a cockpit
+  driving its run directly `via: cockpit`. An answer's `actor` is `{kind, id}`, recorded as sent;
+  its `kind` is the actor's role — `person`, or `coordinator` for the cockpit's coordinator
+  answering on a person's behalf (`references/gates.md` § *Provenance*).
 - `project_context`, `related_tasks`, `verification_context`, `external_research` — the four
   optional top-level blocks, each a **top-level sibling** of `orchestrator:` and of the context
   block. A mapping is merged key by key; `related_tasks` is a list and is replaced whole, so a

@@ -11,8 +11,8 @@ them. They follow the same driver, and only the driver:
 | The run's driver | An in-node question is |
 |---|---|
 | absent, or `kind: terminal` | asked in session, exactly as the node's *Asks* part describes it |
-| `kind: cockpit` whose `features` list `question-sets` | **suspended to the operator** as one question set (*When a question suspends*) |
-| any other — `dispatch`, or a cockpit without that feature | **never asked**; the node takes the default its *Without question sets* line names, and records that it did |
+| `kind: cockpit` whose `features` list `question-sets`, in a run that is not dispatched | **suspended to the operator** as one question set (*When a question suspends*) |
+| any other — a dispatched run (engine skill, *A dispatched run is told by its `dispatch_id`*), or a cockpit without that feature | **never asked**; the node takes the default its *Without question sets* line names, and records that it did |
 
 `orchestrator.driver.features` is the driver's own list of what it carries, seeded by whatever
 started the run (a sub-run's freeze copies its parent's); the engine only reads it. Without
@@ -365,7 +365,7 @@ answered* says, and the node carries on `running` with the answers recorded on i
 A node a gate's revise re-ran asks again in its new attempt (`references/gates.md` § *Revising
 at a gate*); the writer keeps the earlier answers on the summary as history, each stamped with
 its `attempt` — the `question_id` is the question across attempts.
-Anywhere else — no feature, `dispatch`, or a set the verb refuses as unsupported — nothing is
+Anywhere else — no feature, a dispatched run, or a set the verb refuses as unsupported — nothing is
 asked and the default is taken. Asking in session anyway is never right: nobody is there.
 
 ## When nobody can be asked
@@ -406,7 +406,9 @@ answer a person gave and nothing else: a question the run settles without asking
 under any permission mode, and under a driver that asks nobody — is `{decision, by: run,
 rationale}`, never written in the answer shape. Under a `cockpit` or `dispatch` driver the
 writer credits an operator-shaped item with no name, `via` or `actor` to the run, unless it is an
-answer the writer folded from a recorded answer block or one it already holds, sent again. The older string form,
+answer the writer folded from a recorded answer block or one it already holds, sent again. An answer's
+`actor.kind` names who acted — `person`, or `coordinator` for the cockpit's coordinator answering
+on a person's behalf (`references/gates.md` § *Provenance*). The older string form,
 `defaulted: <id> -> <taken>`, is still read as `by: default`.
 
 **A run started under a driver has its inputs** (`orchestrator.options.inputs`, engine Step 4):
