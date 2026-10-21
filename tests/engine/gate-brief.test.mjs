@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, legacyMirror, readState, scratch, verb, write } from '../helpers.mjs';
 import { scalar } from '../../plugins/maister/lib/canonical.mjs';
+import { FOCUS_BUDGET, FOCUS_LINES, PREVIEW_BUDGET } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // `gate-brief` renders what the operator reads at a gate — the closing node's
 // summary, the node that will actually run next and the recommended option —
@@ -174,7 +175,7 @@ test('gate-brief --json: carries the full brief as more_details, every item whol
   assert.match(details, /\*\*Open\*\*\n- section 2 contradicts the summary\n- the intro repeats the title/);
 });
 
-test('gate-brief --json: with the lines tight the glance keeps the risks, a stop first, ahead of the decisions; a stop risk focuses Stop', t => {
+test('gate-brief --json: the glance keeps the risks, a stop first, ahead of the decisions; a stop risk focuses Stop', t => {
   const run = atReview(t, {
     draft: { decisions: ['D1 first.', 'D2 second.', 'D3 third.', 'D4 fourth.'], risks: ['R1 first.', 'R2 second.'] },
     review: { risks: ['R3 third.', 'recommend stop: the guide documents a removed command'] },
@@ -193,10 +194,12 @@ test('gate-brief --json: with the lines tight the glance keeps the risks, a stop
     '- R3 third.',
     '- R1 first.',
     '',
-    'Decided by the run (+3 more under More details):',
+    'Decided by the run (+1 more under More details):',
     '- D1 first. — draft',
-  ], 'the decisions give way before the risks, each cut counted');
-  assert.ok(glance.split('\n').length <= 9 && glance.length <= 900);
+    '- D2 second. — draft',
+    '- D3 third. — draft',
+  ], 'the risks past three and the decisions past three are counted');
+  assert.ok(glance.split('\n').length <= FOCUS_LINES && glance.length <= FOCUS_BUDGET);
 });
 
 test('gate-brief --json: a refusal carries no material', t => {
@@ -1580,7 +1583,7 @@ function atFullGate(t) {
   return run;
 }
 
-test('picker rich: the continue option previews the checkpoint at a glance, an open risk cut ahead of the decisions; More details previews the rest', t => {
+test('picker rich: the continue option previews the checkpoint at a glance, an open risk whole ahead of the decisions; More details previews the rest', t => {
   const long = 'The fixture corpus is thin. It covers two of the five dialects, so a regression in the others would pass unseen.';
   const run = atApproval(t, { ...SUMMARY, risks: [long] });
   const result = profiled(run, 'approval', 'rich');
@@ -1591,7 +1594,7 @@ test('picker rich: the continue option previews the checkpoint at a glance, an o
     'Done: Two gaps found in the parser.',
     'Next: Implementation',
     'Open risks:',
-    '- The fixture corpus is thin. It covers two of the five dialects, so a regression in the others would pass…',
+    `- ${long}`,
     '',
     'Decided by the run:',
     '- Patch the tokenizer — scope analysis',
@@ -1604,7 +1607,7 @@ test('picker rich: the continue option previews the checkpoint at a glance, an o
   assert.equal(result.question.split('\n').length, 1, 'the question is the one-line ask');
 });
 
-test('picker rich: the glance keeps within nine lines and 900 characters, More details within 2,000, and Next survives', t => {
+test('picker rich: the glance keeps within the preview budget, More details too, and Next survives whole', t => {
   const sentence = 'The parser drops a trailing token when the line ends in a comment. ';
   const shapes = [
     { summary: sentence.repeat(120).trim(), risks: Array.from({ length: 40 }, (_, index) => `Risk ${index}: ${sentence.repeat(3).trim()}`) },
@@ -1614,8 +1617,12 @@ test('picker rich: the glance keeps within nine lines and 900 characters, More d
   for (const shape of shapes) {
     const { options } = profiled(atApproval(t, { ...SUMMARY, ...shape }), 'approval', 'rich');
     const glance = options[0].preview;
-    assert.ok(glance.length <= 900 && glance.split('\n').length <= 9, `glance is ${glance.length} characters:\n${glance}`);
+    assert.ok(glance.length <= PREVIEW_BUDGET && glance.split('\n').length <= FOCUS_LINES, `glance is ${glance.length} characters:\n${glance}`);
     assert.match(glance, /^Next: Implementation$/m);
+    assert.doesNotMatch(glance, /^- .*…$/m, 'no item is cut');
+    // Only Done and Found, which never give way, take the glance past its own
+    // budget — up to the preview's — and then every item has given way to a count.
+    if (glance.length > FOCUS_BUDGET) assert.doesNotMatch(glance, /^- /m, glance);
     const details = options.at(-1).preview;
     assert.ok(details.length <= 2000, `More details preview is ${details.length} characters`);
   }

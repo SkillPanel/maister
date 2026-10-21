@@ -62,9 +62,10 @@ for (const workflow of ['development', 'performance']) {
     // The recommended continue's preview is what the picker shows first.
     const preview = brief.options[0].preview;
     assert.match(preview, /Open risks:\n- Export size is unbounded/);
-    // Nine lines hold the risk and the first fix; the audit's decision gives way to its count first.
-    assert.ok(preview.includes(['Fixed by the run: 2 (+1 more under More details)', fixed[0]].join('\n')), preview);
-    assert.match(preview, /^Decided by the audit: 1 decision, under More details\.$/m);
+    // The glance has the room for every item whole: what the audit found, the risk, both fixes and the decision.
+    assert.match(preview, /^Found: Pass with concerns: three findings, two fixed by the run, one left\.$/m);
+    assert.ok(preview.includes(['Fixed by the run: 2', ...fixed].join('\n')), preview);
+    assert.match(preview, /^Decided by the audit:\n- The export stays CSV-only, as the codebase already writes it — audit$/m);
   });
 
   test(`${workflow}: the revise suggestions come from the open finding alone, never from a fix`, t => {
