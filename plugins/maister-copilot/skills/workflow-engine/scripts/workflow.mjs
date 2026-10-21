@@ -95,6 +95,13 @@
  *                  (each source copied into the run byte for byte, a
  *                  directory recursively, and each one it could not copy
  *                  with its reason) — writes the copies and no state
+ *   wave-start     --plan, --wave, --groups                   JSON on stdout
+ *                  (the wave's start heading appended to the work log beside
+ *                  the plan, then the run's displays re-projected)
+ *   group-done     --plan, --groups, --entry-file             JSON on stdout
+ *                  (accepted groups recorded in one call: their checkboxes
+ *                  marked, the companion synced, one work-log entry each under
+ *                  the wave that started it, the displays re-projected)
  *   sync-plan      --plan                                     JSON on stdout
  *                  (the plan companion's progress markers set from the
  *                  markdown plan's checkboxes; a no-op without a companion)
@@ -161,6 +168,12 @@ const VERBS = {
   // overlays and the profile a run would add take part only in whether the
   // named workflow is a chain, so they need the name.
   locate: { module: 'locate.mjs', flags: ['name', 'overlay', 'profile'] },
+  // The implementation phase's two bookkeeping moments, one call each. The
+  // plan, as `sync-plan` takes it, because the executor also runs outside an
+  // engine run; the work log and the state are found beside it. The entry file
+  // is the one fixed place an entry is read from (`entryFileOf`).
+  'wave-start': { module: 'plan-progress.mjs', flags: ['plan', 'wave', 'groups'] },
+  'group-done': { module: 'plan-progress.mjs', flags: ['plan', 'groups', 'entry-file'] },
   // `--patch-file` names the one file a patch may be read from, beside the
   // state; it is a flag rather than a derived path so the call says what it
   // reads, and it is checked against that one place (`patchFileOf`).
@@ -1166,6 +1179,58 @@ async function runSyncPlan(flags) {
   return EXIT.REJECTED;
 }
 
+/** The entry file's one name, beside the plan: `group-done --entry-file` reads it from nowhere else. */
+const ENTRY_FILE = '.work-log-entry.md';
+
+/**
+ * `wave-start` and `group-done` report like `sync-plan`: the result as JSON on
+ * stdout, each warning as a `warning:` line on stderr, a refusal's message on
+ * stderr with its code first and exit 1. `group-done` deletes its entry file
+ * once the entry is in the log, and keeps it on a refusal.
+ */
+async function runWaveStart(flags) {
+  if (!flags.plan) throw new UsageError('wave-start needs --plan');
+  if (!/^[1-9]\d*$/.test(flags.wave ?? '')) throw new UsageError('wave-start needs --wave, the wave\'s number');
+  const module = await loadModule(VERBS['wave-start'].module);
+  const start = entryOf(module, 'waveStart', VERBS['wave-start'].module);
+  return reportProgress(start({ plan: flags.plan, wave: Number(flags.wave), groups: groupsOf(flags, 'wave-start') }));
+}
+
+async function runGroupDone(flags) {
+  if (!flags.plan) throw new UsageError('group-done needs --plan');
+  const groups = groupsOf(flags, 'group-done');
+  if (!flags['entry-file']) throw new UsageError(`group-done needs --entry-file, naming the entry written to ${ENTRY_FILE} beside the plan`);
+  const file = anchoredFile({
+    given: flags['entry-file'],
+    expected: path.join(path.dirname(path.resolve(flags.plan)), ENTRY_FILE),
+    noun: 'the entry file',
+    beside: 'beside the plan it records',
+    Usage: UsageError,
+  });
+  const entry = readFileText(file, 'the work-log entry', UsageError);
+  const module = await loadModule(VERBS['group-done'].module);
+  const done = entryOf(module, 'groupDone', VERBS['group-done'].module);
+  const code = reportProgress(done({ plan: flags.plan, groups, entry }));
+  if (code === EXIT.OK) consumeFile(file);
+  return code;
+}
+
+/** `--groups=3` or `--groups=2,3`: group numbers as the plan writes them. */
+function groupsOf(flags, verb) {
+  const list = String(flags.groups ?? '').replace(/\s+/g, '');
+  if (!/^[1-9]\d*(?:,[1-9]\d*)*$/.test(list)) throw new UsageError(`${verb} needs --groups, the group numbers separated by commas`);
+  return [...new Set(list.split(','))];
+}
+
+function reportProgress(result) {
+  const { warnings = [], ...rest } = result;
+  report(rest);
+  for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  if (result.ok) return EXIT.OK;
+  for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  return EXIT.REJECTED;
+}
+
 /**
  * Say whether a task directory is a run this engine resumes.
  *
@@ -1253,6 +1318,8 @@ const RUNNERS = {
   resolve: runResolve,
   diagram: runDiagram,
   locate: runLocate,
+  'wave-start': runWaveStart,
+  'group-done': runGroupDone,
   'write-state': runWriteState,
   'gate-request': runGateRequest,
   'gate-revise': runGateRevise,

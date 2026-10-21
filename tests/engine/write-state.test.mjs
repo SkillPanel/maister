@@ -790,6 +790,7 @@ test('write-state: an identical re-send of the frozen workflow block changes not
   const result = write(run, { workflow: { name: 'development', graph_hash: graph.graph_hash, grammar_version: 1, nodes: retyped(graph) } });
   assert.equal(result.code, 0, result.stderr);
   assert.doesNotMatch(result.stdout, /^workflow/m, 'nothing under workflow is reported changed');
+  assert.match(result.stderr, /^note: ignored the supplied workflow block, which matches the frozen one/m);
   assert.equal(unstamped(fs.readFileSync(run.state, 'utf8')), unstamped(before));
 });
 
@@ -1105,7 +1106,8 @@ for (const [label, entry, at] of [
   ['an unknown decision source', { summary: 'S.', decisions: [{ decision: 'x', by: 'agent' }] }, /decisions\[0\]\.by is "agent", which is not one of operator, run, audit, default/],
   ['an unknown risk tag', { summary: 'S.', risks: [{ risk: 'x', tag: 'blocker' }] }, /risks\[0\]\.tag is "blocker", which is not one of open, tradeoff, followup, stop, resolved/],
   ['a risk object with no tag', { summary: 'S.', risks: [{ risk: 'x' }] }, /risks\[0\]\.tag is null/],
-  ['a headline over 220 characters', { summary: 'S.', headline: 'x'.repeat(221) }, /headline is "x+", which is not one non-empty sentence on one line, at most 220 characters/],
+  ['an empty headline', { summary: 'S.', headline: '  ' }, /headline is "  ", which is not one non-empty sentence on one line, at most 220 characters/],
+  ['a headline that is not text', { summary: 'S.', headline: 42 }, /headline is 42, which is not one non-empty sentence/],
   ['an unknown artifact role', { summary: 'S.', artifacts: [{ path: 'a.md', role: 'draft' }] }, /artifacts\[0\]\.role is "draft", which is not one of primary, review, evidence, log/],
   ['a metric with no value', { summary: 'S.', metrics: [{ label: 'Tests' }] }, /metrics\[0\] is/],
   ['an as_recommended that is not a boolean', { summary: 'S.', decisions: [{ decision: 'x', by: 'operator', as_recommended: 'yes' }] }, /as_recommended is "yes"/],
@@ -1121,6 +1123,64 @@ for (const [label, entry, at] of [
     assert.match(result.stderr, /Nothing was written/);
   });
 }
+
+// cosmetic faults: written with a note instead of refused
+
+test('write-state: a headline over 220 characters is cut at the last sentence that fits, with a note', t => {
+  const run = scratch(t);
+  freeze(run);
+  const first = `The parser now reads every form the old one did, ${'and more '.repeat(10).trim()}.`;
+  const headline = `${first} ${'Then the writer follows suit. '.repeat(6).trim()}`;
+  assert.ok(headline.length > 220 && first.length <= 220);
+  const result = write(run, { node_summaries: { analysis: { summary: 'S.', headline } } });
+  assert.match(result.stderr, /^note: fitted the supplied node_summaries\.analysis\.headline to one line of at most 220 characters, cut at a sentence/m);
+  const stored = readState(run).node_summaries.analysis.headline;
+  assert.ok(stored.length <= 220);
+  assert.ok(headline.startsWith(stored) && stored.endsWith('.'), stored);
+});
+
+test('write-state: a headline with no sentence end that fits is cut at a word; one spanning lines is folded', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { node_summaries: { analysis: { summary: 'S.', headline: 'word '.repeat(60) } } });
+  const cut = readState(run).node_summaries.analysis.headline;
+  assert.ok(cut.length <= 220 && cut.endsWith('…'), cut);
+  const folded = write(run, { node_summaries: { analysis: { headline: 'Two gaps found;\nthe patch closes both.' } } });
+  assert.match(folded.stderr, /^note: fitted the supplied node_summaries\.analysis\.headline/m);
+  assert.equal(readState(run).node_summaries.analysis.headline, 'Two gaps found; the patch closes both.');
+});
+
+test('write-state: a headline that already fits is kept as sent, with no note', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = write(run, { node_summaries: { analysis: { summary: 'S.', headline: 'All four groups landed.' } } });
+  assert.doesNotMatch(result.stderr, /fitted/);
+});
+
+test('write-state: the run\'s own context block sent top-level is written as context, with a note', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = write(run, { task_context: { risk_level: 'low' }, nodes: { analysis: { status: 'running' } } });
+  assert.match(result.stderr, /^note: wrote the supplied task_context as context, the patch key that writes this run's context block/m);
+  const state = readState(run);
+  assert.equal(state.task_context.risk_level, 'low');
+  assert.equal(state.workflow.nodes.analysis.status, 'running', 'the rest of the patch lands');
+});
+
+test('refusal: another workflow\'s context block, or one sent beside context, is still an unknown key', t => {
+  const run = scratch(t);
+  freeze(run);
+  const before = fs.readFileSync(run.state, 'utf8');
+  for (const patch of [
+    { research_context: { research_type: 'technical' } },
+    { task_context: { risk_level: 'low' }, context: { risk_level: 'high' } },
+    { task_contxt: { risk_level: 'low' } },
+  ]) {
+    const result = refused(run, patch);
+    assert.match(result.stderr, /^state-patch-unknown-key\b/, JSON.stringify(patch));
+  }
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before);
+});
 
 test('write-state: a gate answer gains the label it was chosen by and who chose it; one sent typed is kept', t => {
   const run = scratch(t);

@@ -47,6 +47,11 @@ function conventions(skill = SKILL) {
 const row = key => `convention (${key}): ${conventions()[key]}`;
 const LATER = 'convention (named by a revise, has a budget): see rules';
 
+/** The closing patch skeleton a step's brief prints, its node entry and any summary keys beyond the four every step has. */
+const SUMMARY_KEYS = '"headline": "<one sentence, at most 220 characters>", "summary": "<what was found and what it means>", "decisions": [{"decision": "<…>", "by": "operator|run|audit|default"}], "risks": [{"risk": "<…>", "tag": "open|tradeoff|followup|stop|resolved"}]';
+const closing = (node, entry = '"status": "completed"', extra = '') => 'closing patch (fill each <…>; never re-send workflow): '
+  + `{"nodes": {"${node}": {${entry}}}, "node_summaries": {"${node}": {${SUMMARY_KEYS}${extra}}}}`;
+
 /** Every file under `dir`, by relative path, with its text: equal before and after means nothing was written. */
 function snapshot(dir) {
   const files = {};
@@ -92,6 +97,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     row('asks'),
     row('feeds a checkpoint'),
     LATER,
+    closing('gap-analysis', '"status": "completed", "values": {"has_reproducible_defect": true|false, "mockups_needed": true|false, "risk_level": "high|medium|low"}'),
     RULES,
   ]);
   assert.ok(slice.trim().length > 0 && !slice.startsWith('\n'), 'the section follows the one blank line');
@@ -120,6 +126,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     'with:',
     'asks (in session): standard-candidates',
     row('asks'),
+    closing('finalization'),
     RULES,
   ]);
 
@@ -164,6 +171,7 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
     row('feeds a checkpoint'),
     LATER,
     `see: ${path.join(DEFINITIONS, 'node-brief.md')} § Embedded mode`,
+    closing('draft', undefined, ', "absent": {"extras": "<reason, only when not written>"}, "recommends": {"option": "continue-to-audit|continue-to-wrap-up", "reason": "<one line>"}'),
     RULES,
     '',
     '**Does.** Write the notes from the scope. As a child run, *Embedded mode* applies.',
@@ -570,4 +578,21 @@ test('node-brief: an agent step\'s runs line carries the model and effort the ru
 
   // A direct or skill step's runs line is as it was.
   assert.equal(runsOf(nodeBrief(dev.state, 'finalization')), 'runs: direct:finalization — inline');
+});
+
+test('node-brief: the closing patch skeleton names the exact keys, and no gate or child run gets one', t => {
+  const dev = scratch(t);
+  freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  const lines = id => nodeBrief(dev.state, id).stdout.split('\n');
+  const skeleton = lines('gap-analysis').find(line => line.startsWith('closing patch'));
+  const json = JSON.parse(skeleton.slice(skeleton.indexOf('{')).replace(/true\|false/g, 'true'));
+  assert.deepEqual(Object.keys(json), ['nodes', 'node_summaries'], 'nodes and summaries at the top level, never workflow');
+  assert.deepEqual(Object.keys(json.nodes['gap-analysis']), ['status', 'values']);
+  assert.deepEqual(Object.keys(json.node_summaries['gap-analysis']), ['headline', 'summary', 'decisions', 'risks']);
+  assert.ok(!lines('gap-approval').some(line => line.startsWith('closing patch')), 'a gate is closed from gate-brief');
+  const sample = scratch(t);
+  freeze(sample);
+  const child = nodeBrief(sample.state, 'research');
+  assert.equal(child.code, 0, child.stderr);
+  assert.doesNotMatch(child.stdout, /^closing patch/m, 'a child run\'s outcome is mapped, not written from a skeleton');
 });
