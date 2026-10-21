@@ -100,6 +100,7 @@ import { briefOfRun } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
 import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
+import { DECISION_BY, HEADLINE_MAX, RISK_TAGS } from './items.mjs';
 
 /** The engine skill beside this module, whose conventions table the brief prints rows of. */
 const SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
@@ -340,8 +341,42 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (later.length && table !== null) lines.push(`convention (${later.join(', ')}): see rules`);
 
   if (section !== null) lines.push(...seeLines(section));
+  if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues));
   lines.push(`rules: ${rules}`);
   return lines;
+}
+
+/**
+ * The step's closing write with its exact keys, each value a placeholder to
+ * fill: `nodes` and `node_summaries` at the top level, the declared values
+ * typed, `absent` only for an artifact `brief:` lets go unwritten and
+ * `recommends` only where `brief:` maps one onto a gate the step feeds. Printed
+ * because a closing write guessed from memory is what the writer refused most:
+ * a summary key misspelt, a context block or a re-sent `workflow` beside it.
+ */
+function closingLine(node, values, brief, continues) {
+  const typed = Object.entries(values).map(([key, type]) => `${JSON.stringify(key)}: ${placeholderOf(type)}`);
+  const status = `"status": "completed"${typed.length ? `, "values": {${typed.join(', ')}}` : ''}`;
+  const summary = [
+    `"headline": "<one sentence, at most ${HEADLINE_MAX} characters>"`,
+    '"summary": "<what was found and what it means>"',
+    `"decisions": [{"decision": "<…>", "by": "${DECISION_BY.join('|')}"}]`,
+    `"risks": [{"risk": "<…>", "tag": "${RISK_TAGS.join('|')}"}]`,
+  ];
+  const absent = Object.keys(isPlainObject(brief.absent) ? brief.absent : {});
+  if (absent.length) summary.push(`"absent": {${absent.map(key => `${JSON.stringify(key)}: "<reason, only when not written>"`).join(', ')}}`);
+  if (isPlainObject(brief.recommends) && continues.size) {
+    summary.push(`"recommends": {"option": "${[...continues].join('|')}", "reason": "<one line>"}`);
+  }
+  const id = JSON.stringify(node);
+  return `closing patch (fill each <…>; never re-send workflow): {"nodes": {${id}: {${status}}}, "node_summaries": {${id}: {${summary.join(', ')}}}}`;
+}
+
+/** A declared value's placeholder: its literal alternatives, or the kind of string it takes. */
+function placeholderOf(type) {
+  if (type === 'bool') return 'true|false';
+  if (isPlainObject(type) && Array.isArray(type.enum)) return `"${type.enum.join('|')}"`;
+  return `"<${typeof type === 'string' ? type : 'value'}>"`;
 }
 
 /** `when: <guard> — now <true | false | not yet decidable>`, by `gate-brief`'s rule. */

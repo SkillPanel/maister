@@ -98,7 +98,7 @@ import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { companionsOf, owedCompanions } from './companions.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
+import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
@@ -516,8 +516,9 @@ export function writeState({ state, patch, regress = null }) {
   const writeWarnings = [];
   const notes = [];
   try {
-    checkPatch(patch);
+    const misplaced = checkPatch(patch);
     const doc = readDoc(state);
+    if (misplaced !== null) patch = ownContextRouted(doc, patch, misplaced, notes);
     const now = canonical.stamp();
     // The top-level keys the file already carries, plus the ones this write
     // means to introduce: anything else in the candidate came from a value,
@@ -655,15 +656,45 @@ function settledState(typed) {
   return value === null || value === undefined;
 }
 
+/**
+ * Hold the patch to the closed vocabulary. Returns the one unknown key that may
+ * be the run's own context block sent top-level — a `<name>_context` key, sent
+ * without `context` — for `ownContextRouted` to judge once the file is read;
+ * null when there is none. Any other unknown key is refused here.
+ */
 function checkPatch(patch) {
   if (!isPlainObject(patch)) throw new Refusal('state-patch-invalid', 'the patch must be a JSON object');
   const known = new Set(PATCH_KEYS);
-  for (const key of Object.keys(patch)) {
-    if (!known.has(key)) {
-      throw new Refusal('state-patch-unknown-key',
-        `the patch key "${key}" is not one of ${PATCH_KEYS.join(', ')}`);
-    }
+  const unknown = Object.keys(patch).filter(key => !known.has(key));
+  if (unknown.length === 1 && isContextBlock(unknown[0]) && !Object.hasOwn(patch, 'context')) return unknown[0];
+  if (unknown.length) throw unknownKey(unknown[0]);
+  return null;
+}
+
+function unknownKey(key) {
+  return new Refusal('state-patch-unknown-key', `the patch key "${key}" is not one of ${PATCH_KEYS.join(', ')}`);
+}
+
+/**
+ * The run's own context block, sent under its block name instead of under
+ * `context`, written as `context` with a note: the block it names is exactly
+ * the one `context` writes, so nothing is guessed. A block name the run does
+ * not derive — another workflow's, or a misspelling — is refused as any
+ * unknown key is, since writing it anywhere would put the values where no
+ * reader of this run looks.
+ */
+function ownContextRouted(doc, patch, key, notes) {
+  let own;
+  try {
+    own = contextBlock(doc, patch);
+  } catch (err) {
+    if (err instanceof Refusal) throw unknownKey(key);
+    throw err;
   }
+  if (own !== key) throw unknownKey(key);
+  const { [key]: context, ...rest } = patch;
+  notes.push(`wrote the supplied ${key} as context, the patch key that writes this run's context block; send it under context`);
+  return { ...rest, context };
 }
 
 // ---------------------------------------------------------------------------
@@ -1207,7 +1238,7 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     intended.add('task');
   }
   if (patch.workflow) {
-    applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored);
+    applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored, notes);
     intended.add('workflow');
   }
   // Each gate answer the patch sends, as the run held it before this write:
@@ -1682,7 +1713,7 @@ function splitTopLevel(body) {
  * `nodes:` child no YAML parser accepts, and under it a node no graph declared,
  * recorded `completed` and read back by the ready set. Through the success path.
  */
-function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
+function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = []) {
   if (!isPlainObject(workflow)) throw new Refusal('state-patch-invalid', 'the workflow patch must be an object');
   const nodes = workflow.nodes;
   if (!isPlainObject(nodes) || Object.keys(nodes).length === 0) {
@@ -1699,7 +1730,8 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
   // out was erased, a node re-typed as its bare kind went back to `pending` with
   // its values and clocks gone, and a node no graph declares joined the ready
   // set recorded however the patch said. A re-send identical to the file is
-  // the one harmless case, and it is a no-op.
+  // the one harmless case: it is dropped, with a note naming where node
+  // updates go, and the rest of the patch lands.
   if (doc.has('workflow')) {
     const differences = frozenDifferences(doc, workflow);
     if (differences.length) {
@@ -1707,6 +1739,8 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
         `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — `
         + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
     }
+    notes.push('ignored the supplied workflow block, which matches the frozen one; the freeze is written once, '
+      + 'so send node updates under the top-level nodes key and never re-send workflow');
     return;
   }
 
@@ -2927,6 +2961,17 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
     }
     if (Object.hasOwn(entry, 'absent')) assertAbsent(key, entry.absent, graphOf === null ? null : graphOf());
     if (Object.hasOwn(entry, 'recommends')) assertRecommends(key, entry.recommends, graphOf === null ? null : graphOf());
+    // A headline's layout is not worth a refused write: one that spans lines
+    // or runs long is fitted to one sentence within the limit, with a note.
+    // An empty one or a value that is not text is still refused below.
+    if (typeof entry.headline === 'string' && entry.headline.trim() !== '') {
+      const fitted = fittedHeadline(entry.headline);
+      if (fitted !== entry.headline) {
+        entry.headline = fitted;
+        classing?.notes.push(`fitted the supplied node_summaries.${key}.headline to one line of at most ${HEADLINE_MAX} characters, `
+          + 'cut at a sentence; a headline is one sentence');
+      }
+    }
     assertItems(`node_summaries.${key}`, entry);
     if (Array.isArray(entry.decisions)) {
       recorded ??= recordedNodes(doc);
