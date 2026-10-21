@@ -139,8 +139,8 @@ If `--auto-apply` is set, automatically approve findings with confidence >= 90% 
 
 Write standard files through the docs-operator subagent rather than Write/Edit, so INDEX.md and .github/copilot-instructions.md stay consistent with the files.
 
-1. **Prepare content** for every approved standard — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. Note create vs update for each target file.
-2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister-copilot:docs-operator`) with all prepared standards, instructing it to apply each create/update (merging updates with existing content), then regenerate INDEX.md and confirm .github/copilot-instructions.md references the standards directory.
+1. **Prepare content** for every approved standard — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. A rule cites at most one example path — never an inventory of call sites, a date or a ticket reference. Note create vs update for each target file, and prefer a new topic file (or a sub-folder for a topic with several) over appending to a file already past about 12 KB or 15 rules.
+2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister-copilot:docs-operator`) with all prepared standards, instructing it to apply each create/update (merging updates with existing content), then refresh INDEX.md with every written path as changed — `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, as an absolute path — and confirm .github/copilot-instructions.md references the standards directory.
 
 Display application summary: created count, updated count, total active.
 
@@ -175,7 +175,7 @@ Display final results:
 
 | Integrates With | How |
 |-----------------|-----|
-| `docs-manager` skill | Creates/updates standard files, regenerates INDEX.md |
+| `docs-manager` skill | Creates/updates standard files, refreshes INDEX.md |
 | `implementation-plan-executor` skill | Discovered standards immediately available via INDEX.md |
 | `standards-update` command | Complementary: discover = automated bulk, update = manual single |
 

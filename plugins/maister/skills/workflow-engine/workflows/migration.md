@@ -33,7 +33,7 @@ state file, and settles the HTML output option later nodes read.
    output, the paths copied as printed.
 6. **Discover the project documentation** — from the documentation index under
    the project's docs directory, if one exists, extract every path in its
-   project-documentation section, predefined and operator-added alike, into
+   project-documentation sections, predefined and operator-added alike, into
    `project_context.project_doc_paths`: a top-level key of the patch, never
    nested inside the orchestrator or context block.
 

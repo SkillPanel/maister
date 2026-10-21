@@ -15,7 +15,7 @@ and the context ingests the rest of the run reads from.
    `html`, read later by `ui-mockups`).
 3. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
-   project-documentation section, predefined and operator-added alike. Record
+   project-documentation sections, predefined and operator-added alike. Record
    them as `project_context.project_doc_paths`, a top-level block of its own.
 4. **Detect research context** — when the invocation named a completed research
    task, as the sole argument or through the research input, bring its report and

@@ -18,7 +18,7 @@ and the profiling-data drop point the analysis node reads from.
 2. **Create `analysis/user-profiling-data/`**, empty. **An empty directory is
    the answer "no profiling data", not a missing artifact.**
 3. **Discover the project documentation** — every path in the
-   project-documentation section of the documentation index under the
+   project-documentation sections of the documentation index under the
    project's docs directory, if one exists, predefined and operator-added
    alike, into `project_context.project_doc_paths`: a top-level key of the
    patch, never nested inside the orchestrator or context block.

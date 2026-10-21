@@ -98,9 +98,9 @@ Store selection for Phase 5.
 
 ## PHASE 5: Initialize Documentation Structure
 
-**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`) with prompt:
+**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`) with prompt — here and in Phase 7, `[check path]` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path:
 
-> "Initialize documentation structure. Standards selection: [array from Phase 4]. [If --standards-from was provided: Standards source path: [resolved path]/.maister/docs/standards/. Copy standards from this external path instead of built-in defaults.] Only copy selected standard categories. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Create placeholder sections in INDEX.md for skipped categories."
+> "Initialize documentation structure. Standards selection: [array from Phase 4]. [If --standards-from was provided: Standards source path: [resolved path]/.maister/docs/standards/. Copy standards from this external path instead of built-in defaults.] Only copy selected standard categories. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Create placeholder sections in INDEX.md for skipped categories. Check: [check path]."
 
 Wait for docs-operator to complete, then immediately proceed to Phase 6.
 
@@ -148,7 +148,7 @@ Write each file to `.maister/docs/project/`.
 
 **Step 1**: Invoke `docs-operator` subagent via Task tool (subagent_type: `maister:docs-operator`) with prompt:
 
-> "Regenerate INDEX.md to include all newly created project documentation. Then verify CLAUDE.md is properly integrated with .maister/docs/ documentation."
+> "Refresh INDEX.md with the project documentation written in Phase 6 as changed. Check: [check path]. Then verify CLAUDE.md is properly integrated with .maister/docs/ documentation."
 
 Wait for docs-operator to complete, then immediately continue with Step 2.
 
@@ -161,7 +161,7 @@ Wait for docs-operator to complete, then immediately continue with Step 2.
   1. Review generated documentation
   2. Customize for your team
   3. Start development with `/maister:work`
-  4. Keep documentation current
+  4. Keep the documents current; INDEX.md is refreshed for you, never edited by hand
 
 ---
 
