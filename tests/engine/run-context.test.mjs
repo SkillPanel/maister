@@ -31,7 +31,7 @@ function runContext(run, node) {
 /** The block the verb prints, built line by line from its parts. */
 function block({ taskPath, html, docs = [], companions = [] }) {
   const lines = ['## Run context', '', `task_path: ${taskPath}`, `html: ${html}`];
-  if (docs.length) lines.push('docs:', ...docs.map(doc => `- ${doc}`));
+  if (docs.length) lines.push('docs (read-only):', ...docs.map(doc => `- ${doc}`));
   else lines.push('docs: none');
   lines.push(SCRATCH, CONTRACT);
   if (typeof companions === 'string') lines.push(`companions: ${companions}`);
@@ -155,6 +155,24 @@ test('run-context: docs in order, deduplicated, with the standards index only wh
     html: 'off',
     docs: [path.join(docs, 'INDEX.md'), path.join(docs, 'standards/global/style.md'), path.join(docs, 'project/tech-stack.md')],
   }));
+
+  // Imported by the project's instructions, the index is already in every
+  // delegate's context: it is left out, even where a list names it.
+  fs.writeFileSync(path.join(run.root, 'CLAUDE.md'), '# Project\n\n1. Read @.maister/docs/INDEX.md first.\n');
+  result = runContext(run, 'completion');
+  assert.equal(result.stdout, block({
+    taskPath: run.dir,
+    html: 'off',
+    docs: [path.join(docs, 'standards/global/style.md'), path.join(docs, 'project/tech-stack.md')],
+  }));
+  fs.rmSync(path.join(run.root, 'CLAUDE.md'));
+  fs.mkdirSync(path.join(run.root, '.claude'));
+  fs.writeFileSync(path.join(run.root, '.claude', 'CLAUDE.md'), '@.maister/docs/INDEX.md\n');
+  assert.doesNotMatch(runContext(run, 'completion').stdout, /INDEX\.md/);
+
+  // A path that only mentions the index, without importing it, keeps it listed.
+  fs.writeFileSync(path.join(run.root, '.claude', 'CLAUDE.md'), 'The map is `.maister/docs/INDEX.md`.\n');
+  assert.match(runContext(run, 'completion').stdout, /^- .*INDEX\.md$/m);
 
   // Nothing listed and no index: one line.
   const bare = scratch(t);

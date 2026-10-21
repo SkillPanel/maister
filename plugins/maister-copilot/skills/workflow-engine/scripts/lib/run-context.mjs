@@ -59,6 +59,15 @@ const PATTERNS = fileURLToPath(new URL('orchestrator-patterns.md', REFERENCES));
 /** Where a project's standards index lives, relative to its root; listed when it exists. */
 const STANDARDS_INDEX = path.join('.maister', 'docs', 'INDEX.md');
 
+/**
+ * The project instructions files a session loads, relative to the root. One
+ * that imports the index (`@.maister/docs/INDEX.md`) has already put it in
+ * every delegate's context, so listing it again would only invite a second
+ * read of the same file.
+ */
+const INSTRUCTIONS = ['CLAUDE.md', path.join('.claude', 'CLAUDE.md')];
+const INDEX_IMPORT = /(?:^|\s)@\.maister\/docs\/INDEX\.md(?=\s|$)/m;
+
 /** The scheme of a node that starts a sub-run, whose files land in the child's task directory. */
 const WORKFLOW_SCHEME = 'workflow:';
 
@@ -125,7 +134,7 @@ export function runContext({ state, node }) {
     '',
     `task_path: ${taskPathOf(doc, runDir, root)}`,
     `html: ${html}`,
-    ...(docs.length ? ['docs:', ...docs.map(file => `- ${file}`)] : ['docs: none']),
+    ...(docs.length ? ['docs (read-only):', ...docs.map(file => `- ${file}`)] : ['docs: none']),
     SCRATCH,
     CONTRACT,
     ...companions,
@@ -165,9 +174,11 @@ function taskPathOf(doc, runDir, root) {
 /**
  * The project documentation a delegate reads, absolute and listed once: the
  * shared `project_context` paths, then each context block's in key order, then
- * the standards index when the project has one. A value that is not a list, or
- * an item that is not a one-line string, was not written by the writer and is
- * skipped.
+ * the standards index when the project has one and its instructions do not
+ * already import it — imported, it is left out even where a list names it. A
+ * value that is not a list, or an item that is not a one-line string, was not
+ * written by the writer and is skipped. The list is printed read-only: a
+ * delegate reads these files, and changes one only when its own task names it.
  */
 function docsOf(doc, root) {
   const lists = [isPlainObject(doc.project_context) ? doc.project_context.project_doc_paths : undefined];
@@ -180,9 +191,21 @@ function docsOf(doc, root) {
     if (!Array.isArray(list)) continue;
     for (const item of list) if (isLine(item)) seen.add(path.resolve(root, item));
   }
-  const index = path.join(root, STANDARDS_INDEX);
-  if (fs.existsSync(index)) seen.add(index);
+  const index = path.resolve(root, STANDARDS_INDEX);
+  if (importsIndex(root)) seen.delete(index);
+  else if (fs.existsSync(index)) seen.add(index);
   return [...seen];
+}
+
+/** Whether one of the project's instructions files imports the standards index. */
+function importsIndex(root) {
+  return INSTRUCTIONS.some(file => {
+    try {
+      return INDEX_IMPORT.test(fs.readFileSync(path.join(root, file), 'utf8'));
+    } catch {
+      return false;
+    }
+  });
 }
 
 /**

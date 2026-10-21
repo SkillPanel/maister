@@ -167,6 +167,7 @@ Every group declares the files it will create or edit. The executor uses this to
 - Prefer exact paths; use globs (e.g. `src/migrations/*.sql`) only when the group genuinely operates on a directory tree.
 - If two layer groups both touch a shared file (route registry, barrel index, schema), declare it in BOTH groups so the executor serializes them.
 - Use `"None"` only for pure review or analysis groups that produce no file changes.
+- Never list `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`: the index is refreshed by maister from what the groups report, and standards change through standards-update when the run finishes. List a project document only when the task changes the fact it holds.
 
 #### Testing Group (When >= 3 Groups)
 
