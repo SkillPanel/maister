@@ -14,7 +14,8 @@
  * The run: `locate`, `validate`, `resolve`, the freeze, `run-context` and
  * `node-brief` for a node, two node writes with a patch no shell may touch, `area-brief`'s
  * fallback at a node that declares no decision areas, `gate-brief --json` at
- * the gate, the dashboard projection and `resume-check`. The freeze travels in
+ * the gate, the dashboard projection, `resume-check` and the documentation
+ * check (`docs-manager/scripts/docs-check.mjs`). The freeze travels in
  * the patch file under every shell; the node writes travel as a here-string
  * (`<<< '<json>'`, an apostrophe written `'\''`) under bash and zsh, and in the
  * patch file under every shell on Windows. Then the hooks, each started as `hooks.json`
@@ -110,9 +111,11 @@ delete env.CLAUDE_PROJECT_DIR;
 
 const engine = path.join(pluginRoot, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs');
 
-/** One engine call, as one command line through the shell, from the project root. */
-function call(verb, flags, hereString = null) {
-  const words = [`node ${quote(engine)} ${verb}`, ...flags];
+const docsCheck = path.join(pluginRoot, 'skills', 'docs-manager', 'scripts', 'docs-check.mjs');
+
+/** One engine call (or a call of another plugin script), as one command line through the shell, from the project root. */
+function call(verb, flags, hereString = null, script = engine) {
+  const words = [`node ${quote(script)}`, ...(verb ? [verb] : []), ...flags];
   // The JSON in single quotes, each apostrophe in it closed, escaped and reopened.
   if (hereString !== null) words.push(`<<< '${hereString.replaceAll("'", "'\\''")}'`);
   const line = words.join(' ');
@@ -246,6 +249,17 @@ try {
     imported.code === 0 && copy?.copied?.[0]?.to === 'analysis/work-context/context pack' && fs.existsSync(landed)
       && Buffer.compare(fs.readFileSync(landed), fs.readFileSync(path.join(source, 'screen.png'))) === 0, show(imported));
 
+  // --- the documentation check ---------------------------------------------
+  // Run from the project root with no flag, as docs-operator and the quick
+  // skills run it; the documentation holds a folder whose name has a space.
+  const docs = path.join(project, '.maister', 'docs');
+  fs.mkdirSync(path.join(docs, 'ops notes'), { recursive: true });
+  fs.writeFileSync(path.join(docs, 'ops notes', 'runbook.md'), '# Runbook\n');
+  fs.writeFileSync(path.join(docs, 'INDEX.md'), '# Documentation Index\n\n## Project documentation\n\n### Runbook (`ops notes/runbook.md`)\nHow to recover the service. Open when something is down.\n');
+  const checked = call(null, [], null, docsCheck);
+  const docsReport = json(checked.stdout);
+  check('docs-check reads the project\'s documentation from a path holding a space', checked.code === 0 && docsReport?.ok === true && docsReport.entries === 1, show(checked));
+
   // --- the hooks ------------------------------------------------------------
   // Each hook is started from its `hooks.json` entry the way the host starts
   // it: `${CLAUDE_PLUGIN_ROOT}` replaced by the plugin root and the exec-form
@@ -290,7 +304,7 @@ try {
   check('guard: a subagent\'s destructive command is denied', denied.code === 0 && json(denied.stdout)?.hookSpecificOutput?.permissionDecision === 'deny', show(denied));
 
   // --- line endings -----------------------------------------------------------
-  const carried = [...walk(path.join(SOURCE_PLUGIN, 'hooks')), ...walk(path.join(SOURCE_PLUGIN, 'skills', 'workflow-engine', 'scripts')), ...walk(path.join(SOURCE_PLUGIN, 'lib'))]
+  const carried = [...walk(path.join(SOURCE_PLUGIN, 'hooks')), ...walk(path.join(SOURCE_PLUGIN, 'skills', 'workflow-engine', 'scripts')), ...walk(path.join(SOURCE_PLUGIN, 'skills', 'docs-manager', 'scripts')), ...walk(path.join(SOURCE_PLUGIN, 'lib'))]
     .filter(file => /\.(sh|mjs|json)$/.test(file) && fs.readFileSync(file, 'utf8').includes('\r'));
   check('the checked-out hooks and engine scripts carry no CR', carried.length === 0, carried.join('\n'));
 } catch (err) {
