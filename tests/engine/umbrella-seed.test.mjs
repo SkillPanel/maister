@@ -56,13 +56,14 @@ test('seed: a gate suspends through gate-request alone, and the answer is folded
   assert.ok(existsSync(reference), 'the named gate reference exists');
 });
 
-test('seed: the worker records its dispatch id in the driver block, beside the kind and the cwd', () => {
+test('seed: the worker records the cockpit kind with its dispatch id in the driver block, beside the cwd, and no features', () => {
   const prompt = renderSeed(buildSeed(ENVELOPE, { pluginRoot: path.join(ROOT, 'plugins/maister') }));
   const lines = prompt.split('\n');
   assert.ok(lines.length <= SEED_LINE_CAP, `the seed is ${lines.length} lines`);
   const driver = lines.filter(line => line.includes('orchestrator.driver: {'));
   assert.equal(driver.length, 1, 'one driver instruction');
-  assert.match(driver[0], /\{kind: dispatch, cwd: <[^>]+>, dispatch_id: d-0001\}/);
+  assert.match(driver[0], /\{kind: cockpit, cwd: <[^>]+>, dispatch_id: d-0001\}/);
+  assert.doesNotMatch(driver[0], /kind: dispatch|features/);
 });
 
 test('seed: an attended worker holding a push or a pull request reports it with needs: [permission], whether or not a pull request is required', () => {

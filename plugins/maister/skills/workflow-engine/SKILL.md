@@ -29,6 +29,15 @@ does not restate it.
 `GATE-PENDING` line, turn over. Every rule marked *mode-scoped* — most of them in
 `references/gates.md` — names which of the two it holds for.
 
+**A dispatched run is told by its `dispatch_id`, not by a kind of its own.** It is a run a
+worker runs for a dispatch of a chain: its `orchestrator.driver` is `{kind: cockpit, cwd,
+dispatch_id}`, the form a dispatch seed records, or carries the legacy `kind: dispatch`, with or
+without a `dispatch_id` — a run recorded that way reads exactly as before. A dispatched run
+suspends on its gates like any cockpit run, owes its close-out to the outbox (*Ending a
+dispatched run*), is never given question sets whatever `features` it lists, and stamps an
+answer given in its session `via: dispatch`. A cockpit driver with no `dispatch_id` drives its
+run directly. Every rule that says *a dispatched run* or *under dispatch* means this one.
+
 **Everything the user reads follows *Speaking to the user*** (below): your narration, every
 question, every summary written for a gate and the closing message. The bar is a first-time
 user who can follow the run from the terminal alone.
@@ -296,7 +305,7 @@ write a question set there themselves.
 | `write-state` | `--state`; the patch as JSON by here-string, or `--patch-file` naming it in the patch file | the changed paths, one per line; the freeze prints the startup banner and a blank line before them (Step 4). A write carrying a node's question set adds a blank line and `ask: <id> <id> …`, or `ask: none` (`references/in-node-questions.md` § *When the policy classes a question*). A write completing a node whose owed `.html` companion is not on disk ends with a blank line and one `companion-missing: <node> <path>` line per companion, exit `0` (*Before anything else*, item 7). The closing checkpoint `held-approval` is written under `node_summaries.held-approval`, and its `status` under `nodes` (`references/gates.md` § *The closing checkpoint `held-approval`*) |
 | `gate-request` | `--state`; the request as JSON by here-string, or `--patch-file` naming it in the patch file | the files written, one per line: the request file, the gate index and the pending marker, in one call (`references/gates.md` § *Driver-suspended mode — the write order*) |
 | `gate-revise` | `--state`, `--node` (the gate), `--option` (its revise option); `{note, answered_by?, at?, via?}` by here-string, or `--patch-file` naming it in the patch file | the changed paths, one per line, then a blank line and `revised: <gate> reruns=<node> revision=<n>/10 reset=<ids>`: the stretch from the option's rerun node to the gate reset in one write, with the note on the gate (`references/gates.md` § *Revising at a gate*) |
-| `run-complete` | `--state`, and under a dispatch driver `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines, then any `missing-companion:` lines, and a stop's notice above it; the refusal on stderr |
+| `run-complete` | `--state`, and in a dispatched run `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines, then any `missing-companion:` lines, and a stop's notice above it; the refusal on stderr |
 | `prior-context` | `--state`, optional `--background`, optional `--node` | the prior phases' decisions and risks as markdown, to paste into a delegate prompt; `--background` frames them as background for a document written for end users; `--node` prints that node's `run-context` block first, then one blank line, then the same passage, with `run-context`'s refusals; a context block whose retired `phase_summaries` mirror still holds a decision or a risk adds one `warning: legacy-mirror-ignored:` line counting its decisions and risks, which `resume-check` already relayed at resume, so it is not repeated to the user, exit `0` — reads the run, writes nothing |
 | `run-context` | `--state`, `--node` (the node about to delegate) | the run-scoped context a delegate prompt carries, as markdown to paste unedited (*Before anything else*, item 4); when the definition the run froze cannot be re-read, `companions: unknown` and one `warning: run-context-definition-unread` line, exit `0` — reads the run, writes nothing |
 | `node-brief` | `--state`, `--node` (the node about to run) | What the node reads before it runs, as markdown: how it runs, its guard and attempt, its `with:` values and `dir:` filled in, the files it writes with the pages it owes and the absences `brief:` allows, its questions under this run's driver, the checkpoint it feeds, its `brief:` data, the convention rows that apply now — a row that applies only later, under a recorded revise or on a last attempt, named on one `convention (…): see rules` line — and a `rules:` line, then the node's own section. A ready step still `pending` is recorded `running` by it, with a `started:` line; a write it could not make is one `warning: node-brief-start-unrecorded` line. A line that would only state the default (no guard, a first attempt not yet run, an unset recommends input) is left out. A gate gets the `gate-brief` call instead, unless its section carries an exception. Graph drift, an unread definition, a node the definition no longer carries or an unread conventions table is one `warning: node-brief-…` line, exit `0` — reads the run, writes nothing |
@@ -343,9 +352,9 @@ architecture or a context pack, becomes an `open` risk that names what was skipp
 source path the later steps read instead. The step then goes on. Only an input the step says it
 cannot work without fails it. Never ask a person to copy a file in by hand.
 
-`run-complete` ends a run and, under a dispatch driver, only once the close-out it owes is
+`run-complete` ends a run and, in a dispatched run, only once the close-out it owes is
 on disk. There it takes `--outbox` and `--dispatch-id` as well, because the state never records
-the outbox root: pass them through unchanged from the seed, which hands them over under exactly
+the outbox root, and the `dispatch_id` it records only marks the run as dispatched: pass them through unchanged from the seed, which hands them over under exactly
 these spellings for the outbox verb. Omitting them is refused like an unpublished close-out.
 
 **`write-state` checks the document it wrote structurally, not against a schema, and that
@@ -413,13 +422,12 @@ driver (*Operator visibility*).
 
 ### Ending a dispatched run
 
-**Under `driver.kind: dispatch` a run's close-out publishes through the outbox close-out
-verb** — carrying the grade and the summary the seed's close-out contract asks for — **and
-the closing node records its outcome value only after that publish succeeded.** The outbox
-is the chain's only way to learn a dispatch is over, so `run-complete` refuses a run that never
+**A dispatched run's close-out publishes through the outbox close-out verb** — carrying the
+grade and the summary the seed's close-out contract asks for — **and the closing node records
+its outcome value only after that publish succeeded.** The outbox is the chain's only way to learn a dispatch is over, so `run-complete` refuses a run that never
 published. If the outbox cannot be written, the outbox verb hands back a `DISPATCH-RESULT:` line
-instead; that line is then the turn's last line and no `RUN-COMPLETE` is owed. Under any other
-driver there is no outbox.
+instead; that line is then the turn's last line and no `RUN-COMPLETE` is owed. A run that is
+not dispatched has no outbox.
 
 **No close-out while a choice is held.** In a run that records `classes_questions`, the closing
 node runs `gate-brief --node=held-approval` before it publishes anything, and publishes only
@@ -679,7 +687,8 @@ The full contract is `references/sub-runs.md`. What the engine must hold in mind
 - **Five checks refuse before anything is created**: `subrun-path` runs the first three; perform
   the last two from `references/sub-runs.md` § *Before any write — the checks that refuse*.
 - **The child's freeze copies from the parent** the narrower autonomy ceiling and, under a driver
-  that is not the terminal, the driver's features; a parent whose state cannot be read gives
+  that is not the terminal, the driver's features — never `question-sets` from a dispatched
+  parent, which never carried them; a parent whose state cannot be read gives
   neither, and the freeze warns `autonomy-ceiling-parent-unread:<run>` or
   `driver-features-parent-unread:<run>`.
 - **The child's directory comes from `subrun-path`, never worked out by hand**: the verb prints

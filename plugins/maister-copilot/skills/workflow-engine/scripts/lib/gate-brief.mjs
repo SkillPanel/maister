@@ -483,7 +483,7 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   if (!questionSets(doc)) {
     const driver = isPlainObject(doc.orchestrator?.driver) ? doc.orchestrator.driver : {};
     return refuse('gate-brief-questions-unsupported',
-      `this run's driver (${JSON.stringify(driver.kind ?? 'terminal')}) does not carry question sets: only a cockpit driver whose features list question-sets does. `
+      `this run's driver (${JSON.stringify(driver.kind ?? 'terminal')}) does not carry question sets: only a cockpit driver whose features list question-sets, in a run that is not dispatched, does. `
       + 'Nothing was written. Ask in session when no driver is set; under any other driver take the default the node prose names and record it as a by: default decision');
   }
   const runDir = path.dirname(path.resolve(state));

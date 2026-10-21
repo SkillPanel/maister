@@ -11,13 +11,14 @@
  *
  * The prose half of the fix names the publish step in the closing node of every
  * definition. This is the half that makes forgetting it a failure rather than a
- * silence: under `driver.kind: dispatch` a run reaches `RUN-COMPLETE` only once
+ * silence: a dispatched run (`isDispatchedRun`: a cockpit driver carrying a
+ * `dispatch_id`, or the legacy `driver.kind: dispatch`) reaches `RUN-COMPLETE` only once
  * its outbox holds a close-out, and otherwise ends on
  * `RUN-FAILED: closeout-unpublished`, which names the verb that was owed.
  *
  * WHY THE OUTBOX COORDINATES ARE FLAGS. The engine's state records the driver's
- * kind and nothing about the dispatch that spawned the run — no id, no
- * outbox root. Those two live in the worker's seed, which already hands them to
+ * kind and at most the dispatch's id, which it reads only to know the run is
+ * dispatched — never as the id to check, and never an outbox root. Those two live in the worker's seed, which already hands them to
  * it, spelled exactly as they are spelled here, for the outbox verb it runs to
  * publish. So the guard asks for what the worker already holds instead of
  * widening a contract block the daemon also writes. A dispatch-driven run that
@@ -134,10 +135,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { scanState } from '../../../../lib/state-scan.mjs';
 import { published } from '../../../../lib/outbox-files.mjs';
 import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
+import { isDispatchedRun } from './driver.mjs';
 import { atClose, heldApprovalBefore } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
 import { gateAnswer } from './items.mjs';
@@ -166,7 +167,7 @@ const ENDINGS = new Set(['completed', 'failed', 'stopped']);
  */
 export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
   try {
-    const { raw, doc } = readRun(state);
+    const { doc } = readRun(state);
     const task = isPlainObject(doc.task) ? doc.task : {};
     const status = typeof task.status === 'string' ? task.status : null;
     if (!ENDINGS.has(status)) {
@@ -184,7 +185,7 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
       if (waiting.length) throw new Refusal('run-held-unapproved', unapproved(state, waiting));
     }
 
-    if (scanState(raw).driverKind === 'dispatch') {
+    if (isDispatchedRun(doc)) {
       const refusal = closeoutRefusal({ outbox, dispatchId });
       if (refusal) return refusal;
     }
@@ -286,9 +287,9 @@ function refused(message) {
 }
 
 /**
- * The state file, raw and parsed. The raw text goes to the shared scanner, so
- * one parser answers for every reader of the `driver:` block; the parsed
- * document goes through the reader every other state consumer shares.
+ * The state file, raw and parsed. The parsed document goes through the reader
+ * every other state consumer shares, and whether the run is dispatched is
+ * read off it by the one rule in `driver.mjs`.
  */
 function readRun(state) {
   let raw;

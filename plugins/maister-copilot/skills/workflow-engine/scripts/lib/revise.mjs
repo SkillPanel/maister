@@ -209,8 +209,8 @@ function noteOf(input) {
  * session — the operator's own, stamped the way the writer stamps every answer
  * that arrives without one. How it reached the run: the via the caller sent or
  * the fold recorded, else, for an answer given in session, the writer's own
- * default — the driver's kind under a cockpit or a dispatch, `terminal`
- * otherwise. Provenance: each key the patch file carries, else the folded
+ * default (`answerVia`) — `dispatch` in a dispatched run, `cockpit` under a
+ * cockpit driving the run directly, `terminal` otherwise. Provenance: each key the patch file carries, else the folded
  * answer's; `grants` is never copied. An answer given at this terminal is then
  * credited to the person who gave it, as the writer credits every one.
  */

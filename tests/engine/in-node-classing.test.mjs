@@ -42,6 +42,8 @@ const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
 const COCKPIT = { kind: 'cockpit', cwd: '/work', features: ['question-sets'] };
 const BARE_COCKPIT = { kind: 'cockpit', cwd: '/work' };
 const DISPATCH = { kind: 'dispatch', cwd: '/work' };
+/** A dispatched run as the seed records it: a cockpit carrying its dispatch id. A feature it lists is never honoured. */
+const DISPATCHED = { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-1', features: ['question-sets'] };
 
 const TRIAGE_NOTE = /^note: ignored the triage sent on node_summaries\.scoping\.decisions; /m;
 
@@ -158,8 +160,8 @@ test('terminal: the writer settles what the ceiling allows, records it, and prin
 // 2. nobody can be asked
 // ---------------------------------------------------------------------------
 
-test('dispatch, and a cockpit without question sets: consult is defaulted unadvised and approve is held', t => {
-  for (const driver of [DISPATCH, BARE_COCKPIT]) {
+test('dispatch, a dispatched cockpit run, and a cockpit without question sets: consult is defaulted unadvised and approve is held', t => {
+  for (const driver of [DISPATCH, DISPATCHED, BARE_COCKPIT]) {
     const run = started(t, QUESTIONS.engine, { driver });
     const result = classing(QUESTIONS.engine, run, ['quick-choice', 'asked-choice', 'signed-choice', 'guarded-choice'], {
       reasons: { 'signed-choice': { rationale: 'The release notes want A.' } },
@@ -1357,6 +1359,19 @@ test('held-approval: a request left from an earlier round carries no continue fo
   // Control: the request asked for this round carries its continue.
   carried(run, HELD_APPROVAL_ID, 'continue');
   assert.deepEqual(outstandingHeld(readState(run)), []);
+});
+
+test('held-approval: a dispatched cockpit run asks it through its request and owes its close-out, as a legacy dispatch run does', t => {
+  for (const driver of [DISPATCHED, DISPATCH]) {
+    const run = heldClosing(t, { driver });
+    const refusal = refused(send(QUESTIONS.engine, run, { node_summaries: { [HELD_APPROVAL_ID]: { answer: 'continue' } } }), 'state-held-approval-not-askable');
+    assert.match(refusal.stderr, /asks a checkpoint through its request, which was never written/, driver.kind);
+    carried(run, HELD_APPROVAL_ID, 'continue');
+    assert.deepEqual(outstandingHeld(readState(run)), [], driver.kind);
+    closeRun(run);
+    assert.equal(completeRun(run).stdout, 'RUN-FAILED: closeout-unpublished\n', driver.kind);
+    assert.match(completeRun(run, ...publishCloseout(run)).stdout, /RUN-COMPLETE\n$/, driver.kind);
+  }
 });
 
 test('held-approval: a continue while another node is owed is refused state-held-approval-not-askable, even when a request carried it', t => {

@@ -178,8 +178,9 @@ test('provoked: gate-brief-questions-invalid names the question and the field', 
   for (const [set, reason] of cases) assert.match(refused(brief(run, set), 'gate-brief-questions-invalid').stderr, reason);
 });
 
-test('provoked: gate-brief-questions-unsupported without a cockpit that lists question-sets', t => {
-  for (const driver of [null, { kind: 'terminal' }, { kind: 'cockpit', cwd: '/work' }, { kind: 'dispatch', cwd: '/work', features: ['question-sets'] }]) {
+test('provoked: gate-brief-questions-unsupported without a cockpit that lists question-sets, or in a dispatched run', t => {
+  for (const driver of [null, { kind: 'terminal' }, { kind: 'cockpit', cwd: '/work' }, { kind: 'dispatch', cwd: '/work', features: ['question-sets'] },
+    { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-0001', features: ['question-sets'] }]) {
     const run = running(t, driver);
     assert.match(refused(brief(run, questionSet()), 'gate-brief-questions-unsupported').stderr, /by: default/);
   }

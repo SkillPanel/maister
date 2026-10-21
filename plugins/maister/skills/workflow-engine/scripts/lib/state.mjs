@@ -103,7 +103,7 @@ import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
-import { canAsk, driverFeatures } from './driver.mjs';
+import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun } from './driver.mjs';
 import { atClose, heldApprovalBefore, renderedLabels } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -2763,7 +2763,8 @@ function seedCeiling(orchestrator, policyNow, parentNow, writeWarnings) {
  * `driver.features`, narrowed to those the patch sends when it sends a list,
  * so a child never gains a feature its parent lacks. Without this a child
  * frozen under a cockpit that shows question sets would read as one that
- * cannot, and default every question its nodes ask. An empty result leaves no
+ * cannot, and default every question its nodes ask. A dispatched parent passes
+ * on no `question-sets`, which it never carried. An empty result leaves no
  * `features` key; an unreadable parent vouches for none and warns
  * `driver-features-parent-unread`. A terminal child, or a patch sending no
  * driver, is left as sent and never reads the parent. Returns the
@@ -2775,7 +2776,10 @@ function seedFeatures(orchestrator, parentNow, writeWarnings) {
   if (!isPlainObject(driver) || typeof driver.kind !== 'string' || driver.kind === 'terminal') return orchestrator;
   const recorded = parentNow();
   if (recorded === null) writeWarnings.push(`driver-features-parent-unread:${orchestrator.parent.run}`);
-  const inherited = recorded === null ? [] : driverFeatures({ orchestrator: recorded });
+  // A dispatched parent was never given question sets, whatever it lists, so its
+  // child — no dispatch id of its own — inherits none either.
+  const inherited = recorded === null ? []
+    : driverFeatures({ orchestrator: recorded }).filter(each => each !== QUESTION_SETS || !isDispatchedRun({ orchestrator: recorded }));
   const sent = Array.isArray(driver.features) ? driverFeatures({ orchestrator }) : null;
   const features = sent === null ? inherited : inherited.filter(each => sent.includes(each));
   const { features: _sent, ...rest } = driver;
@@ -3304,7 +3308,7 @@ const FOLDED_ANSWERS = new WeakSet();
 
 /**
  * A task node's `decisions` with what the run settled itself credited to it.
- * Under a cockpit or dispatch driver a person answers only through a recorded
+ * Under a cockpit driver, or a legacy dispatch one, a person answers only through a recorded
  * answer — a question set's answer block, folded by the writer — so an item
  * credited to the operator, by its `by` or by the answer shape that reads as
  * one, that carries no person's name, no `via` and no `actor` came from no
@@ -3379,16 +3383,20 @@ function optionText(text) {
   return text.trim().replace(/\s*\(recommended\)$/i, '').toLowerCase();
 }
 
-/** The driver kinds an answer given in session is stamped with; any other is `terminal`. */
+/** The driven `via` values an answer given in session is stamped with; any other is `terminal`. */
 const DRIVEN_VIA = new Set(['cockpit', 'dispatch']);
 
 /**
- * How an answer given in this run's session reached it: the driver's kind when
- * a cockpit or a dispatch drives the run, `terminal` when no driver is set or
- * the driver is the terminal. The one default for every answer the engine
- * stamps, a revise's included.
+ * How an answer given in this run's session reached it: `dispatch` in a
+ * dispatched run (`isDispatchedRun`), whether its driver records the legacy
+ * `kind: dispatch` or a cockpit with a `dispatch_id`; `cockpit` when a cockpit
+ * drives the run directly; `terminal` when no driver is set or the driver is
+ * the terminal. A dispatched run's answers say `dispatch` on either form, so a
+ * reader of `via` reads one value for them across runs recorded both ways.
+ * The one default for every answer the engine stamps, a revise's included.
  */
 export function answerVia(state) {
+  if (isDispatchedRun(state)) return 'dispatch';
   const orchestrator = isPlainObject(state?.orchestrator) ? state.orchestrator : null;
   const kind = isPlainObject(orchestrator?.driver) ? orchestrator.driver.kind : undefined;
   return DRIVEN_VIA.has(kind) ? kind : 'terminal';
@@ -4308,7 +4316,10 @@ function approveHeld(doc, freshIds, graphOf, changed, runDir = null) {
   }
 }
 
-/** The driver kinds that ask a gate by suspending on a request rather than in session. */
+/**
+ * The driver kinds that ask a gate by suspending on a request rather than in
+ * session: a cockpit, a dispatched run's included, and the legacy `dispatch`.
+ */
 const SUSPENDING_KINDS = new Set(['cockpit', 'dispatch']);
 
 /**
