@@ -9,6 +9,7 @@ import * as definition from '../../plugins/maister/skills/workflow-engine/script
 import * as locateModule from '../../plugins/maister/skills/workflow-engine/scripts/lib/locate.mjs';
 import * as graph from '../../plugins/maister/skills/workflow-engine/scripts/lib/graph.mjs';
 import * as policy from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
+import * as resumeCheck from '../../plugins/maister/skills/workflow-engine/scripts/lib/resume-check.mjs';
 
 // The umbrella runtime's contract with the engine: every name it takes, the kind
 // of value behind it, and the engine module that owns the binding. An engine
@@ -23,6 +24,7 @@ const CONTRACT = {
   narrowerLevel: ['function', policy],
   readDefinition: ['function', definition],
   resolve: ['function', graph],
+  runRoot: ['function', resumeCheck],
   TARGET_NAME: ['regexp', graph],
   TARGET_REF: ['regexp', graph],
   validate: ['function', graph],

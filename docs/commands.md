@@ -464,7 +464,7 @@ deletion rule.
 All three commands report in plain language: what was found and written, what passed, or what was
 deleted and what was kept, and each refusal by name with the move that clears it. No other verb is
 reachable from the command —
-`envelope`, `seed`, `ledger` and `outbox` are the machinery described next, and asking for one
+`runs`, `envelope`, `seed`, `ledger` and `outbox` are the machinery described next, and asking for one
 gets you pointed here.
 
 ### The workspace runtime
@@ -488,6 +488,16 @@ for `outbox`, and the run's `dispatch/` directory for `envelope` and `ledger`. N
 working at once share a place. The file is deleted once the verb accepts it and kept when the verb
 rejects it. Standard input still works for scripts.
 
+
+**`runs`** — list the workspace's runs, whose directories under `.maister/umbrella/runs/` are
+named by opaque ids. It prints one JSON array, a run to an element: its id, workflow name, title,
+task description, status, the created and updated times, its checkout and its state file. A copy
+set aside beside a run is left out, and a state that cannot be read is listed with an `error`
+naming the cause instead of failing the listing. It writes nothing.
+
+| Flag | Description |
+|------|-------------|
+| `--root=DIR` | The workspace root (required) |
 
 **`envelope`** — build and publish one node's dispatch envelope, the contract between the run
 and the worker who picks it up. It is built from the definition rather than from state: the
@@ -558,7 +568,7 @@ other three refuse, because a lost status is not a lost result.
 | `--input-file=PATH` | The message body, as JSON, in `<outbox>/<dispatch id>/.umbrella-input.json` — or on stdin. Required either way, since each type demands fields an empty body could not carry |
 
 **Workspace directory**: `.maister/umbrella/`
-**Verbs**: `init`, `validate`, `prune`, `envelope`, `seed`, `ledger`, `outbox`
+**Verbs**: `init`, `validate`, `prune`, `runs`, `envelope`, `seed`, `ledger`, `outbox`
 **Entry point**: `/maister:umbrella init`, `/maister:umbrella validate` and `/maister:umbrella prune`,
 to set a workspace up for the cockpit; the other verbs are run by a workflow's orchestrator and by
 the cockpit, not by a user.
