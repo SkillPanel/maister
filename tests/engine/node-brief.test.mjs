@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, scratch, scratchPlugin, run, sibling, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, scratch, scratchPlugin, run, sibling, verb, write } from '../helpers.mjs';
 
 // The brief a step reads before it runs: the facts the engine derives for it —
 // how it runs, its guard, its attempt, its inputs filled in, the files it
@@ -74,7 +74,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   const [header, slice] = [gap.stdout.slice(0, gap.stdout.indexOf('\n\n')), gap.stdout.slice(gap.stdout.indexOf('\n\n') + 2)];
   assert.deepEqual(header.split('\n'), [
     '## Node: gap-analysis — Gap analysis',
-    'runs: agent:gap-analyzer — Task tool',
+    'runs: agent:gap-analyzer — Task tool, model omit, effort omit (source: shipped default)',
     'with:',
     `- analysis: ${RUN_PATH}/analysis/codebase-analysis.md`,
     `- clarifications: ${RUN_PATH}/analysis/clarifications.md`,
@@ -531,4 +531,36 @@ test('node-brief: a dispatched node prints its dir: filled in, as its with: valu
   assert.match(nodeBrief(sample.state, 'remote').stdout, /^runs: workflow:node-brief — dispatched to members\/\(not recorded yet\)$/m);
   write(sample, { nodes: { scope: { status: 'completed', values: { wants_audit: false, focus: 'narrow' } } } });
   assert.match(nodeBrief(sample.state, 'remote').stdout, /^runs: workflow:node-brief — dispatched to members\/narrow$/m);
+});
+
+test('node-brief: an agent step\'s runs line carries the model and effort the run froze, for the host the plugin ships for', t => {
+  const dev = scratch(t);
+  const config = path.join(dev.root, '.maister', 'config.yml');
+  fs.mkdirSync(path.dirname(config), { recursive: true });
+  fs.writeFileSync(config, [
+    'subagents:',
+    '  agents:',
+    '    gap-analyzer: { tier: standard }',
+    '  workflows:',
+    '    development:',
+    '      nodes:',
+    '        gap-analysis: { agents: { gap-analyzer: { tier: deep, effort: high } } }',
+    '',
+  ].join('\n'));
+  const { patch } = freezePatch({ definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  const frozen = verb(['write-state', `--state=${dev.state}`], patch, { CLAUDE_PROJECT_DIR: dev.root });
+  assert.equal(frozen.code, 0, frozen.stderr);
+
+  const runsOf = result => result.stdout.split('\n').find(line => line.startsWith('runs:'));
+  const claude = nodeBrief(dev.state, 'gap-analysis');
+  assert.equal(claude.code, 0, claude.stderr);
+  assert.equal(runsOf(claude), 'runs: agent:gap-analyzer — Task tool, model opus, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
+
+  // The generated variant ships for Copilot, so the same run's brief names Copilot's model id.
+  const copilot = run(path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${dev.state}`, '--node=gap-analysis']);
+  assert.equal(copilot.code, 0, copilot.stderr);
+  assert.equal(runsOf(copilot), 'runs: agent:gap-analyzer — Task tool, model claude-opus-5.5, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
+
+  // A direct or skill step's runs line is as it was.
+  assert.equal(runsOf(nodeBrief(dev.state, 'finalization')), 'runs: direct:finalization — inline');
 });
