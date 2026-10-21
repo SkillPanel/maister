@@ -137,7 +137,7 @@ prompt: |
   [List relevant files for full details]
 ```
 
-**Why**: Subagents run in isolated context. The run-context block carries what every delegate needs — `task_path:`, the `html:` line (§ 9), the project's `docs:`, the `scratch:` rule, the summary contract of § 7 and the `companions:` the node owes — so none of it is typed by hand and none of it is forgotten.
+**Why**: Subagents run in isolated context. The run-context block carries what every delegate needs — `task_path:`, the `html:` line (§ 9), the project's `docs (read-only):` list, the `scratch:` rule, the summary contract of § 7 and the `companions:` the node owes — so none of it is typed by hand and none of it is forgotten.
 
 **The prior-phase passage is fetched, not composed** — a hand-written `## CONTEXT FROM PRIOR PHASES` block drops items without a trace. The read-only `prior-context` verb prints every phase, its decisions and its risks, one bullet each with the count beside the heading, for every workflow (`workflow-engine/SKILL.md` § *Delegation by scheme* has the invocation). Call it **at each consuming delegate** — one call per prompt, in the turn that composes it — and paste its stdout unedited: trimming, re-ordering or tightening it is the same defect by hand, and a rendering taken for an earlier delegate is stale once a summary is written in between. The verb writes nothing, so the extra call costs nothing.
 
@@ -422,6 +422,16 @@ each by a few words beside its number ("2, the missing tag trim"), never by numb
 each re-check by its count ("re-check 1 of 2"). The gate after the loop stays the user's checkpoint:
 its brief lists every fix made without asking, with the report's path, and an unresolved
 critical issue is never proceeded past without an explicit answer saying so.
+
+**Documents in the loop.** A fix never edits `.maister/docs/INDEX.md` or anything under
+`.maister/docs/standards/`. A stale fact is fixed in the document that holds it; a finding against
+the index itself — a document with no entry, a dead or duplicate entry, a conflict marker — is
+fixed by a refresh, never by hand. A convention a fix shows to be worth keeping is written to the
+work log as a standard candidate, one line, for finalization to offer. When the loop's fixes
+changed anything under `.maister/docs/`, or an index finding is open, invoke `docs-operator` once
+after the last fix and before the gate: "Refresh INDEX.md. Changed: [paths]. Check: [check path]",
+the check being docs-manager's `scripts/docs-check.mjs` by its absolute path. A refresh changes
+no behaviour and starts no re-check of its own.
 
 ### Fixability Assessment
 

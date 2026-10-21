@@ -111,10 +111,17 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   assert.ok(!again.includes(row('named by a revise')), 'a retry is no revise');
   assert.ok(again.includes('convention (named by a revise): see rules'));
 
-  // A direct step that owes no page, keeps its section, declares nothing and feeds no checkpoint: its header is its facts and the pointer.
+  // A direct step that owes no page, keeps its section, declares no output and feeds no checkpoint: its header is its facts, the one question its prose asks, and the pointer.
   const finalization = nodeBrief(dev.state, 'finalization').stdout;
   const finalHeader = finalization.slice(0, finalization.indexOf('\n\n')).split('\n');
-  assert.deepEqual(finalHeader.filter(line => !line.startsWith('- ')), ['## Node: finalization — Finalization', 'runs: direct:finalization — inline', 'with:', RULES]);
+  assert.deepEqual(finalHeader.filter(line => !line.startsWith('- ')), [
+    '## Node: finalization — Finalization',
+    'runs: direct:finalization — inline',
+    'with:',
+    'asks (in session): standard-candidates',
+    row('asks'),
+    RULES,
+  ]);
 
   // A guarded step: its guard as written, and a value no node has recorded yet.
   const red = nodeBrief(dev.state, 'tdd-red');

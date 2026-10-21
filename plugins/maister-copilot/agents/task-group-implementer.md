@@ -195,6 +195,16 @@ Output structured report in expected format (see Output Format section).
 | path/to/file1.ts | Created | [brief description] |
 | path/to/file2.ts | Modified | [what changed] |
 
+### Docs Changed
+
+[Documents under `.maister/docs/` this group changed — they are in Files Modified too — one line each with what changed; "None" when none. Never INDEX.md: the executor has the index refreshed from this list.]
+- .maister/docs/project/architecture.md — the queue section now names the new worker
+
+### Standard Candidates
+
+[Conventions this group followed or found that no standard holds yet, one line each, written as the rule would read; "None" when none. Never edited into `standards/` here: finalization offers them.]
+- Every persisted file is written to a temp path and renamed into place
+
 ### Implementation Notes
 
 [Any decisions made during implementation, patterns followed, trade-offs considered]
@@ -216,6 +226,8 @@ Output structured report in expected format (see Output Format section).
 - ❌ Make decisions about skipping steps
 - ❌ Run tests for other groups
 - ❌ Commit changes to git
+- ❌ Edit `.maister/docs/INDEX.md`, even when a document you changed is listed in it — name the document under Docs Changed instead
+- ❌ Edit anything under `.maister/docs/standards/` — report a convention worth keeping under Standard Candidates instead
 
 ## Error Handling
 

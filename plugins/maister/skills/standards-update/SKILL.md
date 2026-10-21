@@ -1,12 +1,14 @@
 ---
 name: maister:standards-update
 description: Update or create project standards from conversation context or explicit description
-argument-hint: "[description of standard/convention] [--from=PATH]"
+argument-hint: "[description of standard/convention] [--from=PATH] [--refresh-index]"
 ---
 
 # Update Project Standards
 
-Update or create standards in `.maister/docs/standards/` based on conversation context or a provided description. Automatically detects the best-matching category and file. Supports both baseline categories (global, frontend, backend, testing) and custom user-defined categories.
+Update or create standards in `.maister/docs/standards/` based on conversation context or a provided description. Automatically detects the best-matching category and file. Supports both baseline categories (global, frontend, backend, testing) and custom user-defined categories, sub-folders as groups within them, splitting a file that has outgrown its size guidance, and refreshing the documentation index.
+
+Every write goes through the `docs-operator` subagent, which preloads docs-manager. Each call that changes documents names the docs index check for it: `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root being two levels above this skill's base directory, written as an absolute path.
 
 ## Usage
 
@@ -14,7 +16,21 @@ Update or create standards in `.maister/docs/standards/` based on conversation c
 /maister:standards-update                                    # Detect from conversation
 /maister:standards-update "always use React.memo for lists"  # From description
 /maister:standards-update --from=/path/to/other-project      # Sync from another project
+/maister:standards-update "split standards/backend/storage.md" # Split a file past its size guidance
+/maister:standards-update --refresh-index                    # Bring INDEX.md back in shape
 ```
+
+---
+
+## Mode: Refresh the Index (`--refresh-index`)
+
+For a project whose INDEX.md has grown long, been hand-edited or been merged badly — one command, run once, by the operator or for them.
+
+1. Invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`):
+   > "Refresh INDEX.md with reshape. Check: [check path]. Rewrite every entry the check warns on and every structural failure, keep the entries that already follow the rules, bring the layout to the template, and return the check's result."
+2. Show what changed — entries rewritten, added and removed — and the check's result: no failures, and any warnings left. A `standards-file-over-guide` warning names a file to split: offer `/maister:standards-update "split <path>"` for each, and never split one here.
+
+No document other than INDEX.md is touched in this mode.
 
 ---
 
@@ -50,10 +66,10 @@ For each selected standard:
   - "Replace with the source version" — overwrites the local file
   - "Skip" — leave the local file unchanged
 
-### SYNC STEP 4: Update INDEX.md
+### SYNC STEP 4: Refresh INDEX.md
 
 Invoke `docs-operator` subagent via Task tool (subagent_type: `maister:docs-operator`):
-> "Regenerate INDEX.md to include all newly added/updated standards. Verify CLAUDE.md integration."
+> "Refresh INDEX.md. Changed: [the added and updated standards paths]. Check: [check path]. Verify CLAUDE.md integration."
 
 Wait for docs-operator to complete, then immediately proceed to SYNC STEP 5.
 
@@ -72,6 +88,7 @@ When `--from` is NOT provided, the skill uses the standard detect-and-update flo
 ## PHASE 1: Detect Standard
 
 **Step 1: Gather input**
+- **If the argument or the conversation asks to split a file**: go to § Splitting a Standards File instead.
 - **If argument provided**: Use the description as primary input. Also scan last 15-20 messages for additional context, examples, or related conventions.
 - **If no argument**: Scan last 15-20 messages for convention discussions. Look for patterns like "we should always...", "our convention is...", "prefer X over Y", "never use...", code examples showing patterns.
 
@@ -85,7 +102,7 @@ Based on the topic detected, suggest the best-matching existing category and fil
 - File names and their content (read existing files if topic is close)
 - Whether the convention fits an existing file or needs a new one
 
-**Step 4: Confirm the target** — one AskUserQuestion, the convention in a few words in the question:
+**Step 4: Confirm the target** — one AskUserQuestion, the convention in a few words in the question. When the best-matching file is already past its size guidance (about 12 KB or 15 `###` rules), the recommended answer is a new file beside it, named from the convention, the question saying the matched file is full; adding to that file stays an option.
 
 - "Add it to the \<Category\> standards (\<file name\>)?" — "Yes (Recommended)" for the best match, up to two other candidate files by name with what each covers, and "New file" (its name and category the follow-up answer, or a new category). With no clear best match, the likeliest candidate is still offered first and recommended, the question saying why it is uncertain.
 - **If nothing detected** (no argument, no conversation context) → ask the user to describe the convention, free text, with an example in the question
@@ -120,15 +137,15 @@ No user prompt needed — just inform: "Updating existing standard: [name]" or "
 
 ## PHASE 4: Apply via docs-manager
 
-> Each standard uses a `###` heading with 1-10 lines description (excluding code snippets). Multiple standards per topic file. Split large topics into sub-topic files.
+> Each standard uses a `###` heading with 1-10 lines description (excluding code snippets). Multiple standards per topic file. A rule holds no inventory of call sites, no dates and no ticket references. A file past about 12 KB or 15 rules is split into topic files or a sub-folder (§ Splitting a Standards File).
 
 **Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`) with context:
 
 For **updates**:
-> "Update documentation file: standards/[category]/[name].md. Current content: [content]. Add/change: [new conventions]. Integrate new practices, maintain markdown formatting, organize logically, preserve existing unless conflicts. Update INDEX.md entry with practice-specific description (enumerate actual practices, not generic category)."
+> "Update documentation file: standards/[category]/[name].md. Current content: [content]. Add/change: [new conventions]. Integrate new practices, maintain markdown formatting, organize logically, preserve existing unless conflicts. Then refresh INDEX.md with this path as changed. Check: [check path]. Report the file's size and rule count against its guidance."
 
 For **creates**:
-> "Create documentation file: standards/[category]/[name].md. Category: [category]. Content: [conventions]. Create with proper markdown, organized sections, code examples. Add to INDEX.md with practice-specific description. Verify CLAUDE.md integration."
+> "Create documentation file: standards/[category]/[name].md. Category: [category]. Content: [conventions]. Create with proper markdown, organized sections, code examples. Then refresh INDEX.md with this path as changed. Check: [check path]. Verify CLAUDE.md integration."
 
 Wait for docs-operator to complete, then immediately proceed to Phase 5.
 
@@ -136,12 +153,23 @@ Wait for docs-operator to complete, then immediately proceed to Phase 5.
 
 ## PHASE 5: Summarize
 
-Display a summary: what was updated/created, practices added, and next steps (review, commit, share with team). If docs-operator reported a failure, say so.
+Display a summary: what was updated/created, practices added, and next steps (review, commit, share with team). If docs-operator reported a failure, say so. When the file is past its size guidance, say so and suggest `/maister:standards-update "split <path>"` — a warning, never a refusal.
+
+---
+
+## Splitting a Standards File
+
+For a file past its size guidance, on request — the argument, the conversation, or an offer this skill made.
+
+1. Read the file and group its `###` rules by topic into two to four new files, each named for its topic: in the same folder, or in a sub-folder named for the file when its topics belong together (`standards/backend/storage.md` → `standards/backend/storage/layout.md`, `standards/backend/storage/locking.md`).
+2. **One AskUserQuestion**: the proposed split in the question — each new file with the rules it takes, a line each — offering "Split it this way (Recommended)" and "Keep it in one file". An answer through Other that renames or regroups is applied as typed.
+3. Invoke `docs-operator`: "Move these rules, unchanged, into [new files]; delete [old file] once every rule has moved. Then refresh INDEX.md with the old and new paths as changed. Check: [check path]." Rules move word for word; a split edits no rule.
+4. Summarize the new files, and name any reference to the old path elsewhere in the project for the user to update.
 
 ---
 
 ## Prerequisites
 
-If `.maister/docs/` doesn't exist, ask once — "Set up Maister first? (runs the setup, then this)": "Set it up (Recommended)" runs `maister:init` with the Skill tool, then continues here; any other answer stops. This is the one rule for both modes.
+If `.maister/docs/` doesn't exist, ask once — "Set up Maister first? (runs the setup, then this)": "Set it up (Recommended)" runs `maister:init` with the Skill tool, then continues here; any other answer stops. This is the one rule for every mode.
 
 docs-operator asks nothing: a choice it returns under `decisions_needed` is asked here, in the same form, and the operation is called again with the answer.

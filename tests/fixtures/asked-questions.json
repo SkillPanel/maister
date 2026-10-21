@@ -155,6 +155,11 @@
             "id": "docs-fixes",
             "node": "user-docs",
             "transport": "question-set"
+          },
+          {
+            "id": "standard-candidates",
+            "node": "finalization",
+            "transport": "question-set"
           }
         ]
       },
@@ -312,6 +317,11 @@
             "id": "docs-fixes",
             "node": "user-docs",
             "transport": "default"
+          },
+          {
+            "id": "standard-candidates",
+            "node": "finalization",
+            "transport": "default"
           }
         ]
       },
@@ -467,6 +477,11 @@
           {
             "id": "docs-fixes",
             "node": "user-docs",
+            "transport": "in-session"
+          },
+          {
+            "id": "standard-candidates",
+            "node": "finalization",
             "transport": "in-session"
           }
         ]
@@ -603,6 +618,10 @@
       {
         "id": "docs-fixes",
         "node": "user-docs"
+      },
+      {
+        "id": "standard-candidates",
+        "node": "finalization"
       }
     ]
   },
@@ -682,6 +701,11 @@
             "id": "verification-fix-loop",
             "node": "issue-resolution",
             "transport": "question-set"
+          },
+          {
+            "id": "standard-candidates",
+            "node": "finalization",
+            "transport": "question-set"
           }
         ]
       },
@@ -758,6 +782,11 @@
           {
             "id": "verification-fix-loop",
             "node": "issue-resolution",
+            "transport": "default"
+          },
+          {
+            "id": "standard-candidates",
+            "node": "finalization",
             "transport": "default"
           }
         ]
@@ -836,6 +865,11 @@
             "id": "verification-fix-loop",
             "node": "issue-resolution",
             "transport": "in-session"
+          },
+          {
+            "id": "standard-candidates",
+            "node": "finalization",
+            "transport": "in-session"
           }
         ]
       }
@@ -903,6 +937,10 @@
       {
         "id": "verification-fix-loop",
         "node": "issue-resolution"
+      },
+      {
+        "id": "standard-candidates",
+        "node": "finalization"
       }
     ]
   },
@@ -998,6 +1036,11 @@
             "id": "verification-fix-loop",
             "node": "verification",
             "transport": "question-set"
+          },
+          {
+            "id": "standard-candidates",
+            "node": "finalization",
+            "transport": "question-set"
           }
         ]
       },
@@ -1090,6 +1133,11 @@
           {
             "id": "verification-fix-loop",
             "node": "verification",
+            "transport": "default"
+          },
+          {
+            "id": "standard-candidates",
+            "node": "finalization",
             "transport": "default"
           }
         ]
@@ -1184,6 +1232,11 @@
             "id": "verification-fix-loop",
             "node": "verification",
             "transport": "in-session"
+          },
+          {
+            "id": "standard-candidates",
+            "node": "finalization",
+            "transport": "in-session"
           }
         ]
       }
@@ -1264,6 +1317,10 @@
       {
         "id": "verification-fix-loop",
         "node": "verification"
+      },
+      {
+        "id": "standard-candidates",
+        "node": "finalization"
       }
     ]
   },

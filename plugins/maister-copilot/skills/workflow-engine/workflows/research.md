@@ -56,7 +56,7 @@ was asked, each answerable as it stands; the operator's own wording goes
 through Other.
 
 Then read the documentation index under `.maister/docs/`, if one exists, and
-take every path in its project-documentation section, predefined and
+take every path in its project-documentation sections, predefined and
 operator-added alike. The milestone records `research_type`,
 `research_question`, `scope` as a map of three lists — `included`, `excluded`,
 `constraints` — and `project_doc_paths`, `[]` when there is no index.

@@ -105,7 +105,7 @@ For each wave:
 3. **Process each wave member as it returns**, without waiting for its siblings:
    - Parse completed steps, standards applied, test results.
    - Mark all group checkboxes in `implementation-plan.md`.
-   - Add a group entry to `work-log.md` with standards trail.
+   - Add a group entry to `work-log.md` with standards trail, the documents changed and the standard candidates.
    - Verify test results are acceptable.
    - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N}`.
    - If other members of the wave are still running, **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), after the checkboxes and the entry above, so the group reads as done while its siblings still read as running.
@@ -226,6 +226,7 @@ You have access to `.maister/docs/INDEX.md` for continuous standards discovery.
 - Check INDEX.md for additional standards matching this group's topic
 - During implementation, discover more standards as step context reveals needs
 - Do not limit discovery to explicit keyword matches - use judgment
+- INDEX.md and `.maister/docs/standards/` are read-only for you: name a document you changed under Docs Changed, and a convention worth keeping under Standard Candidates
 
 ### Design Context
 [OMIT this section entirely when no `Visual References` are present in the task group AND no `analysis/design-context/` exists.]
@@ -289,6 +290,12 @@ The task-group-implementer returns structured output:
 - path/to/file1.ts (created)
 - path/to/file2.ts (modified)
 
+### Docs Changed
+- .maister/docs/project/architecture.md — [what changed] (or "None")
+
+### Standard Candidates
+- [one line, written as the rule would read] (or "None")
+
 ### Notes
 [Any decisions made, blockers encountered, recommendations]
 ```
@@ -346,8 +353,12 @@ After each task group:
 - Discovered: [list with trigger reason]
 **Tests**: [N] passed
 **Files Modified**: [list]
+**Docs Changed**: [paths under `.maister/docs/`, or none]
+**Standard Candidates**: [one line each, or none]
 **Notes**: [any decisions or discoveries]
 ```
+
+`Standard Candidates` lines are what finalization offers to add as standards when the run ends, so copy each as the implementer wrote it.
 
 **The heading is a contract, not a caption.** The dashboard reads `current_wave` off
 the wave number in the last such heading, so keep `Group [N] Complete (wave [K])`
@@ -379,19 +390,22 @@ for an operator reading the run at a glance.
 
 2. **Run full project test suite** (all tests, not just feature tests — catches regressions in unrelated areas)
 
-3. **Final work-log entry**, its timestamp from the clock (§ Work-Log Updates):
+3. **Refresh the docs index when documents changed.** Collect the paths under `.maister/docs/` the groups reported under Docs Changed, plus any `git status -- .maister/docs` shows changed. When there are any, invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]" — the check is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, as an absolute path. Log its outcome in the final entry below. A refresh that reports a failure is a warning in the work log, never a reason to stop the phase. Nothing here edits INDEX.md itself.
+
+4. **Final work-log entry**, its timestamp from the clock (§ Work-Log Updates):
    ```markdown
    ## [timestamp] - Implementation Complete
 
    **Total Steps**: [N] completed
    **Total Standards**: [M] applied
    **Test Suite**: [status]
+   **Docs Index**: [refreshed for N documents, check passed / not needed / check failed: what]
    **Duration**: [if tracked]
    ```
 
-4. **Final re-projection** (§ Dashboard: Re-project Through the Engine), after the final work-log entry. It publishes `groups_done == groups_total`, with the accumulated skipped and reverted groups. Do not complete the phase here: its status stays `in_progress`, because the orchestrator owns completing it (§ 2 state ordering). Do this before returning, so the operator sees a finished implementation while the orchestrator's next phase spins up.
+5. **Final re-projection** (§ Dashboard: Re-project Through the Engine), after the final work-log entry. It publishes `groups_done == groups_total`, with the accumulated skipped and reverted groups. Do not complete the phase here: its status stays `in_progress`, because the orchestrator owns completing it (§ 2 state ordering). Do this before returning, so the operator sees a finished implementation while the orchestrator's next phase spins up.
 
-5. **Return summary** to calling orchestrator
+6. **Return summary** to calling orchestrator
 
 ## Error Handling
 

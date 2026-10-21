@@ -326,13 +326,16 @@ Auto-discovers coding standards from multiple sources in parallel: config files,
 
 Presents findings in confidence tiers (high/medium/low) for review before applying.
 
-### `/maister:standards-update [description] [--from=PATH]`
+### `/maister:standards-update [description] [--from=PATH] [--refresh-index]`
 
-Update or create standards from conversation context or explicit description. When run without arguments, scans your current conversation for standards patterns like "we should always...", "our convention is...", "prefer X over Y" and proposes them as new standards.
+Update or create standards from conversation context or explicit description. When run without arguments, scans your current conversation for standards patterns like "we should always...", "our convention is...", "prefer X over Y" and proposes them as new standards. When the file a rule belongs in is past its size guidance (about 12 KB or 15 rules), it recommends a new file beside it; `/maister:standards-update "split <path>"` proposes splitting a large file into topic files or a sub-folder.
 
 | Flag | Description |
 |------|-------------|
 | `--from=PATH` | Sync standards from another project. Analyzes differences, shows what's missing or changed, and lets you select which standards to import. |
+| `--refresh-index` | Bring `.maister/docs/INDEX.md` back in shape: rewrites the entries that run long or hold dates, ticket references or counts, adds missing entries, removes dead ones, settles a merge conflict, and keeps every entry that already follows the rules. Touches no other document. |
+
+INDEX.md is maintained by maister: one short entry per document, saying what it is for and when to open it. Don't edit it by hand — change the document, and the next refresh (after implementation, after the verification fixes, or this flag) updates its entry. Any Markdown file may live in `.maister/docs/` as it is; no frontmatter or naming is required.
 
 ---
 

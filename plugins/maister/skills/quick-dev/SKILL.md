@@ -21,4 +21,6 @@ This works exactly as if you asked the main agent to implement the task directly
 
 4. **Verify compliance (mandatory)** — After implementing, go through each applicable standard and verify it was followed — report a **Standards Compliance Checklist** (pass/fail per guideline, each annotated with its source file) in your summary, alongside what changed and any tests run. Address any failure before marking the task complete.
 
+5. **Keep the docs index whole** — Never edit `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`; name every document you changed under `.maister/docs/` in your summary. Then run the docs index check from the project root — `node <plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path — and report its result in one line. When it fails on a document this task added, changed or removed, invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]", and report the check it returns. A convention worth keeping is suggested in one line for `/maister:standards-update`, never written into a standards file here.
+
 If `.maister/docs/INDEX.md` does not exist, implement normally and note: "No Maister standards found. Consider running `/maister:init`."

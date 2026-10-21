@@ -84,7 +84,9 @@ validate:
 	@grep -q '^2\. \*\*Plan without editing\*\*.*ask for approval with `ask_user`' plugins/maister-copilot/skills/quick-plan/SKILL.md || (echo "FAIL: the variant's quick-plan lacks its plan-without-editing step" && exit 1)
 	@grep -q '^\*\*Draft the fix plan without creating, editing or deleting any project file.*ask for approval with `ask_user`' plugins/maister-copilot/skills/quick-bugfix/SKILL.md || (echo "FAIL: the variant's quick-bugfix lacks its plan-without-editing step" && exit 1)
 	@echo "Checking no CLAUDE.md references in skills..."
-	@! grep -ri 'CLAUDE\.md' plugins/maister-copilot/skills/ 2>/dev/null || (echo "FAIL: CLAUDE.md references found in skills" && exit 1)
+	@# Prose only, as the build's rewrite is: a script may read a project's
+	@# CLAUDE.md by name (run-context checks whether it imports the index).
+	@! grep -ri --include='*.md' 'CLAUDE\.md' plugins/maister-copilot/skills/ 2>/dev/null || (echo "FAIL: CLAUDE.md references found in skills" && exit 1)
 	@echo "Checking the variant names no Explore agent type (Copilot's is explore)..."
 	@! grep -rnE "(subagent_type|agent_type)[[:space:]]*[=:][[:space:]]*[^[:alnum:][:space:]]?Explore" plugins/maister-copilot/ --include="*.md" 2>/dev/null || (echo "FAIL: an Explore agent type survives in the variant; Copilot refuses it as unknown" && exit 1)
 	@echo "Checking the variant gives no Claude Code plugin command..."

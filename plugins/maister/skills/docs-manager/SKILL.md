@@ -1,6 +1,6 @@
 ---
 name: docs-manager
-description: Internal engine for managing project documentation and technical standards in .maister/docs/. Handles file operations, INDEX.md generation, and CLAUDE.md integration. Invoked by maister:init, standards-update, and standards-discover skills.
+description: Internal engine for managing project documentation and technical standards in .maister/docs/. Handles file operations, INDEX.md refresh, and CLAUDE.md integration. Invoked by maister:init, standards-update, and standards-discover skills.
 user-invocable: false
 ---
 
@@ -11,7 +11,7 @@ Internal skill that manages documentation file operations in `.maister/docs/`. N
 ## Core Principles
 
 - **Project documentation is source of truth** — plugin-bundled docs are baseline/reference only
-- **INDEX.md is the master map** — always kept up-to-date after changes
+- **INDEX.md is a written map that only this skill writes** — one short entry per document, changed only through Refresh INDEX.md
 - **CLAUDE.md integration is mandatory** — ensures AI reads documentation
 - **The caller asks; this skill never does** — it runs inside the `docs-operator` subagent, which has no user channel
 
@@ -29,6 +29,7 @@ Every operation below takes its choices from the caller's prompt. When an operat
 │   ├── roadmap.md               # Development roadmap
 │   ├── tech-stack.md            # Technology choices and rationale
 │   └── architecture.md          # System architecture (optional)
+├── <any folder>/                # Any other Markdown, copied in as it is (indexed as project docs)
 └── standards/                    # Technical standards and conventions
     ├── global/                  # Language-agnostic standards
     │   ├── error-handling.md
@@ -58,7 +59,9 @@ Standard files follow the structure `standards/[category]/[topic].md`:
 
 **Format**: Each file uses `## Topic` as the file heading, with `### Standard Name` for each individual standard. Each standard has a 1-10 line description (excluding code snippets) and an optional brief code example (under 10 lines).
 
-**Conciseness**: Standards are quick-reference conventions, not tutorials. If a file grows unwieldy, split into focused sub-topic files.
+**Conciseness**: Standards are quick-reference conventions, not tutorials. A rule holds no inventory of call sites, no dates and no ticket references — the code and its history answer those.
+
+**Size guidance**: about 12 KB or 15 `###` rules per file. Past it, split the file into topic files in the same folder, or move a topic that has grown several files into a sub-folder (`standards/backend/storage/locking.md`): a folder is a group and needs no metadata. The check warns on a file past the guide; nothing refuses one.
 
 **Why ### per standard**: Each standard as a discrete section makes it easier for agents to find, update, and reference individually — no need to parse bullet lists.
 
@@ -74,6 +77,7 @@ This skill bundles the following resources within the plugin:
   - `backend/` - Backend-specific standards (API design, database, queries, etc.)
   - `testing/` - Testing standards (test writing, coverage, etc.)
 - **INDEX.md Template**: Master template for documentation index
+- **Index check**: `scripts/docs-check.mjs` — reports whether INDEX.md still maps the documents (see Refresh INDEX.md)
 
 ## Location Reference
 
@@ -111,11 +115,11 @@ Use this when a project doesn't have `.maister/docs/` or needs documentation for
        - `['global', 'frontend', 'testing']` → Copy only these three categories
        - `['global', 'backend', 'testing']` → Skip frontend standards
        - `['global', 'testing']` → Only global and testing standards
-5. Generate INDEX.md with entries for all copied documentation (see "Manage INDEX.md" operation):
+5. Write INDEX.md with Refresh INDEX.md — every copied file is new:
    - For skipped standard categories, add placeholder sections with "Not initialized - run standards discovery if needed"
    - Example: If frontend standards are skipped, INDEX.md shows:
      ```markdown
-     ### Frontend Standards
+     ## Standards: frontend
 
      *Not initialized for this project. If you need frontend standards, you can:*
      - *Add them manually using the docs-manager skill*
@@ -136,7 +140,7 @@ Use this when a project doesn't have `.maister/docs/` or needs documentation for
   - If provided: Copy standards from this path instead of the bundled defaults
   - If omitted: Copy from this skill's bundled `docs/standards/` directory (default behavior)
 
-**Result:** The project now has baseline documentation in `.maister/docs/`, a comprehensive INDEX.md, and CLAUDE.md integration that ensures AI assistance is documentation-aware. Only selected standard categories are initialized.
+**Result:** The project now has baseline documentation in `.maister/docs/`, an INDEX.md that maps it, and CLAUDE.md integration that ensures AI assistance is documentation-aware. Only selected standard categories are initialized.
 
 **Important:** After this initial setup, the project's documentation becomes the source of truth. Teams should customize it for their specific needs.
 
@@ -146,22 +150,30 @@ Use this when a project doesn't have `.maister/docs/` or needs documentation for
 
 ---
 
-### 2. Manage INDEX.md
+### 2. Refresh INDEX.md
 
-Use this to create or update the INDEX.md file that serves as the master documentation map.
+The one operation that writes `.maister/docs/INDEX.md`. Every other operation here, and every caller, changes the index only through it. It takes:
+- `changed` (optional): paths under `.maister/docs/` the caller added, changed or removed
+- `check` (optional): the absolute path of `docs-check.mjs`; without one, find it under this plugin's docs-manager skill, in `scripts/`
+- `reshape` (optional): only when the operator asks to bring an existing index back in shape
 
 **What to do:**
-1. Scan the `.maister/docs/` directory structure
-2. For each documentation file found:
-   - Read the file content to extract description
-   - Determine the file's purpose and category
-   - **For technical standards**: The description MUST enumerate the specific practices/conventions documented in the file, not just a generic category description.
-3. Read `references/index-md-template.md` for the INDEX.md structure template
-4. Generate INDEX.md by populating the template with discovered files and descriptions
-5. Write the generated INDEX.md to `.maister/docs/INDEX.md`
-6. Verify that CLAUDE.md references this index (see "Manage CLAUDE.md Integration" operation)
+1. **Run the check** from the project root (`node <check path>`). Its failures name the work: `unindexed-file` is a new document, `dead-entry` a gone one, `duplicate-entry` and `conflict-marker` a damaged index, `index-missing` an index to write.
+2. **Collect the targets**: those documents, plus `changed`. With no `changed` given, take what changed under `.maister/docs/` since INDEX.md was last committed — the commit `git log -1` names for INDEX.md, `git diff --name-only` from it, and `git status` — or, without git, the check's findings alone. With `reshape`, also every entry the check warns on.
+3. **Settle a conflicted index** by keeping both sides' entries and dropping the markers; a path left with two entries becomes a target. Never merge entry prose by hand.
+4. **Write each target's entry** (rules below). Read the document's first heading and opening paragraph, and the whole file only when those do not say what it is for. A changed document whose purpose did not change keeps its entry; a gone document loses it.
+5. **Keep everything else byte for byte** — every other entry and the text around them — so two branches that refresh different documents merge cleanly. Two things are applied every time: the header comment from `references/index-md-template.md` is added when missing, and the retired "Keep Updated" and "Updating Documentation" guidance, which tells readers to edit the index, is removed. With `reshape`, the layout is also brought to the template: sections by kind and folder, entries at `###`.
+6. **Run the check again** and return its result: the files and entries it counted, any failure left (an error in this refresh, to be fixed before returning) and its warnings.
 
-**Result:** A comprehensive, up-to-date INDEX.md that provides a clear map of all project documentation.
+**Where an entry goes.** The kind follows from the path alone. A document under `standards/` is a standard; anything else is a project doc, files copied in from elsewhere included. Project docs go under "Project documentation" — `project/` and the top-level files — or under one "Project documentation: <folder>" section per other folder; the workflows' intake reads project documents from these sections. Standards go under one `## Standards: <folder>` section per folder, so `standards/backend/storage/` has its own. Entries run in path order within a section.
+
+**The entry.** ``### <title> (`<path>`)``, the path relative to `.maister/docs/`, then one or two sentences:
+- **Title**: the document's first heading, else its file name without the extension.
+- **A project doc** says what question it answers and when to open it — "How releases are cut and promoted. Open when a change touches versioning or CI." About 240 characters.
+- **A standard** says what code or task it governs, then `Read in full before:` and up to about eight topics: noun phrases naming situations, taken from its `###` rule headings, never the rules themselves — "How data is read and written safely and fast. Read in full before: SQL and ORM queries, N+1 risks, transactions, timeouts, caching." About 300 characters.
+- **Never in an entry**: counts of things, dates, ticket or PR references, history ("amended", "note"), or restated rules and facts. An entry says where to look; the document says what is there. The check warns on each, and on an entry past its size guide.
+
+**Result:** INDEX.md maps every document, the entries this refresh did not target unchanged, and the check passes.
 
 ---
 
@@ -178,11 +190,11 @@ Use this to add new documentation to the project, either from plugin baseline or
    - Copy it to the appropriate location in `.maister/docs/`
 3. If creating custom documentation:
    - Take the category (project/ or standards/category/), filename and purpose from the caller; any missing goes back as a decision needed
-   - Create a template file with appropriate frontmatter and structure
-4. Update INDEX.md to include the new documentation (see "Manage INDEX.md" operation)
+   - Create the file with a first heading and an opening paragraph saying what it is for; no frontmatter is needed
+4. Refresh INDEX.md with the new path as `changed`
 5. If this is a technical standard and corresponds to a project skill, ensure consistency
 
-**Result:** New documentation is added to the project and indexed in INDEX.md.
+**Result:** New documentation is added to the project and has its entry in INDEX.md.
 
 ---
 
@@ -199,7 +211,7 @@ Use this to help the user update or modify existing project documentation.
    - Include the plugin's baseline version for reference when the caller asks for it
 4. If the documentation doesn't exist, return a decision needed: add it from the plugin baseline ("Add Documentation File") or create it from scratch
 5. After updating:
-   - Check if INDEX.md needs updating (if the purpose/description changed significantly)
+   - Refresh INDEX.md with the path as `changed`; its entry changes only when the file's purpose did
    - If updating tech-stack.md or architecture.md, suggest reviewing CLAUDE.md for consistency
 6. For technical standards:
    - If a corresponding project skill exists, suggest reviewing it for consistency
@@ -219,7 +231,7 @@ Use this when a team wants to see the plugin's baseline documentation for refere
 3. Unless the caller already chose, return the choice as a decision needed — "Keep your documentation (Recommended): the baseline is reference only", "Reset these files to the baseline", "Reset everything to the baseline" — the question saying that a reset overwrites the project's own edits
 4. When the caller's prompt chooses a reset:
    - Copy the selected files from this skill's bundled `docs/` directory to the project's `.maister/docs/` directory
-   - Update INDEX.md to reflect any changes
+   - Refresh INDEX.md with the reset files as `changed`
    - Review CLAUDE.md for any necessary updates
 
 **Important:** This operation should be used rarely, mainly when a team wants to reset to baseline. Project documentation is the source of truth and should be maintained by the team.
@@ -239,7 +251,7 @@ Use this to show what documentation is bundled with this plugin and their instal
    - Check if it exists in the project at `.maister/docs/[category]/[name].md`
    - Show installation status (bundled only, installed, or customized)
    - If installed, show whether it differs from the baseline (customized)
-3. Show whether INDEX.md exists and is up-to-date
+3. Show whether INDEX.md maps every document — the check's result
 4. Show whether CLAUDE.md has documentation integration
 5. Remind the user that plugin documentation is baseline/reference only, and project documentation (if installed) is the source of truth
 
@@ -274,11 +286,7 @@ Use this to check that documentation is consistent, up-to-date, and properly int
 1. **Check structure:**
    - Verify `.maister/docs/` directory exists
    - Verify all expected subdirectories exist (project/, standards/global/, etc.)
-2. **Check INDEX.md:**
-   - Verify it exists and is readable
-   - Check that all files in `.maister/docs/` are listed in INDEX.md
-   - Check that all files listed in INDEX.md actually exist
-   - Report any orphaned files or broken references
+2. **Check INDEX.md:** run the check and report its failures (unindexed documents, dead or duplicate entries, conflict markers) and its warnings (entries past their guide, dates, ticket references, counts, standards files past their guide)
 3. **Check CLAUDE.md integration:**
    - Verify CLAUDE.md exists
    - Verify it contains documentation reference section
@@ -297,7 +305,7 @@ Use this to check that documentation is consistent, up-to-date, and properly int
    - List of issues found
    - Recommendations for fixes
 7. **Fix what is safe to fix:**
-   - Fix missing INDEX.md entries, missing CLAUDE.md integration and missing directory structure without asking — they only add what the documentation system requires
+   - Fix the check's failures with Refresh INDEX.md, and missing CLAUDE.md integration and missing directory structure, without asking — they only add what the documentation system requires
    - Return anything that would change the team's own content as a decision needed
 
 **Result:** A comprehensive validation report with optional automatic fixes for common issues.
@@ -315,13 +323,13 @@ Claude: [Executes Initialize Documentation - creates structure, copies baseline 
 **Update project vision:**
 ```
 User: "I want to update our project vision to include AI-first approach"
-Claude: [Executes Update Documentation - reads current vision.md, helps user edit it, updates INDEX.md if needed]
+Claude: [Executes Update Documentation - reads current vision.md, applies the edit, refreshes its INDEX.md entry if its purpose changed]
 ```
 
 **Add custom documentation:**
 ```
 User: "Add documentation for our deployment process"
-Claude: [Executes Add Documentation File - creates custom project/deployment.md, updates INDEX.md]
+Claude: [Executes Add Documentation File - creates custom project/deployment.md, refreshes INDEX.md]
 ```
 
 **Reference plugin baseline:**
@@ -336,18 +344,28 @@ User: "Check if our documentation is complete and consistent"
 Claude: [Executes Validate Documentation Consistency - checks structure, INDEX.md, CLAUDE.md integration, generates report]
 ```
 
-**Manage INDEX.md:**
+**Refresh INDEX.md:**
 ```
-User: "Rebuild the documentation index"
-Claude: [Executes Manage INDEX.md - scans .maister/docs/, regenerates comprehensive INDEX.md]
+User: "Bring the documentation index back in shape"
+Claude: [Executes Refresh INDEX.md with reshape - rewrites the entries the check warns on, keeps the rest, runs the check]
 ```
+
+---
+
+## Guidance for Projects
+
+What a team keeping its documentation in `.maister/docs/` should know:
+- **INDEX.md is maintained by maister.** Nobody edits it by hand: change the source document, and the next refresh updates its entry — at the points a workflow runs one, or with `/maister:standards-update --refresh-index`.
+- **A merge conflict in INDEX.md is fixed by a refresh**, never by hand-merging the entries.
+- **Tests and handoffs pin facts in the source documents**, never in INDEX.md. An entry says where to look, not what is there, so a fact pinned to it pins the wrong file.
+- **Any Markdown file may live in `.maister/docs/`**, copied in as it is. No frontmatter, schema or naming is required.
 
 ---
 
 ## Important Notes
 
 - **Project documentation is source of truth** — plugin-bundled docs are baseline/reference only
-- **INDEX.md must stay current** — regenerate after any documentation change
+- **INDEX.md changes only through Refresh INDEX.md** — never edited by hand, never rewritten whole
 - **CLAUDE.md integration is mandatory** — ensures AI reads documentation at task start
 - **This skill is an internal engine** — called by maister:init, standards-update, and standards-discover. Not directly user-invocable.
 - **CRITICAL: Return control after completion** — This is an internal sub-skill. After completing the requested operation, return control to the calling workflow. Do NOT treat completion of this skill as the end of the conversation turn — the parent skill has more steps to execute.
