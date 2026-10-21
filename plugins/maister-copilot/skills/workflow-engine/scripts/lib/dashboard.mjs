@@ -698,7 +698,7 @@ const REVERT_HEADING = /^##\s.*\bGroup (\d+) Reverted \(wave\s*\d+\):\s*(.+)$/gi
  * ones running until each is finished or reverted. The group list is read as
  * every number after the colon, so `Groups 4 and 5` and `Group 4` read too.
  */
-const WAVE_START = /^##\s.*\bWave (\d+) Started:([^\n]*)$/gim;
+export const WAVE_START = /^##\s.*\bWave (\d+) Started:([^\n]*)$/gim;
 
 /** How a group-level note is labelled for the viewer, which renders it verbatim. */
 const GROUP_LABEL = (group, reason) => `Group ${group} — ${reason}`;
