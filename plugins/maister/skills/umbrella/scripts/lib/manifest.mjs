@@ -78,6 +78,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
+import { isSetAside } from '../../../../lib/run-dirs.mjs';
 import { readDefinition } from './definition.mjs';
 import { driverCapability } from './envelope.mjs';
 import { bareWorkflowName, locate as locateWorkflow, TARGET_NAME, validate as validateGraph } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
@@ -1030,7 +1031,8 @@ function generatedStems(home) {
 
 /**
  * Every run under the workspace, with the definition file its state names and
- * whether it has closed. The source is resolved the way the envelope resolves
+ * whether it has closed. A copy set aside beside a run (`isSetAside`) is not a
+ * run and is left out: it neither holds a chain back nor names one. The source is resolved the way the envelope resolves
  * it — workspace-relative first, then run-relative, then as given — so a state
  * the engine wrote reads back the same here as it does at dispatch.
  */
@@ -1040,6 +1042,7 @@ function readRuns(base) {
   const warnings = [];
   if (!isDirectory(runsDir)) return { entries, warnings };
   for (const id of fs.readdirSync(runsDir).sort()) {
+    if (isSetAside(id)) continue;
     const run = path.join(runsDir, id);
     const stateFile = path.join(run, STATE_FILE);
     if (!isFile(stateFile)) continue;

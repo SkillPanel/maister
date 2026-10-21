@@ -217,7 +217,7 @@ orchestrator:
   # Who drives the run — absent means terminal; written whole, never merged
   driver:
     kind: terminal | cockpit | dispatch  # The gate rule keys on this (§ 2)
-    cwd: [absolute path]                 # Required beside cockpit or dispatch
+    cwd: [absolute path]                 # Required beside cockpit or dispatch; where the run was started — the run is located by its state file, never by this
     dispatch_id: [id]                    # Optional; a dispatched run records its dispatch, so runs sharing one checkout are told apart
     session: {id: [session id]}          # A cockpit's, set when it adopts the run; the engine never writes one
     features: []                         # What the driver carries, e.g. question-sets (§ 2.2); a sub-run's freeze copies its parent's, else the engine only reads it

@@ -17,7 +17,15 @@ able to write:
 - `orchestrator` and `task` — the two required core blocks. Scalars replace, and so does
   `orchestrator.driver`, which is one contract-shaped value written whole — a dispatched run's
   carries an optional `dispatch_id` beside `kind` and `cwd`, the dispatch it runs, which the
-  writer keeps and the engine never reads. The four **open
+  writer keeps and the engine never reads. `cwd` is absolute and records the directory the run
+  was started in, which a driver needs to start a session there again; nothing reads it to find
+  the run. A run is located by its state file, four levels below its checkout under one of two
+  roots — `<checkout>/.maister/tasks/<type>/<date-name>`, or
+  `<checkout>/.maister/umbrella/runs/<run-id>` for the run that drives a chain — so a run moved
+  to another machine is found where it now is; `resume-check` prints that checkout as `root`. A
+  folder named `<run>.moved-<digits>` (the copy a machine kept after the run moved) or
+  `<run>.failed-<digits>` (a rolled-back copy) is not a run: no listing names it and
+  `resume-check` refuses it. The four **open
   maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
   — merge key by key instead: a write recording `user_docs_enabled` leaves an `html_output` an
   earlier node set alone. `task.status` is the writer's at one moment: the first write that

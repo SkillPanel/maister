@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -170,4 +171,72 @@ test('resume-check: a mirror whose entries hold no decision and no risk prints n
   const result = resumeCheck(run);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
+});
+
+/** A run directory under the umbrella root of a fresh scratch checkout, removed when the test ends. */
+function umbrellaRun(t, id = 'r-0001') {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-engine-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const dir = path.join(root, '.maister', 'umbrella', 'runs', id);
+  fs.mkdirSync(dir, { recursive: true });
+  return { root, dir, state: path.join(dir, 'orchestrator-state.yml') };
+}
+
+/** A driver recorded on a machine the run has since left: its cwd names no directory here. */
+const MOVED_DRIVER = { driver: { kind: 'dispatch', cwd: path.join(os.tmpdir(), 'maister-gone', 'old-machine', 'checkout') } };
+
+test('resume-check: root is the checkout four levels above the state file', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = resumeCheck(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.json.root, run.root);
+});
+
+test('resume-check: a moved run resolves to its real checkout, not to the cwd its driver recorded', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: MOVED_DRIVER });
+  assert.ok(!fs.existsSync(MOVED_DRIVER.driver.cwd), 'the recorded cwd names no directory');
+  const result = resumeCheck(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.json.root, run.root);
+  assert.equal(result.json.task_path, run.dir);
+});
+
+test('resume-check: a moved umbrella-root run resolves to its workspace, not to the recorded cwd', t => {
+  const run = umbrellaRun(t);
+  freeze(run, { orchestrator: MOVED_DRIVER });
+  const result = resumeCheck(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.json.root, run.root);
+  assert.equal(result.json.task_path, run.dir);
+});
+
+for (const suffix of ['moved-1739000000', 'failed-2']) {
+  test(`resume-check: a .${suffix.split('-')[0]}-<digits> copy beside a run is refused and left untouched`, t => {
+    const run = scratch(t);
+    freeze(run);
+    const copy = `${run.dir}.${suffix}`;
+    fs.cpSync(run.dir, copy, { recursive: true });
+    const before = snapshot(copy);
+    const result = resumeCheck({ state: path.join(copy, 'orchestrator-state.yml') });
+    assert.equal(result.code, 1, result.stdout);
+    assert.equal(result.json.ok, false);
+    assert.equal(result.json.code, 'run-set-aside');
+    assert.match(result.json.message, /not a run/);
+    assert.deepEqual(snapshot(copy), before);
+    assert.equal(resumeCheck(run).json.ok, true, 'the run itself still resumes');
+  });
+}
+
+test('resume-check: a set-aside copy of an umbrella-root run is refused too', t => {
+  const run = umbrellaRun(t, 'r-0001.moved-42');
+  freeze(run);
+  assert.equal(resumeCheck(run).json.code, 'run-set-aside');
+});
+
+test('resume-check: a suffix that is not digits does not set a run aside', t => {
+  const run = scratch(t, { name: '2026-01-05-sample.moved-later' });
+  freeze(run);
+  assert.equal(resumeCheck(run).json.ok, true);
 });
