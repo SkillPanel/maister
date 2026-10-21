@@ -70,3 +70,30 @@ test('prune: an outcome marker is never a chain of its own', (t) => {
   assert.match(report.errors[0].message, /the generated chains are c-one\./);
   assert.deepEqual(fs.readdirSync(home).sort(), [...FOUR].sort(), 'nothing was deleted');
 });
+
+for (const suffix of ['moved-1739000000', 'failed-3']) {
+  test(`prune: an open run kept as a .${suffix.split('-')[0]}-<digits> copy is not a run and holds nothing back`, (t) => {
+    const { root, home } = workspace(t, FOUR);
+    const copy = path.join(root, '.maister', 'umbrella', 'runs', `r1.${suffix}`);
+    fs.mkdirSync(copy, { recursive: true });
+    fs.writeFileSync(path.join(copy, 'orchestrator-state.yml'),
+      `workflow:\n  source: ${path.join(...GENERATED, 'c-one.yml')}\ntask:\n  status: in_progress\n`);
+
+    const { code, report } = prune(root);
+    assert.equal(code, 0, JSON.stringify(report));
+    assert.deepEqual(report.pruned.map((chain) => chain.name), ['c-one']);
+    assert.deepEqual(fs.readdirSync(home), []);
+  });
+}
+
+test('prune: the same open run under its own id still holds the chain back', (t) => {
+  const { root, home } = workspace(t, FOUR);
+  const open = path.join(root, '.maister', 'umbrella', 'runs', 'r2');
+  fs.mkdirSync(open, { recursive: true });
+  fs.writeFileSync(path.join(open, 'orchestrator-state.yml'),
+    `workflow:\n  source: ${path.join(...GENERATED, 'c-one.yml')}\ntask:\n  status: in_progress\n`);
+
+  const { report } = prune(root);
+  assert.deepEqual(report.pruned, []);
+  assert.deepEqual(fs.readdirSync(home).sort(), [...FOUR].sort());
+});

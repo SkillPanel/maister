@@ -30,7 +30,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
-import { dashboardUrl, legacyMirrorWarning } from './state.mjs';
+import { childRootOf, dashboardUrl, legacyMirrorWarning, projectRootOf } from './state.mjs';
+import { isSetAside } from '../../../../lib/run-dirs.mjs';
 import { openRevision } from './revise.mjs';
 
 /** The manifest name the Copilot CLI variant carries. */
@@ -75,7 +76,8 @@ function ownPluginName() {
  * Judge the run whose state file is `state`.
  *
  * Returns `{ok: true, workflow: {name, overlays, profile}, title, status, task_path,
- * dashboard, revision?}` for a run the engine froze — `revision` only while a
+ * root, dashboard, revision?}` for a run the engine froze — `root` the run's
+ * checkout, derived from where the state file is (`runRoot`) — `revision` only while a
  * gate's revise is open (`openRevision`) — `dashboard` the `file://` link a
  * resume shows the operator once, or null when the run has none — or
  * `{ok: false, code, message}` for one it does not resume.
@@ -86,6 +88,14 @@ function ownPluginName() {
  * on stderr and keeps out of the JSON.
  */
 export function resumeCheck({ state }) {
+  const dir = path.dirname(path.resolve(state));
+  if (isSetAside(dir)) {
+    return refuse('run-set-aside',
+      `${dir} is a copy set aside beside a run — a folder named \`<run>.moved-<digits>\` is kept after the run moved, `
+      + 'one named `<run>.failed-<digits>` after a rollback — not a run, so it is not resumed. Nothing was changed. '
+      + 'Resume the run from its own directory, the same path without the suffix, on the machine that holds it.');
+  }
+
   let raw;
   try {
     raw = fs.readFileSync(state, 'utf8');
@@ -100,7 +110,6 @@ export function resumeCheck({ state }) {
     return refuse('state-unreadable', `${state} cannot be read as a state document: ${err.message}`);
   }
 
-  const dir = path.dirname(path.resolve(state));
   const workflow = doc.workflow;
   if (!isPlainObject(workflow)) return refuse('written-by-2x', writtenBy2x());
 
@@ -120,12 +129,27 @@ export function resumeCheck({ state }) {
     title: typeof task.title === 'string' ? task.title : null,
     status: typeof task.status === 'string' ? task.status : null,
     task_path: dir,
+    root: runRoot(doc, dir),
     dashboard: dashboardUrl(doc, dir),
     // Additive, and only while a gate's revise is open: a resume that finds it
     // not yet applied runs `gate-revise` before it walks the ready set.
     ...(revision ? { revision: { gate: revision.gate, option: revision.option, reruns: revision.reruns, revision: revision.revision, applied: revision.applied } } : {}),
     ...(mirror === null ? {} : { warnings: [mirror] }),
   };
+}
+
+/**
+ * The run's checkout, from where its state file is and from nothing else:
+ * `orchestrator.driver.cwd` names the directory the run was started in, which a
+ * run moved to another machine no longer has. A child run's root is found
+ * through its parent link (`childRootOf`), every other run's four levels up
+ * (`projectRootOf`), under either run root.
+ */
+function runRoot(doc, dir) {
+  const parent = isPlainObject(doc.orchestrator) ? doc.orchestrator.parent : null;
+  return isPlainObject(parent) && typeof parent.run === 'string' && parent.run !== ''
+    ? childRootOf(dir, parent)
+    : projectRootOf(dir);
 }
 
 function refuse(code, message) {
