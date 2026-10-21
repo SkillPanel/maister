@@ -85,11 +85,6 @@ and the context ingests the rest of the run reads from.
    it, record an `open` risk naming what was skipped and the source path, and
    continue without it.
 
-**Asks.** Before anything else, when the invocation supplied no task
-description, ask for it as free text — "What should this run build or fix? One
-or two sentences." Never invent one. A non-terminal run with no description is
-`RUN-FAILED`.
-
 **Summary.** The entry carries the research reference and the ingested
 design.
 
