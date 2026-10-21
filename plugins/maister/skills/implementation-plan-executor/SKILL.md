@@ -1,6 +1,6 @@
 ---
 name: implementation-plan-executor
-description: Execute implementation plans by delegating each task group to task-group-implementer subagent. Main agent coordinates prepares context, invokes subagent, processes output, marks checkboxes, updates work-log. Uses lazy standards loading from INDEX.md with keyword-triggered discovery.
+description: Execute implementation plans by delegating each task group to task-group-implementer subagent. Main agent coordinates prepares context, invokes subagent, processes output, records each wave start and group return through the workflow engine. Uses lazy standards loading from INDEX.md with keyword-triggered discovery.
 user-invocable: false
 ---
 
@@ -12,20 +12,25 @@ You are an implementation plan executor that delegates task groups to subagents 
 2. **Lazy standards loading**: Load standards per task group, not all upfront
 3. **Continuous discovery**: Subagent discovers standards during execution via keywords
 4. **Test-driven**: Test step (N.1) before implementation steps (N.2+)
-5. **Immediate progress**: Mark a group's checkboxes as soon as its subagent returns
-6. **Main agent owns visibility**: Work-log and checkboxes always updated by main agent; the operator dashboard follows them through the engine
+5. **Immediate progress**: Record a group as soon as its subagent returns and its report is accepted
+6. **Main agent owns visibility**: The main agent records every wave start and group return, one engine call each (§ Recording Progress Through the Engine); the plan's checkboxes, the work log and the operator dashboard follow from those calls
 
-## Dashboard: Re-project Through the Engine
+## Recording Progress Through the Engine
 
-The implementation phase runs under this skill, and the orchestrator cannot touch the dashboard until control returns, however long that takes. The dashboard still stays live, because this skill **never writes `dashboard-data.js`**. The workflow engine's state writer is the file's only writer: it projects the implementation phase's `progress` from the plan's checkboxes and the work log's wave-start, wave and revert headings (§ Work-Log Updates) on every state write, and the run's status line draws the same figures as one segment per group. So at each re-projection moment below, this skill sends one `write-state` call: a **progress write** that publishes the phase's progress to the dashboard and the status line. Its patch is `{}`, as the patch file's body, because the writer derives that progress itself from the plan and the log; sending figures of your own would only duplicate it. The call and the patch file follow the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract). It is a real write, not one with nothing to change: it re-projects `dashboard-data.js`, redraws the status line and stamps `updated`. When you describe the call, name that purpose — publishing the implementation progress — so it never reads as an empty write.
+The implementation phase runs under this skill, and the orchestrator cannot touch the dashboard until control returns, however long that takes. The dashboard still stays live, because this skill **never writes `dashboard-data.js`** and never keeps the plan's progress by hand. Two workflow engine verbs record the two moments a wave has, each in one call, and each re-projects the run's displays (the dashboard and the status line) itself:
 
-- **Moments**: at entry, once the work log exists; when each wave starts, after its start entry is logged; when a group of a wave returns while others of that wave are still running, after its checkboxes and its complete entry; after every wave resolves; at finalize. One call per moment. The status line redraws only on a state write, so the per-group call is what moves it group by group rather than all at once when the wave resolves; a wave of one group has no such call, its return being the wave's resolution.
-- **Skip** when there is no `orchestrator-state.yml`. A standalone run has no workflow run, so it has nothing to project and no dashboard. The plan, its companion and the work log are that run's record. Also skip when `orchestrator.options.html_output` is false: then there is no dashboard, and the call would only re-publish state.
-- **Never blocks**: a refused or failed call gets a warning line in `work-log.md` (`Dashboard re-projection failed after Group N` or `… after wave N`) and the run continues. A visible miss, never a silent one.
+- **`wave-start`** — `--plan=<task path>/implementation/implementation-plan.md --wave=<K> --groups=<A>,<B>`. Logs the wave's start heading from the clock, so the groups it names read as running.
+- **`group-done`** — `--plan=<same> --groups=<N>[,<M>] --entry-file=<task path>/implementation/.work-log-entry.md`. For groups you accepted: ticks their open checkboxes, syncs the plan's HTML companion, appends one work-log entry per group under the clock-stamped heading the dashboard parses, with the wave read from the log, and re-projects. Write the entry file with your file tool and run the verb **in the same message**. The file holds the body of § Work-Log Updates — no heading of its own; with several groups, one `## Group N` line opens each group's part.
+
+Run both as `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs <verb> …`, the plugin root written as its absolute path (the workflow engine's invocation contract, `../workflow-engine/SKILL.md`, says why). Both print JSON and are idempotent: a repeated call writes nothing twice, so when unsure whether a call landed, run it again. A standalone run, with no `orchestrator-state.yml`, still uses them; they skip the re-projection and say `"reprojected": "no-run"`.
+
+- **Never mark checkboxes, type these headings or read the clock for them yourself**, and never write a helper script to do it: the verbs are the one way a group return or a wave start is recorded.
+- **Nothing else re-projects.** Send no `write-state` call to redraw the dashboard — not at entry, not when a wave resolves, not at finalize: each verb call already redraws it, and the orchestrator's own state write after this skill returns does the rest.
+- **Never blocks**: a sync or re-projection that fails is a `warning:` line and a line in `work-log.md`, and the run continues. A refusal names what was written and what to do; a log that could not be written after the plan was marked is finished by the same call run again.
 
 ## Execution Model
 
-Every task group is executed by the `task-group-implementer` subagent, however small — the main agent coordinates (Task tool → process output → mark checkboxes) and never writes implementation code itself.
+Every task group is executed by the `task-group-implementer` subagent, however small — the main agent coordinates (Task tool → process output → record the group) and never writes implementation code itself.
 
 ## Phase 1: Initialize
 
@@ -49,8 +54,6 @@ Every task group is executed by the `task-group-implementer` subagent, however s
    ### Loaded Per Group
    (Entries added as groups execute)
    ```
-5. **Re-project the dashboard** (§ Dashboard: Re-project Through the Engine). Do this after the work log exists, because the projection derives progress only when both the plan and the log are on disk. A resumed run depends on this call: after a restart, nothing else re-publishes the file until the orchestrator itself resumes, so without it the dashboard would show where the implementation stood hours ago.
-
 **Do NOT read all standards upfront.** Standards are loaded lazily per task group.
 
 ## Phase 2: Execute (wave-based, parallel by default)
@@ -79,7 +82,7 @@ Never assume missing `Files to Modify` means "None" — silent disjoint assumpti
 
 For each wave:
 
-0. For every group in the wave, `TaskUpdate` to `status: "in_progress"` with `owner: "maister:task-group-implementer"`. Then append the wave's start entry to `work-log.md` (§ Work-Log Updates) and **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), before the fan-out: the groups the entry names show as running until each is completed or reverted.
+0. For every group in the wave, `TaskUpdate` to `status: "in_progress"` with `owner: "maister:task-group-implementer"`. Then record the wave's start with **`wave-start`** (§ Recording Progress Through the Engine), before the fan-out: the groups it names show as running until each is completed or reverted. On a resumed run this is also the call that brings the dashboard up to date.
 
 1. **Prepare group context** (per group):
    - Extract group content from `implementation-plan.md` (including `Visual References` section, if present)
@@ -103,22 +106,14 @@ For each wave:
    **SELF-CHECK before sending the message**: Are you about to emit a message with one `Task` call when the current wave has more than one group? If yes, STOP. Compose every wave member's prompt first, then emit them all in the same message. Awaiting one before composing the next violates this skill's contract. If the wave has exactly one group, a single `Task` call is correct.
 
 3. **Process each wave member as it returns**, without waiting for its siblings:
-   - Parse completed steps, standards applied, test results.
-   - Mark all group checkboxes in `implementation-plan.md`.
-   - Add a group entry to `work-log.md` with standards trail, the documents changed and the standard candidates.
-   - Verify test results are acceptable.
+   - Parse completed steps, standards applied, test results, and verify the test results are acceptable. Whether to accept the group is your judgement; the engine records only a group you accepted.
    - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N}`.
-   - If other members of the wave are still running, **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), after the checkboxes and the entry above, so the group reads as done while its siblings still read as running.
+   - Record it with **`group-done`** (§ Recording Progress Through the Engine): write its work-log entry body (§ Work-Log Updates) to the entry file and run the verb in the same message. That one call marks its checkboxes, logs the entry under the wave's clock-stamped heading, syncs the plan's HTML companion and redraws the dashboard and the status line, so the group reads as done while its siblings still read as running. Members that come back together are recorded together: one call with `--groups=<N>,<M>` and one `## Group N` part per group in the entry file.
+   - A `warning: plan-sync-missed` names groups the companion has no marker for; the verb has already written the miss into the work log, so there is nothing to add.
 
    A member that returns failed is not processed here: it waits for the recovery flow in step 4, once the whole wave is back.
 
-   Then, once every member of the wave has been processed, **sync the plan's HTML companion** — one call per wave, after the checkboxes above are marked, with the plugin root written as its absolute path rather than the variable (the workflow engine's invocation contract says why):
-   ```
-   node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs sync-plan --plan=<task path>/implementation/implementation-plan.md
-   ```
-   It sets every `data-group` / `data-step` marker in `implementation-plan.html` to what the plan says, so it is safe to re-run and also returns a reverted group to outstanding; it is a no-op when there is no companion or `html_output` is false. For each group completed this wave that its JSON lists under `missing_groups`, or when it exits non-zero, append a warning to `work-log.md` (`HTML plan sync missed markers for Group N`) — a visible miss, never a silent one. The sync never blocks the wave.
-
-   Then **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), once per wave and after the checkboxes, the work-log entries and the sync. The projection reads the wave's outcome from them: groups done from the checkboxes, `current_wave` from the last `Group N Complete (wave K)` heading, skipped groups from `[~] … SKIPPED:` steps and reverted groups from `Group N Reverted (wave K): reason` entries. A group the failure-recovery path skipped or reverted therefore reaches the dashboard only if those marks are written first.
+   Once every member is recorded, the wave has nothing left to write: the last `group-done` synced the companion and published the wave's outcome. The projection reads it from the plan and the log — groups done from the checkboxes, `current_wave` from the last `Group N Complete (wave K)` heading, skipped groups from `[~] … SKIPPED:` steps and reverted groups from `Group N Reverted (wave K): reason` entries — so a group the failure-recovery path skipped or reverted reaches the dashboard only if those marks are written first; the next `wave-start`, or the orchestrator's own state write once this skill returns, draws them.
 
 4. **Partial-wave failure handling**:
    - Do NOT cancel sibling subagents in the same wave — they may produce valid work even when one peer fails.
@@ -128,7 +123,7 @@ For each wave:
 
 5. After the wave fully resolves (all members `completed` or recovered), recompute the ready set and proceed to the next wave.
 
-   **SELF-CHECK before dispatching the next wave**: did you run `sync-plan` (step 3) and re-project the dashboard once the wave resolved? If unsure, run both now. Both are idempotent, because each one derives its output from the plan as it stands.
+   **SELF-CHECK before dispatching the next wave**: did every accepted member of this wave go through `group-done`? If unsure, run it again for that group: a group already recorded under its wave is not logged twice.
 
 ### `--sequential` Opt-Out
 
@@ -327,25 +322,19 @@ When processing a group's report, if its test step (N.1) is not marked done whil
 
 **Format**: `- [ ]` → `- [x]` (or `- [~]` for skipped)
 
-**Timing**: Mark a group's checkboxes as soon as its subagent returns — never before, and never for a group that has not reported.
+**Timing**: A group's checkboxes are marked by its `group-done` call, as soon as its subagent returns and its report is accepted — never before, and never for a group that has not reported.
 
-**Responsibility**: Always main agent — subagent does NOT mark checkboxes.
+**Responsibility**: Always the main agent, through `group-done` — the subagent does NOT mark checkboxes, and neither does a script of your own. The one mark you write by hand is a skipped step's `- [~] N.M SKIPPED: <reason>`, before the group's `group-done`, which keeps it as it is.
 
 ### Work-Log Updates
 
-**Every `[timestamp]` in `work-log.md` comes from the clock.** Run `date -u +%Y-%m-%dT%H:%M:%SZ` right before the entry is written and copy its output into the heading — never a time typed, estimated or carried over from an earlier reading. Entries land minutes apart as groups return, and the log is the run's timeline: a typed time can read as later than the work it records.
+**Every `[timestamp]` in `work-log.md` comes from the clock.** The wave-start and group headings are stamped by `wave-start` and `group-done` themselves. For the entries you write — the opening entry, a revert and the closing entry — run `date -u +%Y-%m-%dT%H:%M:%SZ` right before the entry is written and copy its output into the heading — never a time typed, estimated or carried over from an earlier reading. Entries land minutes apart as groups return, and the log is the run's timeline: a typed time can read as later than the work it records.
 
-Before each wave is dispatched — `--sequential` included, as a wave of one:
+Before each wave is dispatched — `--sequential` included, as a wave of one — `wave-start` writes `## [timestamp] - Wave [K] Started: Groups [A], [B]`.
 
-```markdown
-## [timestamp] - Wave [K] Started: Groups [A], [B]
-```
-
-After each task group:
+After each task group, `group-done` writes the heading `## [timestamp] - Group [N] Complete (wave [K])` and, under it, the body you put in the entry file:
 
 ```markdown
-## [timestamp] - Group [N] Complete (wave [K])
-
 **Steps**: N.1 through N.M completed
 **Standards Applied**:
 - From plan: [list]
@@ -360,13 +349,12 @@ After each task group:
 
 `Standard Candidates` lines are what finalization offers to add as standards when the run ends, so copy each as the implementer wrote it.
 
-**The heading is a contract, not a caption.** The dashboard reads `current_wave` off
-the wave number in the last such heading, so keep `Group [N] Complete (wave [K])`
-intact and put any annotation after the number — `(wave 2, parallel with Group 3)`
-still reads. A heading that renames those words carries nothing to the dashboard.
-The start heading is a contract in the same way: `Wave [K] Started:` followed by
-the wave's group numbers is what tells the dashboard and the status line which
-groups are running.
+**The headings are a contract, not captions**, which is why the verbs write them: the
+dashboard reads `current_wave` off the wave number in the last `Group [N] Complete (wave [K])`
+heading, and `Wave [K] Started:` followed by the wave's group numbers is what tells the
+dashboard and the status line which groups are running. The entry file therefore carries
+no heading of its own — the verb refuses one — and an annotation such as "parallel with
+Group 3" goes in the body.
 
 When a group is reverted rather than completed, record it in the same shape:
 
@@ -403,9 +391,7 @@ for an operator reading the run at a glance.
    **Duration**: [if tracked]
    ```
 
-5. **Final re-projection** (§ Dashboard: Re-project Through the Engine), after the final work-log entry. It publishes `groups_done == groups_total`, with the accumulated skipped and reverted groups. Do not complete the phase here: its status stays `in_progress`, because the orchestrator owns completing it (§ 2 state ordering). Do this before returning, so the operator sees a finished implementation while the orchestrator's next phase spins up.
-
-6. **Return summary** to calling orchestrator
+5. **Return summary** to calling orchestrator. The last `group-done` already published `groups_done == groups_total`, so nothing is re-projected here. Do not complete the phase: its status stays `in_progress`, because the orchestrator owns completing it (§ 2 state ordering).
 
 ## Error Handling
 
@@ -427,7 +413,8 @@ If task-group-implementer reports failure:
    Updates — `## [timestamp] - Group [N] Reverted (wave [K]): [reason]`, the time from the clock — and clear the
    group's checkboxes back to `- [ ]`. The entry is the only record of the revert the
    dashboard can read; a rollback that leaves nothing behind shows up as a group that
-   simply stopped.
+   simply stopped. The next `wave-start` — the retry's, if there is one — or the
+   orchestrator's own state write draws it; send no write of your own for it.
 
 ### Test Failure
 
@@ -452,8 +439,7 @@ Before returning success:
 - [ ] Standards applied appropriately per step
 
 ### Artifacts
-- [ ] implementation-plan.md checkboxes updated
-- [ ] `sync-plan` run after every wave, and any missed marker logged in work-log.md
+- [ ] Every wave started with `wave-start` and every accepted group recorded with `group-done` — no checkbox, group heading or wave heading written by hand
 - [ ] work-log.md complete with timeline
-- [ ] Dashboard re-projected through `write-state` at entry, at each wave start, as each group of a multi-group wave returned, after every wave, and at finalize — or skipped because the run is standalone or `html_output` is false
+- [ ] No `write-state` call sent only to redraw the dashboard
 - [ ] No uncommitted partial changes
