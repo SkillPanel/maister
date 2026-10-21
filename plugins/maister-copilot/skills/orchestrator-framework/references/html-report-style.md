@@ -128,7 +128,7 @@ details > summary { cursor:pointer; font-weight:600; }
 | `implementation-plan.html` | Group count, dependency overview | Task-group cards with dependency arrows (inline SVG or arrow glyphs), per-group checklists, files-to-modify as `<code>` chips, wave/parallelism hints |
 | `implementation-verification.html` | Verdict banner (pass / pass-with-issues / fail) | Findings table sorted critical→info with `.sev` badges, per-check section status, fixes-applied list with ✓ |
 | `e2e-verification-report.html` | Pass/fail scenario counts | Scenario cards with embedded screenshots (`img.shot`, relative paths), step status lists |
-| `visual-fidelity.html` | Overall fidelity verdict | Side-by-side mockup vs rendered screenshot pairs, per-screen discrepancy notes |
+| `visual-fidelity.html` | Overall fidelity verdict | Per screen, the mockup's screenshot beside the implementation's (two `<img>` at the same width, captioned; an ASCII mockup in `<pre>`, an uncaptured one linked), per-screen discrepancy notes; never an embedded HTML mockup (`<iframe>`, `<object>`, `<embed>`) |
 | `research-report.html` | Confidence level, findings/sources counts | Findings table (title, category, confidence badge, sources), insight cards, SWOT grid, collapsed `<details>` for evidence/citations |
 | `solution-exploration.html` | Alternatives count, recommended approach | Alternative cards side-by-side, trade-off comparison matrix as a table, recommended card highlighted (accent border), "why not others" collapsed |
 | `high-level-design.html` | Architecture style, components/decisions counts | C4 diagrams as `<pre>` blocks (keep the ASCII — it's already a diagram), component table, decision summary linking ADR anchors in decision-log.html |

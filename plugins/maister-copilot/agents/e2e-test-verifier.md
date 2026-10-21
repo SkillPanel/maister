@@ -28,7 +28,7 @@ Prove the implementation works from the user's perspective: turn the spec's user
 | `import_command` | Orchestrator (optional) | The command that brings files into `verification/screenshots/`, to which one `--from=<path>` per file is added (screenshot collection below) |
 | `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
-**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save report to `{task_path}/verification/e2e-verification-report.md`, screenshots to `{task_path}/verification/screenshots/`, visual fidelity report to `{task_path}/verification/visual-fidelity.md` (when design_context_path provided). NEVER write to project-level directories.
+**CRITICAL**: Always use `task_path` as the root for ALL file writes. Save report to `{task_path}/verification/e2e-verification-report.md`, screenshots to `{task_path}/verification/screenshots/` (mockup captures to `{task_path}/verification/screenshots/mockups/`), visual fidelity report to `{task_path}/verification/visual-fidelity.md` (when design_context_path provided). NEVER write to project-level directories.
 
 ---
 
@@ -328,12 +328,28 @@ Before writing the report file, walk this checklist and only save once every ite
 - `analysis/design-context/mockups/` — source mockup files (HTML, screenshots, ASCII)
 - `verification/screenshots/` — screenshots captured during Steps 3-6
 
+**Capture the mockups first.** Every comparison is between two screenshots taken the same way, so the judgment is like for like. A saved studio mockup (`<slug>.html`) is the whole studio page — header, Annotations toggle, annotation tooltips, the screen inside a padded, width-capped panel — so it is never compared, shown or embedded as it is. For each screen, by the mockup's kind:
+
+- **HTML mockup** — render the screen's own markup bare and screenshot that, the same way every run:
+  1. Take the screen's `html` and `css`. The studio's manifest beside the mockups, `.mockups.json`, holds them in its `mockups` list under the entry whose `id` is the file's slug. Without the manifest or that entry, take them from the saved `<slug>.html`: inside `<main id="mockup-container">`, the `<style>` element is the css and the `<div id="mockup-content">` the html. A mockup the studio did not write (no `mockup-content` element) is used whole as the html.
+  2. `browser_navigate` to `about:blank` — never open the saved file itself: its template script draws the tooltips and toggle, and a `file://` page may be refused.
+  3. `browser_resize` to the viewport of that screen's implementation screenshot (§2 of the e2e report).
+  4. `browser_evaluate` a function that replaces the document with `document.open()`, `document.write(…)` and `document.close()`, writing `<!doctype html><meta charset="utf-8"><style>html,body{margin:0}` + css + `</style>` + html, the two strings embedded as JSON string literals so no quote or backtick in them breaks the function.
+  5. `browser_take_screenshot` with filename `mockup-<slug>.png`, full page exactly when the implementation screenshot was full page.
+  6. Bring it in as `verification/screenshots/mockups/<slug>.png`: the `import_command` with its `--to=` value replaced by `verification/screenshots/mockups`, plus `--from=.playwright-mcp/mockup-<slug>.png --as=<slug>.png`; without one, `cp` it there.
+
+  This is the document the studio's gallery renders in each card's private frame, at full size: no studio chrome, no annotations, no scaling, nothing read from `localStorage`.
+- **Image mockup** (png, jpg, webp) — use it as it is; it already is a screenshot.
+- **ASCII mockup** — stays text; the pair says so.
+
+A screen whose mockup cannot be captured — the file will not open or parse, no browser — is compared from the mockup source as text, and both reports say so for that screen, with the reason, and link to the mockup file. Never fall back to embedding it.
+
 **Comparison approach** (LLM-judged structural match — NOT pixel diff):
 
 For each screen ID in INDEX.md:
-1. Read the source mockup (Read tool renders binary screenshots; HTML and ASCII as text)
-2. Find the corresponding captured screenshot (match by screen ID, page name, or step description)
-3. Compare structurally:
+1. Find the corresponding implementation screenshot (match by screen ID, page name, or step description)
+2. Read both with the Read tool: the mockup screenshot (or the image mockup, or the ASCII text) and the implementation screenshot
+3. Compare structurally, from what the two images show:
    - **Layout regions**: header/sidebar/main split, column counts, panel placement
    - **Field order**: form fields, table columns, list items in the same order as the mockup
    - **Primary actions**: buttons present, labels match, placement matches
@@ -349,7 +365,7 @@ For each screen ID in INDEX.md:
 **Mode**: Report-only (does NOT gate completion)
 **Comparison**: LLM-judged structural match (not pixel-perfect)
 **Source**: analysis/design-context/INDEX.md
-**Captured**: verification/screenshots/
+**Captured**: verification/screenshots/ (implementation), verification/screenshots/mockups/ (mockups)
 
 ## TL;DR
 [3-5 lines max — overall fidelity verdict and the count of matches / deviations / drift. Conclusions, not process.]
@@ -366,7 +382,8 @@ For each screen ID in INDEX.md:
 ## Per-Screen Comparison
 
 ### screen:login (✓ Match)
-- Mockup: analysis/design-context/mockups/login.html
+- Mockup source: analysis/design-context/mockups/login.html
+- Mockup screenshot: verification/screenshots/mockups/login.png
 - Screenshot: verification/screenshots/03-login-page.png
 - Layout: 2-column split matches
 - Field order: email → password → submit ✓
@@ -374,7 +391,8 @@ For each screen ID in INDEX.md:
 - States covered: default, error (invalid credentials)
 
 ### screen:dashboard (⚠ Minor Deviation)
-- Mockup: analysis/design-context/mockups/dashboard.html
+- Mockup source: analysis/design-context/mockups/dashboard.html
+- Mockup screenshot: verification/screenshots/mockups/dashboard.png
 - Screenshot: verification/screenshots/05-dashboard.png
 - Layout: 3-column matches
 - Deviation: icon library differs (implementation uses Heroicons; mockup shows custom icons)
@@ -382,12 +400,19 @@ For each screen ID in INDEX.md:
 - Recommendation: confirm icon choice with design team
 
 ### screen:settings (✗ Substantive Drift)
-- Mockup: analysis/design-context/mockups/settings.html
+- Mockup source: analysis/design-context/mockups/settings.html
+- Mockup screenshot: not captured — the file would not parse; compared from its markup as text
 - Screenshot: verification/screenshots/08-settings.png
 - Drift: implementation uses tab navigation; mockup specifies accordion
 - Impact: information density and discoverability differ
 - Implementer's justification (from work-log): standards conflict — `frontend/navigation.md` requires tabs for ≤5 sections
 - Recommendation: design + standards owners reconcile
+
+### screen:onboarding (✓ Match)
+- Mockup source: analysis/design-context/ascii/ui-mockups.md#onboarding
+- Mockup screenshot: none — ASCII mockup, compared as text
+- Screenshot: verification/screenshots/10-onboarding.png
+- Layout: single column with a step indicator matches
 ```
 
 **Critical**: this report does NOT block workflow completion. The development orchestrator surfaces deviations prominently in the verifier summary (per "report-only, surfaced prominently" decision). Users decide whether to act on findings.
@@ -405,7 +430,7 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 
 1. **Follow the style guide**: self-contained single file, standard CSS block, no external resources.
 2. **E2E companion**: lead with the verdict banner and pass/fail counts; then scenario cards with embedded screenshots (`<img class="shot" src="screenshots/...">` — relative paths, same form as the md), step tables with ✅/❌ status, discrepancies sorted by severity with `.sev` badges. Link to the md twin in the header.
-3. **Visual-fidelity companion**: lead with the fidelity verdict; then side-by-side mockup-vs-screenshot pairs per screen (relative `<img>` paths into `../analysis/design-context/mockups/` and `screenshots/`), discrepancy notes per screen.
+3. **Visual-fidelity companion**: lead with the fidelity verdict; then one pair per screen — two `<img>` side by side at the same displayed width, captioned "Mockup" and "Implementation" (`screenshots/mockups/<slug>.png`, or the image mockup's relative path, beside `screenshots/...`) — and the discrepancy notes per screen. An ASCII mockup goes in a `<pre>` beside the screenshot; a mockup that could not be captured is a link to its file, with the reason. **Never embed an HTML mockup**: no `<iframe>`, `<object>`, `<embed>` or inline mockup markup — the mockup side is always its screenshot, its text or a link.
 4. **Same content as the md** — restructure and visualize, never add findings.
 
 ### 9. Structured Result (returned to orchestrator)
