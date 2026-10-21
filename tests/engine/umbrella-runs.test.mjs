@@ -77,7 +77,7 @@ test('runs: each readable run carries its workflow, title, description, status, 
     created: '2026-10-20T09:00:00Z',
     updated: '2026-10-20T10:30:00Z',
     root: path.resolve(root),
-    state: path.join(...RUNS, 'r-chain', 'orchestrator-state.yml'),
+    state: path.posix.join(...RUNS, 'r-chain', 'orchestrator-state.yml'),
   });
   assert.equal(byId['r-research'].description, 'Which store keeps notes safe?', 'a research run is described by its question');
   assert.equal(byId['r-research'].title, null);
