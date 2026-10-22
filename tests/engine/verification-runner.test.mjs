@@ -288,6 +288,57 @@ test('an answer from an earlier attempt is history, not this decision\'s answer'
 });
 
 // ---------------------------------------------------------------------------
+// under a driver
+// ---------------------------------------------------------------------------
+
+const COCKPIT = { kind: 'cockpit', cwd: '/work', session: 's-1', features: ['question-sets'] };
+const answer = (id, label) => ({ decision: label, by: 'operator', question_id: qid(id), question: 'Q', answer: label });
+
+test('under a cockpit with question sets the decision suspends, and the folded answers are used once', t => {
+  const run = verifying(t, { orchestrator: { driver: COCKPIT } });
+  cycleEntry(run, 1);
+  placeFindings(run);
+  assert.equal(record(run, needs(1)).code, 0);
+  assert.equal(stepOf(run).asking, 'suspend');
+
+  // The answer comes back to a fresh session: no --answered, the fold is on the summary.
+  write(run, { node_summaries: { [NODE]: { decisions: [answer('empty-upload', 'Guard the empty body'), answer('public-route', 'Accept the risk and list it')] } } });
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 1, decisions_file: 'verification/decisions-1.json' } });
+  // Each answer keeps the credit the writer gave it (only the real fold credits the operator).
+  const credit = id => readState(run).node_summaries[NODE].decisions.find(item => item.question_id === qid(id)).by;
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(run.verification, 'decisions-1.json'), 'utf8')).answers, [
+    { id: 'empty-upload', answer: 'Guard the empty body', by: credit('empty-upload') },
+    { id: 'public-route', answer: 'Accept the risk and list it', by: credit('public-route') },
+  ]);
+
+  // A later decision in the same attempt cannot ask again: the defaults, and the stop at continue.
+  cycleEntry(run, 3);
+  assert.equal(record(run, needs(3, 'budget')).code, 0);
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 3, decisions_file: 'verification/decisions-3.json' } });
+  const later = JSON.parse(fs.readFileSync(path.join(run.verification, 'decisions-3.json'), 'utf8'));
+  assert.equal(later.stop, 'continue');
+  assert.ok(later.answers.every(item => item.answer === null && item.by === 'default'));
+});
+
+test('a dispatched run that classes nothing takes the defaults at once', t => {
+  const run = verifying(t, { orchestrator: { driver: { ...COCKPIT, dispatch_id: 'd-1' } } });
+  cycleEntry(run, 1);
+  placeFindings(run);
+  assert.equal(record(run, needs(1)).code, 0);
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 1, decisions_file: 'verification/decisions-1.json' } });
+  const decisions = JSON.parse(fs.readFileSync(path.join(run.verification, 'decisions-1.json'), 'utf8'));
+  assert.deepEqual(decisions.answers.map(item => [item.answer, item.by]), [[null, 'default'], [null, 'default']]);
+});
+
+test('a cockpit without question sets cannot ask either', t => {
+  const run = verifying(t, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work', session: 's-1' } } });
+  cycleEntry(run, 1);
+  placeFindings(run);
+  assert.equal(record(run, needs(1)).code, 0);
+  assert.equal(stepOf(run).next, 'dispatch');
+});
+
+// ---------------------------------------------------------------------------
 // the crash table: a kill at any point resumes into the same end
 // ---------------------------------------------------------------------------
 

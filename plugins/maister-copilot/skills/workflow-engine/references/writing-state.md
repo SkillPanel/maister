@@ -146,8 +146,8 @@ subagents of their own: `{mode, depth, source}`, from the host the freeze's `--h
 `depth` is how many levels of subagents the host allows below the main session: on `claude` the
 value of `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` when it is a whole number, else 3; on `copilot`
 4. `mode` is `nested` at a depth of 2 or more and `inline` below it, and `source` says where the
-depth came from. Under a `cockpit` or `dispatch` driver the mode is `inline` whatever the depth,
-with a `source` saying nesting is unchecked under that driver. A terminal freeze naming no host
+depth came from. A `cockpit` or `dispatch` driver follows the same rule, with a `source` naming
+the SDK release nesting was checked under. A terminal freeze naming no host
 records nothing, which reads as `inline`. The mode shows on the status line while the review step
 runs, and on that step's dashboard card. A value a patch sends is ignored with a `note:` line, a
 sub-run's freeze records its own, and no later write widens it. After the freeze a run recorded

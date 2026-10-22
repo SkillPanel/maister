@@ -579,7 +579,8 @@ asked before: a finding that needs your decision, a risky fix, or what to do onc
 re-checks are spent. Your answers go to the runner's next pass.
 
 The run decides when it starts. On Claude Code the runner is used unless
-`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is set to 1, and on Copilot CLI it is always used. Where it cannot be used, or the runner finds it cannot start subagents,
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is set to 1; on Copilot CLI it is always used; a run the
+cockpit drives uses it too. Where it cannot be used, or the runner finds it cannot start subagents,
 verification runs in your session as before, and the status line says `inline` instead of `nested`
 while it runs. A run that stops part way through verification picks up from the files the last pass
 left, whichever way it ran.

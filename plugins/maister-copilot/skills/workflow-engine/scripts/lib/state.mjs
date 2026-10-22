@@ -2769,9 +2769,10 @@ function dropSubagents(orchestrator, notes) {
  * which the generated variant spells `copilot`. `mode` is `nested` at a depth
  * of two or more — a subagent and the subagents it dispatches — and `inline`
  * below it. A cockpit or dispatch driver, which the freeze patch carries,
- * records `inline` whatever the depth: nesting has not been checked under the
- * SDK it spawns sessions with. A
- * terminal freeze naming no host records nothing, which reads as `inline`.
+ * follows the same rule, its `source` naming the SDK release nesting was
+ * checked under (`SDK_CHECKED`); the cockpit strips the depth variable from a
+ * session's environment, so its depth is the host's own. A terminal freeze
+ * naming no host records nothing, which reads as `inline`.
  * No write after the freeze widens it (`narrowDelegation`).
  */
 function seedDelegation(orchestrator, host) {
@@ -2779,9 +2780,7 @@ function seedDelegation(orchestrator, host) {
   const driven = DRIVEN_VIA.has(kind);
   if (host === null && !driven) return orchestrator;
   const { depth, source } = hostDepth(host ?? 'claude');
-  const delegation = driven
-    ? { mode: 'inline', depth, source: `${kind} driver: SDK unchecked` }
-    : { mode: depth >= NESTED_DEPTH ? 'nested' : 'inline', depth, source };
+  const delegation = { mode: depth >= NESTED_DEPTH ? 'nested' : 'inline', depth, source: driven ? `${kind} driver: ${SDK_CHECKED} (${source})` : source };
   const base = isPlainObject(orchestrator) ? orchestrator : {};
   const options = isPlainObject(base.options) ? base.options : {};
   return { ...base, options: { ...options, delegation } };
@@ -2802,6 +2801,9 @@ const COPILOT_DEPTH = 4;
 
 /** The depth at which a subagent can dispatch subagents of its own. */
 const NESTED_DEPTH = 2;
+
+/** The SDK release a driven session's nesting was checked under: the runner reaches depth 2, and the plugin's hooks see it. */
+const SDK_CHECKED = 'SDK nesting checked at 0.3.285';
 
 /**
  * A patch's own `options.delegation`. The freeze records it from the host, so

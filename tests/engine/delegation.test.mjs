@@ -8,8 +8,9 @@ import { FIXTURES, freezePatch, readDashboard, readState, scratch, verb, write }
 // The delegation record: whether the run's subagents can dispatch subagents of
 // their own, written by the freeze under `orchestrator.options.delegation` from
 // the host its `--host` names — Claude Code's depth from the environment or 3,
-// Copilot's 4 — or `inline` under a cockpit or dispatch driver. No patch sets
-// it. The status line and the verifier's dashboard card show its mode.
+// Copilot's 4 — under a cockpit or dispatch driver too, its source naming the
+// SDK check. No patch sets it; after the freeze a nested run may narrow it.
+// The status line and the verifier's dashboard card show its mode.
 
 const OVERLAY = path.join(FIXTURES, 'definitions/sample.overlay.yml');
 const DEPTH_ENV = 'CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH';
@@ -47,29 +48,34 @@ for (const [label, host, env, expected] of CASES) {
   });
 }
 
-/** Each driver that records inline, and the source it names. */
+/** Each driver, and the source it names: nesting was checked under the SDK a driven session runs on. */
 const DRIVERS = [
-  ['a cockpit', { kind: 'cockpit', cwd: '/work', session: 's-1' }, 'cockpit driver: SDK unchecked'],
-  ['a cockpit running a dispatch', { kind: 'cockpit', cwd: '/work', session: 's-1', dispatch_id: 'd-1' }, 'cockpit driver: SDK unchecked'],
-  ['a legacy dispatch driver', { kind: 'dispatch', cwd: '/work', session: 's-1' }, 'dispatch driver: SDK unchecked'],
+  ['a cockpit', { kind: 'cockpit', cwd: '/work', session: 's-1' }, 'cockpit driver: SDK nesting checked at 0.3.285'],
+  ['a cockpit running a dispatch', { kind: 'cockpit', cwd: '/work', session: 's-1', dispatch_id: 'd-1' }, 'cockpit driver: SDK nesting checked at 0.3.285'],
+  ['a legacy dispatch driver', { kind: 'dispatch', cwd: '/work', session: 's-1' }, 'dispatch driver: SDK nesting checked at 0.3.285'],
 ];
 
 for (const [label, driver, source] of DRIVERS) {
-  test(`a driven run records inline whatever the depth: ${label}`, t => {
+  test(`a driven run records nested at the host's depth: ${label}`, t => {
     const run = scratch(t);
     const result = freezeWith(run, { host: 'claude', orchestrator: { driver } });
     assert.equal(result.code, 0, result.stderr);
-    assert.deepEqual(delegationOf(run), { mode: 'inline', depth: 3, source });
+    assert.deepEqual(delegationOf(run), { mode: 'nested', depth: 3, source: `${source} (claude default)` });
 
-    // Without --host too: the driver alone decides the mode.
+    // Without --host too: a driven freeze reads as Claude Code.
     const bare = scratch(t);
     assert.equal(freezeWith(bare, { orchestrator: { driver } }).code, 0);
-    assert.deepEqual(delegationOf(bare), { mode: 'inline', depth: 3, source });
+    assert.deepEqual(delegationOf(bare), { mode: 'nested', depth: 3, source: `${source} (claude default)` });
 
-    // On Copilot the depth is the host's, and the mode is still inline.
+    // On Copilot the depth is the host's.
     const copilot = scratch(t);
     assert.equal(freezeWith(copilot, { host: 'copilot', orchestrator: { driver } }).code, 0);
-    assert.deepEqual(delegationOf(copilot), { mode: 'inline', depth: 4, source });
+    assert.deepEqual(delegationOf(copilot), { mode: 'nested', depth: 4, source: `${source} (copilot default)` });
+
+    // A depth of 1 in the session's environment still keeps the loop inline.
+    const shallow = scratch(t);
+    assert.equal(freezeWith(shallow, { host: 'claude', env: { [DEPTH_ENV]: '1' }, orchestrator: { driver } }).code, 0);
+    assert.deepEqual(delegationOf(shallow), { mode: 'inline', depth: 1, source: `${source} (${DEPTH_ENV})` });
   });
 }
 

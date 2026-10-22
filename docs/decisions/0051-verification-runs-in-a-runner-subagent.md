@@ -63,7 +63,11 @@ runner's process is gone.
 6. **Narrowing.** `delegation` stays the freeze's record, with one exception: after the freeze a
    `nested` run may narrow to `inline` with a one-line reason, which is how the hand-off records a
    runner's `unavailable`. It never widens.
-7. **Migration.** Its `verification` node runs one cycle with no fixes; its four migration checks
+7. **Driven runs nest too.** A cockpit or dispatch driver records `nested` at the host's depth,
+   its `source` naming the SDK release nesting was checked under (0.3.285): the runner reaches
+   depth 2 there, and the plugin's hooks see the grandchild. Before that check such runs recorded
+   `inline` whatever the depth.
+8. **Migration.** Its `verification` node runs one cycle with no fixes; its four migration checks
    become a findings file merged into the same numbered list, so the runner's later writes keep
    them; `issue-resolution` asks its data-integrity question first, then hands the fix loop to the
    runner with data-integrity findings held.
