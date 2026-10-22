@@ -4,8 +4,8 @@ The one contract every verification reviewer follows: the completeness checker, 
 runner, the code reviewer, the pragmatic reviewer, the production-readiness checker and the reality
 assessor. The implementation verifier hands each of them a `review_brief` path; the brief names
 this file as its `contract`. Each reviewer keeps its own checklist and markdown report. This file
-covers only what all of them share: how to read the brief, the findings file each one writes, and
-re-check mode.
+covers only what all of them share: how to read the brief, the project profile, the findings file
+each one writes, and re-check mode.
 
 ## Why it exists
 
@@ -33,12 +33,63 @@ The brief is JSON at `verification/review-brief-<N>.json`. Read it before anythi
   cycle's test result (`pending` before the suite has run, `skipped` when the run skips it).
   `standards` holds the standards matching the change, each with why. Open a standard file only
   when its rules bear on what you review.
+- **`profile`** is the project profile: its fields and `source` (§ The project profile).
 - **`fix`** is present from the second cycle on. It holds what changed since the previous cycle:
   `diff_path`, `files` and new-side `hunks`.
 - **`recheck`** is present on a re-check cycle. It holds the issues being re-checked and
   `by_reviewer`, the ids each reviewer answers.
 - **A part the verb could not fill is `null`.** For example, `changed` is null when the snapshot
   failed. For that part only, fall back to finding it yourself, and say so in your report.
+
+## The project profile
+
+The profile says what the project is, so a reviewer checks what applies to it rather than a
+fixed web-service checklist. Every field is optional:
+
+| Field | Values |
+|---|---|
+| `kind` | `web-app`, `service`, `daemon`, `cli`, `library`, `plugin`, `desktop`, `mobile`, `data-pipeline`, `infra` |
+| `runtime` | free text: the language and its version |
+| `deploy` | `none`, `local`, `container`, `kubernetes`, `serverless`, `package-registry`, `app-store` |
+| `exposure` | `local`, `internal`, `public` — who can reach its entry points |
+| `data` | the stores it writes, such as `[postgres, files]`; `[]` for none |
+| `scale` | `single-user`, `team`, `multi-tenant` |
+| `ui` | `none`, `web`, `tui`, `native` |
+
+**Where it comes from.** `source: config` is the project's `project:` key in
+`.maister/config.yml`, as the run froze it. `source: none` means the project has none: read
+`.maister/docs/project/tech-stack.md` and `architecture.md` once (the manifests when those are
+absent), infer the same fields, and state the profile in your report's first lines as
+`source: inferred`. Without a brief, read the `project:` key yourself, then infer the same way.
+Never assume a web service. **A field neither set nor inferable rules nothing out**: keep the
+checks it governs.
+
+**What a profile rules out**, for every reviewer that keys checks to it:
+
+| The profile says | Not checked |
+|---|---|
+| `kind` `cli`, `plugin` or `library` | health and readiness endpoints, rate limiting, CORS, HTTPS, security headers, CSP, request size limits, error-tracking services, metrics, a staging environment |
+| `exposure: local` | authentication and authorization on entry points, rate limiting, CORS, HTTPS |
+| `deploy` `none`, `local` or `package-registry` | health and readiness endpoints, graceful shutdown on SIGTERM, error-tracking services, metrics, zero-downtime deploys |
+| `data` names no database (`[]`, or files only) | migrations, down-migrations, connection pooling, transactions, N+1 queries, indexes, pagination of queries |
+| `ui` `none`, `tui` or `native` | XSS, CSP, loading and error states of web requests |
+
+What a `cli`, `plugin` or `library` gets instead: exit codes and error messages, cross-platform
+paths and shells, behaviour with no network, install and upgrade paths, and the published
+surface (exports, flags, manifest) staying compatible. A ruled-out check is not run and never
+reported, at any severity. The report names the profile used and lists the checks it ruled out
+in one line.
+
+**Safeguards: absence against presence.** Pooling, caching, rate limiting, circuit breakers,
+observability, feature flags and multi-environment configuration are judged from the same
+profile by two sides, so no item is ever graded in opposite directions:
+- their **absence** is the code reviewer's or the production-readiness checker's finding, and
+  only when the profile needs them — pooling, for example, only for a new connection path in a
+  long-running process with a database in `data`, and caching only where the change makes a
+  repeated expensive read measurably worse at the profile's `scale`;
+- their **presence** is the pragmatic reviewer's finding, and only when the profile does not need
+  them — a pool in a CLI that opens one connection, a cache in front of a file read at
+  `scale: single-user`.
 
 ## The findings file
 

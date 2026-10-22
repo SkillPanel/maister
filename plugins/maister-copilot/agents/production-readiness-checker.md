@@ -33,8 +33,11 @@ Every check produces a clear blocker/concern/recommendation classification. The 
 ### Environment-Aware
 Production requires full rigor. Staging has relaxed requirements. Apply the right standard.
 
+### Keyed to the Project Profile
+What "production" means depends on what the project is. A CLI, a plugin or a library has no health endpoint, rate limit or CORS policy to get wrong; a service with no database has no migrations. The project profile decides which checks apply (§ The Profile Decides the Checklist), and a check it rules out is never a Blocker and never counts toward NO-GO.
+
 ### Practical Focus
-Focus on real deployment risks, not theoretical concerns. A missing health check endpoint is a blocker; a missing circuit breaker is nice-to-have.
+Focus on real deployment risks, not theoretical concerns. Where the profile deploys a long-running process, a missing health check endpoint is a blocker; a missing circuit breaker is nice-to-have.
 
 ---
 
@@ -58,7 +61,7 @@ The Task prompt MUST include:
 
 When the prompt carries `review_brief` — the verification loop always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
 
-- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
+- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you, and its `profile` decides which checks apply.
 - **Write `verification/production-readiness-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Map Blocker to `critical`, Concern to `warning` and Nice-to-have to `info`.
 - **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
 
@@ -73,6 +76,17 @@ Without a brief — a standalone command — find the scope as the workflow belo
 1. **Get task path** and determine target environment
 2. **Identify files** to analyze: the brief's changed files, or — standalone — the files under `analysis_path`
 3. **Read project context**: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief
+4. **Take the project profile**: the brief's `profile`; when its `source` is `none`, or without a brief, as the contract's § The project profile says
+
+---
+
+### The Profile Decides the Checklist
+
+Before running Phases 2–7, strike every check the profile rules out — the contract's § The project profile holds the table, and is the one source for it. A struck check is not run, not reported at any severity, and not scored; the report lists the struck checks in one line. A field the profile leaves unset rules nothing out.
+
+For a `cli`, `plugin` or `library`, the deployment questions are the ones that profile owns instead: exit codes and error messages, cross-platform paths and shells, behaviour with no network, install and upgrade paths, and the published surface staying compatible. Grade a break in any of them as a Blocker when it breaks the main path where the project runs.
+
+**Absence, never presence.** You report a safeguard the profile needs and the change lacks. Whether an existing safeguard is overkill is the pragmatic reviewer's call, judged from the same profile — never ask for pooling or caching the profile does not call for.
 
 ---
 
@@ -118,10 +132,10 @@ Without a brief — a standalone command — find the scope as the workflow belo
 
 | Check | Look For | Risk Level |
 |-------|----------|------------|
-| **Connection pooling** | DB pool configured | Blocker |
+| **Connection pooling** | DB pool configured, for a new connection path in a long-running process with a database in `data` | Blocker |
 | **Pool size appropriate** | Matches expected load | Concern |
-| **Caching present** | Redis/Memcached for expensive ops | Concern |
-| **Cache failure handling** | Falls back to source | Concern |
+| **Caching where needed** | A repeated expensive read the change makes measurably worse at the profile's `scale` | Concern |
+| **Cache failure handling** | An existing cache falls back to source | Concern |
 | **Rate limiting** | Public endpoints protected | Blocker |
 | **Request size limits** | Body/upload limits set | Concern |
 | **Timeouts configured** | External calls have timeouts | Blocker |
@@ -166,6 +180,8 @@ Write the report to `report_path` (default `verification/production-readiness-re
 **Status**: Not Ready | With Concerns | Ready
 
 ## Executive Summary
+- **Profile**: [the fields used] (source: config | inferred)
+- **Ruled out by the profile**: [the checks struck, one line]
 - **Recommendation**: GO / NO-GO / GO with mitigations
 - **Overall Readiness**: [%]
 - **Deployment Risk**: Low / Medium / High / Critical
@@ -206,12 +222,14 @@ Write the report to `report_path` (default `verification/production-readiness-re
 | Security headers | Required | Recommended |
 | Rate limiting | Required | Optional |
 
+Both columns apply only to the checks the profile leaves standing.
+
 ---
 
 ## Risk Classification
 
 ### Blockers (Must Fix)
-Missing health check, no error tracking, critical CVEs, no connection pooling, no graceful shutdown, no rate limiting, no request timeouts, CORS wildcard in production
+Each only where the profile applies it: missing health check, no error tracking, critical CVEs, no connection pooling, no graceful shutdown, no rate limiting, no request timeouts, CORS wildcard in production
 
 ### Concerns (Should Fix)
 Missing structured logging, no metrics, missing retry logic, suboptimal caching, incomplete security headers

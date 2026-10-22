@@ -132,7 +132,8 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
     after passing in implementation), standards met, docs complete, no critical issue. Passed
     with issues: 90–99% of the plan, 90–94% of the tests, standards gaps or review warnings.
     Failed: less than that, a critical issue, or a deployment blocker. A critical issue from any
-    review fails the verdict.
+    review fails the verdict. A check the brief's project profile rules out is never a blocker:
+    production readiness does not raise one for it (the contract's § The project profile).
 11. **The report.** Rewrite `verification/implementation-verification.md` — the canonical
     verdict, always the latest state. It opens with the Artifact Summary Contract block (TL;DR,
     Open Questions / Risks), then the executive summary, plan verification, test results,

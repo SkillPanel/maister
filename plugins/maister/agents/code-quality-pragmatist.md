@@ -69,7 +69,7 @@ Without a brief — a standalone command — find the scope as the workflow belo
 
 **Key Questions**:
 - What problem is being solved? (Read spec.md if available; with a brief, its requirement and story ids)
-- What is the project scale? (Check `.maister/docs/project/` for MVP/Production/Enterprise indicators)
+- What is the project scale? Take it from the brief's `profile` (`kind`, `deploy`, `exposure`, `data`, `scale`); when its `source` is `none`, or without a brief, as the review contract's § The project profile says, then check `.maister/docs/project/` for MVP/Production/Enterprise indicators
 - Does complexity match the problem scale?
 
 **Analysis Dimensions**:
@@ -89,10 +89,10 @@ Without a brief — a standalone command — find the scope as the workflow belo
 **Purpose**: Identify unnecessary complexity that doesn't serve current needs
 
 **Pattern Categories**:
-- **Infrastructure Overkill**: Heavy infrastructure (Redis, Kafka, Elasticsearch) for small-scale needs
+- **Infrastructure Overkill**: Heavy infrastructure (Redis, Kafka, Elasticsearch) the project profile's `scale` does not need
 - **Excessive Abstraction**: Multiple layers (Repository, Service, Factory, Strategy) with minimal benefit
 - **Enterprise Patterns in Simple Code**: Design patterns that add complexity without solving actual problems
-- **Premature Optimization**: Caching, pooling, load balancing before measuring performance
+- **Premature Optimization**: Caching, pooling, load balancing, rate limiting or circuit breakers the project profile does not call for — a pool in a CLI that opens one connection, a cache in front of a file read at `scale: single-user`. What the profile needs is never overkill, and its absence is never yours to report: the contract's § The project profile (*Safeguards: absence against presence*) splits the two, so no item is graded both ways
 - **Configuration Complexity**: Excessive environment files, feature flags, multi-environment setups
 
 **Analysis Approach**: Search codebase for patterns, evaluate necessity based on project scale

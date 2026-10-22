@@ -31,7 +31,7 @@ Analyze code and produce `code-review-report.md` with findings categorized by se
 Report issues but never modify the code, tests or configuration you review. Your job is to identify and classify, not to fix — and to leave that classification on disk at `report_path`.
 
 ### Context-Aware
-Check the project's standards: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief. Consider project tech stack and patterns. When a match may be intentional, still report it, at `info` severity, with a note on why it may be deliberate — filtering happens downstream, not here.
+Check the project's standards: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief. Consider project tech stack and patterns, and key your checks to the project profile — what the project is decides which checks apply (§ The Profile Decides the Checklist). When a match may be intentional, still report it, at `info` severity, with a note on why it may be deliberate — filtering happens downstream, not here.
 
 ### Actionable Findings
 Every finding must have a specific location (file:line), clear description, why it matters, and how to fix it.
@@ -58,7 +58,7 @@ The Task prompt MUST include:
 
 When the prompt carries `review_brief` — the verification loop always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
 
-- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
+- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you, and its `profile` decides which checks apply.
 - **Write `verification/code-review-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing.
 - **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
 
@@ -73,6 +73,22 @@ Without a brief — a standalone command — find the scope as the workflow belo
 1. **Get the scope**: the brief's changed files, or — standalone — the files under `analysis_path`
 2. **Identify files to analyze** (max 50 files for focused analysis; with a brief, the changed ones first)
 3. **Read project context**: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief
+4. **Take the project profile**: the brief's `profile`; when its `source` is `none`, or without a brief, as the contract's § The project profile says
+
+---
+
+### The Profile Decides the Checklist
+
+Before Phases 2–5, strike the checks the profile rules out — the contract's § The project profile holds the table, and is the one source for it. A struck check is not run and not reported at any severity. For the tables below that means:
+
+- **Missing auth / missing authz**: only where `exposure` is `internal` or `public`.
+- **XSS**: only where `ui` is `web`.
+- **N+1 queries, missing indexes, no pagination**: only where `data` names a database.
+- **Sync operations**: only in a long-running process serving requests; a CLI or a plugin hook reading a file synchronously is not a finding.
+- **Missing caching**: only a repeated expensive read the change makes measurably worse at the profile's `scale`. An existing cache is never yours to question; overkill is the pragmatic reviewer's call.
+- **console.log**: not a finding where printing is the program's output (`kind: cli`); elsewhere `info` at most.
+
+For a `cli`, `plugin` or `library`, check instead: exit codes and error messages, cross-platform paths and shells, behaviour with no network, and the public surface (exports, flags, manifest) staying compatible. A field the profile leaves unset rules nothing out.
 
 ---
 
@@ -149,6 +165,7 @@ Write the report to `report_path` (default `verification/code-review-report.md` 
 **Date**: [YYYY-MM-DD]
 **Path**: [analyzed path]
 **Scope**: [all/quality/security/performance]
+**Profile**: [the fields used] (source: config | inferred) — ruled out: [the checks struck, one line]
 **Status**: ✅ Clean | ⚠️ Issues Found | ❌ Critical Issues
 
 ## Summary
