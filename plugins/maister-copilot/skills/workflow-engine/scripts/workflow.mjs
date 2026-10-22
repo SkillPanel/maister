@@ -111,6 +111,18 @@
  *                  and the level that answered; then any notes — the run's
  *                  frozen block with --state, else the project's config.yml
  *                  — read-only
+ *   review-brief   --state, or --task-path with --base; optional --base,
+ *                  --cycle, --recheck=tests-only|reviews with --fixed-issues,
+ *                  or --refresh                            the path of the
+ *                  verification cycle's review brief it wrote — what changed
+ *                  since the run's base commit, the spec's ids, the plan, the
+ *                  test result, the matching standards, and on a re-check the
+ *                  issues and the fix diff; a part it cannot fill is a
+ *                  `warning:` line — writes only under the run's verification/
+ *   findings-merge --state, or --task-path; optional --cycle  JSON on stdout
+ *                  (the cycle's reviewer findings merged into findings.json,
+ *                  its counts and the issues_found projection) — writes only
+ *                  under the run's verification/
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -259,6 +271,13 @@ const VERBS = {
   // fan-out copies the value. `--state` is optional: a skill run outside any
   // run reads the project's config.yml instead, with no workflow or node scope.
   'dispatch-model': { module: 'dispatch-model.mjs', flags: ['state', 'agent', 'node', 'tier', 'host'] },
+  // What one verification cycle reviews, measured once. `--state` in a run,
+  // `--task-path` with `--base` outside one; `--base` also stands in for the
+  // base commit a run frozen before it was recorded lacks. The re-check pair
+  // and `--refresh` are the cycle's other two moments.
+  'review-brief': { module: 'review-brief.mjs', flags: ['state', 'task-path', 'base', 'cycle', 'recheck', 'fixed-issues', 'refresh'] },
+  // The cycle's reviewer findings merged into the run's one numbered list.
+  'findings-merge': { module: 'findings-merge.mjs', flags: ['state', 'task-path', 'cycle'] },
 };
 
 /** This plugin's root, three levels above this file: what the edition check locates. */
@@ -318,7 +337,7 @@ const REPEATABLE = new Set(['overlay', 'area', 'from']);
 const PICKERS = ['rich', 'plain'];
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background']);
+const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -1313,6 +1332,77 @@ async function runDispatchModel(flags) {
   return EXIT.OK;
 }
 
+/**
+ * `review-brief` reports like `finding-brief --patch-file`: the written
+ * file's path on stdout, a refusal on stderr with its code first at exit 1,
+ * and each part it could not fill as one `warning:` line, exit 0.
+ */
+async function runReviewBrief(flags) {
+  const where = runFlags(flags, 'review-brief');
+  if (flags['task-path'] !== undefined && flags.base === undefined) {
+    throw new UsageError('review-brief --task-path needs --base, the commit the work started from: outside a run there is no recorded base');
+  }
+  const cycle = cycleOf(flags, 'review-brief');
+  const recheck = flags.recheck ?? null;
+  const fixedIssues = flags['fixed-issues'] === undefined ? [] : idsOf(flags['fixed-issues']);
+  if (recheck !== null && !['tests-only', 'reviews'].includes(recheck)) {
+    throw new UsageError(`--recheck is tests-only or reviews, not "${recheck}"`);
+  }
+  if ((recheck === null) !== (flags['fixed-issues'] === undefined)) {
+    throw new UsageError('review-brief takes --recheck and --fixed-issues together: the kind of re-check and the issue numbers it re-checks');
+  }
+  if (flags.refresh && (recheck !== null || flags.base !== undefined)) {
+    throw new UsageError('review-brief --refresh re-reads the test result of an existing brief, and takes no --recheck, --fixed-issues or --base');
+  }
+  const module = await loadModule(VERBS['review-brief'].module);
+  const build = entryOf(module, 'reviewBrief', VERBS['review-brief'].module);
+  const result = build({ ...where, base: flags.base ?? null, cycle, recheck, fixedIssues, refresh: flags.refresh === true, pluginRoot: PLUGIN_ROOT });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(`${result.file}\n`);
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
+  return EXIT.OK;
+}
+
+/**
+ * `findings-merge` reports like `resume-check`: the result as JSON on stdout,
+ * a refusal's code first on stderr at exit 1, and each file or finding it
+ * skipped as one `warning:` line, exit 0.
+ */
+async function runFindingsMerge(flags) {
+  const where = runFlags(flags, 'findings-merge');
+  const module = await loadModule(VERBS['findings-merge'].module);
+  const merge = entryOf(module, 'findingsMerge', VERBS['findings-merge'].module);
+  const { warnings = [], ...result } = merge({ ...where, cycle: cycleOf(flags, 'findings-merge') });
+  report(result);
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
+/** `--state` in a run or `--task-path` outside one: exactly one of them. */
+function runFlags(flags, verb) {
+  if ((flags.state === undefined) === (flags['task-path'] === undefined)) {
+    throw new UsageError(`${verb} needs --state (the run's orchestrator-state.yml) or --task-path (a task directory outside a run), one of them`);
+  }
+  return flags.state !== undefined ? { state: flags.state, taskPath: null } : { state: null, taskPath: flags['task-path'] };
+}
+
+function cycleOf(flags, verb) {
+  if (flags.cycle === undefined) return null;
+  if (!/^[1-9]\d*$/.test(flags.cycle)) throw new UsageError(`${verb} takes --cycle as a cycle number, 1 or more`);
+  return Number(flags.cycle);
+}
+
+/** `--fixed-issues=3,7`: issue numbers as the merged findings number them. */
+function idsOf(value) {
+  const list = String(value).replace(/\s+/g, '');
+  if (!/^[1-9]\d*(?:,[1-9]\d*)*$/.test(list)) throw new UsageError('--fixed-issues takes issue numbers separated by commas');
+  return [...new Set(list.split(',').map(Number))];
+}
+
 const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
@@ -1335,6 +1425,8 @@ const RUNNERS = {
   import: runImport,
   'sync-plan': runSyncPlan,
   'dispatch-model': runDispatchModel,
+  'review-brief': runReviewBrief,
+  'findings-merge': runFindingsMerge,
 };
 
 // ---------------------------------------------------------------------------
