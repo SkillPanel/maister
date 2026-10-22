@@ -177,25 +177,28 @@ find "$OUT/skills" "$OUT/commands" -name "*.md" | while read f; do
   sedi 's/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g' "$f"
 done
 
-# 8. Keep every agent from re-entering an entry point.
-#    A Claude Code subagent cannot dispatch subagents. A Copilot one gets every
-#    tool unless its frontmatter narrows them, so a review agent invokes its own
-#    reviews-* skill, which dispatches the same agent again until the sub-agent
-#    depth limit stops it, and an implementer loads an orchestrator skill from
-#    inside itself. Two measures, because the CLI enforces only one of them:
-#    - A tool allowlist without the agent tool, so no agent can dispatch
-#      another. It names both the CLI's aliases and its own tool names (before
-#      1.0.100 the aliases resolved no search, fetch or todo tool, and a model
-#      family that edits by patch gets apply_patch only by name); names a model
-#      family or a session does not have are ignored. The `web` alias is the
-#      documented route to web search, but a session with no search tool of
-#      its own -- the main agent's included -- gives none to its agents, by
-#      alias or by name. The research agents also name the GitHub server's
-#      web_search, so they use it in a session that offers it; where it is
-#      absent the name is ignored. The agents that drive
-#      the browser add the plugin's Playwright MCP server.
-#    - One sentence after the frontmatter, for the skill tool, which the CLI
-#      grants whatever the allowlist says.
+# 8. Give every agent the tools a Claude Code subagent has.
+#    A Claude Code subagent can dispatch subagents of its own, to the host's
+#    depth limit. A Copilot one gets every tool unless its frontmatter narrows
+#    them, and a child's tools are narrowed to its parent's, so an allowlist
+#    without the agent tool would seal every agent below it from nesting. Each
+#    agent gets:
+#    - A tool allowlist with the agent tool, so an agent dispatches a subagent
+#      on both hosts alike. It names both the CLI's aliases and its own tool
+#      names (before 1.0.100 the aliases resolved no search, fetch or todo
+#      tool, and a model family that edits by patch gets apply_patch only by
+#      name); names a model family or a session does not have are ignored. The
+#      `web` alias is the documented route to web search, but a session with no
+#      search tool of its own -- the main agent's included -- gives none to its
+#      agents, by alias or by name. The research agents also name the GitHub
+#      server's web_search, so they use it in a session that offers it; where
+#      it is absent the name is ignored. The agents that drive the browser add
+#      the plugin's Playwright MCP server.
+#    Keeping an agent from re-entering an entry point -- a review agent invoking
+#    its own reviews-* command, which dispatches it again, or an implementer
+#    loading an orchestrator skill -- is the containment sentence every source
+#    agent carries, which make validate checks, with the host's depth limit
+#    bounding a loop that slips past it.
 #    The agent also gets DIR_RULE: Copilot's create tool refuses a path whose
 #    directory is missing, where Claude Code's Write makes it. Step 8c gives
 #    every skill the same rule.
@@ -207,7 +210,7 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
     echo "build: $f already declares tools:; the Copilot allowlist would override it" >&2
     exit 1
   fi
-  tools='"execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"'
+  tools='"execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"'
   case "$(basename "$f" .md)" in
     e2e-test-verifier|user-docs-generator) tools="$tools, \"playwright/*\"" ;;
     information-gatherer|research-planner) tools="$tools, \"github-mcp-server/web_search\"" ;;
@@ -217,8 +220,7 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
     fm==1 && /^name:/ { print; print tools; next }
     fm==1 && $0=="---" {
       fm=2; print; print ""
-      print "**You are a dispatched agent: do this task'"'"'s work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name."
-      print ""; print dirrule
+      print dirrule
       next
     }
     { print }

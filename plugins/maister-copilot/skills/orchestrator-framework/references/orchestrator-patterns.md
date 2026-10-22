@@ -15,9 +15,9 @@ When a phase requires delegation:
 
 **Skills and agents are NOT interchangeable.** Skills always use Skill tool; agents always use Task tool. Never invoke a skill via Task tool (`subagent_type`) — it will fail with "Agent type not found."
 
-**Why skills MUST use Skill tool**: Skills like `codebase-analyzer`, `implementation-plan-executor`, and `implementation-verifier` spawn their own subagents (Explore agents, reporters, planners). Subagents cannot spawn other subagents — so these skills must run in the main agent context via Skill tool.
+**Why skills MUST use Skill tool**: Skills like `codebase-analyzer`, `implementation-plan-executor`, and `implementation-verifier` spawn their own subagents (Explore agents, reporters, planners) and work inside the run — its state, its gates and the questions it asks the user. A skill runs in the context that invokes it, so these run in the main agent via the Skill tool. Subagents can dispatch subagents of their own, to a depth each host limits, but orchestrators, not leaf agents, run workflows: every agent carries one sentence saying it never starts another workflow, a command or an orchestrator skill, and loads only a skill its own instructions name.
 
-**Companion agent pattern** (e.g., `docs-operator`): Only works for skills that do NOT spawn subagents (like `docs-manager` which only does file operations). A companion agent preloads the skill via the `skills` frontmatter field and is invoked via Task tool. This pattern fails for any skill that needs to spawn subagents.
+**Companion agent pattern** (e.g., `docs-operator`): For skills that do NOT spawn subagents (like `docs-manager` which only does file operations). A companion agent preloads the skill via the `skills` frontmatter field and is invoked via Task tool. A skill that spawns subagents runs in the main agent instead: in a companion each of its agents would sit a level deeper, against the host's depth limit.
 
 Reading a SKILL.md and then doing its work inline is not delegation: invoke the skill, and let it spawn its own agents (an orchestrator never spawns the Explore agents `codebase-analyzer` manages).
 

@@ -6,6 +6,8 @@ color: blue
 
 # Bottleneck Analyzer
 
+**You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
+
 Identifies performance bottlenecks through static code analysis and optional user-provided profiling data.
 
 ## Purpose
