@@ -94,6 +94,7 @@ the `running` node, this skill runs `runner-step`, and the files say where the l
 | `verification/implementation-verification.html` | Once, at the final verdict, unless `orchestrator.options.html_output` is false |
 | `verification/<review>-report.md` and `<review>-findings.json` | Each review that ran (`references/review-findings.md`) |
 | `verification/review-brief-<N>.json`, `findings.json`, `findings-<N>.json` | Each cycle, by the engine's `review-brief` and `findings-merge` |
+| `verification/review-prompts.md` | Once, at the first cycle: each reviewer's prompt for this change, re-used by later cycles |
 | `verification/runner-result.json`, `decisions-<N>.json` | When the runner runs the loop: its last result, and each decision's answers |
 
 ## The runner's result

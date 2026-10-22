@@ -17,7 +17,7 @@ You are the implementation-completeness-checker subagent. Your role is to verify
 
 Verify implementation completeness across three dimensions:
 1. **Plan Completion**: All implementation-plan.md steps done with code evidence
-2. **Standards Compliance**: Active reasoning about applicable standards from INDEX.md
+2. **Standards Compliance**: The standards the run claimed, and a judgement over INDEX.md for each it missed
 3. **Documentation Completeness**: Work-log, spec alignment with user-story coverage, required docs present
 
 **You ALWAYS write your report to `report_path`** — the report is your deliverable, and returning findings only in your structured result leaves the task with no artifact behind its verdict.
@@ -49,7 +49,7 @@ The Task prompt MUST include:
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to task directory |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/completeness-report.md` relative to task_path) |
-| `review_brief` | Orchestrator (optional) | The cycle's review brief: what changed, the spec's ids, the test result and the matching standards (§ Review Brief, Findings File and Re-check) |
+| `review_brief` | Orchestrator (optional) | The cycle's review brief: the base and snapshot, the changed files, the test result, the run's documents and the profile (§ Review Brief, Findings File and Re-check) |
 | `docs_check` | Orchestrator (optional) | Absolute path of docs-manager's `docs-check.mjs`; without it, find that script under this plugin's docs-manager skill |
 
 **CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
@@ -65,7 +65,7 @@ The Task prompt MUST include:
 
 When the prompt carries `review_brief` — the verification loop always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
 
-- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
+- **Your prompt first, then the brief.** The runner's prompt for this change says where to look hardest and what you own, never where to stop. The brief holds the shared facts: `changed` (skip files marked `generated` or `data` unless a finding turns on them), `tests`, `documents` and `profile`. Read freely — per-file diffs against `base`, the files as they are now, history, callers, config, CI and build files — but review the range `base` to the working tree; a defect outside it is marked `outside_change` and counts only when critical. A deviation a recorded decision covers is not a finding.
 - **Write `verification/completeness-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Plan, story and spec gaps are category `delivery`, work-log and index gaps `docs`, a missed standard `standards`.
 - **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
 
@@ -95,29 +95,35 @@ Without a brief — a standalone command — find the scope as the workflow belo
 
 ### Phase 2: Standards Compliance Verification
 
-**Use active reasoning, not hardcoded checklist.**
+**Judgement, not keyword matching.** Two questions: what the run says it applied, and what it
+should have applied and never claimed.
 
-1. **Review work-log.md** — extract standards mentioned during implementation
-2. **Take the candidate standards from the brief's `standards`** — the INDEX entries matching the changed files, each with why it matched. Without a brief, or when the brief names none, read `.maister/docs/INDEX.md` instead and note every standard, project-specific ones included
-3. **Analyze implementation scope** — the brief's changed files (without a brief, find what was modified), what patterns used, what domains touched
-4. **For each standard, reason about applicability**:
-   - Clear from name/description: Reason directly
-   - Ambiguous scope: Read standard file to understand coverage
-5. **Document reasoning** for audit trail:
+1. **The claimed standards** — collect them from the spec's and the plan's Standards Compliance
+   sections and each work-log group's Standards Applied, with how each was applied (your prompt
+   names them when the runner wrote one). A standard the plan claims that no work-log group applied
+   is a `docs` finding. Whether the code bears a claim out is the code reviewer's check, not this one.
+2. **The missed-standards check** — read `.maister/docs/INDEX.md` once per cycle. For each entry,
+   judge from its title and description, opening the standard file when its coverage is unclear,
+   whether it governs any of the changed files (the brief's `changed`, skipping `generated` and
+   `data` files; without a brief, what was modified). Never decide it by matching words in paths.
+3. **Each standard that covers the changed files and that the run never claimed** is one finding:
+   category `standards`, severity `warning`, naming the INDEX entry and the files it covers, with
+   one line on why it applies. `fixable` follows the contract: `true` when applying it stays within
+   those files.
+4. **Without INDEX.md, or with one you cannot read**, skip the check and say so in one warning line
+   of the report's standards section. It is not a finding.
+5. **Document the reasoning** for the audit trail:
 
-   | Standard | Applies? | Reasoning |
-   |----------|----------|-----------|
-   | global/naming-conventions.md | ✅ Yes | All implementations touch code |
-   | frontend/accessibility.md | ✅ Yes | Form inputs added |
-   | frontend/animations.md | ❌ No | No UI animations in scope |
-
-6. **Cross-reference applied vs applicable** — identify gaps
-7. **Spot check code** for potentially missed standards
+   | Standard | Claimed? | Covers the change? | Reasoning |
+   |----------|----------|--------------------|-----------|
+   | global/naming-conventions.md | ✅ plan, work log | ✅ Yes | Every changed file is code |
+   | frontend/accessibility.md | ❌ No | ✅ Yes | Form inputs added in `src/form.tsx` — a finding |
+   | frontend/animations.md | ❌ No | ❌ No | No UI animation in the change |
 
 **Status**:
-- ✅ Fully Compliant: All applicable standards followed
-- ⚠️ Mostly Compliant: Minor gaps or questionable cases
-- ❌ Non-Compliant: Significant standards violations
+- ✅ Fully Compliant: every standard that covers the change was claimed and recorded
+- ⚠️ Mostly Compliant: a missed standard of narrow reach, or a claim never recorded as applied
+- ❌ Non-Compliant: standards that govern the core of the change were never claimed
 
 ---
 

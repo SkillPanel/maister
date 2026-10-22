@@ -48,7 +48,7 @@ The Task prompt MUST include:
 | `analysis_path` | Command (standalone) | Path to analyze (task directory, feature directory, or project) when no brief is given |
 | `target` | Orchestrator or command | `production` (default, full rigor) or `staging` (relaxed) |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/production-readiness-report.md` relative to task_path) |
-| `review_brief` | Orchestrator (optional) | The cycle's review brief: what changed, the spec's ids, the test result and the matching standards (§ Review Brief, Findings File and Re-check) |
+| `review_brief` | Orchestrator (optional) | The cycle's review brief: the base and snapshot, the changed files, the test result, the run's documents and the profile (§ Review Brief, Findings File and Re-check) |
 
 **CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
 
@@ -58,7 +58,7 @@ The Task prompt MUST include:
 
 When the prompt carries `review_brief` — the verification loop always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
 
-- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you, and its `profile` decides which checks apply.
+- **Your prompt first, then the brief.** The runner's prompt for this change says where to look hardest and what you own, never where to stop. The brief holds the shared facts: `changed` (skip files marked `generated` or `data` unless a finding turns on them), `tests`, `documents` and `profile`. Read freely — per-file diffs against `base`, the files as they are now, history, callers, config, CI and build files — but review the range `base` to the working tree; a defect outside it is marked `outside_change` and counts only when critical. A deviation a recorded decision covers is not a finding; its `profile` decides which checks apply.
 - **Write `verification/production-readiness-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Map Blocker to `critical`, Concern to `warning` and Nice-to-have to `info`.
 - **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
 
@@ -72,14 +72,14 @@ Without a brief — a standalone command — find the scope as the workflow belo
 
 1. **Get task path** and determine target environment
 2. **Identify files** to analyze: the brief's changed files, or — standalone — the files under `analysis_path`
-3. **Read project context**: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief
+3. **Read project context**: your prompt's environment facts (how CI checks out and runs tests, packaging, deployment, services the tests need), the project's CI and build files, and `.maister/docs/INDEX.md` without a prompt
 4. **Take the project profile**: the brief's `profile`; when its `source` is `none`, or without a brief, as the contract's § The project profile says
 
 ---
 
 ### The Profile Decides the Checklist
 
-Before running Phases 2–7, strike every check the profile rules out — the contract's § The project profile holds the table, and is the one source for it. A struck check is not run, not reported at any severity, and not scored; the report lists the struck checks in one line. A field the profile leaves unset rules nothing out.
+Before running Phases 2–8, strike every check the profile rules out — the contract's § The project profile holds the table, and is the one source for it. A struck check is not run, not reported at any severity, and not scored; the report lists the struck checks in one line. A field the profile leaves unset rules nothing out.
 
 For a `cli`, `plugin` or `library`, the deployment questions are the ones that profile owns instead: exit codes and error messages, cross-platform paths and shells, behaviour with no network, install and upgrade paths, and the published surface staying compatible. Grade a break in any of them as a Blocker when it breaks the main path where the project runs.
 
@@ -164,7 +164,24 @@ For a `cli`, `plugin` or `library`, the deployment questions are the ones that p
 
 ---
 
-### Phase 8: Generate Report
+### Phase 8: CI and Build
+
+How CI and the build run what the change adds. Read the CI configuration (`.github/workflows/`, other CI files) and the build and packaging manifests, whether or not the change touched them: a defect there that the change exposes is in scope, marked `outside_change` when the file itself did not change.
+
+| Check | Look For | Risk Level |
+|-------|----------|------------|
+| **New tests run in CI** | The jobs that run the suite pick the new tests up | Blocker |
+| **Checkout depth** | Tests that read git history, tags or other branches, run on a shallow clone | Blocker |
+| **Platforms and shells** | Each OS and shell of the matrix runs the new code and scripts | Blocker |
+| **Services and environment** | Databases, network, secrets or env vars the new tests need are provided in CI | Blocker |
+| **Build and packaging** | New files, assets and scripts are included in the build and the published package; build steps call them | Blocker |
+| **Caches and generated files** | Caches keyed so the change invalidates them; generated files rebuilt, not stale | Concern |
+
+This phase holds for every profile kind: a CLI, plugin or library is built and tested in CI too.
+
+---
+
+### Phase 9: Generate Report
 
 Write the report to `report_path` (default `verification/production-readiness-report.md` relative to `task_path`) — this write is mandatory, not conditional on the verdict:
 

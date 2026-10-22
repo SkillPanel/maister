@@ -2,44 +2,53 @@
 
 The one contract every verification reviewer follows: the completeness checker, the test-suite
 runner, the code reviewer, the pragmatic reviewer, the production-readiness checker and the reality
-assessor. The implementation verifier hands each of them a `review_brief` path; the brief names
-this file as its `contract`. Each reviewer keeps its own checklist and markdown report. This file
-covers only what all of them share: how to read the brief, the project profile, the findings file
-each one writes, and re-check mode.
+assessor. The verification runner hands each of them a prompt written for this change and a
+`review_brief` path; the brief names this file as its `contract`. Each reviewer keeps its own
+checklist and markdown report. This file covers only what all of them share: the prompt and the
+brief, the project profile, the findings file each one writes, and re-check mode.
 
 ## Why it exists
 
-Reviewers used to work out the change on their own, each with its own `git diff`, and graded in
-five severity vocabularies. The verifier then merged their prose by hand. Now the change is
-measured once per cycle, by the workflow engine's `review-brief`, and each reviewer writes its
-findings as data. The engine's `findings-merge` folds them: duplicates across reviewers become one
+Reviewers used to work out the change on their own and graded in five severity vocabularies, and
+the verifier merged their prose by hand. Now the facts every reviewer needs are measured once per
+cycle, by the workflow engine's `review-brief`; where each reviewer looks hardest comes from its
+prompt, written from the run's own documents; and each reviewer writes its findings as data. The engine's `findings-merge` folds them: duplicates across reviewers become one
 finding, issue numbers stay the same across cycles, and a re-check's new findings count only
 inside the fixes. Do not coordinate with the other reviewers, because the merge folds any overlap.
 
-## Reading the brief
+## Your prompt and the brief
 
-The brief is JSON at `verification/review-brief-<N>.json`. Read it before anything else.
-- **Paths.** Run files (the spec, the plan, the patch files) are relative to the task directory.
-  Code paths are relative to the repository's top.
-- **Scope.** `changed` lists every path the run changed, from its base commit to the working
-  tree, untracked files included, the project's `.maister/` never. Each entry gives the status
-  (`A`, `M`, `D`, `T`) and the line counts. **This list is your scope.** Read these files and
-  `diff_path` (the whole patch); never work out the scope with `git diff`, `git log` or
-  `git status`. Git reads beyond scope, such as the history of one line a finding turns on, stay
-  yours to make.
-- **`dirty_at_freeze: true`** marks a path already modified before the run started. Review it,
-  and say in a finding there that the change may predate the run.
-- **`spec`** holds the requirement numbers and story ids, `plan` the group counts, and `tests` the
-  cycle's test result (`pending` before the suite has run, `skipped` when the run skips it).
-  `standards` holds the standards matching the change, each with why. Open a standard file only
-  when its rules bear on what you review.
-- **`profile`** is the project profile: its fields and `source` (§ The project profile).
-- **`fix`** is present from the second cycle on. It holds what changed since the previous cycle:
-  `diff_path`, `files` and new-side `hunks`.
-- **`recheck`** is present on a re-check cycle. It holds the issues being re-checked and
-  `by_reviewer`, the ids each reviewer answers.
+**Your prompt comes first.** The runner writes it for this change from what the earlier phases
+produced: the areas and files that matter to you, the rules and promises to check, environment
+facts, the requirements, stories and standards you own, and the decisions already made. Your own
+checklist still covers the whole change; the prompt says where to look hardest, not where to stop.
+A deviation a recorded decision covers is not a finding; at most it is an `info` naming it.
+
+**The brief holds the shared facts,** so you do not scan for them. It is JSON at
+`verification/review-brief-<N>.json`; run files in it are relative to the task directory, code
+paths relative to the repository's top.
+- **`base` and `snapshot`**: the commit the run started from, and the working tree of this cycle as
+  a tree id.
+- **`changed`**: every path that differs from `base`, the project's `.maister/` never, with its
+  status (`A`, `M`, `D`, `T`) and line counts. `untracked` marks a file `git diff <base>` does not
+  show. `generated` and `data` mark files to skip unless a finding turns on them.
+  `dirty_at_freeze` marks a path already modified before the run started: review it, and say in a
+  finding there that the change may predate the run.
+- **`tests`**: the cycle's test result (`pending` before the suite has run, `skipped` when the
+  run skips it). `plan` holds the plan's group counts.
+- **`documents`**: the paths of the run's documents — spec, plan, work log, clarifications,
+  audits, and `state`, whose phase summaries record the decisions. Open what your prompt or your
+  checklist needs.
+- **`profile`**: the project profile, its fields and `source` (§ The project profile).
+- **`fix`** and **`recheck`**: § Re-check mode.
 - **A part the verb could not fill is `null`.** For example, `changed` is null when the snapshot
-  failed. For that part only, fall back to finding it yourself, and say so in your report.
+  failed. For that part only, find it yourself, and say so in your report.
+
+**Read freely; review the range.** The change under review is `base` to the working tree, never
+another range. Read it however serves you: per-file diffs (`git diff <base> -- <path>`), the files
+as they are now, the base version, history, callers, config, CI and build files, tests. A defect
+outside the changed files may be reported when the change exposes it, marked
+`"outside_change": true`; it counts toward the verdict only when it is `critical`.
 
 ## The project profile
 
@@ -130,7 +139,10 @@ found nothing, with `cycle` and `mode` copied from the brief:
 - **`fixable`** is `true` for a change contained in the item: a lint error, a missing guard, a
   wrong constant. It is `false` for a decision a person must make. **`risky`** is `true` when the
   fix would reach beyond the item into behaviour the change did not set out to alter.
-- **`refs`** names the requirement numbers and story ids from `spec` that the finding bears on.
+- **`refs`** names the requirement and story ids, as the spec spells them, that the finding bears
+  on.
+- **`outside_change`** is `true` for a defect in code the change did not touch, which the change
+  exposes (§ Your prompt and the brief). Leave it out otherwise.
 - **One finding per defect**, the same ones your report lists as issues. Strengths, scores and
   statistics stay in the markdown.
 
@@ -146,7 +158,8 @@ your prompt names issue ids (also in `recheck.by_reviewer[<your stem>]`).
 
 **In:**
 - the ids, with each issue's severity, title and location (`recheck.issues`);
-- the fix diff (`fix.diff_path`);
+- the fix: `fix.from` and `fix.to` are the previous and the current snapshot, `fix.files` the
+  files the fixes touched — diff those files between the two (`git diff <from> <to> -- <file>`);
 - your own previous findings file, which you read before you overwrite it.
 
 **Do:**
@@ -179,6 +192,8 @@ For orientation only; the verifier runs it.
   become one finding. It takes the highest severity, with `severity_disagreement` when the
   reviewers differ.
 - **Issue numbers stay stable** across cycles. A new finding takes the next unused number.
+- **Outside the change.** A finding marked `outside_change` counts only when it is `critical`; any
+  other goes to `out_of_scope`, reported and never counted.
 - **Silence is not a fix.** A finding you do not report again in a full review stays open, marked
   `not_reported`. It closes only when a fix touched its place or a re-check answers it resolved.
 - **The result** is `verification/findings.json`. The verifier's report and the run's

@@ -98,10 +98,34 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    it; its status, counts and results path are the **test-suite result**. Skipped, the result is
    "not run in verification: the full suite passed during the implementation phase". Then run
    `review-brief --state=<state> --refresh`.
-6. **The panel.** Record `verification_context.reviews` as `{chosen: [...], done: []}`, by short
+6. **The reviewers' prompts.** Each review is aimed by a short prompt written for this change;
+   that is what finds the defects a checklist walks past. At the first cycle — when
+   `verification/review-prompts.md` does not exist yet — read the documents the brief's
+   `documents` names: the spec, the clarifications, the plan, the work log, the recorded decisions
+   (`prior-context --state=<state>` prints every phase's, and the spec's Key Decisions), and the
+   spec audit's and gap analysis's findings when they exist. Then write the file, one section per
+   review, each giving:
+   - **where to look hardest**: the areas and files where that review's kind of risk sits in this
+     change;
+   - **what must hold**: the promises, authority and ordering rules and invariants, in the spec's
+     and the clarifications' own words where possible;
+   - **environment facts** that change what counts as a defect: how CI checks out and runs the
+     tests, packaging, deployment, services the tests need;
+   - **what it owns**: the requirement and story ids (completeness, reality check); the standards
+     the run claimed — from the spec's and the plan's Standards Compliance sections and the work
+     log's Standards Applied — with where and how each was applied (code review); the conventions
+     in play (pragmatic); how CI, the build and deployment run what the change adds (production
+     readiness);
+   - **what is decided**: each recorded decision the review could otherwise read as a defect.
+
+   Keep each section a screen at most and concrete — files and rules, not themes — and end it
+   saying that it marks where to look hardest, never where to stop. Later cycles and later
+   dispatches re-use the file as written; a re-check prompt names only its issue ids and the
+   fixed files.
+7. **The panel.** Record `verification_context.reviews` as `{chosen: [...], done: []}`, by short
    name — `completeness`, `code review`, `pragmatic`, `production readiness`, `reality check`.
-   Then send every review in **one message**, at most five, each prompt carrying the brief and
-   the test-suite result:
+   Then send every review in **one message**, at most five, each prompt carrying its section of
+   `verification/review-prompts.md` as written, the brief and the test-suite result:
    - always `maister:implementation-completeness-checker`, report `verification/completeness-report.md`,
      with `docs_check: <plugin_root>/skills/docs-manager/scripts/docs-check.mjs`;
    - `maister:code-reviewer` (`code_review_enabled`, scope from `code_review_scope`),
@@ -117,24 +141,24 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    `recheck.by_reviewer` names, by findings-file stem, the issues each review answers: send only
    those reviews, with `mode: recheck` and their ids, and list only them in `chosen`. Under
    `recheck: tests-only` no review is sent and this step writes nothing.
-7. **As each review returns**, record it done: one `verification_context.reviews` write with
+8. **As each review returns**, record it done: one `verification_context.reviews` write with
    `done` holding every review returned so far, `chosen` unchanged. One write per return, never
    batched — the status line moves review by review.
-8. **Each report reached disk.** Every review owes its report and its findings file beside it.
+9. **Each report reached disk.** Every review owes its report and its findings file beside it.
    For each one missing, add an issue to `verification/artifacts-findings.json` (the contract's
    schema, `reviewer: "artifacts"`, `severity: "warning"`, category `docs`) naming the agent and
    the path, and transcribe its reply's issues there. The report says plainly which findings are
    a transcription.
-9. **Merge.** `findings-merge --state=<state>`. Read the counts and every issue from
+10. **Merge.** `findings-merge --state=<state>`. Read the counts and every issue from
    `verification/findings.json`, never from the replies. `not_reported` stays open; `out_of_scope`
    is listed, never counted.
-10. **The verdict.** Passed: the whole plan done, 95% or more of the tests passing (or skipped
+11. **The verdict.** Passed: the whole plan done, 95% or more of the tests passing (or skipped
     after passing in implementation), standards met, docs complete, no critical issue. Passed
     with issues: 90–99% of the plan, 90–94% of the tests, standards gaps or review warnings.
     Failed: less than that, a critical issue, or a deployment blocker. A critical issue from any
     review fails the verdict. A check the brief's project profile rules out is never a blocker:
     production readiness does not raise one for it (the contract's § The project profile).
-11. **The report.** Rewrite `verification/implementation-verification.md` — the canonical
+12. **The report.** Rewrite `verification/implementation-verification.md` — the canonical
     verdict, always the latest state. It opens with the Artifact Summary Contract block (TL;DR,
     Open Questions / Risks), then the executive summary, plan verification, test results,
     standards, documentation, story coverage when the spec lists stories, the optional reviews,
@@ -143,7 +167,7 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
     `findings.json` numbers, recommendations and the checklist. After any fix, a **Fix &
     Re-Verification History** section: each issue → fix → re-check outcome with its one-line
     evidence. Re-check notes stay side files; they never replace the canonical report.
-12. **Cycle record write.** `verification_context` with `last_status` the verdict, `reviews.done`
+13. **Cycle record write.** `verification_context` with `last_status` the verdict, `reviews.done`
     as returned, and `issues_found` exactly as the last `findings-merge` printed it.
 
 With `fixes: off`, end with the verdict now (§ *Ending a dispatch*).
@@ -158,7 +182,7 @@ You carry it out:
   every fix a person chose — by file or area, so each batch touches files no other batch does.
   Send the batches to `maister:task-group-implementer` in one message, each prompt a fix brief: the
   issues by number with their evidence and suggested change, the files it may touch, the
-  standards the brief named, and "fix these, run the affected tests, report each fix as
+  standards the code review's prompt names, and "fix these, run the affected tests, report each fix as
   `{finding, change}`". Their `model` and `effort` are what `dispatch-model
   --agent=maister:task-group-implementer --host=claude --state=<state> --node=<node>` prints.
   A finding whose category is in `hold` is never fixed.
@@ -210,7 +234,8 @@ are `findings.json`'s, kept across cycles.
 When the hand-off keeps the loop in the main session — the run records `inline`, or the runner
 was `unavailable` — the main session follows this procedure itself. It still dispatches every
 review, the test suite and every fix as a subagent, exactly as above: only the loop's own steps —
-the brief, the writes, the merge, the verdict and the report — move into the main session. The
+the brief, the reviewers' prompts, the writes, the merge, the verdict and the report — move into
+the main session. The
 differences are three:
 
 - It asks where you would hand back a decision: framework § 6 steps 5–10, as the node's prose says
@@ -219,4 +244,4 @@ differences are three:
 - Standalone, with no state file, it writes no state at all, asks once which reviews to run
   ("All four reviews (Recommended)", "Code review only", "Choose individually") and which commit
   the work started from (`review-brief --task-path=<task path> --base=<commit>`), and the report
-  is the run's record.
+  is the run's record. Its reviewers' prompts draw on the task directory's documents alone.

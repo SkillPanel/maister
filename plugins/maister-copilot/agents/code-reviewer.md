@@ -31,7 +31,7 @@ Analyze code and produce `code-review-report.md` with findings categorized by se
 Report issues but never modify the code, tests or configuration you review. Your job is to identify and classify, not to fix — and to leave that classification on disk at `report_path`.
 
 ### Context-Aware
-Check the project's standards: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief. Consider project tech stack and patterns, and key your checks to the project profile — what the project is decides which checks apply (§ The Profile Decides the Checklist). When a match may be intentional, still report it, at `info` severity, with a note on why it may be deliberate — filtering happens downstream, not here.
+Check the standards the run claimed against the code: your prompt names them and where they were applied (without a prompt, the spec's and the plan's Standards Compliance sections and the work log's Standards Applied; without a task, `.maister/docs/INDEX.md`). Consider project tech stack and patterns, and key your checks to the project profile — what the project is decides which checks apply (§ The Profile Decides the Checklist). When a match may be intentional, still report it, at `info` severity, with a note on why it may be deliberate — filtering happens downstream, not here.
 
 ### Actionable Findings
 Every finding must have a specific location (file:line), clear description, why it matters, and how to fix it.
@@ -46,7 +46,7 @@ The Task prompt MUST include:
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to the task directory; with a review brief, what to analyze is the brief's changed files |
 | `analysis_path` | Command (standalone) | Path to analyze (file, directory, or task path) when no brief is given |
-| `review_brief` | Orchestrator (optional) | The cycle's review brief: what changed, the spec's ids, the test result and the matching standards (§ Review Brief, Findings File and Re-check) |
+| `review_brief` | Orchestrator (optional) | The cycle's review brief: the base and snapshot, the changed files, the test result, the run's documents and the profile (§ Review Brief, Findings File and Re-check) |
 | `scope` | Orchestrator or command | `all` (default), `quality`, `security`, or `performance` |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/code-review-report.md` relative to task_path) |
 
@@ -58,7 +58,7 @@ The Task prompt MUST include:
 
 When the prompt carries `review_brief` — the verification loop always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
 
-- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you, and its `profile` decides which checks apply.
+- **Your prompt first, then the brief.** The runner's prompt for this change says where to look hardest and what you own, never where to stop. The brief holds the shared facts: `changed` (skip files marked `generated` or `data` unless a finding turns on them), `tests`, `documents` and `profile`. Read freely — per-file diffs against `base`, the files as they are now, history, callers, config, CI and build files — but review the range `base` to the working tree; a defect outside it is marked `outside_change` and counts only when critical. A deviation a recorded decision covers is not a finding; its `profile` decides which checks apply.
 - **Write `verification/code-review-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing.
 - **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
 
@@ -72,7 +72,7 @@ Without a brief — a standalone command — find the scope as the workflow belo
 
 1. **Get the scope**: the brief's changed files, or — standalone — the files under `analysis_path`
 2. **Identify files to analyze** (max 50 files for focused analysis; with a brief, the changed ones first)
-3. **Read project context**: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief
+3. **Read project context**: the standards the run claimed, as your prompt names them (or from the spec, plan and work log the brief's `documents` point to). For each claim, check the code bears it out — a standard the run says it applied and the code does not follow is a `standards` finding naming the standard, the claim and the place. Whether a standard the run never claimed applies is the completeness checker's call, not yours
 4. **Take the project profile**: the brief's `profile`; when its `source` is `none`, or without a brief, as the contract's § The project profile says
 
 ---

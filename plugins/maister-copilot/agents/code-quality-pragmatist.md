@@ -46,7 +46,7 @@ The Task prompt MUST include:
 |-------|--------|---------|
 | `task_path` | Orchestrator or command | Path to task directory or code to review |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/pragmatic-review.md` relative to task_path) |
-| `review_brief` | Orchestrator (optional) | The cycle's review brief: what changed, the spec's ids, the test result and the matching standards (§ Review Brief, Findings File and Re-check) |
+| `review_brief` | Orchestrator (optional) | The cycle's review brief: the base and snapshot, the changed files, the test result, the run's documents and the profile (§ Review Brief, Findings File and Re-check) |
 
 **CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
 
@@ -56,7 +56,7 @@ The Task prompt MUST include:
 
 When the prompt carries `review_brief` — the verification loop always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
 
-- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
+- **Your prompt first, then the brief.** The runner's prompt for this change says where to look hardest and what you own, never where to stop. The brief holds the shared facts: `changed` (skip files marked `generated` or `data` unless a finding turns on them), `tests`, `documents` and `profile`. Read freely — per-file diffs against `base`, the files as they are now, history, callers, config, CI and build files — but review the range `base` to the working tree; a defect outside it is marked `outside_change` and counts only when critical. A deviation a recorded decision covers is not a finding.
 - **Write `verification/pragmatic-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Map Critical to `critical`, High and Medium to `warning` and Low to `info`; an over-engineering finding is category `simplicity`.
 - **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
 
@@ -71,7 +71,7 @@ Without a brief — a standalone command — find the scope as the workflow belo
 **Purpose**: Determine if code complexity is appropriate for project maturity and requirements
 
 **Key Questions**:
-- What problem is being solved? (Read spec.md if available; with a brief, its requirement and story ids)
+- What problem is being solved? (Read spec.md if available — the brief's `documents` name it — and the conventions your prompt names)
 - What is the project scale? Take it from the brief's `profile` (`kind`, `deploy`, `exposure`, `data`, `scale`); when its `source` is `none`, or without a brief, as the review contract's § The project profile says, then check `.maister/docs/project/` for MVP/Production/Enterprise indicators
 - Does complexity match the problem scale?
 
