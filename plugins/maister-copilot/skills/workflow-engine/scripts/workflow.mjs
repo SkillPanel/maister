@@ -116,9 +116,9 @@
  *                  --cycle, --recheck=tests-only|reviews with --fixed-issues,
  *                  or --refresh                            the path of the
  *                  verification cycle's review brief it wrote — what changed
- *                  since the run's base commit, the spec's ids, the plan, the
- *                  test result, the matching standards, and on a re-check the
- *                  issues and the fix diff; a part it cannot fill is a
+ *                  since the run's base commit, the run's documents by path,
+ *                  the plan, the test result, the profile, and on a re-check
+ *                  the issues and the fix's snapshots; a part it cannot fill is a
  *                  `warning:` line — writes only under the run's verification/
  *   findings-merge --state, or --task-path; optional --cycle  JSON on stdout
  *                  (the cycle's reviewer findings merged into findings.json,

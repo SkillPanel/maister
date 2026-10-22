@@ -7,8 +7,10 @@ import { freeze, git, gitScratch, readState, verb } from '../helpers.mjs';
 
 // The freeze records the commit a run starts from, and `review-brief` measures
 // one verification cycle from it, once: changed files through a temporary
-// index that never touches the user's own, the spec's ids, the plan, the test
-// result, the matching standards and, on a re-check, the fix diff.
+// index that never touches the user's own, marked untracked, generated or
+// data; the run's documents by path; the plan, the test result and, on a
+// re-check, the fix's snapshots and files. No patch file, no parsed spec ids
+// and no matched standards: the reviewers' prompts carry those judgements.
 
 const FILES = {
   'src/app.mjs': 'export const a = 1;\nexport const b = 2;\n',
@@ -72,8 +74,8 @@ test('review-brief: a modified, an added, an untracked and a deleted file, measu
   assert.equal(json.diffstat, '5 files changed, 7 insertions(+), 2 deletions(-)');
   assert.deepEqual(json.excluded, ['.maister/**']);
   assert.ok(!json.changed.some(entry => entry.path.startsWith('.maister/')), 'the run directory is never part of the change');
-  assert.equal(json.diff_path, 'verification/review-diff-1.patch');
-  assert.match(fs.readFileSync(path.join(run.dir, json.diff_path), 'utf8'), /\+export const c = 4;/);
+  for (const gone of ['diff_path', 'spec', 'standards']) assert.ok(!Object.hasOwn(json, gone), `the brief carries no ${gone}`);
+  assert.ok(!fs.readdirSync(path.join(run.dir, 'verification')).some(name => name.endsWith('.patch')), 'no patch file is written');
   assert.match(json.contract, /implementation-verifier[\\/]references[\\/]review-findings\.md$/);
   assert.ok(fs.existsSync(json.contract), 'the contract the brief names ships with the plugin');
 
@@ -100,11 +102,8 @@ test('review-brief: a re-check carries the fix diff since the previous cycle and
   assert.equal(json.cycle, 2);
   assert.equal(json.mode, 'recheck');
   assert.equal(json.fix.from, json.previous_snapshot);
-  assert.deepEqual(json.fix.files, ['src/app.mjs']);
-  assert.deepEqual(json.fix.hunks, [{ path: 'src/app.mjs', start: 1, end: 2 }]);
-  const fixDiff = fs.readFileSync(path.join(run.dir, json.fix.diff_path), 'utf8');
-  assert.match(fixDiff, /-export const b = 3;\n\+export const b = 2;/);
-  assert.doesNotMatch(fixDiff, /other\.mjs/, 'the fix diff holds only what changed since cycle 1');
+  assert.deepEqual(json.fix, { from: json.previous_snapshot, to: json.snapshot, files: ['src/app.mjs'] }, 'the fix names its snapshots and only what changed since cycle 1; the merge works out the hunks');
+  assert.match(git(run.root, ['diff', json.fix.from, json.fix.to, '--', 'src/app.mjs']), /-export const b = 3;\n\+export const b = 2;/, 'a reviewer diffs the fix\'s files between its two snapshots');
   assert.deepEqual(json.recheck, {
     kind: 'reviews',
     issues: [{ id: 1, severity: 'warning', title: 'b is off by one', location: { path: 'src/app.mjs', line: 2 }, sources: ['code-review'] }],
@@ -157,39 +156,32 @@ test('review-brief: standalone, a task directory and a base; --task-path without
   assert.equal(json.tests.status, 'pending');
 });
 
-test('review-brief: the spec\'s ids, the plan\'s groups, the matching standards, and the test result on --refresh', t => {
+test('review-brief: the run\'s documents by path, the plan\'s groups, and the test result on --refresh', t => {
   const run = frozen(t);
-  write(run, '.maister/docs/INDEX.md', [
-    '# Documentation Index', '',
-    '### Coding Style (`standards/global/coding-style.md`)', 'Read in full before: naming.', '',
-    '### Test Writing (`standards/testing/test-writing.md`)', 'Read in full before: new tests.', '',
-    '### CSS (`standards/frontend/css.md`)', 'Read in full before: styling.', '',
-    '### Database Migrations (`standards/backend/migrations.md`)', 'Read in full before: new migrations.', '',
-    '### Billing Rules (`standards/domain/billing.md`)', 'Read in full before: invoices, billing.', '',
-  ].join('\n'));
+  write(run, '.maister/docs/INDEX.md', '# Documentation Index\n\n### Coding Style (`standards/global/coding-style.md`)\n');
   fs.mkdirSync(path.join(run.dir, 'implementation'), { recursive: true });
-  fs.writeFileSync(path.join(run.dir, 'implementation', 'spec.md'), [
-    '# Specification: Sample', '', '## User Stories', '', '### user-story-upload', 'As a user …', '',
-    '## Core Requirements', '', '1. Upload a file (user-story-upload)', '2. Retry on failure (user-story-retry)', '   1. nested detail', '3. Report progress', '',
-    '## Out of Scope', '', '4. Not a requirement', '',
-  ].join('\n'));
+  fs.mkdirSync(path.join(run.dir, 'analysis'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, 'implementation', 'spec.md'), '# Specification: Sample\n\n- **R1** Upload a file\n');
   fs.writeFileSync(path.join(run.dir, 'implementation', 'implementation-plan.md'), [
     '# Plan', '', '### Task Group 1: Upload', '- [x] 1.0 Group', '- [x] 1.1 Step', '',
     '### Task Group 2: Retry', '- [x] 2.0 Group', '- [ ] 2.1 Step', '',
   ].join('\n'));
+  fs.writeFileSync(path.join(run.dir, 'implementation', 'work-log.md'), '# Work Log\n');
+  fs.writeFileSync(path.join(run.dir, 'analysis', 'clarifications.md'), '# Clarifications\n');
   write(run, 'src/billing/invoice.mjs', 'export {};\n');
-  write(run, 'test/invoice.test.mjs', 'export {};\n');
 
   const built = brief(run);
   assert.equal(built.code, 0, built.stderr);
   assert.doesNotMatch(built.stderr, /warning:/);
-  assert.deepEqual(built.json.spec, { path: 'implementation/spec.md', requirements: ['1', '2', '3'], stories: ['user-story-upload', 'user-story-retry'] });
+  assert.deepEqual(built.json.documents, {
+    spec: 'implementation/spec.md',
+    plan: 'implementation/implementation-plan.md',
+    work_log: 'implementation/work-log.md',
+    clarifications: 'analysis/clarifications.md',
+    state: 'orchestrator-state.yml',
+  }, 'only the documents the run holds, by path, and the state that records its decisions');
   assert.deepEqual(built.json.plan, { path: 'implementation/implementation-plan.md', groups: 2, done: 1 });
-  assert.deepEqual(built.json.standards.map(entry => [entry.path, entry.why]), [
-    ['.maister/docs/standards/global/coding-style.md', 'applies to every change'],
-    ['.maister/docs/standards/testing/test-writing.md', 'tests changed (test/invoice.test.mjs)'],
-    ['.maister/docs/standards/domain/billing.md', 'src/billing/invoice.mjs matches "billing"'],
-  ]);
+  assert.ok(!Object.hasOwn(built.json, 'standards'), 'standards are named by the reviewers\' prompts, never matched here');
   assert.equal(built.json.tests.status, 'pending');
 
   const missing = brief(run, ['--refresh']);
@@ -213,15 +205,43 @@ test('review-brief: the spec\'s ids, the plan\'s groups, the matching standards,
   assert.ok(!refreshed.json.changed.some(entry => entry.path === 'src/after-tests.mjs'));
 });
 
+test('review-brief: lock files, linguist-generated paths and minified output are generated; fixtures, data files and large bulk files are data', t => {
+  const run = frozen(t);
+  const lines = count => Array.from({ length: count }, (_, i) => `line ${i}`).join('\n') + '\n';
+  write(run, '.gitattributes', 'src/schema.gen.ts linguist-generated\n');
+  write(run, 'package-lock.json', '{}\n');
+  write(run, 'src/schema.gen.ts', 'export {};\n');
+  write(run, 'dist/app.min.js', 'x\n');
+  write(run, 'tests/fixtures/recorded.mjs', 'export {};\n');
+  write(run, 'gates/results.csv', 'a,b\n');
+  write(run, 'gates/huge.json', lines(6000));
+  write(run, 'config/small.json', '{}\n');
+  write(run, 'src/huge.ts', lines(6000));
+
+  const { code, stderr, json } = brief(run);
+  assert.equal(code, 0, stderr);
+  const marks = Object.fromEntries(json.changed.map(entry => [entry.path, [entry.generated ? 'generated' : null, entry.data ? 'data' : null].filter(Boolean).join()]));
+  assert.deepEqual(marks, {
+    '.gitattributes': '',
+    'config/small.json': '',
+    'dist/app.min.js': 'generated',
+    'gates/huge.json': 'data',
+    'gates/results.csv': 'data',
+    'package-lock.json': 'generated',
+    'src/huge.ts': '',
+    'src/schema.gen.ts': 'generated',
+    'tests/fixtures/recorded.mjs': 'data',
+  });
+  assert.equal(json.changed.find(entry => entry.path === 'src/huge.ts').added, 6000, 'a 6000-line source file is past the line threshold, and still never marked data');
+});
+
 test('review-brief: a part it cannot fill is one warning line, exit 0', t => {
   const run = frozen(t);
   const { code, stderr, json } = brief(run);
   assert.equal(code, 0);
-  assert.match(stderr, /^warning: review-brief-spec: implementation\/spec\.md is not in the run/m);
   assert.match(stderr, /^warning: review-brief-plan: /m);
-  assert.match(stderr, /^warning: review-brief-standards: /m);
-  assert.deepEqual(json.spec, { path: 'implementation/spec.md', requirements: [], stories: [] });
   assert.equal(json.plan, null);
+  assert.deepEqual(json.documents, { state: 'orchestrator-state.yml' }, 'a document the run lacks is left out, never a warning');
 });
 
 test('review-brief: a snapshot that outruns its budget degrades to a warning, and the brief is written without the diff parts', t => {
@@ -235,9 +255,8 @@ test('review-brief: a snapshot that outruns its budget degrades to a warning, an
   assert.equal(json.snapshot, null);
   assert.equal(json.changed, null);
   assert.equal(json.diffstat, null);
-  assert.equal(json.diff_path, null);
   assert.equal(json.fix, null);
-  assert.deepEqual(json.spec.requirements, [], 'the parts that need no snapshot are still filled');
+  assert.deepEqual(json.documents, { state: 'orchestrator-state.yml' }, 'the parts that need no snapshot are still filled');
 });
 
 test('review-brief: a snapshot git cannot take degrades the same way, never a refusal', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, t => {

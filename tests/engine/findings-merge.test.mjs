@@ -3,19 +3,39 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { freeze, scratch, verb } from '../helpers.mjs';
+import { freeze, gitScratch, scratch, verb } from '../helpers.mjs';
 
 // `findings-merge` folds one cycle's reviewer findings into the run's one
 // numbered list: duplicates across reviewers become one finding, ids stay put
 // across cycles, silence is never a fix, and a re-check's new findings count
-// only inside the fixes. The briefs here are written by hand: the merge reads
-// their re-check and fix-diff parts and never runs git.
+// only inside the fixes. Most briefs here are written by hand; where a fix
+// matters they are built by `review-brief` in a git project, because the merge
+// works out a fix's hunks from git itself, from the two snapshots its brief
+// names.
 
 function project(t) {
   const run = scratch(t);
   freeze(run);
   fs.mkdirSync(path.join(run.dir, 'verification'), { recursive: true });
   return run;
+}
+
+/** A git project whose `src/upload.mjs` has 80 lines, frozen, so `review-brief` can measure its fixes. */
+function gitProject(t) {
+  const run = gitScratch(t, { 'src/upload.mjs': upload() });
+  freeze(run);
+  fs.mkdirSync(path.join(run.dir, 'verification'), { recursive: true });
+  return run;
+}
+
+/** `src/upload.mjs`, line n reading `line n`, with the lines in `edited` rewritten. */
+function upload(edited = []) {
+  return Array.from({ length: 80 }, (_, i) => (edited.includes(i + 1) ? `fixed ${i + 1}` : `line ${i + 1}`)).join('\n') + '\n';
+}
+
+function realBrief(run, flags = []) {
+  const result = verb(['review-brief', `--state=${run.state}`, ...flags]);
+  assert.equal(result.code, 0, result.stderr);
 }
 
 function put(run, name, value) {
@@ -42,8 +62,9 @@ function full(reviewer, cycle, findings, extra = {}) {
 }
 
 /** Cycle 1: two reviewers on one defect eight lines apart, a third finding apart from it, one more by itself. */
-function cycleOne(run) {
-  put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null });
+function cycleOne(run, { real = false } = {}) {
+  if (real) realBrief(run);
+  else put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null });
   put(run, 'code-review-findings.json', full('code-review', 1, [
     finding('cr-1', 'warning', 'correctness', at('src/upload.mjs', 40, 42), 'Upload retries never back off'),
     finding('cr-2', 'info', 'correctness', at('src/upload.mjs', 45), 'Retry count is a magic number'),
@@ -115,23 +136,23 @@ test('findings-merge: ids stay stable across cycles, and a new finding takes the
 });
 
 test('findings-merge: a finding a full review did not report again stays open as not_reported, unless a fix touched it', t => {
-  const run = project(t);
-  cycleOne(run);
+  const run = gitProject(t);
+  cycleOne(run, { real: true });
   put(run, 'test-suite-findings.json', full('test-suite', 1, [
     finding('ts-1', 'critical', 'tests', at('test/upload.test.mjs', 12), 'upload retries test fails'),
   ], { tests: { status: 'failed', passed: 11, failed: 1 } }));
   merge(run);
   const before = Object.fromEntries(merged(run).findings.map(each => [each.title, each.id]));
 
-  // Cycle 2: every reviewer runs in full and reports nothing; the fix touched lines 58-62 of upload.mjs only.
-  put(run, 'review-brief-2.json', {
-    cycle: 2, mode: 'full', recheck: null,
-    fix: { from: 'a', to: 'b', diff_path: 'verification/fix-diff-2.patch', files: ['src/upload.mjs'], hunks: [{ path: 'src/upload.mjs', start: 58, end: 62 }] },
-  });
+  // Cycle 2: every reviewer runs in full and reports nothing; the fix rewrote line 60 of upload.mjs only,
+  // a hunk of lines 57-63 with its context, which the merge reads from git.
+  fs.writeFileSync(path.join(run.root, 'src/upload.mjs'), upload([60]));
+  realBrief(run);
   for (const reviewer of ['code-review', 'production-readiness', 'pragmatic']) put(run, `${reviewer}-findings.json`, full(reviewer, 2, []));
   put(run, 'test-suite-findings.json', full('test-suite', 2, [], { tests: { status: 'passed', passed: 12, failed: 0 } }));
-  const { code, report } = merge(run);
+  const { code, stderr, report } = merge(run);
   assert.equal(code, 0);
+  assert.doesNotMatch(stderr, /findings-merge-fix-hunks/);
   const byId = Object.fromEntries(merged(run).findings.map(each => [each.id, each]));
   const timeout = byId[before['No timeout on the request']];
   assert.equal(timeout.status, 'resolved', 'the fix diff touched its line');
@@ -148,14 +169,11 @@ test('findings-merge: a finding a full review did not report again stays open as
 });
 
 test('findings-merge: a re-check of the reviews resolves what its reviewer answered, keeps the unanswered open, and holds new findings to the fix diff', t => {
-  const run = project(t);
-  cycleOne(run);
-  put(run, 'review-brief-2.json', {
-    cycle: 2, mode: 'recheck',
-    fix: { from: 'a', to: 'b', diff_path: 'verification/fix-diff-2.patch', files: ['src/upload.mjs'], hunks: [{ path: 'src/upload.mjs', start: 38, end: 52 }] },
-    recheck: { kind: 'reviews', issues: [{ id: 1 }, { id: 2 }, { id: 4 }], by_reviewer: { 'production-readiness': [1, 2], 'code-review': [4] } },
-    tests: { status: 'passed' },
-  });
+  const run = gitProject(t);
+  cycleOne(run, { real: true });
+  // The fix rewrote lines 41-49 of upload.mjs: a hunk of lines 38-52 with its context.
+  fs.writeFileSync(path.join(run.root, 'src/upload.mjs'), upload([41, 42, 43, 44, 45, 46, 47, 48, 49]));
+  realBrief(run, ['--recheck=reviews', '--fixed-issues=1,2,4']);
   put(run, 'production-readiness-findings.json', {
     reviewer: 'production-readiness', cycle: 2, mode: 'recheck',
     results: [{ id: 1, status: 'resolved', evidence: 'backoff added at upload.mjs:44' }, { id: 2, status: 'residual', evidence: 'timeout still missing' }],
@@ -167,6 +185,7 @@ test('findings-merge: a re-check of the reviews resolves what its reviewer answe
   put(run, 'code-review-findings.json', { reviewer: 'code-review', cycle: 2, mode: 'recheck', results: [], new: [] });
   const { code, stderr, report } = merge(run);
   assert.equal(code, 0, stderr);
+  assert.doesNotMatch(stderr, /findings-merge-fix-hunks/);
   const doc = merged(run);
   const byId = Object.fromEntries(doc.findings.map(each => [each.id, each]));
   assert.equal(byId[1].status, 'resolved');
@@ -184,6 +203,48 @@ test('findings-merge: a re-check of the reviews resolves what its reviewer answe
   assert.ok(!report.issues_found.some(each => each.description === 'Unrelated auth worry'));
   assert.equal(byId[3].status, 'open', 'a finding nobody re-checked carries forward as it was');
   assert.equal(byId[3].not_reported, undefined);
+});
+
+test('findings-merge: where git cannot read the fix, it is matched by its files alone, with one warning', t => {
+  const run = project(t);
+  cycleOne(run);
+  put(run, 'review-brief-2.json', {
+    cycle: 2, mode: 'recheck', fix: { from: 'a', to: 'b', files: ['src/upload.mjs'] },
+    recheck: { kind: 'reviews', issues: [{ id: 1 }], by_reviewer: { 'production-readiness': [1] } },
+  });
+  put(run, 'production-readiness-findings.json', {
+    reviewer: 'production-readiness', cycle: 2, mode: 'recheck',
+    results: [{ id: 1, status: 'resolved', evidence: 'fixed' }],
+    new: [
+      finding('pr-9', 'warning', 'resilience', at('src/upload.mjs', 200), 'Far from any hunk, in a fixed file'),
+      finding('pr-10', 'warning', 'resilience', at('src/auth.mjs', 3), 'In a file the fix never touched'),
+    ],
+  });
+  const { code, stderr } = merge(run);
+  assert.equal(code, 0, stderr);
+  assert.equal(stderr.match(/^warning: findings-merge-fix-hunks: .*matched by its files alone$/gm)?.length, 1);
+  const doc = merged(run);
+  assert.ok(doc.findings.some(each => each.title === 'Far from any hunk, in a fixed file'), 'a finding in a fixed file stays in scope');
+  assert.deepEqual(doc.out_of_scope.map(each => each.title), ['In a file the fix never touched']);
+});
+
+test('findings-merge: a finding outside the change counts only when critical; any other is set aside, never counted', t => {
+  const run = project(t);
+  put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null });
+  put(run, 'production-readiness-findings.json', full('production-readiness', 1, [
+    finding('pr-1', 'critical', 'resilience', at('.github/workflows/ci.yml', 12), 'CI clones shallow, and the new gate test reads history', { outside_change: true }),
+    finding('pr-2', 'warning', 'resilience', at('src/legacy.mjs', 30), 'An old retry loop the change calls', { outside_change: true }),
+    finding('pr-3', 'warning', 'resilience', at('src/upload.mjs', 5), 'A defect in the change'),
+  ]));
+  const { code, stderr, report } = merge(run);
+  assert.equal(code, 0, stderr);
+  const doc = merged(run);
+  const ci = doc.findings.find(each => each.title.startsWith('CI clones shallow'));
+  assert.equal(ci.outside_change, true, 'a critical outside the change is counted, and keeps its mark');
+  assert.equal(doc.findings.find(each => each.title === 'A defect in the change').outside_change, undefined);
+  assert.deepEqual(doc.out_of_scope.map(each => [each.title, each.reason]), [['An old retry loop the change calls', 'outside the change']]);
+  assert.deepEqual([report.counts.critical, report.counts.warning, report.counts.out_of_scope], [1, 1, 1]);
+  assert.ok(!report.issues_found.some(each => each.description === 'An old retry loop the change calls'));
 });
 
 test('findings-merge: a tests-only re-check resolves the fixed issues on a passing suite, and only then', t => {

@@ -247,6 +247,28 @@ export function untrackedPaths(repo) {
   return { ok: true, paths: new Set(found.stdout.split('\0').filter(Boolean)) };
 }
 
+/** How many paths one `check-attr` call names, so a large change never outgrows a command line. */
+const ATTR_BATCH = 200;
+
+/**
+ * The paths among `paths` the repository's attributes mark
+ * `linguist-generated` (set, or any value but `false`), read from the
+ * working tree's `.gitattributes`.
+ */
+export function generatedPaths(repo, paths) {
+  const marked = new Set();
+  for (let at = 0; at < paths.length; at += ATTR_BATCH) {
+    const found = git(repo.top, ['check-attr', '-z', 'linguist-generated', '--', ...paths.slice(at, at + ATTR_BATCH)]);
+    if (!found.ok) return found;
+    const tokens = found.stdout.split('\0');
+    for (let i = 0; i + 2 < tokens.length; i += 3) {
+      const value = tokens[i + 2];
+      if (value !== 'unspecified' && value !== 'unset' && value !== 'false') marked.add(tokens[i]);
+    }
+  }
+  return { ok: true, paths: marked };
+}
+
 /**
  * The new-side line ranges a patch touches, `[{path, start, end}]`, and the
  * paths it touches at all. A hunk's range includes its context lines, so a

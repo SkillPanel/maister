@@ -3,11 +3,12 @@
  * and handed to every reviewer.
  *
  * Why this module exists. Each reviewer used to work out the change on its
- * own — which files, against which commit, what the spec asked for, which
- * standards applied — and spent a share of its calls on it, differently every
- * time. The brief is that work done once, in code, so every reviewer of a
- * cycle reads the same scope, and a re-check cycle can point the reviewers at
- * the fixes alone.
+ * own — which files, against which commit, which test result — and spent a
+ * share of its calls on it, differently every time. The brief is the facts
+ * every reviewer would otherwise scan for, measured once in code and the same
+ * for all of them. Judgement about where each reviewer looks hardest is not
+ * here: the verification runner writes each reviewer a prompt for that, from
+ * the run's documents, which the brief names by path and never reads.
  *
  * The contract. Orchestrator mode takes `--state` (the run's
  * `orchestrator-state.yml`); standalone mode takes `--task-path` (the task
@@ -35,17 +36,18 @@
  *   changed, diffstat   every path that differs, untracked files included,
  *                       with its status and line counts; `untracked` and
  *                       `dirty_at_freeze` mark what was never added and what
- *                       was already dirty when the run started
- *   diff_path           the whole patch, `verification/review-diff-<N>.patch`
+ *                       was already dirty when the run started, `generated`
+ *                       and `data` what a reviewer skips unless a finding
+ *                       turns on it (`marksOf`)
  *   fix                 from cycle 2 on, what changed since the previous
- *                       cycle's snapshot: `verification/fix-diff-<N>.patch`,
- *                       its files and its new-side hunks — the fix diff
- *                       `findings-merge` scopes a re-check's new findings by
+ *                       cycle's snapshot: `from`, `to` and its `files`;
+ *                       `findings-merge` works out the hunks itself
  *   recheck             in a re-check cycle: its kind, the issues and the
  *                       reviewer owning each
- *   spec, plan, tests   the spec's requirement numbers and story ids, parsed
- *                       softly; the plan's group counts; the test result
- *   standards           the standards INDEX entries matching the changed files
+ *   documents           the paths of the run's documents that exist — spec,
+ *                       plan, work log, clarifications, the audit, the state
+ *                       holding the recorded decisions — never their contents
+ *   plan, tests         the plan's group counts; the test result
  *   profile             the project profile the reviewers key their checks to,
  *                       its fields and `source`: `config` — the copy the freeze
  *                       recorded, or standalone the `project:` key of the
@@ -76,7 +78,7 @@ import { isPlainObject, parse } from './state-read.mjs';
 import { projectRootOf } from './state.mjs';
 import { readPlan } from './plan-sync.mjs';
 import { projectProfile } from './project-profile.mjs';
-import { changedBetween, commitOf, hasObject, ownDirOf, parseHunks, patch, repoOf, shortstat, snapshot, untrackedPaths } from './git-tree.mjs';
+import { changedBetween, commitOf, generatedPaths, hasObject, ownDirOf, repoOf, shortstat, snapshot, untrackedPaths } from './git-tree.mjs';
 
 /** The run's verification folder, where every file this verb writes lives. */
 export const VERIFICATION = 'verification';
@@ -96,10 +98,27 @@ export const RECHECK_KINDS = ['tests-only', 'reviews'];
 /** The reviewers' contract, relative to the plugin root. */
 const CONTRACT = 'skills/implementation-verifier/references/review-findings.md';
 
-const SPEC = 'implementation/spec.md';
 const PLAN = 'implementation/implementation-plan.md';
 const TEST_RESULTS = `${VERIFICATION}/test-suite-results.md`;
-const INDEX = '.maister/docs/INDEX.md';
+
+/**
+ * The run documents a reviewer's prompt draws on, by the key the brief names
+ * each, relative to the run directory. Only those present are listed.
+ */
+const DOCUMENTS = {
+  spec: 'implementation/spec.md',
+  plan: PLAN,
+  work_log: 'implementation/work-log.md',
+  requirements: 'analysis/requirements.md',
+  clarifications: 'analysis/clarifications.md',
+  scope_clarifications: 'analysis/scope-clarifications.md',
+  technical_clarifications: 'analysis/technical-clarifications.md',
+  gap_analysis: 'analysis/gap-analysis.md',
+  target_state: 'analysis/target-state-plan.md',
+  rollback_plan: 'analysis/rollback-plan.md',
+  design_context: 'analysis/design-context/INDEX.md',
+  spec_audit: `${VERIFICATION}/spec-audit.md`,
+};
 
 /**
  * Build, or with `refresh` update, the brief of one cycle.
@@ -170,30 +189,27 @@ export function reviewBrief({ state = null, taskPath = null, base = null, cycle 
     contract: path.join(pluginRoot, CONTRACT),
     changed: null,
     diffstat: null,
-    diff_path: null,
     excluded: [`${ownDirOf(repo)}/**`],
     fix: null,
     recheck: null,
-    spec: null,
+    documents: null,
     plan: null,
     tests: null,
-    standards: [],
     profile: null,
   };
 
   const taken = snapshot(repo, baseSha);
   if (!taken.ok) {
-    warnings.push(`review-brief-snapshot: ${taken.error}; the brief is written without its diff parts (changed, diffstat, diff_path, fix)`);
+    warnings.push(`review-brief-snapshot: ${taken.error}; the brief is written without its diff parts (changed, diffstat, fix)`);
   } else {
     brief.snapshot = taken.tree;
-    diffParts(brief, repo, dir, number, dirty, warnings);
-    fixParts(brief, repo, dir, number, previous, warnings);
+    diffParts(brief, repo, dirty, warnings);
+    fixParts(brief, repo, number, previous, warnings);
   }
   if (recheck !== null) brief.recheck = recheckOf(dir, number, recheck, fixedIssues, warnings);
-  brief.spec = specOf(runDir, warnings);
+  brief.documents = documentsOf(runDir, state);
   brief.plan = planOf(runDir, warnings);
   brief.tests = testsOf(doc, dir, number, recheck, warnings, { refreshing: false });
-  brief.standards = standardsOf(projectRoot, repo, brief.changed, warnings);
   brief.profile = profileOf(doc, projectRoot, warnings);
 
   const file = path.join(dir, `review-brief-${number}.json`);
@@ -228,7 +244,7 @@ function runOf({ state, taskPath }) {
 }
 
 /** A task directory's project root: above `.maister/tasks/` when it sits there, else the working directory. */
-function projectRootOfTask(runDir) {
+export function projectRootOfTask(runDir) {
   const marker = `${path.sep}.maister${path.sep}tasks${path.sep}`;
   const at = runDir.lastIndexOf(marker);
   return at > 0 ? runDir.slice(0, at) : process.cwd();
@@ -255,35 +271,30 @@ function dirtyOf(recorded) {
   return new Set(Array.isArray(recorded.dirty) ? recorded.dirty.map(String) : []);
 }
 
-/** `changed`, `diffstat` and `diff_path`: base to snapshot. */
-function diffParts(brief, repo, dir, number, dirty, warnings) {
+/** `changed` and `diffstat`: base to snapshot. */
+function diffParts(brief, repo, dirty, warnings) {
   const changed = changedBetween(repo, brief.base, brief.snapshot);
   if (!changed.ok) {
     warnings.push(`review-brief-changed: ${changed.error}; the brief lists no changed files`);
   } else {
     const untracked = untrackedPaths(repo);
     if (!untracked.ok) warnings.push(`review-brief-untracked: ${untracked.error}; untracked files are listed but not marked`);
+    const generated = generatedPaths(repo, changed.changed.map(entry => entry.path));
+    if (!generated.ok) warnings.push(`review-brief-generated: ${generated.error}; generated files are marked by name alone`);
     brief.changed = changed.changed.map(entry => ({
       ...entry,
       ...(untracked.ok && untracked.paths.has(entry.path) ? { untracked: true } : {}),
       ...(dirty.has(entry.path) ? { dirty_at_freeze: true } : {}),
+      ...marksOf(entry, generated.ok && generated.paths.has(entry.path)),
     }));
   }
   const stat = shortstat(repo, brief.base, brief.snapshot);
   if (stat.ok) brief.diffstat = stat.text;
   else warnings.push(`review-brief-diffstat: ${stat.error}`);
-  const whole = patch(repo, brief.base, brief.snapshot);
-  if (!whole.ok) {
-    warnings.push(`review-brief-diff: ${whole.error}; no patch file is written`);
-    return;
-  }
-  const name = `review-diff-${number}.patch`;
-  writeText(path.join(dir, name), whole.text);
-  brief.diff_path = `${VERIFICATION}/${name}`;
 }
 
-/** `fix`: the previous cycle's snapshot to this one, from cycle 2 on. */
-function fixParts(brief, repo, dir, number, previous, warnings) {
+/** `fix`: the previous cycle's snapshot to this one, from cycle 2 on; the merge works out its hunks. */
+function fixParts(brief, repo, number, previous, warnings) {
   if (number < 2) return;
   if (!isPlainObject(previous)) {
     warnings.push(`review-brief-fix-diff: there is no brief for cycle ${number - 1}, so nothing tells what changed since it`);
@@ -294,15 +305,52 @@ function fixParts(brief, repo, dir, number, previous, warnings) {
     warnings.push(`review-brief-fix-diff: cycle ${number - 1}'s snapshot ${from === null ? 'was never taken' : `${from} is no longer in the repository`}, so nothing tells what changed since it`);
     return;
   }
-  const fixed = patch(repo, from, brief.snapshot);
+  const fixed = changedBetween(repo, from, brief.snapshot);
   if (!fixed.ok) {
     warnings.push(`review-brief-fix-diff: ${fixed.error}`);
     return;
   }
-  const name = `fix-diff-${number}.patch`;
-  writeText(path.join(dir, name), fixed.text);
-  const { hunks, files } = parseHunks(fixed.text);
-  brief.fix = { from, to: brief.snapshot, diff_path: `${VERIFICATION}/${name}`, files, hunks };
+  brief.fix = { from, to: brief.snapshot, files: fixed.changed.map(entry => entry.path) };
+}
+
+// ---------------------------------------------------------------------------
+// generated and data
+// ---------------------------------------------------------------------------
+
+/** Files a tool writes, by name. */
+const GENERATED_NAMES = new Set([
+  'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb', 'Cargo.lock', 'poetry.lock',
+  'Pipfile.lock', 'uv.lock', 'Gemfile.lock', 'composer.lock', 'go.sum', 'mix.lock', 'pubspec.lock', 'packages.lock.json',
+  'flake.lock', 'Podfile.lock',
+]);
+const GENERATED_SUFFIX = /\.(?:min\.(?:js|css)|map)$/i;
+/** Folders that hold recorded data rather than code. */
+const DATA_DIRS = new Set(['fixtures', 'fixture', 'testdata', '__snapshots__', 'cassettes']);
+/** Extensions that are data whatever their size. */
+const DATA_EXT = new Set(['csv', 'tsv', 'jsonl', 'ndjson', 'parquet', 'sqlite', 'sqlite3', 'db', 'snap']);
+/**
+ * Extensions a large file of may be data. Only these meet the line threshold:
+ * a large file of source code or of markup the project builds stays unmarked,
+ * so a reviewer never skips real code for its size.
+ */
+const BULK_EXT = new Set(['json', 'yaml', 'yml', 'xml', 'txt', 'log', ...DATA_EXT]);
+/** Changed lines past which a file of a bulk extension reads as data. */
+export const DATA_LINES = 5000;
+
+/**
+ * `generated` — a lock file or minified output by name, or a path the
+ * repository marks `linguist-generated`; else `data` — under a fixtures,
+ * testdata or snapshots folder, of a data extension, or of a bulk extension
+ * past `DATA_LINES` changed lines.
+ */
+function marksOf(entry, attributed) {
+  const segments = entry.path.split('/');
+  const name = segments.pop();
+  if (attributed || GENERATED_NAMES.has(name) || GENERATED_SUFFIX.test(name)) return { generated: true };
+  const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
+  if (segments.some(segment => DATA_DIRS.has(segment)) || DATA_EXT.has(ext)) return { data: true };
+  const lines = (entry.added ?? 0) + (entry.removed ?? 0);
+  return BULK_EXT.has(ext) && lines > DATA_LINES ? { data: true } : {};
 }
 
 /** `recheck`: the issues being re-checked, from the previous cycle's merged findings, and who owns each. */
@@ -330,30 +378,12 @@ function recheckOf(dir, number, kind, ids, warnings) {
   return { kind, issues, by_reviewer: byReviewer };
 }
 
-/** `spec`: the requirement numbers under Core Requirements, and every story id. */
-function specOf(runDir, warnings) {
-  const text = readText(path.join(runDir, SPEC));
-  if (text === null) {
-    warnings.push(`review-brief-spec: ${SPEC} is not in the run, so the brief carries no requirement or story ids`);
-    return { path: SPEC, requirements: [], stories: [] };
-  }
-  const requirements = [];
-  const section = sectionOf(text, /^##\s+Core Requirements\s*$/im);
-  for (const match of section.matchAll(/^ {0,3}(\d+)[.)]\s/gm)) if (!requirements.includes(match[1])) requirements.push(match[1]);
-  const stories = [...new Set([...text.matchAll(/\buser-story-[a-z0-9]+(?:-[a-z0-9]+)*/g)].map(match => match[0]))];
-  if (!requirements.length && !stories.length) {
-    warnings.push(`review-brief-spec: ${SPEC} has no numbered Core Requirements and no user-story ids, so the brief carries none`);
-  }
-  return { path: SPEC, requirements, stories };
-}
-
-/** The text from a `## ` heading to the next one, or '' when the heading is absent. */
-function sectionOf(text, heading) {
-  const start = heading.exec(text);
-  if (!start) return '';
-  const rest = text.slice(start.index + start[0].length);
-  const end = /^##\s/m.exec(rest);
-  return end ? rest.slice(0, end.index) : rest;
+/** `documents`: the run's documents that exist, by path, and in a run the state holding its decisions. */
+function documentsOf(runDir, state) {
+  const found = {};
+  for (const [key, file] of Object.entries(DOCUMENTS)) if (fs.existsSync(path.join(runDir, file))) found[key] = file;
+  if (state !== null) found.state = path.basename(state);
+  return found;
 }
 
 /** `plan`: how many task groups, and how many have every step settled. */
@@ -400,113 +430,6 @@ function profileOf(doc, projectRoot, warnings) {
   const read = projectProfile(projectRoot);
   for (const warning of read.warnings) warnings.push(`review-brief-profile: ${warning.replace(/^project-profile: /, '')}`);
   return read.profile === null ? { source: 'none' } : { ...read.profile, source: 'config' };
-}
-
-// ---------------------------------------------------------------------------
-// standards
-// ---------------------------------------------------------------------------
-
-const TEST_DIR = /^(?:tests?|__tests__|specs?|e2e)$/;
-const TEST_NAME = /(?:\.|_)(?:test|spec)\.[^.]+$|^test_/;
-const FRONTEND_EXT = new Set(['css', 'scss', 'sass', 'less', 'html', 'vue', 'svelte', 'jsx', 'tsx', 'astro']);
-const FRONTEND_DIR = new Set(['components', 'ui', 'pages', 'views', 'styles', 'frontend', 'client', 'web']);
-const BACKEND_EXT = new Set(['py', 'rb', 'go', 'java', 'kt', 'php', 'cs', 'rs', 'sql', 'ex', 'exs', 'scala']);
-const BACKEND_DIR = new Set(['api', 'server', 'backend', 'routes', 'controllers', 'models', 'migrations', 'db', 'services', 'handlers']);
-/** Words an entry spells that say nothing about which files it governs. */
-const STOP = new Set(['read', 'full', 'before', 'when', 'what', 'where', 'with', 'from', 'into', 'that', 'this', 'their', 'every', 'everywhere', 'code', 'file', 'files', 'how', 'and', 'the', 'new', 'are', 'for', 'which']);
-
-/** A word's comparable form: lower case, a plural `s` dropped. */
-function stem(word) {
-  const lower = word.toLowerCase();
-  return lower.length > 4 && lower.endsWith('s') ? lower.slice(0, -1) : lower;
-}
-
-function wordsOf(text) {
-  return String(text).split(/[^A-Za-z0-9]+/).filter(word => word.length >= 4 && !STOP.has(word.toLowerCase())).map(stem);
-}
-
-/** What a changed path offers the matcher: its folder names, its name's words, its extension. */
-function pathFacts(file) {
-  const segments = file.split('/');
-  const name = segments.pop();
-  const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
-  const dirs = segments.map(segment => segment.toLowerCase());
-  const words = new Set([...dirs.flatMap(wordsOf), ...wordsOf(name.replace(/\.[^.]+$/, ''))]);
-  return {
-    file,
-    words,
-    test: dirs.some(dir => TEST_DIR.test(dir)) || TEST_NAME.test(name),
-    frontend: FRONTEND_EXT.has(ext) || dirs.some(dir => FRONTEND_DIR.has(dir)),
-    backend: BACKEND_EXT.has(ext) || dirs.some(dir => BACKEND_DIR.has(dir)),
-  };
-}
-
-/** The INDEX's entries: a heading ending in `` (`path`) ``, and the lines under it. */
-function indexEntries(text) {
-  const entries = [];
-  let current = null;
-  let fenced = false;
-  for (const line of text.split(/\r?\n/)) {
-    if (/^ {0,3}(?:`{3,}|~{3,})/.test(line)) fenced = !fenced;
-    if (fenced) continue;
-    const heading = /^ {0,3}#{2,6}\s+(.*?)\s*$/.exec(line);
-    if (heading) {
-      const target = /^(.*?)\s*\(\s*`([^`]+)`\s*\)$/.exec(heading[1]);
-      current = target ? { title: target[1], path: target[2], body: [] } : null;
-      if (current) entries.push(current);
-      continue;
-    }
-    if (current) current.body.push(line);
-  }
-  return entries;
-}
-
-/**
- * `standards`: the INDEX's standards entries matching the change — every
- * global one, a testing one when tests changed, a frontend or backend one when
- * such a file changed, and any whose path, title or "Read in full before:"
- * words name a folder or a file of the change. Each says why.
- */
-function standardsOf(projectRoot, repo, changed, warnings) {
-  const text = readText(path.join(projectRoot, INDEX));
-  if (text === null) {
-    warnings.push(`review-brief-standards: ${INDEX} is not in the project, so the brief names no standards`);
-    return [];
-  }
-  const facts = (changed ?? []).map(entry => pathFacts(entry.path));
-  const matched = [];
-  for (const entry of indexEntries(text)) {
-    if (!entry.path.startsWith('standards/')) continue;
-    const area = entry.path.split('/')[1] ?? '';
-    const why = whyMatches(entry, area, facts);
-    if (why !== null) matched.push({ path: `.maister/docs/${entry.path}`, title: entry.title, why });
-  }
-  if (repo !== null && changed === null) warnings.push('review-brief-standards: no changed files are known, so only the global standards are named');
-  return matched;
-}
-
-function whyMatches(entry, area, facts) {
-  if (area === 'global') return 'applies to every change';
-  const first = predicate => facts.find(predicate)?.file;
-  if (/^(?:tests?|testing)$/.test(area)) {
-    const hit = first(fact => fact.test);
-    if (hit) return `tests changed (${hit})`;
-  }
-  if (area === 'frontend') {
-    const hit = first(fact => fact.frontend);
-    if (hit) return `a frontend file changed (${hit})`;
-  }
-  if (area === 'backend') {
-    const hit = first(fact => fact.backend);
-    if (hit) return `a backend file changed (${hit})`;
-  }
-  const before = entry.body.join(' ').split(/read in full before:/i)[1] ?? '';
-  const words = new Set([...wordsOf(entry.path.replace(/\.md$/, '')), ...wordsOf(entry.title), ...wordsOf(before)]);
-  for (const fact of facts) {
-    const word = [...fact.words].find(each => words.has(each));
-    if (word) return `${fact.file} matches "${word}"`;
-  }
-  return null;
 }
 
 // ---------------------------------------------------------------------------

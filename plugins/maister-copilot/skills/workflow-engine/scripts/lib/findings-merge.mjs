@@ -15,7 +15,11 @@
  * every `*-findings.json` of the run's `verification/` whose `cycle` is this
  * one — `verification-findings.json`, a findings list of another kind, is
  * never one — the previous cycle's merged list (`findings-<N-1>.json`), and
- * this cycle's brief (`review-brief-<N>.json`) for its re-check and fix diff.
+ * this cycle's brief (`review-brief-<N>.json`) for its re-check and its fix:
+ * the brief names the fix's two snapshots and its files, and the merge reads
+ * the hunks between them from git itself (`fixOf`). Where git cannot answer —
+ * no repository, or a snapshot no longer in it — the fix is matched by its
+ * files alone, with one warning.
  * The output is `findings-<N>.json`, copied to `findings.json`, and on stdout
  * the counts and the `issues_found` projection the verifier records. Running
  * a cycle's merge again gives the same result, because it reads the cycle
@@ -39,6 +43,10 @@
  *                 location, or a re-check answers it resolved. The test suite
  *                 is the one exception: a failure it no longer reports, in a
  *                 cycle where it ran, is resolved.
+ *   outside       a finding its reviewer marks `outside_change` — a defect in
+ *                 code the change did not touch, which the change exposes —
+ *                 counts only when it is critical; any other goes to
+ *                 `out_of_scope`, reported and never counted.
  *   re-check      a reviewer's answer per issue resolves it or keeps it open;
  *                 its new findings count only inside the fix diff, and the
  *                 rest go to `out_of_scope`, reported and never counted. A
@@ -64,7 +72,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isPlainObject, parse } from './state-read.mjs';
-import { MERGED_FILE, VERIFICATION, briefCycles, readJson, writeJson } from './review-brief.mjs';
+import { projectRootOf } from './state.mjs';
+import { parseHunks, patch, repoOf } from './git-tree.mjs';
+import { MERGED_FILE, VERIFICATION, briefCycles, projectRootOfTask, readJson, writeJson } from './review-brief.mjs';
 
 /** The one severity scale, most severe first. */
 export const SEVERITIES = ['critical', 'warning', 'info'];
@@ -122,7 +132,8 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
   const previous = readJson(path.join(dir, MERGED_FILE(number - 1)));
   const prior = isPlainObject(previous) && Array.isArray(previous.findings) ? previous.findings.filter(isPlainObject).map(clone) : [];
   const thisCycle = reviewerFiles.filter(file => file.doc.cycle === number);
-  const fix = isPlainObject(brief?.fix) ? brief.fix : null;
+  const fixes = fixReader(run, dir, warnings);
+  const fix = fixes(number);
   const recheck = isPlainObject(brief?.recheck) ? brief.recheck : null;
   const mode = brief?.mode === 'recheck' ? 'recheck' : 'full';
 
@@ -146,13 +157,16 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
         const finding = findingOf(raw, stem, warnings);
         if (finding === null) continue;
         if (fix !== null && !insideFix(finding.location, fix)) outOfScope.push({ reviewer: stem, ...raw, severity: finding.severity, reason: 'outside the fix diff' });
+        else if (setAside(finding)) outOfScope.push({ reviewer: stem, ...raw, severity: finding.severity, reason: 'outside the change' });
         else reported.push({ ...finding, recheck_new: true });
       }
       continue;
     }
     for (const raw of listOf(doc.findings)) {
       const finding = findingOf(raw, stem, warnings);
-      if (finding !== null) reported.push(finding);
+      if (finding === null) continue;
+      if (setAside(finding)) outOfScope.push({ reviewer: stem, ...raw, severity: finding.severity, reason: 'outside the change' });
+      else reported.push(finding);
     }
   }
 
@@ -193,7 +207,7 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
     if (!reviewers.some(reviewer => ranFull.has(reviewer))) continue;
     if (reviewers.includes(TEST_SUITE) && suiteRan && reviewers.every(reviewer => reviewer === TEST_SUITE)) {
       resolve(finding, number, `the test suite no longer reports it in cycle ${number}`);
-    } else if (touchedSince(finding, dir, number)) {
+    } else if (touchedSince(finding, fixes, number)) {
       resolve(finding, number, `not reported again in cycle ${number}, and a fix since cycle ${finding.last_cycle ?? '?'} touched its location`);
     } else {
       finding.not_reported = true;
@@ -254,13 +268,49 @@ function runDirOf({ state, taskPath }) {
       return refuse('findings-merge-state-unreadable',
         `${state} cannot be read as a state document: ${err.message}. Nothing was written. Point --state at the run's orchestrator-state.yml`);
     }
-    return { ok: true, runDir: path.dirname(path.resolve(state)) };
+    const runDir = path.dirname(path.resolve(state));
+    return { ok: true, runDir, projectRoot: projectRootOf(runDir) };
   }
   const runDir = path.resolve(taskPath);
   if (!fs.existsSync(path.join(runDir))) {
     return refuse('findings-merge-task-unreadable', `--task-path=${taskPath} is not a directory. Nothing was written. Point it at the task directory under review`);
   }
-  return { ok: true, runDir };
+  return { ok: true, runDir, projectRoot: projectRootOfTask(runDir) };
+}
+
+/**
+ * The fix of a cycle, `{from, to, files, hunks}` or null, read from its brief
+ * with the hunks worked out from git once per cycle. `hunks` is null when git
+ * cannot answer: the fix is then matched by its files alone, and one warning
+ * says so.
+ */
+function fixReader(run, dir, warnings) {
+  const known = new Map();
+  let repo;
+  let warned = false;
+  return cycle => {
+    if (known.has(cycle)) return known.get(cycle);
+    const fix = readJson(path.join(dir, `review-brief-${cycle}.json`))?.fix;
+    let found = null;
+    if (isPlainObject(fix)) {
+      if (repo === undefined) repo = repoOf(run.projectRoot);
+      const diff = repo === null || typeof fix.from !== 'string' || typeof fix.to !== 'string'
+        ? { ok: false, error: repo === null ? 'the project is not in a git repository' : 'the brief names no snapshots' }
+        : patch(repo, fix.from, fix.to);
+      if (!diff.ok && !warned) {
+        warnings.push(`findings-merge-fix-hunks: ${diff.error}; the fix of cycle ${cycle} is matched by its files alone`);
+        warned = true;
+      }
+      found = { files: listOf(fix.files), hunks: diff.ok ? parseHunks(diff.text).hunks : null };
+    }
+    known.set(cycle, found);
+    return found;
+  };
+}
+
+/** A finding marked outside the change is held aside unless it is critical. */
+function setAside(finding) {
+  return finding.outside_change === true && finding.severity !== 'critical';
 }
 
 /** Every reviewer findings file in the folder that parses, `{stem, doc}`. */
@@ -323,6 +373,7 @@ function findingOf(raw, stem, warnings) {
     suggestion: typeof raw.suggestion === 'string' ? raw.suggestion : '',
     refs: Array.isArray(raw.refs) ? raw.refs.map(String) : [],
     sources: [{ reviewer: stem, id: raw.id ?? null }],
+    ...(raw.outside_change === true ? { outside_change: true } : {}),
   };
 }
 
@@ -336,6 +387,7 @@ function fold(findings) {
       clusters.push({ ...finding, severities: new Set([finding.severity]) });
       continue;
     }
+    if (home.outside_change && !finding.outside_change) delete home.outside_change;
     home.severities.add(finding.severity);
     home.evidence.push(...finding.evidence);
     home.sources.push(...finding.sources);
@@ -375,21 +427,21 @@ function rangeOf(location) {
   return [start, end];
 }
 
-/** Whether a location lies inside a fix diff: its path changed, and its lines meet a hunk when it names lines. */
+/** Whether a location lies inside a fix diff: its path changed, and its lines meet a hunk when it names lines and the hunks are known. */
 function insideFix(location, fix) {
   if (location === null || !listOf(fix.files).includes(location.path)) return false;
-  if (!Number.isInteger(location.line)) return true;
+  if (!Number.isInteger(location.line) || fix.hunks === null) return true;
   const [start, end] = rangeOf(location);
   return listOf(fix.hunks).some(hunk => hunk?.path === location.path && hunk.start <= end && hunk.end >= start);
 }
 
 /** Whether any fix diff after the finding's last cycle, up to this one, touched its location. */
-function touchedSince(finding, dir, number) {
+function touchedSince(finding, fixes, number) {
   if (finding.location === null || finding.location === undefined) return false;
   const from = Number.isInteger(finding.last_cycle) ? finding.last_cycle : number - 1;
   for (let cycle = from + 1; cycle <= number; cycle++) {
-    const fix = readJson(path.join(dir, `review-brief-${cycle}.json`))?.fix;
-    if (isPlainObject(fix) && insideFix(finding.location, fix)) return true;
+    const fix = fixes(cycle);
+    if (fix !== null && insideFix(finding.location, fix)) return true;
   }
   return false;
 }
