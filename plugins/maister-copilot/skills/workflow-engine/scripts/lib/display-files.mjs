@@ -280,7 +280,7 @@ function groupParts(node, derived) {
   return { node, kind: 'groups', wave, items, line: terms.join(' · ') };
 }
 
-/** The reviews as parts: `reviews 2 of 5 done · 3 running: pragmatic, reality check, production readiness`. */
+/** The reviews as parts: `reviews 1 of 3 done · 2 running: code risk, simplicity`. */
 function reviewParts(node, context) {
   const reviews = isPlainObject(context) && isPlainObject(context.reviews) ? context.reviews : {};
   const names = list => (Array.isArray(list) ? list.filter(name => typeof name === 'string' && name.trim() !== '').map(name => name.trim()) : []);

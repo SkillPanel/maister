@@ -48,9 +48,8 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 - Implementation planning → always delegate to `maister:implementation-planner` subagent
 - Gap analysis → always delegate to `maister:gap-analyzer` subagent
 - Codebase analysis → always delegate to `maister:codebase-analyzer` skill
-- Code review → always delegate to `maister:code-reviewer` subagent
-- Test execution → always delegate to `maister:test-suite-runner` subagent
-- Implementation completeness → always delegate to `maister:implementation-completeness-checker` subagent
+- Code review → always delegate to the verification panel: `maister:spec-conformance-review`, `maister:code-risk-review` and `maister:simplicity-review` subagents
+- Test execution and the project's other checks → always delegate to `maister:test-suite-runner` subagent
 
 "The task is simple" is NOT a valid reason to skip delegation.
 
@@ -228,7 +227,7 @@ orchestrator:
     subagents: {…}                   # Recorded by the freeze from .maister/config.yml, the overlays and the profile; read by dispatch-model. Never written by hand.
     project: {…}                     # Recorded by the freeze from the project key of .maister/config.yml; read by review-brief. Never written by hand.
     mockup_format: html | ascii      # Seeded from .maister/config.yml at init (default html). Passed to mockup-studio (development's ui-mockups node / product-design's visual-prototyping node). See "Project Configuration" below.
-    # per-orchestrator keys (development's e2e_enabled, user_docs_enabled, code_review_enabled, …) live here too
+    # per-orchestrator keys (development's e2e_enabled, user_docs_enabled, skip_test_suite, …) live here too
 
   # Who drives the run — absent means terminal; written whole, never merged
   driver:
@@ -394,7 +393,9 @@ the main session. Steps 5–10 — the questions, what each answer does, and wha
 stay with the node: the runner hands the decision back as its result, the node asks it, and the
 answers travel to the next runner dispatch in `verification/decisions-<cycle>.json`.
 
-1. **Apply without asking** every unfixed issue the verifier marked `fixable` and not `risky`.
+1. **Apply without asking** every unfixed critical or warning issue the verifier marked `fixable`
+   and not `risky`. An info issue is listed in the report and never fixed without a person
+   choosing it.
    A fix is risky when it reaches beyond its item into behaviour the change did not set out to
    alter — a departure from the specification, a change to what callers see, anything beyond
    the code such as staging files in git. A fix handed to `task-group-implementer` takes the
@@ -409,8 +410,8 @@ answers travel to the next runner dispatch in `verification/decisions-<cycle>.js
    issue, each re-checking its issues against the fix diff and reporting new findings inside it
    alone. After fixes that changed no behaviour — comments, docs, regenerated HTML, the run's own
    bookkeeping — `recheck: tests-only`: the test suite alone, which resolves the fixed issues
-   when it passes. When only info items were left, the
-   non-risky ones are fixed in the same pass and no new cycle starts for them. Raise
+   when it passes. When only info items are left, no fix pass and no new cycle starts for
+   them. Raise
    `verification_context.reverify_count` by one for each re-check that ran.
 3. **Budget: two automatic re-checks**, the same in a terminal run and under a driver.
 4. **Ask only when one of these holds**, and otherwise go on to the gate:
@@ -469,7 +470,7 @@ critical issue is never proceeded past without an explicit answer saying so.
 the index itself — a document with no entry, a dead or duplicate entry, a conflict marker — is
 fixed by a refresh, never by hand. A convention a fix shows to be worth keeping is written to the
 work log as a standard candidate, one line, for finalization to offer. When the loop's fixes
-changed anything under `.maister/docs/`, or an index finding is open, invoke `docs-operator` once,
+changed anything under `.maister/docs/`, invoke `docs-operator` once,
 with its `dispatch-model` values (§ 1), after the last fix and before the gate: "Refresh INDEX.md. Changed: [paths]. Check: [check path]",
 the check being docs-manager's `scripts/docs-check.mjs` by its absolute path. A refresh changes
 no behaviour and starts no re-check of its own.

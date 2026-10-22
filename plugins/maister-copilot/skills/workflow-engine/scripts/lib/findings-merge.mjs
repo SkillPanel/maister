@@ -96,12 +96,10 @@ const FAMILIES = {
 
 /** Each reviewer's file stem, and the `source` today's `issues_found` names it by. */
 export const SOURCES = {
-  completeness: 'completeness',
+  spec: 'spec_conformance',
+  'code-risk': 'code_risk',
+  simplicity: 'simplicity',
   'test-suite': 'test_suite',
-  'code-review': 'code_review',
-  pragmatic: 'pragmatic',
-  'production-readiness': 'production',
-  reality: 'reality',
   artifacts: 'artifacts',
 };
 

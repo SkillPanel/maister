@@ -492,61 +492,41 @@ of this node.
 
 ## `verification-options`
 
-**Does.** Writes no files, and decides which reviews run and whether the user
-guide is written. The browser checks are decided at `verification-approval`,
-not here.
+**Does.** Writes no files, and decides whether the user guide is written. The
+reviews are not chosen: verification always runs the tests and the project's
+other checks and the three reviews (spec conformance, code risk, simplicity). The
+browser checks are decided at `verification-approval`, not here.
 
-**Asks.** The checks page: one page of up to two tabs, each answer standing on
-its own.
-
-1. **The reviews tab, which carries the verification plan.** Its question is the
-   plan — the checks that always run, the recommended reviews and one line
-   saying the browser checks are decided at the verification gate. **Each tab
-   states its own choice only**: the user guide belongs to its own tab. Say
-   exactly when the test suite runs: it already passed during implementation,
-   so the first verification pass does not run it again, and it runs on every
-   pass after a fix changes code — "Test suite: passed in implementation (40 of
-   40); runs again after any fix". Never list it under "always runs". The
-   options are the bundles engine `references/in-node-questions.md` names, the
-   four reviews being code review, pragmatic review, reality check and
-   production readiness; "Choose individually" marks none as recommended.
-2. **The user-guide tab — on or off.** The recommended option is the seed
-   `gap-analysis` wrote to `orchestrator.options.user_docs_enabled` — on when it
-   is true, off when it is false or absent — its description giving the reason
-   ("Recommended: the change adds public API, so a usage guide helps"). Its
-   answer is this node's `user_docs_enabled` output.
-Under a form picker the page is one form with a property per tab, and "Choose
-individually" opens a second form with one array property holding the four
-reviews, none of them preselected.
+**Asks.** One question, the user guide — on or off. Its text carries the
+verification plan in a few lines: what always runs, and exactly when the test
+suite runs: it already passed during implementation, so the first verification
+pass runs only the other checks, and the suite runs again on every pass after a
+fix changes code — "Test suite: passed in implementation (40 of 40); runs again
+after any fix". One line says the browser checks are decided at the verification
+gate. The recommended option is the seed `gap-analysis` wrote to
+`orchestrator.options.user_docs_enabled` — on when it is true, off when it is
+false or absent — its description giving the reason ("Recommended: the change
+adds public API, so a usage guide helps"). Its answer is this node's
+`user_docs_enabled` output.
 
 The user-docs input (`user_docs_flag`) is tri-state. Absent means ask. `yes` or
-`no` settled it when the run started: leave the user-guide tab off the page,
-record the value as `user_docs_enabled` and its state mirror and as a decision
-— `by: operator` when a person gave it at the start, `by: run` when a
-dispatching run's arguments set it — and say so in one line of the reviews
-tab's plan ("User guide: on — asked for when the run started"). In a terminal
-run the seed is a default for the recommendation, not an answer.
-
-**With question sets** (`standard-verifications`): in this node's one request;
-"Choose individually" is not offered.
-
-**Without question sets** (`standard-verifications`): the
-recommended bundle, all four reviews.
+`no` settled it when the run started: ask nothing, record the value as
+`user_docs_enabled` and its state mirror and as a decision — `by: operator` when
+a person gave it at the start, `by: run` when a dispatching run's arguments set
+it — and say so in the node's summary ("User guide: on — asked for when the run
+started"). In a terminal run the seed is a default for the recommendation, not an
+answer.
 
 **With question sets** (`user-docs`): in this node's one request.
 
 **Without question sets** (`user-docs`): the recommendation, by
 the same rule, recorded as `user_docs_enabled`.
 
-**Writes.** The outcome as `orchestrator.options` keys, by these exact names —
-the verifier reads them to decide which reviews run:
+**Writes.** As `orchestrator.options` keys, by these exact names:
 
-- `code_review_enabled`, `pragmatic_review_enabled`, `reality_check_enabled` and
-  `production_check_enabled` — each true when the chosen bundle or the
-  individual choice includes it, false otherwise.
 - `skip_test_suite` — true here, because the full suite already ran during
   implementation; the fix loop clears it the moment a fix changes code.
-- `user_docs_enabled` — the user-guide tab, mirrored from the declared value.
+- `user_docs_enabled` — the user-guide answer, mirrored from the declared value.
 
 ## `verification`
 

@@ -281,37 +281,17 @@ a red suite.
 
 ## `verification-options`
 
-**Does.** Decides which reviews the verification node runs; it writes no files.
+**Does.** Writes no files and asks nothing: verification always runs the tests
+and the project's other checks and the three reviews (spec conformance, code
+risk, simplicity).
 
-**Asks.** **The verification plan is the question's text** — the checks that
-always run (the completeness check, the reality check and the pragmatic review)
-and the recommended reviews, written into the question above its options. Say
-exactly when the test suite runs: it already passed during implementation, so
-the first verification pass does not run it again, and it runs on every pass
-after a fix changes code. Never list it under "always runs".
+**Writes.** `skip_test_suite` as an `orchestrator.options` key, true here — the
+suite already passed during implementation, so the first verification pass runs
+only the other checks, and the fix loop in `verification` clears it the moment a
+fix changes code.
 
-Ask which additional verification checks to run, as bundles in one single-select:
-**"Code review only (Recommended)"**, its reason in the description, then
-**"All four reviews"**, then **"No additional checks"**.
-
-**With question sets** (`standard-verifications`): asked through the cockpit, in
-this node's one request.
-
-**Without question sets** (`standard-verifications`): the
-recommended bundle, code review only — production readiness off. The reality
-check and the pragmatic review always run, so a defaulted run still gets both.
-
-**Writes.** Record the outcome as `orchestrator.options` keys, by these exact
-names — the verifier reads them by name, so a key missing or misspelled silently
-runs a different review set: `code_review_enabled` and
-`production_check_enabled`, each true when the chosen bundle includes it;
-`reality_check_enabled` and `pragmatic_review_enabled`, always true; and
-`skip_test_suite`, true here — the fix loop in `verification` clears it the
-moment a fix changes code.
-
-**Summary.** The review set — code review and production readiness, each on or
-off, beside the reality check and the pragmatic review — and whether the test
-suite re-runs, in `summary`.
+**Summary.** One line: what verification will run, and that the test suite runs
+again after any fix, in `summary`.
 
 ---
 

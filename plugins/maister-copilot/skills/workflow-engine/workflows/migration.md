@@ -239,13 +239,9 @@ with `fixes: off`: it runs one verification cycle, through the verification
 runner when the run records `nested` delegation and here otherwise, and fixes
 nothing — the fix loop is `issue-resolution`'s.
 
-Record the review set before invoking it: this workflow asks no
-verification-options question, and the verifier would ask about a review flag
-missing from state. Write these `orchestrator.options` keys by these exact
-names: `code_review_enabled`, `pragmatic_review_enabled` and
-`reality_check_enabled` true; `production_check_enabled` false, since the
-checks below cover a migration's deployment risks; and `skip_test_suite` false
-— a migration is verified against the full suite.
+Before invoking it, write `skip_test_suite` false as an `orchestrator.options`
+key: a migration is verified against the full suite. The reviews are not chosen:
+the verifier always runs the three (spec conformance, code risk, simplicity).
 
 After the verifier returns, run the four migration-specific checks:
 

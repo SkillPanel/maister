@@ -258,23 +258,19 @@ are the same artifact.
 
 Standalone review commands that can be run anytime, independent of workflows.
 
-### `/maister:reviews-code [path]`
+### `/maister:reviews-spec [task-path]`
 
-Automated code quality, security, and performance analysis.
+Checks that a change obeys its spec, clarifications and recorded decisions: it writes down the rules they set (who may do what, what must never happen, ordering, what a failure must do), checks every operation the change adds against them, then each requirement and story, the work log's claims against the code and tests, and the docs the change made false. Needs a task directory with a spec.
 
-| Flag | Description |
-|------|-------------|
-| `--scope=quality\|security\|performance\|all` | Focus area (default: `all`) |
+### `/maister:reviews-code-risk [task-path or base]`
 
-Analyzes complexity, duplication, code smells, security vulnerabilities, and performance issues. Generates report with severity levels (Critical/Warning/Info).
+What in a change can break, leak or fall over where the project runs: correctness, failure paths, security and resilience keyed to the project profile, how CI and the build run the change, operational hygiene, and the standards that govern the change (the ones the task claims and the ones it judges relevant from `.maister/docs/INDEX.md`).
 
-### `/maister:reviews-pragmatic [path]`
+### `/maister:reviews-simplicity [task-path or base]`
 
-Detects over-engineering and ensures code matches project scale. Identifies excessive abstraction, enterprise patterns in simple code, infrastructure overkill. Recommends specific simplifications with before/after examples.
+Complexity the project does not need for its scale: abstraction with one use, infrastructure beyond scale, configuration sprawl, indirection, developer friction. At most five findings.
 
-### `/maister:reviews-reality-check [task-path]`
-
-Validates that completed work actually solves the intended problem. Runs tests, checks end-to-end workflows, and evaluates error scenarios. Returns deployment decision: Ready / Issues Found / Not Ready.
+Each of the three reviews the change in a task directory, or the working tree against a base commit or branch, and writes its report under the task's `verification/` (or `.maister/reviews/` without a task). The same three run in every workflow's verification.
 
 ### `/maister:reviews-spec-audit [spec-path]`
 
@@ -286,12 +282,7 @@ Independent specification audit with senior auditor perspective.
 
 Identifies ambiguities, missing details, and gaps. Uses external tools (GitHub CLI, Azure CLI) for verification.
 
-### `/maister:reviews-production-readiness [path]`
-
-Pre-deployment verification across 7 dimensions: configuration, monitoring, error handling, performance, security, deployment, and GO/NO-GO recommendation.
-
-| Flag | Description |
-|------|-------------|
+------|-------------|
 | `--target=prod\|staging` | Target environment (default: `prod` with full rigor) |
 
 ---

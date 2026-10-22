@@ -27,8 +27,8 @@ user's own words through Other folded in as typed. Never offer an option such as
 something" whose only effect is a second question asking what kind of thing to add.
 
 **A recommended set is offered as one single choice, never as empty checkboxes**, since a
-multi-select cannot pre-tick anything. Offer the bundles instead, as one single-select — "All
-four reviews (Recommended) / Code review only / Choose individually" — the
+multi-select cannot pre-tick anything. Offer the bundles instead, as one single-select — "Every
+suggested item (Recommended) / Only the first / Choose individually" — the
 recommended bundle first, and open a multi-select only behind "Choose individually". An empty
 set the user may want is a bundle of its own ("No extra constraints"), never an unticked
 recommendation.
@@ -368,7 +368,7 @@ carries it.
 list:
 
 ```
-{decision: "All four reviews", by: default, question_id: standard-verifications}
+{decision: "User guide off", by: default, question_id: user-docs}
 ```
 
 `question_id` is the id the node's *Without question sets* line names, and `decision` is the

@@ -114,7 +114,7 @@ test('tiers: the project, the operator, this plugin and an installed plugin each
     'project-skill': 'skill:changelog-writer',
     'user-agent': 'agent:team-linter',
     'user-skill': 'skill:team-notes',
-    'plugin-agent': 'agent:code-reviewer',
+    'plugin-agent': 'agent:code-risk-review',
     'plugin-skill': 'skill:codebase-analyzer',
     'installed-agent': 'agent:auditor',
     'installed-skill': 'skill:audit-trail',
@@ -125,7 +125,7 @@ test('tiers: the project, the operator, this plugin and an installed plugin each
     'project-skill': { from: 'project', at: path.join(w.project, '.claude/skills/changelog-writer/SKILL.md') },
     'user-agent': { from: 'user', at: path.join(w.config, 'agents/team-linter.md') },
     'user-skill': { from: 'user', at: path.join(w.config, 'skills/team-notes/SKILL.md') },
-    'plugin-agent': { from: 'plugin', at: path.join(PLUGIN, 'agents/code-reviewer.md') },
+    'plugin-agent': { from: 'plugin', at: path.join(PLUGIN, 'agents/code-risk-review.md') },
     'plugin-skill': { from: 'plugin', at: path.join(PLUGIN, 'skills/codebase-analyzer/SKILL.md') },
     'installed-agent': { from: 'installed', at: path.join(w.root, CACHED, 'agents/auditor.md') },
     'installed-skill': { from: 'installed', at: path.join(w.root, CACHED, 'skills/audit-trail/SKILL.md') },
@@ -227,16 +227,16 @@ test('installed: the install index, the cache and Copilot\'s install directory a
 test('shadowing: one name in every place resolves to the first in order, and removing it hands the name down', t => {
   const w = world(t);
   put(w, {
-    'project/.claude/agents/code-reviewer.md': executor('code-reviewer'),
-    'config/agents/code-reviewer.md': executor('code-reviewer'),
-    [`${CACHED}/agents/code-reviewer.md`]: executor('code-reviewer'),
+    'project/.claude/agents/code-risk-review.md': executor('code-risk-review'),
+    'config/agents/code-risk-review.md': executor('code-risk-review'),
+    [`${CACHED}/agents/code-risk-review.md`]: executor('code-risk-review'),
   });
-  const reviewer = () => where(w, { review: 'agent:code-reviewer' }).found.review;
-  assert.deepEqual(reviewer(), { from: 'project', at: path.join(w.project, '.claude/agents/code-reviewer.md') });
-  drop(w, 'project/.claude/agents/code-reviewer.md');
-  assert.deepEqual(reviewer(), { from: 'user', at: path.join(w.config, 'agents/code-reviewer.md') });
-  drop(w, 'config/agents/code-reviewer.md');
-  assert.deepEqual(reviewer(), { from: 'plugin', at: path.join(PLUGIN, 'agents/code-reviewer.md') },
+  const reviewer = () => where(w, { review: 'agent:code-risk-review' }).found.review;
+  assert.deepEqual(reviewer(), { from: 'project', at: path.join(w.project, '.claude/agents/code-risk-review.md') });
+  drop(w, 'project/.claude/agents/code-risk-review.md');
+  assert.deepEqual(reviewer(), { from: 'user', at: path.join(w.config, 'agents/code-risk-review.md') });
+  drop(w, 'config/agents/code-risk-review.md');
+  assert.deepEqual(reviewer(), { from: 'plugin', at: path.join(PLUGIN, 'agents/code-risk-review.md') },
     'this plugin still comes before the installed copy');
 });
 
@@ -266,21 +266,21 @@ test('shadowing: a project skill takes a name this plugin\'s own skill holds', t
 test('namespacing: this plugin\'s own name reaches past every shadow; an installed plugin\'s name reaches its copy', t => {
   const w = world(t);
   put(w, {
-    'project/.claude/agents/code-reviewer.md': executor('code-reviewer'),
-    'config/agents/code-reviewer.md': executor('code-reviewer'),
+    'project/.claude/agents/code-risk-review.md': executor('code-risk-review'),
+    'config/agents/code-risk-review.md': executor('code-risk-review'),
     'project/.claude/skills/codebase-analyzer/SKILL.md': executor('codebase-analyzer'),
     'project/.claude/agents/auditor.md': executor('auditor'),
     [`${CACHED}/agents/auditor.md`]: executor('auditor'),
   });
   const { found, warnings } = where(w, {
-    'own-agent': 'agent:maister:code-reviewer',
+    'own-agent': 'agent:maister:code-risk-review',
     'own-skill': 'skill:maister:codebase-analyzer',
     'bare-auditor': 'agent:auditor',
     'named-auditor': 'agent:acme-tools:auditor',
   });
   assert.deepEqual(warnings, []);
   assert.deepEqual(found, {
-    'own-agent': { from: 'plugin', at: path.join(PLUGIN, 'agents/code-reviewer.md') },
+    'own-agent': { from: 'plugin', at: path.join(PLUGIN, 'agents/code-risk-review.md') },
     'own-skill': { from: 'plugin', at: path.join(PLUGIN, 'skills/codebase-analyzer/SKILL.md') },
     'bare-auditor': { from: 'project', at: path.join(w.project, '.claude/agents/auditor.md') },
     'named-auditor': { from: 'installed', at: path.join(w.root, CACHED, 'agents/auditor.md') },
@@ -360,7 +360,7 @@ test('workflows: an eject beats a generated chain, which beats an overlay, which
 test('workflows: builtin: and the bare name are one name, and a custom one lives in the project\'s homes', t => {
   const w = world(t);
   const home = 'project/.maister/workflows';
-  const custom = ['name: audit-child', 'version: 1', 'nodes:', '  inspect:', '    uses: agent:code-reviewer', '    needs: []', ''].join('\n');
+  const custom = ['name: audit-child', 'version: 1', 'nodes:', '  inspect:', '    uses: agent:code-risk-review', '    needs: []', ''].join('\n');
   put(w, { [`${home}/generated/audit-child.yml`]: custom });
   const passed = { with: { question: 'What is left open?' } };
 
@@ -404,7 +404,7 @@ test('plugin root: a plugin-root variable naming another tree redirects nothing'
   const research = fs.readFileSync(path.join(BUILTIN_WORKFLOWS, 'research.yml'), 'utf8');
   put(w, {
     'decoy/.claude-plugin/plugin.json': '{"name": "maister"}\n',
-    'decoy/agents/code-reviewer.md': executor('code-reviewer'),
+    'decoy/agents/code-risk-review.md': executor('code-risk-review'),
     'decoy/skills/workflow-engine/workflows/research.yml': research,
     'decoy/skills/workflow-engine/workflows/research.md': '# Decoy prose\n',
     'decoy/skills/workflow-engine/workflows/decoy-only.yml': research.replace(/^name: .*$/m, 'name: decoy-only'),
@@ -419,11 +419,11 @@ test('plugin root: a plugin-root variable naming another tree redirects nothing'
     await t.test(label, () => {
       const env = { ...w.env, ...override };
       const { found, warnings } = where(w,
-        { review: 'agent:code-reviewer', own: 'agent:maister:code-reviewer', child: 'workflow:research', decoy: 'workflow:decoy-only' },
+        { review: 'agent:code-risk-review', own: 'agent:maister:code-risk-review', child: 'workflow:research', decoy: 'workflow:decoy-only' },
         { env, with: { question: 'What is left open?' } });
       assert.deepEqual(found, {
-        review: { from: 'plugin', at: path.join(PLUGIN, 'agents/code-reviewer.md') },
-        own: { from: 'plugin', at: path.join(PLUGIN, 'agents/code-reviewer.md') },
+        review: { from: 'plugin', at: path.join(PLUGIN, 'agents/code-risk-review.md') },
+        own: { from: 'plugin', at: path.join(PLUGIN, 'agents/code-risk-review.md') },
         child: { from: 'builtin', at: path.join(BUILTIN_WORKFLOWS, 'research.yml') },
       });
       assert.deepEqual(warnings, ['unresolved-reference:decoy:workflow:decoy-only']);
@@ -459,7 +459,7 @@ test('isolation: every child the test helpers spawn sees an empty scratch config
 
 test('isolation: with every scratch place empty, only this plugin answers', t => {
   const w = world(t);
-  const { found, warnings } = where(w, { review: 'agent:code-reviewer', lint: 'agent:team-linter' });
-  assert.deepEqual(found, { review: { from: 'plugin', at: path.join(PLUGIN, 'agents/code-reviewer.md') } });
+  const { found, warnings } = where(w, { review: 'agent:code-risk-review', lint: 'agent:team-linter' });
+  assert.deepEqual(found, { review: { from: 'plugin', at: path.join(PLUGIN, 'agents/code-risk-review.md') } });
   assert.deepEqual(warnings, ['unresolved-reference:lint:agent:team-linter']);
 });

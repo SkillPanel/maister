@@ -48,6 +48,9 @@
  *                       plan, work log, clarifications, the audit, the state
  *                       holding the recorded decisions — never their contents
  *   plan, tests         the plan's group counts; the test result
+ *   checks              the project's other checks the test-suite runner ran
+ *                       (lint, format, typecheck, build), each {name, command,
+ *                       status}; null until it has written them
  *   profile             the project profile the reviewers key their checks to,
  *                       its fields and `source`: `config` — the copy the freeze
  *                       recorded, or standalone the `project:` key of the
@@ -141,6 +144,7 @@ export function reviewBrief({ state = null, taskPath = null, base = null, cycle 
         `there is no review brief${number === null ? '' : ` for cycle ${number}`} in ${dir} to refresh. Nothing was written. Build the cycle's brief first (the same call without --refresh)`);
     }
     brief.tests = testsOf(doc, dir, number, brief.recheck?.kind ?? null, warnings, { refreshing: true });
+    brief.checks = checksOf(dir, number);
     writeJson(file, brief);
     return { ok: true, file, cycle: number, errors: [], warnings };
   }
@@ -195,6 +199,7 @@ export function reviewBrief({ state = null, taskPath = null, base = null, cycle 
     documents: null,
     plan: null,
     tests: null,
+    checks: null,
     profile: null,
   };
 
@@ -210,6 +215,7 @@ export function reviewBrief({ state = null, taskPath = null, base = null, cycle 
   brief.documents = documentsOf(runDir, state);
   brief.plan = planOf(runDir, warnings);
   brief.tests = testsOf(doc, dir, number, recheck, warnings, { refreshing: false });
+  brief.checks = checksOf(dir, number);
   brief.profile = profileOf(doc, projectRoot, warnings);
 
   const file = path.join(dir, `review-brief-${number}.json`);
@@ -414,6 +420,24 @@ function testsOf(doc, dir, number, recheck, warnings, { refreshing }) {
   }
   if (refreshing) warnings.push(`review-brief-tests: ${VERIFICATION}/${TEST_FINDINGS} holds no test result for cycle ${number}`);
   return { status: 'pending', ...files };
+}
+
+/** The statuses a check may report. */
+const CHECK_STATUSES = ['passed', 'failed'];
+
+/**
+ * `checks`: the project's other checks the test-suite runner ran beside the
+ * suite — lint, format, typecheck, build — as it wrote them for this cycle.
+ * The suite itself may be skipped while these still run, so they are read on
+ * their own. An entry without a name or a known status is left out; no
+ * checks written for the cycle is `null`, never an empty pass.
+ */
+function checksOf(dir, number) {
+  const found = readJson(path.join(dir, TEST_FINDINGS));
+  if (!isPlainObject(found) || found.cycle !== number || !Array.isArray(found.checks)) return null;
+  return found.checks
+    .filter(check => isPlainObject(check) && typeof check.name === 'string' && check.name !== '' && CHECK_STATUSES.includes(check.status))
+    .map(({ name, command = null, status }) => ({ name, command: typeof command === 'string' ? command : null, status }));
 }
 
 /**

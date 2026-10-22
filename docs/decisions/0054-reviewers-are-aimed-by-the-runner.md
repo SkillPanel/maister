@@ -1,6 +1,6 @@
 # ADR-0054 — The brief holds shared facts; the runner aims each reviewer
 
-**Status**: Accepted · **Date**: 2026-10-22 · **Builds on**: ADR-0051 (the verification runner), ADR-0053 (the project profile in the brief) · **Sources**: `plugins/maister/skills/workflow-engine/scripts/lib/review-brief.mjs`, `findings-merge.mjs`, `git-tree.mjs`; `skills/implementation-verifier/references/review-findings.md`; `agents/verification-runner.md` § *A verification cycle*; the six reviewer agents; `tests/engine/review-brief.test.mjs`, `findings-merge.test.mjs`, `review-contract.test.mjs`
+**Status**: Accepted; its runner-written prompts superseded by ADR-0055 · **Date**: 2026-10-22 · **Builds on**: ADR-0051 (the verification runner), ADR-0053 (the project profile in the brief) · **Sources**: `plugins/maister/skills/workflow-engine/scripts/lib/review-brief.mjs`, `findings-merge.mjs`, `git-tree.mjs`; `skills/implementation-verifier/references/review-findings.md`; `agents/verification-runner.md` § *A verification cycle*; the six reviewer agents; `tests/engine/review-brief.test.mjs`, `findings-merge.test.mjs`, `review-contract.test.mjs`
 
 ## TL;DR
 - **The brief carries only facts every reviewer would otherwise scan for**, the same for all of

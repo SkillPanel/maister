@@ -251,7 +251,7 @@ test('a ceiling given per host is read for the host, and a project can raise Cop
 });
 
 /** The agents maister's table puts on deep on Claude Code and on standard on Copilot. */
-const REVIEWERS = ['code-reviewer', 'production-readiness-checker', 'reality-assessor', 'code-quality-pragmatist', 'implementation-completeness-checker', 'spec-auditor'];
+const REVIEWERS = ['spec-conformance-review', 'code-risk-review', 'simplicity-review', 'spec-auditor'];
 
 test('with no config the reviewers run on deep on Claude Code and on standard on Copilot', t => {
   const run = scratch(t);
@@ -271,41 +271,41 @@ test('with no config the reviewers run on deep on Claude Code and on standard on
 
 test('a project entry replaces a reviewer\'s built-in tier, a per-host one raising Copilot to deep', t => {
   const run = scratch(t);
-  config(run, 'subagents:\n  agents:\n    code-reviewer: { tier: { claude: standard, copilot: deep } }\n    spec-auditor: { tier: light }\n');
+  config(run, 'subagents:\n  agents:\n    code-risk-review: { tier: { claude: standard, copilot: deep } }\n    spec-auditor: { tier: light }\n');
   freezeRun(run);
-  assert.equal(lineOf(run, 'code-reviewer'), 'code-reviewer: model sonnet, effort omit — source: project agents.code-reviewer, tier standard');
-  assert.equal(lineOf(run, 'code-reviewer', [], { host: 'copilot' }),
-    'code-reviewer: model claude-opus-5.5, effort omit — source: project agents.code-reviewer, tier deep');
+  assert.equal(lineOf(run, 'code-risk-review'), 'code-risk-review: model sonnet, effort omit — source: project agents.code-risk-review, tier standard');
+  assert.equal(lineOf(run, 'code-risk-review', [], { host: 'copilot' }),
+    'code-risk-review: model claude-opus-5.5, effort omit — source: project agents.code-risk-review, tier deep');
   assert.equal(lineOf(run, 'spec-auditor', [], { host: 'copilot' }),
     'spec-auditor: model claude-haiku-5.5, effort high — source: project agents.spec-auditor, tier light');
-  assert.equal(lineOf(run, 'reality-assessor'), 'reality-assessor: model opus, effort omit — source: shipped agents.reality-assessor, tier deep');
+  assert.equal(lineOf(run, 'simplicity-review'), 'simplicity-review: model opus, effort omit — source: shipped agents.simplicity-review, tier deep');
 });
 
 test('a per-host tier that does not name the host is passed over there, and the next level answers', t => {
   const run = scratch(t);
-  config(run, 'subagents:\n  default: { tier: light }\n  agents:\n    code-reviewer: { tier: { claude: light } }\n    gap-analyzer: { tier: { claude: deep }, effort: high }\n');
+  config(run, 'subagents:\n  default: { tier: light }\n  agents:\n    code-risk-review: { tier: { claude: light } }\n    gap-analyzer: { tier: { claude: deep }, effort: high }\n');
   freezeRun(run);
-  assert.equal(lineOf(run, 'code-reviewer'), 'code-reviewer: model haiku, effort high — source: project agents.code-reviewer, tier light');
-  assert.equal(lineOf(run, 'code-reviewer', [], { host: 'copilot' }),
-    'code-reviewer: model claude-sonnet-5.5, effort omit — source: shipped agents.code-reviewer, tier standard');
+  assert.equal(lineOf(run, 'code-risk-review'), 'code-risk-review: model haiku, effort high — source: project agents.code-risk-review, tier light');
+  assert.equal(lineOf(run, 'code-risk-review', [], { host: 'copilot' }),
+    'code-risk-review: model claude-sonnet-5.5, effort omit — source: shipped agents.code-risk-review, tier standard');
   assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model opus, effort high — source: project agents.gap-analyzer, tier deep');
   assert.equal(lineOf(run, 'gap-analyzer', [], { host: 'copilot' }),
     'gap-analyzer: model claude-haiku-5.5, effort high — source: project default, tier light');
   // inherit is a rung of the map too.
   const own = scratch(t);
-  config(own, 'subagents:\n  agents:\n    code-reviewer: { tier: { claude: inherit, copilot: deep } }\n');
-  assert.equal(lineOf(own, 'code-reviewer', [], { state: false }), 'code-reviewer: model omit, effort omit — source: project agents.code-reviewer');
+  config(own, 'subagents:\n  agents:\n    code-risk-review: { tier: { claude: inherit, copilot: deep } }\n');
+  assert.equal(lineOf(own, 'code-risk-review', [], { state: false }), 'code-risk-review: model omit, effort omit — source: project agents.code-risk-review');
 });
 
 test('a malformed per-host tier refuses the block, naming the field', t => {
   for (const tier of ['{ claude: huge }', '{ copilot: standard, codex: deep }', '{}', '[deep, standard]']) {
     const run = scratch(t);
-    config(run, `subagents:\n  agents:\n    code-reviewer: { tier: ${tier} }\n`);
-    const result = dispatch(run, ['--agent=code-reviewer'], { state: false });
+    config(run, `subagents:\n  agents:\n    code-risk-review: { tier: ${tier} }\n`);
+    const result = dispatch(run, ['--agent=code-risk-review'], { state: false });
     assert.equal(result.code, 0, result.stderr);
-    assert.equal(result.stdout, 'code-reviewer: model opus, effort omit — source: shipped agents.code-reviewer, tier deep\n', tier);
+    assert.equal(result.stdout, 'code-risk-review: model opus, effort omit — source: shipped agents.code-risk-review, tier deep\n', tier);
     assert.match(result.stderr,
-      /^warning: subagents-error:\.maister\/config\.yml:subagents\.agents\.code-reviewer\.tier — .* is not a tier: write one of light, standard, deep, inherit, or one per host, such as \{claude: deep, copilot: standard\}; the whole subagents block is refused and the shipped defaults apply\n$/, tier);
+      /^warning: subagents-error:\.maister\/config\.yml:subagents\.agents\.code-risk-review\.tier — .* is not a tier: write one of light, standard, deep, inherit, or one per host, such as \{claude: deep, copilot: standard\}; the whole subagents block is refused and the shipped defaults apply\n$/, tier);
   }
 });
 
@@ -356,24 +356,24 @@ test('inherit is the session\'s model in a tier cell, a preset cell and an entry
     '    session: { claude: inherit, copilot: inherit, effort: low }',
     '  agents:',
     '    gap-analyzer: { tier: deep }',
-    '    code-reviewer: { tier: standard }',
+    '    code-risk-review: { tier: standard }',
     '    spec-auditor: { preset: session }',
-    '    reality-assessor: { model: inherit, effort: max }',
+    '    simplicity-review: { model: inherit, effort: max }',
     '',
   ].join('\n'));
-  const agents = '--agent=gap-analyzer,code-reviewer,spec-auditor,reality-assessor';
+  const agents = '--agent=gap-analyzer,code-risk-review,spec-auditor,simplicity-review';
   const claude = dispatch(run, [agents], { state: false });
   assert.equal(claude.stderr, '', 'inherit is neither refused nor counted as a premium model');
   assert.equal(claude.stdout, 'gap-analyzer: model opus, effort omit — source: project agents.gap-analyzer, tier deep\n'
-    + 'code-reviewer: model omit, effort omit — source: project agents.code-reviewer, tier standard\n'
+    + 'code-risk-review: model omit, effort omit — source: project agents.code-risk-review, tier standard\n'
     + 'spec-auditor: model omit, effort low — source: project agents.spec-auditor, preset session\n'
-    + 'reality-assessor: model omit, effort max — source: project agents.reality-assessor\n');
+    + 'simplicity-review: model omit, effort max — source: project agents.simplicity-review\n');
   const copilot = dispatch(run, [agents], { state: false, host: 'copilot' });
   assert.equal(copilot.stderr, '');
   assert.equal(copilot.stdout, 'gap-analyzer: model omit, effort omit — source: project agents.gap-analyzer, tier deep\n'
-    + 'code-reviewer: model claude-sonnet-5.5, effort omit — source: project agents.code-reviewer, tier standard\n'
+    + 'code-risk-review: model claude-sonnet-5.5, effort omit — source: project agents.code-risk-review, tier standard\n'
     + 'spec-auditor: model omit, effort low — source: project agents.spec-auditor, preset session\n'
-    + 'reality-assessor: model omit, effort max — source: project agents.reality-assessor\n');
+    + 'simplicity-review: model omit, effort max — source: project agents.simplicity-review\n');
 });
 
 test('the subagents block init writes holds exactly the built-in values', t => {
@@ -548,20 +548,20 @@ test('the budget counts the entries group-done writes, in the executor\'s own sp
 
 test('standalone, the verb reads config.yml from the project root, with no workflow or node scope', t => {
   const run = scratch(t);
-  config(run, 'subagents:\n  agents:\n    code-reviewer: { tier: deep, effort: high }\n  workflows:\n    development:\n      agents: { code-reviewer: { tier: light } }\n');
-  const result = dispatch(run, ['--agent=code-reviewer'], { state: false });
+  config(run, 'subagents:\n  agents:\n    code-risk-review: { tier: deep, effort: high }\n  workflows:\n    development:\n      agents: { code-risk-review: { tier: light } }\n');
+  const result = dispatch(run, ['--agent=code-risk-review'], { state: false });
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, 'code-reviewer: model opus, effort high — source: project agents.code-reviewer, tier deep\n');
+  assert.equal(result.stdout, 'code-risk-review: model opus, effort high — source: project agents.code-risk-review, tier deep\n');
   assert.equal(result.stderr, '');
 });
 
 test('standalone, a refused block falls back to the shipped defaults with a warning', t => {
   const run = scratch(t);
   config(run, 'subagents:\n  default: { tier: huge }\n');
-  const result = dispatch(run, ['--agent=task-classifier,code-reviewer'], { state: false });
+  const result = dispatch(run, ['--agent=task-classifier,code-risk-review'], { state: false });
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, 'task-classifier: model haiku, effort high — source: shipped agents.task-classifier, tier light\n'
-    + 'code-reviewer: model opus, effort omit — source: shipped agents.code-reviewer, tier deep\n');
+    + 'code-risk-review: model opus, effort omit — source: shipped agents.code-risk-review, tier deep\n');
   assert.match(result.stderr, /^warning: subagents-error:\.maister\/config\.yml:subagents\.default\.tier — .*; the whole subagents block is refused and the shipped defaults apply\n$/);
 });
 
@@ -580,9 +580,9 @@ test('a config.yml changed since the freeze adds one note, and the run keeps wha
   assert.equal(dispatch(run, ['--agent=gap-analyzer']).stdout, 'gap-analyzer: model haiku, effort high — source: project agents.gap-analyzer, tier light\n');
 
   config(run, 'html_output: false\nsubagents:\n  agents:\n    gap-analyzer: { tier: deep }\n');
-  const changed = dispatch(run, ['--agent=gap-analyzer,code-reviewer']);
+  const changed = dispatch(run, ['--agent=gap-analyzer,code-risk-review']);
   assert.equal(changed.stdout, 'gap-analyzer: model haiku, effort high — source: project agents.gap-analyzer, tier light\n'
-    + 'code-reviewer: model opus, effort omit — source: shipped agents.code-reviewer, tier deep\n'
+    + 'code-risk-review: model opus, effort omit — source: shipped agents.code-risk-review, tier deep\n'
     + '\n'
     + "note: .maister/config.yml's subagents block changed since this run started; this run keeps the settings it froze, and the edits apply to the next run\n");
 

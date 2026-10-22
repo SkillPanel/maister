@@ -132,11 +132,6 @@
             "transport": "question-set"
           },
           {
-            "id": "standard-verifications",
-            "node": "verification-options",
-            "transport": "question-set"
-          },
-          {
             "id": "user-docs",
             "node": "verification-options",
             "transport": "question-set"
@@ -291,11 +286,6 @@
           {
             "id": "spec-audit-findings",
             "node": "spec-audit",
-            "transport": "default"
-          },
-          {
-            "id": "standard-verifications",
-            "node": "verification-options",
             "transport": "default"
           },
           {
@@ -455,11 +445,6 @@
             "transport": "in-session"
           },
           {
-            "id": "standard-verifications",
-            "node": "verification-options",
-            "transport": "in-session"
-          },
-          {
             "id": "user-docs",
             "node": "verification-options",
             "transport": "in-session"
@@ -598,10 +583,6 @@
       {
         "id": "spec-audit-findings",
         "node": "spec-audit"
-      },
-      {
-        "id": "standard-verifications",
-        "node": "verification-options"
       },
       {
         "id": "user-docs",
@@ -1023,11 +1004,6 @@
             "transport": "question-set"
           },
           {
-            "id": "standard-verifications",
-            "node": "verification-options",
-            "transport": "question-set"
-          },
-          {
             "id": "verification-findings",
             "node": "verification",
             "transport": "question-set"
@@ -1118,11 +1094,6 @@
           {
             "id": "spec-audit-findings",
             "node": "spec-audit",
-            "transport": "default"
-          },
-          {
-            "id": "standard-verifications",
-            "node": "verification-options",
             "transport": "default"
           },
           {
@@ -1219,11 +1190,6 @@
             "transport": "in-session"
           },
           {
-            "id": "standard-verifications",
-            "node": "verification-options",
-            "transport": "in-session"
-          },
-          {
             "id": "verification-findings",
             "node": "verification",
             "transport": "in-session"
@@ -1305,10 +1271,6 @@
       {
         "id": "spec-audit-findings",
         "node": "spec-audit"
-      },
-      {
-        "id": "standard-verifications",
-        "node": "verification-options"
       },
       {
         "id": "verification-findings",

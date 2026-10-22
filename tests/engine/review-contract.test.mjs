@@ -13,29 +13,40 @@ import { SOURCES } from '../../plugins/maister/skills/workflow-engine/scripts/li
 
 const PLUGIN = path.join(ROOT, 'plugins/maister');
 const CONTRACT = fs.readFileSync(path.join(PLUGIN, 'skills/implementation-verifier/references/review-findings.md'), 'utf8');
+const agentText = agent => fs.readFileSync(path.join(PLUGIN, 'agents', `${agent}.md`), 'utf8');
 
-const AGENTS = {
-  'implementation-completeness-checker': 'completeness',
-  'test-suite-runner': 'test-suite',
-  'code-reviewer': 'code-review',
-  'code-quality-pragmatist': 'pragmatic',
-  'production-readiness-checker': 'production-readiness',
-  'reality-assessor': 'reality',
+// The panel, and the test-suite runner whose findings file carries the tests and the checks.
+const REVIEWERS = {
+  'spec-conformance-review': 'spec',
+  'code-risk-review': 'code-risk',
+  'simplicity-review': 'simplicity',
 };
+const AGENTS = { ...REVIEWERS, 'test-suite-runner': 'test-suite' };
 
 test('review contract: every reviewer\'s stem is in the contract\'s table, in its agent and in the merge\'s source map', () => {
   for (const [agent, stem] of Object.entries(AGENTS)) {
     assert.match(CONTRACT, new RegExp(`\\| ${agent} \\| \`${stem}\` \\|`), `${agent} → ${stem} in the contract`);
-    const text = fs.readFileSync(path.join(PLUGIN, 'agents', `${agent}.md`), 'utf8');
-    assert.ok(text.includes(`verification/${stem}-findings.json`), `${agent} writes verification/${stem}-findings.json`);
-    assert.ok(text.includes('## Review Brief, Findings File and Re-check'), `${agent} carries the shared section`);
+    assert.ok(agentText(agent).includes(`verification/${stem}-findings.json`), `${agent} writes verification/${stem}-findings.json`);
     assert.ok(Object.hasOwn(SOURCES, stem), `the merge maps ${stem} to a source`);
   }
   assert.deepEqual(Object.keys(SOURCES).filter(stem => stem !== 'artifacts').sort(), Object.values(AGENTS).sort());
 });
 
+test('review contract: the five reviewers the panel replaced are gone, agents and commands alike', () => {
+  for (const agent of ['implementation-completeness-checker', 'code-reviewer', 'code-quality-pragmatist', 'production-readiness-checker', 'reality-assessor']) {
+    assert.ok(!fs.existsSync(path.join(PLUGIN, 'agents', `${agent}.md`)), `${agent} is removed`);
+  }
+  for (const command of ['reviews-code', 'reviews-pragmatic', 'reviews-production-readiness', 'reviews-reality-check']) {
+    assert.ok(!fs.existsSync(path.join(PLUGIN, 'commands', `${command}.md`)), `${command} is removed`);
+  }
+  for (const [command, agent] of [['reviews-spec', 'spec-conformance-review'], ['reviews-code-risk', 'code-risk-review'], ['reviews-simplicity', 'simplicity-review']]) {
+    const text = fs.readFileSync(path.join(PLUGIN, 'commands', `${command}.md`), 'utf8');
+    assert.match(text, new RegExp(`subagent_type: "maister:${agent}"`), `${command} dispatches ${agent}`);
+  }
+});
+
 test('review contract: the verification loop hands every prompt the brief and merges through the engine', () => {
-  const loop = fs.readFileSync(path.join(PLUGIN, 'agents/verification-runner.md'), 'utf8');
+  const loop = agentText('verification-runner');
   assert.match(loop, /review-brief --state=/);
   assert.match(loop, /--refresh/);
   assert.match(loop, /findings-merge --state=/);
@@ -51,73 +62,67 @@ test('review contract: the hand-off asks runner-step before every move and dispa
   assert.doesNotMatch(skill, /findings-merge --state=/, 'the loop is the runner\'s, not copied into the hand-off');
 });
 
-test('review contract: reviewers review the range; nothing points them at a patch file or a matched standards list', () => {
+test('review contract: the runner sends all three reviews with the brief alone, and writes them no prompt', () => {
+  const loop = agentText('verification-runner');
+  for (const agent of Object.keys(REVIEWERS)) assert.ok(loop.includes(`\`maister:${agent}\``), `the runner dispatches ${agent}`);
+  assert.match(loop, /Nobody writes the reviewers a prompt for the change/);
+  assert.doesNotMatch(loop, /review-prompts\.md/, 'no prompts file');
+  assert.doesNotMatch(loop, /_enabled\b/, 'no review is switched off by an option');
+  assert.match(loop, /An `info` issue is listed in the report and never fixed, unless a person chooses its fix/);
+});
+
+test('review contract: reviewers review the range; nothing points them at a patch file, a matched standards list or a runner prompt', () => {
   assert.match(CONTRACT, /\*\*Review the range; read as your review needs\.\*\* The change under review is `base` to the\s+working tree/);
-  assert.match(CONTRACT, /\*\*Your prompt comes first\.\*\*/);
+  assert.match(CONTRACT, /\*\*Nobody writes you a prompt for the change\.\*\*/);
   assert.match(CONTRACT, /"outside_change": true`; it counts toward the verdict only when it is `critical`/);
-  assert.match(CONTRACT, /A deviation a recorded decision covers is not a finding/);
-  assert.doesNotMatch(CONTRACT, /never work out the scope with `git diff`/);
-  for (const agent of Object.keys(AGENTS)) {
-    const text = fs.readFileSync(path.join(PLUGIN, 'agents', `${agent}.md`), 'utf8');
-    assert.doesNotMatch(text, /diff_path|brief's `standards`|the matching standards/, `${agent} no longer reads a patch file or matched standards`);
-    assert.match(text, /\*\*Your prompt first, then the brief\.\*\*/, `${agent} reads its prompt first`);
-    assert.match(text, /`outside_change`/, `${agent} marks a defect outside the change`);
+  assert.match(CONTRACT, /A deviation a recorded decision covers is\s+not a finding/);
+  for (const agent of Object.keys(REVIEWERS)) {
+    const text = agentText(agent);
+    assert.doesNotMatch(text, /diff_path|brief's `standards`|the matching standards|Your prompt comes first/, `${agent} reads no patch file, matched standards or runner prompt`);
+    assert.match(text, /Nobody writes you a prompt for this change/, `${agent} works from the documents`);
+    assert.match(text, /outside_change/, `${agent} marks a defect outside the change`);
+    assert.match(text, /## Re-check mode/, `${agent} supports re-check mode`);
+    assert.match(text, /Without a brief/, `${agent} has a standalone path for its command`);
   }
 });
 
-test('review contract: the runner writes each reviewer a targeted prompt once and re-uses it', () => {
-  const loop = fs.readFileSync(path.join(PLUGIN, 'agents/verification-runner.md'), 'utf8');
-  assert.match(loop, /`verification\/review-prompts\.md`/);
-  for (const part of ['where to look hardest', 'what must hold', 'environment facts', 'what it owns', 'what is decided']) {
-    assert.ok(loop.includes(`**${part}**`), `the prompt guidance names ${part}`);
-  }
-  assert.match(loop, /never where to stop/);
-  assert.match(loop, /Standards Compliance sections and the work\s+log's Standards Applied/);
+test('review contract: code risk takes its standards from INDEX.md and the run\'s claims together, and owns CI and operational hygiene', () => {
+  const risk = agentText('code-risk-review');
+  assert.match(risk, /\*\*Standards, from two sources\.\*\*/);
+  assert.match(risk, /one full read of\s+`\.maister\/docs\/INDEX\.md`/);
+  assert.match(risk, /never decide by matching words in paths/);
+  assert.match(risk, /A relevant standard the code follows is not a finding,\s+claimed or not/);
+  assert.match(risk, /\*\*CI and build:\*\*/);
+  assert.match(risk, /Checkout depth/);
+  assert.match(risk, /\*\*Operational hygiene, as the profile needs it\.\*\*/);
+  for (const agent of Object.keys(REVIEWERS)) assert.doesNotMatch(agentText(agent), /docs-check/, `${agent} runs no docs index check`);
 });
 
-test('review contract: standards are judged, claimed ones by the code reviewer, missed ones over INDEX.md by the completeness checker', () => {
-  const completeness = fs.readFileSync(path.join(PLUGIN, 'agents/implementation-completeness-checker.md'), 'utf8');
-  assert.match(completeness, /\*\*The missed-standards check\*\* — read `\.maister\/docs\/INDEX\.md` once per cycle/);
-  assert.match(completeness, /Never decide it by matching words in paths/);
-  assert.match(completeness, /\*\*Without INDEX\.md, or with one you cannot read\*\*, skip the check/);
-  const reviewer = fs.readFileSync(path.join(PLUGIN, 'agents/code-reviewer.md'), 'utf8');
-  assert.match(reviewer, /Check the standards the run claimed against the code/);
-  const production = fs.readFileSync(path.join(PLUGIN, 'agents/production-readiness-checker.md'), 'utf8');
-  assert.match(production, /### Phase 8: CI and Build/);
-  assert.match(production, /\*\*Checkout depth\*\*/);
+test('review contract: spec conformance writes down the rules first, then stories, claims and docs the change made false', () => {
+  const spec = agentText('spec-conformance-review');
+  assert.match(spec, /\*\*Write down the rules, quoted\.\*\*/);
+  assert.match(spec, /the rule its sibling operation has/);
+  assert.match(spec, /\*\*Claims against evidence\.\*\*/);
+  assert.match(spec, /\*\*Docs the change made false\.\*\*/);
+  assert.match(spec, /follow its main path through the code from the user's action/);
 });
 
-// Three reviewers ask about the change against the spec and the plan, so they
-// read narrowly; the code reviewer, production readiness and the test-suite
-// runner look at the environment the change runs in, so they read freely.
-const NARROW = ['implementation-completeness-checker', 'code-quality-pragmatist', 'reality-assessor'];
-
-test('review contract: completeness, pragmatic and reality read narrowly; the other three read freely', () => {
-  assert.match(CONTRACT, /\*\*The code reviewer, the production-readiness checker and the test-suite runner read freely:\*\*/);
-  assert.match(CONTRACT, /\*\*The completeness checker, the pragmatic reviewer and the reality assessor read narrowly:\*\*/);
-  assert.match(CONTRACT, /only what one of your findings depends on,\s+such as the caller a claim turns on/);
+// Spec conformance and simplicity ask about the change against its spec and
+// its scale, so they read narrowly; code risk and the test-suite runner look at
+// the environment the change runs in, so they read freely.
+test('review contract: spec conformance and simplicity read narrowly; code risk and the test-suite runner read freely', () => {
+  assert.match(CONTRACT, /\*\*The code risk review and the test-suite runner read freely:\*\*/);
+  assert.match(CONTRACT, /\*\*The spec conformance review and the simplicity review read narrowly:\*\*/);
   assert.match(CONTRACT, /not the environment it runs in/);
-  for (const agent of Object.keys(AGENTS)) {
-    const text = fs.readFileSync(path.join(PLUGIN, 'agents', `${agent}.md`), 'utf8');
-    if (NARROW.includes(agent)) {
-      assert.match(text, /Read narrowly — the changed files, the places your prompt names, and only what one of your findings depends on/, `${agent} reads narrowly`);
-      assert.match(text, /not history, CI or unrelated modules, because your questions are about the change against the spec and the plan/, `${agent} says why`);
-      assert.doesNotMatch(text, /Read freely/, `${agent} no longer reads freely`);
-    } else {
-      assert.match(text, /Read freely — per-file diffs against `base`/, `${agent} reads freely`);
-      assert.doesNotMatch(text, /Read narrowly/, `${agent} is not narrowed`);
-    }
-  }
+  assert.match(agentText('code-risk-review'), /\*\*Review the range; read freely\.\*\*/);
+  assert.match(agentText('simplicity-review'), /\*\*Review the range; read narrowly\.\*\*/);
+  assert.match(agentText('spec-conformance-review'), /Not history, CI or unrelated modules/);
 });
 
-test('review contract: the runner\'s prompts list every trust boundary and every user-visible requirement', () => {
-  const loop = fs.readFileSync(path.join(PLUGIN, 'agents/verification-runner.md'), 'utf8');
-  assert.match(loop, /Two lists go in whole, never trimmed to the hardest items/);
-  assert.match(loop, /\*\*every trust boundary\*\* the change crosses \(code review, production readiness\)/);
-  assert.match(loop, /where a value comes from — a machine, a user, another service, a file — who may read or\s+change it, and the file and function that decide it/);
-  assert.match(loop, /A path that ships, hydrates, syncs or\s+exports data to another party is a trust boundary; name each with its file/);
-  assert.match(loop, /\*\*every user-visible requirement\*\* \(completeness, reality check\)/);
-  assert.match(loop, /counts, empty states, "nothing\s+waiting", badges, banners, disabled controls/);
-  assert.match(loop, /listed by its id as the spec writes it/);
-  assert.match(loop, /lists of files, functions, rules and ids,\s+not paraphrase/);
+test('review contract: the test-suite runner runs the project\'s other checks and the brief carries them', () => {
+  const runner = agentText('test-suite-runner');
+  assert.match(runner, /\*\*The other checks\.\*\*/);
+  assert.match(runner, /run the other checks anyway/);
+  assert.match(runner, /Add the `checks` list/);
+  assert.match(CONTRACT, /\*\*`checks`\*\*: the project's other checks/);
 });

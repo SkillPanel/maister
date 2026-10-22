@@ -117,7 +117,7 @@ for (const [tree, dir, decisionOf] of [
   });
 
   test(`guard (${tree}): a subagent's ordinary command is let through`, () => {
-    const result = guard(dir, 'maister-copilot:code-reviewer', 'git status');
+    const result = guard(dir, 'maister-copilot:code-risk-review', 'git status');
     assert.equal(result.code, 0);
     assert.equal(result.stdout, '');
   });

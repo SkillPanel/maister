@@ -40,10 +40,9 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 | `/maister:init` | Setting up Maister in a project |
 | `/maister:standards-update` | Adding or changing standards from conversation context |
 | `/maister:standards-discover` | Re-scanning the project for standards |
-| `/maister:reviews-code` | Code quality, security, and performance review |
-| `/maister:reviews-pragmatic` | Checking for over-engineering against the project's scale |
-| `/maister:reviews-production-readiness` | Deployment readiness check |
-| `/maister:reviews-reality-check` | Checking that finished work actually solves the problem |
+| `/maister:reviews-spec` | Checking that a change obeys its spec, clarifications and decisions |
+| `/maister:reviews-code-risk` | What can break, leak or fall over where the project runs |
+| `/maister:reviews-simplicity` | Checking for complexity the project does not need |
 | `/maister:reviews-spec-audit` | Auditing a specification before implementation |
 
 ## Requirements

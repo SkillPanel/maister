@@ -39,7 +39,7 @@ function decoy(t) {
   const workflows = path.join(root, 'skills/workflow-engine/workflows');
   fs.mkdirSync(workflows, { recursive: true });
   fs.writeFileSync(path.join(workflows, 'research.yml'),
-    ['name: research', 'version: 1', 'nodes:', '  only:', '    uses: agent:code-reviewer', '    needs: []', ''].join('\n'));
+    ['name: research', 'version: 1', 'nodes:', '  only:', '    uses: agent:code-risk-review', '    needs: []', ''].join('\n'));
   const saved = Object.fromEntries(VARIABLES.map(name => [name, process.env[name]]));
   for (const name of VARIABLES) process.env[name] = root;
   t.after(() => {

@@ -217,6 +217,10 @@ twice.
    steps and standards, the test suite, the docs index (refreshed for N documents, check passed
    / not needed / check failed: what), and the **Models** tally — groups per rung they finished
    on, e.g. `light 4, standard 2, deep 1, escalations 1`, or `host default for all N groups`.
+   Then a **Known open problems** list, under that heading: what the groups reported or you saw
+   but nobody fixed — a test that fails or flakes only sometimes, a crash worked around, a check
+   not run, an environment not verified — one line each with where, or `none`. Verification's
+   reviewers read it.
 5. **End with `done`.** The last `group-done` already published every group; nothing is
    re-projected here, and the node stays running: the node completes itself.
 

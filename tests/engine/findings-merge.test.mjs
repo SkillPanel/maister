@@ -65,15 +65,15 @@ function full(reviewer, cycle, findings, extra = {}) {
 function cycleOne(run, { real = false } = {}) {
   if (real) realBrief(run);
   else put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null });
-  put(run, 'code-review-findings.json', full('code-review', 1, [
+  put(run, 'code-risk-findings.json', full('code-risk', 1, [
     finding('cr-1', 'warning', 'correctness', at('src/upload.mjs', 40, 42), 'Upload retries never back off'),
     finding('cr-2', 'info', 'correctness', at('src/upload.mjs', 45), 'Retry count is a magic number'),
   ]));
-  put(run, 'production-readiness-findings.json', full('production-readiness', 1, [
+  put(run, 'spec-findings.json', full('spec', 1, [
     finding('pr-1', 'critical', 'resilience', at('src/upload.mjs', 48), 'No backoff on 503', { fixable: false }),
     finding('pr-2', 'warning', 'resilience', at('src/upload.mjs', 60), 'No timeout on the request'),
   ]));
-  put(run, 'pragmatic-findings.json', full('pragmatic', 1, [
+  put(run, 'simplicity-findings.json', full('simplicity', 1, [
     finding('pg-1', 'info', 'simplicity', at('src/upload.mjs', 41), 'Retry helper is more general than needed'),
   ]));
   return merge(run);
@@ -85,11 +85,11 @@ test('findings-merge: one defect two reviewers found within ten lines is one fin
   assert.equal(code, 0, stderr);
   const { findings } = merged(run);
   const backoff = findings.find(each => each.title === 'No backoff on 503');
-  assert.deepEqual(backoff.sources, [{ reviewer: 'production-readiness', id: 'pr-1' }, { reviewer: 'code-review', id: 'cr-1' }]);
+  assert.deepEqual(backoff.sources, [{ reviewer: 'spec', id: 'pr-1' }, { reviewer: 'code-risk', id: 'cr-1' }]);
   assert.equal(backoff.severity, 'critical');
   assert.equal(backoff.severity_disagreement, true);
   assert.equal(backoff.fixable, false, 'fixable only when every reviewer says so');
-  assert.deepEqual(backoff.evidence, ['production-readiness: No backoff on 503 (evidence)', 'code-review: Upload retries never back off (evidence)']);
+  assert.deepEqual(backoff.evidence, ['spec: No backoff on 503 (evidence)', 'code-risk: Upload retries never back off (evidence)']);
   assert.ok(findings.some(each => each.title === 'No timeout on the request'), 'twelve lines away is another finding');
   assert.ok(findings.some(each => each.title === 'Retry helper is more general than needed'), 'another category family is another finding');
   assert.ok(findings.some(each => each.title === 'Retry count is a magic number'), 'one reviewer\'s own two findings never fold');
@@ -102,10 +102,10 @@ test('findings-merge: the issues_found projection has the state contract\'s shap
   const run = project(t);
   const { report } = cycleOne(run);
   assert.deepEqual(report.issues_found, [
-    { id: 1, severity: 'critical', source: 'production', description: 'No backoff on 503', fixable: false, risky: false, fixed: false },
-    { id: 2, severity: 'warning', source: 'production', description: 'No timeout on the request', fixable: true, risky: false, fixed: false },
-    { id: 3, severity: 'info', source: 'pragmatic', description: 'Retry helper is more general than needed', fixable: true, risky: false, fixed: false },
-    { id: 4, severity: 'info', source: 'code_review', description: 'Retry count is a magic number', fixable: true, risky: false, fixed: false },
+    { id: 1, severity: 'critical', source: 'spec_conformance', description: 'No backoff on 503', fixable: false, risky: false, fixed: false },
+    { id: 2, severity: 'warning', source: 'spec_conformance', description: 'No timeout on the request', fixable: true, risky: false, fixed: false },
+    { id: 3, severity: 'info', source: 'simplicity', description: 'Retry helper is more general than needed', fixable: true, risky: false, fixed: false },
+    { id: 4, severity: 'info', source: 'code_risk', description: 'Retry count is a magic number', fixable: true, risky: false, fixed: false },
   ]);
   assert.equal(report.cycle, 1);
   assert.equal(report.file, path.join(run.dir, 'verification', 'findings.json'));
@@ -116,7 +116,7 @@ test('findings-merge: ids stay stable across cycles, and a new finding takes the
   const run = project(t);
   cycleOne(run);
   put(run, 'review-brief-2.json', { cycle: 2, mode: 'full', fix: null, recheck: null });
-  put(run, 'production-readiness-findings.json', full('production-readiness', 2, [
+  put(run, 'spec-findings.json', full('spec', 2, [
     finding('pr-1', 'critical', 'resilience', at('src/upload.mjs', 51), 'Still no backoff on 503'),
     finding('pr-2', 'warning', 'resilience', at('src/upload.mjs', 63), 'No timeout on the request'),
     finding('pr-3', 'warning', 'security', at('src/auth.mjs', 5), 'Token logged in clear'),
@@ -148,7 +148,7 @@ test('findings-merge: a finding a full review did not report again stays open as
   // a hunk of lines 57-63 with its context, which the merge reads from git.
   fs.writeFileSync(path.join(run.root, 'src/upload.mjs'), upload([60]));
   realBrief(run);
-  for (const reviewer of ['code-review', 'production-readiness', 'pragmatic']) put(run, `${reviewer}-findings.json`, full(reviewer, 2, []));
+  for (const reviewer of ['code-risk', 'spec', 'simplicity']) put(run, `${reviewer}-findings.json`, full(reviewer, 2, []));
   put(run, 'test-suite-findings.json', full('test-suite', 2, [], { tests: { status: 'passed', passed: 12, failed: 0 } }));
   const { code, stderr, report } = merge(run);
   assert.equal(code, 0);
@@ -164,7 +164,7 @@ test('findings-merge: a finding a full review did not report again stays open as
   assert.equal(report.counts.not_reported, 3);
   assert.equal(report.counts.fixed, 2);
   assert.deepEqual(report.issues_found.find(each => each.id === backoff.id), {
-    id: backoff.id, severity: 'critical', source: 'production', description: 'No backoff on 503', fixable: false, risky: false, fixed: false,
+    id: backoff.id, severity: 'critical', source: 'spec_conformance', description: 'No backoff on 503', fixable: false, risky: false, fixed: false,
   });
 });
 
@@ -174,15 +174,15 @@ test('findings-merge: a re-check of the reviews resolves what its reviewer answe
   // The fix rewrote lines 41-49 of upload.mjs: a hunk of lines 38-52 with its context.
   fs.writeFileSync(path.join(run.root, 'src/upload.mjs'), upload([41, 42, 43, 44, 45, 46, 47, 48, 49]));
   realBrief(run, ['--recheck=reviews', '--fixed-issues=1,2,4']);
-  put(run, 'production-readiness-findings.json', {
-    reviewer: 'production-readiness', cycle: 2, mode: 'recheck',
+  put(run, 'spec-findings.json', {
+    reviewer: 'spec', cycle: 2, mode: 'recheck',
     results: [{ id: 1, status: 'resolved', evidence: 'backoff added at upload.mjs:44' }, { id: 2, status: 'residual', evidence: 'timeout still missing' }],
     new: [
       finding('pr-9', 'warning', 'resilience', at('src/upload.mjs', 47), 'Backoff has no ceiling'),
       finding('pr-10', 'critical', 'security', at('src/auth.mjs', 3), 'Unrelated auth worry'),
     ],
   });
-  put(run, 'code-review-findings.json', { reviewer: 'code-review', cycle: 2, mode: 'recheck', results: [], new: [] });
+  put(run, 'code-risk-findings.json', { reviewer: 'code-risk', cycle: 2, mode: 'recheck', results: [], new: [] });
   const { code, stderr, report } = merge(run);
   assert.equal(code, 0, stderr);
   assert.doesNotMatch(stderr, /findings-merge-fix-hunks/);
@@ -190,14 +190,14 @@ test('findings-merge: a re-check of the reviews resolves what its reviewer answe
   const byId = Object.fromEntries(doc.findings.map(each => [each.id, each]));
   assert.equal(byId[1].status, 'resolved');
   assert.equal(byId[1].fixed, true);
-  assert.deepEqual(byId[1].history.at(-1), { cycle: 2, reviewer: 'production-readiness', status: 'resolved', evidence: 'backoff added at upload.mjs:44' });
+  assert.deepEqual(byId[1].history.at(-1), { cycle: 2, reviewer: 'spec', status: 'resolved', evidence: 'backoff added at upload.mjs:44' });
   assert.equal(byId[2].status, 'open');
   assert.equal(byId[4].status, 'open', 'a passing suite does not answer for a reviewer under a re-check of the reviews');
-  assert.match(byId[4].note, /code-review did not answer it/);
+  assert.match(byId[4].note, /code-risk did not answer it/);
   assert.equal(byId[5].title, 'Backoff has no ceiling', 'a new finding inside the fix diff takes the next number');
   assert.equal(doc.out_of_scope.length, 1);
   assert.equal(doc.out_of_scope[0].title, 'Unrelated auth worry');
-  assert.equal(doc.out_of_scope[0].reviewer, 'production-readiness');
+  assert.equal(doc.out_of_scope[0].reviewer, 'spec');
   assert.equal(report.counts.out_of_scope, 1);
   assert.equal(report.counts.critical, 0, 'an out-of-scope finding is never counted');
   assert.ok(!report.issues_found.some(each => each.description === 'Unrelated auth worry'));
@@ -210,10 +210,10 @@ test('findings-merge: where git cannot read the fix, it is matched by its files 
   cycleOne(run);
   put(run, 'review-brief-2.json', {
     cycle: 2, mode: 'recheck', fix: { from: 'a', to: 'b', files: ['src/upload.mjs'] },
-    recheck: { kind: 'reviews', issues: [{ id: 1 }], by_reviewer: { 'production-readiness': [1] } },
+    recheck: { kind: 'reviews', issues: [{ id: 1 }], by_reviewer: { 'spec': [1] } },
   });
-  put(run, 'production-readiness-findings.json', {
-    reviewer: 'production-readiness', cycle: 2, mode: 'recheck',
+  put(run, 'spec-findings.json', {
+    reviewer: 'spec', cycle: 2, mode: 'recheck',
     results: [{ id: 1, status: 'resolved', evidence: 'fixed' }],
     new: [
       finding('pr-9', 'warning', 'resilience', at('src/upload.mjs', 200), 'Far from any hunk, in a fixed file'),
@@ -231,7 +231,7 @@ test('findings-merge: where git cannot read the fix, it is matched by its files 
 test('findings-merge: a finding outside the change counts only when critical; any other is set aside, never counted', t => {
   const run = project(t);
   put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null });
-  put(run, 'production-readiness-findings.json', full('production-readiness', 1, [
+  put(run, 'spec-findings.json', full('spec', 1, [
     finding('pr-1', 'critical', 'resilience', at('.github/workflows/ci.yml', 12), 'CI clones shallow, and the new gate test reads history', { outside_change: true }),
     finding('pr-2', 'warning', 'resilience', at('src/legacy.mjs', 30), 'An old retry loop the change calls', { outside_change: true }),
     finding('pr-3', 'warning', 'resilience', at('src/upload.mjs', 5), 'A defect in the change'),

@@ -1,28 +1,27 @@
 # Review Brief and Findings Contract
 
-The one contract every verification reviewer follows: the completeness checker, the test-suite
-runner, the code reviewer, the pragmatic reviewer, the production-readiness checker and the reality
-assessor. The verification runner hands each of them a prompt written for this change and a
-`review_brief` path; the brief names this file as its `contract`. Each reviewer keeps its own
-checklist and markdown report. This file covers only what all of them share: the prompt and the
-brief, the project profile, the findings file each one writes, and re-check mode.
+The one contract every verification reviewer follows: the spec conformance review, the code risk
+review, the simplicity review and the test-suite runner. The verification runner hands each of
+them a `review_brief` path and nothing written for the change; the brief names this file as its
+`contract`. Each reviewer keeps its own method and markdown report. This file covers only what
+all of them share: the brief, the project profile, the findings file each one writes, and
+re-check mode.
 
 ## Why it exists
 
 Reviewers used to work out the change on their own and graded in five severity vocabularies, and
 the verifier merged their prose by hand. Now the facts every reviewer needs are measured once per
-cycle, by the workflow engine's `review-brief`; where each reviewer looks hardest comes from its
-prompt, written from the run's own documents; and each reviewer writes its findings as data. The engine's `findings-merge` folds them: duplicates across reviewers become one
+cycle, by the workflow engine's `review-brief`; each reviewer reads the run's own documents and decides
+where to look; and each writes its findings as data. The engine's `findings-merge` folds them: duplicates across reviewers become one
 finding, issue numbers stay the same across cycles, and a re-check's new findings count only
 inside the fixes. Do not coordinate with the other reviewers, because the merge folds any overlap.
 
-## Your prompt and the brief
+## The brief
 
-**Your prompt comes first.** The runner writes it for this change from what the earlier phases
-produced: the areas and files that matter to you, the rules and promises to check, environment
-facts, the requirements, stories and standards you own, and the decisions already made. Your own
-checklist still covers the whole change; the prompt says where to look hardest, not where to stop.
-A deviation a recorded decision covers is not a finding; at most it is an `info` naming it.
+**Nobody writes you a prompt for the change.** Your own method decides where to look, and the
+run's documents, which the brief names, are your source for the rules, the requirements, the
+standards the run claimed and its known open problems. A deviation a recorded decision covers is
+not a finding; at most it is an `info` naming it.
 
 **The brief holds the shared facts,** so you do not scan for them. It is JSON at
 `verification/review-brief-<N>.json`; run files in it are relative to the task directory, code
@@ -35,10 +34,11 @@ paths relative to the repository's top.
   `dirty_at_freeze` marks a path already modified before the run started: review it, and say in a
   finding there that the change may predate the run.
 - **`tests`**: the cycle's test result (`pending` before the suite has run, `skipped` when the
-  run skips it). `plan` holds the plan's group counts.
+  run skips it). **`checks`**: the project's other checks (lint, format, typecheck, build), each
+  `{name, command, status}` with `status` `passed` or `failed`, from the test-suite runner. A
+  failing check is a finding at the place it names. `plan` holds the plan's group counts.
 - **`documents`**: the paths of the run's documents — spec, plan, work log, clarifications,
-  audits, and `state`, whose phase summaries record the decisions. Open what your prompt or your
-  checklist needs.
+  audits, and `state`, whose phase summaries record the decisions. Open what your method needs.
 - **`profile`**: the project profile, its fields and `source` (§ The project profile).
 - **`fix`** and **`recheck`**: § Re-check mode.
 - **A part the verb could not fill is `null`.** For example, `changed` is null when the snapshot
@@ -46,14 +46,14 @@ paths relative to the repository's top.
 
 **Review the range; read as your review needs.** The change under review is `base` to the
 working tree, never another range. How far you read depends on your review:
-- **The code reviewer, the production-readiness checker and the test-suite runner read freely:**
+- **The code risk review and the test-suite runner read freely:**
   per-file diffs (`git diff <base> -- <path>`), the files as they are now, the base version,
   history, callers, config, CI and build files, tests. Who can reach a value, and how CI and the
   build run the change, sit in the environment around it.
-- **The completeness checker, the pragmatic reviewer and the reality assessor read narrowly:**
-  the changed files, the places your prompt names, and only what one of your findings depends on,
-  such as the caller a claim turns on. Do not explore history, CI or unrelated modules: your
-  questions are about the change against the spec and the plan, not the environment it runs in.
+- **The spec conformance review and the simplicity review read narrowly:** the changed files, the
+  documents, and only what one of your findings depends on, such as the code that enforces a rule
+  or the caller a claim turns on. Do not explore history, CI or unrelated modules: your questions
+  are about the change against its spec and its scale, not the environment it runs in.
 
 A defect
 outside the changed files may be reported when the change exposes it, marked
@@ -101,11 +101,11 @@ in one line.
 **Safeguards: absence against presence.** Pooling, caching, rate limiting, circuit breakers,
 observability, feature flags and multi-environment configuration are judged from the same
 profile by two sides, so no item is ever graded in opposite directions:
-- their **absence** is the code reviewer's or the production-readiness checker's finding, and
+- their **absence** is the code risk review's finding, and
   only when the profile needs them — pooling, for example, only for a new connection path in a
   long-running process with a database in `data`, and caching only where the change makes a
   repeated expensive read measurably worse at the profile's `scale`;
-- their **presence** is the pragmatic reviewer's finding, and only when the profile does not need
+- their **presence** is the simplicity review's finding, and only when the profile does not need
   them — a pool in a CLI that opens one connection, a cache in front of a file read at
   `scale: single-user`.
 
@@ -116,15 +116,13 @@ found nothing, with `cycle` and `mode` copied from the brief:
 
 | Reviewer | Stem |
 |---|---|
-| implementation-completeness-checker | `completeness` |
+| spec-conformance-review | `spec` |
+| code-risk-review | `code-risk` |
+| simplicity-review | `simplicity` |
 | test-suite-runner | `test-suite` |
-| code-reviewer | `code-review` |
-| code-quality-pragmatist | `pragmatic` |
-| production-readiness-checker | `production-readiness` |
-| reality-assessor | `reality` |
 
 ```json
-{"reviewer": "code-review", "cycle": 1, "mode": "full",
+{"reviewer": "code-risk", "cycle": 1, "mode": "full",
  "findings": [{"id": "cr-1", "severity": "warning", "category": "resilience",
    "location": {"path": "src/upload.mjs", "line": 42, "end_line": 48},
    "title": "Upload retries never back off",
@@ -151,14 +149,16 @@ found nothing, with `cycle` and `mode` copied from the brief:
 - **`refs`** names the requirement and story ids, as the spec spells them, that the finding bears
   on.
 - **`outside_change`** is `true` for a defect in code the change did not touch, which the change
-  exposes (§ Your prompt and the brief). Leave it out otherwise.
+  exposes (§ The brief). Leave it out otherwise.
 - **One finding per defect**, the same ones your report lists as issues. Strengths, scores and
   statistics stay in the markdown.
 
 The test-suite runner also writes a `tests` block, `{status, passed, failed, errors, skipped,
 command}` with `status` being `passed`, `passed_with_issues` or `failed`. Its findings are the
 failures (`category: tests`, located at the test file). The brief reads the cycle's test result
-from that block.
+from that block. Beside it the runner writes a `checks` list, one `{name, command, status}` per
+other check it ran (lint, format, typecheck, build), `status` `passed` or `failed`; each failing
+check is also a finding. The brief carries the list as `checks`.
 
 ## Re-check mode
 
@@ -180,7 +180,7 @@ your prompt names issue ids (also in `recheck.by_reviewer[<your stem>]`).
 **Out:**
 
 ```json
-{"reviewer": "code-review", "cycle": 2, "mode": "recheck",
+{"reviewer": "code-risk", "cycle": 2, "mode": "recheck",
  "results": [{"id": 3, "status": "resolved", "evidence": "upload.mjs:44 now waits 2^n s, capped at 30"}],
  "new": []}
 ```

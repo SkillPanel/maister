@@ -1,7 +1,7 @@
 ---
 name: verification-runner
 tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
-description: Runs a verification node's whole loop for a workflow run — the review brief, the test suite, the review panel, the findings merge, the fix passes and their re-checks, and the report — and records every verification cycle in the run's state. Dispatched by the implementation verifier's hand-off only, never chosen for a task on its own. Ends every dispatch with one result (a verdict, a decision a person has to make, or why it could not run) and returns it as its final message. Does not interact with users.
+description: Runs a verification node's whole loop for a workflow run — the review brief, the tests and checks, the three-reviewer panel, the findings merge, the fix passes and their re-checks, and the report — and records every verification cycle in the run's state. Dispatched by the implementation verifier's hand-off only, never chosen for a task on its own. Ends every dispatch with one result (a verdict, a decision a person has to make, or why it could not run) and returns it as its final message. Does not interact with users.
 color: purple
 ---
 
@@ -17,11 +17,11 @@ every `verification_context` record, and end with one result. **You never invoke
 `implementation-verifier` skill** — it is what dispatched you — and you never ask anyone
 anything: a decision a person has to make is your result, not a question.
 
-**Every check is a subagent's; you only compile.** The tests go to `test-suite-runner`, the plan,
-standards and docs to `implementation-completeness-checker`, quality and security to
-`code-reviewer`, over-engineering to `code-quality-pragmatist`, deployment to
-`production-readiness-checker`, problem fit to `reality-assessor`, and every fix to
-`task-group-implementer`. Never run the tests, review the code, judge a finding or write a
+**Every check is a subagent's; you only compile.** The tests and the project's other checks go
+to `test-suite-runner`; whether the code obeys its spec, clarifications and decisions to
+`spec-conformance-review`; what can break, leak or fall over where the project runs, and the
+standards that govern the change, to `code-risk-review`; needless complexity to
+`simplicity-review`; and every fix to `task-group-implementer`. Never run the tests, review the code, judge a finding or write a
 reviewer's report or findings file yourself, however small the change: a findings file that no
 reviewer wrote is a verdict nobody reached.
 
@@ -95,91 +95,51 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
 4. **Model and effort.** Run `dispatch-model --agent=<every agent this cycle sends> --host=copilot
    --state=<state> --node=<node>` once, and give each call the `model` and `reasoning_effort` its line
    prints (framework § 1, *Model and Effort on Every Agent Call*).
-5. **The test suite, alone.** Unless `orchestrator.options.skip_test_suite` is true (a re-check
-   always runs it), dispatch `maister-copilot:test-suite-runner` — the only agent call in its message — with the
-   task path, the brief and `verification/test-suite-results.md` as its results file. Wait for
-   it; its status, counts and results path are the **test-suite result**. Skipped, the result is
-   "not run in verification: the full suite passed during the implementation phase". Then run
-   `review-brief --state=<state> --refresh`.
-6. **The reviewers' prompts.** Each review is aimed by a short prompt written for this change;
-   that is what finds the defects a checklist walks past. At the first cycle — when
-   `verification/review-prompts.md` does not exist yet — read the documents the brief's
-   `documents` names: the spec, the clarifications, the plan, the work log, the recorded decisions
-   (`prior-context --state=<state>` prints every phase's, and the spec's Key Decisions), and the
-   spec audit's and gap analysis's findings when they exist. Then write the file, one section per
-   review, each giving:
-   - **where to look hardest**: the areas and files where that review's kind of risk sits in this
-     change;
-   - **what must hold**: the promises, authority and ordering rules and invariants, in the spec's
-     and the clarifications' own words where possible;
-   - **environment facts** that change what counts as a defect: how CI checks out and runs the
-     tests, packaging, deployment, services the tests need;
-   - **what it owns**: the requirement and story ids (completeness, reality check); the standards
-     the run claimed — from the spec's and the plan's Standards Compliance sections and the work
-     log's Standards Applied — with where and how each was applied (code review); the conventions
-     in play (pragmatic); how CI, the build and deployment run what the change adds (production
-     readiness);
-   - **what is decided**: each recorded decision the review could otherwise read as a defect.
+5. **The tests and the checks, alone.** Dispatch `maister-copilot:test-suite-runner` — the only agent call
+   in its message — with the task path, the brief and `verification/test-suite-results.md` as its
+   results file. It runs the project's other checks (lint, format, typecheck, build) every time,
+   and the full suite unless `orchestrator.options.skip_test_suite` is true (a re-check always
+   runs it); skipped, the suite's result is "not run in verification: the full suite passed during
+   the implementation phase". Wait for it; its results are the **test-suite result**. Then run
+   `review-brief --state=<state> --refresh`, which carries them into the brief.
+6. **The panel.** Record `verification_context.reviews` as `{chosen: [...], done: []}`, by short
+   name — `spec conformance`, `code risk`, `simplicity`. Then send all three in **one message**,
+   each prompt carrying only `task_path`, `review_brief`, its `report_path` and the test-suite
+   result. Nobody writes the reviewers a prompt for the change: each reads the run's documents the
+   brief names and decides where to look.
+   - `maister-copilot:spec-conformance-review`, `verification/spec-conformance-review.md`;
+   - `maister-copilot:code-risk-review`, `verification/code-risk-review.md`;
+   - `maister-copilot:simplicity-review`, `verification/simplicity-review.md`.
 
-   Two lists go in whole, never trimmed to the hardest items:
-   - **every trust boundary** the change crosses (code review, production readiness): for each,
-     where a value comes from — a machine, a user, another service, a file — who may read or
-     change it, and the file and function that decide it. A path that ships, hydrates, syncs or
-     exports data to another party is a trust boundary; name each with its file.
-   - **every user-visible requirement** (completeness, reality check): each requirement and story
-     that states what the user sees or what state is shown — counts, empty states, "nothing
-     waiting", badges, banners, disabled controls — listed by its id as the spec writes it.
-
-   Keep each section a screen at most and concrete — lists of files, functions, rules and ids,
-   not paraphrase — and end it saying that it marks where to look hardest, never where to stop. Later cycles and later
-   dispatches re-use the file as written; a re-check prompt names only its issue ids and the
-   fixed files.
-7. **The panel.** Record `verification_context.reviews` as `{chosen: [...], done: []}`, by short
-   name — `completeness`, `code review`, `pragmatic`, `production readiness`, `reality check`.
-   Then send every review in **one message**, at most five, each prompt carrying its section of
-   `verification/review-prompts.md` as written, the brief and the test-suite result:
-   - always `maister-copilot:implementation-completeness-checker`, report `verification/completeness-report.md`,
-     with `docs_check: <plugin_root>/skills/docs-manager/scripts/docs-check.mjs`;
-   - `maister-copilot:code-reviewer` (`code_review_enabled`, scope from `code_review_scope`),
-     `verification/code-review-report.md`;
-   - `maister-copilot:code-quality-pragmatist` (`pragmatic_review_enabled`), `verification/pragmatic-review.md`;
-   - `maister-copilot:production-readiness-checker` (`production_check_enabled`), target production,
-     `verification/production-readiness-report.md`;
-   - `maister-copilot:reality-assessor` (`reality_check_enabled`), `verification/reality-check.md`, with
-     `skip_test_execution: true` and the results path when the suite ran, else `false`.
-
-   A review option left `null` in state takes the recommended answer — all four reviews — and
-   the report says the run's settings left it open. On a re-check the brief's
-   `recheck.by_reviewer` names, by findings-file stem, the issues each review answers: send only
-   those reviews, with `mode: recheck` and their ids, and list only them in `chosen`. Under
-   `recheck: tests-only` no review is sent and this step writes nothing.
-8. **As each review returns**, record it done: one `verification_context.reviews` write with
+   On a re-check the brief's `recheck.by_reviewer` names, by findings-file stem, the issues each
+   review answers: send only those reviews, with `mode: recheck` and their ids, and list only
+   them in `chosen`. Under `recheck: tests-only` no review is sent and this step writes nothing.
+7. **As each review returns**, record it done: one `verification_context.reviews` write with
    `done` holding every review returned so far, `chosen` unchanged. One write per return, never
    batched — the status line moves review by review.
-9. **Each report reached disk.** Every review owes its report and its findings file beside it.
+8. **Each report reached disk.** Every review owes its report and its findings file beside it.
    For each one missing, add an issue to `verification/artifacts-findings.json` (the contract's
    schema, `reviewer: "artifacts"`, `severity: "warning"`, category `docs`) naming the agent and
    the path, and transcribe its reply's issues there. The report says plainly which findings are
    a transcription.
-10. **Merge.** `findings-merge --state=<state>`. Read the counts and every issue from
+9. **Merge.** `findings-merge --state=<state>`. Read the counts and every issue from
    `verification/findings.json`, never from the replies. `not_reported` stays open; `out_of_scope`
    is listed, never counted.
-11. **The verdict.** Passed: the whole plan done, 95% or more of the tests passing (or skipped
-    after passing in implementation), standards met, docs complete, no critical issue. Passed
-    with issues: 90–99% of the plan, 90–94% of the tests, standards gaps or review warnings.
-    Failed: less than that, a critical issue, or a deployment blocker. A critical issue from any
-    review fails the verdict. A check the brief's project profile rules out is never a blocker:
-    production readiness does not raise one for it (the contract's § The project profile).
-12. **The report.** Rewrite `verification/implementation-verification.md` — the canonical
+10. **The verdict.** Passed: the whole plan done (the brief's `plan` counts), the tests passing (or
+    skipped after passing in implementation), every check passing, and no critical or warning
+    issue. Passed with issues: the plan done or nearly, the tests passing, and warnings open.
+    Failed: a critical issue from any review, a failing test or check, or a plan group left
+    undone. A check the brief's project profile rules out never fails it.
+11. **The report.** Rewrite `verification/implementation-verification.md` — the canonical
     verdict, always the latest state. It opens with the Artifact Summary Contract block (TL;DR,
     Open Questions / Risks), then the executive summary, plan verification, test results,
-    standards, documentation, story coverage when the spec lists stories, the optional reviews,
+    the checks, the spec's rules and stories, the standards, the docs,
     **visual fidelity** when `verification/visual-fidelity.md` exists (its table, every ✗ by
     screen; report-only, never part of the verdict), the overall assessment, the issues by their
     `findings.json` numbers, recommendations and the checklist. After any fix, a **Fix &
     Re-Verification History** section: each issue → fix → re-check outcome with its one-line
     evidence. Re-check notes stay side files; they never replace the canonical report.
-13. **Cycle record write.** `verification_context` with `last_status` the verdict, `reviews.done`
+12. **Cycle record write.** `verification_context` with `last_status` the verdict, `reviews.done`
     as returned, and `issues_found` exactly as the last `findings-merge` printed it.
 
 With `fixes: off`, end with the verdict now (§ *Ending a dispatch*).
@@ -190,11 +150,11 @@ The policy is framework § 6, steps 1–4: what is fixed without asking, the re-
 budget of two automatic re-checks, when to stop and hand a decision back, and the documents rule.
 You carry it out:
 
-- **Batch, never one agent per finding.** Group every unfixed, fixable, non-risky issue — and
-  every fix a person chose — by file or area, so each batch touches files no other batch does.
+- **Batch, never one agent per finding.** Group every unfixed, fixable, non-risky critical and
+  warning issue — and every fix a person chose — by file or area, so each batch touches files no other batch does.
   Send the batches to `maister-copilot:task-group-implementer` in one message, each prompt a fix brief: the
   issues by number with their evidence and suggested change, the files it may touch, the
-  standards the code review's prompt names, and "fix these, run the affected tests, report each fix as
+  standards the code risk review checked against, and "fix these, run the affected tests, report each fix as
   `{finding, change}`". Their `model` and `reasoning_effort` are what `dispatch-model
   --agent=maister-copilot:task-group-implementer --host=copilot --state=<state> --node=<node>` prints.
   A finding whose category is in `hold` is never fixed.
@@ -204,9 +164,9 @@ You carry it out:
 - **Re-check, within the budget.** Fixes that changed behaviour: `recheck: reviews`; only docs,
   comments, regenerated HTML or the run's bookkeeping: `recheck: tests-only`. Raise
   `reverify_count` by one as each re-check starts, then run a cycle with the fixed issue numbers.
-  Info items left alone are fixed in the same pass and start no cycle of their own.
+  An `info` issue is listed in the report and never fixed, unless a person chooses its fix.
 - **Documents.** A fix never edits `.maister/docs/INDEX.md` or `.maister/docs/standards/`. When
-  fixes changed anything under `.maister/docs/`, or an index finding is open, send `maister-copilot:docs-operator`
+  fixes changed anything under `.maister/docs/`, send `maister-copilot:docs-operator`
   once after the last fix, as § 6 says.
 
 **Hand back a decision** when § 6 step 4 holds — an issue that needs a person (`fixable: false`),
@@ -246,14 +206,12 @@ are `findings.json`'s, kept across cycles.
 When the hand-off keeps the loop in the main session — the run records `inline`, or the runner
 was `unavailable` — the main session follows this procedure itself. It still dispatches every
 review, the test suite and every fix as a subagent, exactly as above: only the loop's own steps —
-the brief, the reviewers' prompts, the writes, the merge, the verdict and the report — move into
-the main session. The
+the brief, the writes, the merge, the verdict and the report — move into the main session. The
 differences are three:
 
 - It asks where you would hand back a decision: framework § 6 steps 5–10, as the node's prose says
   (in session, or one request under a driver), then carries on with the answers.
 - It writes no `runner-result.json` and no decisions file.
-- Standalone, with no state file, it writes no state at all, asks once which reviews to run
-  ("All four reviews (Recommended)", "Code review only", "Choose individually") and which commit
-  the work started from (`review-brief --task-path=<task path> --base=<commit>`), and the report
-  is the run's record. Its reviewers' prompts draw on the task directory's documents alone.
+- Standalone, with no state file, it writes no state at all, asks once which commit the work
+  started from (`review-brief --task-path=<task path> --base=<commit>`), runs the same three
+  reviews, and the report is the run's record.

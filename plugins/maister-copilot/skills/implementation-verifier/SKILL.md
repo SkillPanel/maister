@@ -1,6 +1,6 @@
 ---
 name: implementation-verifier
-description: Verify completed implementations for quality assurance. Hands a workflow run's verification loop — completeness checking, test execution, code review, pragmatic review, production readiness, reality assessment, the fixes they call for and their re-checks — to the verification runner subagent when the run can nest subagents, and runs the same loop in the main session when it cannot. Asks the user only the decisions the loop returns, and closes on one verification report. Use after implementation is complete and before code review/commit.
+description: Verify completed implementations for quality assurance. Hands a workflow run's verification loop — the tests and the project's other checks, the spec conformance, code risk and simplicity reviews, the fixes they call for and their re-checks — to the verification runner subagent when the run can nest subagents, and runs the same loop in the main session when it cannot. Asks the user only the decisions the loop returns, and closes on one verification report. Use after implementation is complete and before code review/commit.
 user-invocable: false
 ---
 
@@ -96,7 +96,6 @@ the `running` node, this skill runs `runner-step`, and the files say where the l
 | `verification/implementation-verification.html` | Once, at the final verdict, unless `orchestrator.options.html_output` is false |
 | `verification/<review>-report.md` and `<review>-findings.json` | Each review that ran (`references/review-findings.md`) |
 | `verification/review-brief-<N>.json`, `findings.json`, `findings-<N>.json` | Each cycle, by the engine's `review-brief` and `findings-merge` |
-| `verification/review-prompts.md` | Once, at the first cycle: each reviewer's prompt for this change, re-used by later cycles |
 | `verification/runner-result.json`, `decisions-<N>.json` | When the runner runs the loop: its last result, and each decision's answers |
 
 ## The runner's result
@@ -139,7 +138,8 @@ The reviewers grade each finding, and the loop acts on the grade (framework § 6
   chose, so grade it honestly.
 - An issue a person decides carries its choices — the proposed fix first, never "decide later";
   the accept-the-risk choice is added for it. Fixability is graded the same way at every
-  severity: fixable info items are fixed too.
+  severity, but only critical and warning issues are fixed without asking: an info item is
+  listed in the report, and fixed only when a person chooses it.
 
 ## Validation checklist
 

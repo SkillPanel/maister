@@ -432,8 +432,8 @@ text **More details** writes out in the terminal. Questions about one behaviour 
 is stored and audited, who sees the user afterwards — come as one drafted story instead, its
 defaults filled in: accept it, accept it with the corrections the run lists, take the alternative
 story it offers where there is one, or write your own. Each story is one answer, kept as a
-requirement that the specification carries under the story's id and that the completeness check
-confirms was built. A question the run can already answer from its own analysis is not asked: it says the
+requirement that the specification carries under the story's id and that the spec conformance
+review confirms was built. A question the run can already answer from its own analysis is not asked: it says the
 answer in one line instead ("User guide: on — asked for when the run started").
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
@@ -535,7 +535,7 @@ Most of a workflow's work is done by subagents. By default:
   `standard` or `deep`; a group with no tier runs on `standard`, and a fourth `deep` group in a
   run asks first. On Copilot, where the deep model bills 15 requests each, groups stop at
   `standard`.
-- **The reviewers** — the five verification reviews and the specification audit — run on the
+- **The reviewers** — the three verification reviews and the specification audit — run on the
   `deep` tier on Claude Code and on `standard` on Copilot, where the deep model bills 15
   requests each.
 - **Verification's fixes** — the ones the fix loop after implementation applies without asking —
@@ -588,7 +588,8 @@ below, and a run that stops part way through picks up from the plan and the work
 
 ## Verification in one subagent
 
-Verification runs many steps: the test suite, up to five reviews, the merge of their findings, the
+Verification runs many steps: the tests and the project's other checks, three reviews, the merge of
+their findings, the
 report, the fixes made without asking and their re-checks. Where your host lets a subagent start
 subagents of its own, the run hands that whole loop to one subagent, the verification runner, and
 your session makes one call per pass instead of one per step. You are asked exactly what you were
@@ -602,22 +603,35 @@ verification runs in your session as before, and the status line says `inline` i
 while it runs. A run that stops part way through verification picks up from the files the last pass
 left, whichever way it ran.
 
-**What each reviewer is given.** Every review of a cycle gets the same review brief, a small file
-of facts: the commit the run started from, the files it changed (marking generated files, such as
-lock files, and data files, such as fixtures, which a reviewer skips unless a finding turns on
-them), the test result, the paths of the run's documents and the project profile. Each also gets a
-short prompt written for your change, at the first cycle, from the spec, the clarifications, the
-plan, the work log and the decisions you made: where to look hardest, what must hold, how CI and
-the build run the change, which requirements and standards it owns, and what you already decided.
-Each prompt lists every trust boundary the change crosses for the code review and production
-readiness, and every requirement that states what you see for the completeness and reality checks,
-not only the hardest ones. The code review, production readiness and the test run read whatever
-they need — diffs, callers, history, CI and build files; the completeness, pragmatic and reality
-checks read the changed files, the places their prompt names and only what a finding turns on.
-Every review covers only what the run changed; a defect it finds outside the change counts only when it is critical, and a
-deviation you decided on is not reported as a defect. Standards are judged, not matched by name:
-the code review checks the standards the run says it applied, and the completeness check reports
-each standard in your `.maister/docs/INDEX.md` that covers the change but was never applied.
+**The three reviews.** Every cycle runs the same three, in one pass:
+- **spec conformance** — does the code obey what the spec, the clarifications and your decisions
+  say? It writes down the rules first, quoted (who may do what, what must never happen, ordering,
+  what a failure must do), checks every operation the change adds against them, then each
+  requirement and story, the work log's claims against the code and tests, and any document the
+  change made false;
+- **code risk** — what can break, leak or fall over where your project runs: correctness, failure
+  paths, security and resilience keyed to the project profile, how CI and the build run the
+  change, operational hygiene (documented settings, kill switches, logging) where the project is
+  operated, and the standards that govern the change;
+- **simplicity** — complexity the project does not need for its scale, at most five findings.
+
+**What each reviewer is given.** The same review brief, a small file of facts: the commit the run
+started from, the files it changed (marking generated files, such as lock files, and data files,
+such as fixtures, which a reviewer skips unless a finding turns on them), the test result and the
+result of every other check the project runs (lint, format, typecheck, build — the test run
+always runs those, even when the suite itself already passed during implementation), the paths of
+the run's documents and the project profile. Nobody writes a reviewer a prompt for your change:
+each reads the spec, the plan, the work log and its *Known open problems*, and decides where to
+look. Code risk and the test run read whatever they need — diffs, callers, history, CI and build
+files; spec conformance and simplicity read the changed files and only what a finding turns on.
+Every review covers only what the run changed; a defect found outside the change counts only when
+it is critical, and a deviation you decided on is not reported as a defect. Standards are judged,
+not matched by name: code risk takes the standards the run says it applied together with those it
+judges, from one read of your `.maister/docs/INDEX.md`, to govern what the change does, and
+reports each rule the code breaks.
+
+**What gets fixed.** Critical and warning findings are fixed without asking when the fix is safe;
+info findings are listed in the report and fixed only when you choose them.
 
 ## What the reviewers check: the project profile
 
@@ -645,8 +659,8 @@ run. A value maister does not know is a warning, and that field is left out; it 
 run, and `/maister:run --check <workflow>` shows the warning without starting anything.
 
 Without the key, each reviewer works the profile out from `.maister/docs/project/` and says in its
-report what it inferred. The reviews judge a safeguard from the same profile: a missing pool, cache or rate limit is the code review's or production readiness's
-finding only when the project needs it, and one that is there is the pragmatic review's finding
+report what it inferred. The reviews judge a safeguard from the same profile: a missing pool, cache or rate limit is code
+risk's finding only when the project needs it, and one that is there is the simplicity review's finding
 only when the project does not, so the two never ask for opposite things.
 
 ## Your Own Workflows
@@ -873,6 +887,6 @@ own. Each one declares that in its own frontmatter, which is where this table co
 | **codebase-analyzer** | Launches parallel exploration subagents sized to the task, then has a reporter subagent merge their findings into one report |
 | **docs-manager** | The engine behind `.maister/docs/`: file operations, the standards index, and the project instructions that point at it |
 | **implementation-plan-executor** | Runs an implementation plan by handing each task group to an implementer subagent and recording progress and the work log -- through the implementation runner subagent where the host can nest subagents, or in the session where it cannot -- and asks only the decisions the waves hand back |
-| **implementation-verifier** | Runs verification -- completeness, test suite, code review, pragmatic review, production readiness, reality check, the fixes they call for and their re-checks -- by handing the loop to the verification runner subagent where the host can nest subagents, or in the session where it cannot, and asks only the decisions the loop hands back |
+| **implementation-verifier** | Runs verification -- the tests and the project's other checks, the spec conformance, code risk and simplicity reviews, the fixes they call for and their re-checks -- by handing the loop to the verification runner subagent where the host can nest subagents, or in the session where it cannot, and asks only the decisions the loop hands back |
 | **orchestrator-framework** | Not executable at all: the shared patterns every orchestrator reads for phase execution, state, gates and initialization |
 | **workflow-engine** | Runs a workflow definition as a graph -- resolves it, freezes it into the run's state, executes the ready set, and asks or suspends at each gate according to the run's driver. Handed its runs by a workflow's own command, or by `/maister:run` for a workflow started by name |

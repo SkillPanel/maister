@@ -306,7 +306,7 @@ try {
   check('guard: the main agent is let through', main.code === 0 && main.stdout === '', show(main));
   const allowed = guard('test-suite-runner', 'git stash');
   check('guard: a whitelisted subagent is let through', allowed.code === 0 && allowed.stdout === '', show(allowed));
-  const denied = guard('code-reviewer', 'git reset --hard HEAD');
+  const denied = guard('code-risk-review', 'git reset --hard HEAD');
   check('guard: a subagent\'s destructive command is denied', denied.code === 0 && json(denied.stdout)?.hookSpecificOutput?.permissionDecision === 'deny', show(denied));
 
   // --- line endings -----------------------------------------------------------

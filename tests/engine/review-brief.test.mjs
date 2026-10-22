@@ -203,6 +203,33 @@ test('review-brief: the run\'s documents by path, the plan\'s groups, and the te
   });
   assert.equal(refreshed.json.snapshot, snapshotBefore, '--refresh keeps the cycle\'s snapshot');
   assert.ok(!refreshed.json.changed.some(entry => entry.path === 'src/after-tests.mjs'));
+  assert.equal(refreshed.json.checks, null, 'no checks written for the cycle is null, never an empty pass');
+});
+
+test('review-brief: the project\'s other checks travel beside the test result, the suite skipped or not', t => {
+  const run = frozen(t);
+  const built = brief(run);
+  assert.equal(built.code, 0, built.stderr);
+  assert.equal(built.json.checks, null);
+
+  verification(run, 'test-suite-findings.json', {
+    reviewer: 'test-suite', cycle: 1, mode: 'full', findings: [],
+    tests: { status: 'passed', passed: 3, failed: 0, errors: 0, skipped: 0, command: 'npm test' },
+    checks: [
+      { name: 'lint', command: 'npm run lint', status: 'failed' },
+      { name: 'format', command: 'npm run format:check', status: 'passed' },
+      { name: 'typecheck', status: 'passed' },
+      { name: '', command: 'x', status: 'passed' },
+      { name: 'build', command: 'npm run build', status: 'flaky' },
+    ],
+  });
+  const refreshed = brief(run, ['--refresh']);
+  assert.equal(refreshed.code, 0, refreshed.stderr);
+  assert.deepEqual(refreshed.json.checks, [
+    { name: 'lint', command: 'npm run lint', status: 'failed' },
+    { name: 'format', command: 'npm run format:check', status: 'passed' },
+    { name: 'typecheck', command: null, status: 'passed' },
+  ], 'each check by name and status; an entry with no name or an unknown status is left out');
 });
 
 test('review-brief: lock files, linguist-generated paths and minified output are generated; fixtures, data files and large bulk files are data', t => {
