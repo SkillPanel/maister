@@ -235,6 +235,7 @@ task:
   status: pending | in_progress | completed | failed | blocked  # in_progress: the state writer, at the first node start
   tags: []
   priority: null  # high | medium | low
+  base_commit: {sha: [commit], dirty: []}  # writer-owned, recorded at freeze: HEAD then, and the paths already dirty; absent outside git
 ```
 
 The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-workflow keys are listed in each workflow definition's node prose (`workflow-engine/workflows/<name>.md`). The keys the state writer seeds and merges beside them are the engine's (`workflow-engine/references/writing-state.md`).

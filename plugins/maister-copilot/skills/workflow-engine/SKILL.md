@@ -204,8 +204,8 @@ writer proves the freeze before it installs it, and its refusal names the recove
   before the first node runs. A definition that names no seed sends none.
 
 **The writer adds the rest itself** (`references/writing-state.md` § *What the freeze write
-adds*): never send `policy_hash` or `classes_questions`, and relay a
-`warning: policy-refused:<path>:<reason>` line; the run goes on. The engine creates no task
+adds*): never send `policy_hash`, `classes_questions` or `task.base_commit`, and relay a
+`warning: policy-refused:<path>:<reason>` or `warning: base-…` line; the run goes on. The engine creates no task
 items: the state file and the dashboard are the run's tracker.
 
 **The freeze write prints the startup banner first; your next message, before any other call,
