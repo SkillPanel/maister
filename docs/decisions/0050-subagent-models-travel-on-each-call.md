@@ -13,7 +13,8 @@
   executor runs each on the cheapest allowed model at or above it, escalates a failure once, one
   rung up, within a ceiling and a budget, and records what each group ran on.
 - **Conservative defaults.** Without a block, five clerical agents run on `light` and every other
-  agent on the host's choice, with no effort sent.
+  agent on the host's choice, with no effort sent. A per-agent entry, maister's own included,
+  outranks every `default`.
 
 ## ADR-0050 {#adr-0050}
 
@@ -48,9 +49,12 @@ defaulting to ask would mostly go unused; one automatic rung up, then the existi
 question, bounds the spend.
 
 ### Decision
-1. **The block and its precedence** are the grammar's *Subagent models*: plan tier, profile,
-   overlay, the project's step, workflow, agent and default scopes, maister's own table, then the
-   host. `inherit` prints as `omit`: the call carries no such field.
+1. **The block and its precedence** are the grammar's *Subagent models*. First the plan tier,
+   clamped; then every entry naming the agent, most specific layer first — the profile, the
+   overlay, the project's step, workflow and agent scopes, maister's own table; then the
+   defaults in the same layer order; then the host. **A per-agent entry beats every default**:
+   a project default covers only the agents nobody names, so the clerical agents stay on `light`
+   until a project names them. `inherit` prints as `omit`: the call carries no such field.
 2. **The freeze judges and records** the block in `orchestrator.options.subagents`. A block with
    an error is refused whole with a warning and maister's table applies; `config.yml` is read
    again only by the next run, and a changed file adds one note to `dispatch-model`'s output.

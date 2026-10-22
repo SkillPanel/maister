@@ -534,7 +534,10 @@ lightweight model and every other agent on your session's model. To choose other
 - **A ladder of three tiers**, `light`, `standard` and `deep`, each naming a model per host
   (Claude Code takes `haiku`, `sonnet`, `opus` or `fable`; Copilot takes a model id).
 - **Assignments** per agent, per workflow (`workflows.<name>.agents`) or per step
-  (`workflows.<name>.nodes.<step>.agents`): a tier, a named preset, or a model and effort.
+  (`workflows.<name>.nodes.<step>.agents`): a tier, a named preset, or a model and effort. The
+  most specific entry naming an agent wins, and any entry naming it beats a `default`: a default
+  covers only the agents nobody names, so the clerical agents stay on the lightweight model
+  until you name them.
 - **Implementers by plan tier.** The implementation plan gives each task group a tier with a
   one-line reason. With `task-group-implementer: { choose: by-plan-tier }`, each group runs on the
   cheapest model allowed for its tier, under an optional `ceiling`. A group that fails is retried

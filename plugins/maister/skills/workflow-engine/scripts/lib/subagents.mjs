@@ -30,11 +30,14 @@
  *   1. the plan tier a caller passes, when the agent's entry is
  *      `choose: by-plan-tier`, clamped to that entry's `allowed` and
  *      `ceiling` — for any other agent the tier is not read;
- *   2. the profile, 3. the overlay, then the project, and last the shipped
- *      defaults — each layer read as `workflows.<w>.nodes.<n>.agents`, then
- *      `workflows.<w>.agents`, then `agents`, then `default`;
- *   and the host, when the hit says `inherit`: the call then carries no model
- *   and the host's own order applies.
+ *   2. an entry naming the agent, from the most specific layer: the profile,
+ *      the overlay, the project, then the shipped table — each layer read as
+ *      `workflows.<w>.nodes.<n>.agents`, then `workflows.<w>.agents`, then
+ *      `agents`;
+ *   3. a `default`, in the same layer order — so a default covers only the
+ *      agents no layer names, and never moves one the shipped table assigns;
+ *   4. the host, when nothing answers or the hit says `inherit`: the call then
+ *      carries no model and the host's own order applies.
  *
  * An effort applies on both hosts, and neither checks the value, so the
  * judgement below does. A pinned `model` is a Claude Code alias; on Copilot
@@ -580,7 +583,10 @@ export function resolveAgent(agent, { block = null, workflow = null, node = null
     ['shipped', SHIPPED],
   ].filter(([, layer]) => isMap(layer));
 
+  // Every entry naming the agent outranks every default: a default covers only
+  // the agents no layer names.
   const hits = [];
+  const defaults = [];
   for (const [label, layer] of layers) {
     const scoped = isMap(layer.workflows) && workflow !== null ? layer.workflows[workflow] : null;
     const scopes = [];
@@ -593,8 +599,9 @@ export function resolveAgent(agent, { block = null, workflow = null, node = null
       const found = findAgent(agents, name);
       if (found) hits.push({ entry: found.entry, source: `${label} ${prefix}.${found.key}` });
     }
-    if (isMap(layer.default)) hits.push({ entry: layer.default, source: `${label} default` });
+    if (isMap(layer.default)) defaults.push({ entry: layer.default, source: `${label} default` });
   }
+  hits.push(...defaults);
 
   // A pinned model is Claude Code's; on Copilot the next level answers.
   const usable = hits.filter(hit => !(host === 'copilot' && isPin(hit.entry)));

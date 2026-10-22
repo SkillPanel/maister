@@ -132,7 +132,7 @@ mockup_format: html
 #     deep:     { claude: opus,   copilot: claude-opus-5.5, premium: true }  # Copilot bills it 15x
 #   presets:                   # named model + effort pairs to pin an agent to
 #     scout: { claude: haiku, copilot: gpt-6-luna, effort: low }
-#   # default: { tier: standard }  # every agent not named; outranks maister's own light picks
+#   # default: { tier: standard }  # every agent no entry names, here or in maister's own table
 #   agents:
 #     Explore: { preset: scout }
 #     spec-auditor: { model: opus, effort: high }  # a pinned model is Claude Code's only

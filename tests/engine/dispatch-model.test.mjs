@@ -131,11 +131,30 @@ test('level 6: the project\'s agents win over its default', t => {
   assert.equal(lineOf(run, 'spec-auditor'), 'spec-auditor: model opus, effort high — source: project agents.spec-auditor');
 });
 
-test('level 7: the project\'s default wins over the shipped agents', t => {
+test('level 7: the shipped agents win over the project\'s default, which covers only the agents nobody names', t => {
   const run = scratch(t);
   config(run, 'subagents:\n  default: { tier: standard }\n');
   freezeRun(run);
-  assert.equal(lineOf(run, 'task-classifier'), 'task-classifier: model sonnet, effort omit — source: project default, tier standard');
+  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model haiku, effort omit — source: shipped agents.docs-operator, tier light');
+  assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model sonnet, effort omit — source: project default, tier standard');
+});
+
+test('a project entry naming a clerical agent still wins over the shipped light pick', t => {
+  const run = scratch(t);
+  config(run, 'subagents:\n  default: { tier: deep }\n  agents:\n    docs-operator: { tier: standard }\n');
+  freezeRun(run);
+  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model sonnet, effort omit — source: project agents.docs-operator, tier standard');
+  assert.equal(lineOf(run, 'task-classifier'), 'task-classifier: model haiku, effort omit — source: shipped agents.task-classifier, tier light');
+});
+
+test('every entry naming the agent wins over every default, an overlay\'s default included', t => {
+  const run = scratch(t);
+  config(run, 'subagents:\n  agents:\n    gap-analyzer: { tier: light }\n');
+  freezeRun(run, { overlays: [overlay(run, 'subagents:\n  default: { tier: deep }\n')] });
+  assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model haiku, effort omit — source: project agents.gap-analyzer, tier light');
+  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model haiku, effort omit — source: shipped agents.docs-operator, tier light');
+  // An agent nobody names takes the most specific default: the overlay's over the project's.
+  assert.equal(lineOf(run, 'spec-auditor'), 'spec-auditor: model opus, effort omit — source: overlay default, tier deep');
 });
 
 test('level 8: the shipped agents put the clerical agents on light', t => {

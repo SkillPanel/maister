@@ -689,7 +689,8 @@ is prefixed with its name. Selecting a profile no overlay declares is an error.
 in the shape of the `subagents` key of the project's `.maister/config.yml`, without `tiers`: only
 the project remaps the ladder. The freeze reads the project's block, the overlays' and the
 selected profile's, and records them in the run; a profile's entry wins over an overlay's, and an
-overlay's over the project's. `dispatch-model` prints what an agent resolves to. A block with an
+overlay's over the project's, and any entry naming an agent, the shipped table's included, wins
+over every `default`. `dispatch-model` prints what an agent resolves to. A block with an
 error is refused whole and the shipped defaults apply; its findings are warnings, never errors,
 because a refused block stops no run. The block is no graph data, so it moves no hash.
 
