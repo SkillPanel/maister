@@ -49,6 +49,7 @@ The Task prompt MUST include:
 |-------|--------|---------|
 | `task_path` | Orchestrator | Absolute path to task directory |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/completeness-report.md` relative to task_path) |
+| `review_brief` | Orchestrator (optional) | The cycle's review brief: what changed, the spec's ids, the test result and the matching standards (§ Review Brief, Findings File and Re-check) |
 | `docs_check` | Orchestrator (optional) | Absolute path of docs-manager's `docs-check.mjs`; without it, find that script under this plugin's docs-manager skill |
 
 **CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
@@ -57,6 +58,18 @@ The Task prompt MUST include:
 - `{task_path}/implementation/implementation-plan.md`
 - `{task_path}/implementation/spec.md`
 - `{task_path}/implementation/work-log.md`
+
+---
+
+## Review Brief, Findings File and Re-check
+
+When the prompt carries `review_brief` — implementation-verifier always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
+
+- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
+- **Write `verification/completeness-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Plan, story and spec gaps are category `delivery`, work-log and index gaps `docs`, a missed standard `standards`.
+- **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
+
+Without a brief — a standalone command — find the scope as the workflow below says, and write the findings file whenever there is a task directory.
 
 ---
 
@@ -85,8 +98,8 @@ The Task prompt MUST include:
 **Use active reasoning, not hardcoded checklist.**
 
 1. **Review work-log.md** — extract standards mentioned during implementation
-2. **Read `.maister/docs/INDEX.md` comprehensively** — note ALL standards, including project-specific ones
-3. **Analyze implementation scope** — what files modified, what patterns used, what domains touched
+2. **Take the candidate standards from the brief's `standards`** — the INDEX entries matching the changed files, each with why it matched. Without a brief, or when the brief names none, read `.maister/docs/INDEX.md` instead and note every standard, project-specific ones included
+3. **Analyze implementation scope** — the brief's changed files (without a brief, find what was modified), what patterns used, what domains touched
 4. **For each standard, reason about applicability**:
    - Clear from name/description: Reason directly
    - Ambiguous scope: Read standard file to understand coverage
@@ -223,6 +236,6 @@ issue_counts:
 - Task directory exists with implementation artifacts
 - Implementation is complete (all coding done)
 
-**Input**: Task path, report path, task type
+**Input**: Task path, report path, review brief, docs check path
 
-**Output**: The report at `report_path`, plus a structured result with plan completion, standards compliance, and documentation findings
+**Output**: The report at `report_path` and `verification/completeness-findings.json`, plus a structured result with plan completion, standards compliance, and documentation findings

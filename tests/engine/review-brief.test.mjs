@@ -75,6 +75,7 @@ test('review-brief: a modified, an added, an untracked and a deleted file, measu
   assert.equal(json.diff_path, 'verification/review-diff-1.patch');
   assert.match(fs.readFileSync(path.join(run.dir, json.diff_path), 'utf8'), /\+export const c = 4;/);
   assert.match(json.contract, /implementation-verifier[\\/]references[\\/]review-findings\.md$/);
+  assert.ok(fs.existsSync(json.contract), 'the contract the brief names ships with the plugin');
 
   assert.deepEqual(fs.readFileSync(path.join(run.root, '.git/index')), index, 'the user\'s index is byte for byte as it was');
   assert.equal(git(run.root, ['rev-parse', 'HEAD']), head);

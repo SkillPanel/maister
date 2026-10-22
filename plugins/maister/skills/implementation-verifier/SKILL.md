@@ -13,10 +13,11 @@ You are an implementation verifier that orchestrates comprehensive quality assur
 ## Responsibilities
 
 1. Validate prerequisites exist
-2. Delegate ALL verifications to subagents — the test suite first and alone, then everything else in parallel with its result
-3. Compile all results into verification report
-4. Record each verification cycle in the workflow state, which keeps the operator dashboard current
-5. Output summary with overall verdict
+2. Measure the change once per cycle — the review brief — and hand it to every verification
+3. Delegate ALL verifications to subagents — the test suite first and alone, then everything else in parallel with its result
+4. Merge the reviewers' findings files in code, then compile the verification report from the merged list
+5. Record each verification cycle in the workflow state, which keeps the operator dashboard current
+6. Output summary with overall verdict
 
 ## State and Dashboard: Through the Engine
 
@@ -38,6 +39,9 @@ The verification phase can run many cycles under this skill: the initial pass, t
 | `verification/production-readiness-report.md` | If production_check_enabled |
 | `verification/reality-check.md` | If reality_check_enabled |
 | `verification/visual-fidelity.md` | Surfaced (not produced here) when e2e-test-verifier wrote one |
+| `verification/review-brief-<N>.json`, `review-diff-<N>.patch`, `fix-diff-<N>.patch` | Each cycle, written by the engine's `review-brief` (the fix diff from cycle 2 on) |
+| `verification/<reviewer>-findings.json` | Each review and the test suite, beside its report (`references/review-findings.md`); `artifacts-findings.json` is this skill's own |
+| `verification/findings.json`, `findings-<N>.json` | Each cycle, written by the engine's `findings-merge`: the run's one numbered issue list |
 
 ---
 
@@ -55,12 +59,20 @@ The verification phase can run many cycles under this skill: the initial pass, t
 - `production_check_enabled`
 - `reality_check_enabled`
 
-**`recheck: tests-only`** (a caller parameter, orchestrator mode only): the caller's fix loop
-passes it after fixes that changed no behaviour — comments, docs, regenerated HTML, the run's own
-bookkeeping. Run only the test suite (Step 3a, whatever `skip_test_suite` says) and none of the
-reviews; then rewrite the canonical report as the **Re-verification rule** says, marking the
-fixed issues resolved with the test result as their evidence, keeping every other issue as the
-previous cycle graded it. A full re-verification is what follows a fix that changed behaviour.
+**`recheck`** with **`fixed_issues`** (caller parameters, orchestrator mode only): the caller's
+fix loop passes them on every cycle after the first, `fixed_issues` naming the issue numbers it
+fixed since the last cycle.
+- **`recheck: tests-only`** follows fixes that changed no behaviour — comments, docs, regenerated
+  HTML, the run's own bookkeeping. Run only the test suite (Step 3a, whatever `skip_test_suite`
+  says) and none of the reviews. The merge resolves each fixed issue when the suite passes, with
+  the test result as its evidence, and keeps every other issue as the previous cycle graded it.
+- **`recheck: reviews`** follows fixes that changed behaviour. Run the test suite (Step 3a as
+  usual), then, in re-check mode, only the reviews that own a fixed issue: each one answers its
+  issues from the fix diff and reports new findings inside it alone. An issue its review leaves
+  unanswered stays open.
+
+Without `recheck`, the cycle is a full verification: the first one, or a caller asking for every
+review again.
 
 ### Choosing the reviews
 
@@ -80,7 +92,7 @@ The same question serves orchestrator mode when the state leaves any review opti
    - `implementation/implementation-plan.md` (required)
    - `implementation/spec.md` (required)
    - `implementation/work-log.md` (required)
-3. **Read `.maister/docs/INDEX.md`** to understand available standards (optional — skip standards loading when absent)
+3. **Standards reach the reviews through the brief** (Step 2b names the INDEX entries matching the change); this skill reads no standards itself
 4. **Determine invocation context** (orchestrator or standalone)
 5. **Create task items for verification tracking** using `TaskCreate` tool:
    - Subject: "Completeness check", activeForm: "Checking implementation completeness"
@@ -113,6 +125,35 @@ All analysis is delegated: tests → test-suite-runner; plan/standards/docs comp
 ### Step 2: Set all tasks to in_progress
 
 2. Use `TaskUpdate` to set ALL enabled verification tasks to `status: "in_progress"`. For skipped optional reviews, use `TaskUpdate` with `status: "completed"` and `metadata: {"skipped": true}`.
+
+### Step 2b: Build the review brief
+
+Every verification of a cycle reads one brief: what changed since the run started (untracked
+files included), the spec's requirement and story ids, the plan's progress, the test result, the
+standards matching the change and, on a re-check, the issues and the fix diff. The engine builds
+it once, so no review works out its own scope. Run, the plugin root two levels above this skill's
+base directory, as an absolute path:
+
+- **Orchestrator mode**: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs review-brief --state=<task path>/orchestrator-state.yml`, adding `--recheck=<tests-only|reviews> --fixed-issues=<ids>` when the caller passed `recheck`.
+- **Standalone mode**: the same with `--task-path=<task path> --base=<commit>`. Ask once which commit the work started from — the merge base with the default branch (Recommended), or `HEAD` when only uncommitted work is under review — never guess one.
+
+It prints the brief's path: the **review brief**. A `warning: review-brief-…` line names a part it
+could not fill; the brief is still written, and the reviews fall back for that part alone. A run
+frozen before the engine recorded its base commit is refused `review-brief-no-base`: ask once for
+the commit the work started from and run it again with `--base`. Any other refusal, or no git
+repository: say so in the report and run the cycle without a brief, the reviews finding their
+own scope.
+
+**Every Task prompt of Steps 3a and 3b carries `review_brief: <the printed path>`.** On a
+re-check cycle the brief's `recheck.by_reviewer` names, by findings-file stem, the issue ids each
+verification answers. Step 3b then sends only the reviews it names (`completeness`,
+`code-review` → code review, `pragmatic`, `production-readiness` → production readiness,
+`reality` → reality check), and their prompts also carry `mode: recheck` and those ids. The
+`reviews.chosen` write lists just those. The test suite answers the ids under `test-suite` from
+its own run. Under `recheck: tests-only` no review is sent.
+
+**After Step 3a returns**, run the same command with `--refresh`, and no recheck or base flags.
+It reads the suite's result into the brief, which the reviews then read, and keeps its snapshot.
 
 ### Step 3a: Run test suite (sequential, if NOT skip_test_suite)
 
@@ -169,9 +210,10 @@ Task tool call (if reality_check_enabled):
 After ALL subagents return:
 1. Use `TaskUpdate` to set any verification task still open to `status: "completed"`
 2. Extract status, issues, and findings from each
-3. **Confirm each report reached disk**: every enabled review owes the file at the `report_path` you passed it. Check them; for each one missing, record an issue with `source: "artifacts"`, `severity: "warning"`, naming the agent that owed it and the path, and say plainly in the compiled report that its findings are the subagent's reply transcribed rather than its own artifact. Never let a transcription pass silently for the artifact — that substitution is the defect this check exists to surface.
-4. Aggregate issue counts
-5. Track any critical issues that would affect overall verdict
+3. **Confirm each report reached disk**: every enabled review owes the file at the `report_path` you passed it, and its findings file beside it (`references/review-findings.md`). Check them; for each one missing, record an issue in `verification/artifacts-findings.json` — the findings file of this skill, in the same schema, `reviewer: "artifacts"`, `severity: "warning"`, category `docs` — naming the agent that owed it and the path, and say plainly in the compiled report that its findings are the subagent's reply transcribed rather than its own artifact. Never let a transcription pass silently for the artifact — that substitution is the defect this check exists to surface.
+4. **Merge the findings** (orchestrator and standalone mode alike): `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs findings-merge --state=<task path>/orchestrator-state.yml` (standalone: `--task-path=<task path>`). It folds the cycle's findings files with the previous cycle's into `verification/findings.json`. Duplicates across reviews become one issue, with the highest severity and `severity_disagreement` where the reviews graded it differently. Each issue keeps its number across cycles, and a new one takes the next. It prints the counts and `issues_found`. A review whose findings file is missing contributes nothing to the merge: transcribe its reply's issues into `artifacts-findings.json` with the missing-file issue, and merge again. Merging a cycle again gives the same result.
+5. Read the counts and every issue from `findings.json`, never from the replies. An issue marked `not_reported` was not found again this cycle, but nothing shows it fixed: it stays open. One under `out_of_scope` was raised by a re-check outside the fixes: list it in the report, never count it
+6. Track any critical issues that would affect overall verdict
 
 ### Impact on Overall Status
 
@@ -186,7 +228,7 @@ After ALL subagents return:
 
 Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
 
-1. **Compile all findings** from Phase 2
+1. **Compile all findings** from Phase 2 — the issues as `findings.json` numbers and grades them, each review's report for its narrative
 2. **Determine overall status**:
 
    | Status | Criteria |
@@ -201,10 +243,10 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
 
    **Re-verification rule**: `implementation-verification.md` and its `.html` companion are the CANONICAL verdict — they must always reflect the **latest** verification state. When this skill runs after fixes (`verification_context.fixes_applied` non-empty or `reverify_count` > 0):
    - REWRITE both files with the post-fix verdict — never leave the pre-fix report standing
-   - Keep every issue's number: an issue found before keeps the `id` it has in `verification_context.issues_found`, and a new one takes the next unused number — the fix loop and the user refer to issues by these numbers across cycles
+   - Keep every issue's number: `findings-merge` keeps them — an issue found before keeps its `id`, and a new one takes the next unused number; the fix loop and the user refer to issues by these numbers across cycles
    - Update the TL;DR block to the final verdict and remaining (not original) issue counts
-   - Add a **"Fix & Re-Verification History"** section: each issue → fix applied → re-check outcome (resolved / residual, with one-line evidence)
-   - Subagent re-check outputs may save as side files (e.g. `code-review-reverify.md`) — fine as evidence, but they never substitute for refreshing the canonical report
+   - Add a **"Fix & Re-Verification History"** section: each issue → fix applied → re-check outcome (resolved / residual / unanswered, with the one-line evidence each finding's `history` carries)
+   - The reviews' re-check notes are side files (`<report name>-recheck-<cycle>.md`) — fine as evidence, but they never substitute for refreshing the canonical report
 
    Structure (md report — MUST open with the Artifact Summary Contract block):
    - **TL;DR** (3-5 lines max: verdict + issue counts + headline finding)
@@ -226,8 +268,8 @@ Use `TaskUpdate` to set "Compile report" task to `status: "in_progress"`.
    - Lead with the verdict banner (✅ Passed / ⚠️ Passed with Issues / ❌ Failed) and issue counts; then findings table sorted critical→info with severity badges, per-check section status, fixes-applied list. Link to the md twin in the header
    - Same content as the md — restructure and visualize, never add findings
    - Never block on it: if generation fails, keep the md, return `companion: failed`, note the miss, continue
-5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue with `source: "artifacts"`, `severity: "warning"`, leave `html_path: null`, and name the miss in the Phase 4 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
-6. **Record this cycle** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status` set to this cycle's verdict, `reviews.done` set to the reviews that returned (their short names, as Step 3b recorded them), and `issues_found` set to the report's issues, in the issue shape of `../orchestrator-framework/references/orchestrator-patterns.md` § 4. Keep each issue's original severity, and set `fixed: true` on the ones fixed since. Registering the report and its companion as artifacts is not part of this write: the caller's closing `node_summaries` write carries it. This is the state counterpart of the **Re-verification rule** above. The canonical report and the recorded verdict change together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
+5. **Verify your own artifacts before closing the phase**: `implementation-verification.md` must exist on disk, and so must its `.html` companion whenever `orchestrator.options.html_output` is true. A missing companion is never silent — record it as an issue in `artifacts-findings.json` and merge again (Phase 2, Step 4), leave `html_path: null`, and name the miss in the Phase 4 summary. It still never blocks the verdict (§ 9 "never block"): the point is that the miss is visible, not that the run stops.
+6. **Record this cycle** (orchestrator mode — § State and Dashboard: Through the Engine): write `verification_context` with `last_status` set to this cycle's verdict, `reviews.done` set to the reviews that returned (their short names, as Step 3b recorded them), and `issues_found` set to the `issues_found` the last `findings-merge` printed, copied unchanged: it is the issue shape of `../orchestrator-framework/references/orchestrator-patterns.md` § 4, each issue at its original severity with `fixed: true` on the ones fixed since. Without a merge (no brief and no findings files), compose the list in that shape yourself. Registering the report and its companion as artifacts is not part of this write: the caller's closing `node_summaries` write carries it. This is the state counterpart of the **Re-verification rule** above. The canonical report and the recorded verdict change together on every cycle, so the dashboard's issue counts can never outlive the verdict they came from.
 7. Use `TaskUpdate` to set "Compile report" task to `status: "completed"`
 
 ---
@@ -283,7 +325,7 @@ issues:
     severity: "critical" | "warning" | "info"
     description: "[Brief description of the issue]"
     location: "[File path or area affected]"
-    id: 3                        # the report's own number, kept across re-checks
+    id: 3                        # the number findings.json gives it, kept across re-checks
     fixable: true | false
     risky: true | false          # only meaningful when fixable
     suggestion: "[How to fix, if obvious]"
@@ -333,7 +375,9 @@ issue_counts:
 
 Before finalizing verification:
 
-- All required subagents invoked (completeness checker + test runner unless skip_test_suite)
+- The cycle's review brief built once, its path in every prompt, and refreshed after the test suite
+- All required subagents invoked (completeness checker + test runner unless skip_test_suite); on a re-check, only the reviews owning a fixed issue
+- The findings merged through `findings-merge`, and the report's issues numbered as `findings.json` numbers them
 - Optional reviews invoked per context settings
 - All subagent results processed
 - Verification report created

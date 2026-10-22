@@ -45,8 +45,21 @@ The Task prompt MUST include:
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/reality-check.md` relative to task_path) |
 | `skip_test_execution` | Orchestrator (optional) | When `true`, read test results from file instead of running tests |
 | `test_results_path` | Orchestrator (optional) | Path to test results file (when `skip_test_execution: true`) |
+| `review_brief` | Orchestrator (optional) | The cycle's review brief: what changed, the spec's ids, the test result and the matching standards (§ Review Brief, Findings File and Re-check) |
 
 **CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
+
+---
+
+## Review Brief, Findings File and Re-check
+
+When the prompt carries `review_brief` — implementation-verifier always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
+
+- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
+- **Write `verification/reality-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Map Critical to `critical`, High and Medium to `warning` and Low to `info`; a gap between what was claimed and what works is category `delivery`.
+- **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
+
+Without a brief — a standalone command — find the scope as the workflow below says, and write the findings file whenever there is a task directory.
 
 ---
 
@@ -56,7 +69,13 @@ The Task prompt MUST include:
 
 **Purpose**: Understand what verification has already been done
 
-**Reports to Check** (read those that exist — when implementation-verifier runs you, the code review, pragmatic review and production-readiness reports are produced in parallel with you and `implementation-verification.md` is compiled after you, so they are not yet available):
+**With a review brief** (implementation-verifier runs you): read **none** of the other reviewers' reports and not `implementation-verification.md`. In this cycle they are written in parallel with you or after you, and any copy on disk is an earlier cycle's, describing code that has since changed — reading it as current is the mistake this rule prevents. Take the test result from the brief's `tests` (and `verification/test-suite-results.md` it names), the plan's progress from its `plan`, and read only:
+- `verification/spec-audit.md` (if exists from spec-auditor — it judged the spec, not this code)
+- `verification/visual-fidelity.md` (if exists from e2e-test-verifier — cross-reference, do NOT re-run the comparison)
+- `implementation/visual-coverage.md` (if exists from implementation-planner)
+- `implementation/implementation-plan.md` (check completion markers)
+
+**Standalone** (no brief), read those that exist, and name in your report each one you read and the date it was written:
 - `verification/implementation-verification.md` (if exists from implementation-verifier)
 - `verification/pragmatic-review.md` (if exists from code-quality-pragmatist)
 - `verification/code-review-report.md` (if exists from code-reviewer)
@@ -65,8 +84,8 @@ The Task prompt MUST include:
 - `implementation/visual-coverage.md` (if exists from implementation-planner)
 - `implementation/implementation-plan.md` (check completion markers)
 
-**What to Extract**:
-- Overall verification status
+**What to Extract** (from what this mode reads):
+- Overall verification status (standalone only)
 - Test results (pass rate, failing tests)
 - Standards compliance status
 - Complexity/over-engineering findings
@@ -84,7 +103,7 @@ The Task prompt MUST include:
 **Check Completion Markers**:
 - Implementation plan steps marked complete (✅ in implementation-plan.md)
 - Test suite pass rate
-- Verification report status
+- Verification report status (standalone only — with a brief, this cycle's report does not exist yet)
 - Task metadata status
 
 **Reality Questions**:
@@ -113,7 +132,7 @@ The Task prompt MUST include:
 - Test with realistic data (not just "user1", "test@test.com")
 
 **Parallel Execution Mode** (`skip_test_execution: true`):
-When invoked with `skip_test_execution: true` (typically after test-suite-runner has already completed in implementation-verifier's Step 3a), do NOT execute any test commands. Instead, read test results from `verification/test-suite-results.md` (written by test-suite-runner), then analyze code structure, verify completeness through code reading, check integration points, and assess functional gaps using those results.
+When invoked with `skip_test_execution: true` (typically after test-suite-runner has already completed in implementation-verifier's Step 3a), do NOT execute any test commands. Instead, read test results from the brief's `tests` and `verification/test-suite-results.md` (written by test-suite-runner), then analyze code structure, verify completeness through code reading, check integration points, and assess functional gaps using those results.
 
 When `skip_test_execution` is `false` or not set (standalone invocation, or when test-suite-runner was skipped), run tests normally.
 
@@ -209,6 +228,8 @@ When `skip_test_execution` is `false` or not set (standalone invocation, or when
 - **Standalone check**: `[task-path]/reality-check.md`
 - **Part of verification**: `[task-path]/verification/reality-check.md`
 
+**Additional Output**: `verification/reality-findings.json` when there is a task directory (§ Review Brief, Findings File and Re-check)
+
 ---
 
 ## Tool Usage
@@ -297,7 +318,7 @@ Every finding must include:
 
 Reality assessment is complete when:
 
-✅ All available verification reports reviewed
+✅ The reports this mode may read reviewed — with a brief, never another reviewer's report from this or an earlier cycle
 ✅ Claimed completions validated through independent testing
 ✅ Functional completeness assessed with end-to-end testing
 ✅ Reality vs claims gaps identified with evidence
