@@ -318,7 +318,7 @@ test('inherit is the session\'s model in a tier cell, a preset cell and an entry
 });
 
 test('the subagents block init writes holds exactly the built-in values', t => {
-  const skill = fs.readFileSync(path.join(ROOT, 'plugins/maister/skills/init/SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(ROOT, 'plugins/maister/skills/init/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
   const block = [...skill.matchAll(/```yaml\n([\s\S]*?)```/g)].map(match => match[1]).find(text => /^subagents:/m.test(text));
   assert.ok(block, 'init carries a subagents block');
   const agents = '--agent=Explore,project-analyzer,docs-operator,task-classifier,test-suite-runner,html-companion-writer,task-group-implementer,gap-analyzer';
