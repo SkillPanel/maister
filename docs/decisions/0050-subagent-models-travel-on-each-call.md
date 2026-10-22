@@ -14,7 +14,8 @@
   rung up, within a ceiling and a budget, and records what each group ran on.
 - **Built-in defaults, written out.** Without a block, the five clerical agents and `Explore` run
   on `light` at high effort, implementers on the planner's tier (up to `deep` on Claude Code,
-  `standard` on Copilot), the verification fix loops' fixes and every other agent on the host's
+  `standard` on Copilot), the reviewers on `deep` on Claude Code and `standard` on Copilot (see
+  the addendum), the verification fix loops' fixes and every other agent on the host's
   choice. `init` writes the same table into `config.yml` for the team to edit. A per-agent
   entry, maister's own included, outranks every `default`.
 
@@ -127,3 +128,21 @@ question, bounds the spend.
 - The table lives twice, in the engine and in the block `init` writes; the test comparing them
   keeps the two in step, and a project's written block keeps the values it was initialised with
   when maister's own change.
+
+### Addendum — the reviewers on a per-host tier
+- **An entry's `tier` may be given per host**, `tier: { claude: <rung>, copilot: <rung> }`, each
+  value a rung or `inherit`, judged like a per-host `ceiling`: a map naming another key, a value
+  off the ladder or no host at all refuses the block, with the error at the entry's `tier`. A host
+  the map does not name is passed over there, as a pinned `model` is on Copilot, and the next
+  level answers. `dispatch-model`'s source line names the host's rung.
+- **Maister's table** puts the five verification reviewers (`code-reviewer`,
+  `production-readiness-checker`, `reality-assessor`, `code-quality-pragmatist`,
+  `implementation-completeness-checker`) and `spec-auditor` on `{ claude: deep, copilot:
+  standard }`: a review is judgement where a stronger model finds what a weaker one misses, and
+  on Copilot the deep model bills 15 requests a call, so it stops at `standard` as the
+  implementer's ceiling does. The verification runner, the e2e verifier, the planner, the
+  specification creator and the gap analyzer keep the session's model. A project entry for any
+  of them, `copilot: deep` included, replaces the built-in one; `init` writes the six entries
+  into the block, and the test comparing it with the table covers them on both hosts.
+- Should the review panel be merged into three reviewers — a delivery check, a code-risk review and a
+  simplicity review — each takes the same built-in entry.

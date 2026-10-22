@@ -145,6 +145,13 @@ subagents:
     task-classifier: { tier: light }
     test-suite-runner: { tier: light }
     html-companion-writer: { tier: light }
+    # the reviewers: deep on Claude Code, standard on Copilot, which bills its deep model 15x
+    code-reviewer: { tier: { claude: deep, copilot: standard } }
+    production-readiness-checker: { tier: { claude: deep, copilot: standard } }
+    reality-assessor: { tier: { claude: deep, copilot: standard } }
+    code-quality-pragmatist: { tier: { claude: deep, copilot: standard } }
+    implementation-completeness-checker: { tier: { claude: deep, copilot: standard } }
+    spec-auditor: { tier: { claude: deep, copilot: standard } }
     task-group-implementer:
       choose: by-plan-tier     # each task group on the cheapest model for its planner tier
       allowed: [light, standard, deep]

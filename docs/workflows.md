@@ -535,6 +535,9 @@ Most of a workflow's work is done by subagents. By default:
   `standard` or `deep`; a group with no tier runs on `standard`, and a fourth `deep` group in a
   run asks first. On Copilot, where the deep model bills 15 requests each, groups stop at
   `standard`.
+- **The reviewers** — the five verification reviews and the specification audit — run on the
+  `deep` tier on Claude Code and on `standard` on Copilot, where the deep model bills 15
+  requests each.
 - **Verification's fixes** — the ones the fix loop after implementation applies without asking —
   run on your session's model, and so do **the verification runner** and **the implementation
   runner** that carry those loops.
@@ -550,7 +553,9 @@ starts are outside it. The block holds:
   (Claude Code takes `haiku`, `sonnet`, `opus` or `fable`; Copilot takes a model id). `inherit`
   in a cell, or as an entry's `model`, means your session's model.
 - **Assignments** per agent, per workflow (`workflows.<name>.agents`) or per step
-  (`workflows.<name>.nodes.<step>.agents`): a tier, a named preset, or a model and effort. The
+  (`workflows.<name>.nodes.<step>.agents`): a tier, a named preset, or a model and effort. A tier
+  may differ by host, `{ claude: deep, copilot: standard }`; a host the map leaves out is passed
+  over, as a Claude Code model pin is on Copilot, and the next entry or default answers. The
   most specific entry naming an agent wins, and any entry naming it beats a `default`: a default
   covers only the agents nobody names, so the clerical agents stay on the lightweight model
   until you name them.

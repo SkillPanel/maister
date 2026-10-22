@@ -36,6 +36,9 @@
  *      `agents`;
  *   3. a `default`, in the same layer order — so a default covers only the
  *      agents no layer names, and never moves one the shipped table assigns;
+ *      An entry whose `tier` is given per host and does not name the host is
+ *      passed over there, as a pinned model is on Copilot, and the next level
+ *      answers;
  *   4. the host, when nothing answers or the answer is `inherit` — an
  *      entry's `tier` or `model`, or a `claude` or `copilot` cell of a rung or
  *      a preset: the call then carries no model and the host's own order
@@ -110,7 +113,7 @@ const UNASSESSED = 'standard';
  * effort, the clerical agents and the built-in explore agent on `light`, and
  * the task-group implementer on the planner's tier, up to `deep` on Claude
  * Code and `standard` on Copilot, where the deep model bills far above one
- * request. The verification fix loops of the built-in workflows hand their
+ * request, and the reviewers on `deep` and `standard` by the same reckoning. The verification fix loops of the built-in workflows hand their
  * fixes to the implementer with no planner tier; those calls inherit the
  * session's model instead. Everything else inherits — the two runners among
  * them, by having no entry: the verification runner judges what is fixable,
@@ -133,6 +136,12 @@ export const SHIPPED = Object.freeze({
     'test-suite-runner': { tier: 'light' },
     'html-companion-writer': { tier: 'light' },
     Explore: { tier: 'light' },
+    'code-reviewer': { tier: { claude: 'deep', copilot: 'standard' } },
+    'production-readiness-checker': { tier: { claude: 'deep', copilot: 'standard' } },
+    'reality-assessor': { tier: { claude: 'deep', copilot: 'standard' } },
+    'code-quality-pragmatist': { tier: { claude: 'deep', copilot: 'standard' } },
+    'implementation-completeness-checker': { tier: { claude: 'deep', copilot: 'standard' } },
+    'spec-auditor': { tier: { claude: 'deep', copilot: 'standard' } },
     'task-group-implementer': {
       choose: BY_PLAN_TIER,
       allowed: ['light', 'standard', 'deep'],
@@ -417,7 +426,6 @@ function judgeEntry(value, where, file, context) {
   }
   const picks = PICKS.filter(key => Object.hasOwn(value, key));
   if (picks.length > 1) fault(where, `an entry picks its model one way: it names ${picks.join(' and ')}`);
-  const tier = rung => rung === INHERIT || LADDER.includes(rung);
   const kept = {};
   for (const [key, item] of Object.entries(value)) {
     const at = `${where}.${key}`;
@@ -425,8 +433,8 @@ function judgeEntry(value, where, file, context) {
       unknownKey(context, file, at, ENTRY_KEYS);
       continue;
     }
-    if (key === 'tier' && !tier(item)) {
-      fault(at, `${describe(item)} is not a tier: expected one of ${[...LADDER, INHERIT].join(', ')}`);
+    if (key === 'tier' && !tierOk(item)) {
+      fault(at, `${describe(item)} is not a tier: write one of ${[...LADDER, INHERIT].join(', ')}, or one per host, such as {claude: deep, copilot: standard}`);
     } else if (key === 'preset' && !context.presets.has(item)) {
       fault(at, `${describe(item)} is not a preset: ${context.presets.size ? `the presets are ${[...context.presets].join(', ')}` : 'no presets are defined'}`);
     } else if (key === 'model' && !isClaudeModel(item)) {
@@ -448,6 +456,14 @@ function judgeEntry(value, where, file, context) {
     }
   }
   return kept;
+}
+
+/** An entry's tier: a rung or `inherit`, or one of them per host for any of `HOSTS`. */
+function tierOk(value) {
+  const rung = each => each === INHERIT || LADDER.includes(each);
+  if (rung(value)) return true;
+  const entries = isMap(value) ? Object.entries(value) : [];
+  return entries.length > 0 && entries.every(([host, each]) => HOSTS.includes(host) && rung(each));
 }
 
 /** A ceiling: a rung, or a rung per host for any of `HOSTS`. */
@@ -639,8 +655,9 @@ export function resolveAgent(agent, { block = null, workflow = null, node = null
   }
   hits.push(...defaults);
 
-  // A pinned model is Claude Code's; on Copilot the next level answers.
-  const usable = hits.filter(hit => !(host === 'copilot' && isPin(hit.entry)));
+  // A pinned model is Claude Code's; on Copilot the next level answers. So does
+  // it for a tier given per host that does not name this one.
+  const usable = hits.filter(hit => !(host === 'copilot' && isPin(hit.entry)) && tierOf(hit.entry, host) !== null);
   const hit = usable[0] ?? null;
   const ladder = ladderOf(frozen);
   const planned = hit !== null && hit.entry.choose === BY_PLAN_TIER;
@@ -673,9 +690,10 @@ function unplanned(hit, { frozen, ladder, host, used }) {
       budget: null,
     };
   }
-  if (typeof entry.tier === 'string') {
-    if (entry.tier === INHERIT) return { model: OMIT, effort: valueOf(entry.effort), source: hit.source, budget: null };
-    return { ...fromRung(ladder, entry.tier, host, entry.effort), source: `${hit.source}, tier ${entry.tier}`, budget: null };
+  const rung = tierOf(entry, host);
+  if (typeof rung === 'string') {
+    if (rung === INHERIT) return { model: OMIT, effort: valueOf(entry.effort), source: hit.source, budget: null };
+    return { ...fromRung(ladder, rung, host, entry.effort), source: `${hit.source}, tier ${rung}`, budget: null };
   }
   return { model: modelOf(entry.model), effort: valueOf(entry.effort), source: hit.source, budget: null };
 }
@@ -701,6 +719,16 @@ function findAgent(agents, name) {
   if (builtIn === null) return null;
   const key = Object.keys(agents).find(each => builtInOf(each) === builtIn && isMap(agents[each]));
   return key === undefined ? null : { key, entry: agents[key] };
+}
+
+/**
+ * An entry's tier for a host: its rung, the host's rung when it is given per
+ * host, undefined when the entry names no tier, and null when its per-host
+ * tier does not name this host.
+ */
+function tierOf(entry, host) {
+  if (!isMap(entry.tier)) return entry.tier;
+  return typeof entry.tier[host] === 'string' ? entry.tier[host] : null;
 }
 
 function isPin(entry) {

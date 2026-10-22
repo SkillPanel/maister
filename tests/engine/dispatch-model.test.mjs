@@ -64,7 +64,7 @@ test('--tier is ignored for an agent whose entry is no by-plan-tier policy, with
   assert.equal(result.stdout, [
     'explore: model claude-haiku-5.5, effort high — source: shipped agents.Explore, tier light',
     'task-group-implementer: model claude-sonnet-5.5, effort omit — source: plan tier deep, clamped to standard within project agents.task-group-implementer',
-    'spec-auditor: model omit, effort omit — source: shipped default',
+    'spec-auditor: model claude-sonnet-5.5, effort omit — source: shipped agents.spec-auditor, tier standard',
     'task-classifier: model claude-haiku-5.5, effort high — source: shipped agents.task-classifier, tier light',
     '',
     'note: --tier=deep was ignored for explore, spec-auditor, task-classifier: a plan tier applies only to an agent whose entry is choose: by-plan-tier, so they resolve as without one',
@@ -149,7 +149,7 @@ test('every entry naming the agent wins over every default, an overlay\'s defaul
   assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model haiku, effort high — source: project agents.gap-analyzer, tier light');
   assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light');
   // An agent nobody names takes the most specific default: the overlay's over the project's.
-  assert.equal(lineOf(run, 'spec-auditor'), 'spec-auditor: model opus, effort omit — source: overlay default, tier deep');
+  assert.equal(lineOf(run, 'information-gatherer'), 'information-gatherer: model opus, effort omit — source: overlay default, tier deep');
 });
 
 test('level 8: the shipped agents put the clerical agents on light', t => {
@@ -250,6 +250,65 @@ test('a ceiling given per host is read for the host, and a project can raise Cop
     'task-group-implementer: model claude-haiku-5.5, effort high — source: plan tier deep, clamped to light within project agents.task-group-implementer');
 });
 
+/** The agents maister's table puts on deep on Claude Code and on standard on Copilot. */
+const REVIEWERS = ['code-reviewer', 'production-readiness-checker', 'reality-assessor', 'code-quality-pragmatist', 'implementation-completeness-checker', 'spec-auditor'];
+
+test('with no config the reviewers run on deep on Claude Code and on standard on Copilot', t => {
+  const run = scratch(t);
+  for (const [host, model, rung] of [['claude', 'opus', 'deep'], ['copilot', 'claude-sonnet-5.5', 'standard']]) {
+    const result = dispatch(run, [`--agent=${REVIEWERS.join(',')}`], { state: false, host });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stdout, REVIEWERS.map(agent => `${agent}: model ${model}, effort omit — source: shipped agents.${agent}, tier ${rung}\n`).join(''));
+  }
+  // The runners and the planner keep the session's model.
+  freezeRun(run);
+  for (const host of ['claude', 'copilot']) {
+    assert.equal(dispatch(run, ['--agent=verification-runner,implementation-planner'], { host }).stdout,
+      'verification-runner: model omit, effort omit — source: shipped default\n'
+      + 'implementation-planner: model omit, effort omit — source: shipped default\n');
+  }
+});
+
+test('a project entry replaces a reviewer\'s built-in tier, a per-host one raising Copilot to deep', t => {
+  const run = scratch(t);
+  config(run, 'subagents:\n  agents:\n    code-reviewer: { tier: { claude: standard, copilot: deep } }\n    spec-auditor: { tier: light }\n');
+  freezeRun(run);
+  assert.equal(lineOf(run, 'code-reviewer'), 'code-reviewer: model sonnet, effort omit — source: project agents.code-reviewer, tier standard');
+  assert.equal(lineOf(run, 'code-reviewer', [], { host: 'copilot' }),
+    'code-reviewer: model claude-opus-5.5, effort omit — source: project agents.code-reviewer, tier deep');
+  assert.equal(lineOf(run, 'spec-auditor', [], { host: 'copilot' }),
+    'spec-auditor: model claude-haiku-5.5, effort high — source: project agents.spec-auditor, tier light');
+  assert.equal(lineOf(run, 'reality-assessor'), 'reality-assessor: model opus, effort omit — source: shipped agents.reality-assessor, tier deep');
+});
+
+test('a per-host tier that does not name the host is passed over there, and the next level answers', t => {
+  const run = scratch(t);
+  config(run, 'subagents:\n  default: { tier: light }\n  agents:\n    code-reviewer: { tier: { claude: light } }\n    gap-analyzer: { tier: { claude: deep }, effort: high }\n');
+  freezeRun(run);
+  assert.equal(lineOf(run, 'code-reviewer'), 'code-reviewer: model haiku, effort high — source: project agents.code-reviewer, tier light');
+  assert.equal(lineOf(run, 'code-reviewer', [], { host: 'copilot' }),
+    'code-reviewer: model claude-sonnet-5.5, effort omit — source: shipped agents.code-reviewer, tier standard');
+  assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model opus, effort high — source: project agents.gap-analyzer, tier deep');
+  assert.equal(lineOf(run, 'gap-analyzer', [], { host: 'copilot' }),
+    'gap-analyzer: model claude-haiku-5.5, effort high — source: project default, tier light');
+  // inherit is a rung of the map too.
+  const own = scratch(t);
+  config(own, 'subagents:\n  agents:\n    code-reviewer: { tier: { claude: inherit, copilot: deep } }\n');
+  assert.equal(lineOf(own, 'code-reviewer', [], { state: false }), 'code-reviewer: model omit, effort omit — source: project agents.code-reviewer');
+});
+
+test('a malformed per-host tier refuses the block, naming the field', t => {
+  for (const tier of ['{ claude: huge }', '{ copilot: standard, codex: deep }', '{}', '[deep, standard]']) {
+    const run = scratch(t);
+    config(run, `subagents:\n  agents:\n    code-reviewer: { tier: ${tier} }\n`);
+    const result = dispatch(run, ['--agent=code-reviewer'], { state: false });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stdout, 'code-reviewer: model opus, effort omit — source: shipped agents.code-reviewer, tier deep\n', tier);
+    assert.match(result.stderr,
+      /^warning: subagents-error:\.maister\/config\.yml:subagents\.agents\.code-reviewer\.tier — .* is not a tier: write one of light, standard, deep, inherit, or one per host, such as \{claude: deep, copilot: standard\}; the whole subagents block is refused and the shipped defaults apply\n$/, tier);
+  }
+});
+
 const BUILT_IN_FIX_LOOPS = [['development', 'verification'], ['performance', 'verification'], ['migration', 'issue-resolution']];
 
 /** A run frozen from one of the built-in workflow definitions, with `config` as its config.yml when given. */
@@ -321,7 +380,7 @@ test('the subagents block init writes holds exactly the built-in values', t => {
   const skill = fs.readFileSync(path.join(ROOT, 'plugins/maister/skills/init/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
   const block = [...skill.matchAll(/```yaml\n([\s\S]*?)```/g)].map(match => match[1]).find(text => /^subagents:/m.test(text));
   assert.ok(block, 'init carries a subagents block');
-  const agents = '--agent=Explore,project-analyzer,docs-operator,task-classifier,test-suite-runner,html-companion-writer,task-group-implementer,gap-analyzer';
+  const agents = `--agent=Explore,project-analyzer,docs-operator,task-classifier,test-suite-runner,html-companion-writer,${REVIEWERS.join(',')},task-group-implementer,gap-analyzer`;
   const values = result => result.stdout.replace(/ — source: [^\n]*/g, '');
   const compare = (written, bare, args, options, label) => {
     const own = dispatch(written, args, options);
@@ -359,7 +418,7 @@ test('level 10: the host decides whenever an entry inherits, and on Copilot a Cl
   config(run, 'subagents:\n  agents:\n    gap-analyzer: { model: inherit, effort: low }\n    spec-auditor: { model: opus, effort: high }\n');
   freezeRun(run);
   assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model omit, effort low — source: project agents.gap-analyzer');
-  assert.equal(lineOf(run, 'spec-auditor', [], { host: 'copilot' }), 'spec-auditor: model omit, effort omit — source: shipped default');
+  assert.equal(lineOf(run, 'spec-auditor', [], { host: 'copilot' }), 'spec-auditor: model claude-sonnet-5.5, effort omit — source: shipped agents.spec-auditor, tier standard');
 });
 
 // ---------------------------------------------------------------------------
@@ -502,7 +561,7 @@ test('standalone, a refused block falls back to the shipped defaults with a warn
   const result = dispatch(run, ['--agent=task-classifier,code-reviewer'], { state: false });
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, 'task-classifier: model haiku, effort high — source: shipped agents.task-classifier, tier light\n'
-    + 'code-reviewer: model omit, effort omit — source: shipped default\n');
+    + 'code-reviewer: model opus, effort omit — source: shipped agents.code-reviewer, tier deep\n');
   assert.match(result.stderr, /^warning: subagents-error:\.maister\/config\.yml:subagents\.default\.tier — .*; the whole subagents block is refused and the shipped defaults apply\n$/);
 });
 
@@ -523,7 +582,7 @@ test('a config.yml changed since the freeze adds one note, and the run keeps wha
   config(run, 'html_output: false\nsubagents:\n  agents:\n    gap-analyzer: { tier: deep }\n');
   const changed = dispatch(run, ['--agent=gap-analyzer,code-reviewer']);
   assert.equal(changed.stdout, 'gap-analyzer: model haiku, effort high — source: project agents.gap-analyzer, tier light\n'
-    + 'code-reviewer: model omit, effort omit — source: shipped default\n'
+    + 'code-reviewer: model opus, effort omit — source: shipped agents.code-reviewer, tier deep\n'
     + '\n'
     + "note: .maister/config.yml's subagents block changed since this run started; this run keeps the settings it froze, and the edits apply to the next run\n");
 

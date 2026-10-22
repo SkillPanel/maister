@@ -291,8 +291,10 @@ run on it. The clerical agents (the project analyzer, the docs operator, the tas
 test-suite runner and the HTML companion writer) and the built-in `explore` agent maister starts
 run on `claude-haiku-5.5` at high reasoning effort. Each task group of an implementation runs on
 the tier its plan gives it, up to `standard`: `claude-haiku-5.5` at high effort for `light`, and
-`claude-sonnet-5.5` for `standard`, for `deep` and for a group with no tier. The fixes
-verification applies without asking run on the session's model.
+`claude-sonnet-5.5` for `standard`, for `deep` and for a group with no tier. The five
+verification reviewers and the specification auditor run on `claude-sonnet-5.5` too, where
+Claude Code gives them its deep model. The fixes verification applies without asking run on the
+session's model.
 
 **Choose models per agent in `.maister/config.yml`.** Its `subagents` block gives each agent, each
 workflow or each step a model and an effort for each host, and the workflow passes them on every
@@ -314,6 +316,9 @@ Copilot two things differ:
 
 A pinned `model:` on an agent entry is Claude Code's alias; on Copilot that entry is passed over
 and the next level answers, so pin through `tiers` or a preset when a project runs on both hosts.
+An entry's `tier` may name one rung per host, as the reviewers' `{ claude: deep, copilot:
+standard }` does; a map that leaves out `copilot` is passed over the same way. To run a reviewer
+on `claude-opus-5.5`, give it `tier: { claude: deep, copilot: deep }` in `config.yml`.
 
 **The planner's tiers.** The implementation plan gives each task group a tier (`light`,
 `standard` or `deep`). With `task-group-implementer: { choose: by-plan-tier }`, the default,
