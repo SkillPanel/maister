@@ -121,6 +121,29 @@ html_output: true
 #   ascii          : terminal ASCII mockups via the ascii-mockup-generator agent (no Node/browser needed).
 # Auto-falls back to ascii when Node.js is unavailable. Default: html.
 mockup_format: html
+
+# subagents — which model and effort maister's subagents run on, per host. Unset, the
+# clerical agents run on the light tier and every other agent on your session's model.
+# A run freezes this block when it starts, so an edit applies to the next run.
+# subagents:
+#   tiers:                     # the ladder the planner's task-group tiers map to
+#     light:    { claude: haiku,  copilot: claude-haiku-5.5 }
+#     standard: { claude: sonnet, copilot: claude-sonnet-5.5 }
+#     deep:     { claude: opus,   copilot: claude-opus-5.5, premium: true }  # Copilot bills it 15x
+#   presets:                   # named model + effort pairs to pin an agent to
+#     scout: { claude: haiku, copilot: gpt-6-luna, effort: low }
+#   # default: { tier: standard }  # every agent not named; outranks maister's own light picks
+#   agents:
+#     Explore: { preset: scout }
+#     spec-auditor: { model: opus, effort: high }  # a pinned model is Claude Code's only
+#     task-group-implementer:
+#       choose: by-plan-tier     # each task group on the cheapest model for its planner tier
+#       ceiling: deep
+#       budget: { deep: 3 }      # a fourth deep group in a run asks first
+#   workflows:
+#     research:
+#       agents: { information-gatherer: { preset: scout } }
+# Copilot cells are model ids as /model lists them; Claude cells are haiku, sonnet, opus or fable.
 ```
 
 ---

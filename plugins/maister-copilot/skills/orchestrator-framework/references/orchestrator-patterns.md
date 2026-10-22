@@ -197,14 +197,16 @@ An optional project-level config file at `.maister/config.yml` (sibling of `.mai
 # Maister project configuration.
 html_output: true     # Generate the operator dashboard + HTML companion reports. false = markdown-only.
 mockup_format: html   # UI mockups: html (visual companion) or ascii (ascii-mockup-generator).
+subagents: {…}        # Optional: the model and effort per subagent, per host (below).
 ```
 
 | Key | Default | Effect |
 |-----|---------|--------|
 | `html_output` | `true` | When `false`, workflows skip the operator dashboard (§ 8) AND the HTML companion reports (§ 9): no `dashboard.html`/`dashboard-data.js`, no browser auto-open, no `.html` companions. Markdown artifacts, their § 7 TL;DR blocks, and `orchestrator-state.yml` are produced regardless. |
 | `mockup_format` | `html` | How UI mockups are rendered when a workflow generates them (development's `ui-mockups` node, product-design's `visual-prototyping` node, standalone `/maister-copilot:mockup-studio`). `html` → the `mockup-studio` visual companion (browser preview, `.html` files). `ascii` → the `ascii-mockup-generator` agent (no Node/browser). Auto-falls back to `ascii` when Node.js is unavailable. Independent of `html_output` (mockups are design deliverables, not report companions). In product-design, `mockup_format: ascii` is equivalent to the `--no-visual` flag; the flag is a per-run override (flag > config). |
+| `subagents` | maister's own table: `project-analyzer`, `docs-operator`, `task-classifier`, `test-suite-runner` and `html-companion-writer` on the `light` tier, every other agent on the host's choice | The model and effort each subagent is dispatched with, for Claude Code and for Copilot. `tiers` remaps the `light` / `standard` / `deep` ladder (a `claude` cell is an alias — `haiku`, `sonnet`, `opus`, `fable` — and a `copilot` cell a model id, `premium: true` on one billed above one request); `presets` names model + effort pairs; `default`, `agents` and `workflows.<w>[.nodes.<n>].agents` assign an entry — `tier`, `preset`, `model` + `effort`, or for `task-group-implementer` `choose: by-plan-tier` with `allowed`, `unassessed`, `ceiling` and `budget`. Overlays and profiles carry the same key without `tiers`. The scaffold `/maister-copilot:init` writes holds a commented example, and the workflow engine's grammar (*Subagent models*) the full vocabulary and precedence. |
 
-**How it is read**: at initialization (§ 5) the orchestrator reads `.maister/config.yml` if present and seeds `orchestrator.options.html_output` and `orchestrator.options.mockup_format` into state (defaults `true` / `html` when the file or key is absent). All downstream gates read these from state, not the file — so resume is consistent and the file is read once.
+**How it is read**: at initialization (§ 5) the orchestrator reads `.maister/config.yml` if present and seeds `orchestrator.options.html_output` and `orchestrator.options.mockup_format` into state (defaults `true` / `html` when the file or key is absent). All downstream gates read these from state, not the file — so resume is consistent and the file is read once. `subagents` is read by the engine's freeze instead: it judges the block, folds in the overlays' and the profile's, and records the result as `orchestrator.options.subagents`, which `dispatch-model` and the `runs:` line of a node's brief read (§ 1, *Model and Effort on Every Agent Call*). A block with an error is refused whole, with a warning, and maister's own table applies; an edit of the file reaches the next run, never one under way.
 
 ### Common Fields
 
@@ -219,6 +221,7 @@ orchestrator:
   options:
     sequential: true | false | null  # Set by --sequential. Read by implementation-plan-executor Phase 2 to disable parallel wave dispatch.
     html_output: true | false        # Seeded from .maister/config.yml at init (default true). Gates dashboard + HTML companions — see "Project Configuration" below.
+    subagents: {…}                   # Recorded by the freeze from .maister/config.yml, the overlays and the profile; read by dispatch-model. Never written by hand.
     mockup_format: html | ascii      # Seeded from .maister/config.yml at init (default html). Passed to mockup-studio (development's ui-mockups node / product-design's visual-prototyping node). See "Project Configuration" below.
     # per-orchestrator keys (development's e2e_enabled, user_docs_enabled, code_review_enabled, …) live here too
 

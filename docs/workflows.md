@@ -524,6 +524,29 @@ session; a run driven from outside skips those loops, so its pauses are where th
 A revise is an in-run answer. It does not reopen a run that has finished; to change finished work,
 start a new task.
 
+## Choosing subagent models
+
+Most of a workflow's work is done by subagents. By default the clerical ones (project analysis,
+the docs operator, task classification, the test-suite runner and HTML companions) run on a
+lightweight model and every other agent on your session's model. To choose otherwise, add a
+`subagents` block to `.maister/config.yml`; `/maister:init` writes a commented example.
+
+- **A ladder of three tiers**, `light`, `standard` and `deep`, each naming a model per host
+  (Claude Code takes `haiku`, `sonnet`, `opus` or `fable`; Copilot takes a model id).
+- **Assignments** per agent, per workflow (`workflows.<name>.agents`) or per step
+  (`workflows.<name>.nodes.<step>.agents`): a tier, a named preset, or a model and effort.
+- **Implementers by plan tier.** The implementation plan gives each task group a tier with a
+  one-line reason. With `task-group-implementer: { choose: by-plan-tier }`, each group runs on the
+  cheapest model allowed for its tier, under an optional `ceiling`. A group that fails is retried
+  once on the next tier up before you are asked, and `budget` (such as `{ deep: 3 }`) makes the
+  run ask before it sends one more group to a tier. The work log records the model each group ran
+  on, and the implementation summary gives the tally.
+
+A run copies the block into its state when it starts, so a resumed run keeps its models and an
+edit applies to the next run. A block with an error is set aside with a warning and the defaults
+apply; `/maister:run --check <workflow>` shows the warnings without starting anything. An overlay
+or a profile may carry the same block, without the ladder.
+
 ## Your Own Workflows
 
 A workflow your project defines, as `.maister/workflows/<name>.yml` with its prose in
