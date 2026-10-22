@@ -157,7 +157,9 @@ by maister cockpit, never under an absent or `terminal` driver.
 Three calls, in this order, before any node runs: `validate`, then `resolve`, then the
 `write-state` that installs the resolved graph in `orchestrator-state.yml` as the `workflow:`
 block with one line per node. A run executes the frozen graph, never the file on disk, so an
-edit to a definition mid-run changes nothing until the next run.
+edit to a definition mid-run changes nothing until the next run. **The freeze's `write-state`
+names the host**: add `--host=copilot` to that call, as `dispatch-model` takes it, so the writer
+records how the run's subagents can delegate (`orchestrator.options.delegation`).
 
 **The run's task directory exists before the freeze**, because the state file the freeze writes
 lives in it. It is `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` under the project root, where
@@ -204,7 +206,8 @@ writer proves the freeze before it installs it, and its refusal names the recove
   before the first node runs. A definition that names no seed sends none.
 
 **The writer adds the rest itself** (`references/writing-state.md` § *What the freeze write
-adds*): never send `policy_hash`, `classes_questions` or `task.base_commit`, and relay a
+adds*): never send `policy_hash`, `classes_questions`, `task.base_commit` or
+`orchestrator.options.delegation`, and relay a
 `warning: policy-refused:<path>:<reason>` or `warning: base-…` line; the run goes on. The engine creates no task
 items: the state file and the dashboard are the run's tracker.
 
@@ -304,7 +307,7 @@ write a question set there themselves.
 | `resolve` | `--definition`, `--overlay…`, `--profile` (a profile one of the overlays declares; selecting any other is refused) | the canonical graph, its `graph_hash` **in the spelling state records** — write it through unchanged, never re-spell it — and `tracker_key`, the input the freeze reads for `task.key`, or null |
 | `diagram` | same, plus `--out` | deterministic Mermaid text; its header names the overlays (by file name) and the profile applied, and a gate box carries its question and its options as `id: effect` |
 | `locate` | optional `--name` (bare or `builtin:`-prefixed); with it, repeatable `--overlay` and `--profile` — the run's own | with a name, where the lookup (Step 3) finds it: `{ok, errors[], name, from, definition, overlays[], ignored, companion, title, summary, inputs, dispatches[], html_companions}` — `definition` and `overlays` are the values the three verbs above take, a project path written relative to the project root; `dispatches` names the nodes carrying `dir:` in the folded graph, and `html_companions` is the block merged from every layer (`{}` when none declares one). Exit `1` when the name is found nowhere, is not a workflow name, finds only an overlay with no built-in beneath it, or finds a file whose `name:` is another. With no name, `{ok, errors[], workflows[]}` — the project's own definitions. Reads only |
-| `write-state` | `--state`; the patch as JSON by here-string, or `--patch-file` naming it in the patch file | the changed paths, one per line; the freeze prints the startup banner and a blank line before them (Step 4). A write carrying a node's question set adds a blank line and `ask: <id> <id> …`, or `ask: none` (`references/in-node-questions.md` § *When the policy classes a question*). A write completing a node whose owed `.html` companion is not on disk ends with a blank line and one `companion-missing: <node> <path>` line per companion, exit `0` (*Before anything else*, item 7). The closing checkpoint `held-approval` is written under `node_summaries.held-approval`, and its `status` under `nodes` (`references/gates.md` § *The closing checkpoint `held-approval`*) |
+| `write-state` | `--state`; the patch as JSON by here-string, or `--patch-file` naming it in the patch file; `--host=copilot` on the freeze (Step 4) | the changed paths, one per line; the freeze prints the startup banner and a blank line before them (Step 4). A write carrying a node's question set adds a blank line and `ask: <id> <id> …`, or `ask: none` (`references/in-node-questions.md` § *When the policy classes a question*). A write completing a node whose owed `.html` companion is not on disk ends with a blank line and one `companion-missing: <node> <path>` line per companion, exit `0` (*Before anything else*, item 7). The closing checkpoint `held-approval` is written under `node_summaries.held-approval`, and its `status` under `nodes` (`references/gates.md` § *The closing checkpoint `held-approval`*) |
 | `gate-request` | `--state`; the request as JSON by here-string, or `--patch-file` naming it in the patch file | the files written, one per line: the request file, the gate index and the pending marker, in one call (`references/gates.md` § *Driver-suspended mode — the write order*) |
 | `gate-revise` | `--state`, `--node` (the gate), `--option` (its revise option); `{note, answered_by?, at?, via?}` by here-string, or `--patch-file` naming it in the patch file | the changed paths, one per line, then a blank line and `revised: <gate> reruns=<node> revision=<n>/10 reset=<ids>`: the stretch from the option's rerun node to the gate reset in one write, with the note on the gate (`references/gates.md` § *Revising at a gate*) |
 | `run-complete` | `--state`, and in a dispatched run `--outbox` and `--dispatch-id` | the run's closing marker as the **last** line of stdout, with any `missing-artifact:` lines, then any `missing-companion:` lines, and a stop's notice above it; the refusal on stderr |

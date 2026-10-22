@@ -601,6 +601,7 @@ function renderTimeline(phases) {
         '<div class="ph-tags">' +
           (prog ? '<span class="mini prog">' + esc(prog) + '</span>' : "") +
           (ph.attempt > 1 ? '<span class="mini">attempt ' + esc(ph.attempt) + '</span>' : "") +
+          (ph.delegation ? '<span class="mini">' + esc(ph.delegation) + '</span>' : "") +
           (fixes ? '<span class="mini fixes">' + fixes + ' fixed</span>' : "") +
           (decsNow ? '<span class="mini decisions">' + decsNow + ' decision' + (decsNow > 1 ? "s" : "") + '</span>' : "") +
           (risks ? '<span class="mini risks">' + risks + ' risk' + (risks > 1 ? "s" : "") + '</span>' : "") +

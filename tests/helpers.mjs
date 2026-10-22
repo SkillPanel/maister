@@ -110,6 +110,8 @@ function isolated(env) {
   // A suite run from inside a session would otherwise write that session's run
   // pointer into every scratch project; a test that wants one names its own.
   delete childEnv.CLAUDE_CODE_SESSION_ID;
+  // The freeze reads the subagent depth from it; a test that wants one names its own.
+  delete childEnv.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH;
   return Object.assign(childEnv, env);
 }
 

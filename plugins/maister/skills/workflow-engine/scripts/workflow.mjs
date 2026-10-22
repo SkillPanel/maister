@@ -15,7 +15,8 @@
  *                  (one workflow found by the name it is run by, with the
  *                  --definition and --overlay values the three verbs above
  *                  take; without --name, the project's own workflows)
- *   write-state    --state, --patch-file (or the patch as JSON on stdin)
+ *   write-state    --state, --patch-file (or the patch as JSON on stdin),
+ *                  --host at the freeze (claude or copilot)
  *                                                             changed paths
  *                  (and, for a node's question set, a blank line and the
  *                  `ask:` line naming the ids still to ask, or `none`; then,
@@ -189,7 +190,8 @@ const VERBS = {
   // `--patch-file` names the one file a patch may be read from, beside the
   // state; it is a flag rather than a derived path so the call says what it
   // reads, and it is checked against that one place (`patchFileOf`).
-  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file'] },
+  // `--host` is read at the freeze only, for the run's delegation record.
+  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file', 'host'] },
   // The flags of `write-state`, and for the same reason: everything the verb
   // needs — the run directory, the `gates/` directory and the frozen graph — is
   // derived from the state file, so there is no second path a caller could get
@@ -649,6 +651,10 @@ async function runLocate(flags) {
 
 async function runWriteState(flags) {
   if (!flags.state) throw new UsageError('write-state needs --state');
+  if (flags.host !== undefined) {
+    const subagents = await loadModule('subagents.mjs');
+    if (!subagents.HOSTS.includes(flags.host)) throw new UsageError(`--host is claude or copilot, not "${flags.host}"`);
+  }
   const module = await loadModule(VERBS['write-state'].module);
   const write = entryOf(module, 'writeState', VERBS['write-state'].module);
   // The verb that freezes a run and carries every write after it, so refusing
@@ -656,7 +662,7 @@ async function runWriteState(flags) {
   // session-start warning is never read. Before stdin, so nothing is written.
   if (refusedForEditions(module, flags)) return EXIT.REJECTED;
   const input = await readInput(flags, 'the patch');
-  const result = write({ state: flags.state, patch: input.document });
+  const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null });
   return reportWrite(result, input, 'writeRefused');
 }
 

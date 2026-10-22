@@ -505,7 +505,7 @@ const WORKFLOW_CONTEXT = {
  * had to read a second one and a write could be stamped a second apart from the
  * file describing it.
  */
-export function writeState({ state, patch, regress = null }) {
+export function writeState({ state, patch, regress = null, host = null }) {
   const warnings = [];
   // What `apply` reports back about the record it built. `changed`: the dotted
   // paths it wrote. `ignored`: the clock fields the patch carried and the
@@ -537,7 +537,7 @@ export function writeState({ state, patch, regress = null }) {
     const before = statusesOf(doc.text());
     // `asking`: the ids a classing write left to ask, null when the write sent no question set.
     const out = { changed, ignored, undeclared, writeWarnings, notes, asking: null, before };
-    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress)) allowed.add(key);
+    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress, host)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -750,6 +750,7 @@ function project(state, text, now, changed, warnings) {
       gates: gateRequests(runDir),
       progress: progressOf(doc, definition, runDir),
       declared: declaredOf(doc, definition, runDir),
+      verifier: dashboard.verifierNodeOf(definition),
     };
     canonical.commit({
       target,
@@ -1173,8 +1174,11 @@ function fallbackExecutor(doc) {
  * `canonical.stamp()` calls in one invocation can straddle a second boundary, and
  * a data file stamped a second before the state it describes is a data file whose
  * freshness cannot be reasoned about.
+ *
+ * `host` is the `--host` the call named, or null; only the freeze reads it
+ * (`seedDelegation`).
  */
-function apply(doc, patch, now, runDir, out, regress = null) {
+function apply(doc, patch, now, runDir, out, regress = null, host = null) {
   const { changed, ignored, undeclared, writeWarnings, notes } = out;
   const intended = new Set(['orchestrator']);
   // The run's frozen graph, proven, for the checks that need the definition;
@@ -1222,10 +1226,12 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   const parentNow = () => (parentRead ??= { orchestrator: readParentState(orchestrator.parent, runDir)?.orchestrator ?? null }).orchestrator;
   // Before `applyScalars`, which would otherwise write the values as sent.
   orchestrator = dropSubagents(orchestrator, notes);
+  orchestrator = dropDelegation(orchestrator, notes);
   if (freezing) {
     orchestrator = seedCeiling(orchestrator, policyNow, parentNow, writeWarnings);
     orchestrator = seedFeatures(orchestrator, parentNow, writeWarnings);
     orchestrator = seedSubagents(orchestrator, patch.workflow, runDir, writeWarnings);
+    orchestrator = seedDelegation(orchestrator, host);
   } else {
     orchestrator = clampCeiling(doc, orchestrator, policyNow, notes);
   }
@@ -2748,7 +2754,69 @@ function dropSubagents(orchestrator, notes) {
   return Object.keys(kept).length ? { ...rest, options: kept } : rest;
 }
 
+/**
+ * `orchestrator.options.delegation`, `{mode, depth, source}`: whether the run's
+ * subagents can dispatch subagents of their own, recorded at the freeze for a
+ * step that would hand its loop to one (`mode: nested`) or keep it in the
+ * main session (`mode: inline`). `depth` is how many levels of subagents the
+ * host allows below the main session, and `source` where that came from:
+ *
+ *   claude    `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` when it is a whole
+ *             number, else the host's own 3
+ *   copilot   the host's own 4; the variable is Claude Code's and is not read
+ *
+ * The host is the `--host` the freeze names, the one `dispatch-model` takes,
+ * which the generated variant spells `copilot`. `mode` is `nested` at a depth
+ * of two or more — a subagent and the subagents it dispatches — and `inline`
+ * below it. A cockpit or dispatch driver, which the freeze patch carries,
+ * records `inline` whatever the depth: nesting has not been checked under the
+ * SDK it spawns sessions with. A
+ * terminal freeze naming no host records nothing, which reads as `inline`.
+ * No write after the freeze changes it (`dropDelegation`).
+ */
+function seedDelegation(orchestrator, host) {
+  const kind = isPlainObject(orchestrator) && isPlainObject(orchestrator.driver) ? orchestrator.driver.kind : undefined;
+  const driven = DRIVEN_VIA.has(kind);
+  if (host === null && !driven) return orchestrator;
+  const { depth, source } = hostDepth(host ?? 'claude');
+  const delegation = driven
+    ? { mode: 'inline', depth, source: `${kind} driver: SDK unchecked` }
+    : { mode: depth >= NESTED_DEPTH ? 'nested' : 'inline', depth, source };
+  const base = isPlainObject(orchestrator) ? orchestrator : {};
+  const options = isPlainObject(base.options) ? base.options : {};
+  return { ...base, options: { ...options, delegation } };
+}
+
+/** The levels of subagents a host allows below the main session, and where the number came from. */
+function hostDepth(host) {
+  if (host === 'copilot') return { depth: COPILOT_DEPTH, source: 'copilot default' };
+  const raw = process.env[DEPTH_ENV];
+  if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) return { depth: Number(raw.trim()), source: DEPTH_ENV };
+  return { depth: CLAUDE_DEPTH, source: 'claude default' };
+}
+
+/** The environment variable Claude Code reads its subagent depth from, and each host's own depth. */
+const DEPTH_ENV = 'CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH';
+const CLAUDE_DEPTH = 3;
+const COPILOT_DEPTH = 4;
+
+/** The depth at which a subagent can dispatch subagents of its own. */
+const NESTED_DEPTH = 2;
+
+/**
+ * A patch's own `options.delegation`, dropped with a note on every write, the
+ * freeze's included: the freeze records it from the host, and no patch sets it.
+ */
+function dropDelegation(orchestrator, notes) {
+  if (!isPlainObject(orchestrator) || !isPlainObject(orchestrator.options) || !Object.hasOwn(orchestrator.options, 'delegation')) return orchestrator;
+  const { delegation: _sent, ...kept } = orchestrator.options;
+  notes.push(DELEGATION_NOTE);
+  const { options: _options, ...rest } = orchestrator;
+  return Object.keys(kept).length ? { ...rest, options: kept } : rest;
+}
+
 /** The notes `apply` returns for a writer-owned value it dropped. */
+const DELEGATION_NOTE = 'ignored the supplied orchestrator.options.delegation; the freeze records it from the host it names, so no patch sets it';
 const SUBAGENTS_NOTE = 'ignored the supplied orchestrator.options.subagents; the freeze records it from the project\'s config.yml, the overlays and the profile, so no patch sets it';
 const FACT_NOTE = 'ignored the supplied orchestrator.classes_questions; the freeze records it from the policy it applied, so no patch sets it';
 const CEILING_NOTE = 'ignored the supplied orchestrator.options.ceiling; the autonomy ceiling may narrow after the freeze, never widen';

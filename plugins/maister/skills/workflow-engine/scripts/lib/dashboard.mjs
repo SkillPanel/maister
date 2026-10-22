@@ -44,7 +44,7 @@
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
 
-import { ICON_HINTS, labelOf as optionLabelOf, titleOf } from './display.mjs';
+import { ICON_HINTS, delegationOf, labelOf as optionLabelOf, titleOf } from './display.mjs';
 import * as items from './items.mjs';
 import { approvalKey, approvalsOf, frozenIds } from './question-triage.mjs';
 
@@ -176,11 +176,12 @@ const CHARACTERISTIC_KEYS = [
  * The whole file text for one run.
  *
  * `view` is the plain object `state.mjs` assembles — `{state, display, gates,
- * progress, declared}` — where `state` is the parsed state document, `display` is the
+ * progress, declared, verifier}` — where `state` is the parsed state document, `display` is the
  * resolved `{icons, titles}` pair `display.mjs` merges from the definition and
  * its overlays, `gates` maps a node id to its parsed request document, and
- * `progress` carries at most one entry keyed by the executor node, and
- * `declared` maps a node id to its declared artifact paths by key.
+ * `progress` carries at most one entry keyed by the executor node,
+ * `declared` maps a node id to its declared artifact paths by key, and
+ * `verifier` is the node that runs the reviews, or null.
  *
  * `generated` is the **first** top-level key: that is what hand-written files
  * already carried, and the cockpit
@@ -197,12 +198,13 @@ export function render(view, { now }) {
   const gates = isPlainObject(source.gates) ? source.gates : {};
   const progress = isPlainObject(source.progress) ? source.progress : {};
   const declared = isPlainObject(source.declared) ? source.declared : {};
+  const verifier = typeof source.verifier === 'string' ? source.verifier : null;
 
   const data = {
     generated: now,
     task: taskOf(state),
     characteristics: characteristicsOf(state),
-    phases: phasesOf(state, icons, titles, labels, gates, progress, declared),
+    phases: phasesOf(state, icons, titles, labels, gates, progress, declared, verifier),
     verification: verificationOf(state),
   };
   return `window.MAISTER_DATA = ${JSON.stringify(data, null, 1)};\n`;
@@ -282,9 +284,11 @@ function characteristicsOf(state) {
  * It is never sorted and never re-derived: a second ordering rule beside the
  * resolver's is a second thing to keep in step, and the two would drift.
  */
-function phasesOf(state, icons, titles, labels, gates, progress, declared) {
+function phasesOf(state, icons, titles, labels, gates, progress, declared, verifier) {
   const workflow = isPlainObject(state.workflow) ? state.workflow : {};
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const reviewer = verifier ?? (Object.hasOwn(nodes, 'verification') ? 'verification' : null);
+  const delegation = delegationOf(state);
   const summaries = summarySources(state);
   const nodeSummaries = isPlainObject(state.node_summaries) ? state.node_summaries : {};
   const approvers = approversOf(state);
@@ -344,6 +348,9 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared) {
     // Additive and optional everywhere: a run with no plan on disk carries no
     // `progress` key at all rather than an empty one.
     if (Object.hasOwn(progress, id) && isPlainObject(progress[id])) phase.progress = progress[id];
+    // Additive, and only on the node that runs the reviews of a run whose
+    // freeze recorded how its subagents delegate: `nested` or `inline`.
+    if (id === reviewer && delegation !== null) phase.delegation = delegation;
     return phase;
   });
 }
