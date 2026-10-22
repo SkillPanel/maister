@@ -52,7 +52,9 @@
  * file this verb writes: `{node, attempt, cycle, kind, answers: [{id, answer,
  * by}], stop}`. Each answer is the option label the person (or the policy)
  * chose for the finding, read off the node summary's decisions under
- * `<node>-findings-<id>` in this attempt, or null when nothing answered it;
+ * `<node>-findings-<id>` in this attempt — an answer recorded by its option
+ * id (`option-2`, `accept-risk`) read as that option's label — or null when
+ * nothing answered it;
  * `stop` is the stopping question's answer (`more`, `continue` or `stop`, from
  * `verification-fix-loop`), null when none was put. When the file is written:
  *
@@ -83,6 +85,7 @@ import { isPlainObject, parse } from './state-read.mjs';
 import { attemptOf } from './state.mjs';
 import { questionSets, canAsk } from './driver.mjs';
 import { VERIFICATION, readJson, writeJson } from './review-brief.mjs';
+import { ACCEPT_OPTION } from './finding-brief.mjs';
 
 /** The runner's result file, under the run's `verification/`. */
 export const RESULT_FILE = 'runner-result.json';
@@ -213,14 +216,15 @@ export function runnerStep({ state, node, answered = false }) {
   const { kind } = result.decision;
   const findingsFile = result.decision.findings_file ?? null;
   const stopQuestion = kind !== 'findings';
-  const ids = findingIds(findingsFile, runDir, warnings);
+  const findings = findingsOf(findingsFile, runDir, warnings);
+  const ids = findings.map(item => item.id);
   const write = ({ answers, stop }) => {
     writeJson(decisionsFile, { node, attempt, cycle, kind, answers, stop });
     return ok({ next: 'dispatch', resume: { cycle, decisions_file: relative(runDir, decisionsFile) } }, { file: relative(runDir, decisionsFile) });
   };
   const defaults = () => write({ answers: ids.map(id => ({ id, answer: null, by: 'default' })), stop: stopQuestion ? 'continue' : null });
 
-  if (answered) return write(answersOf(doc, node, attempt, ids, stopQuestion, warnings));
+  if (answered) return write(answersOf(doc, node, attempt, findings, stopQuestion, warnings));
   const ask = asking => ok({
     next: 'ask', cycle, kind, findings_file: findingsFile, stop_question: stopQuestion, asking,
     classes_questions: doc.orchestrator?.classes_questions === true,
@@ -228,7 +232,7 @@ export function runnerStep({ state, node, answered = false }) {
   if (questionSets(doc)) {
     // One request per attempt: a decisions file of the attempt means it was used.
     if (attemptDecisions(dir, node, attempt).length) return defaults();
-    const answers = answersOf(doc, node, attempt, ids, stopQuestion, warnings);
+    const answers = answersOf(doc, node, attempt, findings, stopQuestion, warnings);
     const back = answers.stopAnswered || answers.answers.some(item => item.answer !== null);
     return back ? write(answers) : ask('suspend');
   }
@@ -265,28 +269,42 @@ function currentResult(dir, runDir, node, attempt, warnings) {
   return { ...result, cycle: Number.isInteger(cycle) ? cycle : null };
 }
 
-/** The finding ids of the decision's findings list, in its order; empty when there is none. */
-function findingIds(file, runDir, warnings) {
+/** The decision's findings, in its list's order; empty when there is none. */
+function findingsOf(file, runDir, warnings) {
   if (file === null) return [];
   const doc = readJson(path.resolve(runDir, file));
   if (!isPlainObject(doc) || !Array.isArray(doc.findings)) {
     warnings.push(`runner-findings-unreadable: ${file} holds no findings list; its answers are not recorded`);
     return [];
   }
-  return doc.findings.filter(item => isPlainObject(item) && typeof item.id === 'string').map(item => item.id);
+  return doc.findings.filter(item => isPlainObject(item) && typeof item.id === 'string');
+}
+
+/**
+ * An answer as the option's label. A question set names its options
+ * `option-1..n` and `accept-risk`, and an answer recorded by that id is read
+ * as the label it stands for, so the runner always gets the words.
+ */
+function labelFor(finding, answer) {
+  if (answer === ACCEPT_OPTION.id) return ACCEPT_OPTION.label;
+  const match = /^option-([1-9]\d*)$/.exec(answer);
+  const options = Array.isArray(finding?.options) ? finding.options : [];
+  const option = match ? options[Number(match[1]) - 1] : null;
+  return isPlainObject(option) && typeof option.label === 'string' ? option.label : answer;
 }
 
 /** The attempt's answers to the decision's questions, from the node summary. */
-function answersOf(doc, node, attempt, ids, stopQuestion, warnings) {
+function answersOf(doc, node, attempt, findings, stopQuestion, warnings) {
   const summary = isPlainObject(doc.node_summaries?.[node]) ? doc.node_summaries[node] : {};
   const decisions = (Array.isArray(summary.decisions) ? summary.decisions : [])
     .filter(item => isPlainObject(item) && typeof item.question_id === 'string')
     .filter(item => !Object.hasOwn(item, 'attempt') || Number(item.attempt) === attempt);
   const latest = id => decisions.filter(item => item.question_id === id).at(-1) ?? null;
-  const answers = ids.map(id => {
-    const item = latest(`${node}${FINDINGS_SUFFIX}-${id}`);
-    const answer = item === null ? null : labelOf(item);
-    return { id, answer, by: answer === null ? 'default' : item.by ?? 'operator' };
+  const answers = findings.map(finding => {
+    const item = latest(`${node}${FINDINGS_SUFFIX}-${finding.id}`);
+    const label = item === null ? null : labelOf(item);
+    const answer = label === null ? null : labelFor(finding, label);
+    return { id: finding.id, answer, by: answer === null ? 'default' : item.by ?? 'operator' };
   });
   let stop = null;
   let stopAnswered = false;

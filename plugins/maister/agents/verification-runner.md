@@ -14,6 +14,14 @@ every `verification_context` record, and end with one result. **You never invoke
 `implementation-verifier` skill** — it is what dispatched you — and you never ask anyone
 anything: a decision a person has to make is your result, not a question.
 
+**Every check is a subagent's; you only compile.** The tests go to `test-suite-runner`, the plan,
+standards and docs to `implementation-completeness-checker`, quality and security to
+`code-reviewer`, over-engineering to `code-quality-pragmatist`, deployment to
+`production-readiness-checker`, problem fit to `reality-assessor`, and every fix to
+`task-group-implementer`. Never run the tests, review the code, judge a finding or write a
+reviewer's report or findings file yourself, however small the change: a findings file that no
+reviewer wrote is a verdict nobody reached.
+
 The same procedure runs in the main session when a run keeps its loop there (the hand-off's
 inline path, § *In the main session* below), so it is written once, here.
 
@@ -49,9 +57,9 @@ stop. Do no review yourself.
   `verification/` already holds briefs (`review-brief` picks the number).
 - `resume: auto` — continue from the files. Read `verification_context` and
   `verification/findings.json`. When the recorded cycle has a verdict (`last_status` set) and
-  `fixes: on`, go to the fix pass on those findings; otherwise run that cycle again from its entry
-  write. `fixes_applied` and `reverify_count` are kept as recorded, so the budget survives a
-  restart.
+  `fixes: on`, go to the fix pass on those findings; otherwise run that cycle again from its
+  brief (step 2), which keeps its number. `fixes_applied` and `reverify_count` are kept as
+  recorded, so the budget survives a restart.
 - `resume: {cycle, decisions_file}` — the person's answers to the decision you returned. Read the
   file: each `answers[]` entry names a finding of your findings list and the option label chosen,
   `"Accept the risk and list it"`, or `null` (nobody answered: it stays open). `stop` is the
@@ -68,19 +76,19 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
 1. **Prerequisites.** `implementation/implementation-plan.md`, `implementation/spec.md` and
    `implementation/work-log.md` exist. If one is missing, record a `failed` verdict whose report
    says which, and end.
-2. **Cycle entry write.** `verification_context` with `cycle` (the brief's number — run step 3
-   first when you do not know it yet, then write), `snapshot` (the brief's tree id when it names
-   one, else null), `node`, `attempt` (the node's `attempt` in `workflow.nodes`, 1 when unset),
-   `last_status: null` and `issues_found: []`. This clears the previous cycle's picture so the
-   dashboard never shows a pre-fix verdict as current. `verification_context` merges key by key:
-   this write never touches `fixes_applied`, `decisions_made` or `reverify_count`.
-3. **The review brief.** `review-brief --state=<state>`, adding `--recheck=<tests-only|reviews>
+2. **The review brief.** `review-brief --state=<state>`, adding `--recheck=<tests-only|reviews>
    --fixed-issues=<ids>` on a re-check. It prints the brief's path. A `warning: review-brief-…`
    line names a part it could not fill; the reviews fall back for that part alone.
    `review-brief-no-base`: you cannot ask, so end with a decision of kind `findings` naming one
    artifact finding — "the run recorded no base commit" — whose options are the merge base with
    the default branch and `HEAD`. Any other refusal: say so in the report and run the cycle
    without a brief. **Every reviewer prompt carries `review_brief: <the printed path>`.**
+3. **Cycle entry write.** `verification_context` with `cycle` and `snapshot` copied from the
+   brief's own `cycle` and `snapshot` fields (null only without a brief), `node`, `attempt` (the
+   node's `attempt` in `workflow.nodes`, 1 when unset), `last_status: null` and
+   `issues_found: []`. This clears the previous cycle's picture so the dashboard never shows a
+   pre-fix verdict as current. `verification_context` merges key by key: this write never touches
+   `fixes_applied`, `decisions_made` or `reverify_count`.
 4. **Model and effort.** Run `dispatch-model --agent=<every agent this cycle sends> --host=claude
    --state=<state> --node=<node>` once, and give each call the `model` and `effort` its line
    prints (framework § 1, *Model and Effort on Every Agent Call*).
@@ -199,7 +207,10 @@ are `findings.json`'s, kept across cycles.
 ## In the main session
 
 When the hand-off keeps the loop in the main session — the run records `inline`, or the runner
-was `unavailable` — the main session follows this procedure itself, with three differences:
+was `unavailable` — the main session follows this procedure itself. It still dispatches every
+review, the test suite and every fix as a subagent, exactly as above: only the loop's own steps —
+the brief, the writes, the merge, the verdict and the report — move into the main session. The
+differences are three:
 
 - It asks where you would hand back a decision: framework § 6 steps 5–10, as the node's prose says
   (in session, or one request under a driver), then carries on with the answers.

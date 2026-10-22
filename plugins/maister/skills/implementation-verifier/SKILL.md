@@ -76,7 +76,9 @@ or `inline`:
 - **`inline`** — the run keeps its loop in the main session (its delegation is `inline`, with
   the reason printed). Follow the runner's procedure here, from § *Where to start* with `resume`
   as the files say, asking where the runner would hand back a decision — today's loop, one step
-  at a time.
+  at a time. **Every review, the test suite and every fix is still a subagent call**: what moves
+  into this session is the loop's bookkeeping, never a check. Never run the tests, review the
+  code or write a reviewer's report or findings file here.
 - **`close`** — the verdict is final, and the report and its companion are on disk. Return
   § *Structured output*, read from `findings_path`, to the node, which writes its summary and
   completes.

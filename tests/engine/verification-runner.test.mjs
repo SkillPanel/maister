@@ -17,6 +17,7 @@ const OVERLAY = path.join(FIXTURES, 'definitions/sample.overlay.yml');
 const DEPTH_ENV = 'CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH';
 const NODE = 'review';
 const qid = id => `${NODE}-findings-${id}`;
+const answer = (id, label) => ({ decision: label, by: 'operator', question_id: qid(id), question: 'Q', answer: label });
 
 /** A run of the sample with the verifier node `review` running, frozen on `host` under `env`. */
 function verifying(t, { host = 'claude', env = {}, orchestrator = {} } = {}) {
@@ -259,6 +260,17 @@ test('in session a decision is asked, then the recorded answers become the decis
   assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 2, decisions_file: 'verification/decisions-2.json' } });
 });
 
+test('an answer recorded by its option id is read as the option\'s label', t => {
+  const run = verifying(t);
+  cycleEntry(run, 1);
+  placeFindings(run);
+  assert.equal(record(run, needs(1)).code, 0);
+  write(run, { node_summaries: { [NODE]: { decisions: [answer('empty-upload', 'option-1'), answer('public-route', 'accept-risk')] } } });
+  stepOf(run, ['--answered']);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(run.verification, 'decisions-1.json'), 'utf8')).answers.map(item => item.answer),
+    ['Guard the empty body', 'Accept the risk and list it']);
+});
+
 test('the stopping question is asked with the findings, and its label read as more, continue or stop', t => {
   for (const [label, stop] of [['One more round', 'more'], ['Continue as is', 'continue'], ['Stop here (Recommended): roll back', 'stop']]) {
     const run = verifying(t);
@@ -292,7 +304,6 @@ test('an answer from an earlier attempt is history, not this decision\'s answer'
 // ---------------------------------------------------------------------------
 
 const COCKPIT = { kind: 'cockpit', cwd: '/work', session: 's-1', features: ['question-sets'] };
-const answer = (id, label) => ({ decision: label, by: 'operator', question_id: qid(id), question: 'Q', answer: label });
 
 test('under a cockpit with question sets the decision suspends, and the folded answers are used once', t => {
   const run = verifying(t, { orchestrator: { driver: COCKPIT } });
