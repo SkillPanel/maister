@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ROOT, freezePatch, scratch, verb } from '../helpers.mjs';
+import { ENGINE_DIR, ROOT, freezePatch, scratch, verb } from '../helpers.mjs';
 
 // `dispatch-model` prints the model and effort an agent call carries, one line
 // per agent, resolved by one precedence order: the plan tier; every entry naming
@@ -207,8 +207,6 @@ test('with no config the implementer runs on the planner\'s tier, unassessed on 
   assert.equal(lineOf(run, 'task-group-implementer', ['--tier=deep']), `task-group-implementer: model opus, effort omit — source: plan tier deep ${within}`);
   assert.equal(lineOf(run, 'task-group-implementer'),
     'task-group-implementer: model sonnet, effort omit — source: shipped agents.task-group-implementer, unassessed: standard');
-  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=deep'], { host: 'copilot' }),
-    `task-group-implementer: model claude-opus-5.5, effort omit — source: plan tier deep ${within}`);
 
   const log = path.join(run.dir, 'implementation', 'work-log.md');
   fs.mkdirSync(path.dirname(log), { recursive: true });
@@ -221,20 +219,131 @@ test('with no config the implementer runs on the planner\'s tier, unassessed on 
     '\nnote: task-group-implementer budget: 3 of 3 groups on deep used in this run — ask before dispatching another group on deep\n');
 });
 
+test('on Copilot the shipped implementer stops at standard, and a deep group clamped there draws no budget note', t => {
+  const run = scratch(t);
+  freezeRun(run);
+  const within = 'within shipped agents.task-group-implementer';
+  const copilot = { host: 'copilot' };
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=light'], copilot), `task-group-implementer: model claude-haiku-5.5, effort high — source: plan tier light ${within}`);
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=standard'], copilot), `task-group-implementer: model claude-sonnet-5.5, effort omit — source: plan tier standard ${within}`);
+  assert.equal(lineOf(run, 'task-group-implementer', [], copilot),
+    'task-group-implementer: model claude-sonnet-5.5, effort omit — source: shipped agents.task-group-implementer, unassessed: standard');
+  const log = path.join(run.dir, 'implementation', 'work-log.md');
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  fs.writeFileSync(log, [1, 2, 3].map(n => `## Group ${n} Complete (wave 1)\n**Model**: opus (tier deep, planner: "a schema change")\n`).join(''));
+  assert.equal(dispatch(run, ['--agent=task-group-implementer', '--tier=deep'], copilot).stdout,
+    `task-group-implementer: model claude-sonnet-5.5, effort omit — source: plan tier deep, clamped to standard ${within}\n`);
+});
+
+test('a ceiling given per host is read for the host, and a project can raise Copilot\'s', t => {
+  const run = scratch(t);
+  config(run, 'subagents:\n  agents:\n    task-group-implementer: { choose: by-plan-tier, ceiling: { copilot: deep, claude: standard } }\n');
+  freezeRun(run);
+  const within = 'within project agents.task-group-implementer';
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=deep'], { host: 'copilot' }), `task-group-implementer: model claude-opus-5.5, effort omit — source: plan tier deep ${within}`);
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=deep']), `task-group-implementer: model sonnet, effort omit — source: plan tier deep, clamped to standard ${within}`);
+  // A host the ceiling does not name has the top rung.
+  const one = scratch(t);
+  config(one, 'subagents:\n  agents:\n    task-group-implementer: { choose: by-plan-tier, ceiling: { copilot: light } }\n');
+  assert.equal(lineOf(one, 'task-group-implementer', ['--tier=deep'], { state: false }), 'task-group-implementer: model opus, effort omit — source: plan tier deep within project agents.task-group-implementer');
+  assert.equal(lineOf(one, 'task-group-implementer', ['--tier=deep'], { state: false, host: 'copilot' }),
+    'task-group-implementer: model claude-haiku-5.5, effort high — source: plan tier deep, clamped to light within project agents.task-group-implementer');
+});
+
+const BUILT_IN_FIX_LOOPS = [['development', 'verification'], ['performance', 'verification'], ['migration', 'issue-resolution']];
+
+/** A run frozen from one of the built-in workflow definitions, with `config` as its config.yml when given. */
+function freezeBuiltIn(t, workflow, configText = null) {
+  const run = scratch(t, { type: workflow });
+  if (configText !== null) config(run, configText);
+  freezeRun(run, { definition: path.join(ENGINE_DIR, 'workflows', `${workflow}.yml`), inputs: { task_description: 'Sample task' } });
+  return run;
+}
+
+test('with no config the built-in verification fix loops hand their fixes to the session\'s model, and plan groups keep theirs', t => {
+  for (const [workflow, node] of BUILT_IN_FIX_LOOPS) {
+    const run = freezeBuiltIn(t, workflow);
+    const source = `shipped workflows.${workflow}.nodes.${node}.agents.task-group-implementer`;
+    for (const host of ['claude', 'copilot']) {
+      assert.equal(lineOf(run, 'maister:task-group-implementer', [`--node=${node}`], { host }),
+        `maister:task-group-implementer: model omit, effort omit — source: ${source}`, `${workflow} on ${host}`);
+    }
+    // A plan group without a tier, in the implementation node, still runs on standard.
+    const implementation = workflow === 'migration' ? 'execution' : 'implementation';
+    assert.equal(lineOf(run, 'task-group-implementer', [`--node=${implementation}`]),
+      'task-group-implementer: model sonnet, effort omit — source: shipped agents.task-group-implementer, unassessed: standard');
+  }
+});
+
+test('a project setting overrides the fix loops\' default, for one node or for the implementer everywhere', t => {
+  const node = freezeBuiltIn(t, 'development', 'subagents:\n  workflows:\n    development:\n      nodes:\n        verification: { agents: { task-group-implementer: { tier: deep } } }\n');
+  assert.equal(lineOf(node, 'task-group-implementer', ['--node=verification']),
+    'task-group-implementer: model opus, effort omit — source: project workflows.development.nodes.verification.agents.task-group-implementer, tier deep');
+
+  // Any project entry naming the implementer outranks maister's own, its node entries included.
+  const everywhere = freezeBuiltIn(t, 'migration', 'subagents:\n  agents:\n    task-group-implementer: { tier: standard }\n');
+  assert.equal(lineOf(everywhere, 'task-group-implementer', ['--node=issue-resolution'], { host: 'copilot' }),
+    'task-group-implementer: model claude-sonnet-5.5, effort omit — source: project agents.task-group-implementer, tier standard');
+});
+
+test('inherit is the session\'s model in a tier cell, a preset cell and an entry\'s model, on both hosts', t => {
+  const run = scratch(t);
+  config(run, [
+    'subagents:',
+    '  tiers:',
+    '    deep: { claude: opus, copilot: inherit }',
+    '    standard: { claude: inherit, copilot: claude-sonnet-5.5 }',
+    '  presets:',
+    '    session: { claude: inherit, copilot: inherit, effort: low }',
+    '  agents:',
+    '    gap-analyzer: { tier: deep }',
+    '    code-reviewer: { tier: standard }',
+    '    spec-auditor: { preset: session }',
+    '    reality-assessor: { model: inherit, effort: max }',
+    '',
+  ].join('\n'));
+  const agents = '--agent=gap-analyzer,code-reviewer,spec-auditor,reality-assessor';
+  const claude = dispatch(run, [agents], { state: false });
+  assert.equal(claude.stderr, '', 'inherit is neither refused nor counted as a premium model');
+  assert.equal(claude.stdout, 'gap-analyzer: model opus, effort omit — source: project agents.gap-analyzer, tier deep\n'
+    + 'code-reviewer: model omit, effort omit — source: project agents.code-reviewer, tier standard\n'
+    + 'spec-auditor: model omit, effort low — source: project agents.spec-auditor, preset session\n'
+    + 'reality-assessor: model omit, effort max — source: project agents.reality-assessor\n');
+  const copilot = dispatch(run, [agents], { state: false, host: 'copilot' });
+  assert.equal(copilot.stderr, '');
+  assert.equal(copilot.stdout, 'gap-analyzer: model omit, effort omit — source: project agents.gap-analyzer, tier deep\n'
+    + 'code-reviewer: model claude-sonnet-5.5, effort omit — source: project agents.code-reviewer, tier standard\n'
+    + 'spec-auditor: model omit, effort low — source: project agents.spec-auditor, preset session\n'
+    + 'reality-assessor: model omit, effort max — source: project agents.reality-assessor\n');
+});
+
 test('the subagents block init writes holds exactly the built-in values', t => {
   const skill = fs.readFileSync(path.join(ROOT, 'plugins/maister/skills/init/SKILL.md'), 'utf8');
   const block = [...skill.matchAll(/```yaml\n([\s\S]*?)```/g)].map(match => match[1]).find(text => /^subagents:/m.test(text));
   assert.ok(block, 'init carries a subagents block');
+  const agents = '--agent=Explore,project-analyzer,docs-operator,task-classifier,test-suite-runner,html-companion-writer,task-group-implementer,gap-analyzer';
+  const values = result => result.stdout.replace(/ — source: [^\n]*/g, '');
+  const compare = (written, bare, args, options, label) => {
+    const own = dispatch(written, args, options);
+    assert.equal(own.code, 0, own.stderr);
+    assert.equal(own.stderr, '', 'the written block draws no warning');
+    assert.equal(values(own), values(dispatch(bare, args, options)), label);
+  };
+  const tiers = [[], ['--tier=light'], ['--tier=standard'], ['--tier=deep']];
   const written = scratch(t);
   config(written, block);
   const bare = scratch(t);
-  const agents = '--agent=Explore,project-analyzer,docs-operator,task-classifier,test-suite-runner,html-companion-writer,task-group-implementer,gap-analyzer';
-  const values = result => result.stdout.replace(/ — source: [^\n]*/g, '');
   for (const host of ['claude', 'copilot']) {
-    for (const tier of [[], ['--tier=light'], ['--tier=standard'], ['--tier=deep']]) {
-      const own = dispatch(written, [agents, ...tier], { state: false, host });
-      assert.equal(own.stderr, '', 'the written block draws no warning');
-      assert.equal(values(own), values(dispatch(bare, [agents, ...tier], { state: false, host })), `${host} ${tier.join(' ')}`);
+    for (const tier of tiers) compare(written, bare, [agents, ...tier], { state: false, host }, `${host} ${tier.join(' ')}`);
+  }
+  // In a run of each built-in workflow, at its fix loop and at its implementation.
+  for (const [workflow, node] of BUILT_IN_FIX_LOOPS) {
+    const own = freezeBuiltIn(t, workflow, block);
+    const plain = freezeBuiltIn(t, workflow);
+    for (const at of [node, workflow === 'migration' ? 'execution' : 'implementation']) {
+      for (const host of ['claude', 'copilot']) {
+        for (const tier of tiers) compare(own, plain, [agents, `--node=${at}`, ...tier], { host }, `${workflow} ${at} ${host} ${tier.join(' ')}`);
+      }
     }
   }
 });

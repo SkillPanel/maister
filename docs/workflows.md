@@ -533,7 +533,10 @@ Most of a workflow's work is done by subagents. By default:
   run on the `light` tier: a lightweight model on high effort.
 - **Implementers follow the plan.** Each task group runs on the tier its plan gives it, `light`,
   `standard` or `deep`; a group with no tier runs on `standard`, and a fourth `deep` group in a
-  run asks first.
+  run asks first. On Copilot, where the deep model bills 15 requests each, groups stop at
+  `standard`.
+- **Verification's fixes** — the ones the fix loop after implementation applies without asking —
+  run on your session's model.
 - **Every other agent** runs on your session's model.
 
 `/maister:init` writes these defaults into `.maister/config.yml` as a `subagents` block you can
@@ -543,7 +546,8 @@ so. The block governs the agent calls maister makes; the explore agents your hos
 starts are outside it. The block holds:
 
 - **A ladder of three tiers**, `light`, `standard` and `deep`, each naming a model per host
-  (Claude Code takes `haiku`, `sonnet`, `opus` or `fable`; Copilot takes a model id).
+  (Claude Code takes `haiku`, `sonnet`, `opus` or `fable`; Copilot takes a model id). `inherit`
+  in a cell, or as an entry's `model`, means your session's model.
 - **Assignments** per agent, per workflow (`workflows.<name>.agents`) or per step
   (`workflows.<name>.nodes.<step>.agents`): a tier, a named preset, or a model and effort. The
   most specific entry naming an agent wins, and any entry naming it beats a `default`: a default
@@ -554,7 +558,8 @@ starts are outside it. The block holds:
   sends none.
 - **Implementers by plan tier.** The implementation plan gives each task group a tier with a
   one-line reason. With `task-group-implementer: { choose: by-plan-tier }`, the default, each
-  group runs on the cheapest model allowed for its tier, under a `ceiling`. A group that fails is
+  group runs on the cheapest model allowed for its tier, under a `ceiling`, which may differ by
+  host (`{ claude: deep, copilot: standard }` by default). A group that fails is
   retried once on the next tier up before you are asked, and `budget` (by default `{ deep: 3 }`)
   makes the run ask before it sends one more group to a tier. The work log records the model each group ran
   on, and the implementation summary gives the tally.

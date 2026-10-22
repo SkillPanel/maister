@@ -149,15 +149,21 @@ subagents:
       choose: by-plan-tier     # each task group on the cheapest model for its planner tier
       allowed: [light, standard, deep]
       unassessed: standard     # a group the plan gives no tier
-      ceiling: deep            # a failed group is retried once a rung up, never past this
+      ceiling:                 # a failed group is retried once a rung up, never past this
+        claude: deep
+        copilot: standard      # Copilot bills its deep model 15x
       budget: { deep: 3 }      # a fourth deep group in a run asks first
+  workflows:                   # the verification fix loops' fixes run on your session's model
+    development: { nodes: { verification: { agents: { task-group-implementer: { model: inherit } } } } }
+    performance: { nodes: { verification: { agents: { task-group-implementer: { model: inherit } } } } }
+    migration: { nodes: { issue-resolution: { agents: { task-group-implementer: { model: inherit } } } } }
+    # research:                # entries for one workflow only
+    #   agents: { information-gatherer: { preset: scout } }
   # presets:                   # named model + effort pairs to pin an agent to
   #   scout: { claude: haiku, copilot: gpt-6-luna, effort: low }
   # default: { tier: standard }  # every agent no entry names, here or in maister's own table
-  # workflows:                 # entries for one workflow only
-  #   research:
-  #     agents: { information-gatherer: { preset: scout } }
-# Copilot cells are model ids as /model lists them; Claude cells are haiku, sonnet, opus or fable.
+# Copilot cells are model ids as /model lists them; Claude cells are haiku, sonnet, opus or fable;
+# inherit, in a cell or as an entry's model, is your session's model.
 # effort is low, medium, high, xhigh or max; inherit sends none. An entry's own effort beats its rung's.
 ```
 

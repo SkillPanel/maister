@@ -290,9 +290,9 @@ shows as "Denied by preToolUse hook" and the agent continues without it.
 run on it. The clerical agents (the project analyzer, the docs operator, the task classifier, the
 test-suite runner and the HTML companion writer) and the built-in `explore` agent maister starts
 run on `claude-haiku-5.5` at high reasoning effort. Each task group of an implementation runs on
-the tier its plan gives it: `claude-haiku-5.5` at high effort, `claude-sonnet-5.5`, or
-`claude-opus-5.5` for `deep`, where a fourth such group in a run asks first; a group with no tier
-runs on `claude-sonnet-5.5`.
+the tier its plan gives it, up to `standard`: `claude-haiku-5.5` at high effort for `light`, and
+`claude-sonnet-5.5` for `standard`, for `deep` and for a group with no tier. The fixes
+verification applies without asking run on the session's model.
 
 **Choose models per agent in `.maister/config.yml`.** Its `subagents` block gives each agent, each
 workflow or each step a model and an effort for each host, and the workflow passes them on every
@@ -302,7 +302,8 @@ than 2,000 files it puts `explore` on `claude-sonnet-5.5` at high effort. The bl
 agent calls maister makes; the explore agents Copilot's own plan mode starts are outside it. On
 Copilot two things differ:
 
-- **A `copilot` cell is a model id**, as `/model` lists them: `claude-sonnet-5.5`, not `sonnet`.
+- **A `copilot` cell is a model id**, as `/model` lists them: `claude-sonnet-5.5`, not `sonnet`,
+  or `inherit` for the session's model.
   Copilot accepts a short alias without a word and runs another model in its place, so the engine
   refuses an alias in a `copilot` cell, and the whole block with it, falling back to maister's
   defaults with a warning.
@@ -316,8 +317,11 @@ and the next level answers, so pin through `tiers` or a preset when a project ru
 
 **The planner's tiers.** The implementation plan gives each task group a tier (`light`,
 `standard` or `deep`). With `task-group-implementer: { choose: by-plan-tier }`, the default,
-each group runs on the cheapest model allowed for its tier, a failed group is retried once a tier
-up, and `budget` caps how many groups a run may send to a tier before it asks you.
+each group runs on the cheapest model allowed for its tier, under a `ceiling` that may name one
+rung per host, a failed group is retried once a tier up, and `budget` caps how many groups a run
+may send to a tier before it asks you. Maister's own ceiling is `{ claude: deep, copilot: standard
+}`; to let deep groups reach Opus on Copilot, set `copilot: deep` in the implementer's
+`ceiling` in `config.yml` and keep its `budget`.
 
 **Copilot's built-in `explore` agent** runs the codebase analysis at the start of a development,
 performance or migration run. It takes a model per call like any agent: raise `Explore`'s entry
@@ -326,8 +330,8 @@ performance or migration run. It takes a model per call like any agent: raise `E
 **Cost.** Copilot bills each request by the model's multiplier, and a full workflow makes many
 requests across many subagents. Claude Opus 5.5 counts as 15 requests each: a `copilot` cell
 naming it warns unless it carries `premium: true`, so a project spends at that rate on purpose.
-By default the `deep` tier is Opus, and a run sends at most three task groups to it before it
-asks you; the block `init` writes carries `premium: true` on that cell. Check the multipliers in `/model` before you start a long workflow on a premium model, and keep
+The `deep` tier is Opus, but by default no task group reaches it on Copilot, and an agent you
+put on it costs 15 requests a call; the block `init` writes carries `premium: true` on that cell. Check the multipliers in `/model` before you start a long workflow on a premium model, and keep
 the `deep` tier for the groups that need it, with a `budget`.
 
 ## Differences from Claude Code

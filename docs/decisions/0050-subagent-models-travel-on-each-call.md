@@ -13,8 +13,9 @@
   executor runs each on the cheapest allowed model at or above it, escalates a failure once, one
   rung up, within a ceiling and a budget, and records what each group ran on.
 - **Built-in defaults, written out.** Without a block, the five clerical agents and `Explore` run
-  on `light` at high effort, implementers on the planner's tier, and every other agent on the
-  host's choice. `init` writes the same table into `config.yml` for the team to edit. A per-agent
+  on `light` at high effort, implementers on the planner's tier (up to `deep` on Claude Code,
+  `standard` on Copilot), the verification fix loops' fixes and every other agent on the host's
+  choice. `init` writes the same table into `config.yml` for the team to edit. A per-agent
   entry, maister's own included, outranks every `default`.
 
 ## ADR-0050 {#adr-0050}
@@ -55,12 +56,23 @@ question, bounds the spend.
    overlay, the project's step, workflow and agent scopes, maister's own table; then the
    defaults in the same layer order; then the host. **A per-agent entry beats every default**:
    a project default covers only the agents nobody names, so the clerical agents stay on `light`
-   until a project names them. `inherit` prints as `omit`: the call carries no such field.
+   until a project names them. `inherit` — an entry's `tier` or `model`, or a `claude` or
+  `copilot` cell — is the session's model and prints as `omit`: the call carries no such field.
+  It is never refused as an alias nor counted as premium, so `deep: { claude: opus, copilot:
+  inherit }` is a valid rung.
 2. **Maister's own table**: the ladder Haiku / Sonnet / Opus (Copilot's `claude-haiku-5.5`,
    `claude-sonnet-5.5`, `claude-opus-5.5`), the `light` cell carrying `effort: high`; the five
    clerical agents and `Explore` on `light`; `task-group-implementer` on `choose: by-plan-tier`
-   over all three rungs, `unassessed: standard`, `ceiling: deep`, `budget: {deep: 3}`; every other
-   agent inherits. A rung's effort applies to what runs on it unless the entry sets its own; a
+   over all three rungs, `unassessed: standard`, `ceiling: {claude: deep, copilot: standard}`,
+   `budget: {deep: 3}`; the same agent with `model: inherit` at the built-in fix loops
+   (development's and performance's `verification`, migration's `issue-resolution`); every other
+   agent inherits. A `ceiling` is a rung or one per host: Copilot bills its deep model 15
+   requests a call, so a deep group there is clamped to `standard` unless a project raises it,
+   and a clamped group counts against the rung it ran on, never `deep`'s budget. A fix the loop
+   applies without asking has no planner tier; giving it the session's model keeps a fix as
+   capable as the run that asked for it, while an untiered plan group still gets `standard`. The
+   fix loop's call names its node, and node-scoped entries in maister's own table are the
+   existing mechanism for that: a project entry for the implementer, at any scope, replaces them. A rung's effort applies to what runs on it unless the entry sets its own; a
    project's cell is laid over the shipped one, so a remapped `light` keeps `high` unless the
    cell sets an effort, and `effort: inherit` on a cell or an entry sends none. A small model on
    high effort still costs far less than the next rung, and a light group that fails is retried
@@ -87,8 +99,8 @@ question, bounds the spend.
    Copilot's ids, and the field pair `` `model` and `effort` `` to `` `model` and
    `reasoning_effort` ``; `make validate` refuses a `--host=claude` left in the variant's prose.
 9. **`init` writes the table out.** A new `config.yml` gets the `subagents` block uncommented,
-   holding maister's own values, with presets, a `default` and a per-workflow entry as commented
-   examples; a `config.yml` with no `subagents` key gets the block appended and nothing else
+   holding maister's own values, the fix-loop node entries included, with presets, a `default`
+   and another per-workflow entry as commented examples; a `config.yml` with no `subagents` key gets the block appended and nothing else
    changed; an existing block is left alone and the summary says so. Where `git ls-files`
    (outside `.maister/`) lists more than 2,000 files — or, outside git, the same count skipping
    `node_modules`, `vendor`, `dist`, `build` and dot-directories — `Explore` is written on
@@ -104,9 +116,14 @@ question, bounds the spend.
 - An escalated retry runs on top of the failed group's partial edits, as a manual retry does.
 - The engine reads and judges `.maister/config.yml` for the first time.
 - With no block, the clerical agents and `Explore` run on a small model at high effort, an
-  implementation's groups run on Haiku, Sonnet or Opus by plan tier (a group without one on
-  Sonnet, a fourth `deep` group asking first), and a user's own subagent model setting now
-  reaches maister's other agents.
+  implementation's groups run on Haiku, Sonnet or Opus by plan tier (Sonnet at most on Copilot;
+  a group without a tier on Sonnet; a fourth `deep` group asking first), verification's fixes on
+  the session's model, and a user's own subagent model setting now reaches maister's other
+  agents.
+- A project-defined workflow with its own fix loop gets no fix-loop entry: its fixes resolve as
+  unassessed plan groups, on `standard`, until the project names the node.
+- The spec audit's fix pass amends the specification through `specification-creator`, which the
+  table does not name, so it already runs on the session's model.
 - The table lives twice, in the engine and in the block `init` writes; the test comparing them
   keeps the two in step, and a project's written block keeps the values it was initialised with
   when maister's own change.
