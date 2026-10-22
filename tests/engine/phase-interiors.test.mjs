@@ -249,18 +249,18 @@ test('each verification cycle reaches the dashboard through its verification_con
 
 // A call described as a write with nothing to change is one a permission check
 // may refuse. The one caller of the `{}` patch left in prose names what the
-// write does: the driven gate resume re-validates an answer. The executor sends
-// none: its two engine verbs re-project the displays themselves.
-test('the {} patch is named by its purpose wherever prose sends it, and the executor sends none', () => {
+// write does: the driven gate resume re-validates an answer. The implementation
+// loop sends none: its two engine verbs re-project the displays themselves.
+test('the {} patch is named by its purpose wherever prose sends it, and the implementation loop sends none', () => {
   const read = file => fs.readFileSync(path.join(SKILLS, file), 'utf8').replace(/\s+/g, ' ');
-  const executor = read('implementation-plan-executor/SKILL.md');
+  const executor = read('../agents/implementation-runner.md');
   assert.doesNotMatch(executor, /progress write/);
   assert.match(executor, /Send no `write-state` call to redraw the dashboard/);
-  assert.match(executor, /\*\*`wave-start`\*\*/);
-  assert.match(executor, /\*\*`group-done`\*\*/);
+  assert.match(executor, /with `wave-start --plan=/);
+  assert.match(executor, /with `group-done`/);
   const gates = read('workflow-engine/references/gates.md');
   assert.match(gates, /The very next action is the \*\*re-validation write\*\*/);
-  for (const file of ['implementation-plan-executor/SKILL.md', 'workflow-engine/references/gates.md', 'workflow-engine/references/writing-state.md', 'orchestrator-framework/references/orchestrator-patterns.md']) {
+  for (const file of ['implementation-plan-executor/SKILL.md', '../agents/implementation-runner.md', 'workflow-engine/references/gates.md', 'workflow-engine/references/writing-state.md', 'orchestrator-framework/references/orchestrator-patterns.md']) {
     assert.doesNotMatch(read(file), /\bthe empty (?:patch|write)\b/, `${file} names the write by its purpose`);
   }
 });

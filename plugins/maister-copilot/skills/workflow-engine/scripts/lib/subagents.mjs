@@ -112,10 +112,11 @@ const UNASSESSED = 'standard';
  * Code and `standard` on Copilot, where the deep model bills far above one
  * request. The verification fix loops of the built-in workflows hand their
  * fixes to the implementer with no planner tier; those calls inherit the
- * session's model instead. Everything else inherits — the verification
- * runner among them, by having no entry: it judges what is fixable, what is
- * risky and what a re-check covers, so it runs on the session's model, as the
- * fix loops do. `init` writes the same values into a new `config.yml`, so keep
+ * session's model instead. Everything else inherits — the two runners among
+ * them, by having no entry: the verification runner judges what is fixable,
+ * what is risky and what a re-check covers, and the implementation runner
+ * whether a group's report is accepted and what a failure calls for, so both
+ * run on the session's model, as the fix loops do. `init` writes the same values into a new `config.yml`, so keep
  * the two in step.
  */
 export const SHIPPED = Object.freeze({

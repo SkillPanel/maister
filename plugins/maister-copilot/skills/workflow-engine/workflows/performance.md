@@ -249,6 +249,13 @@ node input. True runs one task group at a time instead of parallel waves. An
 input the operator did not supply resolves to its declared `default: false` and
 lands as `false`, never `null`.
 
+**The waves run in the executor's hand-off**: it hands them to the
+implementation runner when the run records `nested` delegation, and runs them
+here otherwise. Either way this node asks only the decisions the waves hand
+back — a group that failed after its escalation, a skipped test step, a wave
+past the model budget — and its summary comes from the summary the hand-off
+returns. A summary whose `stopped` is set is a stop: record it as one.
+
 **After the skill returns**, run the engine's `sync-plan` verb once against
 `implementation/implementation-plan.md`: idempotent, and a no-op without a
 companion, it catches a wave whose sync was missed. Then record what landed:

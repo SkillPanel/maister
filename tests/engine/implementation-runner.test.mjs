@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { freezePatch, readState, scratch, verb, write } from '../helpers.mjs';
+import { freezePatch, readState, ROOT, scratch, verb, write } from '../helpers.mjs';
 
 // The implementation runner's contract in code: the same two verbs as the
 // verification runner's, under `--runner=implementation`. The runner ends
@@ -389,3 +389,36 @@ test('the status line names the delegation mode while the executor runs', t => {
   const status = JSON.parse(read(path.join(run.dir, 'display', 'status.json')));
   assert.match(status.line, / · inline · /);
 });
+
+// ---------------------------------------------------------------------------
+// the prose: the hand-off asks the engine; the loop lives once, in the runner
+// ---------------------------------------------------------------------------
+
+const PLUGIN = path.join(ROOT, 'plugins/maister');
+
+test('the executor hands the waves to the runner in the foreground and keeps none of the loop', () => {
+  const skill = read(path.join(PLUGIN, 'skills/implementation-plan-executor/SKILL.md'));
+  assert.match(skill, /workflow\.mjs runner-step --state=[^\n]+ --node=<node> --runner=implementation/);
+  assert.match(skill, /\*\*`run_in_background: false`, set explicitly on every host\.\*\*/);
+  assert.match(skill, /subagent_type: maister:implementation-runner/);
+  assert.doesNotMatch(skill, /group-done --plan=|wave-start --plan=/, 'the loop is the runner\'s, not copied into the hand-off');
+});
+
+test('the runner records every wave through the engine and ends on runner-result', () => {
+  const runner = read(path.join(PLUGIN, 'agents/implementation-runner.md'));
+  assert.match(runner, /`wave-start --plan=/);
+  assert.match(runner, /`group-done --plan=/);
+  assert.match(runner, /dispatch-model --agent=maister:task-group-implementer\s+--tier=/);
+  assert.match(runner, /runner-result --state=<state> --node=<node>\s+--runner=implementation/);
+  assert.match(runner, /\*\*Never roll back on your own\.\*\*/);
+  assert.doesNotMatch(runner, /AskUserQuestion/, 'the runner never asks: a decision is its result');
+});
+
+for (const workflow of ['development', 'performance', 'migration']) {
+  test(`${workflow}'s implementation node keeps the executor and names the hand-off`, () => {
+    const definition = read(path.join(PLUGIN, `skills/workflow-engine/workflows/${workflow}.yml`));
+    assert.match(definition, /uses: skill:implementation-plan-executor/);
+    const prose = read(path.join(PLUGIN, `skills/workflow-engine/workflows/${workflow}.md`));
+    assert.match(prose, /\*\*The waves run in the executor's hand-off\*\*/);
+  });
+}

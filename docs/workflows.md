@@ -536,7 +536,8 @@ Most of a workflow's work is done by subagents. By default:
   run asks first. On Copilot, where the deep model bills 15 requests each, groups stop at
   `standard`.
 - **Verification's fixes** — the ones the fix loop after implementation applies without asking —
-  run on your session's model, and so does **the verification runner** that carries the loop.
+  run on your session's model, and so do **the verification runner** and **the implementation
+  runner** that carry those loops.
 - **Every other agent** runs on your session's model.
 
 `/maister:init` writes these defaults into `.maister/config.yml` as a `subagents` block you can
@@ -568,6 +569,17 @@ A run copies the block into its state when it starts, so a resumed run keeps its
 edit applies to the next run. A block with an error is set aside with a warning and the defaults
 apply; `/maister:run --check <workflow>` shows the warnings without starting anything. An overlay
 or a profile may carry the same block, without the ladder.
+
+## Implementation in one subagent
+
+Implementation runs in waves: each wave starts the task groups that can run side by side, one
+implementer subagent each, and every group that comes back is checked and recorded before the next
+wave starts. Where your host lets a subagent start subagents of its own, the run hands all of that
+to one subagent, the implementation runner, and your session makes one call per pass instead of
+several per group. You are asked exactly what you were asked before: a group that failed again
+after moving up a model, a group that skipped its tests, or a wave that would run past the model
+budget. Your answers go to the runner's next pass. The same setting decides it as for verification
+below, and a run that stops part way through picks up from the plan and the work log.
 
 ## Verification in one subagent
 
@@ -808,7 +820,7 @@ own. Each one declares that in its own frontmatter, which is where this table co
 |-------|-------------|
 | **codebase-analyzer** | Launches parallel exploration subagents sized to the task, then has a reporter subagent merge their findings into one report |
 | **docs-manager** | The engine behind `.maister/docs/`: file operations, the standards index, and the project instructions that point at it |
-| **implementation-plan-executor** | Runs an implementation plan by handing each task group to an implementer subagent, then records progress and the work log |
+| **implementation-plan-executor** | Runs an implementation plan by handing each task group to an implementer subagent and recording progress and the work log -- through the implementation runner subagent where the host can nest subagents, or in the session where it cannot -- and asks only the decisions the waves hand back |
 | **implementation-verifier** | Runs verification -- completeness, test suite, code review, pragmatic review, production readiness, reality check, the fixes they call for and their re-checks -- by handing the loop to the verification runner subagent where the host can nest subagents, or in the session where it cannot, and asks only the decisions the loop hands back |
 | **orchestrator-framework** | Not executable at all: the shared patterns every orchestrator reads for phase execution, state, gates and initialization |
 | **workflow-engine** | Runs a workflow definition as a graph -- resolves it, freezes it into the run's state, executes the ready set, and asks or suspends at each gate according to the run's driver. Handed its runs by a workflow's own command, or by `/maister:run` for a workflow started by name |

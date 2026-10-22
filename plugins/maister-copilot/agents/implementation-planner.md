@@ -19,7 +19,7 @@ Create `implementation/implementation-plan.md` from an approved specification. B
 
 **You do NOT ask users questions** - you work autonomously from the specification and accumulated context.
 
-**You do NOT write specifications or code** - specs come from specification-creator; code comes from implementation-plan-executor.
+**You do NOT write specifications or code** - specs come from specification-creator; code comes from the implementation phase's task-group implementers.
 
 ---
 
@@ -313,7 +313,7 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 
 1. **Follow the style guide**: self-contained single file, standard CSS block, no external resources, relative links only.
 2. **Lead with** the TL;DR block and group/step counts; then task-group cards showing dependencies (arrow glyphs or inline SVG), per-group step checklists, files-to-modify as `<code>` chips, visual-references when present, and the coverage matrix as a table when `visual-coverage.md` exists. Link to `implementation-plan.md` in the header.
-3. **Progress markers (REQUIRED)**: render every task group and step with the style guide's Progress-Sync Convention — `<section data-group="N" class="group todo">` / `<li data-step="N.M" class="step todo">`, glyphs via CSS only. The implementation-plan-executor flips `todo`→`done` on these markers as groups complete; without them the companion goes stale during execution.
+3. **Progress markers (REQUIRED)**: render every task group and step with the style guide's Progress-Sync Convention — `<section data-group="N" class="group todo">` / `<li data-step="N.M" class="step todo">`, glyphs via CSS only. The implementation phase's `group-done` records flip `todo`→`done` on these markers as groups complete; without them the companion goes stale during execution.
 4. **Same content as the md** — restructure and visualize, never add groups or steps absent from the plan.
 
 ---
