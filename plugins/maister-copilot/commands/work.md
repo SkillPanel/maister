@@ -160,7 +160,7 @@ Pass only the flags the workflow's resume signature lists — see **Resume Skill
    maister cockpit) and not marked broken. When none remain, classify among the five types as
    usual.
 
-1. **Invoke task-classifier subagent** to rank the workflow types. First run `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:task-classifier --host=claude` and give the call the model and effort it prints, leaving out a field printed as `omit`; a field the host refuses is dropped and the call sent again, with one line in your reply saying so:
+1. **Invoke task-classifier subagent** to rank the workflow types. First run `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:task-classifier --host=copilot` and give the call the model and effort it prints, leaving out a field printed as `omit`; a field the host refuses is dropped and the call sent again, with one line in your reply saying so:
 
 ```
 Use Task tool:

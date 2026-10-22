@@ -1,7 +1,6 @@
 ---
 name: task-group-implementer
 description: Execute a single task group from an implementation plan with continuous standards discovery. Writes code, runs tests, returns structured execution report. Does NOT mark checkboxes - main agent handles progress tracking.
-model: inherit
 color: green
 ---
 

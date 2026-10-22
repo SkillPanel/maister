@@ -153,17 +153,27 @@ for f in "$OUT"/hooks/*.mjs; do
   fi
 done
 
+# 6e. Ask the engine for this host's models. Every agent call carries the model
+#     and effort the `dispatch-model` verb resolves, and the verb answers per
+#     host: Claude Code takes a model alias, Copilot a model id (an alias it
+#     accepts without a word and runs another model in its place). Copilot's
+#     task tool also names the effort field `reasoning_effort`, so where prose
+#     names the two fields together the second takes that name.
+find "$OUT" -name "*.md" | while read f; do
+  sedi -e 's/--host=claude/--host=copilot/g' -e 's/`model` and `effort`/`model` and `reasoning_effort`/g' "$f"
+done
+
 # 7. Rename the plugin-root variable in every exec form.
 #    CLAUDE_PLUGIN_ROOT is absent from the shell this CLI gives an agent -- it
 #    sets the variable only for the hooks it runs -- so a skill telling an agent
 #    to run `node ${CLAUDE_PLUGIN_ROOT}/...` here names an empty variable. The
 #    variant names its own variable instead; with it unset the agent builds the
 #    path from the skill's base directory, which the CLI hands every skill, and
-#    the variant's README.md says when exporting it helps. Skills and their
-#    references only: hooks.json keeps CLAUDE_PLUGIN_ROOT, which the hooks do
+#    the variant's README.md says when exporting it helps. Skills, their
+#    references and the commands, which run the engine's verbs too, only: hooks.json keeps CLAUDE_PLUGIN_ROOT, which the hooks do
 #    get, and no .mjs is rewritten for it -- the runtime code reads the variable at
 #    call time and already falls back to its own module location.
-find "$OUT/skills" -name "*.md" | while read f; do
+find "$OUT/skills" "$OUT/commands" -name "*.md" | while read f; do
   sedi 's/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g' "$f"
 done
 
@@ -215,11 +225,10 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
   ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 done
 
-# 8b. Run each agent on a model Copilot knows. Source agents name Claude Code's
-#     model aliases: `inherit`, which Copilot does not know and answers with
-#     'auto' -- a model of its own choosing, not the session's -- and `haiku`
-#     for the lightweight ones. An agent with no model runs on the session's,
-#     so `inherit` is dropped; `haiku` becomes a list of lightweight models in
+# 8b. Run each agent on a model Copilot knows. Source agents name no model,
+#     so an agent runs on the session's unless its call carries one (6e), except
+#     the lightweight ones, which name Claude Code's `haiku` as the host-level
+#     fallback. `haiku` becomes a list of lightweight models in
 #     `model`, which the runtime tries in order. (Copilot 1.0.100 did not apply
 #     the same list given as `models` to a plugin agent: it ran on the
 #     session's model.) Any other alias stops the build
@@ -229,9 +238,8 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
   awk -v light="$LIGHT_MODELS" -v file="$f" '
     NR==1 && $0=="---" { fm=1; print; next }
     fm==1 && $0=="---" { fm=2 }
-    fm==1 && /^model:[[:space:]]*inherit[[:space:]]*$/ { next }
     fm==1 && /^model:[[:space:]]*haiku[[:space:]]*$/ { print "model: " light; next }
-    fm==1 && /^model:[[:space:]]*(sonnet|opus|fast|default)[[:space:]]*$/ {
+    fm==1 && /^model:[[:space:]]*(inherit|sonnet|opus|fable|fast|default)[[:space:]]*$/ {
       print "build: " file " names the Claude Code model alias " $2 ", which Copilot does not know" > "/dev/stderr"; bad=1
     }
     { print }

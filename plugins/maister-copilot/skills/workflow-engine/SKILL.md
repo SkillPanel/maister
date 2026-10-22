@@ -511,7 +511,7 @@ here.
 
 | Applies to | Convention |
 |---|---|
-| `agent:` step | Task tool, passing the `model` and `effort` the `runs:` line prints beside the agent type; a field it prints as `omit` is left off the call. The prompt carries the `with:` values; each declared path the agent writes, never one the Writes part keeps for the step — an `output_path` agent gets it as `outputs.artifacts` declares it, relative to the task directory, since it joins it to `task_path`; and `prior-context --node` pasted unedited (`run-context` if nothing earlier is needed). Its `headline` is the summary headline. |
+| `agent:` step | Task tool, passing the `model` and `reasoning_effort` the `runs:` line prints beside the agent type; a field it prints as `omit` is left off the call. The prompt carries the `with:` values; each declared path the agent writes, never one the Writes part keeps for the step — an `output_path` agent gets it as `outputs.artifacts` declares it, relative to the task directory, since it joins it to `task_path`; and `prior-context --node` pasted unedited (`run-context` if nothing earlier is needed). Its `headline` is the summary headline. |
 | `skill:` step | Skill tool, given the `with:` values and the `run-context` output; the skill's own result feeds the node summary. |
 | `direct:` step | Run inline from the node's section. A step that owes an HTML page hands its finished markdown to `html-companion-writer` before the completing write. A step with no section does only what these rows say. |
 | `workflow:` step | Starts a child run and waits for it (*Sub-runs*); its outcome is mapped, not judged (*Recording an outcome*). |

@@ -1,7 +1,6 @@
 ---
 name: spec-auditor
 description: Specification audit specialist. Independently checks a spec before implementation for completeness, ambiguity, internal contradictions, and implementability against the current codebase; in post-implementation mode, also compares the spec against what was built. Reports findings with evidence; does not modify files.
-model: inherit
 color: orange
 ---
 

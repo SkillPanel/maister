@@ -1,7 +1,6 @@
 ---
 name: research-synthesizer
 description: Research synthesis specialist transforming collected information into actionable insights. Cross-references findings, identifies patterns and relationships, applies analytical frameworks, and generates comprehensive research reports.
-model: inherit
 color: purple
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: implementation-planner
 description: Creates detailed implementation plans from specifications. Breaks work into task groups by specialty (database, API, frontend, testing), creates implementation steps with test-driven approach (2-8 tests per group), sets dependencies, and defines acceptance criteria. Does not interact with users.
-model: inherit
 color: blue
 ---
 
