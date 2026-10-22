@@ -9,7 +9,8 @@
   and the fix's snapshots and files.
 - **Gone from the brief:** the whole-change patch file, the fix patch file, the parsed requirement
   and story ids, and the keyword-matched standards.
-- **Reviewers read freely and review the range** `base` to the working tree. A defect outside the
+- **Reviewers review the range** `base` to the working tree; three of them read narrowly (see the
+  addendum). A defect outside the
   change is marked `outside_change` and counts only when critical. A deviation a recorded decision
   covers is not a finding.
 - **The runner writes each reviewer a short prompt** at the first cycle, from the spec,
@@ -68,3 +69,30 @@ naming a shallow-clone risk in CI, one quoting a membership rule from the clarif
   ids and standards each reviewer owns come from a reader of the documents, not a parser.
 - **Bad:** the runner spends one read of the run's documents per run, and a prompt that aims badly
   can anchor a reviewer; the reviewer's own checklist still covers the whole change.
+
+## Addendum — whole lists in the prompts; narrow reading for three reviewers
+
+**Context.** A re-test of this shape found more defects with less noise, but missed two criticals
+its prompts never named: a path that ships data to another party, named only as composition, not
+as a trust boundary; and a requirement on an empty state left out of a "hardest" short list. Its
+cost rose by about three fifths, most of it from the completeness checker, the pragmatic reviewer
+and the reality assessor nearly doubling their tool calls under "read freely".
+
+**Decision.**
+1. **Two lists go in whole.** For the code review and production readiness, the runner's prompt
+   lists every trust boundary the change crosses: where each value comes from, who may read or
+   change it, and the file and function that decide it; a path that ships, hydrates, syncs or
+   exports data to another party is one. For the completeness and reality checks, it lists every
+   requirement and story that states what the user sees or what state is shown, by its id. The
+   prompts stay lists of places and ids, not paraphrase.
+2. **Reading scope by reviewer.** The code reviewer, production readiness and the test-suite
+   runner read freely: their questions sit in the environment around the change. The completeness
+   checker, the pragmatic reviewer and the reality assessor read the changed files, their
+   prompt's named places, and only what one of their findings depends on; they do not explore
+   history, CI or unrelated modules, because their questions are about the change against the
+   spec and the plan.
+
+**Consequences.** A ranking by the runner's judgement can no longer drop the one boundary or
+state that breaks. The three narrower reviewers spend fewer calls; a defect that only an
+environment read would show is left to the three reviewers that still read freely. No workflow
+definition changes and no graph hash moves.

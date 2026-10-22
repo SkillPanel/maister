@@ -604,8 +604,12 @@ them), the test result, the paths of the run's documents and the project profile
 short prompt written for your change, at the first cycle, from the spec, the clarifications, the
 plan, the work log and the decisions you made: where to look hardest, what must hold, how CI and
 the build run the change, which requirements and standards it owns, and what you already decided.
-A reviewer reads whatever it needs — diffs, callers, history, CI and build files — but reviews only
-what the run changed; a defect it finds outside the change counts only when it is critical, and a
+Each prompt lists every trust boundary the change crosses for the code review and production
+readiness, and every requirement that states what you see for the completeness and reality checks,
+not only the hardest ones. The code review, production readiness and the test run read whatever
+they need — diffs, callers, history, CI and build files; the completeness, pragmatic and reality
+checks read the changed files, the places their prompt names and only what a finding turns on.
+Every review covers only what the run changed; a defect it finds outside the change counts only when it is critical, and a
 deviation you decided on is not reported as a defect. Standards are judged, not matched by name:
 the code review checks the standards the run says it applied, and the completeness check reports
 each standard in your `.maister/docs/INDEX.md` that covers the change but was never applied.

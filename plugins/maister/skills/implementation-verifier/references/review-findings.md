@@ -44,9 +44,18 @@ paths relative to the repository's top.
 - **A part the verb could not fill is `null`.** For example, `changed` is null when the snapshot
   failed. For that part only, find it yourself, and say so in your report.
 
-**Read freely; review the range.** The change under review is `base` to the working tree, never
-another range. Read it however serves you: per-file diffs (`git diff <base> -- <path>`), the files
-as they are now, the base version, history, callers, config, CI and build files, tests. A defect
+**Review the range; read as your review needs.** The change under review is `base` to the
+working tree, never another range. How far you read depends on your review:
+- **The code reviewer, the production-readiness checker and the test-suite runner read freely:**
+  per-file diffs (`git diff <base> -- <path>`), the files as they are now, the base version,
+  history, callers, config, CI and build files, tests. Who can reach a value, and how CI and the
+  build run the change, sit in the environment around it.
+- **The completeness checker, the pragmatic reviewer and the reality assessor read narrowly:**
+  the changed files, the places your prompt names, and only what one of your findings depends on,
+  such as the caller a claim turns on. Do not explore history, CI or unrelated modules: your
+  questions are about the change against the spec and the plan, not the environment it runs in.
+
+A defect
 outside the changed files may be reported when the change exposes it, marked
 `"outside_change": true`; it counts toward the verdict only when it is `critical`.
 

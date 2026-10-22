@@ -51,8 +51,8 @@ test('review contract: the hand-off asks runner-step before every move and dispa
   assert.doesNotMatch(skill, /findings-merge --state=/, 'the loop is the runner\'s, not copied into the hand-off');
 });
 
-test('review contract: reviewers read freely and review the range; nothing points them at a patch file or a matched standards list', () => {
-  assert.match(CONTRACT, /\*\*Read freely; review the range\.\*\* The change under review is `base` to the working tree/);
+test('review contract: reviewers review the range; nothing points them at a patch file or a matched standards list', () => {
+  assert.match(CONTRACT, /\*\*Review the range; read as your review needs\.\*\* The change under review is `base` to the\s+working tree/);
   assert.match(CONTRACT, /\*\*Your prompt comes first\.\*\*/);
   assert.match(CONTRACT, /"outside_change": true`; it counts toward the verdict only when it is `critical`/);
   assert.match(CONTRACT, /A deviation a recorded decision covers is not a finding/);
@@ -85,4 +85,39 @@ test('review contract: standards are judged, claimed ones by the code reviewer, 
   const production = fs.readFileSync(path.join(PLUGIN, 'agents/production-readiness-checker.md'), 'utf8');
   assert.match(production, /### Phase 8: CI and Build/);
   assert.match(production, /\*\*Checkout depth\*\*/);
+});
+
+// Three reviewers ask about the change against the spec and the plan, so they
+// read narrowly; the code reviewer, production readiness and the test-suite
+// runner look at the environment the change runs in, so they read freely.
+const NARROW = ['implementation-completeness-checker', 'code-quality-pragmatist', 'reality-assessor'];
+
+test('review contract: completeness, pragmatic and reality read narrowly; the other three read freely', () => {
+  assert.match(CONTRACT, /\*\*The code reviewer, the production-readiness checker and the test-suite runner read freely:\*\*/);
+  assert.match(CONTRACT, /\*\*The completeness checker, the pragmatic reviewer and the reality assessor read narrowly:\*\*/);
+  assert.match(CONTRACT, /only what one of your findings depends on,\s+such as the caller a claim turns on/);
+  assert.match(CONTRACT, /not the environment it runs in/);
+  for (const agent of Object.keys(AGENTS)) {
+    const text = fs.readFileSync(path.join(PLUGIN, 'agents', `${agent}.md`), 'utf8');
+    if (NARROW.includes(agent)) {
+      assert.match(text, /Read narrowly — the changed files, the places your prompt names, and only what one of your findings depends on/, `${agent} reads narrowly`);
+      assert.match(text, /not history, CI or unrelated modules, because your questions are about the change against the spec and the plan/, `${agent} says why`);
+      assert.doesNotMatch(text, /Read freely/, `${agent} no longer reads freely`);
+    } else {
+      assert.match(text, /Read freely — per-file diffs against `base`/, `${agent} reads freely`);
+      assert.doesNotMatch(text, /Read narrowly/, `${agent} is not narrowed`);
+    }
+  }
+});
+
+test('review contract: the runner\'s prompts list every trust boundary and every user-visible requirement', () => {
+  const loop = fs.readFileSync(path.join(PLUGIN, 'agents/verification-runner.md'), 'utf8');
+  assert.match(loop, /Two lists go in whole, never trimmed to the hardest items/);
+  assert.match(loop, /\*\*every trust boundary\*\* the change crosses \(code review, production readiness\)/);
+  assert.match(loop, /where a value comes from — a machine, a user, another service, a file — who may read or\s+change it, and the file and function that decide it/);
+  assert.match(loop, /A path that ships, hydrates, syncs or\s+exports data to another party is a trust boundary; name each with its file/);
+  assert.match(loop, /\*\*every user-visible requirement\*\* \(completeness, reality check\)/);
+  assert.match(loop, /counts, empty states, "nothing\s+waiting", badges, banners, disabled controls/);
+  assert.match(loop, /listed by its id as the spec writes it/);
+  assert.match(loop, /lists of files, functions, rules and ids,\s+not paraphrase/);
 });

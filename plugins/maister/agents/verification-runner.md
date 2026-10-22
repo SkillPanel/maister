@@ -118,8 +118,17 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
      readiness);
    - **what is decided**: each recorded decision the review could otherwise read as a defect.
 
-   Keep each section a screen at most and concrete — files and rules, not themes — and end it
-   saying that it marks where to look hardest, never where to stop. Later cycles and later
+   Two lists go in whole, never trimmed to the hardest items:
+   - **every trust boundary** the change crosses (code review, production readiness): for each,
+     where a value comes from — a machine, a user, another service, a file — who may read or
+     change it, and the file and function that decide it. A path that ships, hydrates, syncs or
+     exports data to another party is a trust boundary; name each with its file.
+   - **every user-visible requirement** (completeness, reality check): each requirement and story
+     that states what the user sees or what state is shown — counts, empty states, "nothing
+     waiting", badges, banners, disabled controls — listed by its id as the spec writes it.
+
+   Keep each section a screen at most and concrete — lists of files, functions, rules and ids,
+   not paraphrase — and end it saying that it marks where to look hardest, never where to stop. Later cycles and later
    dispatches re-use the file as written; a re-check prompt names only its issue ids and the
    fixed files.
 7. **The panel.** Record `verification_context.reviews` as `{chosen: [...], done: []}`, by short
