@@ -597,6 +597,19 @@ verification runs in your session as before, and the status line says `inline` i
 while it runs. A run that stops part way through verification picks up from the files the last pass
 left, whichever way it ran.
 
+**What each reviewer is given.** Every review of a cycle gets the same review brief, a small file
+of facts: the commit the run started from, the files it changed (marking generated files, such as
+lock files, and data files, such as fixtures, which a reviewer skips unless a finding turns on
+them), the test result, the paths of the run's documents and the project profile. Each also gets a
+short prompt written for your change, at the first cycle, from the spec, the clarifications, the
+plan, the work log and the decisions you made: where to look hardest, what must hold, how CI and
+the build run the change, which requirements and standards it owns, and what you already decided.
+A reviewer reads whatever it needs — diffs, callers, history, CI and build files — but reviews only
+what the run changed; a defect it finds outside the change counts only when it is critical, and a
+deviation you decided on is not reported as a defect. Standards are judged, not matched by name:
+the code review checks the standards the run says it applied, and the completeness check reports
+each standard in your `.maister/docs/INDEX.md` that covers the change but was never applied.
+
 ## What the reviewers check: the project profile
 
 The reviews check what applies to your project, not a fixed web-service checklist. A CLI or a
