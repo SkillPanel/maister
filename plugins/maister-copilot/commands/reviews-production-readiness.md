@@ -28,6 +28,8 @@ You are performing comprehensive production readiness analysis covering configur
 
 **Invoke the production-readiness-checker subagent NOW using the Task tool:**
 
+First run `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:production-readiness-checker --host=claude` and give the call the model and effort it prints, leaving out a field printed as `omit`; a field the host refuses is dropped and the call sent again, with one line in your reply saying so.
+
 ```
 Use Task tool:
   subagent_type: "maister-copilot:production-readiness-checker"

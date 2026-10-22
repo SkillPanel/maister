@@ -124,7 +124,9 @@ operator when the second also comes back thin.
 break down, with the rollback procedure beside it, in two parts: Part A frames
 the migration requirements inline (Asks below), and Part B hands them to the
 specification-creator agent, whatever the migration's size, with the migration
-task type.
+task type and the model and effort `dispatch-model
+--agent=maister:specification-creator --node=specification` prints
+(`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 
 Hand the creator two things beyond `with:` and `prior-context`: the
 requirements Part A wrote, `analysis/requirements.md`, and the migration facts

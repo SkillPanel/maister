@@ -180,7 +180,10 @@ recommended. A driven run classifies at the higher complexity and names that in
    `design_context.collected_urls`.
 3. **Research each topic** in `design_context.research_topics` through a
    `maister-copilot:information-gatherer` agent per topic, launched in parallel through
-   the Task tool with the topic and its scope, plus the `run-context` output.
+   the Task tool with the topic and its scope, plus the `run-context` output,
+   each with the model and effort `dispatch-model
+   --agent=maister-copilot:information-gatherer --node=context-synthesis` prints once
+   before the launch (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 4. **Write `analysis/design-context.md`**, synthesising every source — the
    docs, the codebase summary, each file's and link's takeaways, the research —
    with the connections between them and what they imply for the design.

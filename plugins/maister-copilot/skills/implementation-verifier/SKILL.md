@@ -120,6 +120,8 @@ All analysis is delegated: tests → test-suite-runner; plan/standards/docs comp
 
 **Why sequential**: Test-suite-runner and reality-assessor both run tests. Running them in parallel causes conflicts. Test-suite-runner runs first and writes results to a file that reality-assessor reads.
 
+**Model and effort:** before this step, run `dispatch-model` once for `test-suite-runner` and every review Step 3b will send, and give each call the model and effort its line prints (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
+
 Task tool call (if NOT skip_test_suite) — **the only Task call in its message**:
 - subagent_type: `maister-copilot:test-suite-runner`
 - description: `Run full test suite`

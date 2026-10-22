@@ -378,7 +378,7 @@ for an operator reading the run at a glance.
 
 2. **Run full project test suite** (all tests, not just feature tests — catches regressions in unrelated areas)
 
-3. **Refresh the docs index when documents changed.** Collect the paths under `.maister/docs/` the groups reported under Docs Changed, plus any `git status -- .maister/docs` shows changed. When there are any, invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]" — the check is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, as an absolute path. Log its outcome in the final entry below. A refresh that reports a failure is a warning in the work log, never a reason to stop the phase. Nothing here edits INDEX.md itself.
+3. **Refresh the docs index when documents changed.** Collect the paths under `.maister/docs/` the groups reported under Docs Changed, plus any `git status -- .maister/docs` shows changed. When there are any, invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`, model and effort from `dispatch-model --agent=maister:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]" — the check is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, as an absolute path. Log its outcome in the final entry below. A refresh that reports a failure is a warning in the work log, never a reason to stop the phase. Nothing here edits INDEX.md itself.
 
 4. **Final work-log entry**, its timestamp from the clock (§ Work-Log Updates):
    ```markdown

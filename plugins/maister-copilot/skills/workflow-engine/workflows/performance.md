@@ -125,7 +125,9 @@ operator when the second also comes back thin.
 **Does.** Part A asks the optimization requirements below inline. Part B then
 invokes the specification-creator agent through the Task tool, whatever the
 task's size, with the performance task type, the `with:` values and the
-`prior-context --node=specification` output.
+`prior-context --node=specification` output, and with the model and effort
+`dispatch-model --agent=maister-copilot:specification-creator --node=specification`
+prints (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 
 **Asks.** Part A is **one page of three tabs**:
 

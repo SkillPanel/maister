@@ -29,6 +29,8 @@ You are performing automated code analysis to identify quality, security, and pe
 
 **Invoke the code-reviewer subagent NOW using the Task tool:**
 
+First run `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:code-reviewer --host=claude` and give the call the model and effort it prints, leaving out a field printed as `omit`; a field the host refuses is dropped and the call sent again, with one line in your reply saying so.
+
 ```
 Use Task tool:
   subagent_type: "maister:code-reviewer"
