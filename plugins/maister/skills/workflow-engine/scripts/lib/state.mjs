@@ -1226,7 +1226,7 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null) {
   const parentNow = () => (parentRead ??= { orchestrator: readParentState(orchestrator.parent, runDir)?.orchestrator ?? null }).orchestrator;
   // Before `applyScalars`, which would otherwise write the values as sent.
   orchestrator = dropSubagents(orchestrator, notes);
-  orchestrator = dropDelegation(orchestrator, notes);
+  orchestrator = narrowDelegation(doc, orchestrator, freezing, notes);
   if (freezing) {
     orchestrator = seedCeiling(orchestrator, policyNow, parentNow, writeWarnings);
     orchestrator = seedFeatures(orchestrator, parentNow, writeWarnings);
@@ -2772,7 +2772,7 @@ function dropSubagents(orchestrator, notes) {
  * records `inline` whatever the depth: nesting has not been checked under the
  * SDK it spawns sessions with. A
  * terminal freeze naming no host records nothing, which reads as `inline`.
- * No write after the freeze changes it (`dropDelegation`).
+ * No write after the freeze widens it (`narrowDelegation`).
  */
 function seedDelegation(orchestrator, host) {
   const kind = isPlainObject(orchestrator) && isPlainObject(orchestrator.driver) ? orchestrator.driver.kind : undefined;
@@ -2804,19 +2804,34 @@ const COPILOT_DEPTH = 4;
 const NESTED_DEPTH = 2;
 
 /**
- * A patch's own `options.delegation`, dropped with a note on every write, the
- * freeze's included: the freeze records it from the host, and no patch sets it.
+ * A patch's own `options.delegation`. The freeze records it from the host, so
+ * a patch never sets it — at the freeze or after — with one exception: after
+ * the freeze a run recorded `nested` may narrow to `inline`, when a runner
+ * finds at run time that it cannot dispatch subagents. That patch is exactly
+ * `{mode: inline, reason}`, the reason one line, and it lands as the recorded
+ * map with the mode and the reason replaced; the depth and the source stay.
+ * Anything else is dropped with a note, and the rest of the patch applies.
  */
-function dropDelegation(orchestrator, notes) {
+function narrowDelegation(doc, orchestrator, freezing, notes) {
   if (!isPlainObject(orchestrator) || !isPlainObject(orchestrator.options) || !Object.hasOwn(orchestrator.options, 'delegation')) return orchestrator;
-  const { delegation: _sent, ...kept } = orchestrator.options;
-  notes.push(DELEGATION_NOTE);
+  const { delegation: sent, ...kept } = orchestrator.options;
   const { options: _options, ...rest } = orchestrator;
+  const recorded = freezing ? null : typedOf(doc).orchestrator?.options?.delegation;
+  if (isPlainObject(recorded) && recorded.mode === 'nested' && isNarrowing(sent)) {
+    return { ...rest, options: { ...kept, delegation: { ...recorded, mode: 'inline', reason: sent.reason.trim() } } };
+  }
+  notes.push(DELEGATION_NOTE);
   return Object.keys(kept).length ? { ...rest, options: kept } : rest;
 }
 
+/** Whether a sent delegation is the one narrowing a patch may make: `{mode: inline, reason}`. */
+function isNarrowing(sent) {
+  return isPlainObject(sent) && Object.keys(sent).sort().join() === 'mode,reason' && sent.mode === 'inline'
+    && typeof sent.reason === 'string' && sent.reason.trim() !== '' && !/[\r\n]/.test(sent.reason);
+}
+
 /** The notes `apply` returns for a writer-owned value it dropped. */
-const DELEGATION_NOTE = 'ignored the supplied orchestrator.options.delegation; the freeze records it from the host it names, so no patch sets it';
+const DELEGATION_NOTE = 'ignored the supplied orchestrator.options.delegation; the freeze records it from the host it names, so no patch sets it — after the freeze a nested run may only narrow it, as {mode: inline, reason}';
 const SUBAGENTS_NOTE = 'ignored the supplied orchestrator.options.subagents; the freeze records it from the project\'s config.yml, the overlays and the profile, so no patch sets it';
 const FACT_NOTE = 'ignored the supplied orchestrator.classes_questions; the freeze records it from the policy it applied, so no patch sets it';
 const CEILING_NOTE = 'ignored the supplied orchestrator.options.ceiling; the autonomy ceiling may narrow after the freeze, never widen';

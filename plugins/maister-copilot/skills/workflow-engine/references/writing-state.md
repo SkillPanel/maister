@@ -150,7 +150,11 @@ depth came from. Under a `cockpit` or `dispatch` driver the mode is `inline` wha
 with a `source` saying nesting is unchecked under that driver. A terminal freeze naming no host
 records nothing, which reads as `inline`. The mode shows on the status line while the review step
 runs, and on that step's dashboard card. A value a patch sends is ignored with a `note:` line, a
-sub-run's freeze records its own, and no later write changes it.
+sub-run's freeze records its own, and no later write widens it. After the freeze a run recorded
+`nested` may narrow to `inline`, once its verification runner finds it cannot dispatch
+subagents: the patch is exactly `{mode: inline, reason}`, the reason one line, and it lands as the
+recorded map with the mode and the reason replaced, the depth and the source kept. Any other
+value is ignored with the same note.
 
 **It records `orchestrator.classes_questions: true` when the policy classes in-node questions**
 for this workflow, and nothing otherwise. The key is the writer's too, dropped with a `note:`

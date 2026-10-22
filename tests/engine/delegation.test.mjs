@@ -13,7 +13,7 @@ import { FIXTURES, freezePatch, readDashboard, readState, scratch, verb, write }
 
 const OVERLAY = path.join(FIXTURES, 'definitions/sample.overlay.yml');
 const DEPTH_ENV = 'CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH';
-const NOTE = 'note: ignored the supplied orchestrator.options.delegation; the freeze records it from the host it names, so no patch sets it\n';
+const NOTE = 'note: ignored the supplied orchestrator.options.delegation; the freeze records it from the host it names, so no patch sets it — after the freeze a nested run may only narrow it, as {mode: inline, reason}\n';
 
 /** Freeze the sample (with the verifier overlay) naming `host`, under `env`. */
 function freezeWith(run, { host = null, env = {}, orchestrator = {} } = {}) {
