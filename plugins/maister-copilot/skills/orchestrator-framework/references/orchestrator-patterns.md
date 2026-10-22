@@ -246,6 +246,7 @@ task:
   status: pending | in_progress | completed | failed | blocked  # in_progress: the state writer, at the first node start
   tags: []
   priority: null  # high | medium | low
+  base_commit: {sha: [commit], dirty: []}  # writer-owned, recorded at freeze: HEAD then, and the paths already dirty; absent outside git
 ```
 
 The three keys above are the only `options` keys every orchestrator shares. `options` is an **open map**: per-workflow keys are listed in each workflow definition's node prose (`workflow-engine/workflows/<name>.md`). The keys the state writer seeds and merges beside them are the engine's (`workflow-engine/references/writing-state.md`).
@@ -308,7 +309,7 @@ verification_context:
   reviews: {chosen: [], done: []}  # the reviews dispatched this cycle and those returned, by short name
 ```
 
-Record every issue in `issues_found` as an object, never as a bare string: `severity` is `critical`, `warning` or `info` as the report graded it, `id` is the report's own number for the finding — kept across re-checks, a new finding taking the next unused number — `risky` is the verifier's grading of whether its fix would reach beyond the item, and `fixed: true` marks one fixed since (keep its original severity). The dashboard shows each issue under its `severity`. A string carries no severity field, so its severity has to be guessed from the text.
+The verifier copies `issues_found` from what the workflow engine's `findings-merge` prints over the cycle's reviewer findings files (`implementation-verifier/references/review-findings.md`), so the numbering and the shape below are kept in code. Record every issue in `issues_found` as an object, never as a bare string: `severity` is `critical`, `warning` or `info` as the report graded it, `id` is the report's own number for the finding — kept across re-checks, a new finding taking the next unused number — `risky` is the verifier's grading of whether its fix would reach beyond the item, and `fixed: true` marks one fixed since (keep its original severity). The dashboard shows each issue under its `severity`. A string carries no severity field, so its severity has to be guessed from the text.
 
 ### Shared: node_summaries entry shape
 
@@ -382,10 +383,13 @@ needs them. The workflow engine's `verification` node prose (development and per
    no planner tier, and maister's own table gives the built-in fix loops the session's model. Record each fix in `verification_context.fixes_applied`
    and in the node summary's `fixes_applied` as `{finding, change}` — never as a decision — and
    clear `skip_test_suite` when one changed code.
-2. **Re-check, as cheaply as the fixes allow — without asking.** After a fix that changed
-   behaviour, re-verify in full: the test suite, then the reviews. After fixes that changed no
-   behaviour — comments, docs, regenerated HTML, the run's own bookkeeping — re-check with the
-   test suite only (the verifier's `recheck: tests-only`). When only info items were left, the
+2. **Re-check, as cheaply as the fixes allow — without asking.** Pass the verifier the numbers
+   of the issues fixed since the last cycle as `fixed_issues`. After a fix that changed
+   behaviour, `recheck: reviews`: the test suite, then only the reviews that raised a fixed
+   issue, each re-checking its issues against the fix diff and reporting new findings inside it
+   alone. After fixes that changed no behaviour — comments, docs, regenerated HTML, the run's own
+   bookkeeping — `recheck: tests-only`: the test suite alone, which resolves the fixed issues
+   when it passes. When only info items were left, the
    non-risky ones are fixed in the same pass and no new cycle starts for them. Raise
    `verification_context.reverify_count` by one for each re-check that ran.
 3. **Budget: two automatic re-checks**, the same in a terminal run and under a driver.
@@ -393,7 +397,10 @@ needs them. The workflow engine's `verification` node prose (development and per
    - an issue needs the user's decision (`fixable: false`);
    - a fix is risky;
    - the budget is spent with fixable issues still open;
-   - there is **no progress**: the same issues come back, or new ones keep appearing.
+   - there is **no progress**: the same issues come back, or new ones keep appearing inside the
+     fixes. An issue the merge marks `not_reported` — not found again, and not shown fixed — is
+     still open; one it moved to `out_of_scope` was raised outside the fixes and is not progress
+     lost.
 
    **An item whose recommendation is to leave it is not a decision.** A pre-existing info item
    that predates the change, recommended "leave", is not asked: record it in the node summary's

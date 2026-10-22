@@ -93,7 +93,7 @@ never refusals — the write lands and the exit code does not move:
   file cannot carry, so it was left off the decision; relay it, naming the request file it gives.
 
 A `note:` line says the write dropped something the patch sent and landed without it. Beside the
-clock fields and `policy_hash`, the writer drops, each with its note: an
+clock fields, `policy_hash` and `task.base_commit`, the writer drops, each with its note: an
 `orchestrator.options.ceiling` wider than the run's autonomy ceiling, or one removing it (engine Step 4);
 `orchestrator.classes_questions` and a node's `asking`, which only the writer records; a
 `phase_summaries`, the retired phase-summary mirror, top-level or under `context`; a `workflow`
@@ -132,6 +132,14 @@ file that exists but cannot be applied is refused whole: the run applies the bui
 records that hash, and the freeze prints `warning: policy-refused:<path>:<reason>`, with
 ` at <dotted path>` for a shape fault. Relay the warning; the run goes on. A value a patch sends
 is ignored with a `note:` line, a sub-run's freeze records its own, and no later write changes it.
+
+**It records `task.base_commit`** — where the run starts: `{sha, dirty}`, HEAD at the freeze and
+the paths already modified, staged or untracked then, the project's `.maister/` left out.
+`review-brief` measures every verification cycle from it. A project outside git records none and
+says nothing; a repository with no commit yet records none and prints
+`warning: base-commit-unrecorded`, and a status it cannot read keeps the base with no dirty paths
+and prints `warning: base-dirty-unread`. A value a patch sends is ignored with a `note:` line, a
+sub-run's freeze records its own, and no later write changes it.
 
 **It records `orchestrator.classes_questions: true` when the policy classes in-node questions**
 for this workflow, and nothing otherwise. The key is the writer's too, dropped with a `note:`

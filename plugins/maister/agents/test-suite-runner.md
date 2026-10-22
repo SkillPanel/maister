@@ -42,8 +42,21 @@ The Task prompt MUST include:
 | `task_path` | Orchestrator | Absolute path to task directory |
 | `task_description` | Orchestrator | Brief task description for context |
 | `test_command` | Orchestrator (optional) | Pre-identified test command, if known |
+| `review_brief` | Orchestrator (optional) | The cycle's review brief: what changed, the spec's ids, the test result and the matching standards (§ Review Brief, Findings File and Re-check) |
 
 **CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
+
+---
+
+## Review Brief, Findings File and Re-check
+
+When the prompt carries `review_brief` — implementation-verifier always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
+
+- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
+- **Write `verification/test-suite-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Add the `tests` block — `{status, passed, failed, errors, skipped, command}` — which the brief reads the cycle's result from; each failure is a finding of category `tests`, located at its test file. You run the whole suite in a re-check too: answer the ids handed to you from that run.
+- **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
+
+Without a brief — a standalone command — find the scope as the workflow below says, and write the findings file whenever there is a task directory.
 
 ---
 
@@ -83,9 +96,9 @@ If no test command can be identified, report failure with guidance.
    - Pass rate percentage
 2. **Categorize each failure**:
    - **Test type**: unit / integration / e2e
-   - **Related**: Is this test in an area modified by the implementation?
+   - **Related**: Is this test in an area modified by the implementation? With a brief, the modified areas are its `changed` files
    - **Regression risk**: High if failure is in unrelated code
-3. **Flag potential regressions** — failures in files/modules NOT touched by implementation
+3. **Flag potential regressions** — failures in files/modules NOT touched by implementation (with a brief, not among its `changed` files)
 4. **Document each failure** with:
    - Test name and file location
    - Error message (concise)
@@ -180,6 +193,6 @@ If tests take >5 minutes, report partial results and note the timeout. Don't ret
 - Implementation is complete (all coding done)
 - Project has a test suite
 
-**Input**: Task path, task type, optional test command
+**Input**: Task path, task description, optional test command, review brief
 
-**Output**: Structured result with test metrics, failure details, and regression analysis
+**Output**: `verification/test-suite-results.md`, `verification/test-suite-findings.json`, and a structured result with test metrics, failure details, and regression analysis

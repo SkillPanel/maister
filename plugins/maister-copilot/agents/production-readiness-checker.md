@@ -44,11 +44,25 @@ The Task prompt MUST include:
 
 | Input | Source | Purpose |
 |-------|--------|---------|
-| `analysis_path` | Orchestrator or command | Path to analyze (task directory, feature directory, or project) |
+| `task_path` | Orchestrator | Absolute path to the task directory; with a review brief, what to analyze is the brief's changed files |
+| `analysis_path` | Command (standalone) | Path to analyze (task directory, feature directory, or project) when no brief is given |
 | `target` | Orchestrator or command | `production` (default, full rigor) or `staging` (relaxed) |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/production-readiness-report.md` relative to task_path) |
+| `review_brief` | Orchestrator (optional) | The cycle's review brief: what changed, the spec's ids, the test result and the matching standards (§ Review Brief, Findings File and Re-check) |
 
 **CRITICAL**: All outputs MUST be written under `task_path`. Never write reports to project-level directories (`docs/`, `src/`, project root).
+
+---
+
+## Review Brief, Findings File and Re-check
+
+When the prompt carries `review_brief` — implementation-verifier always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
+
+- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
+- **Write `verification/production-readiness-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Map Blocker to `critical`, Concern to `warning` and Nice-to-have to `info`.
+- **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
+
+Without a brief — a standalone command — find the scope as the workflow below says, and write the findings file whenever there is a task directory.
 
 ---
 
@@ -57,8 +71,8 @@ The Task prompt MUST include:
 ### Phase 1: Initialize
 
 1. **Get task path** and determine target environment
-2. **Identify files** to analyze
-3. **Read project context** from `.maister/docs/INDEX.md`
+2. **Identify files** to analyze: the brief's changed files, or — standalone — the files under `analysis_path`
+3. **Read project context**: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief
 
 ---
 
@@ -258,11 +272,11 @@ issue_counts:
 
 ## Integration
 
-**Invoked by**: implementation-verifier (Phase 3) — which the `verification` node of each engine workflow runs — or standalone via `/maister-copilot:reviews-production-readiness` command
+**Invoked by**: implementation-verifier (Phase 2) — which the `verification` node of each engine workflow runs — or standalone via `/maister-copilot:reviews-production-readiness` command
 
 **Prerequisites**:
 - Code exists at the specified path
 
-**Input**: Analysis path, target environment, optional report path
+**Input**: Task path and review brief (from the verifier) or analysis path (standalone), target environment, optional report path
 
-**Output**: `production-readiness-report.md` + structured result
+**Output**: `production-readiness-report.md`, `verification/production-readiness-findings.json` + structured result

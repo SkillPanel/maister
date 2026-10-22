@@ -102,6 +102,7 @@ import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, 
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { frozenSubagents } from './subagents.mjs';
+import { baseAtFreeze } from './git-tree.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun } from './driver.mjs';
@@ -409,8 +410,9 @@ const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
  *                   a replacement by definition.
  *
  * `task:` carries no open map at all (`title`, `status`, `description`,
- * `tags[]`, `priority`, `key`), so nothing under it merges and the list stays
- * qualified by its section rather than by key alone.
+ * `tags[]`, `priority`, `key`, and the freeze's own `base_commit`), so nothing
+ * under it merges and the list stays qualified by its section rather than by
+ * key alone.
  *
  * A future open map added to the state contract must be added here too: the
  * default is to replace, so a mapping absent from this list is replaced
@@ -1236,10 +1238,19 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     if (freezing) seedPolicyHash(doc, patch.workflow, policyNow(), changed, writeWarnings);
   }
   if (orchestrator) applyScalars(doc, 'orchestrator', orchestrator, changed);
-  if (patch.task) {
-    applyScalars(doc, 'task', patch.task, changed);
+  // `base_commit` is the freeze's own record of where the run started, so a
+  // patch value for it is dropped, on every write, as `policy_hash` is.
+  let task = patch.task;
+  if (isPlainObject(task) && Object.hasOwn(task, 'base_commit')) {
+    const { base_commit: _supplied, ...rest } = task;
+    task = rest;
+    notes.push('ignored the supplied task.base_commit; the freeze records it from the repository, so no patch sets it');
+  }
+  if (task) {
+    applyScalars(doc, 'task', task, changed);
     intended.add('task');
   }
+  if (freezing && runDir !== null && seedBaseCommit(doc, runDir, changed, writeWarnings)) intended.add('task');
   if (patch.workflow) {
     applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored, notes);
     intended.add('workflow');
@@ -2661,6 +2672,42 @@ function seedPolicyHash(doc, workflow, loaded, changed, writeWarnings) {
     doc.set(['orchestrator', 'classes_questions'], ['  classes_questions: true']);
     changed.push('orchestrator.classes_questions');
   }
+}
+
+/**
+ * `task.base_commit`, where the run started: `{sha, dirty}` — HEAD at the
+ * freeze, and the paths already modified, staged or untracked then, the
+ * project's `.maister/` left out (`git-tree.mjs`). `review-brief` measures
+ * every verification cycle from it, and marks a changed path that was dirty
+ * before the run started.
+ *
+ * Only the freeze writes it, and a patch value is never taken (`apply` drops
+ * it). A project outside git records none and says nothing; a repository with
+ * no commit yet records none and warns, and so does a status that could not
+ * be read, with the base kept. A run frozen before the key existed stays
+ * without one, and `review-brief` then needs `--base`. Whether it wrote.
+ */
+function seedBaseCommit(doc, runDir, changed, writeWarnings) {
+  const base = baseAtFreeze(projectRootOf(runDir));
+  if (base === null) return false;
+  if (base.warning) writeWarnings.push(base.warning);
+  if (!base.sha) return false;
+  // A path no state line can carry — a newline in a file name — is left out
+  // rather than refusing the freeze over a file the run may never touch.
+  const dirty = base.dirty.filter(file => {
+    try {
+      flow(file, 'task.base_commit.dirty');
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  if (dirty.length < base.dirty.length) {
+    writeWarnings.push(`base-dirty-cut: ${base.dirty.length - dirty.length} dirty path(s) cannot be written to state and are left out`);
+  }
+  doc.set(['task', 'base_commit'], [`  base_commit: ${flow({ sha: base.sha, dirty }, 'task.base_commit')}`]);
+  changed.push('task.base_commit');
+  return true;
 }
 
 /**

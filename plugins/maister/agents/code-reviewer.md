@@ -26,7 +26,7 @@ Analyze code and produce `code-review-report.md` with findings categorized by se
 Report issues but never modify the code, tests or configuration you review. Your job is to identify and classify, not to fix — and to leave that classification on disk at `report_path`.
 
 ### Context-Aware
-Check `.maister/docs/INDEX.md` for project standards. Consider project tech stack and patterns. When a match may be intentional, still report it, at `info` severity, with a note on why it may be deliberate — filtering happens downstream, not here.
+Check the project's standards: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief. Consider project tech stack and patterns. When a match may be intentional, still report it, at `info` severity, with a note on why it may be deliberate — filtering happens downstream, not here.
 
 ### Actionable Findings
 Every finding must have a specific location (file:line), clear description, why it matters, and how to fix it.
@@ -39,7 +39,9 @@ The Task prompt MUST include:
 
 | Input | Source | Purpose |
 |-------|--------|---------|
-| `analysis_path` | Orchestrator or command | Path to analyze (file, directory, or task path) |
+| `task_path` | Orchestrator | Absolute path to the task directory; with a review brief, what to analyze is the brief's changed files |
+| `analysis_path` | Command (standalone) | Path to analyze (file, directory, or task path) when no brief is given |
+| `review_brief` | Orchestrator (optional) | The cycle's review brief: what changed, the spec's ids, the test result and the matching standards (§ Review Brief, Findings File and Re-check) |
 | `scope` | Orchestrator or command | `all` (default), `quality`, `security`, or `performance` |
 | `report_path` | Orchestrator (optional) | Where to write report (default: `verification/code-review-report.md` relative to task_path) |
 
@@ -47,13 +49,25 @@ The Task prompt MUST include:
 
 ---
 
+## Review Brief, Findings File and Re-check
+
+When the prompt carries `review_brief` — implementation-verifier always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
+
+- **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
+- **Write `verification/code-review-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing.
+- **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
+
+Without a brief — a standalone command — find the scope as the workflow below says, and write the findings file whenever there is a task directory.
+
+---
+
 ## Workflow
 
 ### Phase 1: Initialize
 
-1. **Get analysis path** and determine scope
-2. **Identify files to analyze** (max 50 files for focused analysis)
-3. **Read project context** from `.maister/docs/INDEX.md` for standards
+1. **Get the scope**: the brief's changed files, or — standalone — the files under `analysis_path`
+2. **Identify files to analyze** (max 50 files for focused analysis; with a brief, the changed ones first)
+3. **Read project context**: the brief's `standards`, or `.maister/docs/INDEX.md` without a brief
 
 ---
 
@@ -215,11 +229,11 @@ issue_counts:
 
 ## Integration
 
-**Invoked by**: implementation-verifier (Phase 3), standalone via `/maister:reviews-code` command
+**Invoked by**: implementation-verifier (Phase 2), standalone via `/maister:reviews-code` command
 
 **Prerequisites**:
 - Code exists at the specified path
 
-**Input**: Analysis path, scope, optional report path
+**Input**: Task path and review brief (from the verifier) or analysis path (standalone), scope, optional report path
 
-**Output**: `code-review-report.md` + structured result
+**Output**: `code-review-report.md`, `verification/code-review-findings.json` + structured result
