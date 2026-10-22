@@ -546,8 +546,11 @@ the verifier reads them to decide which reviews run:
 **Does.** Pass no style guide path: as a skill it resolves the guide itself and
 gates its own companion on the HTML output option.
 
-**The fix loop follows `orchestrator-patterns.md` § 6**, *Fix-Then-Reverify
-Loop*, step by step. What this node adds: **each fix is also logged in the work
+**The loop runs in the verifier's hand-off**: with `work_log: true`, it hands
+the cycles and the fix passes of `orchestrator-patterns.md` § 6 to the
+verification runner when the run records `nested` delegation, and runs them
+here otherwise. Either way this node asks only the decisions the loop hands
+back, as below. What this node adds: **each fix is also logged in the work
 log.**
 
 > **GATE CHECK**: the canonical report and its companion must carry the *final*

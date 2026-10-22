@@ -34,11 +34,19 @@ test('review contract: every reviewer\'s stem is in the contract\'s table, in it
   assert.deepEqual(Object.keys(SOURCES).filter(stem => stem !== 'artifacts').sort(), Object.values(AGENTS).sort());
 });
 
-test('review contract: the verifier hands every prompt the brief and merges through the engine', () => {
+test('review contract: the verification loop hands every prompt the brief and merges through the engine', () => {
+  const loop = fs.readFileSync(path.join(PLUGIN, 'agents/verification-runner.md'), 'utf8');
+  assert.match(loop, /review-brief --state=/);
+  assert.match(loop, /--refresh/);
+  assert.match(loop, /findings-merge --state=/);
+  assert.match(loop, /\*\*Every reviewer prompt carries `review_brief: <the printed path>`\.\*\*/);
+  assert.match(loop, /`issues_found` exactly as the last `findings-merge` printed it/);
+});
+
+test('review contract: the hand-off asks runner-step before every move and dispatches the runner in the foreground', () => {
   const skill = fs.readFileSync(path.join(PLUGIN, 'skills/implementation-verifier/SKILL.md'), 'utf8');
-  assert.match(skill, /review-brief --state=/);
-  assert.match(skill, /--refresh/);
-  assert.match(skill, /findings-merge --state=/);
-  assert.match(skill, /\*\*Every Task prompt of Steps 3a and 3b carries `review_brief: <the printed path>`\.\*\*/);
-  assert.match(skill, /`issues_found` the last `findings-merge` printed, copied unchanged/);
+  assert.match(skill, /workflow\.mjs runner-step --state=/);
+  assert.match(skill, /\*\*`run_in_background: false`, set explicitly on every host\.\*\*/);
+  assert.match(skill, /subagent_type: maister:verification-runner/);
+  assert.doesNotMatch(skill, /findings-merge --state=/, 'the loop is the runner\'s, not copied into the hand-off');
 });

@@ -227,7 +227,10 @@ suite.
 
 ## `verification`
 
-**Does.** Pass no style guide path; the verifier resolves its own.
+**Does.** Pass no style guide path; the verifier resolves its own. Invoke it
+with `fixes: off`: it runs one verification cycle, through the verification
+runner when the run records `nested` delegation and here otherwise, and fixes
+nothing — the fix loop is `issue-resolution`'s.
 
 Record the review set before invoking it: this workflow asks no
 verification-options question, and the verifier would ask about a review flag
@@ -247,9 +250,14 @@ After the verifier returns, run the four migration-specific checks:
 4. **Performance benchmarks**, before and after, when the specification set any.
 
 The verifier has already recorded `verification_context.last_status` and
-`issues_found`. Add each issue a check raised to `issues_found` (the issue
-shape of `orchestrator-patterns.md` § 4), sending the whole list, since a list
-replaces what it lands on. Then **declare `issues_to_resolve`**: true when the
+`issues_found`. Write each issue a check raised as a finding of
+`verification/migration-checks-findings.json`, in the reviewers' findings
+schema (`implementation-verifier/references/review-findings.md`) with the
+cycle the verifier ran; a data integrity issue takes `category:
+data-integrity` and `fixable: false`. Then run `findings-merge --state=<state>`
+again and record `verification_context.issues_found` exactly as it prints, so
+the issues keep their numbers in every later cycle. Then **declare
+`issues_to_resolve`**: true when the
 report carries an open issue the fix loop can fix or needs a decision on,
 **or** any data integrity issue — never fixed here; `issue-resolution` owns
 its halt.
@@ -277,10 +285,16 @@ on it.
 
 **Does.** Runs the fix loop of `orchestrator-patterns.md` § 6 on the
 verifier's issues, after showing the verdict, the counts by severity and the
-report's path from the project root. It adds: each fix is also logged in the
-work log; a change the user picks is applied, logged and re-checked here,
-because the gate after this node offers no revise; and a data integrity issue
-is never fixed and never a finding (Asks below).
+report's path from the project root. Once the data integrity question below is
+settled, invoke the verifier's hand-off (Skill tool,
+`implementation-verifier`) with `node: issue-resolution`, `fixes: on`,
+`findings_file: verification/issue-resolution-findings.json`, `work_log: true`
+and `hold: data-integrity`: it hands the fix passes and re-checks to the
+verification runner when the run records `nested` delegation, and runs them
+here otherwise, and this node asks only the decisions it hands back. It adds:
+each fix is also logged in the work log; a change the user picks is applied,
+logged and re-checked here, because the gate after this node offers no revise;
+and a data integrity issue is never fixed and never a finding (Asks below).
 
 **Asks.** Write the issues still needing a person to
 `verification/issue-resolution-findings.json`, each `id` the verifier's

@@ -574,3 +574,12 @@ test('a node the run does not carry and a state that is no run are refused', t =
   assert.equal(notRun.code, 1);
   assert.match(notRun.stderr, /^dispatch-model-not-a-run:/);
 });
+
+test('the verification runner has no entry: it runs on the session\'s model on both hosts', t => {
+  const run = scratch(t);
+  freezeRun(run);
+  for (const host of ['claude', 'copilot']) {
+    assert.equal(lineOf(run, 'maister:verification-runner', ['--node=implementation'], { host }),
+      'maister:verification-runner: model omit, effort omit — source: shipped default');
+  }
+});

@@ -310,8 +310,11 @@ itself and gates its own companion on the HTML output option.
 severity, and the report's path from the project root
 (`.maister/tasks/performance/<run>/verification/implementation-verification.md`).
 
-**The fix loop runs on its own for the obvious fixes**, inline, following
-`orchestrator-patterns.md` § 6, *Fix-Then-Reverify Loop*, step by step.
+**The fix loop runs on its own for the obvious fixes**, following
+`orchestrator-patterns.md` § 6, *Fix-Then-Reverify Loop*: the verifier's
+hand-off gives the cycles and the fix passes to the verification runner when
+the run records `nested` delegation, and runs them here otherwise. This node
+asks only the decisions the loop hands back.
 **Never proceed past an unresolved critical issue without an explicit answer
 saying so** — a gate answered from outside is such an answer; a default is not.
 

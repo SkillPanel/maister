@@ -50,7 +50,7 @@ The Task prompt MUST include:
 
 ## Review Brief, Findings File and Re-check
 
-When the prompt carries `review_brief` — implementation-verifier always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
+When the prompt carries `review_brief` — the verification loop always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
 
 - **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
 - **Write `verification/reality-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Map Critical to `critical`, High and Medium to `warning` and Low to `info`; a gap between what was claimed and what works is category `delivery`.
@@ -66,14 +66,14 @@ Without a brief — a standalone command — find the scope as the workflow belo
 
 **Purpose**: Understand what verification has already been done
 
-**With a review brief** (implementation-verifier runs you): read **none** of the other reviewers' reports and not `implementation-verification.md`. In this cycle they are written in parallel with you or after you, and any copy on disk is an earlier cycle's, describing code that has since changed — reading it as current is the mistake this rule prevents. Take the test result from the brief's `tests` (and `verification/test-suite-results.md` it names), the plan's progress from its `plan`, and read only:
+**With a review brief** (the verification loop runs you): read **none** of the other reviewers' reports and not `implementation-verification.md`. In this cycle they are written in parallel with you or after you, and any copy on disk is an earlier cycle's, describing code that has since changed — reading it as current is the mistake this rule prevents. Take the test result from the brief's `tests` (and `verification/test-suite-results.md` it names), the plan's progress from its `plan`, and read only:
 - `verification/spec-audit.md` (if exists from spec-auditor — it judged the spec, not this code)
 - `verification/visual-fidelity.md` (if exists from e2e-test-verifier — cross-reference, do NOT re-run the comparison)
 - `implementation/visual-coverage.md` (if exists from implementation-planner)
 - `implementation/implementation-plan.md` (check completion markers)
 
 **Standalone** (no brief), read those that exist, and name in your report each one you read and the date it was written:
-- `verification/implementation-verification.md` (if exists from implementation-verifier)
+- `verification/implementation-verification.md` (if it exists from an earlier cycle)
 - `verification/pragmatic-review.md` (if exists from code-quality-pragmatist)
 - `verification/code-review-report.md` (if exists from code-reviewer)
 - `verification/spec-audit.md` (if exists from spec-auditor)
@@ -129,7 +129,7 @@ Without a brief — a standalone command — find the scope as the workflow belo
 - Test with realistic data (not just "user1", "test@test.com")
 
 **Parallel Execution Mode** (`skip_test_execution: true`):
-When invoked with `skip_test_execution: true` (typically after test-suite-runner has already completed in implementation-verifier's Step 3a), do NOT execute any test commands. Instead, read test results from the brief's `tests` and `verification/test-suite-results.md` (written by test-suite-runner), then analyze code structure, verify completeness through code reading, check integration points, and assess functional gaps using those results.
+When invoked with `skip_test_execution: true` (typically after test-suite-runner has already completed earlier in the verification cycle), do NOT execute any test commands. Instead, read test results from the brief's `tests` and `verification/test-suite-results.md` (written by test-suite-runner), then analyze code structure, verify completeness through code reading, check integration points, and assess functional gaps using those results.
 
 When `skip_test_execution` is `false` or not set (standalone invocation, or when test-suite-runner was skipped), run tests normally.
 

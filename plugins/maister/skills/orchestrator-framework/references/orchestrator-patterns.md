@@ -17,6 +17,8 @@ When a phase requires delegation:
 
 **Why skills MUST use Skill tool**: Skills like `codebase-analyzer`, `implementation-plan-executor`, and `implementation-verifier` spawn their own subagents (Explore agents, reporters, planners) and work inside the run — its state, its gates and the questions it asks the user. A skill runs in the context that invokes it, so these run in the main agent via the Skill tool. Subagents can dispatch subagents of their own, to a depth each host limits, but orchestrators, not leaf agents, run workflows: every agent carries one sentence saying it never starts another workflow, a command or an orchestrator skill, and loads only a skill its own instructions name.
 
+**A runner agent** carries a whole loop for a skill that would otherwise make every call of it in the main session. `implementation-verifier` hands its verification loop to `verification-runner` when the run recorded `orchestrator.options.delegation.mode: nested` at the freeze, and keeps it in the main session when the mode is `inline`: the runner dispatches the reviewers and the fix agents itself, makes the loop's state writes, and returns one result per dispatch. Every continuation is a fresh dispatch from the files the runner left — after an answered decision, a crash or a compaction alike — and the engine's `runner-step` says which. A runner is always dispatched in the foreground, with `run_in_background: false` set explicitly.
+
 **Companion agent pattern** (e.g., `docs-operator`): For skills that do NOT spawn subagents (like `docs-manager` which only does file operations). A companion agent preloads the skill via the `skills` frontmatter field and is invoked via Task tool. A skill that spawns subagents runs in the main agent instead: in a companion each of its agents would sit a level deeper, against the host's depth limit.
 
 Reading a SKILL.md and then doing its work inline is not delegation: invoke the skill, and let it spawn its own agents (an orchestrator never spawns the Explore agents `codebase-analyzer` manages).
@@ -307,7 +309,15 @@ verification_context:
   decisions_made: []
   reverify_count: 0          # re-checks run; two run without asking (§ 6)
   reviews: {chosen: [], done: []}  # the reviews dispatched this cycle and those returned, by short name
+  cycle: 1                   # the cycle under way, the review brief's number
+  snapshot: null             # the brief's tree id for that cycle
+  node: verification         # the node and its attempt that ran the cycle, so a re-dispatch
+  attempt: 1                 #   tells a crash in this attempt from a new attempt
 ```
+
+Whoever runs the loop writes this block: the verification runner when the run nests, the main
+session otherwise. The orchestrator's own writes around a runner are the node's start, its end and
+the answers to the decisions the runner hands back.
 
 The verifier copies `issues_found` from what the workflow engine's `findings-merge` prints over the cycle's reviewer findings files (`implementation-verifier/references/review-findings.md`), so the numbering and the shape below are kept in code. Record every issue in `issues_found` as an object, never as a bare string: `severity` is `critical`, `warning` or `info` as the report graded it, `id` is the report's own number for the finding — kept across re-checks, a new finding taking the next unused number — `risky` is the verifier's grading of whether its fix would reach beyond the item, and `fixed: true` marks one fixed since (keep its original severity). The dashboard shows each issue under its `severity`. A string carries no severity field, so its severity has to be guessed from the text.
 
@@ -373,6 +383,13 @@ Resume is the engine's (`workflow-engine/SKILL.md` § *Resume*). Its read-only `
 obvious fixes happen without asking, inside a small budget, and the user is asked only what
 needs them. The workflow engine's `verification` node prose (development and performance) and
 `issue-resolution` (migration) carry it, each naming its report path and anything it adds.
+
+**Who runs which step.** Steps 1–4 — the fixes made without asking, the re-checks, the budget and
+the decision to stop — are the loop's, carried out by whoever runs it: the verification runner
+when the run nests (`agents/verification-runner.md`, which batches the fixes by file or area), or
+the main session. Steps 5–10 — the questions, what each answer does, and what the gate is handed —
+stay with the node: the runner hands the decision back as its result, the node asks it, and the
+answers travel to the next runner dispatch in `verification/decisions-<cycle>.json`.
 
 1. **Apply without asking** every unfixed issue the verifier marked `fixable` and not `risky`.
    A fix is risky when it reaches beyond its item into behaviour the change did not set out to
@@ -544,7 +561,7 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 - `dashboard.html` — static viewer, copied verbatim from `[plugin]/skills/orchestrator-framework/assets/dashboard.html` at initialization (§ 5). NEVER generated or modified by the model — it is a maintained plugin asset. `dashboard.html` is a frozen asset.
 - `dashboard-data.js` — data projection. The state writer projects it from state on every successful `write-state`; nothing else writes it. The viewer reads it via `<script>` (`window.MAISTER_DATA = {...}`), so it works from `file://` with no server.
 
-**There are no rewrite moments: the projection is the file's only writer.** It is a full projection of `orchestrator-state.yml` plus the summaries, never an incremental patch, and its `generated` stamp is the writer's own clock. A node that wants the dashboard current writes state. The implementation and verification phases run under a skill, outside the engine's turns, and the skill keeps the dashboard current from inside them the same way, never by writing the file. `implementation-plan-executor` records each wave start and each group return through the engine's `wave-start` and `group-done` verbs, and each call re-projects the dashboard and the status line itself; the projection derives the phase's `progress` from the plan's checkboxes and the work log's wave and revert headings. `implementation-verifier` records each cycle's `last_status` and `issues_found` in `verification_context`, and the verification panel is projected from that block. A skill run standalone, with no workflow run and so no state file, has no dashboard.
+**There are no rewrite moments: the projection is the file's only writer.** It is a full projection of `orchestrator-state.yml` plus the summaries, never an incremental patch, and its `generated` stamp is the writer's own clock. A node that wants the dashboard current writes state. The implementation and verification phases run under a skill, outside the engine's turns, and the skill keeps the dashboard current from inside them the same way, never by writing the file. `implementation-plan-executor` records each wave start and each group return through the engine's `wave-start` and `group-done` verbs, and each call re-projects the dashboard and the status line itself; the projection derives the phase's `progress` from the plan's checkboxes and the work log's wave and revert headings. The verification loop — the verification runner, or `implementation-verifier` in the main session — records each cycle's `last_status` and `issues_found` in `verification_context`, and the verification panel is projected from that block. A skill run standalone, with no workflow run and so no state file, has no dashboard.
 
 **What it carries.** The file is one statement, `window.MAISTER_DATA = <strict JSON>;`, projected from state: the task (title, its workflow as `type`, status, path, the running phase's activity line), the task or design characteristics, one entry per phase (status, `started`/`completed` from the § 4 timestamps, skip reason, summary, decisions, risks, artifacts with their `html` companion, the gate's question and answer, and for the plan-executor phase a `progress` derived from the plan and the work log), and a verification panel mirrored from `verification_context`. Its shape is the projection's; nothing in a run composes it.
 
@@ -576,7 +593,7 @@ A companion is a rich HTML page beside a markdown artifact, for people to read. 
 - `not-requested` — the prompt had no `html:` line; the delegate wrote the markdown and warned. An absent line is never read as off: re-delegate with the run context.
 - `failed` — the markdown stands, the companion did not; run html-companion-writer once for it.
 
-Skills that write a companion (`implementation-verifier`) take no `html:` line: they resolve the guide themselves and gate on the run's `html_output` in state.
+The verification loop writes its companion once, at the final verdict: the verification runner reads its `html:` line from `run-context`, and `implementation-verifier` in the main session resolves the guide itself and gates on the run's `html_output` in state.
 
 **Registration.** A node's summary registers each companion as `artifacts[].html` beside its `path`, so the dashboard (§ 8) links HTML first with md fallback (`html: null` when companions are disabled). `write-state` fills it from disk when the summary is written.
 

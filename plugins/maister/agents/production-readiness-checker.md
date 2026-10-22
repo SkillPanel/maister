@@ -53,7 +53,7 @@ The Task prompt MUST include:
 
 ## Review Brief, Findings File and Re-check
 
-When the prompt carries `review_brief` — implementation-verifier always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
+When the prompt carries `review_brief` — the verification loop always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
 
 - **Scope comes from the brief.** Its `changed` list and `diff_path` are what changed; never work them out with `git diff`, `git log` or `git status`. Its `spec`, `plan`, `tests` and `standards` are already read for you.
 - **Write `verification/production-readiness-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Map Blocker to `critical`, Concern to `warning` and Nice-to-have to `info`.
@@ -269,7 +269,7 @@ issue_counts:
 
 ## Integration
 
-**Invoked by**: implementation-verifier (Phase 2) — which the `verification` node of each engine workflow runs — or standalone via `/maister:reviews-production-readiness` command
+**Invoked by**: the verification loop (the verification runner, or implementation-verifier in the main session) — which the `verification` node of each engine workflow runs — or standalone via `/maister:reviews-production-readiness` command
 
 **Prerequisites**:
 - Code exists at the specified path
