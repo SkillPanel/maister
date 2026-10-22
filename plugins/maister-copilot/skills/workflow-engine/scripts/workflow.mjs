@@ -124,16 +124,18 @@
  *                  (the cycle's reviewer findings merged into findings.json,
  *                  its counts and the issues_found projection) — writes only
  *                  under the run's verification/
- *   runner-result  --state, --node, --patch-file (or the result as JSON on
- *                  stdin)                                     JSON on stdout
- *                  (the verification runner's result, checked, stamped with
- *                  the node, its attempt and the cycle, and written to
- *                  verification/runner-result.json)
- *   runner-step    --state, --node, optional --answered     JSON on stdout
- *                  (what the verification node does next: keep its loop
+ *   runner-result  --state, --node, optional --runner, --patch-file (or the
+ *                  result as JSON on stdin)                   JSON on stdout
+ *                  (a runner's result — `--runner=verification`, the
+ *                  default, or `implementation` — checked, stamped with the
+ *                  node, its attempt and the cycle or pass, and written to
+ *                  <runner>/runner-result.json)
+ *   runner-step    --state, --node, optional --runner and --answered
+ *                                                             JSON on stdout
+ *                  (what the node running the loop does next: keep it
  *                  inline, dispatch the runner and with what to resume, ask
- *                  the decision the runner returned, or close on its
- *                  verdict) — writes only verification/decisions-<cycle>.json
+ *                  the decision the runner returned, or close on its end)
+ *                  — writes only <runner>/decisions-<cycle or pass>.json
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -290,13 +292,14 @@ const VERBS = {
   'review-brief': { module: 'review-brief.mjs', flags: ['state', 'task-path', 'base', 'cycle', 'recheck', 'fixed-issues', 'refresh'] },
   // The cycle's reviewer findings merged into the run's one numbered list.
   'findings-merge': { module: 'findings-merge.mjs', flags: ['state', 'task-path', 'cycle'] },
-  // The verification runner's two ends: its result, written by the runner
-  // through the one place a patch is read from, and the node's next step,
-  // read from the run. `--node` because the node is the one state records
-  // as running, and both check it is; `--answered` says the node has just
-  // recorded the answers to the decision the runner returned.
-  'runner-result': { module: 'runner.mjs', flags: ['state', 'node', 'patch-file'] },
-  'runner-step': { module: 'runner.mjs', flags: ['state', 'node', 'answered'] },
+  // A runner's two ends: its result, written by the runner through the one
+  // place a patch is read from, and the node's next step, read from the run.
+  // `--node` because the node is the one state records as running, and both
+  // check it is; `--runner` names the loop, verification's or
+  // implementation's; `--answered` says the node has just recorded the
+  // answers to the decision the runner returned.
+  'runner-result': { module: 'runner.mjs', flags: ['state', 'node', 'runner', 'patch-file'] },
+  'runner-step': { module: 'runner.mjs', flags: ['state', 'node', 'runner', 'answered'] },
 };
 
 /** This plugin's root, three levels above this file: what the edition check locates. */
@@ -1412,11 +1415,12 @@ async function runFindingsMerge(flags) {
  */
 async function runRunnerResult(flags) {
   if (!flags.state) throw new UsageError('runner-result needs --state');
-  if (!flags.node) throw new UsageError('runner-result needs --node: the verification node the runner ran for');
-  const input = await readInput(flags, 'the runner result');
+  if (!flags.node) throw new UsageError('runner-result needs --node: the node the runner ran for');
   const module = await loadModule(VERBS['runner-result'].module);
+  const runner = runnerOf(flags, 'runner-result', module);
+  const input = await readInput(flags, 'the runner result');
   const write = entryOf(module, 'runnerResult', VERBS['runner-result'].module);
-  const result = write({ state: flags.state, node: flags.node, document: input.document });
+  const result = write({ state: flags.state, node: flags.node, document: input.document, runner });
   if (!result.ok) {
     for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
     return EXIT.REJECTED;
@@ -1433,10 +1437,11 @@ async function runRunnerResult(flags) {
  */
 async function runRunnerStep(flags) {
   if (!flags.state) throw new UsageError('runner-step needs --state');
-  if (!flags.node) throw new UsageError('runner-step needs --node: the verification node that is running');
+  if (!flags.node) throw new UsageError('runner-step needs --node: the node that is running the loop');
   const module = await loadModule(VERBS['runner-step'].module);
+  const runner = runnerOf(flags, 'runner-step', module);
   const step = entryOf(module, 'runnerStep', VERBS['runner-step'].module);
-  const result = step({ state: flags.state, node: flags.node, answered: flags.answered === true });
+  const result = step({ state: flags.state, node: flags.node, answered: flags.answered === true, runner });
   if (!result.ok) {
     for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
     return EXIT.REJECTED;
@@ -1444,6 +1449,15 @@ async function runRunnerStep(flags) {
   process.stdout.write(`${JSON.stringify(result.step)}\n`);
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
   return EXIT.OK;
+}
+
+/** The loop `--runner` names, verification's when it is absent. */
+function runnerOf(flags, verb, module) {
+  if (flags.runner === undefined) return 'verification';
+  if (typeof flags.runner !== 'string' || !module.RUNNERS.includes(flags.runner)) {
+    throw new UsageError(`${verb} --runner must be one of ${module.RUNNERS.join(', ')}`);
+  }
+  return flags.runner;
 }
 
 /** `--state` in a run or `--task-path` outside one: exactly one of them. */

@@ -181,7 +181,8 @@ const CHARACTERISTIC_KEYS = [
  * its overlays, `gates` maps a node id to its parsed request document, and
  * `progress` carries at most one entry keyed by the executor node,
  * `declared` maps a node id to its declared artifact paths by key, and
- * `verifier` is the node that runs the reviews, or null.
+ * `verifier` is the node that runs the reviews, or null, and `executor` the
+ * node that runs the implementation plan, or null.
  *
  * `generated` is the **first** top-level key: that is what hand-written files
  * already carried, and the cockpit
@@ -199,12 +200,13 @@ export function render(view, { now }) {
   const progress = isPlainObject(source.progress) ? source.progress : {};
   const declared = isPlainObject(source.declared) ? source.declared : {};
   const verifier = typeof source.verifier === 'string' ? source.verifier : null;
+  const executor = typeof source.executor === 'string' ? source.executor : null;
 
   const data = {
     generated: now,
     task: taskOf(state),
     characteristics: characteristicsOf(state),
-    phases: phasesOf(state, icons, titles, labels, gates, progress, declared, verifier),
+    phases: phasesOf(state, icons, titles, labels, gates, progress, declared, verifier, executor),
     verification: verificationOf(state),
   };
   return `window.MAISTER_DATA = ${JSON.stringify(data, null, 1)};\n`;
@@ -284,7 +286,7 @@ function characteristicsOf(state) {
  * It is never sorted and never re-derived: a second ordering rule beside the
  * resolver's is a second thing to keep in step, and the two would drift.
  */
-function phasesOf(state, icons, titles, labels, gates, progress, declared, verifier) {
+function phasesOf(state, icons, titles, labels, gates, progress, declared, verifier, executor = null) {
   const workflow = isPlainObject(state.workflow) ? state.workflow : {};
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   const reviewer = verifier ?? (Object.hasOwn(nodes, 'verification') ? 'verification' : null);
@@ -348,9 +350,10 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared, verif
     // Additive and optional everywhere: a run with no plan on disk carries no
     // `progress` key at all rather than an empty one.
     if (Object.hasOwn(progress, id) && isPlainObject(progress[id])) phase.progress = progress[id];
-    // Additive, and only on the node that runs the reviews of a run whose
+    // Additive, and only on the nodes that hand a loop to a runner — the one
+    // that runs the reviews and the one that runs the plan — of a run whose
     // freeze recorded how its subagents delegate: `nested` or `inline`.
-    if (id === reviewer && delegation !== null) phase.delegation = delegation;
+    if ((id === reviewer || id === executor) && delegation !== null) phase.delegation = delegation;
     return phase;
   });
 }

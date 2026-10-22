@@ -18,8 +18,8 @@
  * - `<run>/display/status.json`, from every state write: the workflow, the
  *   task, the phase by `phaseOf`'s rule, the next checkpoint by
  *   `checkpointOf`'s, the run's status, `line`, the status line composed —
- *   with the run's delegation mode after the phase while the verifier's phase
- *   is under way — when the run started, the nodes — each one's title and
+ *   with the run's delegation mode after the phase while the executor's or
+ *   the verifier's phase is under way — when the run started, the nodes — each one's title and
  *   status, and the ones this write changed — the artifact paths the nodes declare, relative to
  *   the run directory, and `parts`: the parts of the phase under way, when it
  *   has any — the implementation plan's task groups, or the reviews the
@@ -161,13 +161,13 @@ export function checkpointOf(doc, titles) {
  * projects it; `verifier` the node that runs the reviews, or null.
  * Returns the warnings, `{file, code, message}` each.
  */
-export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], progress = {}, verifier = null, banner = null, session = process.env[SESSION_ENV] }) {
+export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], progress = {}, verifier = null, executor = null, banner = null, session = process.env[SESSION_ENV] }) {
   const warnings = [];
   const dir = path.join(runDir, DISPLAY_DIR);
   attempt(warnings, `${DISPLAY_DIR}/${NEXT}`, () => remove(path.join(dir, NEXT)));
   const started = banner !== null ? now : startedOf(dir, doc);
   const before = previousNodes(dir);
-  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, started, before })));
+  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, executor, started, before })));
   if (banner !== null) {
     const { lines, ...card } = banner;
     attempt(warnings, `${DISPLAY_DIR}/${BANNER}`, () => publish(dir, BANNER, { version: VERSION, frozen: now, lines, ...card }));
@@ -198,7 +198,7 @@ export function publishNext({ runDir, panel }) {
  * the status file it replaces (`saved`), whether a gate is under way now, the
  * declared artifact paths (`artifacts`) and the running phase's `parts`.
  */
-function statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, started, before }) {
+function statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, executor, started, before }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const task = isPlainObject(doc.task) ? doc.task : {};
   const name = typeof workflow.name === 'string' && workflow.name !== '' ? humanize(workflow.name) : 'Workflow';
@@ -207,7 +207,7 @@ function statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, ve
   const phase = phaseOf(doc, titles);
   let where = status ?? 'not started';
   if (!ENDINGS.has(status) && phase.title) where = `phase ${phase.index}/${phase.total} · ${phase.title}`;
-  const mode = !ENDINGS.has(status) && phase.title && verifying(doc, verifier) ? delegationOf(doc) : null;
+  const mode = !ENDINGS.has(status) && phase.title && delegating(doc, verifier, executor) ? delegationOf(doc) : null;
   const line = [name, where, ...(mode ? [mode] : []), ...(title ? [clip(title, TASK_MAX)] : [])].join(' · ');
   const nodes = {};
   for (const [id, entry] of Object.entries(nodesOf(doc))) {
@@ -239,9 +239,9 @@ function statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, ve
 }
 
 /** Whether the current phase, by `phaseOf`'s rule, is the node that runs the reviews. */
-function verifying(doc, verifier) {
+function delegating(doc, verifier, executor) {
   const { phases, at, nodes } = currentPhase(doc);
-  return phases[at] !== undefined && phases[at] === reviewerOf(nodes, verifier);
+  return phases[at] !== undefined && (phases[at] === reviewerOf(nodes, verifier) || phases[at] === executor);
 }
 
 /** The node that runs the reviews: the one the definition names, else a node called `verification`. */

@@ -751,6 +751,7 @@ function project(state, text, now, changed, warnings) {
       progress: progressOf(doc, definition, runDir),
       declared: declaredOf(doc, definition, runDir),
       verifier: dashboard.verifierNodeOf(definition),
+      executor: dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc),
     };
     canonical.commit({
       target,
@@ -793,6 +794,7 @@ function display(state, text, now, banner) {
       artifacts: artifactsOf(doc, runDir),
       progress: progressOf(doc, definition, runDir),
       verifier: dashboard.verifierNodeOf(definition),
+      executor: dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc),
       banner,
     });
   } catch (err) {

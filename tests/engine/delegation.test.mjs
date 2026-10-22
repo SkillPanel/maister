@@ -121,11 +121,14 @@ test('orchestrator.options stays one flow-map line, the delegation map nested in
   assert.match(lines[0], /mockup_format: html/);
 });
 
-test('the status line names the mode while the verifier runs, and not before or after', t => {
+test('the status line names the mode while the executor or the verifier runs, and not before or after', t => {
   const run = scratch(t);
   assert.equal(freezeWith(run, { host: 'claude' }).code, 0);
-  write(run, { nodes: { implementation: { status: 'running' } } });
+  write(run, { nodes: { analysis: { status: 'running' } } });
   assert.doesNotMatch(statusOf(run).line, /nested/);
+
+  write(run, { nodes: { analysis: { status: 'completed' }, implementation: { status: 'running' } } });
+  assert.match(statusOf(run).line, / · Implementation · nested · /);
 
   write(run, { nodes: { implementation: { status: 'completed' }, review: { status: 'running' } } });
   const status = statusOf(run);
@@ -141,11 +144,11 @@ test('the status line names the mode while the verifier runs, and not before or 
   assert.doesNotMatch(statusOf(plain).line, /nested|inline/);
 });
 
-test('the verifier\'s dashboard card carries the mode, and no other card does', t => {
+test('the executor\'s and the verifier\'s dashboard cards carry the mode, and no other card does', t => {
   const run = scratch(t);
   assert.equal(freezeWith(run, { host: 'claude', env: { [DEPTH_ENV]: '1' } }).code, 0);
   const phases = readDashboard(run).phases;
-  assert.deepEqual(phases.filter(phase => Object.hasOwn(phase, 'delegation')).map(phase => [phase.id, phase.delegation]), [['review', 'inline']]);
+  assert.deepEqual(phases.filter(phase => Object.hasOwn(phase, 'delegation')).map(phase => [phase.id, phase.delegation]), [['implementation', 'inline'], ['review', 'inline']]);
 
   const plain = scratch(t);
   assert.equal(freezeWith(plain).code, 0);
