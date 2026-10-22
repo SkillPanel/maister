@@ -597,6 +597,36 @@ verification runs in your session as before, and the status line says `inline` i
 while it runs. A run that stops part way through verification picks up from the files the last pass
 left, whichever way it ran.
 
+## What the reviewers check: the project profile
+
+The reviews check what applies to your project, not a fixed web-service checklist. A CLI or a
+plugin is not asked for a health endpoint, rate limiting or CORS, and a project with no database
+is not asked for down-migrations or connection pooling. What the project is comes from the
+`project:` key of `.maister/config.yml`:
+
+```yaml
+project:
+  kind: cli                  # web-app | service | daemon | cli | library | plugin | desktop | mobile | data-pipeline | infra
+  runtime: "node 20"         # the language and its version
+  deploy: package-registry   # none | local | container | kubernetes | serverless | package-registry | app-store
+  exposure: local            # local | internal | public: who can reach its entry points
+  data: []                   # the stores it writes, e.g. [postgres, files]; [] for none
+  scale: team                # single-user | team | multi-tenant
+  ui: none                   # none | web | tui | native
+```
+
+Every field is optional, and one left out rules no check out. `/maister:init` fills the key in
+from its project analysis when your config has none, leaving the fields it could not settle
+commented out, and leaves an existing key alone; its summary shows what it wrote. Correct any line
+by hand. A run copies the profile into its state when it starts, so an edit applies to the next
+run. A value maister does not know is a warning, and that field is left out; it never stops a
+run, and `/maister:run --check <workflow>` shows the warning without starting anything.
+
+Without the key, each reviewer works the profile out from `.maister/docs/project/` and says in its
+report what it inferred. The reviews judge a safeguard from the same profile: a missing pool, cache or rate limit is the code review's or production readiness's
+finding only when the project needs it, and one that is there is the pragmatic review's finding
+only when the project does not, so the two never ask for opposite things.
+
 ## Your Own Workflows
 
 A workflow your project defines, as `.maister/workflows/<name>.yml` with its prose in
