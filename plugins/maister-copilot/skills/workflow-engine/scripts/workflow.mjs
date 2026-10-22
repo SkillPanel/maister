@@ -124,6 +124,11 @@
  *                  (the cycle's reviewer findings merged into findings.json,
  *                  its counts and the issues_found projection) — writes only
  *                  under the run's verification/
+ *   project-profile the detected profile as JSON on stdin   JSON on stdout
+ *                  (the profile `init` detected, written into the project's
+ *                  .maister/config.yml under `project:` — appended, or the
+ *                  file created — only when no `project:` key is there;
+ *                  an existing key is kept as it is)
  *   runner-result  --state, --node, optional --runner, --patch-file (or the
  *                  result as JSON on stdin)                   JSON on stdout
  *                  (a runner's result — `--runner=verification`, the
@@ -292,6 +297,10 @@ const VERBS = {
   'review-brief': { module: 'review-brief.mjs', flags: ['state', 'task-path', 'base', 'cycle', 'recheck', 'fixed-issues', 'refresh'] },
   // The cycle's reviewer findings merged into the run's one numbered list.
   'findings-merge': { module: 'findings-merge.mjs', flags: ['state', 'task-path', 'cycle'] },
+  // The project profile `init` detected, written into the project's
+  // config.yml only when it has no `project:` key. The fields come on stdin:
+  // there is no run, so no run directory to anchor a patch file in.
+  'project-profile': { module: 'project-profile.mjs', flags: [] },
   // A runner's two ends: its result, written by the runner through the one
   // place a patch is read from, and the node's next step, read from the run.
   // `--node` because the node is the one state records as running, and both
@@ -591,6 +600,10 @@ async function runValidate(flags) {
     overlays: sources.overlays,
   });
   result.warnings.push(...warnings);
+  // The project profile the freeze would copy, judged the same way: a bad
+  // value is a warning, and the run starts with the field left out.
+  const profile = await loadModule('project-profile.mjs');
+  result.warnings.push(...entryOf(profile, 'projectProfile', 'project-profile.mjs')(entryOf(module, 'projectRoot', VERBS.validate.module)()).warnings);
   report(result);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
@@ -1409,6 +1422,24 @@ async function runFindingsMerge(flags) {
 }
 
 /**
+ * `project-profile` reports like `findings-merge`: the result as JSON on
+ * stdout — the action, the file, the fields written and the block — a
+ * refusal's code first on stderr at exit 1, and each field it could not write
+ * as one `warning:` line, exit 0. The project root is the engine's own.
+ */
+async function runProjectProfile(flags) {
+  const module = await loadModule(VERBS['project-profile'].module);
+  const write = entryOf(module, 'writeProfile', VERBS['project-profile'].module);
+  const graph = await loadModule(VERBS.validate.module);
+  const input = await readInput(flags, 'the detected profile');
+  const { warnings = [], ...result } = write({ root: entryOf(graph, 'projectRoot', VERBS.validate.module)(), detected: input.document });
+  report(result);
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
+/**
  * `runner-result` reports like `findings-merge`: the written result as JSON on
  * stdout, a refusal's code first on stderr at exit 1 with the patch file kept
  * for correcting, and the patch file deleted once the result landed.
@@ -1505,6 +1536,7 @@ const RUNNERS = {
   'dispatch-model': runDispatchModel,
   'review-brief': runReviewBrief,
   'findings-merge': runFindingsMerge,
+  'project-profile': runProjectProfile,
   'runner-result': runRunnerResult,
   'runner-step': runRunnerStep,
 };

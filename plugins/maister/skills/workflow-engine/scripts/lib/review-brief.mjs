@@ -46,6 +46,12 @@
  *   spec, plan, tests   the spec's requirement numbers and story ids, parsed
  *                       softly; the plan's group counts; the test result
  *   standards           the standards INDEX entries matching the changed files
+ *   profile             the project profile the reviewers key their checks to,
+ *                       its fields and `source`: `config` — the copy the freeze
+ *                       recorded, or standalone the `project:` key of the
+ *                       project's config.yml — or `none`, when there is no
+ *                       profile and each reviewer infers it from the project's
+ *                       docs, reporting it as `inferred`
  *   contract            the reviewers' findings contract, by absolute path
  *
  * The project's `.maister/` is never part of the change. A part the verb cannot
@@ -69,6 +75,7 @@ import path from 'node:path';
 import { isPlainObject, parse } from './state-read.mjs';
 import { projectRootOf } from './state.mjs';
 import { readPlan } from './plan-sync.mjs';
+import { projectProfile } from './project-profile.mjs';
 import { changedBetween, commitOf, hasObject, ownDirOf, parseHunks, patch, repoOf, shortstat, snapshot, untrackedPaths } from './git-tree.mjs';
 
 /** The run's verification folder, where every file this verb writes lives. */
@@ -171,6 +178,7 @@ export function reviewBrief({ state = null, taskPath = null, base = null, cycle 
     plan: null,
     tests: null,
     standards: [],
+    profile: null,
   };
 
   const taken = snapshot(repo, baseSha);
@@ -186,6 +194,7 @@ export function reviewBrief({ state = null, taskPath = null, base = null, cycle 
   brief.plan = planOf(runDir, warnings);
   brief.tests = testsOf(doc, dir, number, recheck, warnings, { refreshing: false });
   brief.standards = standardsOf(projectRoot, repo, brief.changed, warnings);
+  brief.profile = profileOf(doc, projectRoot, warnings);
 
   const file = path.join(dir, `review-brief-${number}.json`);
   writeJson(file, brief);
@@ -375,6 +384,22 @@ function testsOf(doc, dir, number, recheck, warnings, { refreshing }) {
   }
   if (refreshing) warnings.push(`review-brief-tests: ${VERIFICATION}/${TEST_FINDINGS} holds no test result for cycle ${number}`);
   return { status: 'pending', ...files };
+}
+
+/**
+ * `profile`: in a run, the copy the freeze recorded and nothing else, so every
+ * cycle of the run reads the same profile; standalone, the project's
+ * `config.yml`, a bad value a warning and the field left out. No fields is
+ * `{source: none}`.
+ */
+function profileOf(doc, projectRoot, warnings) {
+  if (doc !== null) {
+    const frozen = doc.orchestrator?.options?.project;
+    return isPlainObject(frozen) && Object.keys(frozen).length ? { ...frozen, source: 'config' } : { source: 'none' };
+  }
+  const read = projectProfile(projectRoot);
+  for (const warning of read.warnings) warnings.push(`review-brief-profile: ${warning.replace(/^project-profile: /, '')}`);
+  return read.profile === null ? { source: 'none' } : { ...read.profile, source: 'config' };
 }
 
 // ---------------------------------------------------------------------------
