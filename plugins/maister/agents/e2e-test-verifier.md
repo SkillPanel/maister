@@ -1,7 +1,6 @@
 ---
 name: e2e-test-verifier
 description: Executes runtime browser verification using Playwright MCP tools to verify implementation behavior against specifications. Does NOT generate test files — performs live interactive verification with evidence collection.
-model: inherit
 color: green
 ---
 

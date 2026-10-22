@@ -1,7 +1,6 @@
 ---
 name: specification-creator
 description: Creates comprehensive specifications from gathered requirements. Searches for reusable code, writes spec.md with reusability analysis, and checks requirement coverage. Receives pre-gathered requirements - does not interact with users.
-model: inherit
 color: green
 ---
 

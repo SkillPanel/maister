@@ -1,7 +1,6 @@
 ---
 name: solution-brainstormer
 description: Generates structured solution alternatives from research synthesis, grouped by decision area. Produces multi-perspective trade-off analysis with scope guardrails, a recommendation per area, and a decision areas file the convergence step asks from. Non-interactive content generator.
-model: inherit
 color: orange
 ---
 

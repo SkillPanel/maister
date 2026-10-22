@@ -1,7 +1,6 @@
 ---
 name: reality-assessor
 description: Reality assessment specialist. Checks whether completed work actually solves the stated problem end-to-end — claimed vs. actual completion, error paths, integration — and writes a pragmatic action plan. Reports gaps without fixing them, and always writes its assessment to report_path.
-model: inherit
 color: pink
 ---
 

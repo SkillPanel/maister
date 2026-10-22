@@ -524,6 +524,51 @@ session; a run driven from outside skips those loops, so its pauses are where th
 A revise is an in-run answer. It does not reopen a run that has finished; to change finished work,
 start a new task.
 
+## Choosing subagent models
+
+Most of a workflow's work is done by subagents. By default:
+
+- **The clerical agents** (project analysis, the docs operator, task classification, the
+  test-suite runner and HTML companions) and **the codebase scouts** maister starts (`Explore`)
+  run on the `light` tier: a lightweight model on high effort.
+- **Implementers follow the plan.** Each task group runs on the tier its plan gives it, `light`,
+  `standard` or `deep`; a group with no tier runs on `standard`, and a fourth `deep` group in a
+  run asks first. On Copilot, where the deep model bills 15 requests each, groups stop at
+  `standard`.
+- **Verification's fixes** — the ones the fix loop after implementation applies without asking —
+  run on your session's model.
+- **Every other agent** runs on your session's model.
+
+`/maister:init` writes these defaults into `.maister/config.yml` as a `subagents` block you can
+edit, adding it to a config that has none and leaving an existing block alone. In a codebase of
+more than 2,000 files it puts `Explore` on `standard`, still on high effort, and its summary says
+so. The block governs the agent calls maister makes; the explore agents your host's own plan mode
+starts are outside it. The block holds:
+
+- **A ladder of three tiers**, `light`, `standard` and `deep`, each naming a model per host
+  (Claude Code takes `haiku`, `sonnet`, `opus` or `fable`; Copilot takes a model id). `inherit`
+  in a cell, or as an entry's `model`, means your session's model.
+- **Assignments** per agent, per workflow (`workflows.<name>.agents`) or per step
+  (`workflows.<name>.nodes.<step>.agents`): a tier, a named preset, or a model and effort. The
+  most specific entry naming an agent wins, and any entry naming it beats a `default`: a default
+  covers only the agents nobody names, so the clerical agents stay on the lightweight model
+  until you name them.
+- **Effort.** A tier's effort applies to every agent on it unless the agent's entry sets its
+  own; remapping a tier's models keeps its effort unless you set one there. `effort: inherit`
+  sends none.
+- **Implementers by plan tier.** The implementation plan gives each task group a tier with a
+  one-line reason. With `task-group-implementer: { choose: by-plan-tier }`, the default, each
+  group runs on the cheapest model allowed for its tier, under a `ceiling`, which may differ by
+  host (`{ claude: deep, copilot: standard }` by default). A group that fails is
+  retried once on the next tier up before you are asked, and `budget` (by default `{ deep: 3 }`)
+  makes the run ask before it sends one more group to a tier. The work log records the model each group ran
+  on, and the implementation summary gives the tally.
+
+A run copies the block into its state when it starts, so a resumed run keeps its models and an
+edit applies to the next run. A block with an error is set aside with a warning and the defaults
+apply; `/maister:run --check <workflow>` shows the warnings without starting anything. An overlay
+or a profile may carry the same block, without the ladder.
+
 ## Your Own Workflows
 
 A workflow your project defines, as `.maister/workflows/<name>.yml` with its prose in

@@ -122,6 +122,7 @@ Common patterns:
 ### Task Group N: [Layer Name]
 **Dependencies:** [group numbers or "None"]
 **Files to Modify:** [comma-separated paths from repo root, or "None" for review-only groups]
+**Tier:** [light|standard|deep] — [reason, one clause]
 **Serves:** [the spec's Core Requirement ids this group delivers, or "None" for review-only groups]
 **Visual References:** [REQUIRED when design-context exists AND group touches UI; OMIT entire section otherwise]
 - mockup: analysis/design-context/mockups/[file]
@@ -169,12 +170,23 @@ Every group declares the files it will create or edit. The executor uses this to
 - Use `"None"` only for pure review or analysis groups that produce no file changes.
 - Never list `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`: the index is refreshed by maister from what the groups report, and standards change through standards-update when the run finishes. List a project document only when the task changes the fact it holds.
 
+#### Tier Field
+
+Every group declares how demanding its work is, so the executor can run it on the cheapest model that can do it (the `subagents` settings say which model each tier means; by default `light` is the host's lightweight model on high effort, `standard` its mid-range model and `deep` its strongest):
+
+- **light** — mechanical work with an existing pattern to copy: a field added the way its neighbours were, a rename, wiring that mirrors code already there.
+- **standard** — new behaviour in one layer.
+- **deep** — cross-cutting work, concurrency, security, a schema change, or tests known to be brittle.
+
+The reason is one clause naming what put the group on its tier ("copies the existing export handler", "touches the auth middleware"). Judge the group's hardest step, not its average one. A group that fails is retried once a tier up, so an honest `light` costs little.
+
 #### Testing Group (When >= 3 Groups)
 
 ```markdown
 ### Task Group N: Test Review & Gap Analysis
 **Dependencies:** All previous groups
 **Files to Modify:** [test directories or files this group will append to, e.g. `tests/**/*.test.ts`]
+**Tier:** [light|standard|deep] — [reason, one clause]
 
 - [ ] N.0 Review and fill critical gaps
   - [ ] N.1 Review tests from previous groups (6-24 existing tests)
@@ -336,6 +348,7 @@ Before completing, verify:
 - Test limits specified (2-8 per group)
 - Dependencies marked correctly
 - Files to Modify declared for every group (use `"None"` only for pure-review groups)
+- Tier declared for every group, with its reason
 - Reusable components referenced
 - Standards section included
 - **When design-context exists**: every UI task group has `Visual References` with all four sub-fields populated; `implementation/visual-coverage.md` covers 100% of INDEX.md (or documents uncovered items with justification)

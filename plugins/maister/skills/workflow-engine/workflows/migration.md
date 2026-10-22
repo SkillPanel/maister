@@ -124,7 +124,9 @@ operator when the second also comes back thin.
 break down, with the rollback procedure beside it, in two parts: Part A frames
 the migration requirements inline (Asks below), and Part B hands them to the
 specification-creator agent, whatever the migration's size, with the migration
-task type.
+task type and the model and effort `dispatch-model
+--agent=maister:specification-creator --node=specification` prints
+(`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 
 Hand the creator two things beyond `with:` and `prior-context`: the
 requirements Part A wrote, `analysis/requirements.md`, and the migration facts
@@ -212,7 +214,8 @@ companion, it catches a wave whose sync was missed.
 
 **Summary.** A `headline` naming the steps completed, the test result and
 whether the rollback is still ready; the steps completed, the files changed,
-the incremental test results and the rollback readiness in `summary`; a known
+the incremental test results, the rollback readiness and the executor's model
+tally in `summary`; a known
 issue as an `open` risk with its `change`, and an item deferred on purpose as a
 `followup` risk.
 

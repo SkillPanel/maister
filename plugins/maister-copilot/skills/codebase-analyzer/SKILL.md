@@ -96,12 +96,14 @@ If combining roles into one agent, also read `references/combined.md` for mergin
 
 **3c. Launch agents** — Use the Task tool with `agent_type="explore"` — one call per selected role, all in ONE message.
 
+**Model and effort:** just before the launch, run `dispatch-model --agent=Explore` once and give every call the model and effort it prints (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
+
 **IMPORTANT**: Every Explore agent prompt MUST include this instruction:
 > IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
 ### Step 4: Delegate Report Generation
 
-After all Explore agents complete, delegate to `codebase-analysis-reporter` subagent via Task tool:
+After all Explore agents complete, delegate to `codebase-analysis-reporter` subagent via Task tool, with the model and effort a fresh `dispatch-model --agent=maister-copilot:codebase-analysis-reporter` prints:
 
 ```
 Task tool:

@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { freezePatch, scratch, verb } from '../helpers.mjs';
+import { ENGINE_DIR, ROOT, freezePatch, scratch, verb } from '../helpers.mjs';
 
 // `dispatch-model` prints the model and effort an agent call carries, one line
-// per agent, resolved by one precedence order: the plan tier, the profile, the
-// overlay, the project's node, workflow, agent and default scopes, the shipped
-// agents and default, and the host. `omit` leaves the field off the call.
+// per agent, resolved by one precedence order: the plan tier; every entry naming
+// the agent, from the profile, the overlay, the project's node, workflow and
+// agent scopes and the shipped agents; the defaults in the same order; and the
+// host. `omit` leaves the field off the call.
 
 function config(run, text) {
   const file = path.join(run.root, '.maister', 'config.yml');
@@ -51,7 +52,7 @@ test('level 1: the plan tier wins for an agent whose entry is choose: by-plan-ti
   config(run, 'subagents:\n  default: { tier: deep }\n  agents:\n    task-group-implementer: { choose: by-plan-tier, unassessed: deep }\n');
   freezeRun(run);
   assert.equal(lineOf(run, 'task-group-implementer', ['--tier=light']),
-    'task-group-implementer: model haiku, effort omit — source: plan tier light within project agents.task-group-implementer');
+    'task-group-implementer: model haiku, effort high — source: plan tier light within project agents.task-group-implementer');
 });
 
 test('--tier is ignored for an agent whose entry is no by-plan-tier policy, with one note naming them', t => {
@@ -61,10 +62,10 @@ test('--tier is ignored for an agent whose entry is no by-plan-tier policy, with
   const result = dispatch(run, ['--agent=explore,task-group-implementer,spec-auditor,task-classifier', '--tier=deep'], { host: 'copilot' });
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, [
-    'explore: model omit, effort omit — source: shipped default',
+    'explore: model claude-haiku-5.5, effort high — source: shipped agents.Explore, tier light',
     'task-group-implementer: model claude-sonnet-5.5, effort omit — source: plan tier deep, clamped to standard within project agents.task-group-implementer',
     'spec-auditor: model omit, effort omit — source: shipped default',
-    'task-classifier: model claude-haiku-5.5, effort omit — source: shipped agents.task-classifier, tier light',
+    'task-classifier: model claude-haiku-5.5, effort high — source: shipped agents.task-classifier, tier light',
     '',
     'note: --tier=deep was ignored for explore, spec-auditor, task-classifier: a plan tier applies only to an agent whose entry is choose: by-plan-tier, so they resolve as without one',
     '',
@@ -74,12 +75,6 @@ test('--tier is ignored for an agent whose entry is no by-plan-tier policy, with
   const one = dispatch(run, ['--agent=spec-auditor', '--tier=light']);
   assert.equal(one.stdout, 'spec-auditor: model sonnet, effort omit — source: project agents.spec-auditor\n\n'
     + 'note: --tier=light was ignored for spec-auditor: a plan tier applies only to an agent whose entry is choose: by-plan-tier, so it resolves as without one\n');
-
-  // With no config the shipped defaults hold no policy, so the tier is ignored for every agent.
-  const bare = scratch(t);
-  assert.equal(dispatch(bare, ['--agent=task-group-implementer', '--tier=deep'], { state: false }).stdout,
-    'task-group-implementer: model omit, effort omit — source: shipped default\n\n'
-    + 'note: --tier=deep was ignored for task-group-implementer: a plan tier applies only to an agent whose entry is choose: by-plan-tier, so it resolves as without one\n');
 });
 
 test('level 2: the selected profile wins over the overlay', t => {
@@ -94,7 +89,7 @@ test('level 3: the overlay wins over the project\'s node scope', t => {
   config(run, 'subagents:\n  workflows:\n    development:\n      nodes:\n        analysis: { agents: { Explore: { tier: deep } } }\n');
   const file = overlay(run, 'subagents:\n  agents:\n    Explore: { tier: light }\n');
   freezeRun(run, { overlays: [file] });
-  assert.equal(lineOf(run, 'Explore', ['--node=analysis']), 'Explore: model haiku, effort omit — source: overlay agents.Explore, tier light');
+  assert.equal(lineOf(run, 'Explore', ['--node=analysis']), 'Explore: model haiku, effort high — source: overlay agents.Explore, tier light');
 });
 
 test('level 4: the project\'s node scope wins over its workflow scope', t => {
@@ -113,7 +108,7 @@ test('level 4: the project\'s node scope wins over its workflow scope', t => {
     'Explore: model sonnet, effort high — source: project workflows.development.nodes.analysis.agents.Explore, tier standard');
   // Another node of the run reads the workflow scope.
   assert.equal(lineOf(run, 'Explore', ['--node=implementation']),
-    'Explore: model haiku, effort omit — source: project workflows.development.agents.Explore, tier light');
+    'Explore: model haiku, effort high — source: project workflows.development.agents.Explore, tier light');
 });
 
 test('level 5: the project\'s workflow scope wins over its agents', t => {
@@ -121,7 +116,7 @@ test('level 5: the project\'s workflow scope wins over its agents', t => {
   config(run, 'subagents:\n  agents:\n    information-gatherer: { tier: deep }\n  workflows:\n    development:\n      agents: { information-gatherer: { tier: light } }\n    research:\n      agents: { information-gatherer: { tier: standard } }\n');
   freezeRun(run);
   assert.equal(lineOf(run, 'information-gatherer'),
-    'information-gatherer: model haiku, effort omit — source: project workflows.development.agents.information-gatherer, tier light');
+    'information-gatherer: model haiku, effort high — source: project workflows.development.agents.information-gatherer, tier light');
 });
 
 test('level 6: the project\'s agents win over its default', t => {
@@ -131,11 +126,30 @@ test('level 6: the project\'s agents win over its default', t => {
   assert.equal(lineOf(run, 'spec-auditor'), 'spec-auditor: model opus, effort high — source: project agents.spec-auditor');
 });
 
-test('level 7: the project\'s default wins over the shipped agents', t => {
+test('level 7: the shipped agents win over the project\'s default, which covers only the agents nobody names', t => {
   const run = scratch(t);
   config(run, 'subagents:\n  default: { tier: standard }\n');
   freezeRun(run);
-  assert.equal(lineOf(run, 'task-classifier'), 'task-classifier: model sonnet, effort omit — source: project default, tier standard');
+  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light');
+  assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model sonnet, effort omit — source: project default, tier standard');
+});
+
+test('a project entry naming a clerical agent still wins over the shipped light pick', t => {
+  const run = scratch(t);
+  config(run, 'subagents:\n  default: { tier: deep }\n  agents:\n    docs-operator: { tier: standard }\n');
+  freezeRun(run);
+  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model sonnet, effort omit — source: project agents.docs-operator, tier standard');
+  assert.equal(lineOf(run, 'task-classifier'), 'task-classifier: model haiku, effort high — source: shipped agents.task-classifier, tier light');
+});
+
+test('every entry naming the agent wins over every default, an overlay\'s default included', t => {
+  const run = scratch(t);
+  config(run, 'subagents:\n  agents:\n    gap-analyzer: { tier: light }\n');
+  freezeRun(run, { overlays: [overlay(run, 'subagents:\n  default: { tier: deep }\n')] });
+  assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model haiku, effort high — source: project agents.gap-analyzer, tier light');
+  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light');
+  // An agent nobody names takes the most specific default: the overlay's over the project's.
+  assert.equal(lineOf(run, 'spec-auditor'), 'spec-auditor: model opus, effort omit — source: overlay default, tier deep');
 });
 
 test('level 8: the shipped agents put the clerical agents on light', t => {
@@ -144,13 +158,194 @@ test('level 8: the shipped agents put the clerical agents on light', t => {
   const result = dispatch(run, ['--agent=project-analyzer,docs-operator,task-classifier,test-suite-runner,html-companion-writer']);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, [
-    'project-analyzer: model haiku, effort omit — source: shipped agents.project-analyzer, tier light',
-    'docs-operator: model haiku, effort omit — source: shipped agents.docs-operator, tier light',
-    'task-classifier: model haiku, effort omit — source: shipped agents.task-classifier, tier light',
-    'test-suite-runner: model haiku, effort omit — source: shipped agents.test-suite-runner, tier light',
-    'html-companion-writer: model haiku, effort omit — source: shipped agents.html-companion-writer, tier light',
+    'project-analyzer: model haiku, effort high — source: shipped agents.project-analyzer, tier light',
+    'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light',
+    'task-classifier: model haiku, effort high — source: shipped agents.task-classifier, tier light',
+    'test-suite-runner: model haiku, effort high — source: shipped agents.test-suite-runner, tier light',
+    'html-companion-writer: model haiku, effort high — source: shipped agents.html-companion-writer, tier light',
     '',
   ].join('\n'));
+});
+
+test('with no config, Explore and the clerical agents run on Haiku at high effort, on either host', t => {
+  const run = scratch(t);
+  assert.equal(dispatch(run, ['--agent=Explore,docs-operator'], { state: false }).stdout,
+    'Explore: model haiku, effort high — source: shipped agents.Explore, tier light\n'
+    + 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light\n');
+  assert.equal(dispatch(run, ['--agent=explore,docs-operator'], { state: false, host: 'copilot' }).stdout,
+    'explore: model claude-haiku-5.5, effort high — source: shipped agents.Explore, tier light\n'
+    + 'docs-operator: model claude-haiku-5.5, effort high — source: shipped agents.docs-operator, tier light\n');
+});
+
+test('the light rung\'s high effort yields to an entry\'s own effort and to a project cell that sets one', t => {
+  const own = scratch(t);
+  config(own, 'subagents:\n  agents:\n    docs-operator: { tier: light, effort: low }\n    Explore: { tier: light, effort: inherit }\n');
+  assert.equal(lineOf(own, 'docs-operator', [], { state: false }), 'docs-operator: model haiku, effort low — source: project agents.docs-operator, tier light');
+  assert.equal(lineOf(own, 'Explore', [], { state: false }), 'Explore: model haiku, effort omit — source: project agents.Explore, tier light');
+
+  // A project cell is laid over the shipped one: without an effort the high effort stays.
+  const remapped = scratch(t);
+  config(remapped, 'subagents:\n  tiers:\n    light: { claude: sonnet, copilot: gpt-6-luna }\n');
+  assert.equal(lineOf(remapped, 'docs-operator', [], { state: false }), 'docs-operator: model sonnet, effort high — source: shipped agents.docs-operator, tier light');
+  assert.equal(lineOf(remapped, 'docs-operator', [], { state: false, host: 'copilot' }), 'docs-operator: model gpt-6-luna, effort high — source: shipped agents.docs-operator, tier light');
+
+  // A cell with its own effort uses it, and inherit sends none.
+  const medium = scratch(t);
+  config(medium, 'subagents:\n  tiers:\n    light: { effort: medium }\n');
+  assert.equal(lineOf(medium, 'Explore', [], { state: false }), 'Explore: model haiku, effort medium — source: shipped agents.Explore, tier light');
+  const off = scratch(t);
+  config(off, 'subagents:\n  tiers:\n    light: { effort: inherit }\n');
+  assert.equal(lineOf(off, 'Explore', [], { state: false }), 'Explore: model haiku, effort omit — source: shipped agents.Explore, tier light');
+});
+
+test('with no config the implementer runs on the planner\'s tier, unassessed on standard, with three deep groups before asking', t => {
+  const run = scratch(t);
+  freezeRun(run);
+  const within = 'within shipped agents.task-group-implementer';
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=light']), `task-group-implementer: model haiku, effort high — source: plan tier light ${within}`);
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=standard']), `task-group-implementer: model sonnet, effort omit — source: plan tier standard ${within}`);
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=deep']), `task-group-implementer: model opus, effort omit — source: plan tier deep ${within}`);
+  assert.equal(lineOf(run, 'task-group-implementer'),
+    'task-group-implementer: model sonnet, effort omit — source: shipped agents.task-group-implementer, unassessed: standard');
+
+  const log = path.join(run.dir, 'implementation', 'work-log.md');
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  const group = n => `## 2026-01-05 10:0${n} - Group ${n} Complete (wave ${n})\n**Model**: opus (tier deep, planner: "a schema change")\n`;
+  fs.writeFileSync(log, group(1) + group(2));
+  assert.equal(dispatch(run, ['--agent=task-group-implementer', '--tier=deep']).stdout.split('\n').slice(1).join('\n'),
+    '\nnote: task-group-implementer budget: 2 of 3 groups on deep used in this run\n');
+  fs.appendFileSync(log, group(3));
+  assert.equal(dispatch(run, ['--agent=task-group-implementer', '--tier=deep']).stdout.split('\n').slice(1).join('\n'),
+    '\nnote: task-group-implementer budget: 3 of 3 groups on deep used in this run — ask before dispatching another group on deep\n');
+});
+
+test('on Copilot the shipped implementer stops at standard, and a deep group clamped there draws no budget note', t => {
+  const run = scratch(t);
+  freezeRun(run);
+  const within = 'within shipped agents.task-group-implementer';
+  const copilot = { host: 'copilot' };
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=light'], copilot), `task-group-implementer: model claude-haiku-5.5, effort high — source: plan tier light ${within}`);
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=standard'], copilot), `task-group-implementer: model claude-sonnet-5.5, effort omit — source: plan tier standard ${within}`);
+  assert.equal(lineOf(run, 'task-group-implementer', [], copilot),
+    'task-group-implementer: model claude-sonnet-5.5, effort omit — source: shipped agents.task-group-implementer, unassessed: standard');
+  const log = path.join(run.dir, 'implementation', 'work-log.md');
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  fs.writeFileSync(log, [1, 2, 3].map(n => `## Group ${n} Complete (wave 1)\n**Model**: opus (tier deep, planner: "a schema change")\n`).join(''));
+  assert.equal(dispatch(run, ['--agent=task-group-implementer', '--tier=deep'], copilot).stdout,
+    `task-group-implementer: model claude-sonnet-5.5, effort omit — source: plan tier deep, clamped to standard ${within}\n`);
+});
+
+test('a ceiling given per host is read for the host, and a project can raise Copilot\'s', t => {
+  const run = scratch(t);
+  config(run, 'subagents:\n  agents:\n    task-group-implementer: { choose: by-plan-tier, ceiling: { copilot: deep, claude: standard } }\n');
+  freezeRun(run);
+  const within = 'within project agents.task-group-implementer';
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=deep'], { host: 'copilot' }), `task-group-implementer: model claude-opus-5.5, effort omit — source: plan tier deep ${within}`);
+  assert.equal(lineOf(run, 'task-group-implementer', ['--tier=deep']), `task-group-implementer: model sonnet, effort omit — source: plan tier deep, clamped to standard ${within}`);
+  // A host the ceiling does not name has the top rung.
+  const one = scratch(t);
+  config(one, 'subagents:\n  agents:\n    task-group-implementer: { choose: by-plan-tier, ceiling: { copilot: light } }\n');
+  assert.equal(lineOf(one, 'task-group-implementer', ['--tier=deep'], { state: false }), 'task-group-implementer: model opus, effort omit — source: plan tier deep within project agents.task-group-implementer');
+  assert.equal(lineOf(one, 'task-group-implementer', ['--tier=deep'], { state: false, host: 'copilot' }),
+    'task-group-implementer: model claude-haiku-5.5, effort high — source: plan tier deep, clamped to light within project agents.task-group-implementer');
+});
+
+const BUILT_IN_FIX_LOOPS = [['development', 'verification'], ['performance', 'verification'], ['migration', 'issue-resolution']];
+
+/** A run frozen from one of the built-in workflow definitions, with `config` as its config.yml when given. */
+function freezeBuiltIn(t, workflow, configText = null) {
+  const run = scratch(t, { type: workflow });
+  if (configText !== null) config(run, configText);
+  freezeRun(run, { definition: path.join(ENGINE_DIR, 'workflows', `${workflow}.yml`), inputs: { task_description: 'Sample task' } });
+  return run;
+}
+
+test('with no config the built-in verification fix loops hand their fixes to the session\'s model, and plan groups keep theirs', t => {
+  for (const [workflow, node] of BUILT_IN_FIX_LOOPS) {
+    const run = freezeBuiltIn(t, workflow);
+    const source = `shipped workflows.${workflow}.nodes.${node}.agents.task-group-implementer`;
+    for (const host of ['claude', 'copilot']) {
+      assert.equal(lineOf(run, 'maister:task-group-implementer', [`--node=${node}`], { host }),
+        `maister:task-group-implementer: model omit, effort omit — source: ${source}`, `${workflow} on ${host}`);
+    }
+    // A plan group without a tier, in the implementation node, still runs on standard.
+    const implementation = workflow === 'migration' ? 'execution' : 'implementation';
+    assert.equal(lineOf(run, 'task-group-implementer', [`--node=${implementation}`]),
+      'task-group-implementer: model sonnet, effort omit — source: shipped agents.task-group-implementer, unassessed: standard');
+  }
+});
+
+test('a project setting overrides the fix loops\' default, for one node or for the implementer everywhere', t => {
+  const node = freezeBuiltIn(t, 'development', 'subagents:\n  workflows:\n    development:\n      nodes:\n        verification: { agents: { task-group-implementer: { tier: deep } } }\n');
+  assert.equal(lineOf(node, 'task-group-implementer', ['--node=verification']),
+    'task-group-implementer: model opus, effort omit — source: project workflows.development.nodes.verification.agents.task-group-implementer, tier deep');
+
+  // Any project entry naming the implementer outranks maister's own, its node entries included.
+  const everywhere = freezeBuiltIn(t, 'migration', 'subagents:\n  agents:\n    task-group-implementer: { tier: standard }\n');
+  assert.equal(lineOf(everywhere, 'task-group-implementer', ['--node=issue-resolution'], { host: 'copilot' }),
+    'task-group-implementer: model claude-sonnet-5.5, effort omit — source: project agents.task-group-implementer, tier standard');
+});
+
+test('inherit is the session\'s model in a tier cell, a preset cell and an entry\'s model, on both hosts', t => {
+  const run = scratch(t);
+  config(run, [
+    'subagents:',
+    '  tiers:',
+    '    deep: { claude: opus, copilot: inherit }',
+    '    standard: { claude: inherit, copilot: claude-sonnet-5.5 }',
+    '  presets:',
+    '    session: { claude: inherit, copilot: inherit, effort: low }',
+    '  agents:',
+    '    gap-analyzer: { tier: deep }',
+    '    code-reviewer: { tier: standard }',
+    '    spec-auditor: { preset: session }',
+    '    reality-assessor: { model: inherit, effort: max }',
+    '',
+  ].join('\n'));
+  const agents = '--agent=gap-analyzer,code-reviewer,spec-auditor,reality-assessor';
+  const claude = dispatch(run, [agents], { state: false });
+  assert.equal(claude.stderr, '', 'inherit is neither refused nor counted as a premium model');
+  assert.equal(claude.stdout, 'gap-analyzer: model opus, effort omit — source: project agents.gap-analyzer, tier deep\n'
+    + 'code-reviewer: model omit, effort omit — source: project agents.code-reviewer, tier standard\n'
+    + 'spec-auditor: model omit, effort low — source: project agents.spec-auditor, preset session\n'
+    + 'reality-assessor: model omit, effort max — source: project agents.reality-assessor\n');
+  const copilot = dispatch(run, [agents], { state: false, host: 'copilot' });
+  assert.equal(copilot.stderr, '');
+  assert.equal(copilot.stdout, 'gap-analyzer: model omit, effort omit — source: project agents.gap-analyzer, tier deep\n'
+    + 'code-reviewer: model claude-sonnet-5.5, effort omit — source: project agents.code-reviewer, tier standard\n'
+    + 'spec-auditor: model omit, effort low — source: project agents.spec-auditor, preset session\n'
+    + 'reality-assessor: model omit, effort max — source: project agents.reality-assessor\n');
+});
+
+test('the subagents block init writes holds exactly the built-in values', t => {
+  const skill = fs.readFileSync(path.join(ROOT, 'plugins/maister/skills/init/SKILL.md'), 'utf8');
+  const block = [...skill.matchAll(/```yaml\n([\s\S]*?)```/g)].map(match => match[1]).find(text => /^subagents:/m.test(text));
+  assert.ok(block, 'init carries a subagents block');
+  const agents = '--agent=Explore,project-analyzer,docs-operator,task-classifier,test-suite-runner,html-companion-writer,task-group-implementer,gap-analyzer';
+  const values = result => result.stdout.replace(/ — source: [^\n]*/g, '');
+  const compare = (written, bare, args, options, label) => {
+    const own = dispatch(written, args, options);
+    assert.equal(own.code, 0, own.stderr);
+    assert.equal(own.stderr, '', 'the written block draws no warning');
+    assert.equal(values(own), values(dispatch(bare, args, options)), label);
+  };
+  const tiers = [[], ['--tier=light'], ['--tier=standard'], ['--tier=deep']];
+  const written = scratch(t);
+  config(written, block);
+  const bare = scratch(t);
+  for (const host of ['claude', 'copilot']) {
+    for (const tier of tiers) compare(written, bare, [agents, ...tier], { state: false, host }, `${host} ${tier.join(' ')}`);
+  }
+  // In a run of each built-in workflow, at its fix loop and at its implementation.
+  for (const [workflow, node] of BUILT_IN_FIX_LOOPS) {
+    const own = freezeBuiltIn(t, workflow, block);
+    const plain = freezeBuiltIn(t, workflow);
+    for (const at of [node, workflow === 'migration' ? 'execution' : 'implementation']) {
+      for (const host of ['claude', 'copilot']) {
+        for (const tier of tiers) compare(own, plain, [agents, `--node=${at}`, ...tier], { host }, `${workflow} ${at} ${host} ${tier.join(' ')}`);
+      }
+    }
+  }
 });
 
 test('level 9: the shipped default inherits, so the call carries no model and no effort', t => {
@@ -187,9 +382,9 @@ test('a built-in agent type matches whatever its case, and a plugin prefix is re
   const run = scratch(t);
   config(run, 'subagents:\n  agents:\n    explore: { tier: light }\n    general-Purpose: { tier: deep }\n');
   freezeRun(run);
-  assert.equal(lineOf(run, 'Explore'), 'Explore: model haiku, effort omit — source: project agents.explore, tier light');
+  assert.equal(lineOf(run, 'Explore'), 'Explore: model haiku, effort high — source: project agents.explore, tier light');
   assert.equal(lineOf(run, 'GENERAL-PURPOSE'), 'GENERAL-PURPOSE: model opus, effort omit — source: project agents.general-Purpose, tier deep');
-  assert.equal(lineOf(run, 'maister:task-classifier'), 'maister:task-classifier: model haiku, effort omit — source: shipped agents.task-classifier, tier light');
+  assert.equal(lineOf(run, 'maister:task-classifier'), 'maister:task-classifier: model haiku, effort high — source: shipped agents.task-classifier, tier light');
   // A name that is no built-in matches only as spelled.
   assert.equal(lineOf(run, 'Task-Classifier'), 'Task-Classifier: model omit, effort omit — source: shipped default');
 });
@@ -257,6 +452,37 @@ test('the budget counts the groups the work log records on the rung, and says wh
     'task-group-implementer: model sonnet, effort omit — source: plan tier standard within project agents.task-group-implementer\n');
 });
 
+test('the budget counts the entries group-done writes, in the executor\'s own spelling', t => {
+  const run = scratch(t);
+  config(run, POLICY.replace('allowed: [standard, deep]', 'allowed: [light, standard, deep]')
+    .replace('ceiling: standard', 'ceiling: deep').replace('budget: { standard: 2 }', 'budget: { deep: 1 }'));
+  freezeRun(run);
+  const dir = path.join(run.dir, 'implementation');
+  fs.mkdirSync(dir, { recursive: true });
+  const plan = path.join(dir, 'implementation-plan.md');
+  const entry = path.join(dir, '.work-log-entry.md');
+  fs.writeFileSync(plan, '# Implementation Plan\n\n### Task Group 1: Schema\n\n- [ ] 1.1 Migrate\n\n'
+    + '### Task Group 2: Export\n\n- [ ] 2.1 Add the column\n');
+  fs.writeFileSync(path.join(dir, 'work-log.md'), '# Work Log\n');
+  const engine = (args, env) => verb(args, undefined, { CLAUDE_PROJECT_DIR: run.root, ...env });
+
+  assert.equal(engine(['wave-start', `--plan=${plan}`, '--wave=1', '--groups=1,2']).code, 0);
+  // Group 1 escalated from standard to deep; group 2 ran on light. The Escalated line and the
+  // closing Models tally name rungs too, and neither may count as a group.
+  fs.writeFileSync(entry, '## Group 1\n**Model**: opus (tier deep, planner: "a schema change")\n'
+    + '**Escalated**: standard (sonnet) → deep (opus) after: the migration test kept failing\n**Steps**: 1.1 completed\n'
+    + '## Group 2\n**Model**: haiku (tier light, planner: "copies the existing export")\n**Steps**: 2.1 completed\n');
+  const done = engine(['group-done', `--plan=${plan}`, '--groups=1,2', `--entry-file=${entry}`]);
+  assert.equal(done.code, 0, done.stderr);
+  assert.match(fs.readFileSync(path.join(dir, 'work-log.md'), 'utf8'), /Group 1 Complete \(wave 1\)\n\n\*\*Model\*\*: opus \(tier deep/);
+  fs.appendFileSync(path.join(dir, 'work-log.md'), '\n## 2026-01-05T11:00:00Z - Implementation Complete\n\n**Models**: light 1, deep 1, escalations 1\n');
+
+  const deep = dispatch(run, ['--agent=task-group-implementer', '--tier=deep']);
+  assert.equal(deep.code, 0, deep.stderr);
+  assert.equal(deep.stdout, 'task-group-implementer: model opus, effort omit — source: plan tier deep within project agents.task-group-implementer\n\n'
+    + 'note: task-group-implementer budget: 1 of 1 groups on deep used in this run — ask before dispatching another group on deep\n');
+});
+
 // ---------------------------------------------------------------------------
 // the two modes
 // ---------------------------------------------------------------------------
@@ -275,28 +501,28 @@ test('standalone, a refused block falls back to the shipped defaults with a warn
   config(run, 'subagents:\n  default: { tier: huge }\n');
   const result = dispatch(run, ['--agent=task-classifier,code-reviewer'], { state: false });
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, 'task-classifier: model haiku, effort omit — source: shipped agents.task-classifier, tier light\n'
+  assert.equal(result.stdout, 'task-classifier: model haiku, effort high — source: shipped agents.task-classifier, tier light\n'
     + 'code-reviewer: model omit, effort omit — source: shipped default\n');
   assert.match(result.stderr, /^warning: subagents-error:\.maister\/config\.yml:subagents\.default\.tier — .*; the whole subagents block is refused and the shipped defaults apply\n$/);
 });
 
 test('with no config at all the verb answers from the shipped defaults, standalone and in a run', t => {
   const run = scratch(t);
-  assert.equal(lineOf(run, 'docs-operator', [], { state: false }), 'docs-operator: model haiku, effort omit — source: shipped agents.docs-operator, tier light');
+  assert.equal(lineOf(run, 'docs-operator', [], { state: false }), 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light');
   freezeRun(run);
   const result = dispatch(run, ['--agent=docs-operator']);
-  assert.equal(result.stdout, 'docs-operator: model haiku, effort omit — source: shipped agents.docs-operator, tier light\n');
+  assert.equal(result.stdout, 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light\n');
 });
 
 test('a config.yml changed since the freeze adds one note, and the run keeps what it froze', t => {
   const run = scratch(t);
   config(run, 'subagents:\n  agents:\n    gap-analyzer: { tier: light }\n');
   freezeRun(run);
-  assert.equal(dispatch(run, ['--agent=gap-analyzer']).stdout, 'gap-analyzer: model haiku, effort omit — source: project agents.gap-analyzer, tier light\n');
+  assert.equal(dispatch(run, ['--agent=gap-analyzer']).stdout, 'gap-analyzer: model haiku, effort high — source: project agents.gap-analyzer, tier light\n');
 
   config(run, 'html_output: false\nsubagents:\n  agents:\n    gap-analyzer: { tier: deep }\n');
   const changed = dispatch(run, ['--agent=gap-analyzer,code-reviewer']);
-  assert.equal(changed.stdout, 'gap-analyzer: model haiku, effort omit — source: project agents.gap-analyzer, tier light\n'
+  assert.equal(changed.stdout, 'gap-analyzer: model haiku, effort high — source: project agents.gap-analyzer, tier light\n'
     + 'code-reviewer: model omit, effort omit — source: shipped default\n'
     + '\n'
     + "note: .maister/config.yml's subagents block changed since this run started; this run keeps the settings it froze, and the edits apply to the next run\n");

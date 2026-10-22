@@ -252,7 +252,9 @@ and the fallback is a recorded note, not a retry.
 **Does.** Three parts: the technical questions and the drafted stories with the
 assumptions page (Asks), then the specification itself, written every time by
 the `maister:specification-creator` agent, handed the `with:` values, Parts A
-and B and the `prior-context --node=specification` output.
+and B and the `prior-context --node=specification` output. Its call carries the
+model and effort `dispatch-model --agent=maister:specification-creator
+--node=specification` prints (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 
 An ingested architecture constrains every part: the interfaces, contracts and
 decisions it names are constraints on this repository's part of the change,
@@ -377,7 +379,9 @@ annotate it. Record the verdict in state.
 
 **The fix pass follows `orchestrator-patterns.md` § 6**, *The Specification
 Audit's Fix Pass*, step by step; the amend passes go to the
-`maister:specification-creator` agent through the Task tool.
+`maister:specification-creator` agent through the Task tool, each with the model
+and effort `dispatch-model --agent=maister:specification-creator --node=spec-audit`
+prints.
 
 **Asks.** Each finding that needs a decision is its own question (step 5
 there): write the auditor's decision findings to
@@ -449,7 +453,8 @@ the groups completed, the files changed and the incremental test results.
 
 **Summary.** The `headline` gives what landed and how the tests stand ("All
 four task groups landed; 40 of 40 tests pass"). In `summary`, the task groups
-completed, the files changed and the incremental test results. In `decisions`,
+completed, the files changed, the incremental test results and the executor's
+model tally ("light 2, standard 2, escalations 1"). In `decisions`,
 each choice the executor made where the plan left room, `by: run`.
 
 **Budget.** Fix a syntax error, an import or a failing test, and re-run. When

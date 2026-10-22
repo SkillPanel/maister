@@ -1,7 +1,6 @@
 ---
 name: solution-designer
 description: Transforms selected solution approach into high-level architecture design with C4 diagrams, component mapping, and MADR decision records. Non-interactive content generator.
-model: inherit
 color: cyan
 ---
 

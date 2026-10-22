@@ -75,6 +75,10 @@ validate:
 	@! grep -rnE 'WebSearch|WebFetch' plugins/maister-copilot/ --include="*.md" || (echo "FAIL: a Claude Code web tool name survives in the variant" && exit 1)
 	@echo "Checking every Copilot agent runs on a model Copilot knows..."
 	@! grep -nE '^models?:(.*[[,[:space:]])?(inherit|haiku|sonnet|opus|fast|default)([],[:space:]]|$$)' plugins/maister-copilot/agents/*.md || (echo "FAIL: a Claude Code model alias survives in a variant agent; Copilot runs it on a model of its own choosing" && exit 1)
+	@echo "Checking no source agent pins model: inherit..."
+	@! grep -nE '^model:[[:space:]]*inherit[[:space:]]*$$' plugins/maister/agents/*.md || (echo "FAIL: a source agent says model: inherit, which outranks the user's subagent model and adds nothing a call without a model does not" && exit 1)
+	@echo "Checking the variant asks the engine for Copilot's models..."
+	@! grep -rn --include='*.md' -- '--host=claude' plugins/maister-copilot/ || (echo "FAIL: --host=claude survives in the variant; dispatch-model would answer with Claude Code aliases, which Copilot silently swaps" && exit 1)
 	@echo "Checking every Copilot agent and skill says to create a file's directory first..."
 	@for f in plugins/maister-copilot/agents/*.md plugins/maister-copilot/skills/*/SKILL.md; do \
 	  grep -q "^\*\*Create a file's directory before the file\.\*\* On this host" "$$f" || { echo "FAIL: $$f lacks the create-the-directory-first sentence; Copilot's create tool makes no missing directory"; exit 1; }; \

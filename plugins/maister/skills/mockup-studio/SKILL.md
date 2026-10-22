@@ -90,7 +90,7 @@ Read `references/visual-companion.md` for the full protocol. Then:
 
 ### Step 4b — ASCII path
 
-**INVOKE** the `maister:ascii-mockup-generator` subagent (Task tool). Pass: `task_path`, `output_subdir` target, the `context` grounding, the feature type, AND the discovered design resources (resolved standard file paths, design-system inventory, skill hints) so the agent binds to them. The agent writes ASCII to `analysis/design-context/ascii/ui-mockups.md` (or `<output_subdir>/ascii-mockups.md` for standalone/product-design) and can append INDEX rows itself.
+**INVOKE** the `maister:ascii-mockup-generator` subagent (Task tool), with the model and effort `dispatch-model --agent=maister:ascii-mockup-generator` prints just before (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*). Pass: `task_path`, `output_subdir` target, the `context` grounding, the feature type, AND the discovered design resources (resolved standard file paths, design-system inventory, skill hints) so the agent binds to them. The agent writes ASCII to `analysis/design-context/ascii/ui-mockups.md` (or `<output_subdir>/ascii-mockups.md` for standalone/product-design) and can append INDEX rows itself.
 
 ### Step 5 — Refinement loop
 

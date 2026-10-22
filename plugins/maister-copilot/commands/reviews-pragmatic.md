@@ -23,6 +23,8 @@ You are performing pragmatic analysis to identify over-engineering, unnecessary 
 
 **Invoke the code-quality-pragmatist agent NOW using the Task tool:**
 
+First run `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:code-quality-pragmatist --host=copilot` and give the call the model and effort it prints, leaving out a field printed as `omit`; a field the host refuses is dropped and the call sent again, with one line in your reply saying so.
+
 ```
 Task Tool:
 - subagent_type: "maister-copilot:code-quality-pragmatist"

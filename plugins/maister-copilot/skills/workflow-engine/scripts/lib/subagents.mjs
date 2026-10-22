@@ -30,14 +30,21 @@
  *   1. the plan tier a caller passes, when the agent's entry is
  *      `choose: by-plan-tier`, clamped to that entry's `allowed` and
  *      `ceiling` — for any other agent the tier is not read;
- *   2. the profile, 3. the overlay, then the project, and last the shipped
- *      defaults — each layer read as `workflows.<w>.nodes.<n>.agents`, then
- *      `workflows.<w>.agents`, then `agents`, then `default`;
- *   and the host, when the hit says `inherit`: the call then carries no model
- *   and the host's own order applies.
+ *   2. an entry naming the agent, from the most specific layer: the profile,
+ *      the overlay, the project, then the shipped table — each layer read as
+ *      `workflows.<w>.nodes.<n>.agents`, then `workflows.<w>.agents`, then
+ *      `agents`;
+ *   3. a `default`, in the same layer order — so a default covers only the
+ *      agents no layer names, and never moves one the shipped table assigns;
+ *   4. the host, when nothing answers or the answer is `inherit` — an
+ *      entry's `tier` or `model`, or a `claude` or `copilot` cell of a rung or
+ *      a preset: the call then carries no model and the host's own order
+ *      applies. `inherit` is never a Copilot alias and never a premium model.
  *
  * An effort applies on both hosts, and neither checks the value, so the
- * judgement below does. A pinned `model` is a Claude Code alias; on Copilot
+ * judgement below does. A rung's effort is the default for whatever runs on
+ * it; an entry's own effort replaces it, and `effort: inherit` on either sends
+ * none. A pinned `model` is a Claude Code alias; on Copilot
  * such an entry is passed over and the next level answers.
  *
  * The built-in agent types (`BUILT_IN_AGENTS`) are matched without regard to
@@ -99,12 +106,18 @@ const BY_PLAN_TIER = 'by-plan-tier';
 const UNASSESSED = 'standard';
 
 /**
- * Maister's own table: the ladder with a cell per host, and the clerical
- * agents on `light`. Everything else inherits, and nothing ships an effort.
+ * Maister's own table: the ladder with a cell per host, the light rung on high
+ * effort, the clerical agents and the built-in explore agent on `light`, and
+ * the task-group implementer on the planner's tier, up to `deep` on Claude
+ * Code and `standard` on Copilot, where the deep model bills far above one
+ * request. The verification fix loops of the built-in workflows hand their
+ * fixes to the implementer with no planner tier; those calls inherit the
+ * session's model instead. Everything else inherits. `init` writes the same
+ * values into a new `config.yml`, so keep the two in step.
  */
 export const SHIPPED = Object.freeze({
   tiers: {
-    light: { claude: 'haiku', copilot: 'claude-haiku-5.5' },
+    light: { claude: 'haiku', copilot: 'claude-haiku-5.5', effort: 'high' },
     standard: { claude: 'sonnet', copilot: 'claude-sonnet-5.5' },
     deep: { claude: 'opus', copilot: 'claude-opus-5.5' },
   },
@@ -115,6 +128,19 @@ export const SHIPPED = Object.freeze({
     'task-classifier': { tier: 'light' },
     'test-suite-runner': { tier: 'light' },
     'html-companion-writer': { tier: 'light' },
+    Explore: { tier: 'light' },
+    'task-group-implementer': {
+      choose: BY_PLAN_TIER,
+      allowed: ['light', 'standard', 'deep'],
+      unassessed: 'standard',
+      ceiling: { claude: 'deep', copilot: 'standard' },
+      budget: { deep: 3 },
+    },
+  },
+  workflows: {
+    development: { nodes: { verification: { agents: { 'task-group-implementer': { model: INHERIT } } } } },
+    performance: { nodes: { verification: { agents: { 'task-group-implementer': { model: INHERIT } } } } },
+    migration: { nodes: { 'issue-resolution': { agents: { 'task-group-implementer': { model: INHERIT } } } } },
   },
 });
 
@@ -272,12 +298,12 @@ function judgeCells(value, where, file, context, { tiers }) {
           continue;
         }
         if (key === 'copilot' && CLAUDE_ALIASES.includes(item)) {
-          fault(field, `"${item}" is a Claude Code alias, which Copilot takes without a word and replaces with a model of its own: a copilot cell names a model id, such as claude-${item}-5.5`);
+          fault(field, `"${item}" is a Claude Code alias, which Copilot takes without a word and replaces with a model of its own: a copilot cell names a model id, such as claude-${item}-5.5, or inherit`);
           continue;
         }
       }
-      if (key === 'effort' && !EFFORTS.includes(item)) {
-        fault(field, `${describe(item)} is not an effort: expected one of ${EFFORTS.join(', ')}`);
+      if (key === 'effort' && !isEffort(item)) {
+        fault(field, effortRefusal(item));
         continue;
       }
       if (key === 'premium' && typeof item !== 'boolean') {
@@ -401,14 +427,16 @@ function judgeEntry(value, where, file, context) {
       fault(at, `${describe(item)} is not a preset: ${context.presets.size ? `the presets are ${[...context.presets].join(', ')}` : 'no presets are defined'}`);
     } else if (key === 'model' && !isClaudeModel(item)) {
       fault(at, claudeRefusal(item));
-    } else if (key === 'effort' && !EFFORTS.includes(item)) {
-      fault(at, `${describe(item)} is not an effort: expected one of ${EFFORTS.join(', ')}`);
+    } else if (key === 'effort' && !isEffort(item)) {
+      fault(at, effortRefusal(item));
     } else if (key === 'choose' && item !== BY_PLAN_TIER) {
       fault(at, `${describe(item)} is not a choice policy: the one policy is ${BY_PLAN_TIER}`);
     } else if (key === 'allowed' && (!Array.isArray(item) || item.length === 0 || item.some(each => !LADDER.includes(each)))) {
       fault(at, `allowed lists rungs of the ladder (${LADDER.join(', ')}); ${describe(item)} is outside it`);
-    } else if ((key === 'unassessed' || key === 'ceiling') && !LADDER.includes(item)) {
+    } else if (key === 'unassessed' && !LADDER.includes(item)) {
       fault(at, `${describe(item)} is not a tier: expected one of ${LADDER.join(', ')}`);
+    } else if (key === 'ceiling' && !ceilingOk(item)) {
+      fault(at, `${describe(item)} is not a ceiling: write a tier (${LADDER.join(', ')}) or one per host, such as {claude: deep, copilot: standard}`);
     } else if (key === 'budget' && !budgetOk(item)) {
       fault(at, `budget maps a rung of the ladder to a whole number of groups, such as {deep: 3}; ${describe(item)} is not one`);
     } else {
@@ -416,6 +444,13 @@ function judgeEntry(value, where, file, context) {
     }
   }
   return kept;
+}
+
+/** A ceiling: a rung, or a rung per host for any of `HOSTS`. */
+function ceilingOk(value) {
+  if (LADDER.includes(value)) return true;
+  const entries = isMap(value) ? Object.entries(value) : [];
+  return entries.length > 0 && entries.every(([host, rung]) => HOSTS.includes(host) && LADDER.includes(rung));
 }
 
 function budgetOk(value) {
@@ -580,7 +615,10 @@ export function resolveAgent(agent, { block = null, workflow = null, node = null
     ['shipped', SHIPPED],
   ].filter(([, layer]) => isMap(layer));
 
+  // Every entry naming the agent outranks every default: a default covers only
+  // the agents no layer names.
   const hits = [];
+  const defaults = [];
   for (const [label, layer] of layers) {
     const scoped = isMap(layer.workflows) && workflow !== null ? layer.workflows[workflow] : null;
     const scopes = [];
@@ -593,8 +631,9 @@ export function resolveAgent(agent, { block = null, workflow = null, node = null
       const found = findAgent(agents, name);
       if (found) hits.push({ entry: found.entry, source: `${label} ${prefix}.${found.key}` });
     }
-    if (isMap(layer.default)) hits.push({ entry: layer.default, source: `${label} default` });
+    if (isMap(layer.default)) defaults.push({ entry: layer.default, source: `${label} default` });
   }
+  hits.push(...defaults);
 
   // A pinned model is Claude Code's; on Copilot the next level answers.
   const usable = hits.filter(hit => !(host === 'copilot' && isPin(hit.entry)));
@@ -606,7 +645,7 @@ export function resolveAgent(agent, { block = null, workflow = null, node = null
   // resolves as if none were passed, so a planner's tier never escalates an
   // agent that has no allowed set, ceiling or budget.
   if (tier !== null && planned) {
-    const rung = clamp(tier, hit.entry);
+    const rung = clamp(tier, hit.entry, host);
     const source = `plan tier ${tier}${rung === tier ? '' : `, clamped to ${rung}`} within ${hit.source}`;
     return { ...fromRung(ladder, rung, host, hit.entry.effort), source, budget: budgetOf(hit, rung, used), tierIgnored: false };
   }
@@ -618,7 +657,7 @@ function unplanned(hit, { frozen, ladder, host, used }) {
   if (hit === null) return { model: OMIT, effort: OMIT, source: 'host', budget: null };
   const { entry } = hit;
   if (entry.choose === BY_PLAN_TIER) {
-    const rung = clamp(entry.unassessed ?? UNASSESSED, entry);
+    const rung = clamp(entry.unassessed ?? UNASSESSED, entry, host);
     return { ...fromRung(ladder, rung, host, entry.effort), source: `${hit.source}, unassessed: ${rung}`, budget: budgetOf(hit, rung, used) };
   }
   if (typeof entry.preset === 'string') {
@@ -685,12 +724,14 @@ function presetOf(frozen, name) {
 
 /**
  * The rung a plan tier comes to under a policy: the cheapest allowed rung at
- * or above it, never above the ceiling; when none is, the highest allowed rung
- * under the ceiling.
+ * or above it, never above the ceiling; when none is, the highest allowed
+ * rung under the ceiling. A ceiling given per host is read for the host, and
+ * a host it does not name has the top rung for its ceiling.
  */
-function clamp(tier, policy) {
+function clamp(tier, policy, host) {
   const rank = rung => LADDER.indexOf(rung);
-  const ceiling = LADDER.includes(policy.ceiling) ? policy.ceiling : LADDER.at(-1);
+  const named = isMap(policy.ceiling) ? policy.ceiling[host] : policy.ceiling;
+  const ceiling = LADDER.includes(named) ? named : LADDER.at(-1);
   const allowed = (Array.isArray(policy.allowed) ? policy.allowed : LADDER)
     .filter(rung => LADDER.includes(rung) && rank(rung) <= rank(ceiling))
     .sort((a, b) => rank(a) - rank(b));
@@ -709,7 +750,7 @@ function modelOf(value) {
 }
 
 function valueOf(value) {
-  return typeof value === 'string' && value !== '' ? value : OMIT;
+  return typeof value === 'string' && value !== '' && value !== INHERIT ? value : OMIT;
 }
 
 /**
@@ -747,6 +788,15 @@ export function shippedHost() {
 /** A model a Claude Code call takes: one of its aliases, or `inherit`. */
 function isClaudeModel(value) {
   return value === INHERIT || CLAUDE_ALIASES.includes(value);
+}
+
+/** An effort the block takes: one of `EFFORTS`, or `inherit` to send none. */
+function isEffort(value) {
+  return value === INHERIT || EFFORTS.includes(value);
+}
+
+function effortRefusal(value) {
+  return `${describe(value)} is not an effort: expected one of ${EFFORTS.join(', ')} or ${INHERIT}`;
 }
 
 function claudeRefusal(value) {
