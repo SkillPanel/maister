@@ -172,7 +172,7 @@ Every group declares the files it will create or edit. The executor uses this to
 
 #### Tier Field
 
-Every group declares how demanding its work is, so the executor can run it on the cheapest model that can do it (the project's `subagents` settings say which model each tier means; without them the tier is recorded and the session's model runs every group):
+Every group declares how demanding its work is, so the executor can run it on the cheapest model that can do it (the `subagents` settings say which model each tier means; by default `light` is the host's lightweight model on high effort, `standard` its mid-range model and `deep` its strongest):
 
 - **light** — mechanical work with an existing pattern to copy: a field added the way its neighbours were, a rename, wiring that mirrors code already there.
 - **standard** — new behaviour in one layer.

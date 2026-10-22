@@ -40,7 +40,9 @@
  *      carries no model and the host's own order applies.
  *
  * An effort applies on both hosts, and neither checks the value, so the
- * judgement below does. A pinned `model` is a Claude Code alias; on Copilot
+ * judgement below does. A rung's effort is the default for whatever runs on
+ * it; an entry's own effort replaces it, and `effort: inherit` on either sends
+ * none. A pinned `model` is a Claude Code alias; on Copilot
  * such an entry is passed over and the next level answers.
  *
  * The built-in agent types (`BUILT_IN_AGENTS`) are matched without regard to
@@ -102,12 +104,15 @@ const BY_PLAN_TIER = 'by-plan-tier';
 const UNASSESSED = 'standard';
 
 /**
- * Maister's own table: the ladder with a cell per host, and the clerical
- * agents on `light`. Everything else inherits, and nothing ships an effort.
+ * Maister's own table: the ladder with a cell per host, the light rung on high
+ * effort, the clerical agents and the built-in explore agent on `light`, and
+ * the task-group implementer on the planner's tier. Everything else inherits.
+ * `init` writes the same values into a new `config.yml`, so keep the two in
+ * step.
  */
 export const SHIPPED = Object.freeze({
   tiers: {
-    light: { claude: 'haiku', copilot: 'claude-haiku-5.5' },
+    light: { claude: 'haiku', copilot: 'claude-haiku-5.5', effort: 'high' },
     standard: { claude: 'sonnet', copilot: 'claude-sonnet-5.5' },
     deep: { claude: 'opus', copilot: 'claude-opus-5.5' },
   },
@@ -118,6 +123,14 @@ export const SHIPPED = Object.freeze({
     'task-classifier': { tier: 'light' },
     'test-suite-runner': { tier: 'light' },
     'html-companion-writer': { tier: 'light' },
+    Explore: { tier: 'light' },
+    'task-group-implementer': {
+      choose: BY_PLAN_TIER,
+      allowed: ['light', 'standard', 'deep'],
+      unassessed: 'standard',
+      ceiling: 'deep',
+      budget: { deep: 3 },
+    },
   },
 });
 
@@ -279,8 +292,8 @@ function judgeCells(value, where, file, context, { tiers }) {
           continue;
         }
       }
-      if (key === 'effort' && !EFFORTS.includes(item)) {
-        fault(field, `${describe(item)} is not an effort: expected one of ${EFFORTS.join(', ')}`);
+      if (key === 'effort' && !isEffort(item)) {
+        fault(field, effortRefusal(item));
         continue;
       }
       if (key === 'premium' && typeof item !== 'boolean') {
@@ -404,8 +417,8 @@ function judgeEntry(value, where, file, context) {
       fault(at, `${describe(item)} is not a preset: ${context.presets.size ? `the presets are ${[...context.presets].join(', ')}` : 'no presets are defined'}`);
     } else if (key === 'model' && !isClaudeModel(item)) {
       fault(at, claudeRefusal(item));
-    } else if (key === 'effort' && !EFFORTS.includes(item)) {
-      fault(at, `${describe(item)} is not an effort: expected one of ${EFFORTS.join(', ')}`);
+    } else if (key === 'effort' && !isEffort(item)) {
+      fault(at, effortRefusal(item));
     } else if (key === 'choose' && item !== BY_PLAN_TIER) {
       fault(at, `${describe(item)} is not a choice policy: the one policy is ${BY_PLAN_TIER}`);
     } else if (key === 'allowed' && (!Array.isArray(item) || item.length === 0 || item.some(each => !LADDER.includes(each)))) {
@@ -716,7 +729,7 @@ function modelOf(value) {
 }
 
 function valueOf(value) {
-  return typeof value === 'string' && value !== '' ? value : OMIT;
+  return typeof value === 'string' && value !== '' && value !== INHERIT ? value : OMIT;
 }
 
 /**
@@ -754,6 +767,15 @@ export function shippedHost() {
 /** A model a Claude Code call takes: one of its aliases, or `inherit`. */
 function isClaudeModel(value) {
   return value === INHERIT || CLAUDE_ALIASES.includes(value);
+}
+
+/** An effort the block takes: one of `EFFORTS`, or `inherit` to send none. */
+function isEffort(value) {
+  return value === INHERIT || EFFORTS.includes(value);
+}
+
+function effortRefusal(value) {
+  return `${describe(value)} is not an effort: expected one of ${EFFORTS.join(', ')} or ${INHERIT}`;
 }
 
 function claudeRefusal(value) {

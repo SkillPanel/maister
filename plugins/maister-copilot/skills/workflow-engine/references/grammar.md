@@ -690,7 +690,12 @@ in the shape of the `subagents` key of the project's `.maister/config.yml`, with
 the project remaps the ladder. The freeze reads the project's block, the overlays' and the
 selected profile's, and records them in the run; a profile's entry wins over an overlay's, and an
 overlay's over the project's, and any entry naming an agent, the shipped table's included, wins
-over every `default`. `dispatch-model` prints what an agent resolves to. A block with an
+over every `default`. The shipped table puts the clerical agents and `Explore` on `light`, whose
+cell carries `effort: high`, and `task-group-implementer` on the planner's tier (`choose:
+by-plan-tier` over the whole ladder, `unassessed: standard`, `ceiling: deep`, `budget: {deep:
+3}`); every other agent inherits. A rung's effort applies to whatever runs on it unless the
+entry sets its own, and a project's cell is laid over the shipped one, so it keeps `high` unless
+it sets an effort; `effort: inherit` sends none. `dispatch-model` prints what an agent resolves to. A block with an
 error is refused whole and the shipped defaults apply; its findings are warnings, never errors,
 because a refused block stops no run. The block is no graph data, so it moves no hash.
 
@@ -798,7 +803,7 @@ Warnings never block, and each one is worth reading:
 | `brief-unknown-option:<path>:<node>` | A recommended option that is not a continue option of a gate the node feeds |
 | `brief-retired-key:<path>:<node>` | A `summary_keys` entry: the phase-summary mirror it named is retired and nothing reads it; remove the key |
 | `orphan-prose-section:<companion>:<name>` | A `` ## `name` `` heading outside a fence that no node of the definition or overlay beside it finds its section by (§ 11) — a renamed node or a mistyped `direct:` target; rename the heading to the name, or delete the section. A node an overlay or profile disables still counts |
-| `subagents-error:<file>:<path>` | A `subagents` block the engine cannot apply — a `claude` cell or a pinned `model` that is not `haiku`, `sonnet`, `opus`, `fable` or `inherit`, a Claude Code alias in a `copilot` cell, an unknown tier or preset, an effort outside `low` … `max`, `allowed` outside the ladder, `tiers` in an overlay or profile, or a value of the wrong shape; the whole block is refused and the shipped defaults apply |
+| `subagents-error:<file>:<path>` | A `subagents` block the engine cannot apply — a `claude` cell or a pinned `model` that is not `haiku`, `sonnet`, `opus`, `fable` or `inherit`, a Claude Code alias in a `copilot` cell, an unknown tier or preset, an effort outside `low` … `max` and `inherit`, `allowed` outside the ladder, `tiers` in an overlay or profile, or a value of the wrong shape; the whole block is refused and the shipped defaults apply |
 | `subagents-unknown-agent:<file>:<path>` | An agent no tier provides; the built-in `Explore`, `general-purpose` and `Plan` are known in any case |
 | `subagents-premium-model:<file>:<path>` | A `copilot` cell naming a model Copilot bills above one request, without `premium: true` beside it |
 | `subagents-unknown-key:<file>:<path>` | A key the `subagents` block does not take at that level; it is ignored |

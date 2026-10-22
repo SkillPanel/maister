@@ -526,10 +526,21 @@ start a new task.
 
 ## Choosing subagent models
 
-Most of a workflow's work is done by subagents. By default the clerical ones (project analysis,
-the docs operator, task classification, the test-suite runner and HTML companions) run on a
-lightweight model and every other agent on your session's model. To choose otherwise, add a
-`subagents` block to `.maister/config.yml`; `/maister:init` writes a commented example.
+Most of a workflow's work is done by subagents. By default:
+
+- **The clerical agents** (project analysis, the docs operator, task classification, the
+  test-suite runner and HTML companions) and **the codebase scouts** maister starts (`Explore`)
+  run on the `light` tier: a lightweight model on high effort.
+- **Implementers follow the plan.** Each task group runs on the tier its plan gives it, `light`,
+  `standard` or `deep`; a group with no tier runs on `standard`, and a fourth `deep` group in a
+  run asks first.
+- **Every other agent** runs on your session's model.
+
+`/maister:init` writes these defaults into `.maister/config.yml` as a `subagents` block you can
+edit, adding it to a config that has none and leaving an existing block alone. In a codebase of
+more than 2,000 files it puts `Explore` on `standard`, still on high effort, and its summary says
+so. The block governs the agent calls maister makes; the explore agents your host's own plan mode
+starts are outside it. The block holds:
 
 - **A ladder of three tiers**, `light`, `standard` and `deep`, each naming a model per host
   (Claude Code takes `haiku`, `sonnet`, `opus` or `fable`; Copilot takes a model id).
@@ -538,11 +549,14 @@ lightweight model and every other agent on your session's model. To choose other
   most specific entry naming an agent wins, and any entry naming it beats a `default`: a default
   covers only the agents nobody names, so the clerical agents stay on the lightweight model
   until you name them.
+- **Effort.** A tier's effort applies to every agent on it unless the agent's entry sets its
+  own; remapping a tier's models keeps its effort unless you set one there. `effort: inherit`
+  sends none.
 - **Implementers by plan tier.** The implementation plan gives each task group a tier with a
-  one-line reason. With `task-group-implementer: { choose: by-plan-tier }`, each group runs on the
-  cheapest model allowed for its tier, under an optional `ceiling`. A group that fails is retried
-  once on the next tier up before you are asked, and `budget` (such as `{ deep: 3 }`) makes the
-  run ask before it sends one more group to a tier. The work log records the model each group ran
+  one-line reason. With `task-group-implementer: { choose: by-plan-tier }`, the default, each
+  group runs on the cheapest model allowed for its tier, under a `ceiling`. A group that fails is
+  retried once on the next tier up before you are asked, and `budget` (by default `{ deep: 3 }`)
+  makes the run ask before it sends one more group to a tier. The work log records the model each group ran
   on, and the implementation summary gives the tally.
 
 A run copies the block into its state when it starts, so a resumed run keeps its models and an

@@ -151,7 +151,7 @@ const ERRORS = [
   ['a rung the ladder does not carry', '  tiers:\n    huge: { claude: opus }\n', 'subagents.tiers.huge', /"huge" is not a tier/],
   ['an entry naming an unknown tier', '  agents:\n    gap-analyzer: { tier: medium }\n', 'subagents.agents.gap-analyzer.tier', /"medium" is not a tier/],
   ['an entry naming an unknown preset', '  agents:\n    gap-analyzer: { preset: scout }\n', 'subagents.agents.gap-analyzer.preset', /"scout" is not a preset: no presets are defined/],
-  ['a bad effort', '  agents:\n    gap-analyzer: { tier: light, effort: extreme }\n', 'subagents.agents.gap-analyzer.effort', /"extreme" is not an effort: expected one of low, medium, high, xhigh, max/],
+  ['a bad effort', '  agents:\n    gap-analyzer: { tier: light, effort: extreme }\n', 'subagents.agents.gap-analyzer.effort', /"extreme" is not an effort: expected one of low, medium, high, xhigh, max or inherit/],
   ['allowed outside the ladder', '  agents:\n    task-group-implementer: { choose: by-plan-tier, allowed: [light, huge] }\n', 'subagents.agents.task-group-implementer.allowed', /allowed lists rungs of the ladder/],
   ['a ceiling outside the ladder', '  agents:\n    task-group-implementer: { choose: by-plan-tier, ceiling: top }\n', 'subagents.agents.task-group-implementer.ceiling', /"top" is not a tier/],
   ['a budget that is not a count', '  agents:\n    task-group-implementer: { choose: by-plan-tier, budget: { deep: many } }\n', 'subagents.agents.task-group-implementer.budget', /budget maps a rung of the ladder to a whole number/],
