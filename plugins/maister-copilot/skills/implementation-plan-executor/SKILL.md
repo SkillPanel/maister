@@ -71,6 +71,8 @@ Read each group from `implementation-plan.md` and verify both `**Dependencies:**
 
 Never assume missing `Files to Modify` means "None" — silent disjoint assumptions are how parallel implementers collide on the same file.
 
+A group without a `**Tier:**` line still runs: § Model per Task Group resolves it as unassessed.
+
 ### Wave Computation
 
 1. Parse `Dependencies:` (list of group numbers) and `Files to Modify:` (list of paths or `"None"`) for every group.
@@ -79,6 +81,14 @@ Never assume missing `Files to Modify` means "None" — silent disjoint assumpti
 4. Greedily build the next wave from the ready set in plan order: a group joins the wave iff its `Files to Modify` does not overlap any group already in the wave. Conflicting groups stay in the ready set for the next wave.
 5. Treat `"None"` as the empty set — review-only groups never conflict on files.
 6. Glob entries (e.g. `src/migrations/*.sql`) match by glob expansion against other groups' declared paths.
+
+### Model per Task Group
+
+Each group runs on the cheapest model the project allows for its planner tier, resolved by the workflow engine's `dispatch-model` verb just before each wave's fan-out (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*, for the call and a refused field):
+
+- **One call per tier in the wave**: `dispatch-model --agent=maister-copilot:task-group-implementer --tier=<the group's Tier> --host=claude`, plus `--state=<task path>/orchestrator-state.yml --node=<the node under way>` in a run. A group with no `Tier` is resolved without `--tier`, so the project's policy gives it its `unassessed` rung.
+- **The rung a group runs on** is read from the line's source: the planner's tier, the rung it was clamped to (`clamped to <rung>`), or `unassessed: <rung>`. When a note says the tier was ignored, the project sets no plan-tier policy for the implementer: copy the line as printed, record the planner's tier, and there is no rung to escalate to.
+- **Budget.** A budget note counts the groups already logged on that rung; add this wave's own groups on it. When the total passes the limit, ask once for the wave before dispatching, naming the groups and the rung: "Run them on <rung> anyway (Recommended)", "Run them one rung lower", "Stop". A group run lower records the rung it ran on.
 
 ### Wave Dispatch
 
@@ -103,13 +113,14 @@ For each wave:
 
    Per-call parameters:
    - subagent_type: `maister-copilot:task-group-implementer`
+   - model and effort: from the line for the group's tier (§ Model per Task Group); a field printed as `omit` is left out
    - prompt: per-group content + initial standards + INDEX.md path + spec excerpt + sibling-wave note (see "Subagent Invocation")
 
    **SELF-CHECK before sending the message**: Are you about to emit a message with one `Task` call when the current wave has more than one group? If yes, STOP. Compose every wave member's prompt first, then emit them all in the same message. Awaiting one before composing the next violates this skill's contract. If the wave has exactly one group, a single `Task` call is correct.
 
 3. **Process each wave member as it returns**, without waiting for its siblings:
    - Parse completed steps, standards applied, test results, and verify the test results are acceptable. Whether to accept the group is your judgement; the engine records only a group you accepted.
-   - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N}`.
+   - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N, model, tier}` — `escalated_from` too when it escalated.
    - Record it with **`group-done`** (§ Recording Progress Through the Engine): write its work-log entry body (§ Work-Log Updates) to the entry file and run the verb in the same message. That one call marks its checkboxes, logs the entry under the wave's clock-stamped heading, syncs the plan's HTML companion and redraws the dashboard and the status line, so the group reads as done while its siblings still read as running. Members that come back together are recorded together: one call with `--groups=<N>,<M>` and one `## Group N` part per group in the entry file.
    - A `warning: plan-sync-missed` names groups the companion has no marker for; the verb has already written the miss into the work log, so there is nothing to add.
 
@@ -337,6 +348,8 @@ Before each wave is dispatched — `--sequential` included, as a wave of one —
 After each task group, `group-done` writes the heading `## [timestamp] - Group [N] Complete (wave [K])` and, under it, the body you put in the entry file:
 
 ```markdown
+**Model**: [model] (tier [rung], planner: "[reason]")
+**Escalated**: [rung] ([model]) → [rung] ([model]) after: [cause]
 **Steps**: N.1 through N.M completed
 **Standards Applied**:
 - From plan: [list]
@@ -348,6 +361,8 @@ After each task group, `group-done` writes the heading `## [timestamp] - Group [
 **Standard Candidates**: [one line each, or none]
 **Notes**: [any decisions or discoveries]
 ```
+
+The `**Model**:` line opens every entry, spelled exactly so: the engine counts a run's groups per rung from it, and the budget reads that count. `[model]` is the model the group finished on — `host default` when it was printed as `omit` — `[rung]` the rung it ran on, and `[reason]` the planner's, or `none` for a group with no `Tier`. `**Escalated**` appears only when the group escalated (§ Subagent Failure).
 
 `Standard Candidates` lines are what finalization offers to add as standards when the run ends, so copy each as the implementer wrote it.
 
@@ -390,10 +405,11 @@ for an operator reading the run at a glance.
    **Total Standards**: [M] applied
    **Test Suite**: [status]
    **Docs Index**: [refreshed for N documents, check passed / not needed / check failed: what]
+   **Models**: [groups per rung they finished on, e.g. light 4, standard 2, deep 1, escalations 1 — or "host default for all N groups" with the planner's tiers]
    **Duration**: [if tracked]
    ```
 
-5. **Return summary** to calling orchestrator. The last `group-done` already published `groups_done == groups_total`, so nothing is re-projected here. Do not complete the phase: its status stays `in_progress`, because the orchestrator owns completing it (§ 2 state ordering).
+5. **Return summary** to calling orchestrator, with the **Models** tally above for its node summary. The last `group-done` already published `groups_done == groups_total`, so nothing is re-projected here. Do not complete the phase: its status stays `in_progress`, because the orchestrator owns completing it (§ 2 state ordering).
 
 ## Error Handling
 
@@ -403,15 +419,16 @@ If task-group-implementer reports failure:
 
 1. **Do NOT auto-rollback** - User-confirmed rollback only
 2. **Analyze root cause** from subagent output
-3. **Check for easy fixes**: config issues, missing dependencies, test setup
-4. **Use ask_user**, four options at most, the cause in the question — "Group \<name\> failed: \<cause in a sentence\>. What now?":
-   - "Apply the suggested fix (Recommended): \<the fix\>" — only when step 3 found one; otherwise "Retry the group" is recommended.
+3. **Escalate once, without asking.** When the group has not escalated yet and ran on a rung below the top of the ladder, run `dispatch-model` for it with `--tier=<the next rung up>`. When that resolves a different model and its rung's budget, counting this wave, is not used up, run the group again on it — the failure in its prompt, on top of its partial edits — and record `**Escalated**` in its entry. Failed groups of one wave escalate together in one message. A second failure, a used-up budget, no different model above it, or a tier the policy ignores goes on to step 4, and the question says when the escalation already ran.
+4. **Check for easy fixes**: config issues, missing dependencies, test setup
+5. **Use ask_user**, four options at most, the cause in the question — "Group \<name\> failed: \<cause in a sentence\>. What now?":
+   - "Apply the suggested fix (Recommended): \<the fix\>" — only when step 4 found one; otherwise "Retry the group" is recommended.
    - "Retry the group": runs the group again with the failure in its prompt.
    - "Undo this group's changes": reverts what the group changed.
    - "Stop": stop here; the group's changes stay as they are.
 
    When several groups of one wave fail, ask once: one page — one call with a question per failed group, up to four — each worded as above.
-5. **If "Undo this group's changes"**: after the revert, write the revert entry from § Work-Log
+6. **If "Undo this group's changes"**: after the revert, write the revert entry from § Work-Log
    Updates — `## [timestamp] - Group [N] Reverted (wave [K]): [reason]`, the time from the clock — and clear the
    group's checkboxes back to `- [ ]`. The entry is the only record of the revert the
    dashboard can read; a rollback that leaves nothing behind shows up as a group that

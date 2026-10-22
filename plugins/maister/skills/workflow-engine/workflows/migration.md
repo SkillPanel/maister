@@ -214,7 +214,8 @@ companion, it catches a wave whose sync was missed.
 
 **Summary.** A `headline` naming the steps completed, the test result and
 whether the rollback is still ready; the steps completed, the files changed,
-the incremental test results and the rollback readiness in `summary`; a known
+the incremental test results, the rollback readiness and the executor's model
+tally in `summary`; a known
 issue as an `open` risk with its `change`, and an item deferred on purpose as a
 `followup` risk.
 

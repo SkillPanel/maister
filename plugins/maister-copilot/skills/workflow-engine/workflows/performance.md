@@ -255,8 +255,8 @@ companion, it catches a wave whose sync was missed. Then record what landed:
 the groups completed, the files changed and the incremental test results.
 
 **Summary.** The `headline` — the optimizations applied and the test result;
-the optimizations applied, the files changed and the test results from the
-incremental runs in `summary`; a known issue as an `open` risk with its
+the optimizations applied, the files changed, the test results from the
+incremental runs and the executor's model tally in `summary`; a known issue as an `open` risk with its
 `change`, and an item deferred on purpose as a `followup` risk.
 
 **Budget.** Fix a syntax error, an import or a failing test, and re-run. When

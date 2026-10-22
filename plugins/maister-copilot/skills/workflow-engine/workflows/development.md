@@ -453,7 +453,8 @@ the groups completed, the files changed and the incremental test results.
 
 **Summary.** The `headline` gives what landed and how the tests stand ("All
 four task groups landed; 40 of 40 tests pass"). In `summary`, the task groups
-completed, the files changed and the incremental test results. In `decisions`,
+completed, the files changed, the incremental test results and the executor's
+model tally ("light 2, standard 2, escalations 1"). In `decisions`,
 each choice the executor made where the plan left room, `by: run`.
 
 **Budget.** Fix a syntax error, an import or a failing test, and re-run. When

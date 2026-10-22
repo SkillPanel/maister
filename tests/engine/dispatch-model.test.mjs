@@ -257,6 +257,37 @@ test('the budget counts the groups the work log records on the rung, and says wh
     'task-group-implementer: model sonnet, effort omit — source: plan tier standard within project agents.task-group-implementer\n');
 });
 
+test('the budget counts the entries group-done writes, in the executor\'s own spelling', t => {
+  const run = scratch(t);
+  config(run, POLICY.replace('allowed: [standard, deep]', 'allowed: [light, standard, deep]')
+    .replace('ceiling: standard', 'ceiling: deep').replace('budget: { standard: 2 }', 'budget: { deep: 1 }'));
+  freezeRun(run);
+  const dir = path.join(run.dir, 'implementation');
+  fs.mkdirSync(dir, { recursive: true });
+  const plan = path.join(dir, 'implementation-plan.md');
+  const entry = path.join(dir, '.work-log-entry.md');
+  fs.writeFileSync(plan, '# Implementation Plan\n\n### Task Group 1: Schema\n\n- [ ] 1.1 Migrate\n\n'
+    + '### Task Group 2: Export\n\n- [ ] 2.1 Add the column\n');
+  fs.writeFileSync(path.join(dir, 'work-log.md'), '# Work Log\n');
+  const engine = (args, env) => verb(args, undefined, { CLAUDE_PROJECT_DIR: run.root, ...env });
+
+  assert.equal(engine(['wave-start', `--plan=${plan}`, '--wave=1', '--groups=1,2']).code, 0);
+  // Group 1 escalated from standard to deep; group 2 ran on light. The Escalated line and the
+  // closing Models tally name rungs too, and neither may count as a group.
+  fs.writeFileSync(entry, '## Group 1\n**Model**: opus (tier deep, planner: "a schema change")\n'
+    + '**Escalated**: standard (sonnet) → deep (opus) after: the migration test kept failing\n**Steps**: 1.1 completed\n'
+    + '## Group 2\n**Model**: haiku (tier light, planner: "copies the existing export")\n**Steps**: 2.1 completed\n');
+  const done = engine(['group-done', `--plan=${plan}`, '--groups=1,2', `--entry-file=${entry}`]);
+  assert.equal(done.code, 0, done.stderr);
+  assert.match(fs.readFileSync(path.join(dir, 'work-log.md'), 'utf8'), /Group 1 Complete \(wave 1\)\n\n\*\*Model\*\*: opus \(tier deep/);
+  fs.appendFileSync(path.join(dir, 'work-log.md'), '\n## 2026-01-05T11:00:00Z - Implementation Complete\n\n**Models**: light 1, deep 1, escalations 1\n');
+
+  const deep = dispatch(run, ['--agent=task-group-implementer', '--tier=deep']);
+  assert.equal(deep.code, 0, deep.stderr);
+  assert.equal(deep.stdout, 'task-group-implementer: model opus, effort omit — source: plan tier deep within project agents.task-group-implementer\n\n'
+    + 'note: task-group-implementer budget: 1 of 1 groups on deep used in this run — ask before dispatching another group on deep\n');
+});
+
 // ---------------------------------------------------------------------------
 // the two modes
 // ---------------------------------------------------------------------------
