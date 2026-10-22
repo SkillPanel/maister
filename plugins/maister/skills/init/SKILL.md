@@ -37,7 +37,7 @@ Initialize `.maister/docs/` with intelligent project analysis and meaningful doc
 Check if `.maister/` directory already exists.
 
 **If exists**, use AskUserQuestion — "Maister is already set up here. What now?":
-- "Update the docs, keep my edits (Recommended)": run PHASE 5 Step 2 (the project config), then skip to PHASE 6 (documentation generation only); the standards and the team's own edits stay
+- "Update the docs, keep my edits (Recommended)": run PHASE 5 Steps 2 and 3 (the project config and its profile), then skip to PHASE 6 (documentation generation only); the standards and the team's own edits stay
 - "Start over: the old docs move to `.maister.backup-<date>/`": move `.maister/` to `.maister.backup-$(date +%Y%m%d-%H%M%S)/` with the Bash tool, then continue with PHASE 2. The docs-operator is told the re-initialization is decided, so it does not ask again
 
 Leaving without changes is the Other answer: stop.
@@ -102,7 +102,7 @@ Store selection for Phase 5.
 
 > "Initialize documentation structure. Standards selection: [array from Phase 4]. [If --standards-from was provided: Standards source path: [resolved path]/.maister/docs/standards/. Copy standards from this external path instead of built-in defaults.] Only copy selected standard categories. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Create placeholder sections in INDEX.md for skipped categories. Check: [check path]."
 
-Wait for docs-operator to complete, then continue with Step 2 and go on to Phase 6.
+Wait for docs-operator to complete, then continue with Steps 2 and 3 and go on to Phase 6.
 
 **Step 2 — Scaffold project config** (directly — not via docs-operator). `.maister/config.yml` is where a project toggles output and chooses its subagents' models. The blocks below are the normative definition of the keys, their types and their defaults in this edition — write them verbatim, apart from the one `Explore` line the size rule picks.
 
@@ -175,6 +175,20 @@ subagents:
 
 with `LARGE_CODEBASE_FILES`'s value as the number in the comment. Otherwise write the block as it stands. The count and the choice go in Phase 7's summary.
 
+**Step 3 — Write the project profile.** The `project:` key of `.maister/config.yml` says what the project is, so the reviewers check what applies to it — no health endpoint or rate limits for a CLI, no down-migrations without a data store. Fill its fields from Phase 2's analysis, with Phase 3's corrections applied (on the update path, from the existing `.maister/docs/project/tech-stack.md` and `architecture.md`):
+
+| Field | From |
+|---|---|
+| `kind` | the project type and entry points: `web-app`, `service`, `daemon`, `cli`, `library`, `plugin`, `desktop`, `mobile`, `data-pipeline` or `infra` |
+| `runtime` | the main language and its version, as free text (`"node 20"`) |
+| `deploy` | the infrastructure found: `none`, `local`, `container`, `kubernetes`, `serverless`, `package-registry` or `app-store` |
+| `exposure` | who reaches its entry points: `local`, `internal` or `public` |
+| `data` | the stores it writes (`[postgres, files]`); `[]` for none |
+| `scale` | from the team context and the architecture: `single-user`, `team` or `multi-tenant` |
+| `ui` | `none`, `web`, `tui` or `native` |
+
+Leave out any field the analysis does not settle; a guess is worse than a gap, because a field rules checks out. Send the fields as one JSON object to the workflow engine's `project-profile` verb, from the project root: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs project-profile <<< '<json>'`. It writes the block only when `config.yml` has no top-level `project:` key — appended after one blank line, every other line unchanged — and leaves an existing key alone; a field left out, or one with a value it does not take, is written commented out with the values it takes, the latter with a `warning:` line. Its JSON reply says what it did (`action`: `created`, `appended` or `kept`) and the block it wrote; keep both for Phase 7's summary.
+
 ---
 
 ## PHASE 6: Generate Project Documentation
@@ -209,6 +223,7 @@ Wait for docs-operator to complete, then immediately continue with Step 2.
 - Structure created (tree with check marks for created items)
 - Documentation status (which docs generated, which standards initialized)
 - Project config: whether `.maister/config.yml` was created, had the `subagents` block appended, or already held a `subagents` block and was left alone; the file count and the `Explore` tier it chose; and the `subagents` block written or appended, as written. Note that the block governs the agent calls maister makes; the explore agents a host's own plan mode starts are outside it
+- Project profile: whether the `project:` block was written or appended, or an existing one was left alone; the block written, as written, with each field it left commented out and any `warning:` line; and that a run freezes the profile when it starts, so a correction reaches the next run
 - Key findings (strengths, opportunities)
 - Next steps:
   1. Review generated documentation
