@@ -231,7 +231,9 @@ For orientation only; the verifier runs it.
 - **On the base too.** A finding marked `fails_on_base` goes to `out_of_scope` at any severity:
   listed, never counted, never fixed. The merge also splits the brief's failing tests and checks
   into those the change introduced and those the base has too (`failures`), which the verdict
-  reads.
+  reads. A check marked `fails_on_base` is the base's only when its own finding was set aside
+  with evidence — the finding's title names the check, or quotes its command, or its location is
+  a path the command names; any other is the change's.
 - **Silence is not a fix.** A finding you do not report again in a full review stays open, marked
   `not_reported`. It closes only when a fix touched its place or a re-check answers it resolved.
 - **The result** is `verification/findings.json`. The verifier's report and the run's

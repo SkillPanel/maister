@@ -134,7 +134,7 @@ A failure the base already has is not this change's: the verdict lists it and ne
 Record it:
 - each failing check: `fails_on_base: true` when the base fails it the same way, `false` when the base passes it or the change adds failures;
 - the `tests` block: `failed_on_base`, how many of `failed` and `errors` the base fails the same way;
-- each such finding: `fails_on_base: true`, with the quoted base line in `evidence`. The merge lists it apart and never counts it; one that claims it with no evidence stays counted.
+- each such finding: `fails_on_base: true`, with the quoted base line in `evidence`. The merge lists it apart and never counts it; one that claims it with no evidence stays counted. A check's finding names the check by its `name` in its title (`typecheck fails …`): the merge counts a check as the base's only when such a set-aside finding is its own.
 
 Delete the directory when done.
 

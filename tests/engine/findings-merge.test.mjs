@@ -320,6 +320,31 @@ test('findings-merge: a finding that claims the base fails it too but quotes no 
   assert.match(stderr, /findings-merge-base-evidence: test-suite's "upload retry test fails"/);
 });
 
+test('findings-merge: a check marked as failing on the base is the base\'s only when its finding was set aside with evidence', t => {
+  const run = gitProject(t);
+  fs.writeFileSync(path.join(run.root, 'src/upload.mjs'), upload([12]));
+  suiteCycle(run, {
+    tests: { status: 'passed', passed: 10, failed: 0, errors: 0, skipped: 0, command: 'npm test' },
+    checks: [
+      { name: 'typecheck', command: 'npm run typecheck', status: 'failed', fails_on_base: true },
+      { name: 'lint', command: 'npm run lint', status: 'failed', fails_on_base: true },
+      { name: 'format', command: 'npm run format:check', status: 'failed', fails_on_base: true },
+    ],
+    findings: [
+      finding('ts-1', 'warning', 'tests', at('src/types.mjs', 3), 'typecheck fails as on the base', { fails_on_base: true, evidence: '' }),
+      finding('ts-2', 'warning', 'tests', at('src/old.mjs', 4), 'lint fails the same way on the base', { fails_on_base: true, evidence: 'base: src/old.mjs:4 no-unused-vars' }),
+      finding('ts-3', 'warning', 'tests', at('src/other.mjs', 9), 'an unrelated warning the base has too', { fails_on_base: true, evidence: 'base: src/other.mjs:9 the same warning' }),
+    ],
+  });
+  const { code, stderr, report } = merge(run);
+  assert.equal(code, 0, stderr);
+  assert.deepEqual(report.failures, {
+    introduced: { checks: ['typecheck', 'format'], tests: 0 },
+    on_base: { checks: ['lint'], tests: 0 },
+  }, 'an unevidenced claim, and a check no set-aside finding names, are the change\'s');
+  assert.match(stderr, /findings-merge-base-evidence: test-suite's "typecheck fails as on the base"/);
+});
+
 test('findings-merge: with no test result and no checks there is no failure split', t => {
   const run = project(t);
   put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null, tests: { status: 'pending' }, checks: null });

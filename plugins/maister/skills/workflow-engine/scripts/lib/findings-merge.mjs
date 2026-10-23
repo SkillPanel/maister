@@ -55,7 +55,9 @@
  *   failures      the brief's `tests` and `checks` split into the failures
  *                 the change introduced and those the base has too
  *                 (`failuresOf`), which the verdict reads. A failure whose
- *                 base status nobody established is the change's.
+ *                 base status nobody established is the change's, and a
+ *                 check marked `fails_on_base` is the base's only when the
+ *                 test suite's finding for it was set aside on that ground.
  *   re-check      a reviewer's answer per issue resolves it or keeps it open;
  *                 its new findings count only inside the fix diff, and the
  *                 rest go to `out_of_scope`, reported and never counted. A
@@ -123,6 +125,9 @@ const NOT_A_REVIEWER = 'verification';
 const NEAR_LINES = 10;
 
 const TEST_SUITE = 'test-suite';
+
+/** The reason a finding the base fails the same way is set aside under. */
+const ON_BASE = 'fails on the base too';
 
 export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
   const warnings = [];
@@ -239,7 +244,7 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
       resolve(finding, number, null);
     }
   }
-  const failures = failuresOf(brief);
+  const failures = failuresOf(brief, outOfScope.filter(each => each.reviewer === TEST_SUITE && each.reason === ON_BASE));
   if (recheck !== null) {
     const suite = thisCycle.find(file => file.stem === TEST_SUITE)?.doc.tests?.status ?? brief?.tests?.status ?? null;
     const suitePassed = suite === 'passed' || (failures?.suite_ran === true && failures.introduced.tests === 0);
@@ -324,7 +329,7 @@ function fixReader(run, dir, warnings) {
  * same way, at any severity, or one outside the change unless it is critical.
  */
 function setAside(finding) {
-  if (finding.fails_on_base === true) return 'fails on the base too';
+  if (finding.fails_on_base === true) return ON_BASE;
   if (finding.outside_change === true && finding.severity !== 'critical') return 'outside the change';
   return null;
 }
@@ -334,11 +339,14 @@ function setAside(finding) {
  * `introduced` — the change's, which fail the verdict — and `on_base`, which
  * the base fails the same way and which are only listed: `{introduced:
  * {checks, tests}, on_base: {checks, tests}}`, checks by name and tests as a
- * count of failures and errors. A check without `fails_on_base: true`, and a
- * failed test beyond `failed_on_base`, is the change's. Null when the brief
- * has no test result and no checks; `suite_ran` is for the merge alone.
+ * count of failures and errors. A check is the base's only when it says
+ * `fails_on_base: true` and one of the test suite's findings set aside on
+ * that ground — so with its evidence — is its own (`ownsCheck`); any other
+ * failed check, and a failed test beyond `failed_on_base`, is the change's.
+ * Null when the brief has no test result and no checks; `suite_ran` is for
+ * the merge alone.
  */
-function failuresOf(brief) {
+function failuresOf(brief, setAsideOnBase) {
   const tests = isPlainObject(brief?.tests) ? brief.tests : null;
   const checks = Array.isArray(brief?.checks) ? brief.checks.filter(isPlainObject) : null;
   const ran = tests !== null && typeof tests.status === 'string' && !['pending', 'skipped'].includes(tests.status);
@@ -347,11 +355,29 @@ function failuresOf(brief) {
   const total = ran ? tally(tests.failed) + tally(tests.errors) : 0;
   const onBase = Math.min(total, ran ? tally(tests.failed_on_base) : 0);
   const failing = listOf(checks).filter(check => check.status === 'failed');
+  const base = check => check.fails_on_base === true && setAsideOnBase.some(finding => ownsCheck(finding, check));
   return {
-    introduced: { checks: failing.filter(check => check.fails_on_base !== true).map(check => check.name), tests: total - onBase },
-    on_base: { checks: failing.filter(check => check.fails_on_base === true).map(check => check.name), tests: onBase },
+    introduced: { checks: failing.filter(check => !base(check)).map(check => check.name), tests: total - onBase },
+    on_base: { checks: failing.filter(base).map(check => check.name), tests: onBase },
     suite_ran: ran,
   };
+}
+
+/**
+ * Whether a finding is the one filed for a check, as simply as the data
+ * allows: its title names the check as a word or quotes its command, or its
+ * location is a path the command names exactly. No looser match, because a
+ * wrong one would pass a new failure as the base's.
+ */
+function ownsCheck(finding, check) {
+  const title = typeof finding.title === 'string' ? finding.title.toLowerCase() : '';
+  const name = check.name.toLowerCase();
+  const word = new RegExp(`(^|[^a-z0-9_-])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^a-z0-9_-])`);
+  if (word.test(title)) return true;
+  if (typeof check.command !== 'string' || check.command.trim() === '') return false;
+  if (title.includes(check.command.trim().toLowerCase())) return true;
+  const where = isPlainObject(finding.location) && typeof finding.location.path === 'string' ? finding.location.path : null;
+  return where !== null && check.command.split(/\s+/).includes(where);
 }
 
 /** Every reviewer findings file in the folder that parses, `{stem, doc}`. */
