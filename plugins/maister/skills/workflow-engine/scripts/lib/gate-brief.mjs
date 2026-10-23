@@ -346,7 +346,8 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   // values may lead somewhere another does not. `walked` is the preferred
   // continue's walk, the one every single-next reader shows.
   const preferred = preferredContinue(doc, options, closing);
-  const recommended = settling?.option ?? recommend(options, closing.risks, preferred);
+  const advised = revisions.spent ? null : advisedRevise(doc, options, closing);
+  const recommended = settling?.option ?? recommend(options, closing.risks, preferred, advised);
   // The recommended continue walked first, as the pickers list it, so every
   // form's per-continue Next lines read in the options' order.
   const continues = continuesOf(options).sort(([a], [b]) => (b === recommended) - (a === recommended));
@@ -384,7 +385,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
   let built = null;
   const checkpointOf = () => (built ??= buildCheckpoint({
-    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId, held, settling,
+    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId, held, settling, advised,
     graph: current.drift ? null : graph, defaults: current.defaults, parent: parentOf(doc, runDir),
     approves: policyOf().matches ? policyOf().approves : [],
   }));
@@ -1452,7 +1453,7 @@ const KEEPS_MAX = 3;
  * counted rather than listed. A fix is kept apart from the decisions: the run
  * changed it without asking, and settled nothing by it.
  */
-function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [], settling = null, graph = null, defaults = {}, parent = null }) {
+function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [], settling = null, advised = null, graph = null, defaults = {}, parent = null }) {
   const title = id => titleOf(titles, id);
   // The frozen nodes alone: the reserved closing checkpoint's status entry is
   // never counted, and it stands after them all.
@@ -1595,9 +1596,12 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       if (revisions.spent || !revise.has(id)) return [];
       const { work, history, suggestions } = revise.get(id);
       const reruns = work.map(each => ({ node: each, title: title(each) }));
+      // The reason a closing node advised this revise rides on its
+      // consequence, so either picker shows why it is the one marked.
+      const why = base.recommended && advised?.option === id ? advised.reason : null;
       return [{
         ...base,
-        consequence: `Re-runs ${andList(reruns.map(each => each.title))} with your note, then asks this again.${history}${rejectsHeld(held, work)}`,
+        consequence: `Re-runs ${andList(reruns.map(each => each.title))} with your note, then asks this again.${history}${rejectsHeld(held, work)}${why ? ` ${sentenceOf(why)}` : ''}`,
         reruns,
         revision: { n: revisions.revision, max: REVISION_CEILING },
         suggestions,
@@ -1620,6 +1624,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   let reason = null;
   if (stopping) reason = risks.stop[0].risk;
   else if (settling && settling.option === recommended) reason = settling.reason;
+  else if (advised && advised.option === recommended) reason = advised.reason;
   else if (preferred?.reason && preferred.option === recommended) reason = preferred.reason;
   else {
     // The reason argues for the option it stands beside: an open item is one
@@ -2542,12 +2547,36 @@ function readiness(needStatuses, on) {
 
 /**
  * The recommended option: the first stop when a closing risk opens
- * `recommend stop:`, else the preferred continue (`preferredContinue`).
+ * `recommend stop:`, else the revise a closing node advises
+ * (`advisedRevise`), else the preferred continue (`preferredContinue`).
  * Without the options the line names the role, not an id.
  */
-function recommend(options, risks, preferred) {
+function recommend(options, risks, preferred, advised = null) {
   const stop = risks.some(isStopRisk);
-  return (stop ? optionWith(options, 'stop') : null) ?? preferred?.option ?? RECOMMENDED_UNKNOWN;
+  return (stop ? optionWith(options, 'stop') : null) ?? advised?.option ?? preferred?.option ?? RECOMMENDED_UNKNOWN;
+}
+
+/**
+ * The revise a closing node's summary names under `recommends`, `{option,
+ * reason}`, or null: a node that finds its own work short of what was agreed
+ * sends the run back through this gate rather than on past it. Read in the
+ * same order as `preferredContinue`, the lead closing node first; only a
+ * revise this gate offers counts, and the caller asks none once its revisions
+ * are spent, when the gate offers no revise to recommend.
+ */
+function advisedRevise(doc, options, closing) {
+  if (!isPlainObject(options)) return null;
+  const revises = Object.entries(options).filter(([, option]) => isPlainObject(option) && option.effect === 'revise').map(([id]) => id);
+  if (!revises.length) return null;
+  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+  const ids = [closing.id, ...closing.entries.map(entry => entry.id).filter(id => id !== closing.id)];
+  for (const id of ids) {
+    const named = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].recommends : null;
+    if (!isPlainObject(named) || !revises.includes(named.option)) continue;
+    const reason = typeof named.reason === 'string' && named.reason.trim() !== '' ? scalarText(named.reason) : null;
+    return { option: named.option, reason };
+  }
+  return null;
 }
 
 /**

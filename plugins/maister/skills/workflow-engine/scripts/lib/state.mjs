@@ -3374,12 +3374,14 @@ function assertItems(at, entry) {
 }
 
 /**
- * A task node's `recommends`: the continue option it recommends at the gate
- * that closes it, `{option, reason}`, or null to withdraw one. The gate brief
- * marks that option recommended and shows the reason on it, so an option the
- * gate does not offer as a continue would recommend nothing while reading as
- * though it did — refused, whenever the run's frozen graph still proves. The
- * reason is shown on the option, so it is one line.
+ * A task node's `recommends`: the option it recommends at the gate that closes
+ * it, `{option, reason}`, or null to withdraw one. A continue says which way on;
+ * a revise sends the run back through that gate, for a node that finds its own
+ * work short of what was agreed. The gate brief marks that option recommended
+ * and shows the reason on it, so an option the gate does not offer as a
+ * continue or a revise would recommend nothing while reading as though it did —
+ * refused, whenever the run's frozen graph still proves. The reason is shown on
+ * the option, so it is one line.
  */
 function assertRecommends(id, recommends, graph) {
   if (recommends === null) return;
@@ -3389,23 +3391,23 @@ function assertRecommends(id, recommends, graph) {
       `${at} is ${JSON.stringify(value)}, which is not ${allowed}. Nothing was written. `
       + 'Correct that value and send the write again; every other field may stay as it was');
   };
-  if (!isPlainObject(recommends)) refuse(recommends, 'an {option, reason} map naming the continue option recommended and why');
+  if (!isPlainObject(recommends)) refuse(recommends, 'an {option, reason} map naming the option recommended and why');
   const { option, reason } = recommends;
-  if (typeof option !== 'string' || option.trim() === '') refuse(recommends, 'an {option, reason} map naming the continue option recommended and why');
+  if (typeof option !== 'string' || option.trim() === '') refuse(recommends, 'an {option, reason} map naming the option recommended and why');
   if (typeof reason !== 'string' || reason.trim() === '' || /[\r\n]/.test(reason)) {
     refuse(recommends, 'an {option, reason} map whose reason is one non-empty sentence on one line');
   }
   if (graph === null) return;
   const own = graph.nodes.find(node => node.id === id);
   const gates = graph.nodes.filter(node => node.type === 'gate' && Array.isArray(node.needs) && node.needs.includes(id));
-  const continues = gates.flatMap(gate => Object.entries(isPlainObject(gate.options) ? gate.options : {})
-    .filter(([, value]) => (isPlainObject(value) ? value.effect : value) === 'continue')
+  const offered = gates.flatMap(gate => Object.entries(isPlainObject(gate.options) ? gate.options : {})
+    .filter(([, value]) => ['continue', 'revise'].includes(isPlainObject(value) ? value.effect : value))
     .map(([name]) => name));
-  if (own?.type === 'gate' || continues.length === 0) {
-    refuse(recommends, `a recommendation ${id} can make: no gate waits on ${id} with a continue option to recommend`);
+  if (own?.type === 'gate' || offered.length === 0) {
+    refuse(recommends, `a recommendation ${id} can make: no gate waits on ${id} with a continue or a revise option to recommend`);
   }
-  if (!continues.includes(option)) {
-    refuse(option, `a continue option of the gate that waits on ${id}, which offers ${continues.join(', ')}`);
+  if (!offered.includes(option)) {
+    refuse(option, `a continue or a revise option of the gate that waits on ${id}, which offers ${offered.join(', ')}`);
   }
 }
 

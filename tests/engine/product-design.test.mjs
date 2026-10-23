@@ -248,6 +248,38 @@ for (const [label, file] of [
   });
 }
 
+// Every point the recorded run agreed — a decision a task step recorded, or a
+// constraint of the problem — paired with the words that carry it in the
+// scope. The decisions are read from the recorded summaries, so a point the
+// fixture adds and the scope leaves out fails here.
+const AGREED = {
+  'reuse the existing invitation email for the share link': /existing invitation email/,
+  'external guests get no account': /no guest accounts/,
+  'access model: signed link': /signed link/,
+  'detail shown: free and busy only': /free and busy only[^;]*;.*no event details shown/,
+  'links expire after 30 days unless renewed': /expire after 30 days unless renewed/,
+  'no guest accounts': /no guest accounts/,
+  'revocable at any time': /revocable at any time/,
+};
+
+test('delivery scope: the recorded scope carries every point the run agreed, inclusions and exclusions alike', () => {
+  const run = path.join(FIXTURES, 'runs/team-calendar-sharing');
+  const recorded = parse(fs.readFileSync(path.join(run, 'recorded-state.yml'), 'utf8'));
+  const tasks = Object.entries(recorded.node_summaries).filter(([id]) => recorded.workflow.nodes[id]?.kind !== 'gate' && recorded.node_summaries[id].status === 'completed');
+  const agreed = new Set(tasks.flatMap(([, entry]) => [
+    ...(entry.decisions ?? []).filter(decision => typeof decision === 'string' && !decision.endsWith(' recommended')),
+    ...(entry.constraints ?? []),
+  ]));
+  assert.ok(agreed.size > 0);
+  const at = path.join(run, 'outputs/delivery-scope.yml');
+  const { doc } = parseDefinition(fs.readFileSync(at, 'utf8'), at);
+  const statements = doc.members.map(member => member.statement).join(' ');
+  for (const point of agreed) {
+    assert.ok(Object.hasOwn(AGREED, point), `the agreed point "${point}" has no place in the scope`);
+    assert.match(statements, AGREED[point], `the scope drops "${point}"`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // the gates that close a guarded node
 // ---------------------------------------------------------------------------

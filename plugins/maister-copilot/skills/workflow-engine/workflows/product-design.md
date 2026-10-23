@@ -605,21 +605,38 @@ to terminal mockups is a recorded note, not a retry.
      mockups inline;
    - **Delivery scope**, always: each member in scope as one plain sentence —
      the member, what changes there, and what it waits for — in order, then each
-     member left out with its reason. Approving the brief approves the scope;
+     member left out with its reason, then each agreed exclusion. Approving the
+     brief approves the scope;
    - **References**: every analysis document the run produced.
-3. **Write `outputs/product-brief.md` and `outputs/delivery-scope.yml`**, the
+3. **List the agreed points** before writing the scope. An agreed point is
+   anything this run settled about what is built or left out: each decision the
+   earlier summaries record, whoever made it; each in-scope and out-of-scope
+   item the specification and the design decisions state; each open item a
+   later step settled, in the form it was settled; and each user story. Every
+   inclusion lands in the statement of the member it changes; every exclusion
+   is stated as left out, in the scope layer and in the statement of the
+   member it would have changed. A point deliberately not carried is named in
+   the scope layer with why.
+4. **Write `outputs/product-brief.md` and `outputs/delivery-scope.yml`**, the
    scope as the umbrella skill's `references/delivery-scope.md` shapes it. A
    member is in scope when the specification changes something it owns. Draw
-   every statement from the specification and the design decisions, never
-   from a guess about code nobody read.
-4. **Approve** — ask *"Approve the product brief?"*, naming its layers in a
-   line. Options: *"Approve (Recommended)"*, described *"the brief only
-   restates approved sections"*; *"Revise a section"* and *"Add missing
-   information"*, each naming the likeliest section or gap; and **More
-   details** last.
+   every statement from the agreed points, the specification and the design
+   decisions, never from a guess about code nobody read.
+5. **Check the scope against the agreed points** — every one carried, or named
+   as left out with why. Each point missing is an `open` risk naming it, with
+   the `change` that would carry it. A scope that drops one, or states no
+   exclusion after a run that agreed some, is not ready to approve.
+6. **Approve** — ask *"Approve the product brief?"*, naming its layers in a
+   line. Options: *"Approve"*, described *"the brief only restates approved
+   sections"*; *"Revise a section"* and *"Add missing information"*, each
+   naming the likeliest section or gap; and **More details** last. Approve is
+   recommended only when the check found nothing missing; otherwise *"Add
+   missing information"* is, described by the points missing, and its
+   suggested answer carries them. The person still decides.
    The question lists the brief's points, a line per layer, before the ask.
-   On a change, revise the brief and ask again.
-5. **Shut the mockup companion down** if `visual-prototyping` started one
+   On a change, revise the brief and the scope, check them again and ask
+   again.
+7. **Shut the mockup companion down** if `visual-prototyping` started one
    (`POST /shutdown`).
 
 **Asks.**
@@ -629,15 +646,19 @@ brief already written to `outputs/product-brief.md`.
 
 **Without question sets** (`brief-approval`): approve the brief, and record
 in its Open Questions / Risks that it was assembled without in-session
-review, naming every section no operator confirmed in session — the brief is
-what a development run is built from.
+review, naming every section no operator confirmed in session and every agreed
+point the check found missing — the brief is what a development run is built
+from.
 
 **Writes.** `outputs/delivery-scope.yml` carries its fixed shape and no
 artifact summary block. The brief's HTML page is written once, after approval.
 
 **Summary.** The `headline` names what was designed; the `summary` gives the
 delivery scope in a sentence — *"two members in scope, `api` before `web`;
-`mobile` left out"*. The node entry adds `brief_layers`.
+`mobile` left out"* — and the check's result: how many agreed points the scope
+carries, and each one still missing. A point still missing at approval stays an
+`open` risk, so a parent's scope gate sees it. The node entry adds
+`brief_layers`.
 
 **Budget.** Re-assemble the brief and the scope from the documents on disk.
 

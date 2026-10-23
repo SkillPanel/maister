@@ -82,16 +82,21 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   - **`artifacts`** may carry a `role`: `primary`, `review`, `evidence` or `log`. Evidence and
     logs are never offered for review. A node may add `metrics`, a list of
     `{label, value, unit?, of?}`.
-  - **`recommends`** — on a node closed by a gate with several continues, the one this node
-    recommends and why: `{option: <continue option id>, reason: "<one line>"}`. It keeps every
-    stated criterion, as an in-node recommendation does (`references/in-node-questions.md`
+  - **`recommends`** — the option this node recommends at the gate that closes it, and why:
+    `{option: <option id>, reason: "<one line>"}`. On a gate with several continues it names
+    the continue to take. It names the gate's **revise** when the node finds its own work short
+    of what was agreed — a point dropped, an agreed exclusion unstated — so the gate never
+    recommends going on past the gap; the reason names what is missing, and each missing point
+    is an `open` risk with its `change`, which the revise offers as a suggested note. It keeps
+    every stated criterion, as an in-node recommendation does (`references/in-node-questions.md`
     § *In-node questions*). Without it the continue that turns the most steps on is
-    recommended, and a `stop` risk still recommends stopping on a gate that offers a stop.
+    recommended; a `stop` risk still recommends stopping on a gate that offers a stop, and a
+    gate whose revises are spent falls back to the continue.
 
   Items written as strings are still read (`open:`, `tradeoff:`, `followup:`, `left for later:`,
   `recommend stop:` prefixes; untagged reads as `open`); write new items typed. The writer
   refuses an unknown `by`, tag or role, a fix naming neither its finding nor its change, or a
-  `recommends` that is not a continue of a gate waiting on this node or lacks a one-line reason,
+  `recommends` that is not a continue or a revise of a gate waiting on this node or lacks a one-line reason,
   with `state-summary-item-invalid`. The engine's `feeds a checkpoint` convention names what
   belongs in each field, and the node's *Summary* part adds what is its own.
 - **Every answer the user gives inside a node is recorded** on that node's summary, one

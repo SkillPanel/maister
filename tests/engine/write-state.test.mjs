@@ -1292,13 +1292,23 @@ test('write-state: a closing node may recommend a continue of the gate that wait
   assert.deepEqual(readState(run).node_summaries.specification.recommends, { option: 'continue-to-audit', reason: 'asked for when the run started' });
 });
 
-test('refusal: state-summary-item-invalid — a recommends naming no continue of the gate that waits on the node, or with no reason', t => {
+test('write-state: a closing node may recommend a revise of the gate that waits on it', t => {
+  const run = scratch(t);
+  freeze(run, { definition: OPTIONAL_STEP });
+  write(run, {
+    nodes: { specification: { status: 'completed' } },
+    node_summaries: { specification: { summary: 'Wrote it.', recommends: { option: 'revise-specification', reason: 'two agreed points are missing' } } },
+  });
+  assert.deepEqual(readState(run).node_summaries.specification.recommends, { option: 'revise-specification', reason: 'two agreed points are missing' });
+});
+
+test('refusal: state-summary-item-invalid — a recommends naming no continue or revise of the gate that waits on the node, or with no reason', t => {
   const cases = [
-    [{ option: 'stop-here', reason: 'nothing to audit' }, /recommends is "stop-here", which is not a continue option of the gate that waits on specification, which offers continue-to-audit, continue-to-planning/],
-    [{ option: 'continue-on', reason: 'r' }, /which is not a continue option of the gate that waits on specification/],
+    [{ option: 'stop-here', reason: 'nothing to audit' }, /recommends is "stop-here", which is not a continue or a revise option of the gate that waits on specification, which offers continue-to-audit, continue-to-planning, revise-specification/],
+    [{ option: 'continue-on', reason: 'r' }, /which is not a continue or a revise option of the gate that waits on specification/],
     [{ option: 'continue-to-audit' }, /whose reason is one non-empty sentence on one line/],
     [{ option: 'continue-to-audit', reason: 'two\nlines' }, /whose reason is one non-empty sentence on one line/],
-    ['continue-to-audit', /an \{option, reason\} map naming the continue option recommended and why/],
+    ['continue-to-audit', /an \{option, reason\} map naming the option recommended and why/],
   ];
   for (const [recommends, pattern] of cases) {
     const run = scratch(t);
@@ -1310,7 +1320,7 @@ test('refusal: state-summary-item-invalid — a recommends naming no continue of
   const run = scratch(t);
   freeze(run, { definition: OPTIONAL_STEP });
   const planning = refused(run, { node_summaries: { planning: { summary: 'Planned.', recommends: { option: 'continue-on', reason: 'r' } } } });
-  assert.match(planning.stderr, /no gate waits on planning with a continue option to recommend/);
+  assert.match(planning.stderr, /no gate waits on planning with a continue or a revise option to recommend/);
 });
 
 // ---------------------------------------------------------------------------
