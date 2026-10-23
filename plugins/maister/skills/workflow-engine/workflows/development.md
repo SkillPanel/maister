@@ -730,18 +730,25 @@ ends with none is `RUN-FAILED: closeout-unpublished`. Under a terminal driver
 step 7 is what the operator gets.
 
 **Asks.** Only when the work log records standard candidates: one multi-select
-question, each candidate an option — its label the convention in a few words,
-its description the candidate line as written — the question saying that each
-chosen one is added through standards-update, which asks where it goes. Each
-chosen candidate is added with `maister:standards-update`, its line as the
-description, one after another; an unchosen one is dropped. With no candidates,
-nothing is asked.
+question, the question saying that each chosen one is added through
+standards-update, which asks where it goes. Its first option is fixed:
+*"None now: list them as next steps"*. Each candidate follows as an option — its
+label the convention in a few words, its description the candidate line as
+written. No option is recommended. Each chosen candidate is added with
+`maister:standards-update`, its line as the description, one after another; an
+unchosen one is dropped. *None now* adds nothing: every candidate goes under
+**Next** as its `/maister:standards-update "<candidate>"` command, as when
+nothing is asked. Chosen together with candidates, *None now* gives way: the
+candidates are taken, and a line of the close says the none option was set
+aside. With no candidates, nothing is asked.
 
 **With question sets** (`standard-candidates`): the same multi-select, with the
-multi-choice flag, as this node's one request in its attempt; the chosen
-candidates go under **Next**, each as the
-`/maister:standards-update "<candidate>"` command to run, since adding one asks
-its own questions in session.
+multi-choice flag, as this node's one request in its attempt — *None now* first,
+under the id `none-now`, and no option recommended. The chosen candidates go
+under **Next**, each as the `/maister:standards-update "<candidate>"` command to
+run, since adding one asks its own questions in session. *None now* alone puts
+every candidate there, as the Without line does; chosen with candidates, the
+candidates win, and a line of the close says so.
 
 **Without question sets** (`standard-candidates`): nothing is asked; every
 candidate goes under **Next** as its `/maister:standards-update "<candidate>"`
