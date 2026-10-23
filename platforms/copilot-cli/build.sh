@@ -192,8 +192,9 @@ done
 #      search tool of its own -- the main agent's included -- gives none to its
 #      agents, by alias or by name. The research agents also name the GitHub
 #      server's web_search, so they use it in a session that offers it; where
-#      it is absent the name is ignored. The agents that drive the browser add
-#      the plugin's Playwright MCP server.
+#      it is absent the name is ignored. The plugin ships no browser server, so
+#      the agents that drive a browser are granted none: they reach
+#      `playwright-cli` through `execute`.
 #    Keeping an agent from re-entering an entry point -- a review agent invoking
 #    its own reviews-* command, which dispatches it again, or an implementer
 #    loading an orchestrator skill -- is the containment sentence every source
@@ -212,7 +213,6 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
   fi
   tools='"execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"'
   case "$(basename "$f" .md)" in
-    e2e-test-verifier|user-docs-generator) tools="$tools, \"playwright/*\"" ;;
     information-gatherer|research-planner) tools="$tools, \"github-mcp-server/web_search\"" ;;
   esac
   awk -v tools="tools: [$tools]" -v dirrule="$DIR_RULE" '

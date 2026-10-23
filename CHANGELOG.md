@@ -142,6 +142,11 @@ workspace with work in flight.
   bug fix — its evidence reaches the verification checkpoint instead — and performance no longer
   pauses to approve the checks you just chose. Development's UI mockups have no review loop of
   their own any more: the mockup gate's revise sends them back.
+- **The bundled browser server.** The plugin no longer starts a Playwright MCP server in every
+  session. Browser checks, user documentation with screenshots and the mockup gallery use whichever
+  browser tool your session has — `playwright-cli` first, then a Playwright MCP server you
+  configured, Claude in Chrome or the Claude desktop app's built-in browser — and a session with
+  none is told so where a browser step would be offered, and carries on without it.
 
 ### Breaking changes
 
@@ -189,6 +194,12 @@ Then run `/reload-plugins`, or start a new session.
 the task directory and one engine command that applies it. Running with edits auto-accepted, as the
 README recommends, covers the write; approve the command with *don't ask again*, or allow it in your
 permission settings, and it stops asking.
+
+*Add a browser tool yourself* if you use browser checks, user documentation with screenshots or
+the mockup gallery: the plugin no longer brings one. Any one will do — `npm install -g
+@playwright/cli` for `playwright-cli`, or a Playwright MCP server added with
+`claude mcp add playwright -- npx @playwright/mcp@latest`, or Claude in Chrome. Without one, those
+steps are offered without the browser.
 
 *If a driver raises a run's autonomy ceiling after it starts*, expect that write to be dropped
 with a note: the ceiling is fixed when the run starts and may only narrow. Set the ceiling you

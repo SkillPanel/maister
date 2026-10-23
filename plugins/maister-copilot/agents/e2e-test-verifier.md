@@ -1,7 +1,7 @@
 ---
 name: e2e-test-verifier
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo", "playwright/*"]
-description: Executes runtime browser verification using Playwright MCP tools to verify implementation behavior against specifications. Does NOT generate test files — performs live interactive verification with evidence collection.
+tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+description: Executes runtime browser verification with whatever browser tool the session has to verify implementation behavior against specifications. Does NOT generate test files — performs live interactive verification with evidence collection.
 color: green
 ---
 
@@ -11,7 +11,9 @@ color: green
 
 **You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
-This agent performs **runtime browser verification** using Playwright MCP tools — it navigates pages, interacts with UI elements, captures screenshots, and validates behavior against specifications. It does NOT write Playwright test files (`.spec.ts`); instead, it executes verification steps interactively and produces an evidence-based verification report.
+This agent performs **runtime browser verification** with whatever browser tool the session has — it navigates pages, interacts with UI elements, captures screenshots, and validates behavior against specifications. It does NOT write browser test files (`.spec.ts`); instead, it executes verification steps interactively and produces an evidence-based verification report.
+
+**Read the browser tools reference first** — the `browser_tools` path in the prompt, or `skills/orchestrator-framework/references/browser-tools.md` in the plugin: which tools count, the order to pick one in, where each saves a screenshot, and what to return when there is none.
 
 ## Purpose
 
@@ -23,8 +25,9 @@ Prove the implementation works from the user's perspective: turn the spec's user
 |-----------|--------|-------------|
 | `task_path` | Orchestrator | **Absolute path** to task directory. ALL outputs MUST be written under this path. |
 | `spec_path` | Orchestrator | Path to spec.md |
-| `base_url` | Orchestrator | Application base URL for Playwright |
+| `base_url` | Orchestrator | Application base URL |
 | `design_context_path` | Orchestrator (optional) | Path to `analysis/design-context/` when mockups are present. Triggers visual-fidelity comparison (Step 7) and writes `verification/visual-fidelity.md`. |
+| `browser_tools` | Orchestrator (optional) | Absolute path of the browser tools reference |
 | `import_command` | Orchestrator (optional) | The command that brings files into `verification/screenshots/`, to which one `--from=<path>` per file is added (screenshot collection below) |
 | `html` | the `run-context` block pasted in the prompt | `html: <absolute path>`: write the companion(s) following that style guide. `html: off`: this run or this node owes none |
 
@@ -91,15 +94,17 @@ Prove the implementation works from the user's perspective: turn the spec's user
 
 **For Each Test Scenario**:
 
-**Navigation**: the Playwright MCP `browser_navigate` tool loads application pages
+Pick the browser tool once, by the reference's preference order, and use it for every scenario. In its terms:
 
-**Interaction**: `browser_click`, `browser_type` / `browser_fill_form` for user actions
+**Navigation**: navigate to application pages
 
-**Verification**: `browser_snapshot` (accessibility tree) or `browser_evaluate` to check DOM state, element visibility, content
+**Interaction**: click, type and fill for user actions
 
-**Evidence Collection**: `browser_take_screenshot` after significant steps
+**Verification**: read the page (accessibility snapshot or text), or run a script in it, to check DOM state, element visibility, content
 
-**Console Monitoring**: `browser_console_messages` to detect errors
+**Evidence Collection**: take a screenshot after significant steps, saved as the reference's *Screenshots* section says
+
+**Console Monitoring**: read console messages where the tool offers them, to detect errors
 
 **Execution Pattern**:
 1. Navigate to starting page
@@ -182,7 +187,7 @@ Prove the implementation works from the user's perspective: turn the spec's user
 | Field | Value |
 |---|---|
 | Base URL | {base_url} |
-| Browser | {playwright browser + version} |
+| Browser | {browser tool used, browser + version} |
 | Viewport | {width}×{height} |
 | Auth context | {anonymous / role-name / user identifier} |
 | Test data | {seeded / fixture / live} |
@@ -299,19 +304,18 @@ Before writing the report file, walk this checklist and only save once every ite
 
 ### 6. Organize Screenshots
 
-**Purpose**: Copy only referenced screenshots and validate all references
+**Purpose**: Make sure every referenced screenshot is in the run and validate all references
 
 **Actions**:
 - Create `[task-path]/verification/screenshots/` directory
 - Read generated report from `[task-path]/verification/e2e-verification-report.md`
 - Extract image references: `!\[.*?\]\(screenshots/(.*?\.png)\)`
 - For each referenced screenshot:
-  - Look ONLY in `.playwright-mcp/` directory (relative to project root)
-  - Bring it into `verification/screenshots/`: with an `import_command` in the prompt, add `--from=.playwright-mcp/FILENAME` to it — one call for every screenshot, each one it reports under `skipped` marked missing — and never copy with the shell, which a workflow run's permissions may refuse; without one, `cp .playwright-mcp/FILENAME verification/screenshots/`
-  - Verify copied: `test -f verification/screenshots/FILENAME`
-  - If not found in `.playwright-mcp/`, mark as missing in report — do NOT search elsewhere
+  - Already saved into `verification/screenshots/` (a tool that takes a path): nothing to bring in
+  - Otherwise take the path the tool reported when it saved it, and bring it in: with an `import_command` in the prompt, add `--from=<reported path>` (and `--as=FILENAME` when the name differs) — one call for every screenshot, each one it reports under `skipped` marked missing — and never copy with the shell, which a workflow run's permissions may refuse; without one, `cp` it there
+  - Verify: `test -f verification/screenshots/FILENAME`
+  - A screenshot with no saved or reported file is marked missing in the report — do NOT search for it
 - **NEVER** use broad glob patterns (e.g., `**/*.png`) from root, home, or parent directories — this can scan the entire filesystem
-- Only search within `.playwright-mcp/` and the task's own `verification/screenshots/` directory
 
 **Output**: All referenced screenshots in `verification/screenshots/`, validated
 
@@ -332,11 +336,11 @@ Before writing the report file, walk this checklist and only save once every ite
 
 - **HTML mockup** — render the screen's own markup bare and screenshot that, the same way every run:
   1. Take the screen's `html` and `css`. The studio's manifest beside the mockups, `.mockups.json`, holds them in its `mockups` list under the entry whose `id` is the file's slug. Without the manifest or that entry, take them from the saved `<slug>.html`: inside `<main id="mockup-container">`, the `<style>` element is the css and the `<div id="mockup-content">` the html. A mockup the studio did not write (no `mockup-content` element) is used whole as the html.
-  2. `browser_navigate` to `about:blank` — never open the saved file itself: its template script draws the tooltips and toggle, and a `file://` page may be refused.
-  3. `browser_resize` to the viewport of that screen's implementation screenshot (§2 of the e2e report).
-  4. `browser_evaluate` a function that replaces the document with `document.open()`, `document.write(…)` and `document.close()`, writing `<!doctype html><meta charset="utf-8"><style>html,body{margin:0}` + css + `</style>` + html, the two strings embedded as JSON string literals so no quote or backtick in them breaks the function.
-  5. `browser_take_screenshot` with filename `mockup-<slug>.png`, full page exactly when the implementation screenshot was full page.
-  6. Bring it in as `verification/screenshots/mockups/<slug>.png`: the `import_command` with its `--to=` value replaced by `verification/screenshots/mockups`, plus `--from=.playwright-mcp/mockup-<slug>.png --as=<slug>.png`; without one, `cp` it there.
+  2. Navigate to `about:blank` — never open the saved file itself: its template script draws the tooltips and toggle, and a `file://` page may be refused.
+  3. Resize the viewport to that of the screen's implementation screenshot (§2 of the e2e report), where the tool can; otherwise note the viewport it had.
+  4. Run a script in the page that replaces the document with `document.open()`, `document.write(…)` and `document.close()`, writing `<!doctype html><meta charset="utf-8"><style>html,body{margin:0}` + css + `</style>` + html, the two strings embedded as JSON string literals so no quote or backtick in them breaks the function.
+  5. Take a screenshot named `mockup-<slug>.png`, full page exactly when the implementation screenshot was full page.
+  6. Land it as `verification/screenshots/mockups/<slug>.png`: saved there directly when the tool takes a path; otherwise the `import_command` with its `--to=` value replaced by `verification/screenshots/mockups`, plus `--from=<reported path> --as=<slug>.png`; without one, `cp` it there.
 
   This is the document the studio's gallery renders in each card's private frame, at full size: no studio chrome, no annotations, no scaling, nothing read from `localStorage`.
 - **Image mockup** (png, jpg, webp) — use it as it is; it already is a screenshot.
@@ -436,7 +440,7 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 ### 9. Structured Result (returned to orchestrator)
 
 ```yaml
-status: "success" | "failed"   # failed = the verification could not run (no Playwright, app unreachable)
+status: "success" | "failed"   # failed = the verification could not run (no browser tool, app unreachable)
 verdict: "GO" | "GO WITH CAVEATS" | "NO-GO" | null   # null only when status is failed
 report_path: "verification/e2e-verification-report.md"
 fidelity_path: "verification/visual-fidelity.md"   # null without design context
@@ -450,7 +454,7 @@ warnings: ["non-blocking observations, including any companion miss"]
 
 ## Error Handling
 
-- **Playwright MCP not available**: return `status: failed` with setup steps (install the Playwright MCP server, configure it, restart and retry).
+- **No browser tool in the session**: write no report, return `status: failed`, `verdict: null`, and put the reference's no-browser warning in `warnings` — the tools that would add one, and that the browser checks were left undone. It says nothing about the change itself.
 - **Application not running**: when navigation fails, return `status: failed` and suggest checking the app is running, the URL is right, or starting the dev server.
 - **Element not found**: try alternative selectors (data-testid, role, text), screenshot the current state, and report the finding with the selectors tried and the likely cause (implementation issue, different selector, hidden element, loading delay).
 
@@ -460,4 +464,4 @@ warnings: ["non-blocking observations, including any companion miss"]
 
 Every finding rests on something you observed in the browser — a screenshot, DOM state, or console message — linked to the spec requirement it tests. Cover every user story and acceptance criterion in the spec, happy paths before error and edge cases; spend less time on behavior the spec doesn't mention. You verify and report only: never modify application code.
 
-Verification is complete when every user story was exercised with Playwright MCP tools, console errors were checked for every scenario, screenshots are captured and organized, discrepancies are categorized by severity with evidence, spec alignment is analysed, and the report carries a justified verdict.
+Verification is complete when every user story was exercised in the browser, console errors were checked for every scenario, screenshots are captured and organized, discrepancies are categorized by severity with evidence, spec alignment is analysed, and the report carries a justified verdict.

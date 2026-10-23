@@ -509,6 +509,14 @@ false or absent — its description giving the reason ("Recommended: the change
 adds public API, so a usage guide helps"). Its answer is this node's
 `user_docs_enabled` output.
 
+Before asking, check whether the session can drive a
+browser (`orchestrator-framework/references/browser-tools.md`, *Which tool*). When it cannot, the question
+carries that reference's no-browser warning, recommends off whatever the seed
+says, and gives on its consequence: the guide is written without screenshots.
+The browser-checks line says the same will be recommended at the verification
+gate. A user-docs input set at the start is still taken as given, with the
+warning in the node's summary.
+
 The user-docs input (`user_docs_flag`) is tri-state. Absent means ask. `yes` or
 `no` settled it when the run started: ask nothing, record the value as
 `user_docs_enabled` and its state mirror and as a decision — `by: operator` when
@@ -576,9 +584,13 @@ chose "Stop", one `stop` risk saying why the run should not go on.
 `verification_context.last_status`, `issues_found` and `reviews`, which the
 verifier records every cycle, are not repeated.
 
-Recommend whether the browser checks run. A set browser-tests input's reason is
-"Asked for when the run started" or "Declined when the run started", and the
-gate is still asked. Unset, and the gap analysis recorded the task as not
+Recommend whether the browser checks run. When the session has no browser
+tool (`orchestrator-framework/references/browser-tools.md`), recommend `continue-past-verification`
+whatever the input or seed says, its reason that reference's no-browser warning,
+which the brief carries before the choice; picking the browser checks anyway
+still runs them, and they report that they could not. Otherwise: a set
+browser-tests input's reason is "Asked for when the run started" or "Declined
+when the run started", and the gate is still asked. Unset, and the gap analysis recorded the task as not
 UI-heavy: recommend `continue-past-verification`, reason "This change has no
 user interface". Otherwise follow the seed `orchestrator.options.e2e_enabled`:
 true recommends `continue-to-browser-checks`, false or absent
@@ -604,7 +616,9 @@ the command it brings screenshots into the run with, as `import_command`: the
 engine's `import` verb with this run's `--state` and
 `--to=verification/screenshots`, written out whole with the plugin root as an
 absolute path, so the delegate adds one `--from` per screenshot and never
-copies through the shell.
+copies through the shell. Pass the browser tools reference as `browser_tools`,
+its absolute path under the plugin root; the delegate picks the session's
+browser tool from it.
 
 **This node and `user-docs` share one browser**: never dispatch the two delegate
 calls in one message, even when both stretches are enabled: concurrent dispatch
@@ -621,7 +635,10 @@ the verdict, the scenario counts — run, passed, failed — and, when the
 visual-fidelity report was written, how closely the screens match the mockups.
 In `risks`, each failed scenario as `open`, its `change` the fix it calls for; a
 scenario that could not run for a reason outside this change, such as a missing
-test account, as a `followup`.
+test account, as a `followup`. A session with no browser tool is the same kind
+of reason: the delegate returns `status: failed` with the no-browser warning,
+and the node completes with that warning as one `followup` risk, the headline
+saying the browser checks did not run and why — never a defect of the change.
 
 **Budget.** None: a browser session that cannot be established is reported as
 a finding rather than retried blindly.
@@ -635,8 +652,10 @@ Reuse the browser stretch's screenshots when it ran: pass the screenshot
 directory with the instruction to reuse what applies before capturing anything
 new, plus the `prior-context --background --node=user-docs` output. When the
 browser stretch was skipped, omit the directory entirely rather than passing an
-empty path. Pass `import_command` as `e2e-verification` does, with
-`--to=documentation/screenshots`.
+empty path. Pass `import_command` and `browser_tools` as `e2e-verification`
+does, the import with `--to=documentation/screenshots`. With no browser tool the
+guide is written without fresh screenshots and says so; carry the warning into
+the summary as a `followup` risk.
 
 The prior decisions are background for this delegate, not content: the guide
 must stay consistent with the run's decisions and risks, and never quote them

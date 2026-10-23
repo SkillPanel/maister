@@ -87,9 +87,11 @@ Example annotations:
 
 ### Browser Opening
 
-1. **Primary**: Playwright MCP `browser_navigate` (if configured)
+1. **Primary**: the session's browser tool, picked by the preference order in `../../orchestrator-framework/references/browser-tools.md`, when its window is one the user sees (a headless browser shows them nothing)
 2. **Fallback 1**: `open` command (macOS) / `xdg-open` (Linux)
 3. **Fallback 2**: Log URL for manual opening, continue with terminal-only review
+
+The plugin ships no browser tool. A session without one is told so before the gallery opens (`SKILL.md` Step 3), and the gallery still works through the two fallbacks.
 
 ### Teardown
 
@@ -111,8 +113,8 @@ The visual companion is an enhancement, not a requirement. Every failure has a f
 |---|---|---|
 | Node.js not available | `which node` fails | ASCII mockups via ascii-mockup-generator agent |
 | Port 3847 in use | Server startup error (EADDRINUSE) | Try ports 3848-3850, then ASCII fallback |
-| Playwright MCP not configured | MCP tool call fails | Log URL for manual browser opening |
-| Browser fails to open | Playwright error + open command error | Log URL, continue with terminal-only review |
+| No browser tool in the session | none of the tools in the browser tools reference is present | Say so (SKILL.md Step 3); `open`, else log the URL |
+| Browser fails to open | browser tool error + open command error | Log URL, continue with terminal-only review |
 | Server crashes mid-session | `GET /status` returns error or timeout | Restart server; if 2nd failure, ASCII fallback |
 | No issues | `GET /status` returns ok | Full visual companion experience |
 
@@ -142,7 +144,7 @@ The mockup-studio HTML path (SKILL.md Step 4a) follows this sequence when the vi
 
 1. **Check availability**: `GET /status` to see if server is already running (stale-server check by `taskPath`)
 2. **Start server if needed**: Spawn Node.js process with `--task-path` + `--output-subdir`, verify ready
-3. **Open browser**: Playwright MCP or open command or log URL
+3. **Open browser**: browser tool or open command or log URL
 4. **Generate mockup**: Create HTML/CSS from the `context` grounding and the discovered design resources
 5. **Push to server**: `POST /update` with mockup content
 6. **Present for review**: ask_user in terminal (user views mockup in browser) — for `iteration: full`

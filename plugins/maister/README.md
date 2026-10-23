@@ -48,7 +48,7 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 ## Requirements
 
 - **Node.js 20 or newer** is required. Every workflow runs on the workflow engine, which needs it; without Node.js, a workflow command stops before it creates a task folder and says why. The plugin's hooks run on it too.
-- **Playwright MCP** is bundled (`.mcp.json`, pinned version) and starts locally via `npx`, so it is available in Claude Code but not on claude.ai on the web. It drives the optional browser steps of the development workflow, browser checks and user documentation with screenshots, which you switch on when verification options are offered, and opens the HTML mockup gallery. Without a browser, mockups can be produced as ASCII instead, and the browser steps are left off.
+- **A browser tool is your choice.** The plugin ships none. The optional browser steps of the development workflow — browser checks and user documentation with screenshots, which you switch on when verification options are offered — and the HTML mockup gallery use whichever one your session has, in this order of preference: `playwright-cli`, a Playwright MCP server you configured, Claude in Chrome, or the built-in browser of the Claude desktop app. Without one, a workflow says so where it would offer a browser step and carries on: browser checks off, user documentation without screenshots, mockups as ASCII or a gallery address you open yourself.
 
 ## Hooks
 
