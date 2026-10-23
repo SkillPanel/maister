@@ -189,12 +189,22 @@ the panel an editor extension draws above the question. With no form, the brief 
 1,600 characters — the trailing `rules:` line the verb adds sits outside that budget.
 
 `--checkpoint` prints the **checkpoint**, the one structured object every other form projects
-from, as JSON: `{version, kind, node, header, ask, headline, progress, next, review, closed,
-fixes, held?, decisions, risks, recommended, options, grants, approves, run, truncated}` —
-`held` present only when a choice waits for approval, `decisions` grouped by who settled them,
+from, as JSON: `{version, kind, node, header, ask, headline, progress, next, subject?, review,
+closed, fixes, held?, decisions, risks, recommended, evidence?, options, grants, approves, run,
+truncated}` — `subject` present only when the gate approves a known output, `held` only when a
+choice waits for approval, `decisions` grouped by who settled them,
 `risks` by tag, and each option carrying its `consequence` (a continue that sets gate values
 also its `sets` and `next`, a revise its `reruns`, `revision` and `suggestions`, a stop its
 `keeps` and `not_run`).
+
+`subject` is `{path, kind}`: the one output the gate asks to approve, read off the declared
+output keys of the nodes it closes, never off a file name. The kinds are a closed list, in
+precedence order — `delivery-scope` (key `delivery_scope`), `brief` (`brief`),
+`specification` (`spec`), `plan` (`plan`), `mockups` (`mockups`) — and the first a closing
+node declares with a literal path on disk is the subject. `path` is run-relative, in the form
+`review` uses, a folder ending in `/`. A reader leads with it, and meets an unknown kind with a
+link to the path. Absent, no subject is named. The request carries it inside
+`context.checkpoint` only.
 
 `--json` returns the in-session picker projected from it: `{ok, picker, question, header,
 options[{id, label, description, recommended, preview}], details, more_details, errors,
