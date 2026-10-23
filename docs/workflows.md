@@ -446,6 +446,12 @@ review confirms was built. A question the run can already answer from its own an
 answer in one line instead ("User guide: on — asked for when the run started").
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
+A recommendation also names the files it rests on, when there are any: the specification, the
+findings, the brainstorm, a decision record. In the terminal the question reads as before. A run
+the cockpit drives sends each checkpoint and each question with that list as `evidence`, paths
+from the repository root, so whoever answers can open what the recommendation was built from. A
+file that is missing is left off the list with a warning; the question is still asked.
+
 At a checkpoint the question is one line: what finished, and whether it is ready to go on. Where the run goes if you continue is named by the continue option.
 Where the next phase is optional, the checkpoint before it decides it in the same question, with one continue for each way on: development's specification checkpoint offers *Continue to the specification audit* and *Continue to planning, skip the audit*, and its verification checkpoint *Continue to the browser checks* and *Continue without browser checks*; research's checkpoint after the research offers *Continue to brainstorming*, *Continue to the design, skip brainstorming* and *Continue to final summary*. The recommended one gives its reason, and each names where it leads and what it skips.
 Beside the continue option you see the checkpoint at a glance:

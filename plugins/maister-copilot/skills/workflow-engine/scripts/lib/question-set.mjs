@@ -17,15 +17,21 @@
  * which splits a long set across several calls in one turn, and never to the
  * request.
  *
- * Pure: no I/O. Zero dependencies beyond the checkpoint, display and item helpers.
+ * Pure: no I/O. Zero dependencies beyond the checkpoint, display, evidence and item helpers.
  */
 
 import { flowLine } from './checkpoint.mjs';
 import { HEADER_MAX } from './display.mjs';
+import { evidenceKey } from './evidence.mjs';
 import { oneLine, provenanceOf } from './items.mjs';
 
-/** The keys a question may carry; any other is a typo the operator would never see answered. */
-const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage', 'details'];
+/**
+ * The keys a question may carry; any other is a typo the operator would never
+ * see answered. `evidence` is carried as written and never refused here: the
+ * brief checks it against the disk (`evidence.mjs`), and a path it drops costs
+ * the question nothing.
+ */
+const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage', 'details', 'evidence'];
 
 /**
  * The keys an option may carry. `person_act` marks an option whose answer says
@@ -131,6 +137,7 @@ export function checkSet(input) {
       ...(fallback !== undefined ? { default: fallback } : {}),
       ...(Object.hasOwn(question, 'triage') ? { triage: question.triage } : {}),
       ...(isText(question.details) ? { details: question.details } : {}),
+      ...(Object.hasOwn(question, 'evidence') ? { evidence: question.evidence } : {}),
     };
   });
   if (errors.length) return { ok: false, errors };
@@ -224,7 +231,8 @@ function requestOptions(question) {
  * The request a driver suspends on for a question set. The top-level question
  * and options repeat the first question, so a reader that knows one question
  * per request still answers it; `questions` carries the whole set, each entry
- * the four keys a request question has; and `context.checkpoint` carries the
+ * the four keys a request question has and, when it names any, the evidence
+ * its recommendation rests on; and `context.checkpoint` carries the
  * set with its context — header, why, default — for a reader that renders it.
  * Each question the request carries is one flow-safe line (`flowLine`); the
  * checkpoint keeps the node's own text.
@@ -238,11 +246,13 @@ export function questionRequest(checkpoint) {
     context: { summary: summaryOf(checkpoint), artifacts: [], checkpoint },
     options: requestOptions(first),
     multi_select: first.multi_select,
+    ...evidenceKey(first.evidence),
     questions: checkpoint.questions.map(question => ({
       id: question.id,
       question: flowLine(question.question),
       options: requestOptions(question),
       multi_select: question.multi_select,
+      ...evidenceKey(question.evidence),
     })),
   };
 }

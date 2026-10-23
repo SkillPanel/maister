@@ -130,7 +130,7 @@ export function areaBrief({ state, node, areas: ids = [], form, picker = 'rich',
       + 'Nothing was written. Take the area ids from that file');
   }
 
-  if (form === 'set') return driven({ doc, workflow, node, all, ids, runDir, patchFile });
+  if (form === 'set') return driven({ doc, workflow, node, all, ids, runDir, patchFile, sources: located.sources });
   const area = all.find(candidate => candidate.id === ids[0]);
   if (form === 'picker') return areaPicker(area, all, picker);
   return { ok: true, text: areaDetails(area, all), errors: [], warnings: [] };
@@ -170,7 +170,8 @@ function locate(doc, workflow, recorded, node, runDir) {
  * the asking node's question set, `{questions: [...]}`, written whole to the
  * patch file so `gate-brief --request --patch-file` builds the one request.
  * No `ask`, `headline` or `default`: the request generates them, the
- * default from each recommendation. Whatever the file held is replaced.
+ * default from each recommendation. An entry with a recommendation carries
+ * `evidence`: the producer's other declared artifacts, its markdown. Whatever the file held is replaced.
  * Returns the file for the entry point to print.
  *
  * The write is the engine's publish path: the temp opened exclusively — so a
@@ -180,9 +181,14 @@ function locate(doc, workflow, recorded, node, runDir) {
  * it created and is a fallback, `decision-areas-unwritable`, never a throw:
  * the node composes the areas as it does when the file cannot be used.
  */
-function driven({ doc, workflow, node, all, ids, runDir, patchFile }) {
+function driven({ doc, workflow, node, all, ids, runDir, patchFile, sources = [] }) {
   const chosen = ids.length ? all.filter(area => ids.includes(area.id)) : all;
-  const questions = chosen.map(area => areaEntry(area, all));
+  // An area with a recommendation names the brainstorm it was argued in as its
+  // evidence; the request checks each path against the disk.
+  const questions = chosen.map(area => {
+    const entry = areaEntry(area, all);
+    return entry.options.some(option => option.recommended) && sources.length ? { ...entry, evidence: sources } : entry;
+  });
   const warnings = classify(doc, workflow, node, questions);
   const file = patchFile ?? path.join(runDir, '.state-patch.json');
   const tmp = `${file}.tmp`;

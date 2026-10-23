@@ -708,7 +708,11 @@ test('area-brief --patch-file writes every area as a question set and prints the
   const all = areas();
   assert.deepEqual(set.questions.map(question => question.id), all.map(area => `convergence-decisions-${area.id}`));
   for (const [i, question] of set.questions.entries()) {
-    assert.deepEqual(question, areaEntry(all[i], all), all[i].id);
+    const { evidence, ...entry } = question;
+    assert.deepEqual(entry, areaEntry(all[i], all), all[i].id);
+    const recommends = question.options.some(option => option.recommended);
+    assert.deepEqual(evidence, recommends ? ['outputs/solution-exploration.md'] : undefined,
+      'an area with a recommendation names the brainstorm it was argued in; one without names nothing');
     assert.equal(Object.hasOwn(question, 'default'), false, 'the request fills the default from the recommendation');
     assert.equal(Object.hasOwn(question, 'triage'), false, 'the built-in default classes nothing');
     assert.equal(question.options.length, all[i].alternatives.length, 'every alternative, no More details');

@@ -175,8 +175,12 @@ test('checkpoint: its fields, in the contract\'s order', t => {
   const checkpoint = checkpointOf(atSpecGate(t), 'specification-approval');
   assert.deepEqual(Object.keys(checkpoint), [
     'version', 'kind', 'node', 'header', 'ask', 'headline', 'progress', 'next', 'review', 'closed',
-    'fixes', 'decisions', 'risks', 'recommended', 'options', 'grants', 'approves', 'run', 'truncated',
+    'fixes', 'decisions', 'risks', 'recommended', 'evidence', 'options', 'grants', 'approves', 'run', 'truncated',
   ]);
+  assert.deepEqual(checkpoint.evidence, [
+    '.maister/tasks/development/2026-01-05-sample/analysis/requirements.md',
+    '.maister/tasks/development/2026-01-05-sample/implementation/spec.md',
+  ], 'every file the closing steps registered that is on disk, repository-relative and in registration order');
   assert.equal(checkpoint.version, 1);
   assert.equal(checkpoint.kind, 'gate');
   assert.equal(checkpoint.node, 'specification-approval');
@@ -785,7 +789,8 @@ test('request: the whole gate request, its summary the one-line form, its artifa
   const result = gateBrief(run, 'specification-approval', '--request');
   assert.equal(result.code, 0, result.stderr);
   const request = JSON.parse(result.stdout);
-  assert.deepEqual(Object.keys(request), ['node', 'kind', 'question', 'context', 'options', 'multi_select']);
+  assert.deepEqual(Object.keys(request), ['node', 'kind', 'question', 'context', 'options', 'multi_select', 'evidence']);
+  assert.deepEqual(request.evidence, request.context.checkpoint.evidence, 'the request repeats the checkpoint\'s evidence');
   for (const key of ['version', 'asked_at', 'answer']) assert.equal(Object.hasOwn(request, key), false, `${key} is the writer's`);
   assert.equal(request.kind, 'gate');
   assert.equal(request.question, 'Approve specification?');

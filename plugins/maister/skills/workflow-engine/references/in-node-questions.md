@@ -357,6 +357,13 @@ taking their defaults. Four rules hold:
   unless said) are per question. `default` is what a non-answer would take, the recommendation when
   absent. `triage` is carried as written; for a decision area the engine writes it when a
   matching policy classes the area.
+- **A recommendation names its evidence.** A question with a recommended option whose reason
+  rests on an artifact lists it in `evidence`: paths relative to the task directory, or to the
+  repository when no such file is in the task directory — `["analysis/findings.md",
+  "src/storage/schema.sql"]`. The request carries each path repository-relative. A path
+  that is absolute, leaves the repository or is not on disk is dropped with a
+  `question-evidence-dropped` warning, never refused; with none left the key is left out, which
+  reads as no evidence given. `area-brief` and `finding-brief` fill it themselves.
 
 How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch file, runs
 `gate-brief --request --patch-file=<the patch file>` for itself, and suspends exactly as a gate
