@@ -174,7 +174,7 @@ function atSpecGate(t, extra = {}) {
 test('checkpoint: its fields, in the contract\'s order', t => {
   const checkpoint = checkpointOf(atSpecGate(t), 'specification-approval');
   assert.deepEqual(Object.keys(checkpoint), [
-    'version', 'kind', 'node', 'header', 'ask', 'headline', 'progress', 'next', 'review', 'closed',
+    'version', 'kind', 'node', 'header', 'ask', 'headline', 'progress', 'next', 'subject', 'review', 'closed',
     'fixes', 'decisions', 'risks', 'recommended', 'evidence', 'options', 'grants', 'approves', 'run', 'truncated',
   ]);
   assert.deepEqual(checkpoint.evidence, [

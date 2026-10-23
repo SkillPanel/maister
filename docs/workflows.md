@@ -454,6 +454,11 @@ the cockpit drives sends each checkpoint and each question with that list as `ev
 from the repository root, so whoever answers can open what the recommendation was built from. A
 file that is missing is left off the list with a warning; the question is still asked.
 
+A checkpoint that approves one output says which, as its `subject`: the delivery scope, the
+product brief, the specification, the plan or the screens, with the file's path inside the task
+folder. A cockpit leads the checkpoint with that output, shown as what it is. A checkpoint that
+approves none of them names no subject, and reads as before.
+
 At a checkpoint the question is one line: what finished, and whether it is ready to go on. Where the run goes if you continue is named by the continue option.
 Where the next phase is optional, the checkpoint before it decides it in the same question, with one continue for each way on: development's specification checkpoint offers *Continue to the specification audit* and *Continue to planning, skip the audit*, and its verification checkpoint *Continue to the browser checks* and *Continue without browser checks*; research's checkpoint after the research offers *Continue to brainstorming*, *Continue to the design, skip brainstorming* and *Continue to final summary*. The recommended one gives its reason, and each names where it leads and what it skips.
 Beside the continue option you see the checkpoint at a glance:

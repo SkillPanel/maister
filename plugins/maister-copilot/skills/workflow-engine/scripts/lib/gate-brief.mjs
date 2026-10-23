@@ -122,6 +122,7 @@ import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as ent
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 import { checkEvidence, evidenceKey } from './evidence.mjs';
+import { subjectKey, subjectOf } from './gate-subject.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, REVISION_CEILING, frozenIds, gateHeldRevises, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 
@@ -1643,6 +1644,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     headline: headline || null,
     progress: { checkpoint: gates.indexOf(node) + 1, checkpoints_max: gates.length, node: Math.min(at + 1, order.length), nodes_total: order.length },
     next,
+    ...subjectKey(subjectOf({ ids, byId, runDir })),
     review,
     closed: closing.entries.map(entry => ({ node: entry.id, title: title(entry.id), headline: entry.skipped ? null : entryHeadline(entry) || null, summary: entry.summary })),
     fixes,
