@@ -47,10 +47,14 @@
  *   documents           the paths of the run's documents that exist — spec,
  *                       plan, work log, clarifications, the audit, the state
  *                       holding the recorded decisions — never their contents
- *   plan, tests         the plan's group counts; the test result
+ *   plan, tests         the plan's group counts; the test result, with
+ *                       `failed_on_base` when the runner established how many
+ *                       of its failures the base has too
  *   checks              the project's other checks the test-suite runner ran
  *                       (lint, format, typecheck, build), each {name, command,
- *                       status}; null until it has written them
+ *                       status}, and `fails_on_base` on a failed one whose base
+ *                       status the runner established; null until it has
+ *                       written them
  *   profile             the project profile the reviewers key their checks to,
  *                       its fields and `source`: `config` — the copy the freeze
  *                       recorded, or standalone the `project:` key of the
@@ -415,8 +419,9 @@ function testsOf(doc, dir, number, recheck, warnings, { refreshing }) {
   }
   const found = readJson(path.join(dir, TEST_FINDINGS));
   if (isPlainObject(found) && found.cycle === number && isPlainObject(found.tests)) {
-    const { status = null, passed = null, failed = null, errors = null, skipped = null, command = null } = found.tests;
-    return { status, passed, failed, errors, skipped, command, ...files };
+    const { status = null, passed = null, failed = null, errors = null, skipped = null, command = null, failed_on_base: onBase } = found.tests;
+    const failedOnBase = Number.isInteger(onBase) && onBase >= 0 ? { failed_on_base: onBase } : {};
+    return { status, passed, failed, errors, skipped, command, ...failedOnBase, ...files };
   }
   if (refreshing) warnings.push(`review-brief-tests: ${VERIFICATION}/${TEST_FINDINGS} holds no test result for cycle ${number}`);
   return { status: 'pending', ...files };
@@ -430,14 +435,21 @@ const CHECK_STATUSES = ['passed', 'failed'];
  * suite — lint, format, typecheck, build — as it wrote them for this cycle.
  * The suite itself may be skipped while these still run, so they are read on
  * their own. An entry without a name or a known status is left out; no
- * checks written for the cycle is `null`, never an empty pass.
+ * checks written for the cycle is `null`, never an empty pass. A failed
+ * check keeps `fails_on_base` when the runner set it to a boolean: `true`
+ * when the base fails the same way, so the failure is not the change's.
  */
 function checksOf(dir, number) {
   const found = readJson(path.join(dir, TEST_FINDINGS));
   if (!isPlainObject(found) || found.cycle !== number || !Array.isArray(found.checks)) return null;
   return found.checks
     .filter(check => isPlainObject(check) && typeof check.name === 'string' && check.name !== '' && CHECK_STATUSES.includes(check.status))
-    .map(({ name, command = null, status }) => ({ name, command: typeof command === 'string' ? command : null, status }));
+    .map(({ name, command = null, status, fails_on_base: onBase }) => ({
+      name,
+      command: typeof command === 'string' ? command : null,
+      status,
+      ...(status === 'failed' && typeof onBase === 'boolean' ? { fails_on_base: onBase } : {}),
+    }));
 }
 
 /**

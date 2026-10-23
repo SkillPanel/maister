@@ -26,8 +26,8 @@ review. Writing your report and findings file under `task_path` is required.
 | `mode`, issue ids | Present on a re-check |
 
 With `review_brief` (the verification runner always passes one), read it first: the range
-(`base` to the working tree), the changed files, `tests` and `checks`, the paths of the run's
-documents and the profile. Nobody writes you a prompt for this change; the documents are your
+(`base` to the working tree), the changed files, `tests` and `checks` — context, whose failures
+the test-suite runner alone files — the paths of the run's documents and the profile. Nobody writes you a prompt for this change; the documents are your
 source. Follow the contract at its `contract` path for the findings file — exactly
 `verification/spec-findings.json`, even when empty — and re-check mode.
 

@@ -130,8 +130,10 @@ simplicity review's call, judged from the same profile.
   way to turn it off, state changes and refusals are logged at a level someone will see, and a new
   failure path is observable. Category `resilience`. Not for a library or CLI with no operator.
 - **The run's known facts.** Read the brief's `tests` and `checks` and the work log's known open
-  problems and notes. A failing check is a finding at the location it names; an open item in the changed code
-  that the change makes worse, or that the work log calls done and is not, is in scope.
+  problems and notes. A failing test or check is the test-suite runner's finding, never yours:
+  report only what it means beyond itself, such as the same edit also breaking a guarded pin. An
+  open item in the changed code that the change makes worse, or that the work log calls done and
+  is not, is in scope.
 
 Categories you use: `correctness`, `security`, `resilience`, `performance`, `standards`.
 

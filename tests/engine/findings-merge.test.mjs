@@ -247,6 +247,70 @@ test('findings-merge: a finding outside the change counts only when critical; an
   assert.ok(!report.issues_found.some(each => each.description === 'An old retry loop the change calls'));
 });
 
+/** Cycle 1 measured by `review-brief`, with the test suite's findings carried into it by `--refresh`. */
+function suiteCycle(run, suite) {
+  realBrief(run);
+  put(run, 'test-suite-findings.json', full('test-suite', 1, suite.findings ?? [], { tests: suite.tests, checks: suite.checks }));
+  realBrief(run, ['--refresh']);
+}
+
+test('findings-merge: a check the base fails the same way is listed, never counted, and leaves the change with no failure of its own', t => {
+  const run = gitProject(t);
+  fs.writeFileSync(path.join(run.root, 'src/upload.mjs'), upload([12]));
+  suiteCycle(run, {
+    tests: { status: 'passed_with_issues', passed: 9, failed: 1, errors: 0, skipped: 0, command: 'npm test', failed_on_base: 1 },
+    checks: [
+      { name: 'typecheck', command: 'npm run typecheck', status: 'failed', fails_on_base: true },
+      { name: 'lint', command: 'npm run lint', status: 'passed' },
+    ],
+    findings: [
+      finding('ts-1', 'critical', 'tests', at('src/legacy.mjs', 3), 'typecheck fails with the same errors as the base', { fails_on_base: true }),
+      finding('ts-2', 'warning', 'tests', at('test/legacy.test.mjs', 8), 'legacy fixture test fails on the base too', { fails_on_base: true }),
+    ],
+  });
+  const { code, stderr, report } = merge(run);
+  assert.equal(code, 0, stderr);
+  const doc = merged(run);
+  assert.deepEqual(doc.findings, [], 'a failure the base has is not the change\'s finding, at any severity');
+  assert.deepEqual(doc.out_of_scope.map(each => [each.id, each.reason]), [['ts-1', 'fails on the base too'], ['ts-2', 'fails on the base too']]);
+  assert.deepEqual([report.counts.critical, report.counts.warning, report.counts.out_of_scope], [0, 0, 2]);
+  assert.deepEqual(report.failures, { introduced: { checks: [], tests: 0 }, on_base: { checks: ['typecheck'], tests: 1 } });
+  assert.deepEqual(doc.failures, report.failures);
+});
+
+test('findings-merge: a check that fails only on the change, or whose base nobody checked, is the change\'s failure', t => {
+  const run = gitProject(t);
+  fs.writeFileSync(path.join(run.root, 'src/upload.mjs'), upload([12]));
+  suiteCycle(run, {
+    tests: { status: 'failed', passed: 7, failed: 2, errors: 1, skipped: 0, command: 'npm test', failed_on_base: 1 },
+    checks: [
+      { name: 'format', command: 'npm run format:check', status: 'failed', fails_on_base: false },
+      { name: 'typecheck', command: 'npm run typecheck', status: 'failed' },
+      { name: 'lint', command: 'npm run lint', status: 'failed', fails_on_base: true },
+    ],
+    findings: [
+      finding('ts-1', 'critical', 'tests', at('src/upload.mjs', 12), 'format check fails on the edited line'),
+      finding('ts-2', 'warning', 'tests', at('src/old.mjs', 4), 'lint fails the same way on the base', { fails_on_base: true }),
+    ],
+  });
+  const { code, stderr, report } = merge(run);
+  assert.equal(code, 0, stderr);
+  const doc = merged(run);
+  assert.deepEqual(doc.findings.map(each => [each.title, each.severity]), [['format check fails on the edited line', 'critical']]);
+  assert.deepEqual(doc.out_of_scope.map(each => each.id), ['ts-2']);
+  assert.deepEqual(report.failures, {
+    introduced: { checks: ['format', 'typecheck'], tests: 2 },
+    on_base: { checks: ['lint'], tests: 1 },
+  }, 'a check with no base status counts as the change\'s; failures and errors beyond the base\'s count are the change\'s');
+});
+
+test('findings-merge: with no test result and no checks there is no failure split', t => {
+  const run = project(t);
+  put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null, tests: { status: 'pending' }, checks: null });
+  const { report } = merge(run);
+  assert.equal(report.failures, null);
+});
+
 test('findings-merge: a tests-only re-check resolves the fixed issues on a passing suite, and only then', t => {
   const run = project(t);
   cycleOne(run);
@@ -265,6 +329,21 @@ test('findings-merge: a tests-only re-check resolves the fixed issues on a passi
   assert.equal(byId[4].status, 'resolved');
   assert.equal(byId[1].status, 'open', 'an issue not being re-checked is untouched');
   assert.equal(report.issues_found.find(each => each.id === 2).fixed, true);
+});
+
+test('findings-merge: a tests-only re-check whose only failures fail on the base too confirms the fixes', t => {
+  const run = project(t);
+  cycleOne(run);
+  put(run, 'review-brief-2.json', {
+    cycle: 2, mode: 'recheck', fix: null, recheck: { kind: 'tests-only', issues: [{ id: 2 }], by_reviewer: {} },
+    tests: { status: 'passed_with_issues', passed: 11, failed: 1, errors: 0, failed_on_base: 1 }, checks: [],
+  });
+  put(run, 'test-suite-findings.json', full('test-suite', 2, [], { tests: { status: 'passed_with_issues', passed: 11, failed: 1, errors: 0, failed_on_base: 1 } }));
+  const { report } = merge(run);
+  const byId = Object.fromEntries(merged(run).findings.map(each => [each.id, each]));
+  assert.equal(byId[2].status, 'resolved');
+  assert.match(byId[2].history.at(-1).evidence, /fail on the base too/);
+  assert.deepEqual(report.failures, { introduced: { checks: [], tests: 0 }, on_base: { checks: [], tests: 1 } });
 });
 
 test('findings-merge: a severity outside the scale is mapped with a warning, a bad file is skipped, the finding-brief list is never read', t => {

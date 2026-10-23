@@ -91,3 +91,33 @@ What it found:
   - a single pass catches about half the important findings, and different ones each run;
   - the lower-impact tail that production readiness and reality used to raise is thinner;
   - the five old commands are gone, and their users move to the three new ones.
+
+## Addendum — one filer for a failing check; failures the base has too
+
+**Context.** A run of the panel filed one failing format check twice: the test-suite runner filed
+it as `tests`, and code risk filed it again as `resilience`. `findings-merge` folds only within a
+family, so one defect became two criticals. The same run had a typecheck and one test that failed
+the same way on the base. The verdict rule failed a run on any failing check, so the runner had to
+break its own rule to pass the change.
+
+**Decision.**
+1. **The test-suite runner alone files a failing test or check.** The other reviewers read
+   `tests` and `checks` as context. They report only what a failure means beyond itself, such as
+   the same edit also breaking a guarded pin.
+2. **The base status is recorded for failures only.** For each failing check or test, the runner
+   takes what the run already recorded. Otherwise it re-runs that item alone on an export of
+   `base`. It never re-runs a passing item or the whole suite.
+   - A failed check carries `fails_on_base` (`true` or `false`).
+   - The `tests` block carries `failed_on_base` (a count).
+   - Each such finding carries `fails_on_base: true`.
+   - An unknown base status, or a failure the run sets out to fix, is the change's.
+3. **The merge and the verdict use it.**
+   - `review-brief` carries both fields.
+   - `findings-merge` sets a `fails_on_base` finding aside at any severity. It splits the
+     failures into `introduced` and `on_base`.
+   - The verdict fails only on `introduced`. A failure in `on_base` is listed, never fatal, and
+     never sent to the fix pass.
+
+**Consequences.** One failure is one finding. A base that is already red no longer fails a change
+that leaves it as it was. That costs one targeted re-run per failing item, or nothing when the run
+recorded it. No workflow definition changes and no graph hash moves.

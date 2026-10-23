@@ -34,9 +34,14 @@ paths relative to the repository's top.
   `dirty_at_freeze` marks a path already modified before the run started: review it, and say in a
   finding there that the change may predate the run.
 - **`tests`**: the cycle's test result (`pending` before the suite has run, `skipped` when the
-  run skips it). **`checks`**: the project's other checks (lint, format, typecheck, build), each
-  `{name, command, status}` with `status` `passed` or `failed`, from the test-suite runner. A
-  failing check is a finding at the place it names. `plan` holds the plan's group counts.
+  run skips it), with `failed_on_base`, how many of its failures the base has too, when the
+  runner established it. **`checks`**: the project's other checks (lint, format, typecheck,
+  build), each `{name, command, status}` with `status` `passed` or `failed`, and
+  `fails_on_base: true` on a failed one the base fails the same way, from the test-suite runner.
+  **The test-suite runner alone files a failing test or check as a finding.** Every other reviewer
+  reads them as context and reports only what a failure means beyond itself — the same edit also
+  breaking a guarded pin, or a rule the failing code was meant to keep — never the failure
+  itself. `plan` holds the plan's group counts.
 - **`documents`**: the paths of the run's documents — spec, plan, work log, clarifications,
   audits, and `state`, whose phase summaries record the decisions. Open what your method needs.
 - **`profile`**: the project profile, its fields and `source` (§ The project profile).
@@ -158,7 +163,14 @@ command}` with `status` being `passed`, `passed_with_issues` or `failed`. Its fi
 failures (`category: tests`, located at the test file). The brief reads the cycle's test result
 from that block. Beside it the runner writes a `checks` list, one `{name, command, status}` per
 other check it ran (lint, format, typecheck, build), `status` `passed` or `failed`; each failing
-check is also a finding. The brief carries the list as `checks`.
+check is also one of its findings. The brief carries the list as `checks`.
+
+**A failure the base has too.** For each failing check or test only, the runner establishes
+whether the base fails it the same way: from what the run already recorded, or by re-running that
+item alone on an export of `base`. It records `fails_on_base` (`true` or `false`) on the failed
+check, `failed_on_base` (a count) in the `tests` block, and `fails_on_base: true` on each such
+finding. A failure the run sets out to fix is the change's, whatever the base says. Where the base
+could not be run, the field is left out, and the failure counts as the change's.
 
 ## Re-check mode
 
@@ -203,6 +215,10 @@ For orientation only; the verifier runs it.
 - **Issue numbers stay stable** across cycles. A new finding takes the next unused number.
 - **Outside the change.** A finding marked `outside_change` counts only when it is `critical`; any
   other goes to `out_of_scope`, reported and never counted.
+- **On the base too.** A finding marked `fails_on_base` goes to `out_of_scope` at any severity:
+  listed, never counted, never fixed. The merge also splits the brief's failing tests and checks
+  into those the change introduced and those the base has too (`failures`), which the verdict
+  reads.
 - **Silence is not a fix.** A finding you do not report again in a full review stays open, marked
   `not_reported`. It closes only when a fix touched its place or a re-check answers it resolved.
 - **The result** is `verification/findings.json`. The verifier's report and the run's

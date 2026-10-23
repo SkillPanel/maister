@@ -96,7 +96,7 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    in its message — with the task path, the brief and `verification/test-suite-results.md` as its
    results file. It runs the project's other checks (lint, format, typecheck, build) every time,
    and the full suite unless `orchestrator.options.skip_test_suite` is true (a re-check always
-   runs it); skipped, the suite's result is "not run in verification: the full suite passed during
+   runs it), and for each failure only, whether the base fails it the same way; skipped, the suite's result is "not run in verification: the full suite passed during
    the implementation phase". Wait for it; its results are the **test-suite result**. Then run
    `review-brief --state=<state> --refresh`, which carries them into the brief.
 6. **The panel.** Record `verification_context.reviews` as `{chosen: [...], done: []}`, by short
@@ -119,18 +119,26 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    schema, `reviewer: "artifacts"`, `severity: "warning"`, category `docs`) naming the agent and
    the path, and transcribe its reply's issues there. The report says plainly which findings are
    a transcription.
-9. **Merge.** `findings-merge --state=<state>`. Read the counts and every issue from
+9. **Merge.** `findings-merge --state=<state>`. Read the counts, every issue and `failures` from
    `verification/findings.json`, never from the replies. `not_reported` stays open; `out_of_scope`
    is listed, never counted.
-10. **The verdict.** Passed: the whole plan done (the brief's `plan` counts), the tests passing (or
-    skipped after passing in implementation), every check passing, and no critical or warning
-    issue. Passed with issues: the plan done or nearly, the tests passing, and warnings open.
-    Failed: a critical issue from any review, a failing test or check, or a plan group left
-    undone. A check the brief's project profile rules out never fails it.
+10. **The verdict.** It reads `failures`: `introduced`, the failing tests and checks that are the
+    change's — the base passes them, nobody could establish the base, or the run set out to fix
+    them — and `on_base`, those the base fails the same way.
+    - Passed: the whole plan done (the brief's `plan` counts), nothing in `introduced` (the tests
+      passing or skipped after passing in implementation, every check passing), nothing in
+      `on_base`, and no critical or warning issue.
+    - Passed with issues: the plan done or nearly, nothing in `introduced`, and warnings open or
+      failures in `on_base`.
+    - Failed: a critical issue from any review, anything in `introduced`, or a plan group left
+      undone.
+
+    A failure in `on_base` is listed in the report and never fails the run, and the fix pass never
+    takes it. A check the brief's project profile rules out never fails it.
 11. **The report.** Rewrite `verification/implementation-verification.md` — the canonical
     verdict, always the latest state. It opens with the Artifact Summary Contract block (TL;DR,
     Open Questions / Risks), then the executive summary, plan verification, test results,
-    the checks, the spec's rules and stories, the standards, the docs,
+    the checks (each failure marked as the change's or the base's too), the spec's rules and stories, the standards, the docs,
     **visual fidelity** when `verification/visual-fidelity.md` exists (its table, every ✗ by
     screen; report-only, never part of the verdict), the overall assessment, the issues by their
     `findings.json` numbers, recommendations and the checklist. After any fix, a **Fix &

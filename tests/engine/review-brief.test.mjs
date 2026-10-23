@@ -232,6 +232,37 @@ test('review-brief: the project\'s other checks travel beside the test result, t
   ], 'each check by name and status; an entry with no name or an unknown status is left out');
 });
 
+test('review-brief: a failure the base has too keeps its mark, on a check and in the test result', t => {
+  const run = frozen(t);
+  assert.equal(brief(run).code, 0);
+  verification(run, 'test-suite-findings.json', {
+    reviewer: 'test-suite', cycle: 1, mode: 'full', findings: [],
+    tests: { status: 'passed_with_issues', passed: 9, failed: 2, errors: 0, skipped: 0, command: 'npm test', failed_on_base: 1 },
+    checks: [
+      { name: 'typecheck', command: 'npm run typecheck', status: 'failed', fails_on_base: true },
+      { name: 'lint', command: 'npm run lint', status: 'failed', fails_on_base: false },
+      { name: 'format', command: 'npm run format:check', status: 'failed', fails_on_base: 'same' },
+      { name: 'build', command: 'npm run build', status: 'passed', fails_on_base: true },
+    ],
+  });
+  const refreshed = brief(run, ['--refresh']);
+  assert.equal(refreshed.code, 0, refreshed.stderr);
+  assert.equal(refreshed.json.tests.failed_on_base, 1);
+  assert.deepEqual(refreshed.json.checks, [
+    { name: 'typecheck', command: 'npm run typecheck', status: 'failed', fails_on_base: true },
+    { name: 'lint', command: 'npm run lint', status: 'failed', fails_on_base: false },
+    { name: 'format', command: 'npm run format:check', status: 'failed' },
+    { name: 'build', command: 'npm run build', status: 'passed' },
+  ], 'the mark is kept only as a boolean, and only on a failed check');
+
+  verification(run, 'test-suite-findings.json', {
+    reviewer: 'test-suite', cycle: 1, mode: 'full', findings: [],
+    tests: { status: 'failed', passed: 9, failed: 2, errors: 0, skipped: 0, command: 'npm test', failed_on_base: -1 },
+  });
+  const unknown = brief(run, ['--refresh']);
+  assert.equal(Object.hasOwn(unknown.json.tests, 'failed_on_base'), false, 'a count that is not a whole number is left out: nobody established it');
+});
+
 test('review-brief: lock files, linguist-generated paths and minified output are generated; fixtures, data files and large bulk files are data', t => {
   const run = frozen(t);
   const lines = count => Array.from({ length: count }, (_, i) => `line ${i}`).join('\n') + '\n';

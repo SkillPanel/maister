@@ -47,13 +47,21 @@
  *                 code the change did not touch, which the change exposes —
  *                 counts only when it is critical; any other goes to
  *                 `out_of_scope`, reported and never counted.
+ *   on the base   a finding marked `fails_on_base` — a failing check or test
+ *                 the base fails the same way — goes to `out_of_scope` at any
+ *                 severity: it is listed, never counted and never fixed.
+ *   failures      the brief's `tests` and `checks` split into the failures
+ *                 the change introduced and those the base has too
+ *                 (`failuresOf`), which the verdict reads. A failure whose
+ *                 base status nobody established is the change's.
  *   re-check      a reviewer's answer per issue resolves it or keeps it open;
  *                 its new findings count only inside the fix diff, and the
  *                 rest go to `out_of_scope`, reported and never counted. A
  *                 new finding never takes the id of an issue re-checked in
  *                 the same cycle: those were answered apart. In a
  *                 tests-only re-check, an issue nobody answered is resolved by
- *                 a passing suite; under a re-check of the reviews it stays
+ *                 a passing suite, or one whose every failure the base has
+ *                 too; under a re-check of the reviews it stays
  *                 open, with a note saying its reviewer did not answer.
  *
  * A file or a finding it cannot use is a warning and is skipped; a severity
@@ -63,7 +71,7 @@
  * `findings-merge-state-unreadable` and `findings-merge-task-unreadable` say
  * the run is not where the caller thinks. Nothing is written on a refusal.
  *
- * Returns `{ok, file, cycle, mode, counts, issues_found, errors, warnings}`
+ * Returns `{ok, file, cycle, mode, counts, failures, issues_found, errors, warnings}`
  * and leaves printing to `workflow.mjs`. `node:` builtins and engine libs
  * only, Node >= 20.
  */
@@ -155,7 +163,7 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
         const finding = findingOf(raw, stem, warnings);
         if (finding === null) continue;
         if (fix !== null && !insideFix(finding.location, fix)) outOfScope.push({ reviewer: stem, ...raw, severity: finding.severity, reason: 'outside the fix diff' });
-        else if (setAside(finding)) outOfScope.push({ reviewer: stem, ...raw, severity: finding.severity, reason: 'outside the change' });
+        else if (setAside(finding)) outOfScope.push({ reviewer: stem, ...raw, severity: finding.severity, reason: setAside(finding) });
         else reported.push({ ...finding, recheck_new: true });
       }
       continue;
@@ -163,7 +171,7 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
     for (const raw of listOf(doc.findings)) {
       const finding = findingOf(raw, stem, warnings);
       if (finding === null) continue;
-      if (setAside(finding)) outOfScope.push({ reviewer: stem, ...raw, severity: finding.severity, reason: 'outside the change' });
+      if (setAside(finding)) outOfScope.push({ reviewer: stem, ...raw, severity: finding.severity, reason: setAside(finding) });
       else reported.push(finding);
     }
   }
@@ -229,14 +237,16 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
       resolve(finding, number, null);
     }
   }
+  const failures = failuresOf(brief);
   if (recheck !== null) {
     const suite = thisCycle.find(file => file.stem === TEST_SUITE)?.doc.tests?.status ?? brief?.tests?.status ?? null;
+    const suitePassed = suite === 'passed' || (failures?.suite_ran === true && failures.introduced.tests === 0);
     for (const issue of listOf(recheck.issues)) {
       if (!Number.isInteger(issue?.id) || answers.has(issue.id)) continue;
       const finding = prior.find(each => each.id === issue.id);
       if (finding === undefined || finding.status === 'resolved') continue;
-      if (recheck.kind === 'tests-only' && suite === 'passed') {
-        resolve(finding, number, `the test suite passed in cycle ${number}`);
+      if (recheck.kind === 'tests-only' && suitePassed) {
+        resolve(finding, number, suite === 'passed' ? `the test suite passed in cycle ${number}` : `the test suite's only failures in cycle ${number} fail on the base too`);
       } else if (recheck.kind === 'tests-only') {
         finding.note = `the test suite did not pass in cycle ${number} (${suite ?? 'no result'}), so the fix is not confirmed`;
         finding.history = [...listOf(finding.history), { cycle: number, status: 'unconfirmed', evidence: finding.note }];
@@ -250,12 +260,13 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
 
   const findings = prior.sort(rank);
   const counts = countsOf(findings, outOfScope);
-  const document = { cycle: number, mode, findings, out_of_scope: outOfScope, counts };
+  const split = failures === null ? null : { introduced: failures.introduced, on_base: failures.on_base };
+  const document = { cycle: number, mode, findings, out_of_scope: outOfScope, counts, failures: split };
   fs.mkdirSync(dir, { recursive: true });
   writeJson(path.join(dir, MERGED_FILE(number)), document);
   const file = path.join(dir, 'findings.json');
   writeJson(file, document);
-  return { ok: true, file, cycle: number, mode, counts, issues_found: projection(findings), errors: [], warnings };
+  return { ok: true, file, cycle: number, mode, counts, failures: split, issues_found: projection(findings), errors: [], warnings };
 }
 
 function runDirOf({ state, taskPath }) {
@@ -306,9 +317,39 @@ function fixReader(run, dir, warnings) {
   };
 }
 
-/** A finding marked outside the change is held aside unless it is critical. */
+/**
+ * Why a finding is held aside, or null when it counts: one the base fails the
+ * same way, at any severity, or one outside the change unless it is critical.
+ */
 function setAside(finding) {
-  return finding.outside_change === true && finding.severity !== 'critical';
+  if (finding.fails_on_base === true) return 'fails on the base too';
+  if (finding.outside_change === true && finding.severity !== 'critical') return 'outside the change';
+  return null;
+}
+
+/**
+ * The cycle's failing tests and checks, as its brief carries them, split into
+ * `introduced` — the change's, which fail the verdict — and `on_base`, which
+ * the base fails the same way and which are only listed: `{introduced:
+ * {checks, tests}, on_base: {checks, tests}}`, checks by name and tests as a
+ * count of failures and errors. A check without `fails_on_base: true`, and a
+ * failed test beyond `failed_on_base`, is the change's. Null when the brief
+ * has no test result and no checks; `suite_ran` is for the merge alone.
+ */
+function failuresOf(brief) {
+  const tests = isPlainObject(brief?.tests) ? brief.tests : null;
+  const checks = Array.isArray(brief?.checks) ? brief.checks.filter(isPlainObject) : null;
+  const ran = tests !== null && typeof tests.status === 'string' && !['pending', 'skipped'].includes(tests.status);
+  if (!ran && checks === null) return null;
+  const tally = value => (Number.isInteger(value) && value > 0 ? value : 0);
+  const total = ran ? tally(tests.failed) + tally(tests.errors) : 0;
+  const onBase = Math.min(total, ran ? tally(tests.failed_on_base) : 0);
+  const failing = listOf(checks).filter(check => check.status === 'failed');
+  return {
+    introduced: { checks: failing.filter(check => check.fails_on_base !== true).map(check => check.name), tests: total - onBase },
+    on_base: { checks: failing.filter(check => check.fails_on_base === true).map(check => check.name), tests: onBase },
+    suite_ran: ran,
+  };
 }
 
 /** Every reviewer findings file in the folder that parses, `{stem, doc}`. */
@@ -372,6 +413,7 @@ function findingOf(raw, stem, warnings) {
     refs: Array.isArray(raw.refs) ? raw.refs.map(String) : [],
     sources: [{ reviewer: stem, id: raw.id ?? null }],
     ...(raw.outside_change === true ? { outside_change: true } : {}),
+    ...(raw.fails_on_base === true ? { fails_on_base: true } : {}),
   };
 }
 

@@ -58,7 +58,7 @@ The Task prompt MUST include:
 When the prompt carries `review_brief` — the verification loop always passes one — read that JSON first and follow the contract at its `contract` path (`implementation-verifier/references/review-findings.md`):
 
 - **The brief first.** It holds the shared facts: `changed` (skip files marked `generated` or `data` unless a finding turns on them), `tests`, `documents` and `profile`. Read freely — per-file diffs against `base`, the files as they are now, history, callers, config, CI and build files — but review the range `base` to the working tree; a defect outside it is marked `outside_change` and counts only when critical. A deviation a recorded decision covers is not a finding.
-- **Write `verification/test-suite-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Add the `tests` block — `{status, passed, failed, errors, skipped, command}` — which the brief reads the cycle's result from; each failure is a finding of category `tests`, located at its test file. Add the `checks` list — one `{name, command, status}` per other check you ran, `status` `passed` or `failed` — and make each failing check a finding of category `tests`, located at the first file its output names. You run the whole suite in a re-check too: answer the ids handed to you from that run.
+- **Write `verification/test-suite-findings.json`** beside your report, in the contract's schema, severity `critical`, `warning` or `info` only — even when you found nothing. Add the `tests` block — `{status, passed, failed, errors, skipped, command}`, with `failed_on_base` once Phase 4 has established it — which the brief reads the cycle's result from; each failure is a finding of category `tests`, located at its test file. Add the `checks` list — one `{name, command, status}` per other check you ran, `status` `passed` or `failed`, and `fails_on_base` on a failed one once Phase 4 has established it — and make each failing check a finding of category `tests`, located at the first file its output names. **You are the only one who files a failing test or check:** the reviewers read them from the brief as context and report only what a failure means beyond itself, so a failure you leave out is a failure nobody reports. You run the whole suite in a re-check too: answer the ids handed to you from that run.
 - **Re-check mode**: when the brief's `mode` is `recheck` and your prompt names issue ids, answer each one `resolved` or `residual` from the fix diff and report new findings only inside it (the contract's § Re-check mode). Write that cycle's markdown as `<report name>-recheck-<cycle>.md` beside your report path.
 
 Without a brief — a standalone command — find the scope as the workflow below says, and write the findings file whenever there is a task directory.
@@ -117,13 +117,32 @@ If no test command can be identified, report failure with guidance.
 
 ---
 
-### Phase 4: Determine Status
+### Phase 4: The Base, for the Failures Only
+
+A failure the base already has is not this change's: the verdict lists it and never fails the run on it, and the fix loop never takes it. For each failing check and each failing test — never a passing one — establish whether the base fails it the same way:
+
+1. **What the run already recorded.** The work log's known open problems may name it as failing before the change, with its output. When the record names the same failures, take it.
+2. **Otherwise, a targeted re-run at the base.** Export the brief's `base` into a fresh directory of your own outside the repository — `git archive <base> | tar -x -C <dir>` — and run there only the failing checks' commands and only the failing tests, by name or id, with the project's installed toolchain (its virtual environment, `node_modules` or build cache by path). Never check out, reset or switch the working tree, and never re-run the whole suite or a check that passed.
+3. **Compare.** A check fails on the base the same way when every failure the change shows also shows on the base; a test, when it fails there too. A failure the run sets out to fix — the spec or the plan names it — is the change's, whatever the base says.
+
+Record it:
+- each failing check: `fails_on_base: true` when the base fails it the same way, `false` when the base passes it or the change adds failures;
+- the `tests` block: `failed_on_base`, how many of `failed` and `errors` the base fails the same way;
+- each such finding: `fails_on_base: true`, with the base's output in one line of `evidence`. The merge lists it apart and never counts it.
+
+When the base cannot run — a dependency missing, a build that fails for its own reasons — leave the field out and say why: an unknown base status counts as the change's failure. Delete the directory when done.
+
+---
+
+### Phase 5: Determine Status
 
 | Status | Criteria |
 |--------|----------|
 | ✅ All Passing | 100% pass rate |
 | ⚠️ Some Failures | 95-99% pass rate, no critical regressions |
 | ❌ Critical Failures | <95% pass rate OR regressions in unrelated areas |
+
+A failure the base has too (Phase 4) is never a regression.
 
 ---
 
@@ -155,6 +174,7 @@ failures:
     type: "unit" | "integration" | "e2e"
     related_to_implementation: true | false
     regression_risk: "high" | "medium" | "low"
+    fails_on_base: true | false   # left out when the base could not be run
 
 regressions:
   count: [N]
