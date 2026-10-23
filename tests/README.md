@@ -82,6 +82,12 @@ umbrella's, plus 20,000 seeded random values parsed in process.
   this repository writes. `frontmatter-lint.test.mjs` runs it as a subprocess on both trees and on
   the samples under `fixtures/frontmatter/`, one bad sample per rule.
 
+- `browser-tool-lint.mjs` — not a test: the lint `make validate` runs over both plugin trees (or
+  the trees under `--root=<dir>`). Neither may ship an MCP server, name one browser tool's output
+  folder or a bundled server's tool names, or grant a browser server in a Copilot agent's
+  allowlist. `browser-tool-lint.test.mjs` runs it on the repository and on scratch roots it plants
+  at test time, one offence each.
+
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.
 

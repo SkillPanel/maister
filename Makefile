@@ -62,6 +62,8 @@ validate:
 	@node tests/frontmatter-lint.mjs
 	@echo "Checking no two gates of one workflow ask the same question..."
 	@node tests/gate-title-lint.mjs
+	@echo "Checking the plugin ships no browser tool and names none..."
+	@node tests/browser-tool-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."
 	@test $$(find plugins/maister-copilot/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)
 	@echo "Checking every source agent carries the containment sentence..."

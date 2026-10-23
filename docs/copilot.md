@@ -351,6 +351,11 @@ the `deep` tier for the groups that need it, with a `budget`.
 - **Plan mode.** `quick-plan` and `quick-bugfix` draft their plan without editing anything, then ask
   you to approve it before any change. They do not switch Copilot into plan mode. If you want
   Copilot itself to block edits while planning, enter `/plan` first.
+- **Browser steps use `playwright-cli`.** Maister ships no browser server. The agents behind the
+  browser checks and the user guide's screenshots have fixed tool lists, so a browser MCP server
+  you add to Copilot does not reach them; they drive a browser through the shell with
+  `playwright-cli` (`npm install -g @playwright/cli`). Without it, the run says so where it would
+  offer those steps and carries on without them.
 - **Missing folders.** Copilot's file tool does not create a missing parent folder. Maister's agents
   create a folder before writing into it.
 - **The guard is a plugin hook.** Copilot loads it from the plugin and runs it with Node, so it

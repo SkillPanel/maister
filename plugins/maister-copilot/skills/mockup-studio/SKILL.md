@@ -8,7 +8,7 @@ user-invocable: true
 
 # Mockup Studio
 
-The single, reusable engine for generating UI mockups in the maister plugin. It runs in the **main agent context** (not a subagent), so it can start a local visual-companion server (Bash), open a browser (Playwright MCP), and run interactive `ask_user` refinement gates.
+The single, reusable engine for generating UI mockups in the maister plugin. It runs in the **main agent context** (not a subagent), so it can start a local visual-companion server (Bash), open a browser (with whatever browser tool the session has), and run interactive `ask_user` refinement gates.
 
 Two ways it runs:
 
@@ -76,6 +76,11 @@ else                              → ASCII path (Step 4b)
 if format == "html" AND NOT node_ok → record in notes: "html requested, fell back to ascii (Node unavailable)"
 ```
 
+**No browser tool.** On the HTML path, check whether the session can drive a browser (`../orchestrator-framework/references/browser-tools.md`, *Which tool*). When it cannot, the gallery still renders — it opens in the user's default browser, or its address is logged — so this changes how it is shown, not whether it is made. Say so plainly with that reference's no-browser warning, its tail naming both ways on: the gallery address to open by hand, or ASCII mockups in the terminal.
+
+- **Standalone, terminal driver**: ask it as one `ask_user` before Step 4, the warning as its context, with two choices: "HTML gallery in your default browser (Recommended)" — opened for the user, or its address logged when it cannot be — and "ASCII mockups in the terminal". The answer picks Step 4a or 4b.
+- **Invoked by a workflow node, or under a non-terminal driver**: ask nothing. Keep HTML and put the warning in the returned `notes`; the caller's revise is the route to ASCII.
+
 ### Step 4a — HTML path (visual companion)
 
 Read `references/visual-companion.md` for the full protocol. Then:
@@ -85,7 +90,7 @@ Read `references/visual-companion.md` for the full protocol. Then:
    `node ${MAISTER_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs --task-path=${task_path} --output-subdir=${output_subdir} &`
    The plugin root is this plugin's own directory — the one holding `.claude-plugin/plugin.json`, two levels above the base directory the loader shows for this skill. Run the server by that absolute path, never through the variable: write the directory in place of `${MAISTER_PLUGIN_ROOT}`, because a host that leaves the variable unset would start `node /skills/…`, which fails. A root holding a space goes in single quotes.
    Wait ~1s, verify `curl -s http://localhost:${port}/status` returns ok (try 3847–3850).
-3. **Open browser** (best-effort, non-blocking): Playwright MCP `browser_navigate` to `http://localhost:${port}` → fallback `open`/`xdg-open` → fallback log the URL.
+3. **Open browser** (best-effort, non-blocking): the session's browser tool, by the preference order in `../orchestrator-framework/references/browser-tools.md`, navigates to `http://localhost:${port}` when its window is one the user sees → fallback `open`/`xdg-open` → fallback log the URL.
 4. **Generate user-facing wireframes** — one screen per relevant view implied by `context`. Title each screen specifically (e.g. "Add New Allergy Form", not "Dashboard"). Bind to discovered tokens/components/CSS variables by their real names. Add `data-screen="slug"` to clickable elements for click-through navigation, and `annotations` for component-reuse / integration / interaction hints (NOT requirements). Generate USER-FACING UI only — never architecture/data-flow/ER diagrams.
    When discovery found no design resources, choose a plain visual direction that fits the product. Do not use a cream or off-white background, italic accent words in headings, numbered "01/02/03" section labels, monospace labels, or pill-shaped buttons unless the context asks for them.
 5. **POST each screen**: `POST http://localhost:${port}/update` with `{type, title, html, css, annotations}`. Each POST auto-saves `<output_subdir>/{slug}.html`.
@@ -153,7 +158,7 @@ This gives users an ad-hoc mockup session without running a full development or 
 |---|---|---|
 | Node.js unavailable | `node --version` fails | ASCII via `ascii-mockup-generator`; note it in `notes` |
 | All ports 3847–3850 in use | server start fails on every port | ASCII fallback |
-| Browser won't open | Playwright + `open` both fail | Log the URL; continue (server still saves to disk) |
+| Browser won't open | no browser tool, or it fails, and `open` fails | Log the URL; continue (server still saves to disk) |
 | No design resources found | discovery `found_any: false` | Generate from codebase patterns only — unchanged behavior |
 
 Never block the caller because a mockup enhancement failed. The mockup files on disk are the deliverable; live preview is additive.
