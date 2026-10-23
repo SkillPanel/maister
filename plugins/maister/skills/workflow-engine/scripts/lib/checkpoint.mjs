@@ -967,7 +967,9 @@ function withDetails(profile, question, options, more) {
  * `context.checkpoint` the object itself, kept with the request so the gate's
  * history shows what was asked. What an option grants travels in the
  * checkpoint alone: the request's options keep their plain labels and their
- * keys, and a cockpit shows the grant from `checkpoint.grants` its own way. The writer adds the version, the time asked and
+ * keys, and a cockpit shows the grant from `checkpoint.grants` its own way.
+ * `evidence`, when the checkpoint names any, repeats the files its
+ * recommendation rests on. The writer adds the version, the time asked and
  * the empty answer — a caller that sent them would be refused.
  *
  * `reask` is the revise option an earlier request was answered with but no
@@ -1001,6 +1003,7 @@ export function requestOf(checkpoint, summary, reask = null) {
         : {}),
     })),
     multi_select: false,
+    ...(Array.isArray(checkpoint.evidence) && checkpoint.evidence.length ? { evidence: checkpoint.evidence } : {}),
   };
 }
 

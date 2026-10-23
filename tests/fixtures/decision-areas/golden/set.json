@@ -28,7 +28,10 @@
           "description": "Pro: One read per calendar · Con: A second database"
         }
       ],
-      "details": "**Storage**\nWhere do shared calendars live?\nWhy it matters: It fixes what a later migration costs.\n\n**Hosted calendar API**\nKeep shares in a hosted calendar service. Its sharing model becomes ours.\n\nPros:\n- Sharing comes built in\n- No storage to run\n\nCons:\n- A vendor holds the data\n\n**Same database** (Recommended)\nAdd a `calendar_shares` table beside `calendars`. Shares join the existing schema.\n\nPros:\n- No new service\n- One backup\n\nCons:\n- Couples the schemas\n\n**Own service**\nRun sharing as its own service with its own store.\n\nPros:\n- Scales alone\n\nCons:\n- One more deploy\n- Cross-service reads\n\n**Document store**\nKeep each calendar and its shares in one document.\n\nPros:\n- One read per calendar\n\nCons:\n- A second database to run\n\nRecommended: Same database — Reuses the `calendars` schema with no new service"
+      "details": "**Storage**\nWhere do shared calendars live?\nWhy it matters: It fixes what a later migration costs.\n\n**Hosted calendar API**\nKeep shares in a hosted calendar service. Its sharing model becomes ours.\n\nPros:\n- Sharing comes built in\n- No storage to run\n\nCons:\n- A vendor holds the data\n\n**Same database** (Recommended)\nAdd a `calendar_shares` table beside `calendars`. Shares join the existing schema.\n\nPros:\n- No new service\n- One backup\n\nCons:\n- Couples the schemas\n\n**Own service**\nRun sharing as its own service with its own store.\n\nPros:\n- Scales alone\n\nCons:\n- One more deploy\n- Cross-service reads\n\n**Document store**\nKeep each calendar and its shares in one document.\n\nPros:\n- One read per calendar\n\nCons:\n- A second database to run\n\nRecommended: Same database — Reuses the `calendars` schema with no new service",
+      "evidence": [
+        "outputs/solution-exploration.md"
+      ]
     },
     {
       "id": "convergence-decisions-access",
@@ -72,7 +75,10 @@
           "description": "Pro: Nothing new on screen · Con: Hard to find"
         }
       ],
-      "details": "**Sharing screen**\nWhere does an owner share a calendar from?\nWhy it matters: It sets how many steps sharing takes.\nDepends on: Storage, Access model.\n\n**Inline toggle** (Recommended)\nA share toggle on the calendar header.\n\nPros:\n- One click\n\nCons:\n- Little room for options\n\n**Share dialog**\nA dialog listing who can see the calendar.\n\nPros:\n- Room for every option\n\nCons:\n- Two clicks\n\n**Settings page**\nSharing lives with the calendar's settings.\n\nPros:\n- Nothing new on the main screen\n\nCons:\n- Hard to find\n\nRecommended: Inline toggle — One click from the calendar itself."
+      "details": "**Sharing screen**\nWhere does an owner share a calendar from?\nWhy it matters: It sets how many steps sharing takes.\nDepends on: Storage, Access model.\n\n**Inline toggle** (Recommended)\nA share toggle on the calendar header.\n\nPros:\n- One click\n\nCons:\n- Little room for options\n\n**Share dialog**\nA dialog listing who can see the calendar.\n\nPros:\n- Room for every option\n\nCons:\n- Two clicks\n\n**Settings page**\nSharing lives with the calendar's settings.\n\nPros:\n- Nothing new on the main screen\n\nCons:\n- Hard to find\n\nRecommended: Inline toggle — One click from the calendar itself.",
+      "evidence": [
+        "outputs/solution-exploration.md"
+      ]
     }
   ]
 }

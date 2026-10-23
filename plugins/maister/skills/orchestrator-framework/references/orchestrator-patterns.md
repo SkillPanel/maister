@@ -105,6 +105,8 @@ The workflow engine's `references/in-node-questions.md` holds the mechanism — 
 | A loop offering another pass | the accept-as-is exit — the following gate is the operator's route back |
 | An exhausted recovery budget | the phase fails rather than choosing retry or skip on the operator's behalf |
 
+**A recommendation names what it rests on.** A question that recommends an option, and whose recommendation rests on an artifact — the spec section, the findings file, the decision record — names that artifact in the question's `evidence`, a list of paths relative to the task directory or the repository (`references/in-node-questions.md` § *When a question suspends*). A gate's evidence is filled by the engine from the files its closing nodes registered. In session nothing about the question changes; its description may name the files.
+
 **A recommendation keeps every criterion the task states**, so a default taken from one never narrows the task either. Each default taken is recorded on the phase's summary `decisions` as `{decision: <default taken>, by: default, question_id: <question-id>}`; a phase that had nothing to ask records nothing.
 
 **A run started under a driver has its inputs**, so a task description or research question is never invented: if one is genuinely missing, stop with `RUN-FAILED` rather than inventing one.

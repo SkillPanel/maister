@@ -211,7 +211,10 @@ question, multi_select, options}`, its `options` empty when there are fewer than
 suggestions, its question then asking for the note typed.
 
 `--request` prints the whole driven gate request as JSON: `{node, kind, question, context:
-{summary, artifacts, checkpoint}, options, multi_select}`, ending with `triage` when the applied
+{summary, artifacts, checkpoint}, options, multi_select}`, then `evidence` — the files the
+recommendation rests on, repository-relative: every file the closing nodes registered that is on
+disk, logs left out, at most ten, the checkpoint carrying the same list; absent when there is
+none — and ending with `triage` when the applied
 policy classes the gate and its hash is the run's `policy_hash`, each revise suggestion as
 `{label, note, recommended}`; with `--reask=<revise option>` its question opens with a sentence
 saying that option needs a note, every option still offered — the request a driven revise that
@@ -221,7 +224,9 @@ came without its note is asked again with (*Revising at a gate*), never beside `
 With a question set (`references/in-node-questions.md` § *In-node questions*), `--checkpoint`
 prints a `kind: question` checkpoint and `--request` a `kind: question` request whose question
 and options repeat the first question's, with every question under `questions`, each folded to
-one line with no `"`; the patch file is read and kept, for the request to be written over it.
+one line with no `"` and carrying its checked `evidence` when it names any (the top level
+repeats the first question's); the patch file is read and kept, for the request to be written
+over it.
 
 `--node=held-approval` briefs the run's closing checkpoint, in every form (engine § *The ready
 set*). When the asking node recorded `asking` (`references/in-node-questions.md` § *When the

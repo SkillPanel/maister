@@ -121,6 +121,7 @@ import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
+import { checkEvidence, evidenceKey } from './evidence.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, REVISION_CEILING, frozenIds, gateHeldRevises, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 
@@ -520,6 +521,17 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
     }
     set = { ...set, questions: set.questions.filter(question => asking.includes(question.id)) };
   }
+  // Each question's evidence checked against the disk: a path that cannot be
+  // kept is dropped with a warning, and never keeps the question from being asked.
+  const warnings = [];
+  set = {
+    ...set,
+    questions: set.questions.map(({ evidence: raw, ...question }) => {
+      const checked = checkEvidence(raw, { runDir, where: question.id });
+      warnings.push(...checked.warnings.map(message => ({ code: 'question-evidence-dropped', message })));
+      return { ...question, ...evidenceKey(checked.paths) };
+    }),
+  };
   const { display } = current;
   const order = frozenIds(recorded);
   const title = titleOf(display.titles, node);
@@ -541,8 +553,8 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   } catch {
     panel = null;
   }
-  if (form === 'checkpoint') return { ok: true, checkpoint, panel, errors: [], warnings: [] };
-  return { ok: true, request: questionRequest(checkpoint), panel, errors: [], warnings: [] };
+  if (form === 'checkpoint') return { ok: true, checkpoint, panel, errors: [], warnings };
+  return { ok: true, request: questionRequest(checkpoint), panel, errors: [], warnings };
 }
 
 /**
@@ -956,6 +968,25 @@ function foldFolders(files, runDir, byId) {
     out.push({ id: file.id, file: group.folder, html: null, label: `${group.members.length} files`, role, folder: true });
   }
   return out;
+}
+
+/** The most files a gate names as its recommendation's evidence. */
+const EVIDENCE_MAX = 10;
+
+/**
+ * The files a gate's recommendation rests on: what its closing nodes
+ * registered — documents to review and evidence alike, logs left out — that is
+ * on disk, repository-relative, in registration order, at most
+ * `EVIDENCE_MAX`. The list is read from what the nodes wrote rather than
+ * claimed by them, so a file that is not there is passed over without a
+ * warning.
+ */
+function evidenceFiles(doc, runDir, ids) {
+  const sources = artifactSources(doc);
+  const written = ids.flatMap(id => sources.flatMap(source => source(id)))
+    .filter(artifact => artifact.role !== 'log' && typeof artifact.path === 'string' && !artifact.path.includes('${'))
+    .map(artifact => artifact.path);
+  return checkEvidence(written, { runDir, where: 'gate' }).paths.slice(0, EVIDENCE_MAX);
 }
 
 /** The order the `Review:` line names files in: the document a phase produced, then its companions. */
@@ -1619,6 +1650,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     decisions,
     risks,
     recommended: { option: recommended, reason },
+    ...evidenceKey(evidenceFiles(doc, runDir, ids)),
     options: listed,
     grants: grantsOf(options),
     approves,

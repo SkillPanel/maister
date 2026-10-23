@@ -143,13 +143,14 @@ export function findingBrief({ state, node, findingsFile, patchFile = null }) {
 
   const loaded = loadFindings(findingsFile, runDir);
   if (loaded.warning) return fallback(loaded.warning);
-  const questions = order(loaded.findings).map(finding => questionOf(finding, declared));
+  const questions = order(loaded.findings).map(finding => questionOf(finding, declared, loaded.where));
   if (patchFile === null) return { ok: true, set: { questions }, errors: [], warnings: [] };
   return publish({ questions }, patchFile, runDir);
 }
 
 /**
- * The findings list at `given`, checked: `{findings}` or `{warning}`. The path
+ * The findings list at `given`, checked: `{findings, where}` — `where` its
+ * run-relative path — or `{warning}`. The path
  * is resolved against the run directory and must stay inside it.
  */
 function loadFindings(given, runDir) {
@@ -173,7 +174,7 @@ function loadFindings(given, runDir) {
     return { warning: `${WARNING.invalid}:${where}:not-json` };
   }
   const fault = shapeFault(data);
-  return fault === null ? { findings: data.findings } : { warning: `${WARNING.invalid}:${where}:${fault}` };
+  return fault === null ? { findings: data.findings, where } : { warning: `${WARNING.invalid}:${where}:${fault}` };
 }
 
 /** The location of the first shape violation, or null when the list is sound. */
@@ -224,8 +225,11 @@ function order(findings) {
     .map(each => each.finding);
 }
 
-/** One finding as one question of the set. */
-function questionOf(finding, declared) {
+/**
+ * One finding as one question of the set. A finding with a recommendation
+ * names the findings list as its evidence, run-relative as `where` holds it.
+ */
+function questionOf(finding, declared, where) {
   const title = finding.title.trim();
   const severity = sentence(finding.severity);
   const evidence = oneLine(finding.evidence);
@@ -248,6 +252,7 @@ function questionOf(finding, declared) {
     multi_select: false,
     options,
     details: detailsOf({ title, severity, evidence: finding.evidence.trim(), choices, recommended: recommends ? finding.recommended : null, reason }),
+    ...(recommends && where ? { evidence: [where] } : {}),
   };
 }
 
