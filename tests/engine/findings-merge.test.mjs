@@ -304,6 +304,22 @@ test('findings-merge: a check that fails only on the change, or whose base nobod
   }, 'a check with no base status counts as the change\'s; failures and errors beyond the base\'s count are the change\'s');
 });
 
+test('findings-merge: a finding that claims the base fails it too but quotes no evidence counts as the change\'s, with a warning', t => {
+  const run = project(t);
+  put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null });
+  put(run, 'test-suite-findings.json', full('test-suite', 1, [
+    finding('ts-1', 'critical', 'tests', at('test/upload.test.mjs', 8), 'upload retry test fails', { fails_on_base: true, evidence: '' }),
+    finding('ts-2', 'warning', 'tests', at('src/old.mjs', 4), 'lint fails the same way on the base', { fails_on_base: true, evidence: 'base: src/old.mjs:4 no-unused-vars \'x\' is defined but never used' }),
+  ]));
+  const { code, stderr, report } = merge(run);
+  assert.equal(code, 0, stderr);
+  const doc = merged(run);
+  assert.deepEqual(doc.findings.map(each => [each.title, each.severity, each.fails_on_base]), [['upload retry test fails', 'critical', undefined]]);
+  assert.deepEqual(doc.out_of_scope.map(each => [each.id, each.reason]), [['ts-2', 'fails on the base too']]);
+  assert.equal(report.counts.critical, 1);
+  assert.match(stderr, /findings-merge-base-evidence: test-suite's "upload retry test fails"/);
+});
+
 test('findings-merge: with no test result and no checks there is no failure split', t => {
   const run = project(t);
   put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null, tests: { status: 'pending' }, checks: null });

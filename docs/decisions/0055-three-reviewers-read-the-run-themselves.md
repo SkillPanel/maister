@@ -110,7 +110,10 @@ break its own rule to pass the change.
    - A failed check carries `fails_on_base` (`true` or `false`).
    - The `tests` block carries `failed_on_base` (a count).
    - Each such finding carries `fails_on_base: true`.
-   - An unknown base status, or a failure the run sets out to fix, is the change's.
+   - Every doubtful case is the change's: an unknown base status, a failure the run sets out to
+     fix, a re-run whose environment imports the working tree or whose dependencies the change
+     touched, an item that turns on a file dirty at the freeze, and a claim with no quoted base
+     output, which the merge counts with a warning.
 3. **The merge and the verdict use it.**
    - `review-brief` carries both fields.
    - `findings-merge` sets a `fails_on_base` finding aside at any severity. It splits the

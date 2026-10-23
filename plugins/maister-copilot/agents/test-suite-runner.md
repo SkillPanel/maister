@@ -123,14 +123,20 @@ A failure the base already has is not this change's: the verdict lists it and ne
 
 1. **What the run already recorded.** The work log's known open problems may name it as failing before the change, with its output. When the record names the same failures, take it.
 2. **Otherwise, a targeted re-run at the base.** Export the brief's `base` into a fresh directory of your own outside the repository — `git archive <base> | tar -x -C <dir>` — and run there only the failing checks' commands and only the failing tests, by name or id, with the project's installed toolchain (its virtual environment, `node_modules` or build cache by path). Never check out, reset or switch the working tree, and never re-run the whole suite or a check that passed.
-3. **Compare.** A check fails on the base the same way when every failure the change shows also shows on the base; a test, when it fails there too. A failure the run sets out to fix — the spec or the plan names it — is the change's, whatever the base says.
+3. **Compare, by evidence.** A check fails on the base the same way when the base's output shows every failure the change shows — the same rule and message at the matching place; a test, when the base's output shows the same test id failing. Quote the matching base line in the finding's `evidence`: without a quoted match it is the change's. A failure the run sets out to fix — the spec or the plan names it — is the change's, whatever the base says.
+
+**Every doubtful case is the change's.** Leave the field out, say why in the report, and the failure counts as the change's, when:
+- **the environment is borrowed from the working tree.** The re-run must import the project from the export. An editable install (`pip install -e`, uv or poetry develop mode), a workspace or `npm link` symlink, or a path mapping into the repository imports the working tree instead, so the run measures the change, not the base. Tell cheaply by asking the export run where the project resolves from — `python -c "import <package>; print(<package>.__file__)"`, `node -p "require.resolve('<package>')"` — and treat any path inside the repository as borrowed;
+- **the change touched a dependency manifest or lock file** (the brief's `changed`): the base would run on the change's dependencies;
+- **the failing item turns on a file in `dirty_at_freeze`**: the exported commit is not what the user was running;
+- **the base cannot run** — a dependency missing, a build that fails for its own reasons.
 
 Record it:
 - each failing check: `fails_on_base: true` when the base fails it the same way, `false` when the base passes it or the change adds failures;
 - the `tests` block: `failed_on_base`, how many of `failed` and `errors` the base fails the same way;
-- each such finding: `fails_on_base: true`, with the base's output in one line of `evidence`. The merge lists it apart and never counts it.
+- each such finding: `fails_on_base: true`, with the quoted base line in `evidence`. The merge lists it apart and never counts it; one that claims it with no evidence stays counted.
 
-When the base cannot run — a dependency missing, a build that fails for its own reasons — leave the field out and say why: an unknown base status counts as the change's failure. Delete the directory when done.
+Delete the directory when done.
 
 ---
 

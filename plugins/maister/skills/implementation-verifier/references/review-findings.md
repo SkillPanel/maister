@@ -169,8 +169,21 @@ check is also one of its findings. The brief carries the list as `checks`.
 whether the base fails it the same way: from what the run already recorded, or by re-running that
 item alone on an export of `base`. It records `fails_on_base` (`true` or `false`) on the failed
 check, `failed_on_base` (a count) in the `tests` block, and `fails_on_base: true` on each such
-finding. A failure the run sets out to fix is the change's, whatever the base says. Where the base
-could not be run, the field is left out, and the failure counts as the change's.
+finding. Every doubtful case falls to the change, so a new failure is never marked as the base's:
+- **Evidence, not judgement.** A failure is the base's only when the base's output shows the same
+  test id, or the same check rule and message at the matching place, quoted in the finding's
+  `evidence`. Without a quoted match it is the change's; the merge counts a `fails_on_base`
+  finding with no evidence as the change's, with a warning.
+- **A borrowed environment does not count.** When the re-run imports the project from the working
+  tree rather than the export — an editable install, a workspace or `npm link` symlink, a path
+  mapping into the repository — or the change touched a dependency manifest or lock file, the run
+  measures the change, not the base. Where the export run resolves the project from tells.
+- **Dirty at the start.** When the failing item turns on a file in `dirty_at_freeze`, the exported
+  commit is not what the user was running.
+- **A failure the run sets out to fix** is the change's, whatever the base says.
+
+In each of these, and where the base could not be run, the field is left out, and the failure
+counts as the change's.
 
 ## Re-check mode
 

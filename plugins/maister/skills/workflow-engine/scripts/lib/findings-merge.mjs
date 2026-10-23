@@ -49,7 +49,9 @@
  *                 `out_of_scope`, reported and never counted.
  *   on the base   a finding marked `fails_on_base` — a failing check or test
  *                 the base fails the same way — goes to `out_of_scope` at any
- *                 severity: it is listed, never counted and never fixed.
+ *                 severity: it is listed, never counted and never fixed. The
+ *                 mark holds only with evidence quoting the base; without it
+ *                 the finding counts as the change's, with a warning.
  *   failures      the brief's `tests` and `checks` split into the failures
  *                 the change introduced and those the base has too
  *                 (`failuresOf`), which the verdict reads. A failure whose
@@ -413,8 +415,20 @@ function findingOf(raw, stem, warnings) {
     refs: Array.isArray(raw.refs) ? raw.refs.map(String) : [],
     sources: [{ reviewer: stem, id: raw.id ?? null }],
     ...(raw.outside_change === true ? { outside_change: true } : {}),
-    ...(raw.fails_on_base === true ? { fails_on_base: true } : {}),
+    ...(onBase(raw, stem, warnings) ? { fails_on_base: true } : {}),
   };
+}
+
+/**
+ * Whether a finding's `fails_on_base` holds: only with evidence, the base's
+ * output quoted. A bare claim would let a new failure pass as the base's, so
+ * it is dropped with a warning and the finding counts as the change's.
+ */
+function onBase(raw, stem, warnings) {
+  if (raw.fails_on_base !== true) return false;
+  if (typeof raw.evidence === 'string' && raw.evidence.trim() !== '') return true;
+  warnings.push(`findings-merge-base-evidence: ${stem}'s "${raw.title.trim()}" says it fails on the base too but quotes no evidence; it counts as the change's`);
+  return false;
 }
 
 /** One cycle's findings folded across reviewers, most severe first. */
