@@ -98,9 +98,12 @@ import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { companionsOf, owedCompanions } from './companions.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
+import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
+import { frozenSubagents } from './subagents.mjs';
+import { projectProfile } from './project-profile.mjs';
+import { baseAtFreeze } from './git-tree.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun } from './driver.mjs';
@@ -408,8 +411,9 @@ const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
  *                   a replacement by definition.
  *
  * `task:` carries no open map at all (`title`, `status`, `description`,
- * `tags[]`, `priority`, `key`), so nothing under it merges and the list stays
- * qualified by its section rather than by key alone.
+ * `tags[]`, `priority`, `key`, and the freeze's own `base_commit`), so nothing
+ * under it merges and the list stays qualified by its section rather than by
+ * key alone.
  *
  * A future open map added to the state contract must be added here too: the
  * default is to replace, so a mapping absent from this list is replaced
@@ -502,7 +506,7 @@ const WORKFLOW_CONTEXT = {
  * had to read a second one and a write could be stamped a second apart from the
  * file describing it.
  */
-export function writeState({ state, patch, regress = null }) {
+export function writeState({ state, patch, regress = null, host = null }) {
   const warnings = [];
   // What `apply` reports back about the record it built. `changed`: the dotted
   // paths it wrote. `ignored`: the clock fields the patch carried and the
@@ -516,8 +520,9 @@ export function writeState({ state, patch, regress = null }) {
   const writeWarnings = [];
   const notes = [];
   try {
-    checkPatch(patch);
+    const misplaced = checkPatch(patch);
     const doc = readDoc(state);
+    if (misplaced !== null) patch = ownContextRouted(doc, patch, misplaced, notes);
     const now = canonical.stamp();
     // The top-level keys the file already carries, plus the ones this write
     // means to introduce: anything else in the candidate came from a value,
@@ -533,7 +538,7 @@ export function writeState({ state, patch, regress = null }) {
     const before = statusesOf(doc.text());
     // `asking`: the ids a classing write left to ask, null when the write sent no question set.
     const out = { changed, ignored, undeclared, writeWarnings, notes, asking: null, before };
-    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress)) allowed.add(key);
+    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress, host)) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -655,15 +660,45 @@ function settledState(typed) {
   return value === null || value === undefined;
 }
 
+/**
+ * Hold the patch to the closed vocabulary. Returns the one unknown key that may
+ * be the run's own context block sent top-level — a `<name>_context` key, sent
+ * without `context` — for `ownContextRouted` to judge once the file is read;
+ * null when there is none. Any other unknown key is refused here.
+ */
 function checkPatch(patch) {
   if (!isPlainObject(patch)) throw new Refusal('state-patch-invalid', 'the patch must be a JSON object');
   const known = new Set(PATCH_KEYS);
-  for (const key of Object.keys(patch)) {
-    if (!known.has(key)) {
-      throw new Refusal('state-patch-unknown-key',
-        `the patch key "${key}" is not one of ${PATCH_KEYS.join(', ')}`);
-    }
+  const unknown = Object.keys(patch).filter(key => !known.has(key));
+  if (unknown.length === 1 && isContextBlock(unknown[0]) && !Object.hasOwn(patch, 'context')) return unknown[0];
+  if (unknown.length) throw unknownKey(unknown[0]);
+  return null;
+}
+
+function unknownKey(key) {
+  return new Refusal('state-patch-unknown-key', `the patch key "${key}" is not one of ${PATCH_KEYS.join(', ')}`);
+}
+
+/**
+ * The run's own context block, sent under its block name instead of under
+ * `context`, written as `context` with a note: the block it names is exactly
+ * the one `context` writes, so nothing is guessed. A block name the run does
+ * not derive — another workflow's, or a misspelling — is refused as any
+ * unknown key is, since writing it anywhere would put the values where no
+ * reader of this run looks.
+ */
+function ownContextRouted(doc, patch, key, notes) {
+  let own;
+  try {
+    own = contextBlock(doc, patch);
+  } catch (err) {
+    if (err instanceof Refusal) throw unknownKey(key);
+    throw err;
   }
+  if (own !== key) throw unknownKey(key);
+  const { [key]: context, ...rest } = patch;
+  notes.push(`wrote the supplied ${key} as context, the patch key that writes this run's context block; send it under context`);
+  return { ...rest, context };
 }
 
 // ---------------------------------------------------------------------------
@@ -716,6 +751,8 @@ function project(state, text, now, changed, warnings) {
       gates: gateRequests(runDir),
       progress: progressOf(doc, definition, runDir),
       declared: declaredOf(doc, definition, runDir),
+      verifier: dashboard.verifierNodeOf(definition),
+      executor: dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc),
     };
     canonical.commit({
       target,
@@ -758,6 +795,7 @@ function display(state, text, now, banner) {
       artifacts: artifactsOf(doc, runDir),
       progress: progressOf(doc, definition, runDir),
       verifier: dashboard.verifierNodeOf(definition),
+      executor: dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc),
       banner,
     });
   } catch (err) {
@@ -1139,8 +1177,11 @@ function fallbackExecutor(doc) {
  * `canonical.stamp()` calls in one invocation can straddle a second boundary, and
  * a data file stamped a second before the state it describes is a data file whose
  * freshness cannot be reasoned about.
+ *
+ * `host` is the `--host` the call named, or null; only the freeze reads it
+ * (`seedDelegation`).
  */
-function apply(doc, patch, now, runDir, out, regress = null) {
+function apply(doc, patch, now, runDir, out, regress = null, host = null) {
   const { changed, ignored, undeclared, writeWarnings, notes } = out;
   const intended = new Set(['orchestrator']);
   // The run's frozen graph, proven, for the checks that need the definition;
@@ -1187,9 +1228,15 @@ function apply(doc, patch, now, runDir, out, regress = null) {
   let parentRead;
   const parentNow = () => (parentRead ??= { orchestrator: readParentState(orchestrator.parent, runDir)?.orchestrator ?? null }).orchestrator;
   // Before `applyScalars`, which would otherwise write the values as sent.
+  orchestrator = dropSubagents(orchestrator, notes);
+  orchestrator = dropProject(orchestrator, notes);
+  orchestrator = narrowDelegation(doc, orchestrator, freezing, notes);
   if (freezing) {
     orchestrator = seedCeiling(orchestrator, policyNow, parentNow, writeWarnings);
     orchestrator = seedFeatures(orchestrator, parentNow, writeWarnings);
+    orchestrator = seedSubagents(orchestrator, patch.workflow, runDir, writeWarnings);
+    orchestrator = seedProject(orchestrator, runDir, writeWarnings);
+    orchestrator = seedDelegation(orchestrator, host);
   } else {
     orchestrator = clampCeiling(doc, orchestrator, policyNow, notes);
   }
@@ -1202,12 +1249,21 @@ function apply(doc, patch, now, runDir, out, regress = null) {
     if (freezing) seedPolicyHash(doc, patch.workflow, policyNow(), changed, writeWarnings);
   }
   if (orchestrator) applyScalars(doc, 'orchestrator', orchestrator, changed);
-  if (patch.task) {
-    applyScalars(doc, 'task', patch.task, changed);
+  // `base_commit` is the freeze's own record of where the run started, so a
+  // patch value for it is dropped, on every write, as `policy_hash` is.
+  let task = patch.task;
+  if (isPlainObject(task) && Object.hasOwn(task, 'base_commit')) {
+    const { base_commit: _supplied, ...rest } = task;
+    task = rest;
+    notes.push('ignored the supplied task.base_commit; the freeze records it from the repository, so no patch sets it');
+  }
+  if (task) {
+    applyScalars(doc, 'task', task, changed);
     intended.add('task');
   }
+  if (freezing && runDir !== null && seedBaseCommit(doc, runDir, changed, writeWarnings)) intended.add('task');
   if (patch.workflow) {
-    applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored);
+    applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored, notes);
     intended.add('workflow');
   }
   // Each gate answer the patch sends, as the run held it before this write:
@@ -1682,7 +1738,7 @@ function splitTopLevel(body) {
  * `nodes:` child no YAML parser accepts, and under it a node no graph declared,
  * recorded `completed` and read back by the ready set. Through the success path.
  */
-function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
+function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = []) {
   if (!isPlainObject(workflow)) throw new Refusal('state-patch-invalid', 'the workflow patch must be an object');
   const nodes = workflow.nodes;
   if (!isPlainObject(nodes) || Object.keys(nodes).length === 0) {
@@ -1699,7 +1755,8 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
   // out was erased, a node re-typed as its bare kind went back to `pending` with
   // its values and clocks gone, and a node no graph declares joined the ready
   // set recorded however the patch said. A re-send identical to the file is
-  // the one harmless case, and it is a no-op.
+  // the one harmless case: it is dropped, with a note naming where node
+  // updates go, and the rest of the patch lands.
   if (doc.has('workflow')) {
     const differences = frozenDifferences(doc, workflow);
     if (differences.length) {
@@ -1707,6 +1764,8 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored) {
         `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — `
         + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
     }
+    notes.push('ignored the supplied workflow block, which matches the frozen one; the freeze is written once, '
+      + 'so send node updates under the top-level nodes key and never re-send workflow');
     return;
   }
 
@@ -2626,7 +2685,192 @@ function seedPolicyHash(doc, workflow, loaded, changed, writeWarnings) {
   }
 }
 
+/**
+ * `task.base_commit`, where the run started: `{sha, dirty}` — HEAD at the
+ * freeze, and the paths already modified, staged or untracked then, the
+ * project's `.maister/` left out (`git-tree.mjs`). `review-brief` measures
+ * every verification cycle from it, and marks a changed path that was dirty
+ * before the run started.
+ *
+ * Only the freeze writes it, and a patch value is never taken (`apply` drops
+ * it). A project outside git records none and says nothing; a repository with
+ * no commit yet records none and warns, and so does a status that could not
+ * be read, with the base kept. A run frozen before the key existed stays
+ * without one, and `review-brief` then needs `--base`. Whether it wrote.
+ */
+function seedBaseCommit(doc, runDir, changed, writeWarnings) {
+  const base = baseAtFreeze(projectRootOf(runDir));
+  if (base === null) return false;
+  if (base.warning) writeWarnings.push(base.warning);
+  if (!base.sha) return false;
+  // A path no state line can carry — a newline in a file name — is left out
+  // rather than refusing the freeze over a file the run may never touch.
+  const dirty = base.dirty.filter(file => {
+    try {
+      flow(file, 'task.base_commit.dirty');
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  if (dirty.length < base.dirty.length) {
+    writeWarnings.push(`base-dirty-cut: ${base.dirty.length - dirty.length} dirty path(s) cannot be written to state and are left out`);
+  }
+  doc.set(['task', 'base_commit'], [`  base_commit: ${flow({ sha: base.sha, dirty }, 'task.base_commit')}`]);
+  changed.push('task.base_commit');
+  return true;
+}
+
+/**
+ * `orchestrator.options.subagents`, the models and effort the run's subagents
+ * are dispatched with, read at the freeze from the project's `config.yml`, the
+ * overlays the run froze and its profile (`subagents.mjs`). Written only when
+ * one of them carries a block the judgement keeps, so a project with none
+ * freezes exactly the keys it always did; a refused block writes nothing and
+ * warns, and the shipped defaults apply. A run that cannot read its overlays
+ * reads the project's block alone.
+ */
+function seedSubagents(orchestrator, workflow, runDir, writeWarnings) {
+  if (runDir === null || !isPlainObject(workflow)) return orchestrator;
+  let sources = null;
+  try {
+    sources = sourcesOf(workflow, runDir);
+  } catch {
+    sources = null;
+  }
+  const overlays = (sources?.overlays ?? []).filter(overlay => overlay.doc !== null);
+  const { block, warnings } = frozenSubagents({ project: projectRootOf(runDir), overlays, profile: sources?.profile ?? null });
+  writeWarnings.push(...warnings);
+  if (block === null || !Object.keys(block).length) return orchestrator;
+  const base = isPlainObject(orchestrator) ? orchestrator : {};
+  const options = isPlainObject(base.options) ? base.options : {};
+  return { ...base, options: { ...options, subagents: block } };
+}
+
+/**
+ * A patch's own `options.subagents`, dropped with a note on every write: the
+ * freeze records the block from the files, and no write after it changes it.
+ */
+function dropSubagents(orchestrator, notes) {
+  if (!isPlainObject(orchestrator) || !isPlainObject(orchestrator.options) || !Object.hasOwn(orchestrator.options, 'subagents')) return orchestrator;
+  const { subagents: _sent, ...kept } = orchestrator.options;
+  notes.push(SUBAGENTS_NOTE);
+  const { options: _options, ...rest } = orchestrator;
+  return Object.keys(kept).length ? { ...rest, options: kept } : rest;
+}
+
+/**
+ * `orchestrator.options.project`, the project profile the reviewers key their
+ * checks to, read at the freeze from the `project:` key of the project's
+ * `config.yml` and judged (`project-profile.mjs`). Written only when a field
+ * passes, so a project with no key freezes exactly the keys it always did; a
+ * bad value warns and is left out. `review-brief` reads this copy, so a later
+ * edit of the file reaches the next run, never this one.
+ */
+function seedProject(orchestrator, runDir, writeWarnings) {
+  if (runDir === null) return orchestrator;
+  const { profile, warnings } = projectProfile(projectRootOf(runDir));
+  writeWarnings.push(...warnings);
+  if (profile === null) return orchestrator;
+  const base = isPlainObject(orchestrator) ? orchestrator : {};
+  const options = isPlainObject(base.options) ? base.options : {};
+  return { ...base, options: { ...options, project: profile } };
+}
+
+/**
+ * A patch's own `options.project`, dropped with a note on every write: the
+ * freeze records the profile from the file, and no write after it changes it.
+ */
+function dropProject(orchestrator, notes) {
+  if (!isPlainObject(orchestrator) || !isPlainObject(orchestrator.options) || !Object.hasOwn(orchestrator.options, 'project')) return orchestrator;
+  const { project: _sent, ...kept } = orchestrator.options;
+  notes.push(PROJECT_NOTE);
+  const { options: _options, ...rest } = orchestrator;
+  return Object.keys(kept).length ? { ...rest, options: kept } : rest;
+}
+
+/**
+ * `orchestrator.options.delegation`, `{mode, depth, source}`: whether the run's
+ * subagents can dispatch subagents of their own, recorded at the freeze for a
+ * step that would hand its loop to one (`mode: nested`) or keep it in the
+ * main session (`mode: inline`). `depth` is how many levels of subagents the
+ * host allows below the main session, and `source` where that came from:
+ *
+ *   claude    `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` when it is a whole
+ *             number, else the host's own 3
+ *   copilot   the host's own 4; the variable is Claude Code's and is not read
+ *
+ * The host is the `--host` the freeze names, the one `dispatch-model` takes,
+ * which the generated variant spells `copilot`. `mode` is `nested` at a depth
+ * of two or more — a subagent and the subagents it dispatches — and `inline`
+ * below it. A cockpit or dispatch driver, which the freeze patch carries,
+ * follows the same rule, its `source` naming the SDK release nesting was
+ * checked under (`SDK_CHECKED`); the cockpit strips the depth variable from a
+ * session's environment, so its depth is the host's own. A terminal freeze
+ * naming no host records nothing, which reads as `inline`.
+ * No write after the freeze widens it (`narrowDelegation`).
+ */
+function seedDelegation(orchestrator, host) {
+  const kind = isPlainObject(orchestrator) && isPlainObject(orchestrator.driver) ? orchestrator.driver.kind : undefined;
+  const driven = DRIVEN_VIA.has(kind);
+  if (host === null && !driven) return orchestrator;
+  const { depth, source } = hostDepth(host ?? 'claude');
+  const delegation = { mode: depth >= NESTED_DEPTH ? 'nested' : 'inline', depth, source: driven ? `${kind} driver: ${SDK_CHECKED} (${source})` : source };
+  const base = isPlainObject(orchestrator) ? orchestrator : {};
+  const options = isPlainObject(base.options) ? base.options : {};
+  return { ...base, options: { ...options, delegation } };
+}
+
+/** The levels of subagents a host allows below the main session, and where the number came from. */
+function hostDepth(host) {
+  if (host === 'copilot') return { depth: COPILOT_DEPTH, source: 'copilot default' };
+  const raw = process.env[DEPTH_ENV];
+  if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) return { depth: Number(raw.trim()), source: DEPTH_ENV };
+  return { depth: CLAUDE_DEPTH, source: 'claude default' };
+}
+
+/** The environment variable Claude Code reads its subagent depth from, and each host's own depth. */
+const DEPTH_ENV = 'CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH';
+const CLAUDE_DEPTH = 3;
+const COPILOT_DEPTH = 4;
+
+/** The depth at which a subagent can dispatch subagents of its own. */
+const NESTED_DEPTH = 2;
+
+/** The SDK release a driven session's nesting was checked under: the runner reaches depth 2, and the plugin's hooks see it. */
+const SDK_CHECKED = 'SDK nesting checked at 0.3.285';
+
+/**
+ * A patch's own `options.delegation`. The freeze records it from the host, so
+ * a patch never sets it — at the freeze or after — with one exception: after
+ * the freeze a run recorded `nested` may narrow to `inline`, when a runner
+ * finds at run time that it cannot dispatch subagents. That patch is exactly
+ * `{mode: inline, reason}`, the reason one line, and it lands as the recorded
+ * map with the mode and the reason replaced; the depth and the source stay.
+ * Anything else is dropped with a note, and the rest of the patch applies.
+ */
+function narrowDelegation(doc, orchestrator, freezing, notes) {
+  if (!isPlainObject(orchestrator) || !isPlainObject(orchestrator.options) || !Object.hasOwn(orchestrator.options, 'delegation')) return orchestrator;
+  const { delegation: sent, ...kept } = orchestrator.options;
+  const { options: _options, ...rest } = orchestrator;
+  const recorded = freezing ? null : typedOf(doc).orchestrator?.options?.delegation;
+  if (isPlainObject(recorded) && recorded.mode === 'nested' && isNarrowing(sent)) {
+    return { ...rest, options: { ...kept, delegation: { ...recorded, mode: 'inline', reason: sent.reason.trim() } } };
+  }
+  notes.push(DELEGATION_NOTE);
+  return Object.keys(kept).length ? { ...rest, options: kept } : rest;
+}
+
+/** Whether a sent delegation is the one narrowing a patch may make: `{mode: inline, reason}`. */
+function isNarrowing(sent) {
+  return isPlainObject(sent) && Object.keys(sent).sort().join() === 'mode,reason' && sent.mode === 'inline'
+    && typeof sent.reason === 'string' && sent.reason.trim() !== '' && !/[\r\n]/.test(sent.reason);
+}
+
 /** The notes `apply` returns for a writer-owned value it dropped. */
+const DELEGATION_NOTE = 'ignored the supplied orchestrator.options.delegation; the freeze records it from the host it names, so no patch sets it — after the freeze a nested run may only narrow it, as {mode: inline, reason}';
+const SUBAGENTS_NOTE = 'ignored the supplied orchestrator.options.subagents; the freeze records it from the project\'s config.yml, the overlays and the profile, so no patch sets it';
+const PROJECT_NOTE = 'ignored the supplied orchestrator.options.project; the freeze records it from the project key of the project\'s config.yml, so no patch sets it';
 const FACT_NOTE = 'ignored the supplied orchestrator.classes_questions; the freeze records it from the policy it applied, so no patch sets it';
 const CEILING_NOTE = 'ignored the supplied orchestrator.options.ceiling; the autonomy ceiling may narrow after the freeze, never widen';
 const MIRROR_NOTE = "ignored the supplied phase_summaries; the phase-summary mirror is retired, so record each step's summary, decisions and risks on its node_summaries entry";
@@ -2927,6 +3171,17 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
     }
     if (Object.hasOwn(entry, 'absent')) assertAbsent(key, entry.absent, graphOf === null ? null : graphOf());
     if (Object.hasOwn(entry, 'recommends')) assertRecommends(key, entry.recommends, graphOf === null ? null : graphOf());
+    // A headline's layout is not worth a refused write: one that spans lines
+    // or runs long is fitted to one sentence within the limit, with a note.
+    // An empty one or a value that is not text is still refused below.
+    if (typeof entry.headline === 'string' && entry.headline.trim() !== '') {
+      const fitted = fittedHeadline(entry.headline);
+      if (fitted !== entry.headline) {
+        entry.headline = fitted;
+        classing?.notes.push(`fitted the supplied node_summaries.${key}.headline to one line of at most ${HEADLINE_MAX} characters, `
+          + 'cut at a sentence; a headline is one sentence');
+      }
+    }
     assertItems(`node_summaries.${key}`, entry);
     if (Array.isArray(entry.decisions)) {
       recorded ??= recordedNodes(doc);

@@ -1,11 +1,12 @@
 ---
 name: solution-brainstormer
 description: Generates structured solution alternatives from research synthesis, grouped by decision area. Produces multi-perspective trade-off analysis with scope guardrails, a recommendation per area, and a decision areas file the convergence step asks from. Non-interactive content generator.
-model: inherit
 color: orange
 ---
 
 # Solution Brainstormer Agent
+
+**You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
 ## Required Outputs
 

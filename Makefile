@@ -16,6 +16,10 @@ diagram:
 	    --out $${definition%.yml}.mmd || exit 1; \
 	done
 
+# The containment sentence every source agent carries, as validate checks it.
+# It holds no apostrophe, so the recipe can single-quote it.
+CONTAINMENT = **You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
+
 # Prerequisites: bash, find, grep and node (the diagram check and the guide
 # template lint). The compatibility contracts runner is a Pro Edition feature
 # and does not live in this repository.
@@ -60,12 +64,20 @@ validate:
 	@node tests/gate-title-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."
 	@test $$(find plugins/maister-copilot/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)
-	@echo "Checking every Copilot agent has a tool allowlist without the agent tool, and the no-re-entry sentence..."
+	@echo "Checking every source agent carries the containment sentence..."
+	@# One sentence, byte for byte, on a line of its own in every agent: a
+	@# dispatched agent never starts a workflow, a command or an orchestrator
+	@# skill. The Copilot variant carries the copies the build leaves in place.
+	@sentence='$(CONTAINMENT)'; \
+	for f in plugins/maister/agents/*.md plugins/maister-copilot/agents/*.md; do \
+	  grep -qxF -- "$$sentence" "$$f" || { echo "FAIL: $$f lacks the containment sentence, so nothing keeps it from starting a workflow, a command or an orchestrator skill"; exit 1; }; \
+	done
+	@echo "Checking every Copilot agent has a tool allowlist with the agent tool..."
 	@for f in plugins/maister-copilot/agents/*.md; do \
 	  t=$$(awk 'NR==1 && $$0=="---"{fm=1; next} fm && $$0=="---"{exit} fm && /^tools:/{print}' "$$f"); \
-	  test -n "$$t" || { echo "FAIL: $$f has no tools: allowlist, so it can dispatch agents"; exit 1; }; \
-	  ! echo "$$t" | grep -qE '"(agent|task|Task|custom-agent|\*)"' || { echo "FAIL: $$f grants a dispatch tool: $$t"; exit 1; }; \
-	  grep -q '^\*\*You are a dispatched agent: do this task' "$$f" || { echo "FAIL: $$f lacks the no-re-entry sentence"; exit 1; }; \
+	  test -n "$$t" || { echo "FAIL: $$f has no tools: allowlist"; exit 1; }; \
+	  echo "$$t" | grep -qF '"agent"' || { echo "FAIL: $$f grants no agent tool, which seals every agent below it from dispatching one: $$t"; exit 1; }; \
+	  ! echo "$$t" | grep -qF '"*"' || { echo "FAIL: $$f grants every tool by wildcard: $$t"; exit 1; }; \
 	done
 	@echo "Checking the research agents name the GitHub server's web search..."
 	@for n in information-gatherer research-planner; do \
@@ -75,6 +87,10 @@ validate:
 	@! grep -rnE 'WebSearch|WebFetch' plugins/maister-copilot/ --include="*.md" || (echo "FAIL: a Claude Code web tool name survives in the variant" && exit 1)
 	@echo "Checking every Copilot agent runs on a model Copilot knows..."
 	@! grep -nE '^models?:(.*[[,[:space:]])?(inherit|haiku|sonnet|opus|fast|default)([],[:space:]]|$$)' plugins/maister-copilot/agents/*.md || (echo "FAIL: a Claude Code model alias survives in a variant agent; Copilot runs it on a model of its own choosing" && exit 1)
+	@echo "Checking no source agent pins model: inherit..."
+	@! grep -nE '^model:[[:space:]]*inherit[[:space:]]*$$' plugins/maister/agents/*.md || (echo "FAIL: a source agent says model: inherit, which outranks the user's subagent model and adds nothing a call without a model does not" && exit 1)
+	@echo "Checking the variant asks the engine for Copilot's models..."
+	@! grep -rn --include='*.md' -- '--host=claude' plugins/maister-copilot/ || (echo "FAIL: --host=claude survives in the variant; dispatch-model would answer with Claude Code aliases, which Copilot silently swaps" && exit 1)
 	@echo "Checking every Copilot agent and skill says to create a file's directory first..."
 	@for f in plugins/maister-copilot/agents/*.md plugins/maister-copilot/skills/*/SKILL.md; do \
 	  grep -q "^\*\*Create a file's directory before the file\.\*\* On this host" "$$f" || { echo "FAIL: $$f lacks the create-the-directory-first sentence; Copilot's create tool makes no missing directory"; exit 1; }; \

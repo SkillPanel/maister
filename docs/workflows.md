@@ -432,8 +432,8 @@ text **More details** writes out in the terminal. Questions about one behaviour 
 is stored and audited, who sees the user afterwards — come as one drafted story instead, its
 defaults filled in: accept it, accept it with the corrections the run lists, take the alternative
 story it offers where there is one, or write your own. Each story is one answer, kept as a
-requirement that the specification carries under the story's id and that the completeness check
-confirms was built. A question the run can already answer from its own analysis is not asked: it says the
+requirement that the specification carries under the story's id and that the spec conformance
+review confirms was built. A question the run can already answer from its own analysis is not asked: it says the
 answer in one line instead ("User guide: on — asked for when the run started").
 Every answer you give is kept in the task's state, with whether you took the recommendation.
 
@@ -523,6 +523,145 @@ session; a run driven from outside skips those loops, so its pauses are where th
 
 A revise is an in-run answer. It does not reopen a run that has finished; to change finished work,
 start a new task.
+
+## Choosing subagent models
+
+Most of a workflow's work is done by subagents. By default:
+
+- **The clerical agents** (project analysis, the docs operator, task classification, the
+  test-suite runner and HTML companions) and **the codebase scouts** maister starts (`Explore`)
+  run on the `light` tier: a lightweight model on high effort.
+- **Implementers follow the plan.** Each task group runs on the tier its plan gives it, `light`,
+  `standard` or `deep`; a group with no tier runs on `standard`, and a fourth `deep` group in a
+  run asks first. On Copilot, where the deep model bills 15 requests each, groups stop at
+  `standard`.
+- **The reviewers** — the three verification reviews and the specification audit — run on the
+  `deep` tier on Claude Code and on `standard` on Copilot, where the deep model bills 15
+  requests each.
+- **Verification's fixes** — the ones the fix loop after implementation applies without asking —
+  run on your session's model, and so do **the verification runner** and **the implementation
+  runner** that carry those loops.
+- **Every other agent** runs on your session's model.
+
+`/maister:init` writes these defaults into `.maister/config.yml` as a `subagents` block you can
+edit, adding it to a config that has none and leaving an existing block alone. In a codebase of
+more than 2,000 files it puts `Explore` on `standard`, still on high effort, and its summary says
+so. The block governs the agent calls maister makes; the explore agents your host's own plan mode
+starts are outside it. The block holds:
+
+- **A ladder of three tiers**, `light`, `standard` and `deep`, each naming a model per host
+  (Claude Code takes `haiku`, `sonnet`, `opus` or `fable`; Copilot takes a model id). `inherit`
+  in a cell, or as an entry's `model`, means your session's model.
+- **Assignments** per agent, per workflow (`workflows.<name>.agents`) or per step
+  (`workflows.<name>.nodes.<step>.agents`): a tier, a named preset, or a model and effort. A tier
+  may differ by host, `{ claude: deep, copilot: standard }`; a host the map leaves out is passed
+  over, as a Claude Code model pin is on Copilot, and the next entry or default answers. The
+  most specific entry naming an agent wins, and any entry naming it beats a `default`: a default
+  covers only the agents nobody names, so the clerical agents stay on the lightweight model
+  until you name them.
+- **Effort.** A tier's effort applies to every agent on it unless the agent's entry sets its
+  own; remapping a tier's models keeps its effort unless you set one there. `effort: inherit`
+  sends none.
+- **Implementers by plan tier.** The implementation plan gives each task group a tier with a
+  one-line reason. With `task-group-implementer: { choose: by-plan-tier }`, the default, each
+  group runs on the cheapest model allowed for its tier, under a `ceiling`, which may differ by
+  host (`{ claude: deep, copilot: standard }` by default). A group that fails is
+  retried once on the next tier up before you are asked, and `budget` (by default `{ deep: 3 }`)
+  makes the run ask before it sends one more group to a tier. The work log records the model each group ran
+  on, and the implementation summary gives the tally.
+
+A run copies the block into its state when it starts, so a resumed run keeps its models and an
+edit applies to the next run. A block with an error is set aside with a warning and the defaults
+apply; `/maister:run --check <workflow>` shows the warnings without starting anything. An overlay
+or a profile may carry the same block, without the ladder.
+
+## Implementation in one subagent
+
+Implementation runs in waves: each wave starts the task groups that can run side by side, one
+implementer subagent each, and every group that comes back is checked and recorded before the next
+wave starts. Where your host lets a subagent start subagents of its own, the run hands all of that
+to one subagent, the implementation runner, and your session makes one call per pass instead of
+several per group. You are asked exactly what you were asked before: a group that failed again
+after moving up a model, a group that skipped its tests, or a wave that would run past the model
+budget. Your answers go to the runner's next pass. The same setting decides it as for verification
+below, and a run that stops part way through picks up from the plan and the work log.
+
+## Verification in one subagent
+
+Verification runs many steps: the tests and the project's other checks, three reviews, the merge of
+their findings, the
+report, the fixes made without asking and their re-checks. Where your host lets a subagent start
+subagents of its own, the run hands that whole loop to one subagent, the verification runner, and
+your session makes one call per pass instead of one per step. You are asked exactly what you were
+asked before: a finding that needs your decision, a risky fix, or what to do once the automatic
+re-checks are spent. Your answers go to the runner's next pass.
+
+The run decides when it starts. On Claude Code the runner is used unless
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is set to 1; on Copilot CLI it is always used; a run the
+cockpit drives uses it too. Where it cannot be used, or the runner finds it cannot start subagents,
+verification runs in your session as before, and the status line says `inline` instead of `nested`
+while it runs. A run that stops part way through verification picks up from the files the last pass
+left, whichever way it ran.
+
+**The three reviews.** Every cycle runs the same three, in one pass:
+- **spec conformance** — does the code obey what the spec, the clarifications and your decisions
+  say? It writes down the rules first, quoted (who may do what, what must never happen, ordering,
+  what a failure must do), checks every operation the change adds against them, then each
+  requirement and story, the work log's claims against the code and tests, and any document the
+  change made false;
+- **code risk** — what can break, leak or fall over where your project runs: correctness, failure
+  paths, security and resilience keyed to the project profile, how CI and the build run the
+  change, operational hygiene (documented settings, kill switches, logging) where the project is
+  operated, and the standards that govern the change;
+- **simplicity** — complexity the project does not need for its scale, at most five findings.
+
+**What each reviewer is given.** The same review brief, a small file of facts: the commit the run
+started from, the files it changed (marking generated files, such as lock files, and data files,
+such as fixtures, which a reviewer skips unless a finding turns on them), the test result and the
+result of every other check the project runs (lint, format, typecheck, build — the test run
+always runs those, even when the suite itself already passed during implementation), the paths of
+the run's documents and the project profile. Nobody writes a reviewer a prompt for your change:
+each reads the spec, the plan, the work log and its *Known open problems*, and decides where to
+look. Code risk and the test run read whatever they need — diffs, callers, history, CI and build
+files; spec conformance and simplicity read the changed files and only what a finding turns on.
+Every review covers only what the run changed; a defect found outside the change counts only when
+it is critical, and a deviation you decided on is not reported as a defect. Standards are judged,
+not matched by name: code risk takes the standards the run says it applied together with those it
+judges, from one read of your `.maister/docs/INDEX.md`, to govern what the change does, and
+reports each rule the code breaks.
+
+**What gets fixed.** Critical and warning findings are fixed without asking when the fix is safe;
+info findings are listed in the report and fixed only when you choose them.
+
+## What the reviewers check: the project profile
+
+The reviews check what applies to your project, not a fixed web-service checklist. A CLI or a
+plugin is not asked for a health endpoint, rate limiting or CORS, and a project with no database
+is not asked for down-migrations or connection pooling. What the project is comes from the
+`project:` key of `.maister/config.yml`:
+
+```yaml
+project:
+  kind: cli                  # web-app | service | daemon | cli | library | plugin | desktop | mobile | data-pipeline | infra
+  runtime: "node 20"         # the language and its version
+  deploy: package-registry   # none | local | container | kubernetes | serverless | package-registry | app-store
+  exposure: local            # local | internal | public: who can reach its entry points
+  data: []                   # the stores it writes, e.g. [postgres, files]; [] for none
+  scale: team                # single-user | team | multi-tenant
+  ui: none                   # none | web | tui | native
+```
+
+Every field is optional, and one left out rules no check out. `/maister:init` fills the key in
+from its project analysis when your config has none, leaving the fields it could not settle
+commented out, and leaves an existing key alone; its summary shows what it wrote. Correct any line
+by hand. A run copies the profile into its state when it starts, so an edit applies to the next
+run. A value maister does not know is a warning, and that field is left out; it never stops a
+run, and `/maister:run --check <workflow>` shows the warning without starting anything.
+
+Without the key, each reviewer works the profile out from `.maister/docs/project/` and says in its
+report what it inferred. The reviews judge a safeguard from the same profile: a missing pool, cache or rate limit is code
+risk's finding only when the project needs it, and one that is there is the simplicity review's finding
+only when the project does not, so the two never ask for opposite things.
 
 ## Your Own Workflows
 
@@ -747,7 +886,7 @@ own. Each one declares that in its own frontmatter, which is where this table co
 |-------|-------------|
 | **codebase-analyzer** | Launches parallel exploration subagents sized to the task, then has a reporter subagent merge their findings into one report |
 | **docs-manager** | The engine behind `.maister/docs/`: file operations, the standards index, and the project instructions that point at it |
-| **implementation-plan-executor** | Runs an implementation plan by handing each task group to an implementer subagent, then records progress and the work log |
-| **implementation-verifier** | Delegates verification to specialists -- completeness, test suite, code review, pragmatic review, production readiness, reality check -- and compiles one report. It reports; it never fixes |
+| **implementation-plan-executor** | Runs an implementation plan by handing each task group to an implementer subagent and recording progress and the work log -- through the implementation runner subagent where the host can nest subagents, or in the session where it cannot -- and asks only the decisions the waves hand back |
+| **implementation-verifier** | Runs verification -- the tests and the project's other checks, the spec conformance, code risk and simplicity reviews, the fixes they call for and their re-checks -- by handing the loop to the verification runner subagent where the host can nest subagents, or in the session where it cannot, and asks only the decisions the loop hands back |
 | **orchestrator-framework** | Not executable at all: the shared patterns every orchestrator reads for phase execution, state, gates and initialization |
 | **workflow-engine** | Runs a workflow definition as a graph -- resolves it, freezes it into the run's state, executes the ready set, and asks or suspends at each gate according to the run's driver. Handed its runs by a workflow's own command, or by `/maister:run` for a workflow started by name |

@@ -125,7 +125,7 @@ export function syncPlan({ plan }) {
  * boundary the dashboard's progress count uses. A step is done when its mark is
  * not the empty one — `[x]` and a justified `[~]` skip both settle it.
  */
-function readPlan(text) {
+export function readPlan(text) {
   const boundaries = [...text.matchAll(SECTION_HEADING)].map(match => match.index);
   const groups = new Map();
   for (const heading of text.matchAll(GROUP_HEADING)) {

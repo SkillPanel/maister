@@ -216,6 +216,7 @@ report says so.
 | `node-no-dependents:` | add it to the `needs` of the node that must wait for it, or make it the node the run ends on |
 | `overlay-ignored:` | fold the overlay's changes into the eject, or delete one of the two |
 | `unresolved-subrun-input:` | pass the child's required input in `with:`, or remove the key the child does not declare |
+| `project-profile:` | correct the named field of the `project:` key in `.maister/config.yml` to one of the values the message lists, or delete the line; the run starts either way, with that field left out of the profile its reviewers read |
 | `undecidable-value-type:` | declare the value `bool`, `id` or an `enum` when it is a handle rather than prose |
 | `skip-guard-not-pure:` | guard the gate on an input or on a gate's value, or make it a single continue with no `sets` and no `grants`; until then it is asked whatever its guard reads |
 | `workflow-undescribed:` | open the companion with a `# Title` line and a paragraph saying what the workflow is for, or add a one-line `description:` |

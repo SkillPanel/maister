@@ -1,459 +1,118 @@
 ---
 name: implementation-plan-executor
-description: Execute implementation plans by delegating each task group to task-group-implementer subagent. Main agent coordinates prepares context, invokes subagent, processes output, marks checkboxes, updates work-log. Uses lazy standards loading from INDEX.md with keyword-triggered discovery.
+description: Execute implementation plans by delegating each task group to the task-group-implementer subagent. Hands a workflow run's waves — group dispatch, group returns, escalation, failure handling and the work-log bookkeeping — to the implementation runner subagent when the run can nest subagents, and runs the same loop in the main session when it cannot. Asks the user only the decisions the loop returns. Every wave start and group return is recorded through the workflow engine; standards are loaded per task group.
 user-invocable: false
 ---
 
-You are an implementation plan executor that delegates task groups to subagents with continuous standards discovery.
+You are the hand-off between an implementation node and its waves. The loop itself — the waves
+from the plan, each group's `task-group-implementer` call on the model `dispatch-model` resolves
+for its tier, every `wave-start` and `group-done`, the one-step escalation, the budget, the docs
+index refresh, the full test suite and the closing work-log entry — is written once, in the
+implementation runner's instructions (`<plugin root>/agents/implementation-runner.md`, the
+plugin root two levels above this skill's base directory, as an absolute path). Where the run
+can nest subagents, the runner runs it and this skill makes one call per runner pass; where it
+cannot, this skill runs the same procedure here.
 
-## Core Principles
+## Inputs
 
-1. **Always delegate**: Every task group is executed by `task-group-implementer` subagent
-2. **Lazy standards loading**: Load standards per task group, not all upfront
-3. **Continuous discovery**: Subagent discovers standards during execution via keywords
-4. **Test-driven**: Test step (N.1) before implementation steps (N.2+)
-5. **Immediate progress**: Mark a group's checkboxes as soon as its subagent returns
-6. **Main agent owns visibility**: Work-log and checkboxes always updated by main agent; the operator dashboard follows them through the engine
+- **`node`** — the node running the waves: the invoking node, `implementation` by default;
+  migration's `execution` names itself.
+- The plan at `implementation/implementation-plan.md` and the spec beside it. The node records
+  its `sequential` input as `orchestrator.options.sequential` before invoking this skill; the
+  loop reads that key.
 
-## Dashboard: Re-project Through the Engine
+**Standalone** (no `orchestrator-state.yml` at the task path): there is no run, so no runner and
+no state. Follow the runner's procedure here, in the main session, as its § *In the main
+session* says, then return § *Structured output*.
 
-The implementation phase runs under this skill, and the orchestrator cannot touch the dashboard until control returns, however long that takes. The dashboard still stays live, because this skill **never writes `dashboard-data.js`**. The workflow engine's state writer is the file's only writer: it projects the implementation phase's `progress` from the plan's checkboxes and the work log's wave-start, wave and revert headings (§ Work-Log Updates) on every state write, and the run's status line draws the same figures as one segment per group. So at each re-projection moment below, this skill sends one `write-state` call: a **progress write** that publishes the phase's progress to the dashboard and the status line. Its patch is `{}`, as the patch file's body, because the writer derives that progress itself from the plan and the log; sending figures of your own would only duplicate it. The call and the patch file follow the workflow engine's invocation contract (`../workflow-engine/SKILL.md`, § The invocation contract). It is a real write, not one with nothing to change: it re-projects `dashboard-data.js`, redraws the status line and stamps `updated`. When you describe the call, name that purpose — publishing the implementation progress — so it never reads as an empty write.
+## The hand-off
 
-- **Moments**: at entry, once the work log exists; when each wave starts, after its start entry is logged; when a group of a wave returns while others of that wave are still running, after its checkboxes and its complete entry; after every wave resolves; at finalize. One call per moment. The status line redraws only on a state write, so the per-group call is what moves it group by group rather than all at once when the wave resolves; a wave of one group has no such call, its return being the wave's resolution.
-- **Skip** when there is no `orchestrator-state.yml`. A standalone run has no workflow run, so it has nothing to project and no dashboard. The plan, its companion and the work log are that run's record. Also skip when `orchestrator.options.html_output` is false: then there is no dashboard, and the call would only re-publish state.
-- **Never blocks**: a refused or failed call gets a warning line in `work-log.md` (`Dashboard re-projection failed after Group N` or `… after wave N`) and the run continues. A visible miss, never a silent one.
-
-## Execution Model
-
-Every task group is executed by the `task-group-implementer` subagent, however small — the main agent coordinates (Task tool → process output → mark checkboxes) and never writes implementation code itself.
-
-## Phase 1: Initialize
-
-1. **Locate task**: Get path from context or user
-2. **Validate files exist**:
-   - `implementation/implementation-plan.md` (required)
-   - `implementation/spec.md` (recommended)
-   - `.maister/docs/INDEX.md` (optional — skip standards loading when absent)
-3. **Check for task group items**: Call `TaskList` to find existing task group items from the planner. If found, use them. If not, create them with `TaskCreate` for each task group (fallback when task tools are unavailable or the planner created none).
-4. **Initialize work-log.md**, its timestamp from the clock (§ Work-Log Updates):
-   ```markdown
-   # Work Log
-
-   ## [timestamp] - Implementation Started
-
-   **Total Steps**: [N]
-   **Task Groups**: [list]
-
-   ## Standards Reading Log
-
-   ### Loaded Per Group
-   (Entries added as groups execute)
-   ```
-5. **Re-project the dashboard** (§ Dashboard: Re-project Through the Engine). Do this after the work log exists, because the projection derives progress only when both the plan and the log are on disk. A resumed run depends on this call: after a restart, nothing else re-publishes the file until the orchestrator itself resumes, so without it the dashboard would show where the implementation stood hours ago.
-
-**Do NOT read all standards upfront.** Standards are loaded lazily per task group.
-
-## Phase 2: Execute (wave-based, parallel by default)
-
-**Dispatch unit is the wave**, not the individual group. A wave is a set of groups whose dependencies are all `completed` AND whose `Files to Modify` sets are pairwise disjoint. All groups in a wave fire in parallel from a single message; the next wave is computed once every member returns.
-
-### Phase 2 Validation (before computing waves)
-
-Read each group from `implementation-plan.md` and verify both `**Dependencies:**` and `**Files to Modify:**` are present. If any group is missing `Files to Modify`:
-
-- Treat the entire run as `--sequential` (see opt-out below).
-- Append a warning to `work-log.md`: `Plan missing 'Files to Modify' on Group N — falling back to sequential execution.`
-
-Never assume missing `Files to Modify` means "None" — silent disjoint assumptions are how parallel implementers collide on the same file.
-
-### Wave Computation
-
-1. Parse `Dependencies:` (list of group numbers) and `Files to Modify:` (list of paths or `"None"`) for every group.
-2. Build the directed dependency graph from `Dependencies:`.
-3. The **ready set** = groups whose dependencies are all `completed` AND that have not yet been dispatched.
-4. Greedily build the next wave from the ready set in plan order: a group joins the wave iff its `Files to Modify` does not overlap any group already in the wave. Conflicting groups stay in the ready set for the next wave.
-5. Treat `"None"` as the empty set — review-only groups never conflict on files.
-6. Glob entries (e.g. `src/migrations/*.sql`) match by glob expansion against other groups' declared paths.
-
-### Wave Dispatch
-
-For each wave:
-
-0. For every group in the wave, `TaskUpdate` to `status: "in_progress"` with `owner: "maister:task-group-implementer"`. Then append the wave's start entry to `work-log.md` (§ Work-Log Updates) and **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), before the fan-out: the groups the entry names show as running until each is completed or reverted.
-
-1. **Prepare group context** (per group):
-   - Extract group content from `implementation-plan.md` (including `Visual References` section, if present)
-   - Check "Standards Compliance" section — identify standards relevant to this group
-   - Check INDEX.md for additional standards matching group topic
-   - Get relevant spec sections
-   - **Design context** (when `analysis/design-context/` exists): include `design-context/brief.md` excerpt (Layer 0 + the relevant screen sections from Layer 3) when relevant to this group. Do NOT inline HTML/binary mockups — pass paths only and rely on the implementer to Read them. ASCII mockup excerpts (small, text) MAY be inlined when directly relevant. The planner-supplied `locator` field already tells the implementer which region to focus on within large mockups.
-
-2. **Fan out — CRITICAL: parallel dispatch in a single message**:
-
-   All groups in the wave MUST be dispatched in **one assistant turn** containing **one `Task` tool call per group**. This is not a loop. This is one message with N tool calls.
-
-   ❌ Wrong: Send `Task(G2)`, await result, send `Task(G3)`, await result, send `Task(G4)`. → That is serial execution wearing wave-shaped clothing. Wave duration becomes `sum(G2, G3, G4)` instead of `max(G2, G3, G4)` and defeats the entire wave optimization. The "comfortable" pattern of one-Task-per-turn is the exact anti-pattern this skill exists to prevent.
-
-   ✅ Right: One assistant message with N `Task` tool-use blocks emitted before any of them returns. The runtime returns all N results before the next assistant turn.
-
-   Per-call parameters:
-   - subagent_type: `maister:task-group-implementer`
-   - prompt: per-group content + initial standards + INDEX.md path + spec excerpt + sibling-wave note (see "Subagent Invocation")
-
-   **SELF-CHECK before sending the message**: Are you about to emit a message with one `Task` call when the current wave has more than one group? If yes, STOP. Compose every wave member's prompt first, then emit them all in the same message. Awaiting one before composing the next violates this skill's contract. If the wave has exactly one group, a single `Task` call is correct.
-
-3. **Process each wave member as it returns**, without waiting for its siblings:
-   - Parse completed steps, standards applied, test results.
-   - Mark all group checkboxes in `implementation-plan.md`.
-   - Add a group entry to `work-log.md` with standards trail, the documents changed and the standard candidates.
-   - Verify test results are acceptable.
-   - `TaskUpdate` to `status: "completed"` with `metadata: {completed_at, tests_passed, files_modified, standards_applied, wave: N}`.
-   - If other members of the wave are still running, **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), after the checkboxes and the entry above, so the group reads as done while its siblings still read as running.
-
-   A member that returns failed is not processed here: it waits for the recovery flow in step 4, once the whole wave is back.
-
-   Then, once every member of the wave has been processed, **sync the plan's HTML companion** — one call per wave, after the checkboxes above are marked, with the plugin root written as its absolute path rather than the variable (the workflow engine's invocation contract says why):
-   ```
-   node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs sync-plan --plan=<task path>/implementation/implementation-plan.md
-   ```
-   It sets every `data-group` / `data-step` marker in `implementation-plan.html` to what the plan says, so it is safe to re-run and also returns a reverted group to outstanding; it is a no-op when there is no companion or `html_output` is false. For each group completed this wave that its JSON lists under `missing_groups`, or when it exits non-zero, append a warning to `work-log.md` (`HTML plan sync missed markers for Group N`) — a visible miss, never a silent one. The sync never blocks the wave.
-
-   Then **re-project the dashboard** (§ Dashboard: Re-project Through the Engine), once per wave and after the checkboxes, the work-log entries and the sync. The projection reads the wave's outcome from them: groups done from the checkboxes, `current_wave` from the last `Group N Complete (wave K)` heading, skipped groups from `[~] … SKIPPED:` steps and reverted groups from `Group N Reverted (wave K): reason` entries. A group the failure-recovery path skipped or reverted therefore reaches the dashboard only if those marks are written first.
-
-4. **Partial-wave failure handling**:
-   - Do NOT cancel sibling subagents in the same wave — they may produce valid work even when one peer fails.
-   - After every wave member has returned, run the existing failure recovery flow (see "Error Handling" → "Subagent Failure") for each failed group individually.
-   - Mark successful groups in the wave as `completed` normally. Keep failed groups `in_progress` with `metadata: {failed_at, failure_reason, wave: N}` until the AskUserQuestion recovery path resolves them.
-   - The next wave is NOT computed until every failed group's recovery decision is made.
-
-5. After the wave fully resolves (all members `completed` or recovered), recompute the ready set and proceed to the next wave.
-
-   **SELF-CHECK before dispatching the next wave**: did you run `sync-plan` (step 3) and re-project the dashboard once the wave resolved? If unsure, run both now. Both are idempotent, because each one derives its output from the plan as it stands.
-
-### `--sequential` Opt-Out
-
-Read `orchestrator.options.sequential` from `orchestrator-state.yml` at Phase 2 entry. When true (or when the validation fallback above triggered):
-
-- Treat every wave as size 1: dispatch groups one at a time in plan order, ignoring file-overlap analysis.
-- Use cases: debugging a flaky group, constrained dev environments (single port, single DB schema), users who explicitly want serial execution.
-
-## Continuous Standards Discovery
-
-**Philosophy**: Standards are discovered when relevant, not memorized upfront.
-
-### Three Sources of Standards
-
-1. **Implementation Plan Standards**: The "Standards Compliance" section in implementation-plan.md lists standards identified during planning. Filter these per task group based on relevance.
-
-2. **INDEX.md Discovery**: The file `.maister/docs/INDEX.md` maps topics to standard files. Use it to find standards not listed in the plan.
-
-3. **Keyword-Triggered Discovery**: During execution, step descriptions may reveal need for additional standards.
-
-### Keyword Triggers (Suggestive, Not Exhaustive)
-
-These are **examples** to guide discovery. Do not limit discovery to only these triggers - use judgment to identify when other standards may apply.
-
-| Example Keywords | May Suggest Standards For |
-|------------------|---------------------------|
-| file, upload, download | file handling, storage |
-| auth, login, session | security, authentication |
-| email, notification | external services |
-| form, input, validation | forms, validation |
-| API, endpoint | api design, error handling |
-| migration, schema | database conventions |
-
-**Key principle**: If a step involves a concept that likely has project standards, check INDEX.md even if no keyword explicitly matches.
-
-### Discovery Flow
+Each step below is one call. The engine's `runner-step` reads the run and says what to do next;
+never work it out from the files yourself:
 
 ```
-Per task group:
-  1. Check "Standards Compliance" section in implementation-plan.md
-     - Identify which listed standards are relevant to THIS group
-     - Read those standards
-
-  2. Check INDEX.md for additional standards matching group topic
-
-  3. During step execution:
-     - If step description suggests a standard may apply
-     - Check INDEX.md, read if found and not yet loaded
-     - Log discovery with trigger reason
-
-  4. Apply discovered standards to implementation
+node <plugin root>/skills/workflow-engine/scripts/workflow.mjs runner-step --state=<task path>/orchestrator-state.yml --node=<node> --runner=implementation
 ```
 
-### Standards Reading Log Format
+It prints one JSON object. Act on its `next`, then run `runner-step` again, until it says `close`
+or `inline`:
 
-```markdown
-## Standards Reading Log
+- **`dispatch`** — dispatch the runner. First `dispatch-model --agent=maister:implementation-runner
+  --host=claude --state=<state> --node=<node>` and copy its `model` and `effort` into the call
+  (`../orchestrator-framework/references/orchestrator-patterns.md` § 1). One agent call, the only
+  one in its message:
+  - `subagent_type: maister:implementation-runner`, `description: Run the implementation waves`;
+  - **`run_in_background: false`, set explicitly on every host.** Where the agent tool takes a
+    `mode` instead, the foreground one, never `background`. Left unset, the host may start the
+    runner in the background: the call returns at once, and the turn ends before the waves do.
+    If a host starts it in the background anyway, wait for its completion notice — never run
+    `runner-step` while it still runs, and never end the turn there;
+  - the prompt: `task_path`, `state`, `node`, `plugin_root` (the absolute path above), and
+    `resume` exactly as `runner-step` printed it.
 
-### Group 1: [Name]
-**From Implementation Plan**:
-- [x] .maister/docs/standards/backend/api.md - Listed in Standards Compliance
+  When the runner returns, its reply is its result; `runner-step` reads the same result from disk.
+- **`ask`** — the runner returned a decision a person makes: groups that failed after their
+  escalation, a test step a group skipped, or a wave past the model budget (`kind`: `groups` or
+  `budget`). The questions are ready in `questions_file`, each with its own context and its
+  options. Ask them under the run's driver (`asking`):
+  - `session` — ask in session with AskUserQuestion, a question per entry, four to a page and
+    further pages in the same turn: each its `question`, its options' labels and descriptions,
+    the recommended one marked "(Recommended)". Record each answer on the node summary as the node records any
+    answer, under the question's `id`, then `runner-step --answered`;
+  - `suspend` — the node's one request of its attempt: the set in the patch file, `gate-brief
+    --request --patch-file`, and suspend. On the answer the run comes back here, and
+    `runner-step` finds the answers itself;
+  - `none` — nobody can be asked and the run's policy classes questions: send the set in the
+    classing write, then `runner-step --answered`. (When nobody can be asked and nothing
+    classes, `runner-step` takes each question's default itself and never prints `ask`.)
+- **`unavailable`** — the runner could not dispatch subagents. Narrow the run's delegation: one
+  `write-state` of `{"orchestrator": {"options": {"delegation": {"mode": "inline", "reason":
+  "<the reason, one line>"}}}}`. Then `runner-step` says `inline`.
+- **`inline`** — the run keeps its waves in the main session (its delegation is `inline`, with
+  the reason printed). Follow the runner's procedure here, from § *Where to start* with `resume`
+  as the files say, asking where the runner would hand back a decision. **Every task group is
+  still a `task-group-implementer` call**, and the full suite and the docs refresh are still
+  subagent calls: what moves into this session is the loop's bookkeeping, never a group's code.
+- **`close`** — the waves are done, and the plan and the work log say so. Return § *Structured
+  output*, read from the printed `summary`, to the node. Do not complete the node: its status
+  stays as it is, because the orchestrator owns completing it.
 
-**From INDEX.md**:
-- [x] .maister/docs/standards/global/naming.md - Group topic match
+A crash, a cleared session or a compaction at any point resumes the same way: the engine re-runs
+the `running` node, this skill runs `runner-step`, and the plan, the work log and the runner's
+files say where the waves stand.
 
-**Discovered During Execution**:
-- [x] .maister/docs/standards/global/security.md - Step 1.3 (auth-related logic)
+## Output artifacts
 
-### Group 2: [Name]
-**From Implementation Plan**:
-- [x] .maister/docs/standards/frontend/forms.md - Listed in Standards Compliance
+| Artifact | Condition |
+|----------|-----------|
+| `implementation/implementation-plan.md` | Its checkboxes ticked by `group-done`, its HTML companion synced |
+| `implementation/work-log.md` | Always: the opening entry, each wave start and group return, reverts, the closing entry |
+| `implementation/test-suite-results.md` | The full suite, at the end |
+| `implementation/runner-result.json`, `decision-wave-<K>.json`, `decisions-<N>.json` | When the runner runs the waves: its last result, each decision's questions, and each decision's answers |
+
+## Structured output
+
+Returned to the invoking node on `close`, and by a standalone run:
+
+```yaml
+groups_done: 4            # of groups_total
+groups_total: 4
+models: "light 1, standard 3, escalations 1"   # for the node summary's model tally
+test_suite: "passed: 40 of 40"
+docs_changed: []          # paths under .maister/docs/
+standard_candidates: []   # one line each, offered at finalization
+stopped: null             # or why a person stopped the waves
 ```
 
-## Subagent Invocation
-
-When delegating a task group, use this prompt structure:
-
-```markdown
-## Task: Execute Task Group [N]
-
-### Task Group Content
-[Paste the task group section from implementation-plan.md, including the `Visual References` block if present]
-
-### Specification Excerpt
-[Relevant sections from spec.md for this group]
-
-### Standards from Implementation Plan
-The implementation plan's "Standards Compliance" section lists these standards.
-Identify which are relevant to this group and read them:
-- [path/to/standard1.md] - [likely relevant because...]
-- [path/to/standard2.md] - [likely relevant because...]
-
-### Standards Discovery
-You have access to `.maister/docs/INDEX.md` for continuous standards discovery.
-- Check INDEX.md for additional standards matching this group's topic
-- During implementation, discover more standards as step context reveals needs
-- Do not limit discovery to explicit keyword matches - use judgment
-- INDEX.md and `.maister/docs/standards/` are read-only for you: name a document you changed under Docs Changed, and a convention worth keeping under Standard Candidates
-
-### Design Context
-[OMIT this section entirely when no `Visual References` are present in the task group AND no `analysis/design-context/` exists.]
-[OTHERWISE include:]
-- Design context root: `analysis/design-context/`
-- Brief excerpt (when present): [Layer 0 from `design-context/brief.md` + relevant screen sections]
-- Mockup files referenced by this group: [list paths from `Visual References`]
-- Inline ASCII excerpt (when ASCII mockup is small and directly relevant): [paste here]
-- Binding rule: each mockup in `Visual References` MUST be read before implementing; layout, copy, field order, and explicit states are binding; self-check each `acceptance` criterion before declaring done.
-
-### Sibling Wave
-[None] OR [Group K (Files to Modify: ...) is running in parallel in the same wave. File sets are disjoint per the executor's wave-computation invariant; do not edit paths outside your declared `Files to Modify`.]
-
-### Requirements
-1. Execute in test-driven order: tests (N.1) → implementation (N.2+) → verify (N.n)
-2. Log all standards applied (from plan, from INDEX.md, discovered during execution)
-3. When `Visual References` present: read each mockup before implementing, log per-reference compliance in your report
-4. Report any failures with root cause analysis
-5. Do NOT mark checkboxes - main agent handles that
-
-### Expected Output Format
-[See Subagent Output Format section]
-```
-
-## Subagent Output Format
-
-The task-group-implementer returns structured output:
-
-```markdown
-## Group [N] Execution Report
-
-### Status: [SUCCESS/PARTIAL/FAILED]
-
-### Steps Completed
-- [x] N.1 - [description]
-- [x] N.2 - [description]
-- [ ] N.3 - [description] (if incomplete)
-
-### Standards Applied
-**From Implementation Plan**:
-- .maister/docs/standards/backend/api.md
-
-**From INDEX.md** (group topic):
-- .maister/docs/standards/global/naming.md
-
-**Discovered During Execution**:
-- .maister/docs/standards/global/error-handling.md (step N.2, error handling logic)
-
-### Visual Compliance
-[OMIT this section entirely when the group had no `Visual References`.]
-[OTHERWISE: one line per reference]
-- ✓ analysis/design-context/mockups/login.html — screen:login — field order, error states, "Forgot password?" link match
-- ⚠ analysis/design-context/mockups/dashboard.html — screen:dashboard — 3-column layout matched, but icon set differs (used Heroicons; mockup shows custom icons — flagged for review)
-
-### Test Results
-**Command**: [test command run]
-**Result**: [N passed, M failed]
-**Details**: [if failures, brief explanation]
-
-### Files Modified
-- path/to/file1.ts (created)
-- path/to/file2.ts (modified)
-
-### Docs Changed
-- .maister/docs/project/architecture.md — [what changed] (or "None")
-
-### Standard Candidates
-- [one line, written as the rule would read] (or "None")
-
-### Notes
-[Any decisions made, blockers encountered, recommendations]
-```
-
-## Test-Driven Enforcement
-
-### Pattern Per Task Group
-
-```
-N.1  - Write tests (2-8 focused tests)
-N.2  - Implementation step
-...
-N.n-1 - Implementation step
-N.n  - Run tests (only this group's tests)
-```
-
-### Enforcement
-
-When processing a group's report, if its test step (N.1) is not marked done while later steps are, ask the user with AskUserQuestion, in plain words — step numbers, checkbox marks and "dispatch" stay in the plan and the work-log, never on screen:
-
-- Question: "Group \<name\> skipped its tests. What now?" — the group's name from the plan, and what the report says about why, in a few words.
-- "Write the tests first (Recommended)": runs the group again to write and run its tests.
-- "Accept without tests: give a reason": the reason is the follow-up answer; mark the test step `- [~] N.1 SKIPPED: <reason>` and continue.
-- "Stop": stop here; nothing more runs.
-
-## Progress Tracking
-
-### Checkbox Marking
-
-**Format**: `- [ ]` → `- [x]` (or `- [~]` for skipped)
-
-**Timing**: Mark a group's checkboxes as soon as its subagent returns — never before, and never for a group that has not reported.
-
-**Responsibility**: Always main agent — subagent does NOT mark checkboxes.
-
-### Work-Log Updates
-
-**Every `[timestamp]` in `work-log.md` comes from the clock.** Run `date -u +%Y-%m-%dT%H:%M:%SZ` right before the entry is written and copy its output into the heading — never a time typed, estimated or carried over from an earlier reading. Entries land minutes apart as groups return, and the log is the run's timeline: a typed time can read as later than the work it records.
-
-Before each wave is dispatched — `--sequential` included, as a wave of one:
-
-```markdown
-## [timestamp] - Wave [K] Started: Groups [A], [B]
-```
-
-After each task group:
-
-```markdown
-## [timestamp] - Group [N] Complete (wave [K])
-
-**Steps**: N.1 through N.M completed
-**Standards Applied**:
-- From plan: [list]
-- From INDEX.md: [list]
-- Discovered: [list with trigger reason]
-**Tests**: [N] passed
-**Files Modified**: [list]
-**Docs Changed**: [paths under `.maister/docs/`, or none]
-**Standard Candidates**: [one line each, or none]
-**Notes**: [any decisions or discoveries]
-```
-
-`Standard Candidates` lines are what finalization offers to add as standards when the run ends, so copy each as the implementer wrote it.
-
-**The heading is a contract, not a caption.** The dashboard reads `current_wave` off
-the wave number in the last such heading, so keep `Group [N] Complete (wave [K])`
-intact and put any annotation after the number — `(wave 2, parallel with Group 3)`
-still reads. A heading that renames those words carries nothing to the dashboard.
-The start heading is a contract in the same way: `Wave [K] Started:` followed by
-the wave's group numbers is what tells the dashboard and the status line which
-groups are running.
-
-When a group is reverted rather than completed, record it in the same shape:
-
-```markdown
-## [timestamp] - Group [N] Reverted (wave [K]): [reason]
-
-**Reverted**: [what was undone]
-**Next**: [retry, manual completion, or stopped for investigation]
-```
-
-The reason after the colon is what the dashboard shows in `reverted`, so write it
-for an operator reading the run at a glance.
-
-## Phase 3: Finalize
-
-1. **Validate completion**:
-   - No `- [ ]` checkboxes remain
-   - All groups have work-log entries
-   - Standards Reading Log is complete
-   - All group tasks are `completed` via `TaskList` (cross-validate against markdown checkboxes)
-
-2. **Run full project test suite** (all tests, not just feature tests — catches regressions in unrelated areas)
-
-3. **Refresh the docs index when documents changed.** Collect the paths under `.maister/docs/` the groups reported under Docs Changed, plus any `git status -- .maister/docs` shows changed. When there are any, invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]" — the check is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, as an absolute path. Log its outcome in the final entry below. A refresh that reports a failure is a warning in the work log, never a reason to stop the phase. Nothing here edits INDEX.md itself.
-
-4. **Final work-log entry**, its timestamp from the clock (§ Work-Log Updates):
-   ```markdown
-   ## [timestamp] - Implementation Complete
-
-   **Total Steps**: [N] completed
-   **Total Standards**: [M] applied
-   **Test Suite**: [status]
-   **Docs Index**: [refreshed for N documents, check passed / not needed / check failed: what]
-   **Duration**: [if tracked]
-   ```
-
-5. **Final re-projection** (§ Dashboard: Re-project Through the Engine), after the final work-log entry. It publishes `groups_done == groups_total`, with the accumulated skipped and reverted groups. Do not complete the phase here: its status stays `in_progress`, because the orchestrator owns completing it (§ 2 state ordering). Do this before returning, so the operator sees a finished implementation while the orchestrator's next phase spins up.
-
-6. **Return summary** to calling orchestrator
-
-## Error Handling
-
-### Subagent Failure
-
-If task-group-implementer reports failure:
-
-1. **Do NOT auto-rollback** - User-confirmed rollback only
-2. **Analyze root cause** from subagent output
-3. **Check for easy fixes**: config issues, missing dependencies, test setup
-4. **Use AskUserQuestion**, four options at most, the cause in the question — "Group \<name\> failed: \<cause in a sentence\>. What now?":
-   - "Apply the suggested fix (Recommended): \<the fix\>" — only when step 3 found one; otherwise "Retry the group" is recommended.
-   - "Retry the group": runs the group again with the failure in its prompt.
-   - "Undo this group's changes": reverts what the group changed.
-   - "Stop": stop here; the group's changes stay as they are.
-
-   When several groups of one wave fail, ask once: one page — one call with a question per failed group, up to four — each worded as above.
-5. **If "Undo this group's changes"**: after the revert, write the revert entry from § Work-Log
-   Updates — `## [timestamp] - Group [N] Reverted (wave [K]): [reason]`, the time from the clock — and clear the
-   group's checkboxes back to `- [ ]`. The entry is the only record of the revert the
-   dashboard can read; a rollback that leaves nothing behind shows up as a group that
-   simply stopped.
-
-### Test Failure
-
-If tests fail after implementation:
-
-1. Analyze failure output
-2. If obvious fix: apply and re-run
-3. If unclear: ask as § Subagent Failure does, the failing test and its cause in the question — "\<test name\> fails in group \<name\>: \<cause\>. What now?" — with the same four options
-
-## Validation Checklist
-
-Before returning success:
-
-### Completion
-- [ ] All steps marked `[x]` or `[~]` (skipped with reason)
-- [ ] All task groups have work-log entries
-- [ ] Full test suite passes
-
-### Standards
-- [ ] Standards Reading Log complete for all groups
-- [ ] All three sources logged: from plan, from INDEX.md, discovered
-- [ ] Standards applied appropriately per step
-
-### Artifacts
-- [ ] implementation-plan.md checkboxes updated
-- [ ] `sync-plan` run after every wave, and any missed marker logged in work-log.md
-- [ ] work-log.md complete with timeline
-- [ ] Dashboard re-projected through `write-state` at entry, at each wave start, as each group of a multi-group wave returned, after every wave, and at finalize — or skipped because the run is standalone or `html_output` is false
-- [ ] No uncommitted partial changes
+A `stopped` summary is a stop: the node records it as it records any stop, the groups done so far
+standing as they are.
+
+## Validation checklist
+
+- `runner-step --runner=implementation` asked before every move, and acted on as printed
+- The runner dispatched with `run_in_background: false` and the `dispatch-model` values
+- Every decision asked from its questions file, the answers recorded under each question's id
+  before `--answered`
+- `unavailable` narrowed through `write-state` before running inline
+- No wave start, group return or work-log entry of the loop's own here while the runner runs it:
+  the runner makes them

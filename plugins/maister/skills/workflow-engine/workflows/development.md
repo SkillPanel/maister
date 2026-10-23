@@ -252,7 +252,9 @@ and the fallback is a recorded note, not a retry.
 **Does.** Three parts: the technical questions and the drafted stories with the
 assumptions page (Asks), then the specification itself, written every time by
 the `maister:specification-creator` agent, handed the `with:` values, Parts A
-and B and the `prior-context --node=specification` output.
+and B and the `prior-context --node=specification` output. Its call carries the
+model and effort `dispatch-model --agent=maister:specification-creator
+--node=specification` prints (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 
 An ingested architecture constrains every part: the interfaces, contracts and
 decisions it names are constraints on this repository's part of the change,
@@ -377,7 +379,9 @@ annotate it. Record the verdict in state.
 
 **The fix pass follows `orchestrator-patterns.md` § 6**, *The Specification
 Audit's Fix Pass*, step by step; the amend passes go to the
-`maister:specification-creator` agent through the Task tool.
+`maister:specification-creator` agent through the Task tool, each with the model
+and effort `dispatch-model --agent=maister:specification-creator --node=spec-audit`
+prints.
 
 **Asks.** Each finding that needs a decision is its own question (step 5
 there): write the auditor's decision findings to
@@ -442,6 +446,13 @@ The sequential input: before invoking the skill, record the input's value as
 node input. When true it runs one task group at a time instead of parallel
 waves; it defaults to parallel.
 
+**The waves run in the executor's hand-off**: it hands them to the
+implementation runner when the run records `nested` delegation, and runs them
+here otherwise. Either way this node asks only the decisions the waves hand
+back — a group that failed after its escalation, a skipped test step, a wave
+past the model budget — and its summary comes from the summary the hand-off
+returns. A summary whose `stopped` is set is a stop: record it as one.
+
 **After the skill returns**, run the engine's `sync-plan` verb once against
 `implementation/implementation-plan.md` — idempotent, a no-op without a
 companion, and it catches a wave whose sync was missed. Then record what landed:
@@ -449,7 +460,8 @@ the groups completed, the files changed and the incremental test results.
 
 **Summary.** The `headline` gives what landed and how the tests stand ("All
 four task groups landed; 40 of 40 tests pass"). In `summary`, the task groups
-completed, the files changed and the incremental test results. In `decisions`,
+completed, the files changed, the incremental test results and the executor's
+model tally ("light 2, standard 2, escalations 1"). In `decisions`,
 each choice the executor made where the plan left room, `by: run`.
 
 **Budget.** Fix a syntax error, an import or a failing test, and re-run. When
@@ -480,71 +492,52 @@ of this node.
 
 ## `verification-options`
 
-**Does.** Writes no files, and decides which reviews run and whether the user
-guide is written. The browser checks are decided at `verification-approval`,
-not here.
+**Does.** Writes no files, and decides whether the user guide is written. The
+reviews are not chosen: verification always runs the tests and the project's
+other checks and the three reviews (spec conformance, code risk, simplicity). The
+browser checks are decided at `verification-approval`, not here.
 
-**Asks.** The checks page: one page of up to two tabs, each answer standing on
-its own.
-
-1. **The reviews tab, which carries the verification plan.** Its question is the
-   plan — the checks that always run, the recommended reviews and one line
-   saying the browser checks are decided at the verification gate. **Each tab
-   states its own choice only**: the user guide belongs to its own tab. Say
-   exactly when the test suite runs: it already passed during implementation,
-   so the first verification pass does not run it again, and it runs on every
-   pass after a fix changes code — "Test suite: passed in implementation (40 of
-   40); runs again after any fix". Never list it under "always runs". The
-   options are the bundles engine `references/in-node-questions.md` names, the
-   four reviews being code review, pragmatic review, reality check and
-   production readiness; "Choose individually" marks none as recommended.
-2. **The user-guide tab — on or off.** The recommended option is the seed
-   `gap-analysis` wrote to `orchestrator.options.user_docs_enabled` — on when it
-   is true, off when it is false or absent — its description giving the reason
-   ("Recommended: the change adds public API, so a usage guide helps"). Its
-   answer is this node's `user_docs_enabled` output.
-<!-- plain-picker
-Under a form picker the page is one form with a property per tab, and "Choose
-individually" opens a second form with one array property holding the four
-reviews, none of them preselected.
--->
+**Asks.** One question, the user guide — on or off. Its text carries the
+verification plan in a few lines: what always runs, and exactly when the test
+suite runs: it already passed during implementation, so the first verification
+pass runs only the other checks, and the suite runs again on every pass after a
+fix changes code — "Test suite: passed in implementation (40 of 40); runs again
+after any fix". One line says the browser checks are decided at the verification
+gate. The recommended option is the seed `gap-analysis` wrote to
+`orchestrator.options.user_docs_enabled` — on when it is true, off when it is
+false or absent — its description giving the reason ("Recommended: the change
+adds public API, so a usage guide helps"). Its answer is this node's
+`user_docs_enabled` output.
 
 The user-docs input (`user_docs_flag`) is tri-state. Absent means ask. `yes` or
-`no` settled it when the run started: leave the user-guide tab off the page,
-record the value as `user_docs_enabled` and its state mirror and as a decision
-— `by: operator` when a person gave it at the start, `by: run` when a
-dispatching run's arguments set it — and say so in one line of the reviews
-tab's plan ("User guide: on — asked for when the run started"). In a terminal
-run the seed is a default for the recommendation, not an answer.
-
-**With question sets** (`standard-verifications`): in this node's one request;
-"Choose individually" is not offered.
-
-**Without question sets** (`standard-verifications`): the
-recommended bundle, all four reviews.
+`no` settled it when the run started: ask nothing, record the value as
+`user_docs_enabled` and its state mirror and as a decision — `by: operator` when
+a person gave it at the start, `by: run` when a dispatching run's arguments set
+it — and say so in the node's summary ("User guide: on — asked for when the run
+started"). In a terminal run the seed is a default for the recommendation, not an
+answer.
 
 **With question sets** (`user-docs`): in this node's one request.
 
 **Without question sets** (`user-docs`): the recommendation, by
 the same rule, recorded as `user_docs_enabled`.
 
-**Writes.** The outcome as `orchestrator.options` keys, by these exact names —
-the verifier reads them to decide which reviews run:
+**Writes.** As `orchestrator.options` keys, by these exact names:
 
-- `code_review_enabled`, `pragmatic_review_enabled`, `reality_check_enabled` and
-  `production_check_enabled` — each true when the chosen bundle or the
-  individual choice includes it, false otherwise.
 - `skip_test_suite` — true here, because the full suite already ran during
   implementation; the fix loop clears it the moment a fix changes code.
-- `user_docs_enabled` — the user-guide tab, mirrored from the declared value.
+- `user_docs_enabled` — the user-guide answer, mirrored from the declared value.
 
 ## `verification`
 
 **Does.** Pass no style guide path: as a skill it resolves the guide itself and
 gates its own companion on the HTML output option.
 
-**The fix loop follows `orchestrator-patterns.md` § 6**, *Fix-Then-Reverify
-Loop*, step by step. What this node adds: **each fix is also logged in the work
+**The loop runs in the verifier's hand-off**: with `work_log: true`, it hands
+the cycles and the fix passes of `orchestrator-patterns.md` § 6 to the
+verification runner when the run records `nested` delegation, and runs them
+here otherwise. Either way this node asks only the decisions the loop hands
+back, as below. What this node adds: **each fix is also logged in the work
 log.**
 
 > **GATE CHECK**: the canonical report and its companion must carry the *final*

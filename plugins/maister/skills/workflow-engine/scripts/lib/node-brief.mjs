@@ -100,6 +100,8 @@ import { briefOfRun } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
 import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
+import { resolveAgent, shippedHost } from './subagents.mjs';
+import { DECISION_BY, HEADLINE_MAX, RISK_TAGS } from './items.mjs';
 
 /** The engine skill beside this module, whose conventions table the brief prints rows of. */
 const SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
@@ -264,6 +266,22 @@ function refuse(code, message) {
   return { ok: false, text: '', errors: [{ code, message: `${code}: ${message}` }], warnings: [] };
 }
 
+/**
+ * The model and effort an `agent:` step's call carries, as `dispatch-model`
+ * resolves them from the block the run froze, for the host this plugin ships
+ * for — `omit` leaving the field off the call.
+ */
+function modelText(agent, node, doc) {
+  const options = isPlainObject(doc.orchestrator) && isPlainObject(doc.orchestrator.options) ? doc.orchestrator.options : {};
+  const answer = resolveAgent(agent, {
+    block: isPlainObject(options.subagents) ? options.subagents : null,
+    workflow: typeof doc.workflow?.name === 'string' ? doc.workflow.name : null,
+    node,
+    host: shippedHost(),
+  });
+  return `model ${answer.model}, effort ${answer.effort} (source: ${answer.source})`;
+}
+
 function entryOf(recorded, id) {
   return isPlainObject(recorded[id]) ? recorded[id] : {};
 }
@@ -284,7 +302,8 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   const dispatched = typeof resolved?.dir === 'string' && resolved.dir !== '';
   const how = dispatched ? `dispatched to ${shown(interpolate(resolved.dir, context))}` : known?.how ?? 'unknown';
 
-  const lines = [`## Node: ${node} — ${title}`, `runs: ${uses ?? scheme} — ${how}`];
+  const model = scheme === 'agent' && uses && !dispatched ? `, ${modelText(uses.slice(uses.indexOf(':') + 1), node, context.doc)}` : '';
+  const lines = [`## Node: ${node} — ${title}`, `runs: ${uses ?? scheme} — ${how}${model}`];
   if (resolved && typeof resolved.when === 'string') lines.push(whenLine(resolved.when, context));
   const attempt = attemptOf(entry);
   const status = entry.status ?? 'pending';
@@ -340,8 +359,42 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (later.length && table !== null) lines.push(`convention (${later.join(', ')}): see rules`);
 
   if (section !== null) lines.push(...seeLines(section));
+  if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues));
   lines.push(`rules: ${rules}`);
   return lines;
+}
+
+/**
+ * The step's closing write with its exact keys, each value a placeholder to
+ * fill: `nodes` and `node_summaries` at the top level, the declared values
+ * typed, `absent` only for an artifact `brief:` lets go unwritten and
+ * `recommends` only where `brief:` maps one onto a gate the step feeds. Printed
+ * because a closing write guessed from memory is what the writer refused most:
+ * a summary key misspelt, a context block or a re-sent `workflow` beside it.
+ */
+function closingLine(node, values, brief, continues) {
+  const typed = Object.entries(values).map(([key, type]) => `${JSON.stringify(key)}: ${placeholderOf(type)}`);
+  const status = `"status": "completed"${typed.length ? `, "values": {${typed.join(', ')}}` : ''}`;
+  const summary = [
+    `"headline": "<one sentence, at most ${HEADLINE_MAX} characters>"`,
+    '"summary": "<what was found and what it means>"',
+    `"decisions": [{"decision": "<…>", "by": "${DECISION_BY.join('|')}"}]`,
+    `"risks": [{"risk": "<…>", "tag": "${RISK_TAGS.join('|')}"}]`,
+  ];
+  const absent = Object.keys(isPlainObject(brief.absent) ? brief.absent : {});
+  if (absent.length) summary.push(`"absent": {${absent.map(key => `${JSON.stringify(key)}: "<reason, only when not written>"`).join(', ')}}`);
+  if (isPlainObject(brief.recommends) && continues.size) {
+    summary.push(`"recommends": {"option": "${[...continues].join('|')}", "reason": "<one line>"}`);
+  }
+  const id = JSON.stringify(node);
+  return `closing patch (fill each <…>; never re-send workflow): {"nodes": {${id}: {${status}}}, "node_summaries": {${id}: {${summary.join(', ')}}}}`;
+}
+
+/** A declared value's placeholder: its literal alternatives, or the kind of string it takes. */
+function placeholderOf(type) {
+  if (type === 'bool') return 'true|false';
+  if (isPlainObject(type) && Array.isArray(type.enum)) return `"${type.enum.join('|')}"`;
+  return `"<${typeof type === 'string' ? type : 'value'}>"`;
 }
 
 /** `when: <guard> — now <true | false | not yet decidable>`, by `gate-brief`'s rule. */

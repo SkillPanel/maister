@@ -125,7 +125,9 @@ operator when the second also comes back thin.
 **Does.** Part A asks the optimization requirements below inline. Part B then
 invokes the specification-creator agent through the Task tool, whatever the
 task's size, with the performance task type, the `with:` values and the
-`prior-context --node=specification` output.
+`prior-context --node=specification` output, and with the model and effort
+`dispatch-model --agent=maister-copilot:specification-creator --node=specification`
+prints (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 
 **Asks.** Part A is **one page of three tabs**:
 
@@ -247,14 +249,21 @@ node input. True runs one task group at a time instead of parallel waves. An
 input the operator did not supply resolves to its declared `default: false` and
 lands as `false`, never `null`.
 
+**The waves run in the executor's hand-off**: it hands them to the
+implementation runner when the run records `nested` delegation, and runs them
+here otherwise. Either way this node asks only the decisions the waves hand
+back — a group that failed after its escalation, a skipped test step, a wave
+past the model budget — and its summary comes from the summary the hand-off
+returns. A summary whose `stopped` is set is a stop: record it as one.
+
 **After the skill returns**, run the engine's `sync-plan` verb once against
 `implementation/implementation-plan.md`: idempotent, and a no-op without a
 companion, it catches a wave whose sync was missed. Then record what landed:
 the groups completed, the files changed and the incremental test results.
 
 **Summary.** The `headline` — the optimizations applied and the test result;
-the optimizations applied, the files changed and the test results from the
-incremental runs in `summary`; a known issue as an `open` risk with its
+the optimizations applied, the files changed, the test results from the
+incremental runs and the executor's model tally in `summary`; a known issue as an `open` risk with its
 `change`, and an item deferred on purpose as a `followup` risk.
 
 **Budget.** Fix a syntax error, an import or a failing test, and re-run. When
@@ -265,37 +274,17 @@ a red suite.
 
 ## `verification-options`
 
-**Does.** Decides which reviews the verification node runs; it writes no files.
+**Does.** Writes no files and asks nothing: verification always runs the tests
+and the project's other checks and the three reviews (spec conformance, code
+risk, simplicity).
 
-**Asks.** **The verification plan is the question's text** — the checks that
-always run (the completeness check, the reality check and the pragmatic review)
-and the recommended reviews, written into the question above its options. Say
-exactly when the test suite runs: it already passed during implementation, so
-the first verification pass does not run it again, and it runs on every pass
-after a fix changes code. Never list it under "always runs".
+**Writes.** `skip_test_suite` as an `orchestrator.options` key, true here — the
+suite already passed during implementation, so the first verification pass runs
+only the other checks, and the fix loop in `verification` clears it the moment a
+fix changes code.
 
-Ask which additional verification checks to run, as bundles in one single-select:
-**"Code review only (Recommended)"**, its reason in the description, then
-**"All four reviews"**, then **"No additional checks"**.
-
-**With question sets** (`standard-verifications`): asked through the cockpit, in
-this node's one request.
-
-**Without question sets** (`standard-verifications`): the
-recommended bundle, code review only — production readiness off. The reality
-check and the pragmatic review always run, so a defaulted run still gets both.
-
-**Writes.** Record the outcome as `orchestrator.options` keys, by these exact
-names — the verifier reads them by name, so a key missing or misspelled silently
-runs a different review set: `code_review_enabled` and
-`production_check_enabled`, each true when the chosen bundle includes it;
-`reality_check_enabled` and `pragmatic_review_enabled`, always true; and
-`skip_test_suite`, true here — the fix loop in `verification` clears it the
-moment a fix changes code.
-
-**Summary.** The review set — code review and production readiness, each on or
-off, beside the reality check and the pragmatic review — and whether the test
-suite re-runs, in `summary`.
+**Summary.** One line: what verification will run, and that the test suite runs
+again after any fix, in `summary`.
 
 ---
 
@@ -308,8 +297,11 @@ itself and gates its own companion on the HTML output option.
 severity, and the report's path from the project root
 (`.maister/tasks/performance/<run>/verification/implementation-verification.md`).
 
-**The fix loop runs on its own for the obvious fixes**, inline, following
-`orchestrator-patterns.md` § 6, *Fix-Then-Reverify Loop*, step by step.
+**The fix loop runs on its own for the obvious fixes**, following
+`orchestrator-patterns.md` § 6, *Fix-Then-Reverify Loop*: the verifier's
+hand-off gives the cycles and the fix passes to the verification runner when
+the run records `nested` delegation, and runs them here otherwise. This node
+asks only the decisions the loop hands back.
 **Never proceed past an unresolved critical issue without an explicit answer
 saying so** — a gate answered from outside is such an answer; a default is not.
 

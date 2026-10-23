@@ -17,9 +17,10 @@
  *
  * - `<run>/display/status.json`, from every state write: the workflow, the
  *   task, the phase by `phaseOf`'s rule, the next checkpoint by
- *   `checkpointOf`'s, the run's status, `line`, the status line composed, when
- *   the run started, the nodes — each one's title and status, and the ones
- *   this write changed — the artifact paths the nodes declare, relative to
+ *   `checkpointOf`'s, the run's status, `line`, the status line composed —
+ *   with the run's delegation mode after the phase while the executor's or
+ *   the verifier's phase is under way — when the run started, the nodes — each one's title and
+ *   status, and the ones this write changed — the artifact paths the nodes declare, relative to
  *   the run directory, and `parts`: the parts of the phase under way, when it
  *   has any — the implementation plan's task groups, or the reviews the
  *   verification phase dispatched — one state each and a line composed to
@@ -57,7 +58,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as canonical from '../../../../lib/canonical.mjs';
 import { isPlainObject } from './state-read.mjs';
-import { humanize, titleOf } from './display.mjs';
+import { delegationOf, humanize, titleOf } from './display.mjs';
 import { frozenIds } from './question-triage.mjs';
 
 /** The directory beside the state file that holds a run's display files. */
@@ -160,13 +161,13 @@ export function checkpointOf(doc, titles) {
  * projects it; `verifier` the node that runs the reviews, or null.
  * Returns the warnings, `{file, code, message}` each.
  */
-export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], progress = {}, verifier = null, banner = null, session = process.env[SESSION_ENV] }) {
+export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], progress = {}, verifier = null, executor = null, banner = null, session = process.env[SESSION_ENV] }) {
   const warnings = [];
   const dir = path.join(runDir, DISPLAY_DIR);
   attempt(warnings, `${DISPLAY_DIR}/${NEXT}`, () => remove(path.join(dir, NEXT)));
   const started = banner !== null ? now : startedOf(dir, doc);
   const before = previousNodes(dir);
-  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, started, before })));
+  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, executor, started, before })));
   if (banner !== null) {
     const { lines, ...card } = banner;
     attempt(warnings, `${DISPLAY_DIR}/${BANNER}`, () => publish(dir, BANNER, { version: VERSION, frozen: now, lines, ...card }));
@@ -197,7 +198,7 @@ export function publishNext({ runDir, panel }) {
  * the status file it replaces (`saved`), whether a gate is under way now, the
  * declared artifact paths (`artifacts`) and the running phase's `parts`.
  */
-function statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, started, before }) {
+function statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, executor, started, before }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const task = isPlainObject(doc.task) ? doc.task : {};
   const name = typeof workflow.name === 'string' && workflow.name !== '' ? humanize(workflow.name) : 'Workflow';
@@ -206,7 +207,8 @@ function statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, ve
   const phase = phaseOf(doc, titles);
   let where = status ?? 'not started';
   if (!ENDINGS.has(status) && phase.title) where = `phase ${phase.index}/${phase.total} · ${phase.title}`;
-  const line = [name, where, ...(title ? [clip(title, TASK_MAX)] : [])].join(' · ');
+  const mode = !ENDINGS.has(status) && phase.title && delegating(doc, verifier, executor) ? delegationOf(doc) : null;
+  const line = [name, where, ...(mode ? [mode] : []), ...(title ? [clip(title, TASK_MAX)] : [])].join(' · ');
   const nodes = {};
   for (const [id, entry] of Object.entries(nodesOf(doc))) {
     nodes[id] = { title: titleOf(titles, id), status: typeof entry.status === 'string' ? entry.status : 'pending' };
@@ -236,6 +238,17 @@ function statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, ve
   };
 }
 
+/** Whether the current phase, by `phaseOf`'s rule, is the node that runs the reviews. */
+function delegating(doc, verifier, executor) {
+  const { phases, at, nodes } = currentPhase(doc);
+  return phases[at] !== undefined && (phases[at] === reviewerOf(nodes, verifier) || phases[at] === executor);
+}
+
+/** The node that runs the reviews: the one the definition names, else a node called `verification`. */
+function reviewerOf(nodes, verifier) {
+  return verifier ?? (Object.hasOwn(nodes, 'verification') ? 'verification' : null);
+}
+
 /**
  * The parts of the phase under way, or null: the current phase by `phaseOf`'s
  * rule, while it runs, when it has parts to show — the implementation plan's
@@ -250,8 +263,7 @@ function partsOf(doc, progress, verifier) {
   if (node === undefined || !ONGOING.has(nodes[node].status)) return null;
   const derived = isPlainObject(progress) && Object.hasOwn(progress, node) ? progress[node] : null;
   if (isPlainObject(derived) && Array.isArray(derived.groups) && derived.groups.length) return groupParts(node, derived);
-  const reviewer = verifier ?? (Object.hasOwn(nodes, 'verification') ? 'verification' : null);
-  if (node === reviewer) return reviewParts(node, doc.verification_context);
+  if (node === reviewerOf(nodes, verifier)) return reviewParts(node, doc.verification_context);
   return null;
 }
 
@@ -268,7 +280,7 @@ function groupParts(node, derived) {
   return { node, kind: 'groups', wave, items, line: terms.join(' · ') };
 }
 
-/** The reviews as parts: `reviews 2 of 5 done · 3 running: pragmatic, reality check, production readiness`. */
+/** The reviews as parts: `reviews 1 of 3 done · 2 running: code risk, simplicity`. */
 function reviewParts(node, context) {
   const reviews = isPlainObject(context) && isPlainObject(context.reviews) ? context.reviews : {};
   const names = list => (Array.isArray(list) ? list.filter(name => typeof name === 'string' && name.trim() !== '').map(name => name.trim()) : []);

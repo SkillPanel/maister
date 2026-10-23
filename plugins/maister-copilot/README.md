@@ -47,7 +47,7 @@ Every command is typed `/maister-copilot:<name>`:
 ```
 /maister-copilot:init
 /maister-copilot:work Add a multiply(a, b) function
-/maister-copilot:reviews-code src/
+/maister-copilot:reviews-code-risk
 ```
 
 A bare `/development` is reported as an unknown command.

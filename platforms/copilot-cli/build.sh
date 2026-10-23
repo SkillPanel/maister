@@ -153,39 +153,52 @@ for f in "$OUT"/hooks/*.mjs; do
   fi
 done
 
+# 6e. Ask the engine for this host's models. Every agent call carries the model
+#     and effort the `dispatch-model` verb resolves, and the verb answers per
+#     host: Claude Code takes a model alias, Copilot a model id (an alias it
+#     accepts without a word and runs another model in its place). Copilot's
+#     task tool also names the effort field `reasoning_effort`, so where prose
+#     names the two fields together the second takes that name.
+find "$OUT" -name "*.md" | while read f; do
+  sedi -e 's/--host=claude/--host=copilot/g' -e 's/`model` and `effort`/`model` and `reasoning_effort`/g' "$f"
+done
+
 # 7. Rename the plugin-root variable in every exec form.
 #    CLAUDE_PLUGIN_ROOT is absent from the shell this CLI gives an agent -- it
 #    sets the variable only for the hooks it runs -- so a skill telling an agent
 #    to run `node ${CLAUDE_PLUGIN_ROOT}/...` here names an empty variable. The
 #    variant names its own variable instead; with it unset the agent builds the
 #    path from the skill's base directory, which the CLI hands every skill, and
-#    the variant's README.md says when exporting it helps. Skills and their
-#    references only: hooks.json keeps CLAUDE_PLUGIN_ROOT, which the hooks do
+#    the variant's README.md says when exporting it helps. Skills, their
+#    references and the commands, which run the engine's verbs too, only: hooks.json keeps CLAUDE_PLUGIN_ROOT, which the hooks do
 #    get, and no .mjs is rewritten for it -- the runtime code reads the variable at
 #    call time and already falls back to its own module location.
-find "$OUT/skills" -name "*.md" | while read f; do
+find "$OUT/skills" "$OUT/commands" -name "*.md" | while read f; do
   sedi 's/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g' "$f"
 done
 
-# 8. Keep every agent from re-entering an entry point.
-#    A Claude Code subagent cannot dispatch subagents. A Copilot one gets every
-#    tool unless its frontmatter narrows them, so a review agent invokes its own
-#    reviews-* skill, which dispatches the same agent again until the sub-agent
-#    depth limit stops it, and an implementer loads an orchestrator skill from
-#    inside itself. Two measures, because the CLI enforces only one of them:
-#    - A tool allowlist without the agent tool, so no agent can dispatch
-#      another. It names both the CLI's aliases and its own tool names (before
-#      1.0.100 the aliases resolved no search, fetch or todo tool, and a model
-#      family that edits by patch gets apply_patch only by name); names a model
-#      family or a session does not have are ignored. The `web` alias is the
-#      documented route to web search, but a session with no search tool of
-#      its own -- the main agent's included -- gives none to its agents, by
-#      alias or by name. The research agents also name the GitHub server's
-#      web_search, so they use it in a session that offers it; where it is
-#      absent the name is ignored. The agents that drive
-#      the browser add the plugin's Playwright MCP server.
-#    - One sentence after the frontmatter, for the skill tool, which the CLI
-#      grants whatever the allowlist says.
+# 8. Give every agent the tools a Claude Code subagent has.
+#    A Claude Code subagent can dispatch subagents of its own, to the host's
+#    depth limit. A Copilot one gets every tool unless its frontmatter narrows
+#    them, and a child's tools are narrowed to its parent's, so an allowlist
+#    without the agent tool would seal every agent below it from nesting. Each
+#    agent gets:
+#    - A tool allowlist with the agent tool, so an agent dispatches a subagent
+#      on both hosts alike. It names both the CLI's aliases and its own tool
+#      names (before 1.0.100 the aliases resolved no search, fetch or todo
+#      tool, and a model family that edits by patch gets apply_patch only by
+#      name); names a model family or a session does not have are ignored. The
+#      `web` alias is the documented route to web search, but a session with no
+#      search tool of its own -- the main agent's included -- gives none to its
+#      agents, by alias or by name. The research agents also name the GitHub
+#      server's web_search, so they use it in a session that offers it; where
+#      it is absent the name is ignored. The agents that drive the browser add
+#      the plugin's Playwright MCP server.
+#    Keeping an agent from re-entering an entry point -- a review agent invoking
+#    its own reviews-* command, which dispatches it again, or an implementer
+#    loading an orchestrator skill -- is the containment sentence every source
+#    agent carries, which make validate checks, with the host's depth limit
+#    bounding a loop that slips past it.
 #    The agent also gets DIR_RULE: Copilot's create tool refuses a path whose
 #    directory is missing, where Claude Code's Write makes it. Step 8c gives
 #    every skill the same rule.
@@ -197,7 +210,7 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
     echo "build: $f already declares tools:; the Copilot allowlist would override it" >&2
     exit 1
   fi
-  tools='"execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"'
+  tools='"execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"'
   case "$(basename "$f" .md)" in
     e2e-test-verifier|user-docs-generator) tools="$tools, \"playwright/*\"" ;;
     information-gatherer|research-planner) tools="$tools, \"github-mcp-server/web_search\"" ;;
@@ -207,19 +220,17 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
     fm==1 && /^name:/ { print; print tools; next }
     fm==1 && $0=="---" {
       fm=2; print; print ""
-      print "**You are a dispatched agent: do this task'"'"'s work yourself.** Never invoke a command or an orchestrator skill with the skill tool — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name."
-      print ""; print dirrule
+      print dirrule
       next
     }
     { print }
   ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 done
 
-# 8b. Run each agent on a model Copilot knows. Source agents name Claude Code's
-#     model aliases: `inherit`, which Copilot does not know and answers with
-#     'auto' -- a model of its own choosing, not the session's -- and `haiku`
-#     for the lightweight ones. An agent with no model runs on the session's,
-#     so `inherit` is dropped; `haiku` becomes a list of lightweight models in
+# 8b. Run each agent on a model Copilot knows. Source agents name no model,
+#     so an agent runs on the session's unless its call carries one (6e), except
+#     the lightweight ones, which name Claude Code's `haiku` as the host-level
+#     fallback. `haiku` becomes a list of lightweight models in
 #     `model`, which the runtime tries in order. (Copilot 1.0.100 did not apply
 #     the same list given as `models` to a plugin agent: it ran on the
 #     session's model.) Any other alias stops the build
@@ -229,9 +240,8 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
   awk -v light="$LIGHT_MODELS" -v file="$f" '
     NR==1 && $0=="---" { fm=1; print; next }
     fm==1 && $0=="---" { fm=2 }
-    fm==1 && /^model:[[:space:]]*inherit[[:space:]]*$/ { next }
     fm==1 && /^model:[[:space:]]*haiku[[:space:]]*$/ { print "model: " light; next }
-    fm==1 && /^model:[[:space:]]*(sonnet|opus|fast|default)[[:space:]]*$/ {
+    fm==1 && /^model:[[:space:]]*(inherit|sonnet|opus|fable|fast|default)[[:space:]]*$/ {
       print "build: " file " names the Claude Code model alias " $2 ", which Copilot does not know" > "/dev/stderr"; bad=1
     }
     { print }

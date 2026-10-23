@@ -15,7 +15,8 @@
  *                  (one workflow found by the name it is run by, with the
  *                  --definition and --overlay values the three verbs above
  *                  take; without --name, the project's own workflows)
- *   write-state    --state, --patch-file (or the patch as JSON on stdin)
+ *   write-state    --state, --patch-file (or the patch as JSON on stdin),
+ *                  --host at the freeze (claude or copilot)
  *                                                             changed paths
  *                  (and, for a node's question set, a blank line and the
  *                  `ask:` line naming the ids still to ask, or `none`; then,
@@ -95,9 +96,51 @@
  *                  (each source copied into the run byte for byte, a
  *                  directory recursively, and each one it could not copy
  *                  with its reason) — writes the copies and no state
+ *   wave-start     --plan, --wave, --groups                   JSON on stdout
+ *                  (the wave's start heading appended to the work log beside
+ *                  the plan, then the run's displays re-projected)
+ *   group-done     --plan, --groups, --entry-file             JSON on stdout
+ *                  (accepted groups recorded in one call: their checkboxes
+ *                  marked, the companion synced, one work-log entry each under
+ *                  the wave that started it, the displays re-projected)
  *   sync-plan      --plan                                     JSON on stdout
  *                  (the plan companion's progress markers set from the
  *                  markdown plan's checkboxes; a no-op without a companion)
+ *   dispatch-model --agent (comma-separated), --host, optional --state,
+ *                  --node (with --state) and --tier         one line per agent
+ *                  naming the model and effort its call carries, or `omit`,
+ *                  and the level that answered; then any notes — the run's
+ *                  frozen block with --state, else the project's config.yml
+ *                  — read-only
+ *   review-brief   --state, or --task-path with --base; optional --base,
+ *                  --cycle, --recheck=tests-only|reviews with --fixed-issues,
+ *                  or --refresh                            the path of the
+ *                  verification cycle's review brief it wrote — what changed
+ *                  since the run's base commit, the run's documents by path,
+ *                  the plan, the test result, the profile, and on a re-check
+ *                  the issues and the fix's snapshots; a part it cannot fill is a
+ *                  `warning:` line — writes only under the run's verification/
+ *   findings-merge --state, or --task-path; optional --cycle  JSON on stdout
+ *                  (the cycle's reviewer findings merged into findings.json,
+ *                  its counts and the issues_found projection) — writes only
+ *                  under the run's verification/
+ *   project-profile the detected profile as JSON on stdin   JSON on stdout
+ *                  (the profile `init` detected, written into the project's
+ *                  .maister/config.yml under `project:` — appended, or the
+ *                  file created — only when no `project:` key is there;
+ *                  an existing key is kept as it is)
+ *   runner-result  --state, --node, optional --runner, --patch-file (or the
+ *                  result as JSON on stdin)                   JSON on stdout
+ *                  (a runner's result — `--runner=verification`, the
+ *                  default, or `implementation` — checked, stamped with the
+ *                  node, its attempt and the cycle or pass, and written to
+ *                  <runner>/runner-result.json)
+ *   runner-step    --state, --node, optional --runner and --answered
+ *                                                             JSON on stdout
+ *                  (what the node running the loop does next: keep it
+ *                  inline, dispatch the runner and with what to resume, ask
+ *                  the decision the runner returned, or close on its end)
+ *                  — writes only <runner>/decisions-<cycle or pass>.json
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -155,10 +198,17 @@ const VERBS = {
   // overlays and the profile a run would add take part only in whether the
   // named workflow is a chain, so they need the name.
   locate: { module: 'locate.mjs', flags: ['name', 'overlay', 'profile'] },
+  // The implementation phase's two bookkeeping moments, one call each. The
+  // plan, as `sync-plan` takes it, because the executor also runs outside an
+  // engine run; the work log and the state are found beside it. The entry file
+  // is the one fixed place an entry is read from (`entryFileOf`).
+  'wave-start': { module: 'plan-progress.mjs', flags: ['plan', 'wave', 'groups'] },
+  'group-done': { module: 'plan-progress.mjs', flags: ['plan', 'groups', 'entry-file'] },
   // `--patch-file` names the one file a patch may be read from, beside the
   // state; it is a flag rather than a derived path so the call says what it
   // reads, and it is checked against that one place (`patchFileOf`).
-  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file'] },
+  // `--host` is read at the freeze only, for the run's delegation record.
+  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file', 'host'] },
   // The flags of `write-state`, and for the same reason: everything the verb
   // needs — the run directory, the `gates/` directory and the frozen graph — is
   // derived from the state file, so there is no second path a caller could get
@@ -236,6 +286,29 @@ const VERBS = {
   // run, and the companion it keeps in step sits beside the plan either way.
   // The run's `html_output` switch is looked up from there when a run exists.
   'sync-plan': { module: 'plan-sync.mjs', flags: ['plan'] },
+  // The model and effort of an agent call, resolved once by the engine so a
+  // fan-out copies the value. `--state` is optional: a skill run outside any
+  // run reads the project's config.yml instead, with no workflow or node scope.
+  'dispatch-model': { module: 'dispatch-model.mjs', flags: ['state', 'agent', 'node', 'tier', 'host'] },
+  // What one verification cycle reviews, measured once. `--state` in a run,
+  // `--task-path` with `--base` outside one; `--base` also stands in for the
+  // base commit a run frozen before it was recorded lacks. The re-check pair
+  // and `--refresh` are the cycle's other two moments.
+  'review-brief': { module: 'review-brief.mjs', flags: ['state', 'task-path', 'base', 'cycle', 'recheck', 'fixed-issues', 'refresh'] },
+  // The cycle's reviewer findings merged into the run's one numbered list.
+  'findings-merge': { module: 'findings-merge.mjs', flags: ['state', 'task-path', 'cycle'] },
+  // The project profile `init` detected, written into the project's
+  // config.yml only when it has no `project:` key. The fields come on stdin:
+  // there is no run, so no run directory to anchor a patch file in.
+  'project-profile': { module: 'project-profile.mjs', flags: [] },
+  // A runner's two ends: its result, written by the runner through the one
+  // place a patch is read from, and the node's next step, read from the run.
+  // `--node` because the node is the one state records as running, and both
+  // check it is; `--runner` names the loop, verification's or
+  // implementation's; `--answered` says the node has just recorded the
+  // answers to the decision the runner returned.
+  'runner-result': { module: 'runner.mjs', flags: ['state', 'node', 'runner', 'patch-file'] },
+  'runner-step': { module: 'runner.mjs', flags: ['state', 'node', 'runner', 'answered'] },
 };
 
 /** This plugin's root, three levels above this file: what the edition check locates. */
@@ -295,7 +368,7 @@ const REPEATABLE = new Set(['overlay', 'area', 'from']);
 const PICKERS = ['rich', 'plain'];
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background']);
+const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -517,6 +590,20 @@ async function runValidate(flags) {
     profile: flags.profile ?? null,
     mode: flags.definition ? 'resolved' : 'standalone',
   });
+  // The subagents blocks a run of these files would read — the project's
+  // config.yml, each overlay and every profile — judged here rather than in
+  // the graph pass: none of it is graph data, and none of it stops a run, so
+  // every finding is a warning, a refused block included.
+  const subagents = await loadModule('subagents.mjs');
+  const warnings = entryOf(subagents, 'subagentsWarnings', 'subagents.mjs')({
+    project: entryOf(module, 'projectRoot', VERBS.validate.module)(),
+    overlays: sources.overlays,
+  });
+  result.warnings.push(...warnings);
+  // The project profile the freeze would copy, judged the same way: a bad
+  // value is a warning, and the run starts with the field left out.
+  const profile = await loadModule('project-profile.mjs');
+  result.warnings.push(...entryOf(profile, 'projectProfile', 'project-profile.mjs')(entryOf(module, 'projectRoot', VERBS.validate.module)()).warnings);
   report(result);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
@@ -597,6 +684,10 @@ async function runLocate(flags) {
 
 async function runWriteState(flags) {
   if (!flags.state) throw new UsageError('write-state needs --state');
+  if (flags.host !== undefined) {
+    const subagents = await loadModule('subagents.mjs');
+    if (!subagents.HOSTS.includes(flags.host)) throw new UsageError(`--host is claude or copilot, not "${flags.host}"`);
+  }
   const module = await loadModule(VERBS['write-state'].module);
   const write = entryOf(module, 'writeState', VERBS['write-state'].module);
   // The verb that freezes a run and carries every write after it, so refusing
@@ -604,7 +695,7 @@ async function runWriteState(flags) {
   // session-start warning is never read. Before stdin, so nothing is written.
   if (refusedForEditions(module, flags)) return EXIT.REJECTED;
   const input = await readInput(flags, 'the patch');
-  const result = write({ state: flags.state, patch: input.document });
+  const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null });
   return reportWrite(result, input, 'writeRefused');
 }
 
@@ -1146,6 +1237,58 @@ async function runSyncPlan(flags) {
   return EXIT.REJECTED;
 }
 
+/** The entry file's one name, beside the plan: `group-done --entry-file` reads it from nowhere else. */
+const ENTRY_FILE = '.work-log-entry.md';
+
+/**
+ * `wave-start` and `group-done` report like `sync-plan`: the result as JSON on
+ * stdout, each warning as a `warning:` line on stderr, a refusal's message on
+ * stderr with its code first and exit 1. `group-done` deletes its entry file
+ * once the entry is in the log, and keeps it on a refusal.
+ */
+async function runWaveStart(flags) {
+  if (!flags.plan) throw new UsageError('wave-start needs --plan');
+  if (!/^[1-9]\d*$/.test(flags.wave ?? '')) throw new UsageError('wave-start needs --wave, the wave\'s number');
+  const module = await loadModule(VERBS['wave-start'].module);
+  const start = entryOf(module, 'waveStart', VERBS['wave-start'].module);
+  return reportProgress(start({ plan: flags.plan, wave: Number(flags.wave), groups: groupsOf(flags, 'wave-start') }));
+}
+
+async function runGroupDone(flags) {
+  if (!flags.plan) throw new UsageError('group-done needs --plan');
+  const groups = groupsOf(flags, 'group-done');
+  if (!flags['entry-file']) throw new UsageError(`group-done needs --entry-file, naming the entry written to ${ENTRY_FILE} beside the plan`);
+  const file = anchoredFile({
+    given: flags['entry-file'],
+    expected: path.join(path.dirname(path.resolve(flags.plan)), ENTRY_FILE),
+    noun: 'the entry file',
+    beside: 'beside the plan it records',
+    Usage: UsageError,
+  });
+  const entry = readFileText(file, 'the work-log entry', UsageError);
+  const module = await loadModule(VERBS['group-done'].module);
+  const done = entryOf(module, 'groupDone', VERBS['group-done'].module);
+  const code = reportProgress(done({ plan: flags.plan, groups, entry }));
+  if (code === EXIT.OK) consumeFile(file);
+  return code;
+}
+
+/** `--groups=3` or `--groups=2,3`: group numbers as the plan writes them. */
+function groupsOf(flags, verb) {
+  const list = String(flags.groups ?? '').replace(/\s+/g, '');
+  if (!/^[1-9]\d*(?:,[1-9]\d*)*$/.test(list)) throw new UsageError(`${verb} needs --groups, the group numbers separated by commas`);
+  return [...new Set(list.split(','))];
+}
+
+function reportProgress(result) {
+  const { warnings = [], ...rest } = result;
+  report(rest);
+  for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  if (result.ok) return EXIT.OK;
+  for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  return EXIT.REJECTED;
+}
+
 /**
  * Say whether a task directory is a run this engine resumes.
  *
@@ -1201,11 +1344,181 @@ async function runImport(flags) {
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
+/**
+ * `dispatch-model` reports like `node-brief`: the text on stdout, a refusal on
+ * stderr with its code first at exit 1, and a finding about the project's
+ * config.yml as one `warning:` line each, exit 0.
+ */
+async function runDispatchModel(flags) {
+  if (!flags.host) throw new UsageError('dispatch-model needs --host=claude or --host=copilot');
+  const module = await loadModule(VERBS['dispatch-model'].module);
+  const subagents = await loadModule('subagents.mjs');
+  if (!subagents.HOSTS.includes(flags.host)) throw new UsageError(`--host is claude or copilot, not "${flags.host}"`);
+  const agents = String(flags.agent ?? '').split(',').map(each => each.trim()).filter(Boolean);
+  if (!agents.length) throw new UsageError('dispatch-model needs --agent, one name or several joined by commas');
+  if (flags.tier !== undefined && !subagents.LADDER.includes(flags.tier)) {
+    throw new UsageError(`--tier is ${subagents.LADDER.slice(0, -1).join(', ')} or ${subagents.LADDER.at(-1)}, not "${flags.tier}"`);
+  }
+  if (flags.node && !flags.state) throw new UsageError('dispatch-model takes --node only with --state: outside a run there is no node to scope by');
+  const resolve = entryOf(module, 'dispatchModel', VERBS['dispatch-model'].module);
+  const result = resolve({ state: flags.state ?? null, agents, node: flags.node ?? null, tier: flags.tier ?? null, host: flags.host });
+  if (!result.ok) {
+    for (const error of result.errors) process.stderr.write(`${error.message}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(result.text);
+  for (const warning of result.warnings) process.stderr.write(`warning: ${warning}\n`);
+  return EXIT.OK;
+}
+
+/**
+ * `review-brief` reports like `finding-brief --patch-file`: the written
+ * file's path on stdout, a refusal on stderr with its code first at exit 1,
+ * and each part it could not fill as one `warning:` line, exit 0.
+ */
+async function runReviewBrief(flags) {
+  const where = runFlags(flags, 'review-brief');
+  if (flags['task-path'] !== undefined && flags.base === undefined) {
+    throw new UsageError('review-brief --task-path needs --base, the commit the work started from: outside a run there is no recorded base');
+  }
+  const cycle = cycleOf(flags, 'review-brief');
+  const recheck = flags.recheck ?? null;
+  const fixedIssues = flags['fixed-issues'] === undefined ? [] : idsOf(flags['fixed-issues']);
+  if (recheck !== null && !['tests-only', 'reviews'].includes(recheck)) {
+    throw new UsageError(`--recheck is tests-only or reviews, not "${recheck}"`);
+  }
+  if ((recheck === null) !== (flags['fixed-issues'] === undefined)) {
+    throw new UsageError('review-brief takes --recheck and --fixed-issues together: the kind of re-check and the issue numbers it re-checks');
+  }
+  if (flags.refresh && (recheck !== null || flags.base !== undefined)) {
+    throw new UsageError('review-brief --refresh re-reads the test result of an existing brief, and takes no --recheck, --fixed-issues or --base');
+  }
+  const module = await loadModule(VERBS['review-brief'].module);
+  const build = entryOf(module, 'reviewBrief', VERBS['review-brief'].module);
+  const result = build({ ...where, base: flags.base ?? null, cycle, recheck, fixedIssues, refresh: flags.refresh === true, pluginRoot: PLUGIN_ROOT });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(`${result.file}\n`);
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
+  return EXIT.OK;
+}
+
+/**
+ * `findings-merge` reports like `resume-check`: the result as JSON on stdout,
+ * a refusal's code first on stderr at exit 1, and each file or finding it
+ * skipped as one `warning:` line, exit 0.
+ */
+async function runFindingsMerge(flags) {
+  const where = runFlags(flags, 'findings-merge');
+  const module = await loadModule(VERBS['findings-merge'].module);
+  const merge = entryOf(module, 'findingsMerge', VERBS['findings-merge'].module);
+  const { warnings = [], ...result } = merge({ ...where, cycle: cycleOf(flags, 'findings-merge') });
+  report(result);
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
+/**
+ * `project-profile` reports like `findings-merge`: the result as JSON on
+ * stdout — the action, the file, the fields written and the block — a
+ * refusal's code first on stderr at exit 1, and each field it could not write
+ * as one `warning:` line, exit 0. The project root is the engine's own.
+ */
+async function runProjectProfile(flags) {
+  const module = await loadModule(VERBS['project-profile'].module);
+  const write = entryOf(module, 'writeProfile', VERBS['project-profile'].module);
+  const graph = await loadModule(VERBS.validate.module);
+  const input = await readInput(flags, 'the detected profile');
+  const { warnings = [], ...result } = write({ root: entryOf(graph, 'projectRoot', VERBS.validate.module)(), detected: input.document });
+  report(result);
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
+/**
+ * `runner-result` reports like `findings-merge`: the written result as JSON on
+ * stdout, a refusal's code first on stderr at exit 1 with the patch file kept
+ * for correcting, and the patch file deleted once the result landed.
+ */
+async function runRunnerResult(flags) {
+  if (!flags.state) throw new UsageError('runner-result needs --state');
+  if (!flags.node) throw new UsageError('runner-result needs --node: the node the runner ran for');
+  const module = await loadModule(VERBS['runner-result'].module);
+  const runner = runnerOf(flags, 'runner-result', module);
+  const input = await readInput(flags, 'the runner result');
+  const write = entryOf(module, 'runnerResult', VERBS['runner-result'].module);
+  const result = write({ state: flags.state, node: flags.node, document: input.document, runner });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  if (input.file) consumeFile(input.file);
+  process.stdout.write(`${JSON.stringify(result.result, null, 2)}\n`);
+  return EXIT.OK;
+}
+
+/**
+ * `runner-step` prints the node's next step as one JSON object; a refusal's
+ * code first on stderr at exit 1, and each file it could not use as one
+ * `warning:` line, exit 0.
+ */
+async function runRunnerStep(flags) {
+  if (!flags.state) throw new UsageError('runner-step needs --state');
+  if (!flags.node) throw new UsageError('runner-step needs --node: the node that is running the loop');
+  const module = await loadModule(VERBS['runner-step'].module);
+  const runner = runnerOf(flags, 'runner-step', module);
+  const step = entryOf(module, 'runnerStep', VERBS['runner-step'].module);
+  const result = step({ state: flags.state, node: flags.node, answered: flags.answered === true, runner });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(`${JSON.stringify(result.step)}\n`);
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
+  return EXIT.OK;
+}
+
+/** The loop `--runner` names, verification's when it is absent. */
+function runnerOf(flags, verb, module) {
+  if (flags.runner === undefined) return 'verification';
+  if (typeof flags.runner !== 'string' || !module.RUNNERS.includes(flags.runner)) {
+    throw new UsageError(`${verb} --runner must be one of ${module.RUNNERS.join(', ')}`);
+  }
+  return flags.runner;
+}
+
+/** `--state` in a run or `--task-path` outside one: exactly one of them. */
+function runFlags(flags, verb) {
+  if ((flags.state === undefined) === (flags['task-path'] === undefined)) {
+    throw new UsageError(`${verb} needs --state (the run's orchestrator-state.yml) or --task-path (a task directory outside a run), one of them`);
+  }
+  return flags.state !== undefined ? { state: flags.state, taskPath: null } : { state: null, taskPath: flags['task-path'] };
+}
+
+function cycleOf(flags, verb) {
+  if (flags.cycle === undefined) return null;
+  if (!/^[1-9]\d*$/.test(flags.cycle)) throw new UsageError(`${verb} takes --cycle as a cycle number, 1 or more`);
+  return Number(flags.cycle);
+}
+
+/** `--fixed-issues=3,7`: issue numbers as the merged findings number them. */
+function idsOf(value) {
+  const list = String(value).replace(/\s+/g, '');
+  if (!/^[1-9]\d*(?:,[1-9]\d*)*$/.test(list)) throw new UsageError('--fixed-issues takes issue numbers separated by commas');
+  return [...new Set(list.split(',').map(Number))];
+}
+
 const RUNNERS = {
   validate: runValidate,
   resolve: runResolve,
   diagram: runDiagram,
   locate: runLocate,
+  'wave-start': runWaveStart,
+  'group-done': runGroupDone,
   'write-state': runWriteState,
   'gate-request': runGateRequest,
   'gate-revise': runGateRevise,
@@ -1220,6 +1533,12 @@ const RUNNERS = {
   'subrun-path': runSubrunPath,
   import: runImport,
   'sync-plan': runSyncPlan,
+  'dispatch-model': runDispatchModel,
+  'review-brief': runReviewBrief,
+  'findings-merge': runFindingsMerge,
+  'project-profile': runProjectProfile,
+  'runner-result': runRunnerResult,
+  'runner-step': runRunnerStep,
 };
 
 // ---------------------------------------------------------------------------

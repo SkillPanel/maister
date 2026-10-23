@@ -110,6 +110,8 @@ function isolated(env) {
   // A suite run from inside a session would otherwise write that session's run
   // pointer into every scratch project; a test that wants one names its own.
   delete childEnv.CLAUDE_CODE_SESSION_ID;
+  // The freeze reads the subagent depth from it; a test that wants one names its own.
+  delete childEnv.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH;
   return Object.assign(childEnv, env);
 }
 
@@ -197,6 +199,41 @@ export function sibling(run, { type, name }) {
   const dir = path.join(run.root, relative);
   fs.mkdirSync(dir, { recursive: true });
   return { root: run.root, dir, path: relative, name, state: path.join(dir, 'orchestrator-state.yml') };
+}
+
+/**
+ * Run git in a scratch project with the isolated configuration the engine's
+ * children see, a fixed author and no signing; fail loudly on a non-zero exit.
+ * Returns stdout.
+ */
+export function git(root, args) {
+  const result = spawnSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    env: isolated({
+      GIT_AUTHOR_NAME: OPERATOR, GIT_AUTHOR_EMAIL: 'tester@example.com',
+      GIT_COMMITTER_NAME: OPERATOR, GIT_COMMITTER_EMAIL: 'tester@example.com',
+    }),
+  });
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')} exited ${result.status}: ${result.stderr}`);
+  return result.stdout;
+}
+
+/**
+ * A scratch project that is a git repository: `files` (path to content)
+ * written and committed as its first commit, then the run directory beside
+ * them, as `scratch` lays it out. The run is not frozen.
+ */
+export function gitScratch(t, files = {}, options = {}) {
+  const run = scratch(t, options);
+  git(run.root, ['-c', 'init.defaultBranch=main', 'init', '-q']);
+  for (const [file, text] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(run.root, file)), { recursive: true });
+    fs.writeFileSync(path.join(run.root, file), text);
+  }
+  git(run.root, ['add', '-A', '--', '.', ':(exclude).maister']);
+  git(run.root, ['commit', '-q', '--allow-empty', '-m', 'initial']);
+  return run;
 }
 
 /** Write a patch through `write-state` and fail loudly if it was refused. */

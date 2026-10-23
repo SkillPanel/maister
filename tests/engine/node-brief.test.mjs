@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, scratch, scratchPlugin, run, sibling, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, scratch, scratchPlugin, run, sibling, verb, write } from '../helpers.mjs';
 
 // The brief a step reads before it runs: the facts the engine derives for it —
 // how it runs, its guard, its attempt, its inputs filled in, the files it
@@ -47,6 +47,11 @@ function conventions(skill = SKILL) {
 const row = key => `convention (${key}): ${conventions()[key]}`;
 const LATER = 'convention (named by a revise, has a budget): see rules';
 
+/** The closing patch skeleton a step's brief prints, its node entry and any summary keys beyond the four every step has. */
+const SUMMARY_KEYS = '"headline": "<one sentence, at most 220 characters>", "summary": "<what was found and what it means>", "decisions": [{"decision": "<…>", "by": "operator|run|audit|default"}], "risks": [{"risk": "<…>", "tag": "open|tradeoff|followup|stop|resolved"}]';
+const closing = (node, entry = '"status": "completed"', extra = '') => 'closing patch (fill each <…>; never re-send workflow): '
+  + `{"nodes": {"${node}": {${entry}}}, "node_summaries": {"${node}": {${SUMMARY_KEYS}${extra}}}}`;
+
 /** Every file under `dir`, by relative path, with its text: equal before and after means nothing was written. */
 function snapshot(dir) {
   const files = {};
@@ -74,7 +79,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   const [header, slice] = [gap.stdout.slice(0, gap.stdout.indexOf('\n\n')), gap.stdout.slice(gap.stdout.indexOf('\n\n') + 2)];
   assert.deepEqual(header.split('\n'), [
     '## Node: gap-analysis — Gap analysis',
-    'runs: agent:gap-analyzer — Task tool',
+    'runs: agent:gap-analyzer — Task tool, model omit, effort omit (source: shipped default)',
     'with:',
     `- analysis: ${RUN_PATH}/analysis/codebase-analysis.md`,
     `- clarifications: ${RUN_PATH}/analysis/clarifications.md`,
@@ -92,6 +97,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     row('asks'),
     row('feeds a checkpoint'),
     LATER,
+    closing('gap-analysis', '"status": "completed", "values": {"has_reproducible_defect": true|false, "mockups_needed": true|false, "risk_level": "high|medium|low"}'),
     RULES,
   ]);
   assert.ok(slice.trim().length > 0 && !slice.startsWith('\n'), 'the section follows the one blank line');
@@ -120,6 +126,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     'with:',
     'asks (in session): standard-candidates',
     row('asks'),
+    closing('finalization'),
     RULES,
   ]);
 
@@ -164,6 +171,7 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
     row('feeds a checkpoint'),
     LATER,
     `see: ${path.join(DEFINITIONS, 'node-brief.md')} § Embedded mode`,
+    closing('draft', undefined, ', "absent": {"extras": "<reason, only when not written>"}, "recommends": {"option": "continue-to-audit|continue-to-wrap-up", "reason": "<one line>"}'),
     RULES,
     '',
     '**Does.** Write the notes from the scope. As a child run, *Embedded mode* applies.',
@@ -538,4 +546,53 @@ test('node-brief: a dispatched node prints its dir: filled in, as its with: valu
   assert.match(nodeBrief(sample.state, 'remote').stdout, /^runs: workflow:node-brief — dispatched to members\/\(not recorded yet\)$/m);
   write(sample, { nodes: { scope: { status: 'completed', values: { wants_audit: false, focus: 'narrow' } } } });
   assert.match(nodeBrief(sample.state, 'remote').stdout, /^runs: workflow:node-brief — dispatched to members\/narrow$/m);
+});
+
+test('node-brief: an agent step\'s runs line carries the model and effort the run froze, for the host the plugin ships for', t => {
+  const dev = scratch(t);
+  const config = path.join(dev.root, '.maister', 'config.yml');
+  fs.mkdirSync(path.dirname(config), { recursive: true });
+  fs.writeFileSync(config, [
+    'subagents:',
+    '  agents:',
+    '    gap-analyzer: { tier: standard }',
+    '  workflows:',
+    '    development:',
+    '      nodes:',
+    '        gap-analysis: { agents: { gap-analyzer: { tier: deep, effort: high } } }',
+    '',
+  ].join('\n'));
+  const { patch } = freezePatch({ definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  const frozen = verb(['write-state', `--state=${dev.state}`], patch, { CLAUDE_PROJECT_DIR: dev.root });
+  assert.equal(frozen.code, 0, frozen.stderr);
+
+  const runsOf = result => result.stdout.split('\n').find(line => line.startsWith('runs:'));
+  const claude = nodeBrief(dev.state, 'gap-analysis');
+  assert.equal(claude.code, 0, claude.stderr);
+  assert.equal(runsOf(claude), 'runs: agent:gap-analyzer — Task tool, model opus, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
+
+  // The generated variant ships for Copilot, so the same run's brief names Copilot's model id.
+  const copilot = run(path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${dev.state}`, '--node=gap-analysis']);
+  assert.equal(copilot.code, 0, copilot.stderr);
+  assert.equal(runsOf(copilot), 'runs: agent:gap-analyzer — Task tool, model claude-opus-5.5, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
+
+  // A direct or skill step's runs line is as it was.
+  assert.equal(runsOf(nodeBrief(dev.state, 'finalization')), 'runs: direct:finalization — inline');
+});
+
+test('node-brief: the closing patch skeleton names the exact keys, and no gate or child run gets one', t => {
+  const dev = scratch(t);
+  freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  const lines = id => nodeBrief(dev.state, id).stdout.split('\n');
+  const skeleton = lines('gap-analysis').find(line => line.startsWith('closing patch'));
+  const json = JSON.parse(skeleton.slice(skeleton.indexOf('{')).replace(/true\|false/g, 'true'));
+  assert.deepEqual(Object.keys(json), ['nodes', 'node_summaries'], 'nodes and summaries at the top level, never workflow');
+  assert.deepEqual(Object.keys(json.nodes['gap-analysis']), ['status', 'values']);
+  assert.deepEqual(Object.keys(json.node_summaries['gap-analysis']), ['headline', 'summary', 'decisions', 'risks']);
+  assert.ok(!lines('gap-approval').some(line => line.startsWith('closing patch')), 'a gate is closed from gate-brief');
+  const sample = scratch(t);
+  freeze(sample);
+  const child = nodeBrief(sample.state, 'research');
+  assert.equal(child.code, 0, child.stderr);
+  assert.doesNotMatch(child.stdout, /^closing patch/m, 'a child run\'s outcome is mapped, not written from a skeleton');
 });

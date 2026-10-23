@@ -124,7 +124,9 @@ operator when the second also comes back thin.
 break down, with the rollback procedure beside it, in two parts: Part A frames
 the migration requirements inline (Asks below), and Part B hands them to the
 specification-creator agent, whatever the migration's size, with the migration
-task type.
+task type and the model and effort `dispatch-model
+--agent=maister:specification-creator --node=specification` prints
+(`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 
 Hand the creator two things beyond `with:` and `prior-context`: the
 requirements Part A wrote, `analysis/requirements.md`, and the migration facts
@@ -206,13 +208,21 @@ Before invoking the skill, record the `sequential` input as
 node input — as `false`, never `null`, when the operator did not supply it.
 True runs one task group at a time instead of parallel waves.
 
+**The waves run in the executor's hand-off**: it hands them to the
+implementation runner when the run records `nested` delegation, and runs them
+here otherwise. Either way this node asks only the decisions the waves hand
+back — a group that failed after its escalation, a skipped test step, a wave
+past the model budget — and its summary comes from the summary the hand-off
+returns. A summary whose `stopped` is set is a stop: record it as one.
+
 After the skill returns, run the engine's `sync-plan` verb once against
 `implementation/implementation-plan.md`: idempotent, and a no-op without a
 companion, it catches a wave whose sync was missed.
 
 **Summary.** A `headline` naming the steps completed, the test result and
 whether the rollback is still ready; the steps completed, the files changed,
-the incremental test results and the rollback readiness in `summary`; a known
+the incremental test results, the rollback readiness and the executor's model
+tally in `summary`; a known
 issue as an `open` risk with its `change`, and an item deferred on purpose as a
 `followup` risk.
 
@@ -224,15 +234,14 @@ suite.
 
 ## `verification`
 
-**Does.** Pass no style guide path; the verifier resolves its own.
+**Does.** Pass no style guide path; the verifier resolves its own. Invoke it
+with `fixes: off`: it runs one verification cycle, through the verification
+runner when the run records `nested` delegation and here otherwise, and fixes
+nothing — the fix loop is `issue-resolution`'s.
 
-Record the review set before invoking it: this workflow asks no
-verification-options question, and the verifier would ask about a review flag
-missing from state. Write these `orchestrator.options` keys by these exact
-names: `code_review_enabled`, `pragmatic_review_enabled` and
-`reality_check_enabled` true; `production_check_enabled` false, since the
-checks below cover a migration's deployment risks; and `skip_test_suite` false
-— a migration is verified against the full suite.
+Before invoking it, write `skip_test_suite` false as an `orchestrator.options`
+key: a migration is verified against the full suite. The reviews are not chosen:
+the verifier always runs the three (spec conformance, code risk, simplicity).
 
 After the verifier returns, run the four migration-specific checks:
 
@@ -244,9 +253,14 @@ After the verifier returns, run the four migration-specific checks:
 4. **Performance benchmarks**, before and after, when the specification set any.
 
 The verifier has already recorded `verification_context.last_status` and
-`issues_found`. Add each issue a check raised to `issues_found` (the issue
-shape of `orchestrator-patterns.md` § 4), sending the whole list, since a list
-replaces what it lands on. Then **declare `issues_to_resolve`**: true when the
+`issues_found`. Write each issue a check raised as a finding of
+`verification/migration-checks-findings.json`, in the reviewers' findings
+schema (`implementation-verifier/references/review-findings.md`) with the
+cycle the verifier ran; a data integrity issue takes `category:
+data-integrity` and `fixable: false`. Then run `findings-merge --state=<state>`
+again and record `verification_context.issues_found` exactly as it prints, so
+the issues keep their numbers in every later cycle. Then **declare
+`issues_to_resolve`**: true when the
 report carries an open issue the fix loop can fix or needs a decision on,
 **or** any data integrity issue — never fixed here; `issue-resolution` owns
 its halt.
@@ -274,10 +288,16 @@ on it.
 
 **Does.** Runs the fix loop of `orchestrator-patterns.md` § 6 on the
 verifier's issues, after showing the verdict, the counts by severity and the
-report's path from the project root. It adds: each fix is also logged in the
-work log; a change the user picks is applied, logged and re-checked here,
-because the gate after this node offers no revise; and a data integrity issue
-is never fixed and never a finding (Asks below).
+report's path from the project root. Once the data integrity question below is
+settled, invoke the verifier's hand-off (Skill tool,
+`maister:implementation-verifier`) with `node: issue-resolution`, `fixes: on`,
+`findings_file: verification/issue-resolution-findings.json`, `work_log: true`
+and `hold: data-integrity`: it hands the fix passes and re-checks to the
+verification runner when the run records `nested` delegation, and runs them
+here otherwise, and this node asks only the decisions it hands back. It adds:
+each fix is also logged in the work log; a change the user picks is applied,
+logged and re-checked here, because the gate after this node offers no revise;
+and a data integrity issue is never fixed and never a finding (Asks below).
 
 **Asks.** Write the issues still needing a person to
 `verification/issue-resolution-findings.json`, each `id` the verifier's

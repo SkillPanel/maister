@@ -93,7 +93,7 @@ Read the template for each phase you will run — they define the YAML output sc
 
 **Step 3: Adapt templates** — Replace `[scope]`, `[confidence]`, and other placeholders with actual values. Replace the `[output_file]` placeholder in each template with the actual temp file path for that phase (e.g., `{tmpdir}/config.yml`).
 
-**Step 4: Launch subagents in parallel** — Use the Task tool with `subagent_type: general-purpose` for each phase.
+**Step 4: Launch subagents in parallel** — Use the Task tool with `subagent_type: general-purpose` for each phase, each with the model and effort `dispatch-model --agent=general-purpose` prints once just before the launch (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
 
 **Step 5: Wait** for ALL subagents to complete, then read each temp file using the Read tool to collect findings.
 
@@ -143,7 +143,7 @@ If `--auto-apply` is set, automatically approve findings with confidence >= 90% 
 Write standard files through the docs-operator subagent rather than Write/Edit, so INDEX.md and CLAUDE.md stay consistent with the files.
 
 1. **Prepare content** for every approved standard — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. A rule cites at most one example path — never an inventory of call sites, a date or a ticket reference. Note create vs update for each target file, and prefer a new topic file (or a sub-folder for a topic with several) over appending to a file already past about 12 KB or 15 rules.
-2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister:docs-operator`) with all prepared standards, instructing it to apply each create/update (merging updates with existing content), then refresh INDEX.md with every written path as changed — `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, as an absolute path — and confirm CLAUDE.md references the standards directory.
+2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `dispatch-model --agent=maister:docs-operator`) with all prepared standards, instructing it to apply each create/update (merging updates with existing content), then refresh INDEX.md with every written path as changed — `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, as an absolute path — and confirm CLAUDE.md references the standards directory.
 
 Display application summary: created count, updated count, total active.
 

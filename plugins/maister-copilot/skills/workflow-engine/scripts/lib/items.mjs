@@ -352,6 +352,25 @@ export function firstSentence(text) {
   return text;
 }
 
+/**
+ * A headline folded onto one line and fitted to `HEADLINE_MAX`: the whole
+ * sentences that fit, else the first sentence cut at a word. The writer applies
+ * it to a headline that spans lines or runs long rather than refusing the write
+ * over its layout; the same text, unchanged, when it already fits.
+ */
+export function fittedHeadline(text) {
+  const folded = oneLine(text);
+  if ([...folded].length <= HEADLINE_MAX) return folded;
+  let fitted = '';
+  for (const match of folded.matchAll(SENTENCE_END)) {
+    if (ABBREVIATION.test(folded.slice(0, match.index))) continue;
+    const upTo = folded.slice(0, match.index + match[0].length).trimEnd();
+    if ([...upTo].length > HEADLINE_MAX) break;
+    fitted = upTo;
+  }
+  return fitted !== '' ? fitted : clipWords(firstSentence(folded), HEADLINE_MAX);
+}
+
 /** `text` cut at a word to at most `max` characters, an ellipsis marking the cut. */
 export function clipWords(text, max) {
   if (text.length <= max) return text;

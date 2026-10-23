@@ -110,6 +110,21 @@ export function headerOf({ headers, titles }, gate, closing = null) {
 }
 
 /**
+ * The word a viewer shows for the run's delegation record, `nested` or
+ * `inline`, read off `orchestrator.options.delegation.mode` of a parsed state
+ * document; null when the run recorded none, or a mode no viewer knows.
+ */
+export function delegationOf(doc) {
+  const orchestrator = isMap(doc) && isMap(doc.orchestrator) ? doc.orchestrator : null;
+  const options = orchestrator && isMap(orchestrator.options) ? orchestrator.options : null;
+  const mode = options && isMap(options.delegation) ? options.delegation.mode : null;
+  return DELEGATION_MODES.includes(mode) ? mode : null;
+}
+
+/** The delegation modes the freeze records. */
+const DELEGATION_MODES = ['nested', 'inline'];
+
+/**
  * The display a resolved graph carries: `{icons, titles, option_labels,
  * headers}`, each a null-prototyped map keyed by node id — `option_labels` one
  * level deeper, by option id, and merged option by option, so an overlay can

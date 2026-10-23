@@ -171,8 +171,8 @@ const TUNABLE = ['with', 'provider'];
  * the set.
  */
 const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes', 'html_companions', 'brief'];
-const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display', 'html_companions', 'brief'];
-const PROFILE_KEYS = ['disable', 'tune', 'add', 'display', 'html_companions', 'brief'];
+const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display', 'html_companions', 'brief', 'subagents'];
+const PROFILE_KEYS = ['disable', 'tune', 'add', 'display', 'html_companions', 'brief', 'subagents'];
 const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
 
 /**
