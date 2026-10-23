@@ -94,3 +94,50 @@ test('a standard-candidates request carries the none option, and that option alo
   const empty = foldAnswer(requestQuestions(request), { answers: { 'standard-candidates': [] } });
   assert.equal(empty.ok, false, 'an empty selection is not an answer, which is why the none option exists');
 });
+
+// What a candidate is, how one is written and how finalization consolidates
+// them is described once, in docs-manager's reference. Pinned here: each guide
+// consolidates through docs-operator on its dispatch-model values before it
+// offers anything, worded alike, and every step that writes or takes a
+// candidate points at the one reference rather than restating it.
+
+const PLUGIN_DIR = path.resolve(ENGINE_DIR, '..', '..');
+const REFERENCE = 'references/standard-candidates.md';
+
+/** A numbered step of a section, as one line of text. */
+function step(section, number) {
+  const start = section.indexOf(`\n${number}. `);
+  assert.notEqual(start, -1, `step ${number} is there`);
+  const end = section.indexOf(`\n${number + 1}. `, start);
+  return section.slice(start + 1, end === -1 ? undefined : end).replace(/\s+/g, ' ');
+}
+
+test('each guide consolidates the candidates through docs-operator before offering them, worded alike', () => {
+  const steps = ASKERS.map(workflow => {
+    const consolidate = step(sectionOf(workflow, 'finalization'), 4);
+    assert.ok(consolidate.includes('`dispatch-model --agent=maister:docs-operator`'), `${workflow}: the call takes its dispatch-model values`);
+    assert.ok(consolidate.includes('"Consolidate standard candidates.'), `${workflow}: the call names the docs-manager operation`);
+    assert.ok(consolidate.includes(`\`${REFERENCE}\``), `${workflow}: the step points at the reference`);
+    assert.ok(consolidate.includes('offered as written'), `${workflow}: a failed consolidation still offers the lines`);
+    return consolidate;
+  });
+  for (const each of steps.slice(1)) assert.equal(each, steps[0], 'the three guides word the step alike');
+});
+
+test('the candidate description lives in one reference that every other step points at', () => {
+  const read = file => fs.readFileSync(path.join(PLUGIN_DIR, file), 'utf8').replace(/\s+/g, ' ');
+  const reference = read(`skills/docs-manager/${REFERENCE}`);
+  for (const heading of ['## What a candidate is', '## How one is written', '## Where one belongs', '## Consolidation']) {
+    assert.ok(reference.includes(heading), `the reference holds ${heading}`);
+  }
+  const pointers = {
+    'agents/task-group-implementer.md': `skills/docs-manager/${REFERENCE}`,
+    'agents/implementation-runner.md': `skills/docs-manager/${REFERENCE}`,
+    'skills/standards-update/SKILL.md': `skills/docs-manager/${REFERENCE}`,
+    'skills/docs-manager/SKILL.md': `\`${REFERENCE}\``,
+    'skills/orchestrator-framework/references/orchestrator-patterns.md': `\`${REFERENCE}\``,
+  };
+  for (const [file, pointer] of Object.entries(pointers)) {
+    assert.ok(read(file).includes(pointer), `${file} points at the reference`);
+  }
+});

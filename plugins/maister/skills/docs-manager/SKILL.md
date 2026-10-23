@@ -1,12 +1,12 @@
 ---
 name: docs-manager
-description: Internal engine for managing project documentation and technical standards in .maister/docs/. Handles file operations, INDEX.md refresh, and CLAUDE.md integration. Invoked by maister:init, standards-update, and standards-discover skills.
+description: Internal engine for managing project documentation and technical standards in .maister/docs/. Handles file operations, INDEX.md refresh, CLAUDE.md integration, and the consolidation of standard candidates at a workflow's finalization. Invoked by maister:init, standards-update, standards-discover and workflow finalization.
 user-invocable: false
 ---
 
 # Documentation Manager (Internal Engine)
 
-Internal skill that manages documentation file operations in `.maister/docs/`. Not directly user-invocable — called by `maister:init`, `standards-update`, and `standards-discover` skills.
+Internal skill that manages documentation file operations in `.maister/docs/`. Not directly user-invocable — called by `maister:init`, `standards-update`, and `standards-discover` skills, and by a workflow's finalization to consolidate its standard candidates.
 
 ## Core Principles
 
@@ -77,6 +77,7 @@ This skill bundles the following resources within the plugin:
   - `backend/` - Backend-specific standards (API design, database, queries, etc.)
   - `testing/` - Testing standards (test writing, coverage, etc.)
 - **INDEX.md Template**: Master template for documentation index
+- **Standard candidates**: `references/standard-candidates.md` — the one description of a standard candidate: what it is, how one is written, where it belongs, and how finalization consolidates them
 - **Index check**: `scripts/docs-check.mjs` — reports whether INDEX.md still maps the documents (see Refresh INDEX.md)
 
 ## Location Reference
@@ -312,6 +313,16 @@ Use this to check that documentation is consistent, up-to-date, and properly int
 
 ---
 
+### 9. Consolidate Standard Candidates
+
+Use this at a workflow's finalization, before its standard candidates are offered. Read-only: it writes no document and refreshes no index.
+
+**What to do:** follow *Consolidation* in `references/standard-candidates.md` over the candidate lines the caller passes, with the project's own wording from its `CLAUDE.md` block and the top of INDEX.md taking precedence over that file's description. Return the consolidated list and the already-held lines as that section says; no choice is returned as a decision needed — the caller asks the person.
+
+**Result:** fewer, clearer candidates, each with its suggested destination and its evidence, for the person to choose from.
+
+---
+
 ## Usage Examples
 
 **Initialize documentation in a new project:**
@@ -367,6 +378,6 @@ What a team keeping its documentation in `.maister/docs/` should know:
 - **Project documentation is source of truth** — plugin-bundled docs are baseline/reference only
 - **INDEX.md changes only through Refresh INDEX.md** — never edited by hand, never rewritten whole
 - **CLAUDE.md integration is mandatory** — ensures AI reads documentation at task start
-- **This skill is an internal engine** — called by maister:init, standards-update, and standards-discover. Not directly user-invocable.
+- **This skill is an internal engine** — called by maister:init, standards-update, standards-discover and workflow finalization. Not directly user-invocable.
 - **CRITICAL: Return control after completion** — This is an internal sub-skill. After completing the requested operation, return control to the calling workflow. Do NOT treat completion of this skill as the end of the conversation turn — the parent skill has more steps to execute.
 

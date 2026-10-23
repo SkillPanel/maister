@@ -245,6 +245,8 @@ goes under Docs Changed, a convention worth keeping under Standard Candidates.
 Each group's prompt carries, in this order: the task group's content from the plan (with its
 `Visual References`), the spec excerpt, the plan's standards for it ("identify which are
 relevant and read them"), standards discovery (INDEX.md's path and the read-only rule above),
+the path of docs-manager's standard candidates reference
+(`<plugin_root>/skills/docs-manager/references/standard-candidates.md`), which its candidates follow,
 the design context when there is one (the root, the brief excerpt, the mockup paths, the binding
 rule: each referenced mockup is read before implementing, its layout, copy, field order and
 states bind, and each `acceptance` criterion is self-checked), the sibling wave (the other groups

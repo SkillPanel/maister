@@ -14,13 +14,7 @@ Before writing or changing any code — even for quick, direct requests that don
 
 ### Standards Evolution
 
-When you notice recurring patterns, fixes, or conventions during implementation that aren't yet captured in standards — suggest adding them. Examples:
-- A bug fix reveals a pattern that should be standardized (e.g., "always validate X before Y")
-- PR review feedback identifies a convention the team wants enforced
-- The same type of fix is needed across multiple files
-- A new library/pattern is adopted that should be documented
-
-When this happens, suggest the standard in one line. When the user agrees, run `/maister:standards-update` with the identified pattern — it asks where to put it, so do not ask again first.
+When the work shows something the next change should know — a convention, a pitfall met, an important fact about the code — that no standard or project document holds yet, suggest it in one line: the rule, why it matters, where it applies. Prefer nothing over restating an existing standard or something true only for this change; a decision or a fact about the system belongs in a project document under `.maister/docs/project/`. When the user agrees, run `/maister:standards-update` with it — it asks where to put it, so do not ask again first.
 
 ## Maister Workflows
 

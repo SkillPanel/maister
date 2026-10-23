@@ -120,6 +120,15 @@ or start a new task. A task started on 2.x that needs a phase jump is finished o
 | 13 | User documentation | Optional (`--user-docs`) |
 | 14 | Finalization | All |
 
+**Standard candidates.** While implementing, each task group notes what the next change should
+know that no standard holds yet — a convention, a pitfall met, an important fact about the code —
+with why it matters, where it applies and what showed it. At finalization (development,
+performance and migration alike) a light-model pass merges duplicates, matches each against your
+existing standards ("extend rule X" rather than a near-duplicate), suggests where it belongs — a
+standards file, or a project document under `.maister/docs/project/` for a decision or a fact
+about the system — and shows the evidence. You choose which to keep; each one chosen goes through
+`/maister:standards-update`.
+
 ### Research-Based Development
 
 Start development informed by a completed research workflow. Research context flows through all phases:
