@@ -6,7 +6,7 @@ argument-hint: "[description of standard/convention] [--from=PATH] [--refresh-in
 
 # Update Project Standards
 
-Update or create standards in `.maister/docs/standards/` based on conversation context or a provided description. Automatically detects the best-matching category and file. Supports both baseline categories (global, frontend, backend, testing) and custom user-defined categories, sub-folders as groups within them, splitting a file that has outgrown its size guidance, and refreshing the documentation index.
+Update or create standards in `.maister/docs/standards/` based on conversation context or a provided description — or, when the knowledge is a decision or a fact about the system rather than a way of writing code, record it in a project document under `.maister/docs/project/`. What makes a good candidate and where one belongs is described once, in docs-manager's standard candidates reference, `<plugin root>/skills/docs-manager/references/standard-candidates.md`, the plugin root two levels above this skill's base directory; read it before Phase 1, and the project's own wording in its `CLAUDE.md` block or at the top of INDEX.md over it. Automatically detects the best-matching category and file. Supports both baseline categories (global, frontend, backend, testing) and custom user-defined categories, sub-folders as groups within them, splitting a file that has outgrown its size guidance, and refreshing the documentation index.
 
 Every write goes through the `docs-operator` subagent, which preloads docs-manager. Each call that changes documents names the docs index check for it: `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root being two levels above this skill's base directory, written as an absolute path.
 
@@ -94,17 +94,20 @@ When `--from` is NOT provided, the skill uses the standard detect-and-update flo
 
 **Step 2: Discover existing categories and files**
 
-Scan `.maister/docs/standards/*/` to find all existing categories and standard files. This determines what's available — not limited to baseline categories.
+Scan `.maister/docs/standards/*/` to find all existing categories and standard files, and `.maister/docs/project/` for the project's own documents (a decision log, a glossary, an architecture note — any name). This determines what's available — not limited to baseline categories.
 
 **Step 3: Match to category and file**
 
 Based on the topic detected, suggest the best-matching existing category and file. Consider:
 - File names and their content (read existing files if topic is close)
 - Whether the convention fits an existing file or needs a new one
+- Whether it is a way of writing code (a standards file) or a decision or fact about the system (a project document)
+- **A suggested destination in the description** — `(suggested: <destination>)`, as a workflow's finalization writes it — is the best match unless the file no longer exists
 
 **Step 4: Confirm the target** — one AskUserQuestion, the convention in a few words in the question. When the best-matching file is already past its size guidance (about 12 KB or 15 `###` rules), the recommended answer is a new file beside it, named from the convention, the question saying the matched file is full; adding to that file stays an option.
 
 - "Add it to the \<Category\> standards (\<file name\>)?" — "Yes (Recommended)" for the best match, up to two other candidate files by name with what each covers, and "New file" (its name and category the follow-up answer, or a new category). With no clear best match, the likeliest candidate is still offered first and recommended, the question saying why it is uncertain.
+- For a project document the question names it instead — "Add it to the project's \<document\> (project/\<file name\>)?" — with the same options; a standards file stays among the alternatives, and a project document among a standard's when the knowledge reads as a decision or a fact.
 - **If nothing detected** (no argument, no conversation context) → ask the user to describe the convention, free text, with an example in the question
 
 ---
@@ -114,6 +117,8 @@ Based on the topic detected, suggest the best-matching existing category and fil
 Check if the target file exists:
 - **Exists** → update mode
 - **Doesn't exist** → create mode (if new category, create the directory too)
+
+A project document follows the same two modes; it is written in the document's own form — any Markdown, no `###`-per-rule shape and no frontmatter required.
 
 No user prompt needed — just inform: "Updating existing standard: [name]" or "Creating new standard: [category/name]"
 
@@ -138,11 +143,15 @@ No user prompt needed — just inform: "Updating existing standard: [name]" or "
 ## PHASE 4: Apply via docs-manager
 
 > Each standard uses a `###` heading with 1-10 lines description (excluding code snippets). Multiple standards per topic file. A rule holds no inventory of call sites, no dates and no ticket references. A file past about 12 KB or 15 rules is split into topic files or a sub-folder (§ Splitting a Standards File).
+>
+> Wording, for a standard or a project document alike: the rule first, then the reason, then its scope; no exact counts, line numbers or identifiers that will go stale (*How one is written* in the standard candidates reference). A rule extending an existing one is merged into it, not added beside it.
 
 **Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `dispatch-model --agent=maister:docs-operator`) with context:
 
 For **updates**:
 > "Update documentation file: standards/[category]/[name].md. Current content: [content]. Add/change: [new conventions]. Integrate new practices, maintain markdown formatting, organize logically, preserve existing unless conflicts. Then refresh INDEX.md with this path as changed. Check: [check path]. Report the file's size and rule count against its guidance."
+
+For a **project document**, the same calls with its `project/[name].md` path — the Update or Add Documentation File operation — adding the knowledge where it reads naturally in the document.
 
 For **creates**:
 > "Create documentation file: standards/[category]/[name].md. Category: [category]. Content: [conventions]. Create with proper markdown, organized sections, code examples. Then refresh INDEX.md with this path as changed. Check: [check path]. Verify CLAUDE.md integration."

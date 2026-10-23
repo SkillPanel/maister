@@ -399,9 +399,19 @@ chosen below, and **always runs**.
    `.maister/docs/project/roadmap.md`: mark done the items this run completed,
    matched against the specification, and say which, or that none matched. A
    tick changes no document's purpose, so its index entry stays as it is.
-4. **Offer the standard candidates** the work log records — the implementers'
-   and the fix loop's — as *Asks* below says, before the check, so a standard
-   added here is in its view.
+4. **Consolidate, then offer the standard candidates** the work log records —
+   the implementers' and the fix loop's — before the check, so a standard added
+   here is in its view. When there are any, invoke `docs-operator` once
+   (subagent_type `maister-copilot:docs-operator`, with the model and effort
+   `dispatch-model --agent=maister-copilot:docs-operator` prints for this node,
+   `orchestrator-patterns.md` § 1): "Consolidate standard candidates.
+   Candidates: [each work-log line, with the group or fix it came from]." It
+   merges duplicates, matches each against what the project's standards and
+   documents already hold, suggests a destination and returns each with its
+   evidence, as docs-manager's `references/standard-candidates.md` says; its
+   list is what *Asks* below offers. When the call fails, the work log's lines
+   are offered as written, and a line of the close says they were not
+   consolidated.
 5. **Run the docs index check** from the project root: docs-manager's
    `scripts/docs-check.mjs` under the plugin root, by its absolute path. Its
    result goes under **Done** when it passes, warnings named in a line; each
@@ -431,27 +441,32 @@ dispatched run that reaches its end with no close-out in the outbox
 (`RUN-FAILED: closeout-unpublished`). Under a terminal driver there is no
 outbox, and step 7 is what the operator gets instead.
 
-**Asks.** Only when the work log records standard candidates: one multi-select
+**Asks.** Only when step 4 offers standard candidates: one multi-select
 question, the question saying that each chosen one is added through
-standards-update, which asks where it goes. Its first option is fixed:
-*"None now: list them as next steps"*. Each candidate follows as an option — its
-label the convention in a few words, its description the candidate line as
-written. No option is recommended. Each chosen candidate is added with
-`standards-update`, its line as the description, one after another; an
-unchosen one is dropped. *None now* adds nothing: every candidate goes under
-**Next** as its `/maister-copilot:standards-update "<candidate>"` command, as when
-nothing is asked. Chosen together with candidates, *None now* gives way: the
-candidates are taken, and a line of the close says the none option was set
-aside. With no candidates, nothing is asked.
+standards-update at its suggested destination, which it confirms. Its first
+option is fixed: *"None now: list them as next steps"*. Each candidate follows
+as an option — its label the consolidation's few words, its description the
+candidate line, then its destination (a new rule in a named file, the rule it
+extends, or a project document) and its evidence. No option is recommended.
+Each chosen candidate is added with `standards-update`, its line and
+suggested destination as the description, one after another; an unchosen one
+is dropped. *None now* adds nothing: every candidate goes under **Next** as its
+`/maister-copilot:standards-update "<candidate> (suggested: <destination>)"` command, as
+when nothing is asked. Chosen together with candidates, *None now* gives way:
+the candidates are taken, and a line of the close says the none option was set
+aside. The candidates the consolidation found already held go in a line of the
+close, each with the rule that holds it. With no candidates, nothing is
+asked.
 
 **With question sets** (`standard-candidates`): the same multi-select, with the
 multi-choice flag, as this node's one request in its attempt — *None now* first,
 under the id `none-now`, and no option recommended. The chosen candidates go
-under **Next**, each as the `/maister-copilot:standards-update "<candidate>"` command to
+under **Next**, each as the
+`/maister-copilot:standards-update "<candidate> (suggested: <destination>)"` command to
 run, since adding one asks its own questions in session. *None now* alone puts
 every candidate there, as the Without line does; chosen with candidates, the
 candidates win, and a line of the close says so.
 
 **Without question sets** (`standard-candidates`): nothing is asked; every
-candidate goes under **Next** as its `/maister-copilot:standards-update "<candidate>"`
-command.
+candidate goes under **Next** as its
+`/maister-copilot:standards-update "<candidate> (suggested: <destination>)"` command.

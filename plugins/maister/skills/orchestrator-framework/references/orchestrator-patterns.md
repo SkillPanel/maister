@@ -468,8 +468,9 @@ critical issue is never proceeded past without an explicit answer saying so.
 **Documents in the loop.** A fix never edits `.maister/docs/INDEX.md` or anything under
 `.maister/docs/standards/`. A stale fact is fixed in the document that holds it; a finding against
 the index itself — a document with no entry, a dead or duplicate entry, a conflict marker — is
-fixed by a refresh, never by hand. A convention a fix shows to be worth keeping is written to the
-work log as a standard candidate, one line, for finalization to offer. When the loop's fixes
+fixed by a refresh, never by hand. A convention, pitfall or fact a fix shows to be worth keeping
+is written to the work log as a standard candidate, one line as docs-manager's
+`references/standard-candidates.md` describes it, for finalization to consolidate and offer. When the loop's fixes
 changed anything under `.maister/docs/`, invoke `docs-operator` once,
 with its `dispatch-model` values (§ 1), after the last fix and before the gate: "Refresh INDEX.md. Changed: [paths]. Check: [check path]",
 the check being docs-manager's `scripts/docs-check.mjs` by its absolute path. A refresh changes
