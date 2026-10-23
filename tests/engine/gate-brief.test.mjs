@@ -1865,6 +1865,53 @@ test('gate-brief: a recommends naming no continue of this gate is passed over, a
   assert.equal(checkpoint.options.find(option => option.id === 'continue-to-planning').reason, undefined);
 });
 
+test('gate-brief: a closing node that recommends its revise has it recommended, the missing points named as its notes', t => {
+  const run = atOptionalGate(t, {
+    risks: [
+      { risk: 'The agreed null on a miss is not in the specification', tag: 'open', change: 'state that revoking returns null on a miss' },
+      { risk: 'The agreed exclusion of expiry is not stated', tag: 'open', change: 'name expiry as left out' },
+    ],
+    recommends: { option: 'revise-specification', reason: 'two agreed points are missing: null on a miss and the expiry exclusion' },
+  });
+  const checkpoint = checkpointOf(run);
+  assert.deepEqual(checkpoint.recommended, { option: 'revise-specification', reason: 'two agreed points are missing: null on a miss and the expiry exclusion' });
+  const revise = checkpoint.options.find(option => option.id === 'revise-specification');
+  assert.equal(revise.recommended, true);
+  assert.match(revise.consequence, /Two agreed points are missing: null on a miss and the expiry exclusion\.$/);
+  assert.deepEqual(revise.suggestions.map(each => each.note).filter(note => /null on a miss|expiry as left out/.test(note)).length, 2,
+    'each missing point is offered as a note');
+  assert.equal(checkpoint.next.node, 'audit', 'the next shown is still the preferred continue\'s');
+  assert.ok(checkpoint.options.filter(option => option.effect === 'continue').every(option => !option.recommended));
+
+  const rich = picker(run, 'specification-approval');
+  assert.equal(rich.options[0].id, 'revise-specification', 'the recommended revise is listed first');
+
+  const request = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=specification-approval', '--request']).stdout);
+  assert.deepEqual(request.options.filter(option => option.recommended).map(option => option.id), ['revise-specification']);
+  for (const option of request.options) {
+    assert.deepEqual(Object.keys(option).filter(key => !['id', 'label', 'effect', 'description', 'recommended', 'note', 'suggestions'].includes(key)), [],
+      'the request keeps its shape');
+  }
+  assert.match(oneline(run, 'specification-approval').stdout, /Recommended: revise-specification/);
+});
+
+test('gate-brief: a stop risk still wins over a recommended revise, and a spent revise falls back to the continue', t => {
+  const stopped = atOptionalGate(t, {
+    risks: [{ risk: 'The scope contradicts the brief', tag: 'stop' }],
+    recommends: { option: 'revise-specification', reason: 'a point is missing' },
+  });
+  assert.equal(checkpointOf(stopped).recommended.option, 'stop-here');
+
+  const spent = atOptionalGate(t, { recommends: { option: 'revise-specification', reason: 'a point is missing' } });
+  // A gate asked past its ceiling of ten offers no revise.
+  fs.writeFileSync(spent.state, fs.readFileSync(spent.state, 'utf8')
+    .replace(/(    specification-approval: \{kind: gate, )status: pending/, '$1status: pending, attempt: 11'));
+  assert.equal(readState(spent).workflow.nodes['specification-approval'].attempt, 11);
+  const checkpoint = checkpointOf(spent);
+  assert.equal(checkpoint.recommended.option, 'continue-to-audit');
+  assert.equal(checkpoint.options.find(option => option.effect === 'revise'), undefined, 'no revise is left to recommend');
+});
+
 test('gate-brief: the driven forms carry one Next line per continue and every continue as an option', t => {
   const run = atOptionalGate(t);
   const line = oneline(run, 'specification-approval').stdout;

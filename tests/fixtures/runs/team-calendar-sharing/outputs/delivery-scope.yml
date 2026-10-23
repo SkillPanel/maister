@@ -1,6 +1,6 @@
 version: 1
 members:
   - name: team-calendar
-    statement: "Let members share their calendar with outside guests, read-only or with a propose-a-time option"
+    statement: "Let members share their calendar with outside guests through a signed link sent with the existing invitation email, showing free and busy only, with propose-a-time as an opt-in; links are revocable at any time and expire after 30 days unless renewed; no guest accounts and no event details shown"
     depends_on: []
 out_of_scope: []

@@ -29,7 +29,7 @@ out_of_scope:
 | `version` | The bare number `1`. A later shape raises it; a reader refuses a version it does not know rather than guessing |
 | `members` | A list with at least one entry, in the order a person would read the work |
 | `members[].name` | The member the work lands in — see *Where the names come from* |
-| `members[].statement` | One line: the work in that member, in plain words |
+| `members[].statement` | One line: the work in that member, in plain words — every agreed point that lands there, and each agreed exclusion that touches it, stated as left out |
 | `members[].depends_on` | A list, possibly empty, of other in-scope member names whose work this member's work needs first. No cycles, and no member names itself |
 | `out_of_scope` | A list, possibly empty |
 | `out_of_scope[].name` | A member left out |
@@ -48,11 +48,26 @@ scope sees what was left out and why.
 
 **In a single repository** — no manifest — the scope has one member: the repository's directory
 name (the top level of its git checkout, or the project root when it is not one), the feature in
-one line as its statement, `depends_on: []`, and `out_of_scope: []`.
+one line as its statement, `depends_on: []`, and `out_of_scope: []`. With no other member to leave
+out, the agreed exclusions live in the statement and in the brief's scope layer.
+
+## Agreed points
+
+A scope is written from what the design agreed, not summarised from it. Every point the run
+settled — a decision, an in-scope or out-of-scope item of the specification, an open item later
+settled, a user story — is carried into the statement of the member it changes, or named as left
+out with why. A statement that is shorter than what was agreed for its member is a dropped point,
+and a scope with no exclusion after a design that agreed some has dropped them.
 
 ## Approval
 
 The scope is approved with the product brief, which carries it as a layer in plain sentences —
 each member in scope with what changes there and what it waits for, then each member left out with
-its reason. Revising that layer rewrites the brief and the file together, so the two never
-disagree.
+its reason, then each agreed exclusion. Revising that layer rewrites the brief and the file
+together, so the two never disagree.
+
+Approval is never recommended while an agreed point is missing. The writer checks the scope
+against the agreed points before asking; each one missing is an `open` risk naming it, and the
+recommendation is to add it — at a gate, the revise that rewrites the scope, its reason naming
+what is missing (the workflow engine's `references/gates.md`, `recommends`). The person still
+decides.
