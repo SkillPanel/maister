@@ -14,9 +14,11 @@ Accepted. No definition changes and no graph hash moves.
 
 ### Context
 The runners need a subagent that dispatches subagents. Claude Code gives a subagent's calls its
-main session's `session_id` at every depth; Copilot CLI gives every subagent level a `session_id`
-of its own (seen in a recorded Copilot 1.0.102 session: a subagent's `preToolUse` input carries a
-session id other than the main session's). A host-side guard that binds a run to its driver's
+main session's `session_id` at every depth. Copilot CLI's hook payload names the field in
+camelCase, `sessionId`, and gives every subagent level one of its own: in a subagent its value is
+that subagent's own id (seen in recorded Copilot sessions: a subagent's `preToolUse` input carries
+`{cwd, sessionId, toolCalls}` with the subagent's id, the main session's carries the session's
+id). A host-side guard that binds a run to its driver's
 session therefore cannot tell a Copilot runner, or anything that runner dispatches, from an
 unrelated caller — and it has to let the runner's state writes through, so it cannot hold them
 either. While a run waited at a gate, a nested Copilot subagent could run Bash and the engine's
@@ -35,7 +37,8 @@ other agent is a leaf that at most reads the run.
 3. **The rule a guard can rely on is documented** in `writing-state.md`: the state-writing verbs are
    run only by the driving session and, where the run records `nested`, its runners, which on
    Claude Code carry the driving session's `session_id`. A guard compares the hook payload's
-   `session_id` with `orchestrator.driver.session.id`.
+   session id — `session_id` on Claude Code, `sessionId` on Copilot CLI — with
+   `orchestrator.driver.session.id`.
 
 ### Rejected: a delegating-binding field on the runner verbs
 A field on `runner-result` and the state verbs naming the session that delegated the runner would
