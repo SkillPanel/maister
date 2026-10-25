@@ -136,7 +136,9 @@ workspace with work in flight.
 - **Also new.** Umbrella workspaces span several repositories (`/maister:umbrella init`, `validate`
   and `prune`) and are driven as chains from the
   [maister cockpit](https://github.com/SkillPanel/maister-cockpit). On GitHub Copilot CLI, the
-  plugin now names every command the way Copilot registers it, `/maister-copilot:<name>`.
+  plugin now names every command the way Copilot registers it, `/maister-copilot:<name>`. There,
+  implementation and verification run their loops in the session: no Copilot agent is given the
+  agent tool, so no subagent dispatches subagents of its own.
 
 ### Removed
 
