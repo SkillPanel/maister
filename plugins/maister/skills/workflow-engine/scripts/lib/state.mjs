@@ -579,7 +579,7 @@ export function writeState({ state, patch, regress = null, host = null }) {
     const freeze = Boolean(patch.workflow) && !hadWorkflow;
     if (freeze) createFolders(state, text, warnings);
     if (freeze) installViewer(state, text, changed, warnings);
-    const banner = freeze ? bannerOf(state, text, patch.workflow) : null;
+    const banner = freeze ? bannerOf(state, text) : null;
     // After the viewer, so the status file's dashboard link sees the page the
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
@@ -616,13 +616,18 @@ export function writeState({ state, patch, regress = null, host = null }) {
  * The model composes its own message from it: the terminal collapses tool
  * output to a count, so nothing here is seen until the model writes it.
  * The dashboard line reads the committed state, so an `html_output: false` the
- * same patch carries is already in force. Beside the lines, the same facts as
+ * same patch carries is already in force; the checkpoints and the first phase
+ * are counted from the nodes the committed block holds, whether the patch sent
+ * them or the writer filled them in. Beside the lines, the same facts as
  * fields — the counts as numbers, the directory and dashboard as `file://`
  * URLs — for the display file, whose reader draws them its own way.
  */
-function bannerOf(state, text, workflow) {
+function bannerOf(state, text) {
   const runDir = path.dirname(path.resolve(state));
   const doc = parseState(text);
+  // The committed block, not the patch's: a freeze may leave `nodes` out for
+  // the writer to fill from the frozen graph, and only the text has them then.
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const title = isPlainObject(doc.task) ? doc.task.title : undefined;
   // Folded onto one line: a hand-written file can carry a block-scalar title,
   // and its line breaks would add lines to a banner of fixed lines.
