@@ -20,7 +20,7 @@
  * Pure: no I/O. Zero dependencies beyond the checkpoint, display, evidence and item helpers.
  */
 
-import { RECOMMENDED_MARK, flowLine, unmarked } from './checkpoint.mjs';
+import { flowLine, markedLabel, unmarked, unrecommended } from './checkpoint.mjs';
 import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
 import { HEADER_MAX } from './display.mjs';
 import { evidenceKey } from './evidence.mjs';
@@ -105,7 +105,7 @@ export function checkSet(input) {
       if (Object.hasOwn(question, key) && typeof question[key] !== 'boolean') errors.push(`${where}: "${key}" must be true or false`);
     }
     const multi = question.multi_select === true;
-    const options = checkOptions(question.options, where, errors);
+    const options = adoptMarks(checkOptions(question.options, where, errors));
     for (const option of options.filter(each => each.recommended && each.person_act)) {
       errors.push(`${where} option "${option.id}": it is marked "person_act", an act only a person can say they did, so it is never recommended; recommend an option the run can take, or none`);
     }
@@ -165,17 +165,32 @@ function checkOptions(options, where, errors) {
     else if (ids.has(option.id)) errors.push(`${at}: the id is used twice in this question`);
     else ids.add(option.id);
     if (!isLine(option.label)) errors.push(`${at}: "label" must be one line of text`);
+    else if (!isText(unrecommended(option.label))) errors.push(`${at}: "label" must name the option, not only say it is recommended`);
     if (Object.hasOwn(option, 'description') && !isText(option.description)) errors.push(`${at}: "description" must be text`);
     if (Object.hasOwn(option, 'recommended') && typeof option.recommended !== 'boolean') errors.push(`${at}: "recommended" must be true or false`);
     if (Object.hasOwn(option, 'person_act') && typeof option.person_act !== 'boolean') errors.push(`${at}: "person_act" must be true or false`);
+    const label = isLine(option.label) ? unrecommended(option.label) : option.label;
     return {
       id: option.id,
-      label: option.label,
+      label,
       ...(isText(option.description) ? { description: option.description } : {}),
       ...(option.recommended === true ? { recommended: true } : {}),
       ...(option.person_act === true ? { person_act: true } : {}),
+      ...(label !== option.label && option.recommended === undefined ? { marked: true } : {}),
     };
   });
+}
+
+/**
+ * A question's options with the "(Recommended)" a writer typed into a label
+ * read as the flag: every renderer adds the mark itself from `recommended`, so
+ * the label keeps none and the mark is shown once. A typed mark counts only
+ * when no option of the question carries the flag, which then says which
+ * option is meant; the flag set to false is never overridden.
+ */
+function adoptMarks(options) {
+  const flagged = options.some(option => option.recommended);
+  return options.map(({ marked, ...option }) => (marked && !flagged ? { ...option, recommended: true } : option));
 }
 
 /** An id as a header in plain sentence case: `tag-case` reads "Tag case". */
@@ -236,7 +251,7 @@ export function setForm(checkpoint) {
   for (const question of checkpoint.questions) {
     const choices = question.options.map(option => ({
       const: option.id,
-      title: unmarked(`${option.label}${option.recommended ? RECOMMENDED_MARK : ''}`),
+      title: unmarked(markedLabel(option.label, option.recommended)),
     }));
     const lines = [unmarked(question.question)];
     if (question.why) lines.push(unmarked(question.why));

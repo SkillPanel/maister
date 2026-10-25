@@ -8,8 +8,16 @@ import { pathToFileURL } from 'node:url';
 import { ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, run as runScript, scratch, sharedPlugin, verb, delegating, write as writeState } from '../helpers.mjs';
 import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import {
-  FOCUS_BUDGET, FOCUS_LINES, approvesHeld, choicesLine, moreDetails, panelOf as panelOfCheckpoint, plainPicker, requestOf, richPicker, unmarked,
+  FOCUS_BUDGET, FOCUS_LINES, approvesHeld, choicesLine, markedLabel, moreDetails, panelOf as panelOfCheckpoint, plainPicker, requestOf, richPicker, unmarked,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+
+test('markedLabel: one (Recommended) on a recommended label, however many it already ends with, and none on another', () => {
+  assert.equal(markedLabel('Return 400', true), 'Return 400 (Recommended)');
+  assert.equal(markedLabel('Return 400 (Recommended)', true), 'Return 400 (Recommended)');
+  assert.equal(markedLabel('Return 400 (recommended)  (Recommended) ', true), 'Return 400 (Recommended)');
+  assert.equal(markedLabel('Return 400 (Recommended)', false), 'Return 400');
+  assert.equal(markedLabel('Keep the (Recommended) default as is', true), 'Keep the (Recommended) default as is (Recommended)', 'only a trailing mark is the mark');
+});
 
 // A built-in step that declares delegates completes only with them listed;
 // every write here sends them as a session that dispatched them would.

@@ -71,7 +71,7 @@ const INDEX_IMPORT = /(?:^|\s)@\.maister\/docs\/INDEX\.md(?=\s|$)/m;
 /** The scheme of a node that starts a sub-run, whose files land in the child's task directory. */
 const WORKFLOW_SCHEME = 'workflow:';
 
-const SCRATCH = 'scratch: make any throwaway file — a copy, a probe, a benchmark — in a directory mktemp -d makes, and leave it there; never a fixed path such as /tmp, and never cd into one, which a host may not allow — no cleanup step, no rm -rf';
+const SCRATCH = 'scratch: make any throwaway file — a copy, a probe, a benchmark — in a directory mktemp -d makes (it uses $TMPDIR) or under "${TMPDIR:-/tmp}", and leave it there; never a literal /tmp path, since a fixed /tmp path can stop the run for a permission prompt — no cleanup step, no rm -rf. Name every path absolute and never cd, into it or into the task directory: a relative path is resolved from the project root, and a host may stop the run to ask for access to it';
 
 const CONTRACT = 'summary contract: open every markdown artifact you write with ## TL;DR (at most 5 lines, conclusions in plain words), '
   + '## Key Decisions (- decision — rationale) and ## Open Questions / Risks (- risk → what would change), omitting an empty section; '

@@ -14,7 +14,7 @@ Describe what you want to build, and the plugin handles the rest - from specific
 - **Auto-discovered standards** from your codebase - config files, source patterns, and documentation are analyzed and enforced throughout every workflow
 - **Test-driven implementation** with automated planning, incremental verification, and full test suite runs before completion
 - **Pause and resume** any workflow - state is preserved across sessions
-- **Production readiness checks** including code review, reality assessment, and pragmatic over-engineering detection
+- **Three reviews of every change** - spec conformance, code risk and simplicity - with fixes and re-checks before the work is called done
 - **Workflows you can extend** - write your own, adjust a built-in with an overlay, and run them like any other with `/maister:run`
 
 ## Getting Started

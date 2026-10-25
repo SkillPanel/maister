@@ -78,11 +78,11 @@ Launch all applicable subagents in one message so they run in parallel.
 
 **Step 1: Determine which phases to run** based on scope and flags.
 
-**Step 1.5: Create temp output directory** — Run `mktemp -d` via Bash to create a unique temp directory for this invocation. Store the path exactly as it prints — it differs per host and per run, so never assume `/tmp` or write a fixed path in its place. Each subagent will write its results to a dedicated file in this directory: `{tmpdir}/config.yml`, `{tmpdir}/code.yml`, `{tmpdir}/docs.yml`, `{tmpdir}/external.yml`.
+**Step 1.5: Create temp output directory** — Run `mktemp -d` via Bash to create a unique temp directory for this invocation; it uses `$TMPDIR`, the system temp directory. Store the path exactly as it prints — it differs per host and per run, so never assume `/tmp` or write a fixed path in its place: a literal `/tmp` path can stop the run for a permission prompt. Each subagent will write its results to a dedicated file in this directory: `{tmpdir}/config.yml`, `{tmpdir}/code.yml`, `{tmpdir}/docs.yml`, `{tmpdir}/external.yml`.
 
 **Step 2: Read prompt templates**
 
-Read the template for each phase you will run — they define the YAML output schema the aggregation step depends on:
+Read the template for each phase you will run — they define the YAML output schema the aggregation step depends on. Read each by its absolute path under this skill's base directory; never `cd` into the skill to read them, since every later command, the engine's included, would then run from there instead of the project root:
 
 | Phase | Condition | Read This File |
 |-------|-----------|----------------|

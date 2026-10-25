@@ -916,8 +916,11 @@ function reviewFiles(doc, runDir, ids, byId) {
   const precise = files.filter(each => !each.folder || !files.some(other => !other.folder && inside(each.file, other.file)));
   const listed = precise.length > REVIEW_MAX ? foldFolders(precise, runDir, byId) : precise;
   // When the cap bites, the deliverable wins: registration order put a brief
-  // and a plan ahead of the report they led to.
-  const rank = file => REVIEW_RANK[file.role] ?? REVIEW_RANK.other;
+  // and a plan ahead of the report they led to. A file registered with no role
+  // is the deliverable when its HTML page is beside it: a document owes its own
+  // page only when it is what the phase produced, so a closing write that sent
+  // no roles still names its report.
+  const rank = file => REVIEW_RANK[file.role ?? (file.html ? 'primary' : 'other')] ?? REVIEW_RANK.other;
   return listed.map((file, index) => ({ file, index }))
     .sort((a, b) => rank(a.file) - rank(b.file) || a.index - b.index)
     .slice(0, REVIEW_MAX)

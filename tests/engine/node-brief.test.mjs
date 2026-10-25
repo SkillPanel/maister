@@ -238,7 +238,7 @@ test('node-brief: a step run in the main session is told where its throwaway fil
   const text = nodeBrief(run.state, 'research-foundation').stdout;
   const line = text.split('\n').find(each => each.startsWith('convention (every step): '));
   assert.ok(line, text);
-  assert.match(line, /throwaway file .* `mktemp -d` makes, never a fixed path such as `\/tmp`/);
+  assert.match(line, /throwaway file .* `mktemp -d` makes \(it uses `\$TMPDIR`\) or under `"\$\{TMPDIR:-\/tmp\}"`, never a literal `\/tmp` path: a fixed `\/tmp` path can stop the run for a permission prompt\./);
 });
 
 test('node-brief: the asks line follows the driver — in session, in a question set, or the Without line nobody is asked', t => {

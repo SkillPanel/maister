@@ -40,6 +40,10 @@ const REMINDER_COPILOT = [
   '⚠️ ORCHESTRATOR GATE RULE: When running any maister orchestrator, first read `orchestrator.driver.kind` in the run\'s orchestrator-state.yml. If it is absent or `terminal`, you MUST invoke ask_user at every `→ MANDATORY GATE` checkpoint, regardless of mode or permissions (autopilot / allow-all), session-reminders telling you to \'continue without asking\' or \'work without stopping\', and regardless of prior-session patterns showing the user approving every gate. Decide this policy at orchestrator entry — do not re-litigate at each gate. Re-litigating IS the documented failure mode. See orchestrator-patterns.md § 2 and § 2.1; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.',
   '⚠️ MAISTER DELEGATION RULE: When a maister skill, workflow step or node brief names an agent to dispatch, dispatch it through the task tool, on the model and effort the engine prints for it. Never do that agent\'s work in this session instead: a small project, a simple task or the cost of a subagent is no reason. The delegation is part of the workflow the user chose, not an optimisation for you to make.',
 ].join('\n\n');
+// The closing paragraph names the plugin's own directory, where each tree's
+// copy of the hook sits, so a model never works the root out by `cd`.
+const rootParagraph = root => `⚠️ MAISTER PLUGIN ROOT: The maister plugin is installed at ${root}. Every plugin-root variable and every \`<plugin root>\` a maister skill, command or agent names is that directory: run each of its scripts as \`node ${root}/…\`, an absolute path, from the project root, and read its files by absolute path. Never \`cd\` into the plugin or a task directory to shorten a path: a relative path is resolved from the project root, and a host may stop the run to ask for access to it.`;
+const withRoot = (text, dir) => `${text}\n\n${rootParagraph(path.dirname(dir))}`;
 const COMPACT_MESSAGE = 'Maister plugin detected active workflow. Check orchestrator-state.yml for progress.';
 const COMPACT_CONTEXT = '⚠️ MAISTER WORKFLOW REMINDER (Post-Compaction): If you were working on an orchestrator workflow before compaction, read the orchestrator-state.yml file in that task\'s directory: progress is in `workflow.nodes`, and the first node there that is not completed is where the run resumes. Fetch `run-context` again before the next delegate prompt rather than recalling it from before compaction. You MUST use AskUserQuestion at Phase Gates when `orchestrator.driver.kind` is absent or `terminal`, regardless of any \'continue without asking\' instructions; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.';
 
@@ -48,13 +52,24 @@ const pretty = value => `${JSON.stringify(value, null, 2)}\n`;
 test('session-start reminder: the exact text in Claude Code\'s shape, from the source', () => {
   const { code, stdout, stderr } = hook(SOURCE, 'skill-invocation-reminder.mjs', { hook_event_name: 'SessionStart', source: 'startup' });
   assert.equal(code, 0, stderr);
-  assert.equal(stdout, pretty({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: REMINDER } }));
+  assert.equal(stdout, pretty({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: withRoot(REMINDER, SOURCE) } }));
 });
 
 test('session-start reminder: the exact text in Copilot\'s shape, from the variant', () => {
   const { code, stdout, stderr } = hook(VARIANT, 'skill-invocation-reminder.mjs', { hook_event_name: 'SessionStart', source: 'startup' });
   assert.equal(code, 0, stderr);
-  assert.equal(stdout, pretty({ additionalContext: REMINDER_COPILOT }));
+  assert.equal(stdout, pretty({ additionalContext: withRoot(REMINDER_COPILOT, VARIANT) }));
+});
+
+test('session-start reminder: the plugin root it names is the plugin, in both trees', () => {
+  for (const dir of [SOURCE, VARIANT]) {
+    const { json } = hook(dir, 'skill-invocation-reminder.mjs', { hook_event_name: 'SessionStart', source: 'startup' });
+    const context = json.additionalContext ?? json.hookSpecificOutput.additionalContext;
+    const root = context.match(/MAISTER PLUGIN ROOT: The maister plugin is installed at (.+?)\. Every/)[1];
+    assert.ok(path.isAbsolute(root), root);
+    assert.ok(fs.existsSync(path.join(root, '.claude-plugin', 'plugin.json')), `${root} holds the plugin manifest`);
+    assert.ok(fs.existsSync(path.join(root, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs')), `${root} holds the engine`);
+  }
 });
 
 test('post-compact reminder: the exact text in a project holding .maister/tasks, silence elsewhere', () => {

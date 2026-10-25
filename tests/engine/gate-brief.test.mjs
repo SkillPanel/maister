@@ -1346,6 +1346,20 @@ test('Review line: a companion that is not on disk is not named, and neither is 
   assert.doesNotMatch(text, /HTML:|never-written/);
 });
 
+test('Review line: past the cap, a document registered with no role but with its page beside it is named first', t => {
+  // A closing write that sent no roles: registration order put three inputs
+  // ahead of the report they led to, and the cap of three cut the report.
+  const files = ['planning/brief.md', 'planning/plan.md', 'planning/sources.md', 'analysis/synthesis.md', 'outputs/report.md'];
+  const run = atApproval(t, {
+    ...SUMMARY,
+    artifacts: files.map(file => ({ path: file, label: null, html: file === 'outputs/report.md' ? 'outputs/report.html' : null })),
+  });
+  for (const file of files) onDisk(run, file);
+  onDisk(run, 'outputs/report.html');
+  assert.equal(lastLine(brief(run, 'approval').stdout),
+    `Review: ${fromRoot(run, 'outputs/report.md')} (HTML: report.html), ${fromRoot(run, 'planning/brief.md')}, ${fromRoot(run, 'planning/plan.md')}`);
+});
+
 test('Review line: a node that registered nothing is read off its declared outputs, files only', t => {
   const run = scratch(t);
   freeze(run, { definition: REVISE });

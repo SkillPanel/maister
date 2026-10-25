@@ -69,6 +69,9 @@ Every question here carries its own context — the findings go in the question,
 - **Goals** (optional): up to three generated goals fitting a new, existing or legacy project, plus "Skip". The goal the analysis best supports comes first, marked "(Recommended)", the question saying in a few words what it rests on.
 - **Team context** (optional): generated options ("Solo project", "Small team", "Several teams") plus "Skip". The option the repository's history supports — the number of distinct commit authors — is marked "(Recommended)", the question naming that count; with no history to read, "Skip" is.
 
+Each question's default is its recommended option. "Skip" is offered on an optional question, never its default, unless it is the option recommended: a user who confirms the page as it stands takes what the analysis supports.
+The page is one form of up to three properties, each a choice of its options — `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), never a bare `enum` of labels — with `default` the recommended option's id.
+
 **Step 3 — Which project documents.** ask_user — "Which project documents should be written? The tech stack is always included.":
 - "Vision, roadmap, tech stack and architecture (Recommended)" — recommended for a standard, frontend-only or backend-only project
 - "Tech stack only" — recommended instead for a monorepo or umbrella

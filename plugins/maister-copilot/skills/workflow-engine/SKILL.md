@@ -184,10 +184,12 @@ found.
 
 **The `workflow` block is `resolve`'s output, copied through.** `source`, `overlays`,
 `profile`, `graph_hash` and `name` go into the freeze exactly as `resolve` printed them, beside
-`grammar_version: 1`, and `nodes` carries one entry per node `resolve` printed and no other:
-`kind: gate` for a gate, `kind: workflow` for a `workflow:` node and `kind: task` for every other
-node, each `status: pending`. The writer fills in each node's `needs`, and on a gate that offers
-a revise its `reruns`. Copy `graph_hash` without reformatting it: it arrives in the spelling the
+`grammar_version: 1`, **and no `nodes`**: the writer lays out one entry per resolved node itself,
+each `pending` under its kind, with its `needs` and, on a gate that offers a revise, its
+`reruns`. The whole patch is then a few short values, sent as a here-string: never save
+`resolve`'s output to a file or script the block out of it. A patch that does send `nodes` is
+held to the graph: one entry per node `resolve` printed and no other, `kind: gate` for a gate,
+`kind: workflow` for a `workflow:` node and `kind: task` for every other node. Copy `graph_hash` without reformatting it: it arrives in the spelling the
 state block accepts. The overlays and the profile are the ones the run was resolved with. The
 writer proves the freeze before it installs it, and its refusal names the recovery.
 
@@ -553,7 +555,7 @@ here.
 | `direct:` step | Run inline from the node's section, except the agents a `delegates:` line names: each is dispatched through the Task tool, never done in the session, and listed under `delegated` in the closing write, which is refused without it. A step that owes an HTML page hands its finished markdown to `html-companion-writer` before the completing write. A step with no section does only what these rows say. |
 | `workflow:` step | Starts a child run and waits for it (*Sub-runs*); its outcome is mapped, not judged (*Recording an outcome*). |
 | gate | Asked from `gate-brief` (`references/gates.md`); record the answer, end the run on a stop, revise through `gate-revise`. A false guard skips it with its stretch, unless that guard reads a step's value and the gate is no pure confirmation, or reads a step's value while a choice is held. A false guard on inputs or other gates' values alone always skips it, held choices or not: `gate-brief` and `gate-request` refuse it `gate-guard-false`. Sections hold exceptions only. |
-| every step | A throwaway file the step makes itself — a probe, a benchmark, a copy — goes in a directory `mktemp -d` makes, never a fixed path such as `/tmp`, which a host may not allow. Before recording `completed`, check each declared artifact path. A missing one its `brief:` `absent` does not sanction is a failed self-check: re-drive the step, naming the path. Record a sanctioned absence under `absent` with its reason, and record every declared value. |
+| every step | A throwaway file the step makes itself — a probe, a benchmark, a copy — goes in a directory `mktemp -d` makes (it uses `$TMPDIR`) or under `"${TMPDIR:-/tmp}"`, never a literal `/tmp` path: a fixed `/tmp` path can stop the run for a permission prompt. Before recording `completed`, check each declared artifact path. A missing one its `brief:` `absent` does not sanction is a failed self-check: re-drive the step, naming the path. Record a sanctioned absence under `absent` with its reason, and record every declared value. |
 | asks | With question sets, ask them all in one request per attempt; without them, record the Without default `by: default`. Record each in-session answer as one `by: operator` decision with its `question_id`, question, answer, recommended answer and `as_recommended` on the step's own `node_summaries` entry (`references/gates.md`). Once `classes_questions` is recorded, ask only the classing writer's `ask:` ids; held choices wait for the next checkpoint or `held-approval`. |
 | feeds a checkpoint | The closing summary keeps the summary contract: a one-sentence `headline` within 220 characters; the artifact's decisions and risks item for item, tagged; `recommends` with a one-line reason as `brief:` directs once its input is set, or naming the gate's revise when the node finds its work short of what was agreed (`references/gates.md`). |
 | named by a revise | Read the note from `prior-context`; revise the step's own artifacts in place; keep earlier answers unless the note reopens them; record the declared values again; say what changed and write the headline again. |
