@@ -273,6 +273,7 @@
           "state-absent-invalid",
           "state-candidate-unsound",
           "state-context-block-unknown",
+          "state-delegates-unrecorded",
           "state-entry-unserializable",
           "state-freeze-input-missing",
           "state-freeze-name-mismatch",
@@ -991,7 +992,7 @@
     },
     "modules": []
   },
-  "interface_version": "1.1",
+  "interface_version": "1.2",
   "mcp": {
     "servers": [],
     "tools": [
