@@ -120,6 +120,20 @@ import * as canonical from '../../../../lib/canonical.mjs';
 const { Refusal, flow } = canonical;
 
 /**
+ * The version of the state shape this writer produces: the vocabulary below —
+ * patch keys, blocks, node keys and statuses, the pending marker and the parent
+ * link — read by the plugin's interface file beside this number. The file on
+ * disk carries no version of its own; this one is raised when a key below is
+ * removed or changes its meaning, and the interface build refuses such a change
+ * while it is not.
+ */
+export const STATE_SCHEMA_VERSION = 1;
+
+// The vocabulary the interface file publishes, exported from where the writer
+// holds it so the two cannot differ.
+export { CLOCK_FIELDS, CONTEXT_BLOCKS, NODE_KEYS, NODE_STATUSES, PARENT_KEYS, PATCH_KEYS, PENDING_KEYS, TOP_LEVEL_BLOCKS, WORKFLOW_KEYS, WRITER_FIELDS };
+
+/**
  * This writer's own names for the two refusals the shared publish path can
  * raise. They are passed in rather than emitted by `canonical.mjs` so this
  * module keeps its closed twenty-seven-code vocabulary.

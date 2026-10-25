@@ -36,8 +36,11 @@
  *   to the rows Claude Code allows there (`PANEL_ROWS`) — a gate's, or a
  *   question set's step and count.
  *
- * Pure: no I/O, no imports. Zero dependencies, Node >= 20.
+ * Pure: no I/O; its one import is the declared shapes the request is held to.
+ * Zero dependencies, Node >= 20.
  */
+
+import { REQUEST_SUGGESTION, keysOf } from './interface-shapes.mjs';
 
 /** Most lines, and characters, of the continue option's preview. */
 export const FOCUS_LINES = 16;
@@ -998,13 +1001,18 @@ export function requestOf(checkpoint, summary, reask = null) {
       ...(option.effect === 'revise'
         ? {
           note: true,
-          suggestions: (option.suggestions ?? []).map(({ label, note, recommended }) => ({ label, note, recommended })),
+          suggestions: (option.suggestions ?? []).map(suggestion => pick(suggestion, keysOf(REQUEST_SUGGESTION))),
         }
         : {}),
     })),
     multi_select: false,
     ...(Array.isArray(checkpoint.evidence) && checkpoint.evidence.length ? { evidence: checkpoint.evidence } : {}),
   };
+}
+
+/** `object`'s `keys`, in that order, each one it holds — an undefined value left out, as JSON leaves it. */
+function pick(object, keys) {
+  return Object.fromEntries(keys.filter(key => object[key] !== undefined).map(key => [key, object[key]]));
 }
 
 /**

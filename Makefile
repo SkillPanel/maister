@@ -1,6 +1,9 @@
 .PHONY: build diagram validate test test-mod smoke clean watch
 
+# The interface file first: build.sh copies the source tree, then regenerates
+# the variant's own from what it built.
 build:
+	node tools/interface.mjs --root plugins/maister
 	bash platforms/copilot-cli/build.sh
 
 # Regenerate every shipped workflow diagram. `make validate` byte-compares each
@@ -174,6 +177,9 @@ validate:
 	rm -f $$tmp
 	@echo "Checking the plugin ships no JSON schema files..."
 	@test "$$(find plugins/maister -path '*/schemas/*' -name '*.json' 2>/dev/null | wc -l | tr -d ' ')" -eq 0 || (echo "FAIL: a schema file is shipped under plugins/maister/" && exit 1)
+	@echo "Checking each interface file matches a fresh generation from its tree..."
+	@node tools/interface.mjs --root plugins/maister --check
+	@node tools/interface.mjs --root plugins/maister-copilot --check
 	@echo "Checking the generated variant is byte-identical to a fresh build..."
 	@# Compares the working tree against the index (not HEAD): a build that
 	@# ran but was never `git add`ed is exactly the staleness this catches,
