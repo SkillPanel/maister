@@ -34,6 +34,12 @@
  * - Under a driver nobody can be asked through, the `asks` line names the
  *   question ids and points at the Without line of each: a question's default
  *   is stated there, once.
+ * - An `ask with:` line under the `asks` line only for a run asked in session
+ *   on Copilot, whose question tool takes a message and a form: it names the
+ *   one command that builds the form, with the run's real paths, at the point
+ *   of asking. A session that composed the form itself from memory dropped the
+ *   descriptions and the recommendation the engine's form carries. Claude
+ *   Code's picker is composed in the session, so its brief has no such line.
  * - A `direct:` step's `delegates:` line only when its `brief:` declares
  *   agents it dispatches, and then whole, each agent beside its model and
  *   effort: the step's own section is read as work to do inline, and the
@@ -107,6 +113,9 @@ import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
 import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { DECISION_BY, HEADLINE_MAX, RISK_TAGS } from './items.mjs';
 
+/** The engine's entry script, which the `ask with:` line names by its absolute path. */
+const ENGINE = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
+
 /** The engine skill beside this module, whose conventions table the brief prints rows of. */
 const SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
 
@@ -179,6 +188,7 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
   const byId = new Map(nodes.map(entry => [entry.id, entry]));
   const context = {
     doc,
+    state: path.resolve(state),
     runDir,
     root: projectRootOf(runDir),
     recorded,
@@ -338,7 +348,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (known && (scheme !== 'direct' || section === null || writes.some(line => line.includes(OWED)))) keys.push(known.row);
   if (writes.length || Object.keys(values).length) keys.push('every step');
 
-  const asks = askLines(origin, resolved, context.doc);
+  const asks = askLines(origin, resolved, context, node);
   if (asks.length) {
     lines.push(...asks);
     keys.push('asks');
@@ -501,14 +511,27 @@ function typeText(type) {
 /**
  * `asks (<driver>): <ids>` for the question ids the node's section declares;
  * when nobody can be asked, the same ids and a pointer at the Without line of
- * each, which states the default that stands in.
+ * each, which states the default that stands in. Asked in session on Copilot,
+ * an `ask with:` line follows, naming the command that turns the node's set
+ * into the question tool's call.
  */
-function askLines(origin, resolved, doc) {
+function askLines(origin, resolved, { doc, state, runDir }, node) {
   const ids = origin === null ? [] : declaredQuestionIds(origin, sectionNameOf(resolved));
   if (!ids.length) return [];
   if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}`];
-  if (canAsk(doc)) return [`asks (in session): ${ids.join(', ')}`];
-  return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies`];
+  if (!canAsk(doc)) return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies`];
+  const lines = [`asks (in session): ${ids.join(', ')}`];
+  if (runHost(doc) === 'copilot') lines.push(askWithLine(state, runDir, node));
+  return lines;
+}
+
+/**
+ * The `ask with:` line: the patch file the set is written to and the
+ * `gate-brief` call whose whole output is the question tool's arguments.
+ */
+function askWithLine(state, runDir, node) {
+  const patch = quoted(path.join(runDir, '.state-patch.json'));
+  return `ask with: write each question set to ${patch} as the in-node questions reference shapes it, then run node ${quoted(ENGINE)} gate-brief --state=${quoted(state)} --node=${node} --ask --patch-file=${patch} and pass its output to the question tool unchanged — never compose the form yourself`;
 }
 
 /**

@@ -22,7 +22,9 @@
  *                  `ask:` line naming the ids still to ask, or `none`; then,
  *                  when a node it completed owes an HTML companion that is
  *                  not on disk, a blank line and one `companion-missing:
- *                  <node> <path>` line per file)
+ *                  <node> <path>` line per file, followed on a write that
+ *                  completes a node by one `companion-stale: <node> <path>`
+ *                  line per companion of the run older than its markdown)
  *   gate-request   --state, --patch-file (or the request as JSON on stdin)
  *                                                             the files written
  *                  (the request file, the gate index and the pending marker);
@@ -760,11 +762,15 @@ function reportWrite(result, input, rules) {
     process.stdout.write(`\nask: ${result.asking.length ? result.asking.join(' ') : 'none'}\n`);
   }
   // The HTML companions the nodes this write completed owe and did not write,
-  // after a blank line, one per line. On stdout and never stderr: the write
-  // landed, and the line asks for a file, not for a different write.
-  if (result.ok && Array.isArray(result.companionMissing) && result.companionMissing.length) {
+  // then the run's companions older than their markdown, after one blank line,
+  // one per line. On stdout and never stderr: the write landed, and each line
+  // asks for a file, not for a different write.
+  const missing = result.ok && Array.isArray(result.companionMissing) ? result.companionMissing : [];
+  const stale = result.ok && Array.isArray(result.companionStale) ? result.companionStale : [];
+  if (missing.length || stale.length) {
     process.stdout.write('\n');
-    for (const { node, path: file } of result.companionMissing) process.stdout.write(`companion-missing: ${node} ${file}\n`);
+    for (const { node, path: file } of missing) process.stdout.write(`companion-missing: ${node} ${file}\n`);
+    for (const { node, path: file } of stale) process.stdout.write(`companion-stale: ${node} ${file}\n`);
   }
   // A warning is not a refusal and must not read like one: the refusal contract
   // puts the code as the first stderr token, so these lines open with `warning:`

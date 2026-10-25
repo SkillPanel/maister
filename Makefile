@@ -69,6 +69,8 @@ validate:
 	@node tests/browser-tool-lint.mjs
 	@echo "Checking every dispatch-model invocation names the workflow script..."
 	@node tests/dispatch-command-lint.mjs
+	@echo "Checking every agent and workflow guide names a plugin file under the plugin root..."
+	@node tests/plugin-path-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."
 	@test $$(find plugins/maister-copilot/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)
 	@echo "Checking every source agent carries the containment sentence..."

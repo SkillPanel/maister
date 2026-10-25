@@ -175,7 +175,7 @@ Only after the markdown is final:
 
 1. **Hash the markdown** — compute the SHA-256 of the markdown file's bytes as written, with Node rather than by reading and re-encoding it:
    `node -e "process.stdout.write(require('node:crypto').createHash('sha256').update(require('node:fs').readFileSync(process.argv[1])).digest('hex'))" <markdown path>`
-2. **Write the file** at `areas_output_path` (default: `decision-areas.json` beside the markdown), for either caller. Its shape — every key, every bound, the closed set of faults — is documented in the workflow engine skill's decision areas reference, `skills/workflow-engine/references/decision-areas.md` in the plugin; read it before writing whenever your prompt gives its path, and never add a key it does not name. In short:
+2. **Write the file** at `areas_output_path` (default: `decision-areas.json` beside the markdown), for either caller. Its shape — every key, every bound, the closed set of faults — is documented in the workflow engine skill's decision areas reference, `<plugin root>/skills/workflow-engine/references/decision-areas.md`; read it before writing whenever your prompt gives its path, and never add a key it does not name. In short:
    - `source` names the markdown by its path relative to the task directory, with the hash from step 1
    - `version` is the bare number `1`
    - one entry per decision area, in the markdown's order, each with a slug id, its name, its question, why it matters, any dependencies on earlier areas, its alternatives in rank order (at least two), and its recommendation — the alternative's id and a one-line reason, or `null` for an area left open

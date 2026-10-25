@@ -40,8 +40,9 @@ shared facts, so you do not scan for them:
 Nobody writes you a prompt for this change. Read the spec and the plan the brief names for the scale and the decisions the change was built
 to, and the code around the change for the conventions in play. A deviation a recorded decision covers is
 not a finding; at most it is an `info` naming the decision. Follow the contract at its `contract`
-path (`implementation-verifier/references/review-findings.md`) for the findings file and re-check
-mode, and write `verification/simplicity-findings.json` beside your report, even when it is empty.
+path (absolute, `<plugin root>/skills/implementation-verifier/references/review-findings.md`) for
+the findings file and re-check mode — never search the filesystem for it or any plugin file: a
+path that cannot be read is said in your report — and write `verification/simplicity-findings.json` beside your report, even when it is empty.
 
 **Without a brief** (run by its own review command), the range is what the prompt names:
 a base commit or branch, else the working tree against its merge base with the default branch.

@@ -589,6 +589,33 @@ test('node-brief: an agent step\'s runs line carries the model and effort the ru
   assert.equal(runsOf(nodeBrief(dev.state, 'finalization')), 'runs: direct:finalization — inline');
 });
 
+test('node-brief: asked in session on Copilot, a step that asks names the question-set command with the run\'s real paths', t => {
+  const dev = scratch(t);
+  freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  const copilotEngine = path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs');
+  const patch = path.join(dev.dir, '.state-patch.json');
+  const askWith = node => 'ask with: write each question set to ' + patch + ' as the in-node questions reference shapes it, then run node '
+    + copilotEngine + ' gate-brief --state=' + path.resolve(dev.state) + ' --node=' + node + ' --ask --patch-file=' + patch
+    + ' and pass its output to the question tool unchanged — never compose the form yourself';
+
+  for (const node of ['gap-analysis', 'finalization']) {
+    const lines = nodeBrief(dev.state, node, copilotEngine).stdout.split('\n');
+    const at = lines.findIndex(line => line.startsWith('asks (in session): '));
+    assert.ok(at > 0, node);
+    assert.equal(lines[at + 1], askWith(node), `${node}: the line follows the asks line`);
+    // Claude Code's picker is composed in the session: its brief names no command.
+    assert.ok(!nodeBrief(dev.state, node).stdout.includes('ask with:'), `${node}: no line on Claude Code`);
+  }
+  // A step that asks nothing gets no line.
+  assert.ok(!nodeBrief(dev.state, 'implementation', copilotEngine).stdout.includes('ask with:'));
+
+  // Nobody can be asked, or a cockpit asks the sets: no command to run in session.
+  write(dev, { orchestrator: { driver: { kind: 'dispatch' } } });
+  assert.ok(!nodeBrief(dev.state, 'gap-analysis', copilotEngine).stdout.includes('ask with:'));
+  write(dev, { orchestrator: { driver: { kind: 'cockpit', features: ['question-sets'] } } });
+  assert.ok(!nodeBrief(dev.state, 'gap-analysis', copilotEngine).stdout.includes('ask with:'));
+});
+
 test('node-brief: the closing patch skeleton names the exact keys, and no gate or child run gets one', t => {
   const dev = scratch(t);
   freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });

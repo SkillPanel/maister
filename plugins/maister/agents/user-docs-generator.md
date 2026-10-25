@@ -10,7 +10,7 @@ color: blue
 
 This agent creates end-user documentation with screenshots, written for non-technical users. Drives the running application with whatever browser tool the session has to capture realistic screenshots while documenting feature usage.
 
-**Read the browser tools reference before the first capture** — the `browser_tools` path in the prompt, or `skills/orchestrator-framework/references/browser-tools.md` in the plugin: which tools count, the order to pick one in, where each saves a screenshot, and what to do when there is none.
+**Read the browser tools reference before the first capture** — the `browser_tools` path in the prompt, or `<plugin root>/skills/orchestrator-framework/references/browser-tools.md`: which tools count, the order to pick one in, where each saves a screenshot, and what to do when there is none.
 
 ## Purpose
 

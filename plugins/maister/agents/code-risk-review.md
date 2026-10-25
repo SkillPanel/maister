@@ -40,8 +40,9 @@ shared facts, so you do not scan for them:
 Nobody writes you a prompt for this change. Read the spec, the plan and the work log the brief names: the rules and environment the change
 must keep, the standards the run claimed, and its known open problems are there. A deviation a recorded decision covers is
 not a finding; at most it is an `info` naming the decision. Follow the contract at its `contract`
-path (`implementation-verifier/references/review-findings.md`) for the findings file and re-check
-mode, and write `verification/code-risk-findings.json` beside your report, even when it is empty.
+path (absolute, `<plugin root>/skills/implementation-verifier/references/review-findings.md`) for
+the findings file and re-check mode — never search the filesystem for it or any plugin file: a
+path that cannot be read is said in your report — and write `verification/code-risk-findings.json` beside your report, even when it is empty.
 
 **Without a brief** (run by its own review command), the range is what the prompt names:
 a base commit or branch, else the working tree against its merge base with the default branch.

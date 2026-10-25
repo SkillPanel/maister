@@ -29,7 +29,8 @@ With `review_brief` (the verification runner always passes one), read it first: 
 (`base` to the working tree), the changed files, `tests` and `checks` — context, whose failures
 the test-suite runner alone files — the paths of the run's documents and the profile. Nobody writes you a prompt for this change; the documents are your
 source. Follow the contract at its `contract` path for the findings file — exactly
-`verification/spec-findings.json`, even when empty — and re-check mode.
+`verification/spec-findings.json`, even when empty — and re-check mode. Never search the filesystem for the contract or any plugin
+file: a path that cannot be read is said in your report.
 
 Without a brief (run by `/maister-copilot:reviews-spec`), the range is what the prompt names, else the
 working tree against its merge base with the default branch, and the documents are those of the

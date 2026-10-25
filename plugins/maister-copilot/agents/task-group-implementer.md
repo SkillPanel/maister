@@ -202,7 +202,7 @@ Output structured report in expected format (see Output Format section).
 
 ### Standard Candidates
 
-[Knowledge this group met that the next change should have and no standard or project document holds yet — a convention, a pitfall, an important fact about the code — one line each, as docs-manager's standard candidates reference (`skills/docs-manager/references/standard-candidates.md` in the plugin; your prompt gives its path) describes: the rule, why, where, and what in this group showed it. "None" when none, and "None" over restating an existing standard or something true only for this change. Never edited into `.maister/docs/` here: finalization offers them.]
+[Knowledge this group met that the next change should have and no standard or project document holds yet — a convention, a pitfall, an important fact about the code — one line each, as docs-manager's standard candidates reference (`<plugin root>/skills/docs-manager/references/standard-candidates.md`; your prompt gives its path) describes: the rule, why, where, and what in this group showed it. "None" when none, and "None" over restating an existing standard or something true only for this change. Never edited into `.maister/docs/` here: finalization offers them.]
 - Every persisted file is written to a temp path and renamed into place — why: a crash mid-write left a truncated file the reader refused; where: the storage module; shown by: the interrupted-write test
 
 ### Implementation Notes

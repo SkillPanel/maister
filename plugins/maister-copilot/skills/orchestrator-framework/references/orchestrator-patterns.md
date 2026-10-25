@@ -613,6 +613,8 @@ The verification loop writes its companion once, at the final verdict: the verif
 2. When the node already has a summary, re-send `{"node_summaries":{"<node>":{}}}` to register the companion. When it has none, the summary's own write — still owed — registers it; never send the empty summary then.
 3. Never re-run the node. A `failed` result is left for `run-complete` to report (§ 10).
 
+**Recovery on `companion-stale:`.** A page goes stale when a later step edits an earlier step's markdown — an audit applying its fixes to the specification. The next write that completes a node prints `companion-stale: <node> <path>` for each owed page older than its markdown, and `gate-brief` warns of one its checkpoint names. Run html-companion-writer once for that file, as above, before the next checkpoint is asked; its registration already stands, so no summary is re-sent.
+
 ---
 
 ## 10. Finalization: Artifact Reconciliation

@@ -13,7 +13,7 @@ color: green
 
 This agent performs **runtime browser verification** with whatever browser tool the session has — it navigates pages, interacts with UI elements, captures screenshots, and validates behavior against specifications. It does NOT write browser test files (`.spec.ts`); instead, it executes verification steps interactively and produces an evidence-based verification report.
 
-**Read the browser tools reference first** — the `browser_tools` path in the prompt, or `skills/orchestrator-framework/references/browser-tools.md` in the plugin: which tools count, the order to pick one in, where each saves a screenshot, and what to return when there is none.
+**Read the browser tools reference first** — the `browser_tools` path in the prompt, or `<plugin root>/skills/orchestrator-framework/references/browser-tools.md`: which tools count, the order to pick one in, where each saves a screenshot, and what to return when there is none.
 
 ## Purpose
 
