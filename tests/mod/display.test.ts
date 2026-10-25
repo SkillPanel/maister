@@ -19,6 +19,7 @@ const PATCH = `${RUN}/.state-patch.json`
 
 const FROZEN = '2026-10-07T16:24:39Z'
 const LATER = '2026-10-07T16:33:39Z'
+const PHASE_STARTED = '2026-10-07T16:31:09Z'
 const LINE = 'Development · phase 5/12 · Specification · Add count() to the store'
 const ENGINE = 'node "/plugin/skills/workflow-engine/scripts/workflow.mjs"'
 const WRITE = `${ENGINE} write-state --state=${RUN}/orchestrator-state.yml --patch-file=${PATCH}`
@@ -63,7 +64,7 @@ const statusDoc = (fields: Record<string, unknown> = {}) => json({
   version: 1,
   workflow: 'Development',
   task: 'Add count() to the store',
-  phase: { index: 5, total: 12, title: 'Specification' },
+  phase: { index: 5, total: 12, title: 'Specification', started: FROZEN },
   checkpoint: { index: 2, total: 10, title: 'Specification approval' },
   status: 'in_progress',
   line: LINE,
@@ -327,6 +328,25 @@ describe('run band', () => {
     expect(drawn.texts).toContain('●●○○●●●●●●●●')
     expect(drawn.texts).toContain('phase 7 of 12 · Implementation')
     expect(drawn.colours).toMatchObject({ '●●': '#79c08b', '○○': '#8c909a', '●': '#e3bd59', '●●●●●': '#5a5f69' })
+  })
+
+  test('times the phase under way from its own start, never the run\'s', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ phase: { index: 12, total: 15, title: 'Verification', started: PHASE_STARTED } }) })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    const drawn = await band($, 'terminal')
+    expect(drawn.texts).toContain('phase 12 of 15 · Verification')
+    expect(drawn.texts).toContain('running for 2 min')
+    expect(drawn.texts.join(' ')).not.toContain('running for 9 min')
+  })
+
+  test('shows no clock while no phase is under way, though the run has a start', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc({ phase: { index: 5, total: 12, title: 'Specification', started: null } }) })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    const drawn = await band($, 'terminal')
+    expect(drawn.texts).toContain('phase 5 of 12 · Specification')
+    expect(drawn.texts.join(' ')).not.toMatch(/running for/)
   })
 
   test('never says how long anything will take', async ($: any, on: any) => {
