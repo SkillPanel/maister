@@ -3,7 +3,7 @@
 The shape Refresh INDEX.md writes `.maister/docs/INDEX.md` in. Sections follow the directory as it is — never a hardcoded file list — and each entry follows the entry rules in `SKILL.md` (Refresh INDEX.md): a heading naming the document and its path, then one or two sentences on what it is for and when to open it. An entry never holds the document's content.
 
 ```markdown
-<!-- Maintained by  edit the source documents, not this file. -->
+<!-- Maintained by maister — edit the source documents, not this file. -->
 # Documentation Index
 
 A map of this project's documentation: one entry per file, saying what it is for and when to open it. Open the files themselves; an entry never holds their content.

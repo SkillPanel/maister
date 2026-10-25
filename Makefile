@@ -132,6 +132,10 @@ validate:
 	@for f in plugins/maister-copilot/hooks/*.mjs; do grep -q "^const HOOK_SHAPE = 'copilot';$$" "$$f" || { echo "FAIL: $$f emits Claude Code's output shape, which Copilot drops"; exit 1; }; done
 	@echo "Checking no maister- prefix in copilot command names..."
 	@! grep -r '^name: maister-' plugins/maister-copilot/commands/ 2>/dev/null || (echo "FAIL: maister- prefix in command names" && exit 1)
+	@echo "Checking no prose maister: in the source, which the Copilot build would strip..."
+	@# The build turns every other maister:<name> into the bare name, so a
+	@# maister: followed by a space or a line end reads with the name gone.
+	@! grep -rnE 'maister:([[:space:]]|$$)' plugins/maister/ --include="*.md" 2>/dev/null || (echo "FAIL: a maister: before a space or a line end loses the name in the Copilot build; write the name without the colon" && exit 1)
 	@echo "Checking no maister: prefixes in copilot variant..."
 	@! grep -r 'maister:' plugins/maister-copilot/ --include="*.md" --include="*.json" --include="*.mjs" --include="*.yml" 2>/dev/null || (echo "FAIL: maister: prefix found" && exit 1)
 	@echo "Checking no maister-<name> form survives (Copilot registers neither)..."
