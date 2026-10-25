@@ -103,7 +103,9 @@ node's declared story id, then the topic as a short slug — and never folded in
 A question stays on its own only when its answer changes no story: which existing component to
 reuse, whether visual assets exist.
 A story's question lists its parts, a line each, then each correction the corrections option
-applies, a line each.
+applies, a line each. Those lines and that option's label name the same corrections in the same
+words: the label sums up exactly what the lines list, so neither names a correction the other
+lacks, and the alternative story's label names that story, never a correction.
 
 **Independent items go in pages; decision areas go one at a time.**
 A picker call holds up to four questions, one tab each. Items that stand on their own — the fix

@@ -906,6 +906,30 @@ export function plainPicker(checkpoint) {
   return withDetails('plain', question, options, {});
 }
 
+/** The one property of a labels-only picker's form, by which the answer comes back. */
+export const FORM_PROPERTY = 'decision';
+
+/**
+ * A labels-only picker as the asking tool's own arguments: the question whole
+ * as the message, and a form of one property whose choices are the options in
+ * order, each its id as the value and its label as the title, the recommended
+ * one as the default. Built here so the session passes it as it stands: a form
+ * composed by hand reworded the message, dropped options and added fields.
+ */
+export function formOf({ question, header, options }) {
+  const recommended = options.find(option => option.recommended);
+  const property = {
+    type: 'string',
+    title: header,
+    oneOf: options.map(option => ({ const: option.id, title: option.label })),
+    ...(recommended ? { default: recommended.id } : {}),
+  };
+  return {
+    message: question,
+    requestedSchema: { type: 'object', properties: { [FORM_PROPERTY]: property }, required: [FORM_PROPERTY] },
+  };
+}
+
 /** An inline code span: a run of backticks, the code, and a run of the same length. */
 const CODE_SPAN = /(?<!`)(`+)([^`\n][^\n]*?)(?<!`)\1(?!`)/g;
 

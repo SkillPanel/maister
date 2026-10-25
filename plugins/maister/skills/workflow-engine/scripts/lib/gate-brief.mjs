@@ -61,7 +61,9 @@
  * The picker takes one of two profiles, one per kind of asking tool, and the
  * build picks the profile per tool. `rich` keeps the compact question and the
  * descriptions and puts the whole brief in the recommended option's preview;
- * `plain` puts the whole brief in the question and lists labels only. Both mark
+ * `plain` puts the whole brief in the question and lists labels only, and
+ * returns `form`, the same question and options as the asking tool's own
+ * arguments, so the session passes them rather than building a form. Both mark
  * the recommended label, keep every option's id, and add "More details" — the
  * request for the full brief, never an answer — while the tool has a slot free.
  * `--oneline` is the driven form a gate request carries, and it is the shape a
@@ -116,7 +118,7 @@ import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
 import { childRootOf, definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
-import { approvesHeld, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
+import { approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
@@ -444,7 +446,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const header = picker === 'plain' ? titleOf(titles, closing.id) : checkpoint.header;
   return {
     ok: true,
-    picker: { picker, ...shaped, header },
+    picker: pickerWith(picker, shaped, header),
     more_details: moreDetails(checkpoint),
     panel,
     errors: [],
@@ -762,12 +764,21 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   }
   return {
     ok: true,
-    picker: { picker, ...shaped, header: picker === 'plain' ? HELD_HEADER : HELD_CHIP },
+    picker: pickerWith(picker, shaped, picker === 'plain' ? HELD_HEADER : HELD_CHIP),
     more_details: moreDetails(checkpoint),
     panel,
     errors: [],
     warnings,
   };
+}
+
+/**
+ * The picker as returned: its profile, then — on the plain profile — the form
+ * the asking tool takes as it stands, then its fields under their header.
+ */
+function pickerWith(picker, shaped, header) {
+  const fields = { ...shaped, header };
+  return picker === 'plain' ? { picker, form: formOf(fields), ...fields } : { picker, ...fields };
 }
 
 /** The options the rich picker has room for. */
