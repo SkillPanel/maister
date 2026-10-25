@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DECLARED, ENGINE_DIR, freeze, freezePatch, lastLine, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { DECLARED, ENGINE_DIR, freeze, freezePatch, lastLine, readDashboard, readState, scratch, sibling, verb, delegating, write as writeState } from '../helpers.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 const RESEARCH = path.join(ENGINE_DIR, 'workflows/research.yml');
 

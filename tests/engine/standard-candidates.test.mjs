@@ -115,7 +115,7 @@ function step(section, number) {
 test('each guide consolidates the candidates through docs-operator before offering them, worded alike', () => {
   const steps = ASKERS.map(workflow => {
     const consolidate = step(sectionOf(workflow, 'finalization'), 4);
-    assert.ok(consolidate.includes('`dispatch-model --agent=maister:docs-operator`'), `${workflow}: the call takes its dispatch-model values`);
+    assert.ok(consolidate.includes('workflow.mjs dispatch-model --agent=maister:docs-operator'), `${workflow}: the call takes its dispatch-model values`);
     assert.ok(consolidate.includes('"Consolidate standard candidates.'), `${workflow}: the call names the docs-manager operation`);
     assert.ok(consolidate.includes(`\`${REFERENCE}\``), `${workflow}: the step points at the reference`);
     assert.ok(consolidate.includes('offered as written'), `${workflow}: a failed consolidation still offers the lines`);

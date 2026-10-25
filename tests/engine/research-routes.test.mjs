@@ -2,7 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
-import { ENGINE_DIR, freeze, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, freeze, readState, scratch, verb, delegating, write as writeState } from '../helpers.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 // Research decides its optional stretches at its gates: the foundation gate
 // offers the three ways on, the brainstorming gate decides the design, and the

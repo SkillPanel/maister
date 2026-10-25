@@ -26,7 +26,7 @@ Every write goes through the `docs-operator` subagent, which preloads docs-manag
 
 For a project whose INDEX.md has grown long, been hand-edited or been merged badly — one command, run once, by the operator or for them.
 
-1. Invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`, model and effort from `dispatch-model --agent=maister:docs-operator` — `../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*, for every `docs-operator` call here):
+1. Invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before — `../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*, for every `docs-operator` call here):
    > "Refresh INDEX.md with reshape. Check: [check path]. Rewrite every entry the check warns on and every structural failure, keep the entries that already follow the rules, bring the layout to the template, and return the check's result."
 2. Show what changed — entries rewritten, added and removed — and the check's result: no failures, and any warnings left. A `standards-file-over-guide` warning names a file to split: offer `/maister:standards-update "split <path>"` for each, and never split one here.
 
@@ -68,7 +68,7 @@ For each selected standard:
 
 ### SYNC STEP 4: Refresh INDEX.md
 
-Invoke `docs-operator` subagent via Task tool (subagent_type: `maister:docs-operator`, model and effort from `dispatch-model --agent=maister:docs-operator`):
+Invoke `docs-operator` subagent via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before):
 > "Refresh INDEX.md. Changed: [the added and updated standards paths]. Check: [check path]. Verify CLAUDE.md integration."
 
 Wait for docs-operator to complete, then immediately proceed to SYNC STEP 5.
@@ -146,7 +146,7 @@ No user prompt needed — just inform: "Updating existing standard: [name]" or "
 >
 > Wording, for a standard or a project document alike: the rule first, then the reason, then its scope; no exact counts, line numbers or identifiers that will go stale (*How one is written* in the standard candidates reference). A rule extending an existing one is merged into it, not added beside it.
 
-**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `dispatch-model --agent=maister:docs-operator`) with context:
+**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before) with context:
 
 For **updates**:
 > "Update documentation file: standards/[category]/[name].md. Current content: [content]. Add/change: [new conventions]. Integrate new practices, maintain markdown formatting, organize logically, preserve existing unless conflicts. Then refresh INDEX.md with this path as changed. Check: [check path]. Report the file's size and rule count against its guidance."

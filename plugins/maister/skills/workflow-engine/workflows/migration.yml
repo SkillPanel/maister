@@ -129,8 +129,9 @@ html_companions:
   verification: [report]
 
 # What each node's brief prints beside its prose section: its recovery budget
-# (a prose rule the engine never enforces). Read beside the graph, not part of
-# it: the block moves no graph hash.
+# (a prose rule the engine never enforces), and the agent the specification
+# always dispatches, whose dispatch its completion is held to. Read beside the
+# graph, not part of it: the block moves no graph hash.
 brief:
   current-state-analysis:
     budget: 2
@@ -138,6 +139,7 @@ brief:
     budget: 2
   specification:
     budget: 2
+    delegates: [specification-creator]
   planning:
     budget: 2
   execution:

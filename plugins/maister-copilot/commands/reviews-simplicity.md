@@ -3,6 +3,8 @@ name: reviews-simplicity
 description: Check a change for complexity the project does not need — needless abstraction, infrastructure beyond its scale, configuration sprawl and developer friction
 ---
 
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+
 **ACTION REQUIRED**: This command delegates to a subagent. The `<command-name>` tag refers to THIS command, not the target. Invoke the simplicity-review subagent via the Task tool NOW. Do not read files, explore code, or execute workflow steps yourself — beyond the quick target lookup below when no target is given.
 
 You are running a simplicity review (needless abstraction, infrastructure beyond the project's scale, configuration sprawl, indirection and developer friction) using the `simplicity-review` subagent, on its own and without a review brief.
@@ -20,7 +22,8 @@ First run `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.m
 
 ```
 Use Task tool:
-  subagent_type: "maister-copilot:simplicity-review"
+  agent_type: "maister-copilot:simplicity-review"
+  name: "simplicity-review"
   description: "Simplicity review"
   prompt: |
     Review without a brief.

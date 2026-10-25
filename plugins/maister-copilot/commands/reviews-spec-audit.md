@@ -3,7 +3,9 @@ name: reviews-spec-audit
 description: Independent specification audit to verify completeness and clarity before implementation
 ---
 
-**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with subagent_type="maister-copilot:spec-auditor" NOW. Pass the spec path in the prompt. Do not read files, explore code, or execute workflow steps yourself — beyond the quick target lookup below when no path is given.
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+
+**ACTION REQUIRED**: This command delegates to a different skill. The `<command-name>` tag refers to THIS command, not the target. Call the Task tool with agent_type="maister-copilot:spec-auditor" NOW. Pass the spec path in the prompt. Do not read files, explore code, or execute workflow steps yourself — beyond the quick target lookup below when no path is given.
 
 You are running an independent specification audit using the `spec-auditor` agent.
 
@@ -30,7 +32,7 @@ First run `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.m
 
 ```
 Task Tool:
-- subagent_type: "maister-copilot:spec-auditor"
+- agent_type: "maister-copilot:spec-auditor"
 - description: Specification audit
 - prompt: |
     Audit the specification at: [spec-path]

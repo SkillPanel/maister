@@ -124,9 +124,8 @@ operator when the second also comes back thin.
 break down, with the rollback procedure beside it, in two parts: Part A frames
 the migration requirements inline (Asks below), and Part B hands them to the
 specification-creator agent, whatever the migration's size, with the migration
-task type and the model and effort `dispatch-model
---agent=maister:specification-creator --node=specification` prints
-(`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
+task type, on the model and effort the brief's `delegates:` line prints; the
+closing write lists it under `delegated`.
 
 Hand the creator two things beyond `with:` and `prior-context`: the
 requirements Part A wrote, `analysis/requirements.md`, and the migration facts
@@ -403,7 +402,8 @@ chosen below, and **always runs**.
    the implementers' and the fix loop's — before the check, so a standard added
    here is in its view. When there are any, invoke `docs-operator` once
    (subagent_type `maister:docs-operator`, with the model and effort
-   `dispatch-model --agent=maister:docs-operator` prints for this node,
+   `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude --state=<task path>/orchestrator-state.yml --node=finalization`
+   prints,
    `orchestrator-patterns.md` § 1): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]." It
    merges duplicates, matches each against what the project's standards and

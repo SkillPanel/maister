@@ -3,6 +3,8 @@ name: reviews-code-risk
 description: Review a change for what can break, leak or fall over where the project runs — correctness, failure paths, security, CI and build, operational hygiene and the standards that apply
 ---
 
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+
 **ACTION REQUIRED**: This command delegates to a subagent. The `<command-name>` tag refers to THIS command, not the target. Invoke the code-risk-review subagent via the Task tool NOW. Do not read files, explore code, or execute workflow steps yourself — beyond the quick target lookup below when no target is given.
 
 You are running a code risk review (correctness, failure paths, security and resilience keyed to the project profile, CI and build, operational hygiene, and the standards that govern the change) using the `code-risk-review` subagent, on its own and without a review brief.
@@ -20,7 +22,8 @@ First run `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.m
 
 ```
 Use Task tool:
-  subagent_type: "maister-copilot:code-risk-review"
+  agent_type: "maister-copilot:code-risk-review"
+  name: "code-risk-review"
   description: "Code risk review"
   prompt: |
     Review without a brief.

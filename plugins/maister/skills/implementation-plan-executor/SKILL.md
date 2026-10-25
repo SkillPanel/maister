@@ -37,8 +37,9 @@ node <plugin root>/skills/workflow-engine/scripts/workflow.mjs runner-step --sta
 It prints one JSON object. Act on its `next`, then run `runner-step` again, until it says `close`
 or `inline`:
 
-- **`dispatch`** — dispatch the runner. First `dispatch-model --agent=maister:implementation-runner
-  --host=claude --state=<state> --node=<node>` and copy its `model` and `effort` into the call
+- **`dispatch`** — dispatch the runner. First run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs
+  dispatch-model --agent=maister:implementation-runner --host=claude --state=<task path>/orchestrator-state.yml
+  --node=<node>` and copy its `model` and `effort` into the call
   (`../orchestrator-framework/references/orchestrator-patterns.md` § 1). One agent call, the only
   one in its message:
   - `subagent_type: maister:implementation-runner`, `description: Run the implementation waves`;

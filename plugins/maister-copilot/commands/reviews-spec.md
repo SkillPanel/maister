@@ -3,6 +3,8 @@ name: reviews-spec
 description: Check that a change obeys its spec, clarifications and recorded decisions — who may do what, what must never happen, each requirement and story, and the work log's claims
 ---
 
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+
 **ACTION REQUIRED**: This command delegates to a subagent. The `<command-name>` tag refers to THIS command, not the target. Invoke the spec-conformance-review subagent via the Task tool NOW. Do not read files, explore code, or execute workflow steps yourself — beyond the quick target lookup below when no target is given.
 
 You are running a spec conformance review (the rules the spec, the clarifications and the recorded decisions set, each requirement and story, the claims in the work log and the docs the change made false) using the `spec-conformance-review` subagent, on its own and without a review brief.
@@ -22,7 +24,8 @@ First run `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.m
 
 ```
 Use Task tool:
-  subagent_type: "maister-copilot:spec-conformance-review"
+  agent_type: "maister-copilot:spec-conformance-review"
+  name: "spec-conformance-review"
   description: "Spec conformance review"
   prompt: |
     Review without a brief.

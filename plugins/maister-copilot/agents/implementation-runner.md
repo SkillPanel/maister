@@ -95,8 +95,9 @@ Each group runs on the cheapest model the project allows for its planner tier, r
 before each wave's fan-out (`<plugin_root>/skills/orchestrator-framework/references/orchestrator-patterns.md`
 § 1, *Model and Effort on Every Agent Call*):
 
-- **One call per tier in the wave**: `dispatch-model --agent=maister-copilot:task-group-implementer
-  --tier=<the group's Tier> --host=copilot --state=<state> --node=<node>`; a group with no `Tier`
+- **One call per tier in the wave**: `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs
+  dispatch-model --agent=maister-copilot:task-group-implementer --tier=<the group's Tier> --host=copilot
+  --state=<state> --node=<node>`; a group with no `Tier`
   is resolved without `--tier`, so the project's policy gives it its `unassessed` rung.
 - **The rung a group runs on** is the line's source: the planner's tier, the rung it was clamped
   to, or `unassessed: <rung>`. A note that the tier was ignored means the project fixed the
@@ -119,7 +120,7 @@ before each wave's fan-out (`<plugin_root>/skills/orchestrator-framework/referen
    design context when `analysis/design-context/` exists — paths to mockups, never their HTML
    inlined; a small ASCII excerpt may be.
 3. **Fan out in one message.** One agent call per group, all in the same message, each with
-   `subagent_type: maister-copilot:task-group-implementer` and the `model` and `reasoning_effort` its tier's line
+   `agent_type: maister-copilot:task-group-implementer` and the `model` and `reasoning_effort` its tier's line
    printed (a field printed as `omit` left out). Never send one, wait, then send the next:
    that is serial execution in a wave's clothing, and the wave takes the sum of its groups
    instead of the longest. A wave of one is one call.
@@ -212,8 +213,9 @@ twice.
    its results file. A failure is a decision as § *When a group fails* says, naming the tests.
 3. **The docs index, when documents changed.** Collect the paths under `.maister/docs/` the groups
    reported under Docs Changed, plus any `git status -- .maister/docs` shows changed. When there
-   are any, send `maister-copilot:docs-operator` (its `model` and `reasoning_effort` from `dispatch-model
-   --agent=maister-copilot:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check:
+   are any, send `maister-copilot:docs-operator` (its `model` and `reasoning_effort` from `node
+   <plugin_root>/skills/workflow-engine/scripts/workflow.mjs dispatch-model
+   --agent=maister-copilot:docs-operator --host=copilot --state=<state> --node=<node>`): "Refresh INDEX.md. Changed: [paths]. Check:
    <plugin_root>/skills/docs-manager/scripts/docs-check.mjs". A refresh that fails is a warning in
    the log, never a stop. Nothing here edits INDEX.md.
 4. **The closing entry**, its timestamp from the clock: *Implementation Complete*, the total

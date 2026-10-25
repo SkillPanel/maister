@@ -34,6 +34,10 @@
  * - Under a driver nobody can be asked through, the `asks` line names the
  *   question ids and points at the Without line of each: a question's default
  *   is stated there, once.
+ * - A `direct:` step's `delegates:` line only when its `brief:` declares
+ *   agents it dispatches, and then whole, each agent beside its model and
+ *   effort: the step's own section is read as work to do inline, and the
+ *   delegate's share of it is what a session skips without the line.
  * - The scheme row of `agent:`, `skill:` and `workflow:` steps, `asks`,
  *   `feeds a checkpoint` and `gate` print whole wherever they apply: each
  *   carries a hand-over or a recording rule a step skips silently without it.
@@ -100,7 +104,7 @@ import { briefOfRun } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
 import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
-import { resolveAgent, shippedHost } from './subagents.mjs';
+import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { DECISION_BY, HEADLINE_MAX, RISK_TAGS } from './items.mjs';
 
 /** The engine skill beside this module, whose conventions table the brief prints rows of. */
@@ -313,6 +317,11 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
     return lines;
   }
   const brief = (sources ? briefOfRun(context.doc, context.runDir, sources) : null)?.[node] ?? {};
+  const delegates = scheme === 'direct' && !dispatched && Array.isArray(brief.delegates) ? brief.delegates : [];
+  if (delegates.length) {
+    lines[1] = `runs: ${uses} — inline, its delegates dispatched through the Task tool`;
+    lines.push(DELEGATES, ...delegates.map(agent => `- ${dispatchName(agent)}: ${modelText(agent.slice(agent.indexOf(':') + 1), node, context.doc)}`));
+  }
   const withs = isPlainObject(resolved.with) ? resolved.with : {};
   const filled = Object.fromEntries(Object.entries(withs).map(([key, value]) => [key, interpolate(value, context)]));
   if (Object.keys(filled).length) lines.push('with:', ...Object.entries(filled).map(([key, value]) => `- ${key}: ${shown(value)}`));
@@ -359,7 +368,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (later.length && table !== null) lines.push(`convention (${later.join(', ')}): see rules`);
 
   if (section !== null) lines.push(...seeLines(section));
-  if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues));
+  if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues, delegates));
   lines.push(`rules: ${rules}`);
   return lines;
 }
@@ -372,7 +381,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
  * because a closing write guessed from memory is what the writer refused most:
  * a summary key misspelt, a context block or a re-sent `workflow` beside it.
  */
-function closingLine(node, values, brief, continues) {
+function closingLine(node, values, brief, continues, delegates) {
   const typed = Object.entries(values).map(([key, type]) => `${JSON.stringify(key)}: ${placeholderOf(type)}`);
   const status = `"status": "completed"${typed.length ? `, "values": {${typed.join(', ')}}` : ''}`;
   const summary = [
@@ -386,8 +395,21 @@ function closingLine(node, values, brief, continues) {
   if (isPlainObject(brief.recommends) && continues.size) {
     summary.push(`"recommends": {"option": "${[...continues].join('|')}", "reason": "<one line>"}`);
   }
+  if (delegates.length) summary.push(`"delegated": [${delegates.map(agent => JSON.stringify(agent)).join(', ')}]`);
   const id = JSON.stringify(node);
   return `closing patch (fill each <…>; never re-send workflow): {"nodes": {${id}: {${status}}}, "node_summaries": {${id}: {${summary.join(', ')}}}}`;
+}
+
+/**
+ * The `delegates:` line: the agents a `direct:` step's brief declares, each
+ * dispatched rather than done in the session. Printed whole, because a step
+ * run inline from its section reads the delegate's work as its own to do.
+ */
+const DELEGATES = 'delegates: dispatch each agent below through the Task tool, on the model and effort beside it, whatever the size of the project or the task — never do its work in this session. The closing write lists each in "delegated" and is refused without it';
+
+/** An agent as the Task tool takes it: a declared plugin name kept, a bare one under this plugin's. */
+function dispatchName(agent) {
+  return agent.includes(':') ? agent : `${shippedPluginName()}:${agent}`;
 }
 
 /** A declared value's placeholder: its literal alternatives, or the kind of string it takes. */

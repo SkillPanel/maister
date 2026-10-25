@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, ROOT, freeze, run, scratch, sibling, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, ROOT, freeze, run, scratch, sibling, verb, delegating, write as writeState } from '../helpers.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 // What a gate says of each choice is what a cockpit shows as written: the
 // title names what is approved, a label where the run goes, the recommended

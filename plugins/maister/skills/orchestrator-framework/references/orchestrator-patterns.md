@@ -50,6 +50,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 - Codebase analysis → always delegate to `maister:codebase-analyzer` skill
 - Code review → always delegate to the verification panel: `maister:spec-conformance-review`, `maister:code-risk-review` and `maister:simplicity-review` subagents
 - Test execution and the project's other checks → always delegate to `maister:test-suite-runner` subagent
+- A `direct:` step's declared delegates → every agent its brief's `delegates:` line names, on the model and effort printed beside it; the step lists them under `delegated` in its closing write, which the engine refuses without them
 
 "The task is simple" is NOT a valid reason to skip delegation.
 
@@ -401,8 +402,9 @@ answers travel to the next runner dispatch in `verification/decisions-<cycle>.js
    A fix is risky when it reaches beyond its item into behaviour the change did not set out to
    alter — a departure from the specification, a change to what callers see, anything beyond
    the code such as staging files in git. A fix handed to `task-group-implementer` takes the
-   model and effort `dispatch-model --agent=maister:task-group-implementer` prints with
-   `--node=` this node and no `--tier` (§ 1, *Model and Effort on Every Agent Call*): a fix has
+   model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs
+   dispatch-model --agent=maister:task-group-implementer --host=claude
+   --state=<task path>/orchestrator-state.yml --node=<this node>` prints, with no `--tier` (§ 1, *Model and Effort on Every Agent Call*): a fix has
    no planner tier, and maister's own table gives the built-in fix loops the session's model. Record each fix in `verification_context.fixes_applied`
    and in the node summary's `fixes_applied` as `{finding, change}` — never as a decision — and
    clear `skip_test_suite` when one changed code.
@@ -592,7 +594,7 @@ A companion is a rich HTML page beside a markdown artifact, for people to read. 
 
 **Declared, not listed here.** Which artifacts owe one is part of the workflow definition: a top-level `html_companions` block maps a node id to the artifact keys of that node whose `.md` owes a sibling `.html` (`workflow-engine/references/grammar.md` § 3.2). An overlay or a profile may add, replace or clear a node's list. A definition without the block owes nothing.
 
-**Who writes it.** The delegate that writes the markdown writes the companion in the same pass, so the two never drift. A `direct:` node that owes one hands its finished md to html-companion-writer before its completion write. Every html-companion-writer run in this section carries the model and effort `dispatch-model --agent=maister:html-companion-writer` prints (§ 1, *Model and Effort on Every Agent Call*). Companions follow `html-report-style.md`, the file beside this one: one self-contained file, no external resources, relative links and images only.
+**Who writes it.** The delegate that writes the markdown writes the companion in the same pass, so the two never drift. A `direct:` node that owes one hands its finished md to html-companion-writer before its completion write. Every html-companion-writer run in this section carries the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:html-companion-writer --host=claude --state=<task path>/orchestrator-state.yml --node=<the node under way>` prints (§ 1, *Model and Effort on Every Agent Call*). Companions follow `html-report-style.md`, the file beside this one: one self-contained file, no external resources, relative links and images only.
 
 **How a delegate learns of it.** The `run-context --node=<node>` block pasted into the prompt (§ 3) carries one `html:` line: `html: <absolute path of the style guide>` when the run has HTML output on and the node owes a companion, `html: off` otherwise, and a `companions:` list of the owed paths. A delegate returns `companion: written | disabled | failed | not-requested`:
 - `written` — every owed companion is on disk.

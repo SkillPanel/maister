@@ -95,8 +95,9 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, TARGET_NAME, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { companionsOf, owedCompanions } from './companions.mjs';
+import { briefOfRun } from './brief.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
@@ -1310,6 +1311,7 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null) {
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
   if (patch.nodes && runDir !== null) registerCompleted(doc, patch.node_summaries, out.before, runDir, changed);
+  if (patch.nodes && runDir !== null) assertDelegates(doc, out.before, runDir, graphOf);
   // The document as it now stands, parsed once for the passes below and again
   // only after a pass that changed it.
   let typed = null;
@@ -3391,6 +3393,15 @@ function assertItems(at, entry) {
       }
     });
   }
+  if (Object.hasOwn(entry, 'delegated') && entry.delegated !== null) {
+    // The agents a `direct:` step dispatched, which its completion is held to
+    // (`assertDelegates`): a name no dispatch could carry would satisfy nothing.
+    const delegated = entry.delegated;
+    if (!Array.isArray(delegated)) refuse('delegated', delegated, 'a list of the agents the step dispatched');
+    delegated.forEach((agent, index) => {
+      if (typeof agent !== 'string' || !TARGET_REF.test(agent)) refuse(`delegated[${index}]`, agent, 'an agent name, or one plugin name and a colon before it');
+    });
+  }
   if (Object.hasOwn(entry, 'metrics')) {
     const metrics = entry.metrics;
     if (!Array.isArray(metrics)) refuse('metrics', metrics, 'a list of {label, value}');
@@ -4130,6 +4141,51 @@ function registerCompleted(doc, summaryPatch, before, runDir, changed) {
     if (JSON.stringify(entryCopy.artifacts) === JSON.stringify(summaries[id].artifacts)) continue;
     doc.set(['node_summaries', id], block(id, entryCopy, 2));
     if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+  }
+}
+
+/**
+ * The delegate check: a `direct:` step whose `brief:` declares `delegates`
+ * completes only once its summary lists each of them under `delegated`.
+ *
+ * It exists because a `direct:` step runs inline from its section, and a
+ * session that judged the project small did the delegates' work itself: the
+ * research came back from one source where the gatherers would have read six.
+ * The brief names the delegates and the closing patch it prints carries them,
+ * so a step that dispatched them loses nothing; one that did not is refused
+ * before anything lands, and told which agents to dispatch.
+ *
+ * Names compare by their agent part, after any plugin name and colon, so the
+ * name under either variant's prefix and the bare name are one delegate. A
+ * definition that cannot be read declares nothing, and holds nobody; a
+ * declaration on a step that is not `direct:` holds nobody either, as the
+ * validator warns (`brief-delegates-not-direct`).
+ */
+function assertDelegates(doc, before, runDir, graphOf) {
+  const typed = typedOf(doc);
+  const nodes = isPlainObject(typed.workflow) && isPlainObject(typed.workflow.nodes) ? typed.workflow.nodes : {};
+  const completing = Object.entries(nodes)
+    .filter(([id, entry]) => isPlainObject(entry) && entry.status === 'completed' && before[id] !== 'completed')
+    .map(([id]) => id);
+  if (!completing.length) return;
+  const brief = briefOfRun(typed, runDir);
+  if (brief === null) return;
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  const agentOf = name => String(name).slice(String(name).lastIndexOf(':') + 1);
+  for (const id of completing) {
+    const declared = Array.isArray(brief[id]?.delegates) ? brief[id].delegates : [];
+    if (!declared.length) continue;
+    const uses = graphOf === null ? null : resolvedNode(graphOf(), id)?.uses;
+    if (typeof uses === 'string' && !uses.startsWith('direct:')) continue;
+    const listed = isPlainObject(summaries[id]) && Array.isArray(summaries[id].delegated) ? summaries[id].delegated : [];
+    const recorded = new Set(listed.map(agentOf));
+    const missing = declared.filter(agent => !recorded.has(agentOf(agent)));
+    if (!missing.length) continue;
+    throw new Refusal('state-delegates-unrecorded',
+      `${id} cannot complete: its brief declares the delegates ${declared.join(', ')}, and node_summaries.${id}.delegated `
+      + `does not list ${missing.join(', ')}. Nothing was written. Dispatch each missing agent through the Task tool as the `
+      + `brief's delegates: line says — never do its work in the session — then send the closing write again with every `
+      + 'dispatched agent in delegated');
   }
 }
 

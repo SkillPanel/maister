@@ -179,7 +179,8 @@ const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
  * The keys of one node's entry in the top-level `brief:` block: what the node's
  * brief prints beside its prose — the artifacts it may leave unwritten and
  * why, its recovery budget, and the `with:` values that recommend a continue
- * option of the gate it feeds. A question's default is not one of them: it
+ * option of the gate it feeds, and the agents a `direct:` step dispatches
+ * (`delegates`). A question's default is not one of them: it
  * lives once, in the Without line of the step's section. Every one is data a
  * step reads; none is graph data, so the block stays outside the hash
  * (`buildGraph`). `summary_keys` is a retired key: accepted with any value so
@@ -187,7 +188,7 @@ const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
  * merged and printed nowhere. Exported for `brief.mjs`, which
  * merges the block by the same shape rules (`briefValueProblems`).
  */
-export const BRIEF_KEYS = ['summary_keys', 'absent', 'budget', 'recommends'];
+export const BRIEF_KEYS = ['summary_keys', 'absent', 'budget', 'recommends', 'delegates'];
 
 /** The highest recovery budget a brief may print. */
 const BUDGET_MAX = 10;
@@ -321,6 +322,7 @@ const WARN = {
   briefUnknownInput: (path, node) => `brief-unknown-input:${path}:${node}`,
   briefUnknownOption: (path, node) => `brief-unknown-option:${path}:${node}`,
   briefRetiredKey: (path, node) => `brief-retired-key:${path}:${node}`,
+  briefDelegatesNotDirect: (path, node) => `brief-delegates-not-direct:${path}:${node}`,
   overlayIgnored: (name, from) => `overlay-ignored:${name}:${from}`,
   orphanSection: (companion, name) => `orphan-prose-section:${companion}:${name}`,
   undescribed: (name) => `workflow-undescribed:${name} — the work command offers a project workflow by what it is for, `
@@ -2365,6 +2367,21 @@ export function briefValueProblems(key, value) {
         }
       }
     }
+  } else if (key === 'delegates') {
+    if (!Array.isArray(value) || value.length === 0) {
+      report('', `delegates is a list of the agents the step dispatches, each written as agent: names one; ${shown(value)} is not`);
+      return problems;
+    }
+    const seen = new Set();
+    value.forEach((agent, index) => {
+      if (typeof agent !== 'string' || !TARGET_REF.test(agent)) {
+        report(`[${index}]`, `a delegate is an agent name, or one plugin name and a colon before it; ${shown(agent)} is not`);
+      } else if (seen.has(agent)) {
+        report(`[${index}]`, `${shown(agent)} is listed twice`);
+      } else {
+        seen.add(agent);
+      }
+    });
   }
   return problems;
 }
@@ -2404,7 +2421,9 @@ export function closedBy(gate, needs, isGate) {
  * `absent` key the node does not declare, a `recommends` key that is not one of
  * its `with:` keys and a recommended option that is not a continue option of a
  * gate the node feeds (`closedBy`, the rule `node-brief`'s `feeds:` lines use)
- * each **warn**: the brief prints nothing for that item,
+ * and `delegates` on a node that is not a `direct:` step — an `agent:` or a
+ * `skill:` step already names what it dispatches — each **warn**: the brief
+ * prints nothing for that item, and the writer holds nobody to it,
  * so nothing breaks, but the author meant something that will never be shown.
  * A `summary_keys` key warns as retired, in every layer and profile block; an
  * overlay's `null` removal of it does not.
@@ -2427,6 +2446,9 @@ function checkBriefNodes({ prefix, block }, nodes, removed, warnings) {
     }
     if (!isMap(entry)) continue;
     const node = nodes.get(id);
+    if (Array.isArray(entry.delegates) && !(typeof node.uses === 'string' && node.uses.startsWith('direct:'))) {
+      warnings.push(WARN.briefDelegatesNotDirect(`${at}.delegates`, id));
+    }
     if (isMap(entry.absent)) {
       const artifacts = isMap(node.outputs) && isMap(node.outputs.artifacts) ? node.outputs.artifacts : {};
       for (const key of Object.keys(entry.absent)) {

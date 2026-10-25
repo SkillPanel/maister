@@ -236,6 +236,35 @@ export function gitScratch(t, files = {}, options = {}) {
   return run;
 }
 
+/**
+ * The delegates the built-in workflows declare, by node id: a step whose
+ * `brief:` names them completes only once its summary lists them under
+ * `delegated` (`delegates.test.mjs`).
+ */
+export const DECLARED_DELEGATES = {
+  specification: ['specification-creator'],
+  'research-foundation': ['research-planner', 'information-gatherer', 'research-synthesizer'],
+  'high-level-design': ['solution-designer'],
+};
+
+/**
+ * `patch` with `delegated` added to the summary of each node it completes that
+ * declares delegates, as a session that dispatched them would send it. For a
+ * test that walks a built-in workflow past such a step and is about something
+ * else.
+ */
+export function delegating(patch) {
+  const nodes = patch && typeof patch.nodes === 'object' ? patch.nodes : {};
+  const summaries = { ...(patch.node_summaries ?? {}) };
+  let added = false;
+  for (const [id, entry] of Object.entries(nodes)) {
+    if (entry?.status !== 'completed' || !Object.hasOwn(DECLARED_DELEGATES, id)) continue;
+    summaries[id] = { ...(summaries[id] ?? {}), delegated: DECLARED_DELEGATES[id] };
+    added = true;
+  }
+  return added ? { ...patch, node_summaries: summaries } : patch;
+}
+
 /** Write a patch through `write-state` and fail loudly if it was refused. */
 export function write(run, patch) {
   const result = verb(['write-state', `--state=${run.state}`], patch);

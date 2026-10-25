@@ -170,11 +170,14 @@ html_companions:
 # What each node's brief prints beside its prose: a file it may leave
 # unwritten, its recovery budget and the continue a flag recommends. Read
 # beside the graph, not part of it: the block moves no graph hash. Research's
-# per-step budgets in `research-foundation` stay in its prose.
+# per-step budgets in `research-foundation` stay in its prose. `delegates` names
+# the agents a step run inline always dispatches: the brief prints each with its
+# model, and the step's completion is refused until its summary lists them.
 brief:
   research-foundation:
     absent:
       work_context: "No context pack was named, or it could not be read."
+    delegates: [research-planner, information-gatherer, research-synthesizer]
     recommends:
       brainstorm_flag: {"yes": continue-to-brainstorming}
   solution-generation:
@@ -187,6 +190,7 @@ brief:
       design_flag: {"yes": continue-to-design, "no": finish-without-design}
   high-level-design:
     budget: 2
+    delegates: [solution-designer]
 
 nodes:
   research-foundation:

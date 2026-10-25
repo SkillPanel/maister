@@ -4,9 +4,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, legacyMirror, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, legacyMirror, readState, scratch, verb, delegating, write as writeState } from '../helpers.mjs';
 import { scalar } from '../../plugins/maister/lib/canonical.mjs';
 import { FOCUS_BUDGET, FOCUS_LINES, PREVIEW_BUDGET } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 // `gate-brief` renders what the operator reads at a gate — the closing node's
 // summary, the node that will actually run next and the recommended option —

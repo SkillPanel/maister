@@ -2,8 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
-import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, freeze, scratch, verb, delegating, write as writeState } from '../helpers.mjs';
 import { walk } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 // The gates of the built-in definitions that are shaped by what they must not
 // repeat: a gate never re-approves an answer given a moment before, and a gate

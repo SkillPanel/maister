@@ -161,6 +161,7 @@ Keys are node ids; each entry holds any of these keys:
 | `absent` | Artifact key → a one-line reason the node may leave that artifact unwritten |
 | `budget` | A whole number from 1 to 10: the recovery attempts the node may make, printed as a rule and not enforced. A node with no recovery budget has no `budget` key |
 | `recommends` | `with:` key → (value → continue option id): which option the gate the node feeds should recommend for each value. Values are read as text, so quote `"yes"`, `"no"`, `"true"`, `"false"` |
+| `delegates` | A list of the agents a `direct:` node always dispatches, each named as `agent:` names one, each once. The brief names them on its `runs:` line and prints each beside the model and effort its call carries, and the writer refuses the node's completion until its summary lists every one under `delegated` (`state-delegates-unrecorded`). An agent the node dispatches only sometimes is not one |
 
 A question the node asks inside itself has no key here: its default is stated once, in the
 *Without question sets* line of the node's section (§ 11), which the brief prints.
@@ -175,7 +176,7 @@ mapping, a key outside the table, and a value of the wrong shape or with a line 
 each located at its path (`brief.<node>.<key>…`, prefixed `profiles.<name>.` in a profile). A
 node the resolved graph does not carry, an `absent` key the node does not declare, a `recommends`
 key that is not one of its `with:` keys, a recommended option that is not a continue option
-of a gate the node feeds, and a `summary_keys` key each warn (§ 14); nothing is printed for that item. A node feeds the
+of a gate the node feeds, `delegates` on a node that is not a `direct:` step, and a `summary_keys` key each warn (§ 14); nothing is printed or held for that item. A node feeds the
 gates whose closing nodes hold it: a gate's needs, with a need that is itself a gate replaced by
 that gate's own needs — the nodes the brief's `feeds:` lines name.
 
@@ -808,6 +809,7 @@ Warnings never block, and each one is worth reading:
 | `brief-unknown-artifact:<path>:<node>` | An `absent` key the node does not declare under `outputs.artifacts` |
 | `brief-unknown-input:<path>:<node>` | A `recommends` key that is not one of the node's `with:` keys |
 | `brief-unknown-option:<path>:<node>` | A recommended option that is not a continue option of a gate the node feeds |
+| `brief-delegates-not-direct:<path>:<node>` | `delegates` on a node that is not a `direct:` step: an `agent:` or `skill:` step already names what runs it, so nothing is printed or held for it |
 | `brief-retired-key:<path>:<node>` | A `summary_keys` entry: the phase-summary mirror it named is retired and nothing reads it; remove the key |
 | `orphan-prose-section:<companion>:<name>` | A `` ## `name` `` heading outside a fence that no node of the definition or overlay beside it finds its section by (§ 11) — a renamed node or a mistyped `direct:` target; rename the heading to the name, or delete the section. A node an overlay or profile disables still counts |
 | `subagents-error:<file>:<path>` | A `subagents` block the engine cannot apply — a `claude` cell or a pinned `model` that is not `haiku`, `sonnet`, `opus`, `fable` or `inherit`, a Claude Code alias in a `copilot` cell, an unknown tier or preset, an effort outside `low` … `max` and `inherit`, `allowed` outside the ladder, a `tier` or a `ceiling` that is neither a rung nor a rung per host, `tiers` in an overlay or profile, or a value of the wrong shape; the whole block is refused and the shipped defaults apply |

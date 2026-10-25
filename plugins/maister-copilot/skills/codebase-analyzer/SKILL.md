@@ -6,6 +6,8 @@ user-invocable: false
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
 
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+
 # Codebase Analyzer Skill
 
 Orchestrates parallel codebase analysis using built-in Explore subagents. Adaptively selects which agent roles to activate based on task complexity, then delegates report synthesis to a specialized subagent.
@@ -96,18 +98,19 @@ If combining roles into one agent, also read `references/combined.md` for mergin
 
 **3c. Launch agents** — Use the Task tool with `agent_type="explore"` — one call per selected role, all in ONE message.
 
-**Model and effort:** just before the launch, run `dispatch-model --agent=Explore` once and give every call the model and effort it prints (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
+**Model and effort:** just before the launch, run `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=Explore --host=copilot` once — inside a workflow run add `--state=<task_path>/orchestrator-state.yml --node=<the node under way>` — and give every call the model and effort it prints (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 
 **IMPORTANT**: Every Explore agent prompt MUST include this instruction:
 > IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
 ### Step 4: Delegate Report Generation
 
-After all Explore agents complete, delegate to `codebase-analysis-reporter` subagent via Task tool, with the model and effort a fresh `dispatch-model --agent=maister-copilot:codebase-analysis-reporter` prints:
+After all Explore agents complete, delegate to `codebase-analysis-reporter` subagent via Task tool, with the model and effort a fresh `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:codebase-analysis-reporter --host=copilot` prints (with the same `--state` and `--node` inside a run):
 
 ```
 Task tool:
-  subagent_type: "maister-copilot:codebase-analysis-reporter"
+  agent_type: "maister-copilot:codebase-analysis-reporter"
+  name: "codebase-analysis-reporter"
   description: "Merge findings into analysis report"
   prompt: |
     You are the codebase-analysis-reporter. Merge these raw findings into a structured analysis report.

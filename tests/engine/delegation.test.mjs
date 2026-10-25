@@ -86,7 +86,7 @@ test('a terminal freeze naming no host records nothing, as it always did', t => 
   const result = freezeWith(run, { orchestrator: { driver: { kind: 'terminal' } } });
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
-  assert.doesNotMatch(fs.readFileSync(run.state, 'utf8'), /delegation/);
+  assert.doesNotMatch(fs.readFileSync(run.state, 'utf8'), /^\s*delegation:/m);
 });
 
 test('--host names claude or copilot, or the write is refused before anything is read', t => {

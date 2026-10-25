@@ -220,9 +220,10 @@ html_companions:
   e2e-verification: [e2e, fidelity]
 
 # What each node's brief prints beside its prose: the declared artifacts it may
-# leave unwritten and why, its recovery budget and which continue an input
-# recommends. Read beside the graph, not part of it: the block moves no graph
-# hash.
+# leave unwritten and why, its recovery budget, which continue an input
+# recommends and the agent the specification always dispatches, whose dispatch
+# its completion is held to. Read beside the graph, not part of it: the block
+# moves no graph hash.
 brief:
   intake:
     absent:
@@ -240,6 +241,7 @@ brief:
     absent:
       technical_clarifications: "One obvious approach, so Part A asked nothing."
     budget: 2
+    delegates: [specification-creator]
     recommends:
       audit_flag:
         "yes": continue-to-spec-audit

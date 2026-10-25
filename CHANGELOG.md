@@ -138,7 +138,11 @@ workspace with work in flight.
   [maister cockpit](https://github.com/SkillPanel/maister-cockpit). On GitHub Copilot CLI, the
   plugin now names every command the way Copilot registers it, `/maister-copilot:<name>`. There,
   implementation and verification run their loops in the session: no Copilot agent is given the
-  agent tool, so no subagent dispatches subagents of its own.
+  agent tool, so no subagent dispatches subagents of its own; every agent call names the fields
+  Copilot's task tool takes, `name` among them. A step that dispatches agents from its own prose
+  — research's planning, gathering and synthesis, the specification writer — names them in its
+  definition, and on either host the engine records the step complete only once it lists each
+  agent it dispatched.
 
 ### Removed
 
