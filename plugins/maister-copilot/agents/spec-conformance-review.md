@@ -1,6 +1,6 @@
 ---
 name: spec-conformance-review
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Checks that the changed code obeys what its specification, clarifications and recorded decisions say — the rules it must keep (who may do what, what must never happen, ordering, stated failure behaviour) first, then each requirement and story as written, the run's claims against evidence, and docs the change made false. Dispatched by the verification runner with a review brief, or by /maister-copilot:reviews-spec. Writes its findings in the shared schema and supports re-check mode. Reports gaps without fixing them, and always writes its report to report_path. Does not interact with users.
 color: green
 ---

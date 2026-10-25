@@ -174,6 +174,23 @@ test('runner-step keeps the loop inline when the run is not nested, saying why',
   assert.deepEqual(stepOf(bare), { next: 'inline', reason: 'the run recorded no delegation' });
 });
 
+test('runner-step keeps the loop inline on Copilot, also for a run frozen nested there earlier', t => {
+  const reason = 'Copilot runs every subagent level under a session of its own, so the runners do not nest on this host';
+  const copilot = verifying(t, { host: 'copilot' });
+  assert.deepEqual(stepOf(copilot), { next: 'inline', reason });
+
+  // A record written before Copilot runs were frozen inline: nested at
+  // Copilot's depth, by hand here because no patch can set it.
+  for (const source of ['copilot default', 'cockpit driver: SDK nesting checked at 0.3.285 (copilot default)']) {
+    const earlier = verifying(t);
+    const text = fs.readFileSync(earlier.state, 'utf8');
+    const stale = text.replace('delegation: {mode: nested, depth: 3, source: "claude default"}', `delegation: {mode: nested, depth: 4, source: "${source}"}`);
+    assert.notEqual(stale, text);
+    fs.writeFileSync(earlier.state, stale);
+    assert.deepEqual(stepOf(earlier), { next: 'inline', reason });
+  }
+});
+
 test('runner-step dispatches fresh with no cycle recorded, and continues from the files after one', t => {
   const run = verifying(t);
   assert.deepEqual(stepOf(run), { next: 'dispatch', resume: 'fresh' });

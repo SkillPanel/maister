@@ -1,6 +1,6 @@
 ---
 name: implementation-runner
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Runs an implementation node's whole loop for a workflow run — the waves of the implementation plan, each task group's implementer, every group return, the one-step model escalation, the docs index refresh, the full test suite and the closing work-log entry — and records each wave start and group return through the workflow engine. Dispatched by the implementation plan executor's hand-off only, never chosen for a task on its own. Ends every dispatch with one result (done, a decision a person has to make, or why it could not run) and returns it as its final message. Does not interact with users.
 color: green
 ---

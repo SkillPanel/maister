@@ -356,6 +356,10 @@ the `deep` tier for the groups that need it, with a `budget`.
   you add to Copilot does not reach them; they drive a browser through the shell with
   `playwright-cli` (`npm install -g @playwright/cli`). Without it, the run says so where it would
   offer those steps and carries on without them.
+- **Subagents do not start subagents.** Copilot runs each level of subagents under a session of its
+  own, so Maister's agents here are given no agent tool. Implementation and verification keep
+  their loops in your session, starting each implementer and reviewer themselves, where Claude Code
+  hands each loop to one runner subagent.
 - **Missing folders.** Copilot's file tool does not create a missing parent folder. Maister's agents
   create a folder before writing into it.
 - **The guard is a plugin hook.** Copilot loads it from the plugin and runs it with Node, so it

@@ -619,9 +619,11 @@ asked before: a finding that needs your decision, a risky fix, or what to do onc
 re-checks are spent. Your answers go to the runner's next pass.
 
 The run decides when it starts. On Claude Code the runner is used unless
-`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is set to 1; on Copilot CLI it is always used; a run the
-cockpit drives uses it too. Where it cannot be used, or the runner finds it cannot start subagents,
-verification runs in your session as before, and the status line says `inline` instead of `nested`
+`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is set to 1, and a run the cockpit drives uses it too. On
+Copilot CLI it is never used: Copilot runs each level of subagents under a session of its own, so
+no Maister agent there starts subagents, and the loop always runs in your session. Where it
+cannot be used, or the runner finds it cannot start subagents, verification runs in your session as
+before, and the status line says `inline` instead of `nested`
 while it runs. A run that stops part way through verification picks up from the files the last pass
 left, whichever way it ran.
 

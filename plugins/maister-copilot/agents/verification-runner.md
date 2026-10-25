@@ -1,6 +1,6 @@
 ---
 name: verification-runner
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Runs a verification node's whole loop for a workflow run — the review brief, the tests and checks, the three-reviewer panel, the findings merge, the fix passes and their re-checks, and the report — and records every verification cycle in the run's state. Dispatched by the implementation verifier's hand-off only, never chosen for a task on its own. Ends every dispatch with one result (a verdict, a decision a person has to make, or why it could not run) and returns it as its final message. Does not interact with users.
 color: purple
 ---

@@ -1,6 +1,6 @@
 ---
 name: docs-operator
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Internal documentation management service. Executes docs-manager operations and returns results to the calling workflow.
 skills:
   - docs-manager
