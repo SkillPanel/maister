@@ -258,8 +258,8 @@ The verifier has already recorded `verification_context.last_status` and
 schema (`implementation-verifier/references/review-findings.md`) with the
 cycle the verifier ran; a data integrity issue takes `category:
 data-integrity` and `fixable: false`. Then run `findings-merge --state=<state>`
-again and record `verification_context.issues_found` exactly as it prints, so
-the issues keep their numbers in every later cycle. Then **declare
+again, which records `verification_context.issues_found` itself, so the
+issues keep their numbers in every later cycle. Then **declare
 `issues_to_resolve`**: true when the
 report carries an open issue the fix loop can fix or needs a decision on,
 **or** any data integrity issue — never fixed here; `issue-resolution` owns

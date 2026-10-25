@@ -21,9 +21,15 @@
  * no repository, or a snapshot no longer in it — the fix is matched by its
  * files alone, with one warning.
  * The output is `findings-<N>.json`, copied to `findings.json`, and on stdout
- * the counts and the `issues_found` projection the verifier records. Running
- * a cycle's merge again gives the same result, because it reads the cycle
- * before, never its own output.
+ * the counts and the `issues_found` projection. A run named by `--state` also
+ * has that projection recorded as its `verification_context.issues_found`,
+ * through the state writer, so the dashboard's verification card never waits
+ * on the caller to copy it; a standalone `--task-path` merge has no state and
+ * writes none. A write the writer refuses, or one that throws, is a
+ * `findings-merge-state-unwritten` warning and the merge stays ok: its files
+ * are written, and the caller's cycle record write can still carry the list.
+ * Running a cycle's merge again gives the same result, because it reads the
+ * cycle before, never its own output.
  *
  * The rules:
  *
@@ -84,7 +90,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isPlainObject, parse } from './state-read.mjs';
-import { projectRootOf } from './state.mjs';
+import { projectRootOf, writeState } from './state.mjs';
 import { parseHunks, patch, repoOf } from './git-tree.mjs';
 import { MERGED_FILE, VERIFICATION, briefCycles, projectRootOfTask, readJson, writeJson } from './review-brief.mjs';
 
@@ -273,7 +279,28 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
   writeJson(path.join(dir, MERGED_FILE(number)), document);
   const file = path.join(dir, 'findings.json');
   writeJson(file, document);
-  return { ok: true, file, cycle: number, mode, counts, failures: split, issues_found: projection(findings), errors: [], warnings };
+  const issuesFound = projection(findings);
+  if (state !== null) recordIssues(state, issuesFound, number, warnings);
+  return { ok: true, file, cycle: number, mode, counts, failures: split, issues_found: issuesFound, errors: [], warnings };
+}
+
+/**
+ * The projection recorded as the run's `verification_context.issues_found`.
+ * The writer merges `verification_context` key by key, so the cycle's other
+ * keys — `last_status`, `reviews`, `fixes_applied` — are left as they are. A
+ * refusal is a warning, never the merge's failure.
+ */
+function recordIssues(state, issuesFound, number, warnings) {
+  let result;
+  try {
+    result = writeState({ state, patch: { verification_context: { issues_found: issuesFound } } });
+  } catch (err) {
+    result = { ok: false, errors: [{ code: 'state-unwritable', message: err.message }] };
+  }
+  if (!result.ok) {
+    warnings.push(`findings-merge-state-unwritten: ${result.errors.map(error => error.code).join(', ')}; `
+      + `cycle ${number}'s issues_found is not in the state, so the cycle record write carries it`);
+  }
 }
 
 function runDirOf({ state, taskPath }) {

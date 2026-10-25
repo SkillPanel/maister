@@ -266,7 +266,43 @@
         "refusals": [
           "findings-merge-no-cycle",
           "findings-merge-state-unreadable",
-          "findings-merge-task-unreadable"
+          "findings-merge-task-unreadable",
+          "gate-brief-value-missing",
+          "gate-temp-exists",
+          "gate-unwritable",
+          "state-absent-invalid",
+          "state-candidate-unsound",
+          "state-context-block-unknown",
+          "state-entry-unserializable",
+          "state-freeze-input-missing",
+          "state-freeze-name-mismatch",
+          "state-freeze-nodes-mismatch",
+          "state-freeze-unproven",
+          "state-gate-option-unknown",
+          "state-gate-pending-form",
+          "state-gate-values-sent",
+          "state-held-approval-not-askable",
+          "state-incomplete",
+          "state-inline-collection",
+          "state-node-regressed",
+          "state-node-status-unknown",
+          "state-node-unknown",
+          "state-non-canonical",
+          "state-on-behalf-of-not-operator",
+          "state-patch-invalid",
+          "state-patch-unknown-key",
+          "state-question-answer-invalid",
+          "state-subrun-held-open",
+          "state-subrun-path-mismatch",
+          "state-summary-item-invalid",
+          "state-temp-exists",
+          "state-unreadable",
+          "state-unwritable",
+          "state-value-invalid",
+          "state-workflow-frozen",
+          "state-workflow-without-nodes",
+          "state-workflow-without-task",
+          "value-not-flow-safe"
         ]
       },
       "gate-brief": {
@@ -953,7 +989,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.0",
+  "interface_version": "1.1",
   "mcp": {
     "servers": [],
     "tools": [

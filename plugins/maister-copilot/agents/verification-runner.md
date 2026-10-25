@@ -122,9 +122,11 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    schema, `reviewer: "artifacts"`, `severity: "warning"`, category `docs`) naming the agent and
    the path, and transcribe its reply's issues there. The report says plainly which findings are
    a transcription.
-9. **Merge.** `findings-merge --state=<state>`. Read the counts, every issue and `failures` from
-   `verification/findings.json`, never from the replies. `not_reported` stays open; `out_of_scope`
-   is listed, never counted.
+9. **Merge.** `findings-merge --state=<state>`. It also records the cycle's `issues_found` in
+   `verification_context`; a `warning: findings-merge-state-unwritten` line says it could not, and
+   step 12 then carries `issues_found` exactly as the merge printed it. Read the counts, every
+   issue and `failures` from `verification/findings.json`, never from the replies. `not_reported`
+   stays open; `out_of_scope` is listed, never counted.
 10. **The verdict.** It reads `failures`: `introduced`, the failing tests and checks that are the
     change's — the base passes them, nobody could establish the base, or the run set out to fix
     them — and `on_base`, those the base fails the same way.
@@ -147,8 +149,8 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
     `findings.json` numbers, recommendations and the checklist. After any fix, a **Fix &
     Re-Verification History** section: each issue → fix → re-check outcome with its one-line
     evidence. Re-check notes stay side files; they never replace the canonical report.
-12. **Cycle record write.** `verification_context` with `last_status` the verdict, `reviews.done`
-    as returned, and `issues_found` exactly as the last `findings-merge` printed it.
+12. **Cycle record write.** `verification_context` with `last_status` the verdict and
+    `reviews.done` as returned. `issues_found` is not copied: the merge recorded it.
 
 With `fixes: off`, end with the verdict now (§ *Ending a dispatch*).
 

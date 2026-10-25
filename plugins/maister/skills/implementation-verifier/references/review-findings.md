@@ -236,5 +236,5 @@ For orientation only; the verifier runs it.
   a path the command names; any other is the change's.
 - **Silence is not a fix.** A finding you do not report again in a full review stays open, marked
   `not_reported`. It closes only when a fix touched its place or a re-check answers it resolved.
-- **The result** is `verification/findings.json`. The verifier's report and the run's
-  `issues_found` are read from that file.
+- **The result** is `verification/findings.json`. The verifier's report is read from that file,
+  and the merge records the run's `issues_found` from it in the state itself.

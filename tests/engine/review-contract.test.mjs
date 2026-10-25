@@ -51,7 +51,7 @@ test('review contract: the verification loop hands every prompt the brief and me
   assert.match(loop, /--refresh/);
   assert.match(loop, /findings-merge --state=/);
   assert.match(loop, /\*\*Every reviewer prompt carries `review_brief: <the printed path>`\.\*\*/);
-  assert.match(loop, /`issues_found` exactly as the last `findings-merge` printed it/);
+  assert.match(loop, /`findings-merge --state=<state>`\. It also records the cycle's `issues_found` in\s+`verification_context`/);
 });
 
 test('review contract: the hand-off asks runner-step before every move and dispatches the runner in the foreground', () => {
