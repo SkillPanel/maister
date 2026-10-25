@@ -1,6 +1,6 @@
 ---
 name: simplicity-review
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Reviews the changed code for complexity the project does not need — over-engineering, needless abstraction, infrastructure beyond the project's scale and developer friction — judged against the project profile and the project's standards. Dispatched by the verification runner with a review brief, or by /maister-copilot:reviews-simplicity. Writes its findings in the shared schema and supports re-check mode. Reports simplifications without applying them, and always writes its report to report_path. Does not interact with users.
 color: cyan
 ---

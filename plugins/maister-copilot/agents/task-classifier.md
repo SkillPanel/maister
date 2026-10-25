@@ -1,6 +1,6 @@
 ---
 name: task-classifier
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Task classification specialist analyzing task descriptions and issue references to classify into 5 workflow types (development, performance, migration, research, product-design), or into one of the project's own workflows when the caller lists them. Supports GitHub/Jira integration, codebase context analysis, and confidence scoring.
 color: purple
 ---

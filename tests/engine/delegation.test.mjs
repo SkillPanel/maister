@@ -8,12 +8,14 @@ import { FIXTURES, freezePatch, readDashboard, readState, scratch, verb, write }
 // The delegation record: whether the run's subagents can dispatch subagents of
 // their own, written by the freeze under `orchestrator.options.delegation` from
 // the host its `--host` names — Claude Code's depth from the environment or 3,
-// Copilot's 4 — under a cockpit or dispatch driver too, its source naming the
-// SDK check. No patch sets it; after the freeze a nested run may narrow it.
+// Copilot's 4, where the runners never nest — under a cockpit or dispatch
+// driver too, its source naming the SDK check. No patch sets it; after the
+// freeze a nested run may narrow it.
 // The status line and the verifier's dashboard card show its mode.
 
 const OVERLAY = path.join(FIXTURES, 'definitions/sample.overlay.yml');
 const DEPTH_ENV = 'CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH';
+const COPILOT_REASON = 'Copilot runs every subagent level under a session of its own, so the runners do not nest on this host';
 const NOTE = 'note: ignored the supplied orchestrator.options.delegation; the freeze records it from the host it names, so no patch sets it — after the freeze a nested run may only narrow it, as {mode: inline, reason}\n';
 
 /** Freeze the sample (with the verifier overlay) naming `host`, under `env`. */
@@ -34,8 +36,8 @@ const CASES = [
   ['Claude Code at depth 2', 'claude', { [DEPTH_ENV]: '2' }, { mode: 'nested', depth: 2, source: DEPTH_ENV }],
   ['Claude Code at depth 5', 'claude', { [DEPTH_ENV]: '5' }, { mode: 'nested', depth: 5, source: DEPTH_ENV }],
   ['Claude Code with a depth that is no whole number', 'claude', { [DEPTH_ENV]: 'deep' }, { mode: 'nested', depth: 3, source: 'claude default' }],
-  ['Copilot', 'copilot', {}, { mode: 'nested', depth: 4, source: 'copilot default' }],
-  ['Copilot, which does not read Claude Code\'s variable', 'copilot', { [DEPTH_ENV]: '1' }, { mode: 'nested', depth: 4, source: 'copilot default' }],
+  ['Copilot, where the runners never nest', 'copilot', {}, { mode: 'inline', depth: 4, source: 'copilot default', reason: COPILOT_REASON }],
+  ['Copilot, which does not read Claude Code\'s variable', 'copilot', { [DEPTH_ENV]: '5' }, { mode: 'inline', depth: 4, source: 'copilot default', reason: COPILOT_REASON }],
 ];
 
 for (const [label, host, env, expected] of CASES) {
@@ -56,7 +58,7 @@ const DRIVERS = [
 ];
 
 for (const [label, driver, source] of DRIVERS) {
-  test(`a driven run records nested at the host's depth: ${label}`, t => {
+  test(`a driven run records nested at Claude Code's depth, and inline on Copilot: ${label}`, t => {
     const run = scratch(t);
     const result = freezeWith(run, { host: 'claude', orchestrator: { driver } });
     assert.equal(result.code, 0, result.stderr);
@@ -67,10 +69,10 @@ for (const [label, driver, source] of DRIVERS) {
     assert.equal(freezeWith(bare, { orchestrator: { driver } }).code, 0);
     assert.deepEqual(delegationOf(bare), { mode: 'nested', depth: 3, source: `${source} (claude default)` });
 
-    // On Copilot the depth is the host's.
+    // On Copilot the depth is the host's, and the runners still never nest.
     const copilot = scratch(t);
     assert.equal(freezeWith(copilot, { host: 'copilot', orchestrator: { driver } }).code, 0);
-    assert.deepEqual(delegationOf(copilot), { mode: 'nested', depth: 4, source: `${source} (copilot default)` });
+    assert.deepEqual(delegationOf(copilot), { mode: 'inline', depth: 4, source: `${source} (copilot default)`, reason: COPILOT_REASON });
 
     // A depth of 1 in the session's environment still keeps the loop inline.
     const shallow = scratch(t);

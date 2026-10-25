@@ -1,6 +1,6 @@
 ---
 name: e2e-test-verifier
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Executes runtime browser verification with whatever browser tool the session has to verify implementation behavior against specifications. Does NOT generate test files — performs live interactive verification with evidence collection.
 color: green
 ---

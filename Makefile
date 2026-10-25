@@ -74,11 +74,13 @@ validate:
 	for f in plugins/maister/agents/*.md plugins/maister-copilot/agents/*.md; do \
 	  grep -qxF -- "$$sentence" "$$f" || { echo "FAIL: $$f lacks the containment sentence, so nothing keeps it from starting a workflow, a command or an orchestrator skill"; exit 1; }; \
 	done
-	@echo "Checking every Copilot agent has a tool allowlist with the agent tool..."
+	@echo "Checking every Copilot agent has a tool allowlist without the agent tool..."
+	@# Copilot runs each subagent level under a session of its own, so no agent
+	@# there dispatches one: the runners run inline and every agent is a leaf.
 	@for f in plugins/maister-copilot/agents/*.md; do \
 	  t=$$(awk 'NR==1 && $$0=="---"{fm=1; next} fm && $$0=="---"{exit} fm && /^tools:/{print}' "$$f"); \
 	  test -n "$$t" || { echo "FAIL: $$f has no tools: allowlist"; exit 1; }; \
-	  echo "$$t" | grep -qF '"agent"' || { echo "FAIL: $$f grants no agent tool, which seals every agent below it from dispatching one: $$t"; exit 1; }; \
+	  ! echo "$$t" | grep -qF '"agent"' || { echo "FAIL: $$f grants the agent tool, so a subagent could dispatch one under a session of its own: $$t"; exit 1; }; \
 	  ! echo "$$t" | grep -qF '"*"' || { echo "FAIL: $$f grants every tool by wildcard: $$t"; exit 1; }; \
 	done
 	@echo "Checking the research agents name the GitHub server's web search..."

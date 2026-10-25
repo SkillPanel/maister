@@ -1,6 +1,6 @@
 ---
 name: specification-creator
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Creates comprehensive specifications from gathered requirements. Searches for reusable code, writes spec.md with reusability analysis, and checks requirement coverage. Receives pre-gathered requirements - does not interact with users.
 color: green
 ---

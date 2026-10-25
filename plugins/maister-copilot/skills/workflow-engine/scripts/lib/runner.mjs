@@ -57,7 +57,9 @@
  * `runner-step --state --node [--runner] [--answered]` is the node's. It reads
  * the run and prints one JSON object naming what the node does next:
  *
- *   {next: inline, reason}            the run records no nested delegation
+ *   {next: inline, reason}            the run records no nested delegation,
+ *                                     or was frozen on Copilot, where the
+ *                                     runners never nest
  *   {next: dispatch, resume}          dispatch the runner; resume is `fresh`,
  *                                     `auto` (continue from the files: no
  *                                     current result, an unusable one, or one
@@ -117,7 +119,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isPlainObject, parse } from './state-read.mjs';
-import { attemptOf } from './state.mjs';
+import { COPILOT_REASON, attemptOf, frozenOnCopilot } from './state.mjs';
 import { questionSets, canAsk } from './driver.mjs';
 import { VERIFICATION, readJson, writeJson } from './review-brief.mjs';
 import { ACCEPT_OPTION } from './finding-brief.mjs';
@@ -292,6 +294,7 @@ export function runnerStep({ state, node, answered = false, runner = VERIFICATIO
   const warnings = [];
   const ok = (step, extra = {}) => ({ ok: true, step, ...extra, errors: [], warnings });
   const delegation = isPlainObject(run.doc.orchestrator?.options?.delegation) ? run.doc.orchestrator.options.delegation : null;
+  if (frozenOnCopilot(delegation)) return ok({ next: 'inline', reason: COPILOT_REASON });
   if (delegation?.mode !== 'nested') return ok({ next: 'inline', reason: inlineReason(delegation) });
   return (runner === IMPLEMENTATION ? implementationStep : verificationStep)({ run, node, answered, warnings, ok });
 }

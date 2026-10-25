@@ -1,6 +1,6 @@
 ---
 name: project-analyzer
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Analyzes project codebase to detect tech stack, architecture, and conventions for documentation generation. Use for existing/legacy projects to auto-generate meaningful documentation.
 color: blue
 model: [claude-haiku-5.5, claude-haiku-4.5, gpt-6-luna]

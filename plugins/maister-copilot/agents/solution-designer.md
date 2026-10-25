@@ -1,6 +1,6 @@
 ---
 name: solution-designer
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Transforms selected solution approach into high-level architecture design with C4 diagrams, component mapping, and MADR decision records. Non-interactive content generator.
 color: cyan
 ---

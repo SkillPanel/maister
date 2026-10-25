@@ -177,14 +177,17 @@ find "$OUT/skills" "$OUT/commands" -name "*.md" | while read f; do
   sedi 's/CLAUDE_PLUGIN_ROOT/MAISTER_PLUGIN_ROOT/g' "$f"
 done
 
-# 8. Give every agent the tools a Claude Code subagent has.
-#    A Claude Code subagent can dispatch subagents of its own, to the host's
-#    depth limit. A Copilot one gets every tool unless its frontmatter narrows
-#    them, and a child's tools are narrowed to its parent's, so an allowlist
-#    without the agent tool would seal every agent below it from nesting. Each
-#    agent gets:
-#    - A tool allowlist with the agent tool, so an agent dispatches a subagent
-#      on both hosts alike. It names both the CLI's aliases and its own tool
+# 8. Give every agent a tool allowlist without the agent tool.
+#    Copilot runs every subagent level under a session of its own, which a
+#    binding to the driver's session does not cover, so on this host no agent
+#    dispatches a subagent: the freeze records every Copilot run's delegation
+#    as inline, the runners keep their loops in the main session, and every
+#    agent the main session dispatches is a leaf. A Copilot agent gets every
+#    tool unless its frontmatter narrows them, so each agent gets:
+#    - A tool allowlist without the agent tool, so nothing below the main
+#      session can dispatch. A runner dispatched anyway finds no agent tool and
+#      returns unavailable, and its node runs the loop in the session. The list
+#      names both the CLI's aliases and its own tool
 #      names (before 1.0.100 the aliases resolved no search, fetch or todo
 #      tool, and a model family that edits by patch gets apply_patch only by
 #      name); names a model family or a session does not have are ignored. The
@@ -196,10 +199,9 @@ done
 #      the agents that drive a browser are granted none: they reach
 #      `playwright-cli` through `execute`.
 #    Keeping an agent from re-entering an entry point -- a review agent invoking
-#    its own reviews-* command, which dispatches it again, or an implementer
-#    loading an orchestrator skill -- is the containment sentence every source
-#    agent carries, which make validate checks, with the host's depth limit
-#    bounding a loop that slips past it.
+#    its own reviews-* command, or an implementer loading an orchestrator
+#    skill -- is the containment sentence every source agent carries, which
+#    make validate checks.
 #    The agent also gets DIR_RULE: Copilot's create tool refuses a path whose
 #    directory is missing, where Claude Code's Write makes it. Step 8c gives
 #    every skill the same rule.
@@ -211,7 +213,7 @@ find "$OUT/agents" -name "*.md" | sort | while read f; do
     echo "build: $f already declares tools:; the Copilot allowlist would override it" >&2
     exit 1
   fi
-  tools='"execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"'
+  tools='"execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"'
   case "$(basename "$f" .md)" in
     information-gatherer|research-planner) tools="$tools, \"github-mcp-server/web_search\"" ;;
   esac

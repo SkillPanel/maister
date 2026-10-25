@@ -1,6 +1,6 @@
 ---
 name: code-risk-review
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Reviews the changed code for the risks it carries into the project as it is deployed — correctness, error handling, security, resilience, performance, dead code and duplication, CI and build, operational hygiene, and the standards that govern the change, claimed or judged from INDEX.md — keyed to the project profile instead of a fixed web-service checklist. Dispatched by the verification runner with a review brief, or by /maister-copilot:reviews-code-risk. Writes its findings in the shared schema and supports re-check mode. Reports issues without modifying the code, and always writes its report to report_path. Does not interact with users.
 color: orange
 ---

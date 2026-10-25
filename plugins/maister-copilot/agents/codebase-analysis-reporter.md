@@ -1,6 +1,6 @@
 ---
 name: codebase-analysis-reporter
-tools: ["execute", "read", "edit", "search", "web", "todo", "agent", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
+tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Merges raw findings from parallel Explore agents into a structured codebase analysis report. Deduplicates files, cross-references analysis with tests, assesses complexity and risk, and produces actionable recommendations.
 color: blue
 ---

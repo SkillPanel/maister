@@ -2803,7 +2803,10 @@ function dropProject(orchestrator, notes) {
  * The host is the `--host` the freeze names, the one `dispatch-model` takes,
  * which the generated variant spells `copilot`. `mode` is `nested` at a depth
  * of two or more — a subagent and the subagents it dispatches — and `inline`
- * below it. A cockpit or dispatch driver, which the freeze patch carries,
+ * below it, except on Copilot, which is always `inline` with the reason
+ * `COPILOT_REASON`: there every subagent level runs under a session of its
+ * own, which a binding to the driver's session does not cover, so the runners
+ * keep their loops in the main session. A cockpit or dispatch driver, which the freeze patch carries,
  * follows the same rule, its `source` naming the SDK release nesting was
  * checked under (`SDK_CHECKED`); the cockpit strips the depth variable from a
  * session's environment, so its depth is the host's own. A terminal freeze
@@ -2815,7 +2818,9 @@ function seedDelegation(orchestrator, host) {
   const driven = DRIVEN_VIA.has(kind);
   if (host === null && !driven) return orchestrator;
   const { depth, source } = hostDepth(host ?? 'claude');
-  const delegation = { mode: depth >= NESTED_DEPTH ? 'nested' : 'inline', depth, source: driven ? `${kind} driver: ${SDK_CHECKED} (${source})` : source };
+  const nests = depth >= NESTED_DEPTH && host !== 'copilot';
+  const delegation = { mode: nests ? 'nested' : 'inline', depth, source: driven ? `${kind} driver: ${SDK_CHECKED} (${source})` : source };
+  if (host === 'copilot') delegation.reason = COPILOT_REASON;
   const base = isPlainObject(orchestrator) ? orchestrator : {};
   const options = isPlainObject(base.options) ? base.options : {};
   return { ...base, options: { ...options, delegation } };
@@ -2833,6 +2838,18 @@ function hostDepth(host) {
 const DEPTH_ENV = 'CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH';
 const CLAUDE_DEPTH = 3;
 const COPILOT_DEPTH = 4;
+
+/** Why a Copilot run never nests, recorded as its delegation's reason. */
+export const COPILOT_REASON = 'Copilot runs every subagent level under a session of its own, so the runners do not nest on this host';
+
+/**
+ * Whether a delegation record was frozen on Copilot: its source names
+ * Copilot's depth, alone or inside a driver's source. A run frozen there
+ * `nested` before Copilot runs were frozen inline reads as inline too.
+ */
+export function frozenOnCopilot(delegation) {
+  return isPlainObject(delegation) && typeof delegation.source === 'string' && /(^|\()copilot default\)?$/.test(delegation.source);
+}
 
 /** The depth at which a subagent can dispatch subagents of its own. */
 const NESTED_DEPTH = 2;

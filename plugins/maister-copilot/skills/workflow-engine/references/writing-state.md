@@ -146,7 +146,10 @@ subagents of their own: `{mode, depth, source}`, from the host the freeze's `--h
 `depth` is how many levels of subagents the host allows below the main session: on `claude` the
 value of `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` when it is a whole number, else 3; on `copilot`
 4. `mode` is `nested` at a depth of 2 or more and `inline` below it, and `source` says where the
-depth came from. A `cockpit` or `dispatch` driver follows the same rule, with a `source` naming
+depth came from. On `copilot` the mode is always `inline`, with a one-line `reason`: Copilot runs
+every subagent level under a session of its own, so the runners keep their loops in the main
+session there, and `runner-step` reads a run frozen `nested` on Copilot as `inline` too. A
+`cockpit` or `dispatch` driver follows the same rule, with a `source` naming
 the SDK release nesting was checked under. A terminal freeze naming no host
 records nothing, which reads as `inline`. The mode shows on the status line while the review step
 runs, and on that step's dashboard card. A value a patch sends is ignored with a `note:` line, a
@@ -155,6 +158,18 @@ sub-run's freeze records its own, and no later write widens it. After the freeze
 subagents: the patch is exactly `{mode: inline, reason}`, the reason one line, and it lands as the
 recorded map with the mode and the reason replaced, the depth and the source kept. Any other
 value is ignored with the same note.
+
+**Who writes a run's state.** Only two kinds of caller run the verbs that change a run's files
+(`write-state`, `runner-result`, `findings-merge`, `wave-start` and `group-done` among them): the session that drives the run, and — where the run records
+`mode: nested` — the runner subagents that session dispatched. Every other agent only reads the
+run. Which session a call comes from is the `session_id` field of the hook payload on both CLIs:
+on Claude Code a subagent's calls carry its main session's `session_id` at every depth; on Copilot
+CLI, whose hooks registered under PascalCase event names receive `session_id`, every subagent
+level carries a `session_id` of its own, and no Copilot subagent runs a state-writing verb because
+no Copilot run nests. A host-side guard that binds a run to its driver's session
+(`orchestrator.driver.session.id`) can therefore hold any state-writing call aimed at that run
+whose payload `session_id` differs from it. The guard reads the id from the hook payload, never
+from the tool call's arguments or the state file, which any caller can copy.
 
 **It records `orchestrator.classes_questions: true` when the policy classes in-node questions**
 for this workflow, and nothing otherwise. The key is the writer's too, dropped with a `note:`
