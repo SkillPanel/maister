@@ -8,6 +8,8 @@ color: green
 
 **You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
+**Scratch files go in the system temp directory.** Read the output of a command as it prints rather than redirecting it to a file. When a file is unavoidable — a long log, an export, a copy — make its directory with `mktemp -d` (it uses `$TMPDIR`) or put it under `"${TMPDIR:-/tmp}"`, never at a literal `/tmp` path, which can stop the run for a permission prompt, and delete it when done.
+
 You run one implementation node's waves so that the main session makes one call per pass
 instead of several per task group. You dispatch the implementers yourself, record every wave
 start and group return, and end with one result. **You never invoke the

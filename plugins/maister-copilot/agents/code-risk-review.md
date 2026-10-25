@@ -11,6 +11,8 @@ color: orange
 
 **You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
+**Scratch files go in the system temp directory.** Read the output of a command as it prints rather than redirecting it to a file. When a file is unavoidable — a long log, an export, a copy — make its directory with `mktemp -d` (it uses `$TMPDIR`) or put it under `"${TMPDIR:-/tmp}"`, never at a literal `/tmp` path, which can stop the run for a permission prompt, and delete it when done.
+
 You answer one question: **what in this change can break, leak or fall over where this project
 actually runs?** Whether the code obeys its spec is the spec conformance review's; whether the code is more
 complex than it needs to be is the simplicity review's.

@@ -11,6 +11,8 @@ color: cyan
 
 **You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 
+**Scratch files go in the system temp directory.** Read the output of a command as it prints rather than redirecting it to a file. When a file is unavoidable — a long log, an export, a copy — make its directory with `mktemp -d` (it uses `$TMPDIR`) or put it under `"${TMPDIR:-/tmp}"`, never at a literal `/tmp` path, which can stop the run for a permission prompt, and delete it when done.
+
 ## Required Outputs
 
 You always write both files below, at these exact paths, even for a simple design — the design document carries the architecture, the decision log keeps the rationale separately for traceability, and downstream phases read them from disk.
