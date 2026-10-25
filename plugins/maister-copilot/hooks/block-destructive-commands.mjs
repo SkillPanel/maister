@@ -31,7 +31,9 @@ const HOOK_SHAPE = 'copilot';
 const WHITELIST = ['test-suite-runner', 'e2e-test-verifier', 'user-docs-generator', 'docs-operator'];
 const OWN_PREFIXES = ['maister', 'maister-copilot'].map(name => `${name}:`);
 
-const DESTRUCTIVE = /git\s+stash|git\s+reset\s+--hard|git\s+checkout\s+--\s+\.|git\s+checkout\s+\.\s*$|git\s+clean|git\s+push\s+(-f|--force)|rm\s+-rf/im;
+// `git stash list` and `git stash show` only read the stash, so they pass;
+// any other stash subcommand, a bare `git stash` included, is blocked.
+const DESTRUCTIVE = /git\s+stash(?!\s+(?:list|show)\b)|git\s+reset\s+--hard|git\s+checkout\s+--\s+\.|git\s+checkout\s+\.\s*$|git\s+clean|git\s+push\s+(-f|--force)|rm\s+-rf/im;
 
 /** One deny payload, in the host's shape. */
 function denyJson(reason) {

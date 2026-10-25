@@ -85,7 +85,7 @@ for (const [tree, dir, decisionOf] of [
 
   test(`guard (${tree}): a subagent's destructive command is denied in the host's shape`, () => {
     for (const agent of ['task-group-implementer', 'maister:task-group-implementer', 'maister-copilot:task-group-implementer']) {
-      for (const command of ['git stash list', 'git reset --hard HEAD', 'git checkout .', 'git clean -fd', 'git push --force', 'rm -rf build', 'echo ok\ngit checkout .']) {
+      for (const command of ['git stash', 'git stash push -m wip', 'git stash pop', 'git stash list; git stash drop', 'git reset --hard HEAD', 'git checkout .', 'git clean -fd', 'git push --force', 'rm -rf build', 'echo ok\ngit checkout .']) {
         const result = guard(dir, agent, command);
         assert.equal(result.code, 0, result.stderr);
         assert.equal(decisionOf(result.json), 'deny', `${agent} / ${command}: ${result.stdout}`);
@@ -94,8 +94,8 @@ for (const [tree, dir, decisionOf] of [
   });
 
   test(`guard (${tree}): the deny names the agent and the command, in exactly the host's shape`, () => {
-    const result = guard(dir, 'task-group-implementer', 'git stash list');
-    const decision = { permissionDecision: 'deny', permissionDecisionReason: "Destructive command blocked for agent 'task-group-implementer': git stash list" };
+    const result = guard(dir, 'task-group-implementer', 'git stash pop');
+    const decision = { permissionDecision: 'deny', permissionDecisionReason: "Destructive command blocked for agent 'task-group-implementer': git stash pop" };
     const expected = tree === 'source' ? { hookSpecificOutput: { hookEventName: 'PreToolUse', ...decision } } : decision;
     assert.equal(result.stdout, `${JSON.stringify(expected)}\n`);
   });
@@ -113,6 +113,14 @@ for (const [tree, dir, decisionOf] of [
       const result = guard(dir, agent, 'git stash');
       assert.equal(result.code, 0, result.stderr);
       assert.equal(decisionOf(result.json), 'deny', `${agent}: ${result.stdout}`);
+    }
+  });
+
+  test(`guard (${tree}): a subagent's read-only stash command is let through`, () => {
+    for (const command of ['git stash list', 'git stash list | head -1', 'npm test; git stash list', 'git stash show -p stash@{0}']) {
+      const result = guard(dir, 'maister-copilot:task-group-implementer', command);
+      assert.equal(result.code, 0, result.stderr);
+      assert.equal(result.stdout, '', command);
     }
   });
 
