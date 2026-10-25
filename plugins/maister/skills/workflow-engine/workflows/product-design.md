@@ -183,8 +183,10 @@ recommended. A driven run classifies at the higher complexity and names that in
 3. **Research each topic** in `design_context.research_topics` through a
    `maister:information-gatherer` agent per topic, launched in parallel through
    the Task tool with the topic and its scope, plus the `run-context` output,
-   each with the model and effort `dispatch-model
-   --agent=maister:information-gatherer --node=context-synthesis` prints once
+   each with the model and effort `node
+   ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model
+   --agent=maister:information-gatherer --host=claude
+   --state=<task path>/orchestrator-state.yml --node=context-synthesis` prints once
    before the launch (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
 4. **Write `analysis/design-context.md`**, synthesising every source — the
    docs, the codebase summary, each file's and link's takeaways, the research —

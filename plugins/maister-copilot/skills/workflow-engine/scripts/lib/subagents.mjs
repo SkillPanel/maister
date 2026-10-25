@@ -803,11 +803,19 @@ export function rungsUsed(runDir) {
 
 /** The host the engine ships for: its plugin's own name says which. */
 export function shippedHost() {
+  return shippedPluginName() === 'maister-copilot' ? 'copilot' : 'claude';
+}
+
+/**
+ * The name the engine's own plugin is registered under — the prefix an agent
+ * it ships is dispatched by, before a colon and the agent's name.
+ */
+export function shippedPluginName() {
   try {
     const manifest = JSON.parse(fs.readFileSync(path.join(pluginRoot(), '.claude-plugin', 'plugin.json'), 'utf8'));
-    return manifest?.name === 'maister-copilot' ? 'copilot' : 'claude';
+    return typeof manifest?.name === 'string' && manifest.name !== '' ? manifest.name : 'maister';
   } catch {
-    return 'claude';
+    return 'maister';
   }
 }
 

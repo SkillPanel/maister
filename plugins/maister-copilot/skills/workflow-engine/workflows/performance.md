@@ -125,9 +125,8 @@ operator when the second also comes back thin.
 **Does.** Part A asks the optimization requirements below inline. Part B then
 invokes the specification-creator agent through the Task tool, whatever the
 task's size, with the performance task type, the `with:` values and the
-`prior-context --node=specification` output, and with the model and effort
-`dispatch-model --agent=maister-copilot:specification-creator --node=specification`
-prints (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
+`prior-context --node=specification` output, on the model and effort the
+brief's `delegates:` line prints; the closing write lists it under `delegated`.
 
 **Asks.** Part A is **one page of three tabs**:
 
@@ -366,8 +365,9 @@ chosen below, and always runs.
 4. **Consolidate, then offer the standard candidates** the work log records —
    the implementers' and the fix loop's — before the check, so a standard added
    here is in its view. When there are any, invoke `docs-operator` once
-   (subagent_type `maister-copilot:docs-operator`, with the model and effort
-   `dispatch-model --agent=maister-copilot:docs-operator` prints for this node,
+   (agent_type `maister-copilot:docs-operator`, with the model and effort
+   `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:docs-operator --host=copilot --state=<task path>/orchestrator-state.yml --node=finalization`
+   prints,
    `orchestrator-patterns.md` § 1): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]." It
    merges duplicates, matches each against what the project's standards and

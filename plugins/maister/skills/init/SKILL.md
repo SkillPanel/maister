@@ -46,7 +46,9 @@ Leaving without changes is the Other answer: stop.
 
 ## PHASE 2: Project Analysis
 
-Invoke `project-analyzer` subagent via the Task tool, with the model and effort `dispatch-model --agent=maister:project-analyzer` prints just before (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; the same holds for each `docs-operator` call below).
+Invoke `project-analyzer` subagent via the Task tool, with the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:project-analyzer --host=claude` prints just before (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; each `docs-operator` call below runs it the same way, with `--agent=maister:docs-operator`).
+
+**The analyzer runs whatever the project's size.** The analysis is its work: never inspect the codebase in its place, and a small, simple or familiar project is no reason to. Phase 3's confirmation is built from its report, and the same holds for standards-discover's subagents in Phase 8.
 
 Wait for completion. Store analysis results for use in Phases 3 and 6.
 
@@ -98,7 +100,7 @@ Store selection for Phase 5.
 
 ## PHASE 5: Initialize Documentation Structure
 
-**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `dispatch-model --agent=maister:docs-operator`) with prompt — here and in Phase 7, `[check path]` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path:
+**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before) with prompt — here and in Phase 7, `[check path]` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path:
 
 > "Initialize documentation structure. Standards selection: [array from Phase 4]. [If --standards-from was provided: Standards source path: [resolved path]/.maister/docs/standards/. Copy standards from this external path instead of built-in defaults.] Only copy selected standard categories. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Create placeholder sections in INDEX.md for skipped categories. Check: [check path]."
 
@@ -217,7 +219,7 @@ Write each file to `.maister/docs/project/`.
 
 ## PHASE 7: Validate
 
-**Step 1**: Invoke `docs-operator` subagent via Task tool (subagent_type: `maister:docs-operator`, model and effort from `dispatch-model --agent=maister:docs-operator`) with prompt:
+**Step 1**: Invoke `docs-operator` subagent via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before) with prompt:
 
 > "Refresh INDEX.md with the project documentation written in Phase 6 as changed. Check: [check path]. Then verify CLAUDE.md is properly integrated with .maister/docs/ documentation."
 

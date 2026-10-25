@@ -13,7 +13,7 @@ When a phase requires delegation:
 2. Use the **Task tool** for **subagents/agents** — spawns an isolated subprocess that returns results when complete
 3. Wait for completion before continuing
 
-**Skills and agents are NOT interchangeable.** Skills always use Skill tool; agents always use Task tool. Never invoke a skill via Task tool (`subagent_type`) — it will fail with "Agent type not found."
+**Skills and agents are NOT interchangeable.** Skills always use Skill tool; agents always use Task tool. Never invoke a skill via Task tool (`agent_type`) — it will fail with "Agent type not found."
 
 **Why skills MUST use Skill tool**: Skills like `codebase-analyzer`, `implementation-plan-executor`, and `implementation-verifier` spawn their own subagents (Explore agents, reporters, planners) and work inside the run — its state, its gates and the questions it asks the user. A skill runs in the context that invokes it, so these run in the main agent via the Skill tool. Subagents can dispatch subagents of their own, to a depth each host limits, but orchestrators, not leaf agents, run workflows: every agent carries one sentence saying it never starts another workflow, a command or an orchestrator skill, and loads only a skill its own instructions name.
 
@@ -28,7 +28,7 @@ Reading a SKILL.md and then doing its work inline is not delegation: invoke the 
 A project chooses the model and effort its subagents run on (`subagents` in `.maister/config.yml`, § 4 *Project Configuration*), and the engine resolves the choice; the call only carries it. An `agent:` node's call takes the values its brief's `runs:` line prints. Every other agent call — a skill's or a command's fan-out, a `direct:` step's delegate, a fix, an HTML companion or an index refresh — takes them from the engine's `dispatch-model` verb:
 
 - **Run it once, just before the fan-out**, naming every agent type the fan-out uses: `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=<type>[,<type>…] --host=copilot`. Inside a run add `--state=<task path>/orchestrator-state.yml --node=<the node under way>` (its `orchestrator.started_phase`); standalone, add neither. Run it again before each later fan-out rather than reusing an earlier line, so the value is in context at the call and survives a compaction.
-- **Copy, never work out.** Each line reads `<agent>: model <m>, effort <e> — source: …`; copy its two values into the call's `model` and `reasoning_effort` fields, beside `subagent_type`, and leave out a field printed as `omit`, so the host's own choice applies. A `note:` line is acted on where the caller says so (the implementation executor's budget); otherwise it needs nothing.
+- **Copy, never work out.** Each line reads `<agent>: model <m>, effort <e> — source: …`; copy its two values into the call's `model` and `reasoning_effort` fields, beside `agent_type`, and leave out a field printed as `omit`, so the host's own choice applies. A `note:` line is acted on where the caller says so (the implementation executor's budget); otherwise it needs nothing.
 - **When the host refuses a field** — a model it lacks, an effort an older host does not take — send the call again without that field and write one warning line saying which field and agent: in the work log when the caller keeps one, else in the node summary's `risks` as a `tradeoff`, else in the reply. A verb that cannot run at all is the same: dispatch without either field and say so once. A missing value costs money, never the call.
 
 ### When Inline Execution is Acceptable
@@ -50,6 +50,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 - Codebase analysis → always delegate to `codebase-analyzer` skill
 - Code review → always delegate to the verification panel: `maister-copilot:spec-conformance-review`, `maister-copilot:code-risk-review` and `maister-copilot:simplicity-review` subagents
 - Test execution and the project's other checks → always delegate to `maister-copilot:test-suite-runner` subagent
+- A `direct:` step's declared delegates → every agent its brief's `delegates:` line names, on the model and effort printed beside it; the step lists them under `delegated` in its closing write, which the engine refuses without them
 
 "The task is simple" is NOT a valid reason to skip delegation.
 
@@ -401,8 +402,9 @@ answers travel to the next runner dispatch in `verification/decisions-<cycle>.js
    A fix is risky when it reaches beyond its item into behaviour the change did not set out to
    alter — a departure from the specification, a change to what callers see, anything beyond
    the code such as staging files in git. A fix handed to `task-group-implementer` takes the
-   model and effort `dispatch-model --agent=maister-copilot:task-group-implementer` prints with
-   `--node=` this node and no `--tier` (§ 1, *Model and Effort on Every Agent Call*): a fix has
+   model and effort `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs
+   dispatch-model --agent=maister-copilot:task-group-implementer --host=copilot
+   --state=<task path>/orchestrator-state.yml --node=<this node>` prints, with no `--tier` (§ 1, *Model and Effort on Every Agent Call*): a fix has
    no planner tier, and maister's own table gives the built-in fix loops the session's model. Record each fix in `verification_context.fixes_applied`
    and in the node summary's `fixes_applied` as `{finding, change}` — never as a decision — and
    clear `skip_test_suite` when one changed code.
@@ -592,7 +594,7 @@ A companion is a rich HTML page beside a markdown artifact, for people to read. 
 
 **Declared, not listed here.** Which artifacts owe one is part of the workflow definition: a top-level `html_companions` block maps a node id to the artifact keys of that node whose `.md` owes a sibling `.html` (`workflow-engine/references/grammar.md` § 3.2). An overlay or a profile may add, replace or clear a node's list. A definition without the block owes nothing.
 
-**Who writes it.** The delegate that writes the markdown writes the companion in the same pass, so the two never drift. A `direct:` node that owes one hands its finished md to html-companion-writer before its completion write. Every html-companion-writer run in this section carries the model and effort `dispatch-model --agent=maister-copilot:html-companion-writer` prints (§ 1, *Model and Effort on Every Agent Call*). Companions follow `html-report-style.md`, the file beside this one: one self-contained file, no external resources, relative links and images only.
+**Who writes it.** The delegate that writes the markdown writes the companion in the same pass, so the two never drift. A `direct:` node that owes one hands its finished md to html-companion-writer before its completion write. Every html-companion-writer run in this section carries the model and effort `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:html-companion-writer --host=copilot --state=<task path>/orchestrator-state.yml --node=<the node under way>` prints (§ 1, *Model and Effort on Every Agent Call*). Companions follow `html-report-style.md`, the file beside this one: one self-contained file, no external resources, relative links and images only.
 
 **How a delegate learns of it.** The `run-context --node=<node>` block pasted into the prompt (§ 3) carries one `html:` line: `html: <absolute path of the style guide>` when the run has HTML output on and the node owes a companion, `html: off` otherwise, and a `companions:` list of the owed paths. A delegate returns `companion: written | disabled | failed | not-requested`:
 - `written` — every owed companion is on disk.

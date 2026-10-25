@@ -74,10 +74,14 @@ naming what was skipped and the source path, and continue without it.
 
 Delegate to the `maister-copilot:research-planner` agent. Context for the planner: the
 brief path, the research type, the question, the scope, `project_doc_paths` and
-`methodology_reference`, plus the `run-context` output. Every delegate call of
-Steps 2–4 carries the model and effort `dispatch-model --agent=<its type>
---node=research-foundation` prints just before it, once per step
-(`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*). `methodology_reference`
+`methodology_reference`, plus the `run-context` output. The planner, the
+gatherers and the synthesizer are this node's declared delegates: the brief's
+`delegates:` line names each with the model and effort its call carries, and
+each is dispatched through the Task tool whatever the size of the project or
+the question — the session never plans, gathers or synthesizes in their place.
+Each milestone write lists the delegates dispatched so far under `delegated`,
+and the closing write lists all three; the writer refuses the completion
+without them. `methodology_reference`
 is the absolute path of
 `${MAISTER_PLUGIN_ROOT}/skills/research/references/research-methodologies.md`;
 the planner reads it, this node does not.
@@ -299,9 +303,9 @@ research report's recommendations. Ask the constraints question.
 
 Delegate to the `maister-copilot:solution-designer` agent. Context for the designer:
 everything `with:` names and the Part A answer as `design_preferences`, plus the
-`prior-context --node=high-level-design` output. The call carries the model and
-effort `dispatch-model --agent=maister-copilot:solution-designer --node=high-level-design`
-prints (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*). **When brainstorming was
+`prior-context --node=high-level-design` output. The designer is this node's
+declared delegate: dispatch it on the model and effort the brief's `delegates:`
+line prints, and list it under `delegated` in the closing write. **When brainstorming was
 skipped**, omit `exploration` and `selected_approach` rather than passing empty
 values, and say the design input is the report's recommendations.
 

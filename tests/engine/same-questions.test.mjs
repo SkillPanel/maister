@@ -3,10 +3,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, verb, delegating, write as writeState } from '../helpers.mjs';
 import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 import { walk } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 import { inNodeQuestions } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 // What every built-in asks, and how each question reaches a person under each
 // driver, pinned against a snapshot taken from the engine before the autonomy

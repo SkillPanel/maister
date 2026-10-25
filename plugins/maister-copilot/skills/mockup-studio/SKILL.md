@@ -6,6 +6,8 @@ user-invocable: true
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
 
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+
 # Mockup Studio
 
 The single, reusable engine for generating UI mockups in the maister plugin. It runs in the **main agent context** (not a subagent), so it can start a local visual-companion server (Bash), open a browser (with whatever browser tool the session has), and run interactive `ask_user` refinement gates.
@@ -97,7 +99,7 @@ Read `references/visual-companion.md` for the full protocol. Then:
 
 ### Step 4b — ASCII path
 
-**INVOKE** the `maister-copilot:ascii-mockup-generator` subagent (Task tool), with the model and effort `dispatch-model --agent=maister-copilot:ascii-mockup-generator` prints just before (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*). Pass: `task_path`, `output_subdir` target, the `context` grounding, the feature type, AND the discovered design resources (resolved standard file paths, design-system inventory, skill hints) so the agent binds to them. The agent writes ASCII to `analysis/design-context/ascii/ui-mockups.md` (or `<output_subdir>/ascii-mockups.md` for standalone/product-design) and can append INDEX rows itself.
+**INVOKE** the `maister-copilot:ascii-mockup-generator` subagent (Task tool), with the model and effort `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:ascii-mockup-generator --host=copilot` prints just before — inside a workflow run add `--state=<task_path>/orchestrator-state.yml --node=<the node under way>` (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*). Pass: `task_path`, `output_subdir` target, the `context` grounding, the feature type, AND the discovered design resources (resolved standard file paths, design-system inventory, skill hints) so the agent binds to them. The agent writes ASCII to `analysis/design-context/ascii/ui-mockups.md` (or `<output_subdir>/ascii-mockups.md` for standalone/product-design) and can append INDEX rows itself.
 
 ### Step 5 — Refinement loop
 

@@ -252,9 +252,9 @@ and the fallback is a recorded note, not a retry.
 **Does.** Three parts: the technical questions and the drafted stories with the
 assumptions page (Asks), then the specification itself, written every time by
 the `maister-copilot:specification-creator` agent, handed the `with:` values, Parts A
-and B and the `prior-context --node=specification` output. Its call carries the
-model and effort `dispatch-model --agent=maister-copilot:specification-creator
---node=specification` prints (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
+and B and the `prior-context --node=specification` output. The creator is this
+node's declared delegate: its call carries the model and effort the brief's
+`delegates:` line prints, and the closing write lists it under `delegated`.
 
 An ingested architecture constrains every part: the interfaces, contracts and
 decisions it names are constraints on this repository's part of the change,
@@ -380,8 +380,8 @@ annotate it. Record the verdict in state.
 **The fix pass follows `orchestrator-patterns.md` § 6**, *The Specification
 Audit's Fix Pass*, step by step; the amend passes go to the
 `maister-copilot:specification-creator` agent through the Task tool, each with the model
-and effort `dispatch-model --agent=maister-copilot:specification-creator --node=spec-audit`
-prints.
+and effort `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:specification-creator
+--host=copilot --state=<task path>/orchestrator-state.yml --node=spec-audit` prints.
 
 **Asks.** Each finding that needs a decision is its own question (step 5
 there): write the auditor's decision findings to
@@ -705,8 +705,9 @@ than retried.
 4. **Consolidate, then offer the standard candidates** the work log records —
    the implementers' and the fix loop's — before the check, so a standard added
    here is in its view. When there are any, invoke `docs-operator` once
-   (subagent_type `maister-copilot:docs-operator`, with the model and effort
-   `dispatch-model --agent=maister-copilot:docs-operator` prints for this node,
+   (agent_type `maister-copilot:docs-operator`, with the model and effort
+   `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:docs-operator --host=copilot --state=<task path>/orchestrator-state.yml --node=finalization`
+   prints,
    `orchestrator-patterns.md` § 1): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]." It
    merges duplicates, matches each against what the project's standards and

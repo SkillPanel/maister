@@ -127,6 +127,20 @@ find "$OUT" -name "*.md" | while read f; do
   sedi -E "s/subagent_type([=:][[:space:]]*[\"'\`]?)Explore([^A-Za-z]|\$)/agent_type\1explore\2/g" "$f"
 done
 
+# 6b2. Name every dispatch's fields as Copilot's task tool takes them. It calls
+#      the agent type agent_type, and refuses a call that carries no `name` (a
+#      short id the caller picks), where Claude Code's tool has no such field.
+#      So `subagent_type` becomes `agent_type` everywhere, and each call block --
+#      a `subagent_type: "<agent>"` line of its own -- gets a `name` line after
+#      it, named for the agent. Prose dispatches are covered by TASK_RULE (8c).
+find "$OUT" -name "*.md" | while read f; do
+  sedi -E \
+    -e 's/^([[:space:]]*)subagent_type: "([A-Za-z0-9_:-]*:)?([A-Za-z0-9_-]+)"[[:space:]]*$/\1agent_type: "\2\3"\
+\1name: "\3"/' \
+    -e 's/subagent_type/agent_type/g' \
+    "$f"
+done
+
 # 6c. Give install commands in Copilot's form. Claude Code installs from a
 #     slash command and names the plugin `maister`; Copilot installs from its
 #     shell command under the manifest name.
@@ -143,7 +157,7 @@ done
 #     at the top level of the output and drops Claude's hookSpecificOutput
 #     wrapper. The hooks are Node, run by Node alone, so neither bash nor jq is
 #     needed to run them on either host. The reminder
-#     text gets the same renames as the skills, the skill tool's own name and
+#     text gets the same renames as the skills, the skill and task tools' own names and
 #     Copilot's autonomy settings in place of Claude Code's permission modes.
 for f in "$OUT"/hooks/*.mjs; do
   sedi -E \
@@ -151,6 +165,7 @@ for f in "$OUT"/hooks/*.mjs; do
     -e "s#/maister:#/$NS:#g" \
     -e 's/AskUserQuestion/ask_user/g' \
     -e 's/the Skill tool/the skill tool/g' \
+    -e 's/the Task tool/the task tool/g' \
     -e 's#regardless of permission mode \(auto / acceptEdits / bypassPermissions\)#regardless of mode or permissions (autopilot / allow-all)#g' \
     "$f"
   if ! grep -q "^const HOOK_SHAPE = 'copilot';\$" "$f"; then
@@ -259,11 +274,23 @@ done
 
 # 8c. Every skill gets DIR_RULE too, after its frontmatter: the main session
 #     writes task directories, docs and state files with the same create tool
-#     the agents use.
+#     the agents use. Every skill, and every command that dispatches an agent,
+#     also gets TASK_RULE: the main session is the one that dispatches here,
+#     the task tool refuses a call without `name`, and it names the effort
+#     field `reasoning_effort`, so the rule spells out the call's fields where
+#     a passage names only the agent.
+TASK_RULE='**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.'
 find "$OUT/skills" -name "SKILL.md" | sort | while read f; do
-  awk -v dirrule="$DIR_RULE" '
+  awk -v dirrule="$DIR_RULE" -v taskrule="$TASK_RULE" '
     NR==1 && $0=="---" { fm=1; print; next }
-    fm==1 && $0=="---" { fm=2; print; print ""; print dirrule; next }
+    fm==1 && $0=="---" { fm=2; print; print ""; print dirrule; print ""; print taskrule; next }
+    { print }
+  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+done
+grep -lE 'agent_type|Task tool' "$OUT"/commands/*.md | sort | while read f; do
+  awk -v taskrule="$TASK_RULE" '
+    NR==1 && $0=="---" { fm=1; print; next }
+    fm==1 && $0=="---" { fm=2; print; print ""; print taskrule; next }
     { print }
   ' "$f" > "$f.tmp" && mv "$f.tmp" "$f"
 done

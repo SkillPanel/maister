@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, freeze, scratch, verb, delegating, write as writeState } from '../helpers.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 // A research run with the HTML output on reached RUN-COMPLETE without the
 // research report's HTML companion, and nothing in the engine said so. These
@@ -27,10 +31,10 @@ function foundationWritten(t, { html = true } = {}) {
   return run;
 }
 
-const FOUNDATION_DONE = {
+const FOUNDATION_DONE = delegating({
   nodes: { 'research-foundation': { status: 'completed', values: { confidence_level: 'high', conclusions: 'store-is-safe' } } },
   node_summaries: { 'research-foundation': { summary: 'The store is safe under load.' } },
-};
+});
 
 test('write-state names the companion a completing node owes and did not write', t => {
   const run = foundationWritten(t);

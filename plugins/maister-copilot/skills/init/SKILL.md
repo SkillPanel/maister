@@ -6,11 +6,13 @@ argument-hint: "[--standards-from=PATH]"
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
 
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+
 # Initialize Maister Framework
 
 Initialize `.maister/docs/` with intelligent project analysis and meaningful documentation generation based on actual codebase inspection.
 
-**NOTE**: This skill invokes other skills and subagents at specific phases. Use the **Task tool with `docs-operator` subagent** (subagent_type: `maister-copilot:docs-operator`) for all docs-manager operations, and **Task tool** for project-analyzer. Use the **Skill tool** only for standards-discover (Phase 8, last phase). The Task tool returns control to this skill after completion; the Skill tool does not.
+**NOTE**: This skill invokes other skills and subagents at specific phases. Use the **Task tool with `docs-operator` subagent** (agent_type: `maister-copilot:docs-operator`) for all docs-manager operations, and **Task tool** for project-analyzer. Use the **Skill tool** only for standards-discover (Phase 8, last phase). The Task tool returns control to this skill after completion; the Skill tool does not.
 
 ## Phase Configuration
 
@@ -48,7 +50,9 @@ Leaving without changes is the Other answer: stop.
 
 ## PHASE 2: Project Analysis
 
-Invoke `project-analyzer` subagent via the Task tool, with the model and effort `dispatch-model --agent=maister-copilot:project-analyzer` prints just before (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; the same holds for each `docs-operator` call below).
+Invoke `project-analyzer` subagent via the Task tool, with the model and effort `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:project-analyzer --host=copilot` prints just before (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; each `docs-operator` call below runs it the same way, with `--agent=maister-copilot:docs-operator`).
+
+**The analyzer runs whatever the project's size.** The analysis is its work: never inspect the codebase in its place, and a small, simple or familiar project is no reason to. Phase 3's confirmation is built from its report, and the same holds for standards-discover's subagents in Phase 8.
 
 Wait for completion. Store analysis results for use in Phases 3 and 6.
 
@@ -100,7 +104,7 @@ Store selection for Phase 5.
 
 ## PHASE 5: Initialize Documentation Structure
 
-**Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister-copilot:docs-operator`, model and effort from `dispatch-model --agent=maister-copilot:docs-operator`) with prompt — here and in Phase 7, `[check path]` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path:
+**Invoke `docs-operator` subagent** via Task tool (agent_type: `maister-copilot:docs-operator`, model and effort from `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:docs-operator --host=copilot`, run just before) with prompt — here and in Phase 7, `[check path]` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path:
 
 > "Initialize documentation structure. Standards selection: [array from Phase 4]. [If --standards-from was provided: Standards source path: [resolved path]/.maister/docs/standards/. Copy standards from this external path instead of built-in defaults.] Only copy selected standard categories. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Create placeholder sections in INDEX.md for skipped categories. Check: [check path]."
 
@@ -219,7 +223,7 @@ Write each file to `.maister/docs/project/`.
 
 ## PHASE 7: Validate
 
-**Step 1**: Invoke `docs-operator` subagent via Task tool (subagent_type: `maister-copilot:docs-operator`, model and effort from `dispatch-model --agent=maister-copilot:docs-operator`) with prompt:
+**Step 1**: Invoke `docs-operator` subagent via Task tool (agent_type: `maister-copilot:docs-operator`, model and effort from `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:docs-operator --host=copilot`, run just before) with prompt:
 
 > "Refresh INDEX.md with the project documentation written in Phase 6 as changed. Check: [check path]. Then verify .github/copilot-instructions.md is properly integrated with .maister/docs/ documentation."
 

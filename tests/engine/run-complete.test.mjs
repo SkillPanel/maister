@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, lastLine, readState, run as runScript, scratch, scratchPlugin, sibling, umbrella, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, lastLine, readState, run as runScript, scratch, scratchPlugin, sibling, umbrella, verb, delegating, write as writeState } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { published } from '../../plugins/maister/lib/outbox-files.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 function complete(run, extra = []) {
   return verb(['run-complete', `--state=${run.state}`, ...extra]);

@@ -5,11 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, run as runScript, scratch, sharedPlugin, verb, delegating, write as writeState } from '../helpers.mjs';
 import { artifactOf, decisionOf, fixOf, fixText, riskOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import {
   FOCUS_BUDGET, FOCUS_LINES, approvesHeld, choicesLine, moreDetails, panelOf as panelOfCheckpoint, plainPicker, requestOf, richPicker, unmarked,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 // The checkpoint is the one structured object `gate-brief` builds at a gate;
 // every surface — the two in-session pickers, the driven request, a cockpit

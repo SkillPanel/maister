@@ -67,6 +67,8 @@ validate:
 	@node tests/gate-title-lint.mjs
 	@echo "Checking the plugin ships no browser tool and names none..."
 	@node tests/browser-tool-lint.mjs
+	@echo "Checking every dispatch-model invocation names the workflow script..."
+	@node tests/dispatch-command-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."
 	@test $$(find plugins/maister-copilot/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)
 	@echo "Checking every source agent carries the containment sentence..."
@@ -102,6 +104,12 @@ validate:
 	@for f in plugins/maister-copilot/agents/*.md plugins/maister-copilot/skills/*/SKILL.md; do \
 	  grep -q "^\*\*Create a file's directory before the file\.\*\* On this host" "$$f" || { echo "FAIL: $$f lacks the create-the-directory-first sentence; Copilot's create tool makes no missing directory"; exit 1; }; \
 	done
+	@echo "Checking every Copilot dispatch names the task tool's fields: agent_type, and a name..."
+	@! grep -rn 'subagent_type' plugins/maister-copilot/ --include="*.md" || (echo "FAIL: subagent_type survives in the variant; Copilot's task tool takes agent_type" && exit 1)
+	@for f in plugins/maister-copilot/skills/*/SKILL.md $$(grep -lE 'agent_type|Task tool' plugins/maister-copilot/commands/*.md); do \
+	  grep -q "^\*\*Dispatch every agent this names, with every field the task tool requires\.\*\* On this host" "$$f" || { echo "FAIL: $$f lacks the task-tool sentence; Copilot refuses a task call without name"; exit 1; }; \
+	done
+	@awk '/^[[:space:]]*agent_type: "/ { held = FILENAME ":" FNR; next } held { if ($$0 !~ /^[[:space:]]*name: "/) { print "FAIL: " held ": a call block names no name, which Copilot'"'"'s task tool requires"; bad = 1 } held = "" } END { exit bad }' $$(find plugins/maister-copilot -name "*.md")
 	@echo "Checking the variant names no Claude Code plan-mode tool, and quick-plan and quick-bugfix plan without one..."
 	@! grep -rnE 'EnterPlanMode|ExitPlanMode' plugins/maister-copilot/ 2>/dev/null || (echo "FAIL: a Claude Code plan-mode tool survives in the variant; Copilot has none" && exit 1)
 	@grep -q '^2\. \*\*Plan without editing\*\*.*ask for approval with `ask_user`' plugins/maister-copilot/skills/quick-plan/SKILL.md || (echo "FAIL: the variant's quick-plan lacks its plan-without-editing step" && exit 1)

@@ -92,8 +92,9 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    `issues_found: []`. This clears the previous cycle's picture so the dashboard never shows a
    pre-fix verdict as current. `verification_context` merges key by key: this write never touches
    `fixes_applied`, `decisions_made` or `reverify_count`.
-4. **Model and effort.** Run `dispatch-model --agent=<every agent this cycle sends> --host=copilot
-   --state=<state> --node=<node>` once, and give each call the `model` and `reasoning_effort` its line
+4. **Model and effort.** Run `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs
+   dispatch-model --agent=<every agent this cycle sends> --host=copilot --state=<state>
+   --node=<node>` once, and give each call the `model` and `reasoning_effort` its line
    prints (framework § 1, *Model and Effort on Every Agent Call*).
 5. **The tests and the checks, alone.** Dispatch `maister-copilot:test-suite-runner` — the only agent call
    in its message — with the task path, the brief and `verification/test-suite-results.md` as its
@@ -163,7 +164,8 @@ You carry it out:
   Send the batches to `maister-copilot:task-group-implementer` in one message, each prompt a fix brief: the
   issues by number with their evidence and suggested change, the files it may touch, the
   standards the code risk review checked against, and "fix these, run the affected tests, report each fix as
-  `{finding, change}`". Their `model` and `reasoning_effort` are what `dispatch-model
+  `{finding, change}`". Their `model` and `reasoning_effort` are what `node
+  <plugin_root>/skills/workflow-engine/scripts/workflow.mjs dispatch-model
   --agent=maister-copilot:task-group-implementer --host=copilot --state=<state> --node=<node>` prints.
   A finding whose category is in `hold` is never fixed.
 - **As each fix lands**, record it: `verification_context.fixes_applied` gains `{finding, change}`

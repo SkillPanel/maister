@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, freeze, scratch, verb, delegating, write as writeState } from '../helpers.mjs';
 import { SUBJECT_KINDS, subjectOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-subject.mjs';
+
+// A built-in step that declares delegates completes only with them listed;
+// every write here sends them as a session that dispatched them would.
+const write = (run, patch) => writeState(run, delegating(patch));
 
 // A gate's checkpoint names the one output it asks the operator to approve,
 // `subject: {path, kind}`, read off the declared output keys of the nodes the

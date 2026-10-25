@@ -6,6 +6,8 @@ argument-hint: "[task description]"
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
 
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+
 # Quick Dev — Direct Development with Standards Enforcement
 
 This works exactly as if you asked the main agent to implement the task directly — no plan mode. The one addition: discover and enforce the project's coding standards from `.maister/docs/`.
@@ -23,6 +25,6 @@ This works exactly as if you asked the main agent to implement the task directly
 
 4. **Verify compliance (mandatory)** — After implementing, go through each applicable standard and verify it was followed — report a **Standards Compliance Checklist** (pass/fail per guideline, each annotated with its source file) in your summary, alongside what changed and any tests run. Address any failure before marking the task complete.
 
-5. **Keep the docs index whole** — Never edit `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`; name every document you changed under `.maister/docs/` in your summary. Then run the docs index check from the project root — `node <plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path — and report its result in one line. When it fails on a document this task added, changed or removed, invoke `docs-operator` via Task tool (subagent_type: `maister-copilot:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]", and report the check it returns. A convention worth keeping is suggested in one line for `/maister-copilot:standards-update`, never written into a standards file here.
+5. **Keep the docs index whole** — Never edit `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`; name every document you changed under `.maister/docs/` in your summary. Then run the docs index check from the project root — `node <plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path — and report its result in one line. When it fails on a document this task added, changed or removed, invoke `docs-operator` via Task tool (agent_type: `maister-copilot:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]", and report the check it returns. A convention worth keeping is suggested in one line for `/maister-copilot:standards-update`, never written into a standards file here.
 
 If `.maister/docs/INDEX.md` does not exist, implement normally and note: "No Maister standards found. Consider running `/maister-copilot:init`."

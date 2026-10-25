@@ -6,6 +6,8 @@ user-invocable: false
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
 
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+
 You are the hand-off between an implementation node and its waves. The loop itself — the waves
 from the plan, each group's `task-group-implementer` call on the model `dispatch-model` resolves
 for its tier, every `wave-start` and `group-done`, the one-step escalation, the budget, the docs
@@ -39,11 +41,12 @@ node <plugin root>/skills/workflow-engine/scripts/workflow.mjs runner-step --sta
 It prints one JSON object. Act on its `next`, then run `runner-step` again, until it says `close`
 or `inline`:
 
-- **`dispatch`** — dispatch the runner. First `dispatch-model --agent=maister-copilot:implementation-runner
-  --host=copilot --state=<state> --node=<node>` and copy its `model` and `reasoning_effort` into the call
+- **`dispatch`** — dispatch the runner. First run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs
+  dispatch-model --agent=maister-copilot:implementation-runner --host=copilot --state=<task path>/orchestrator-state.yml
+  --node=<node>` and copy its `model` and `reasoning_effort` into the call
   (`../orchestrator-framework/references/orchestrator-patterns.md` § 1). One agent call, the only
   one in its message:
-  - `subagent_type: maister-copilot:implementation-runner`, `description: Run the implementation waves`;
+  - `agent_type: maister-copilot:implementation-runner`, `description: Run the implementation waves`;
   - **`run_in_background: false`, set explicitly on every host.** Where the agent tool takes a
     `mode` instead, the foreground one, never `background`. Left unset, the host may start the
     runner in the background: the call returns at once, and the turn ends before the waves do.
