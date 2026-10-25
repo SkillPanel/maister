@@ -116,6 +116,16 @@ export const TARGET_NAME = /^[a-z][a-z0-9-]*$/;
  */
 export const TARGET_REF = /^(?:[a-z][a-z0-9-]*:)?[a-z][a-z0-9-]*$/;
 
+/** The hosts a definition may name: in a per-host `delegates` set here, in a tier or a ceiling in `subagents.mjs`. */
+export const HOSTS = ['claude', 'copilot'];
+
+/**
+ * The agent types each host provides itself, spelt as the Task tool takes
+ * them. `subagents.mjs` matches them without regard to case; a `delegates`
+ * set names one exactly as written here.
+ */
+export const BUILT_IN_AGENTS = ['Explore', 'general-purpose', 'Plan'];
+
 /**
  * Where a `skill:` or `agent:` target is looked for, in the order it is
  * searched; the first hit wins. Exported so a document describing the order
@@ -2368,22 +2378,45 @@ export function briefValueProblems(key, value) {
       }
     }
   } else if (key === 'delegates') {
-    if (!Array.isArray(value) || value.length === 0) {
-      report('', `delegates is a list of the agents the step dispatches, each written as agent: names one; ${shown(value)} is not`);
+    // A list holds on both hosts; a map gives each host its own set, and a
+    // host it leaves out declares nothing there (`delegatesFor`).
+    if (isMap(value)) {
+      const hosts = Object.keys(value);
+      if (hosts.length === 0) {
+        report('', `delegates per host is a mapping of host (${HOSTS.join(', ')}) to the agents the step dispatches there; an empty mapping names none`);
+        return problems;
+      }
+      for (const host of hosts) {
+        if (!HOSTS.includes(host)) report(`.${host}`, `"${host}" is not a host: name ${HOSTS.join(' or ')}`);
+        else delegateSetProblems(value[host], `.${host}`, report, shown);
+      }
       return problems;
     }
-    const seen = new Set();
-    value.forEach((agent, index) => {
-      if (typeof agent !== 'string' || !TARGET_REF.test(agent)) {
-        report(`[${index}]`, `a delegate is an agent name, or one plugin name and a colon before it; ${shown(agent)} is not`);
-      } else if (seen.has(agent)) {
-        report(`[${index}]`, `${shown(agent)} is listed twice`);
-      } else {
-        seen.add(agent);
-      }
-    });
+    delegateSetProblems(value, '', report, shown);
   }
   return problems;
+}
+
+/**
+ * One set of delegates — the list, or one host's list in the per-host map:
+ * each an agent name, a plugin name and a colon before one, or a built-in
+ * agent type (`BUILT_IN_AGENTS`), each once.
+ */
+function delegateSetProblems(value, at, report, shown) {
+  if (!Array.isArray(value) || value.length === 0) {
+    report(at, `delegates is a list of the agents the step dispatches, each written as agent: names one or as a built-in agent type (${BUILT_IN_AGENTS.join(', ')}); ${shown(value)} is not`);
+    return;
+  }
+  const seen = new Set();
+  value.forEach((agent, index) => {
+    if (typeof agent !== 'string' || !(TARGET_REF.test(agent) || BUILT_IN_AGENTS.includes(agent))) {
+      report(`${at}[${index}]`, `a delegate is an agent name, or one plugin name and a colon before it, or a built-in agent type; ${shown(agent)} is not`);
+    } else if (seen.has(agent)) {
+      report(`${at}[${index}]`, `${shown(agent)} is listed twice`);
+    } else {
+      seen.add(agent);
+    }
+  });
 }
 
 /** A non-empty string with no line break or tab. */
@@ -2446,7 +2479,7 @@ function checkBriefNodes({ prefix, block }, nodes, removed, warnings) {
     }
     if (!isMap(entry)) continue;
     const node = nodes.get(id);
-    if (Array.isArray(entry.delegates) && !(typeof node.uses === 'string' && node.uses.startsWith('direct:'))) {
+    if ((Array.isArray(entry.delegates) || isMap(entry.delegates)) && !(typeof node.uses === 'string' && node.uses.startsWith('direct:'))) {
       warnings.push(WARN.briefDelegatesNotDirect(`${at}.delegates`, id));
     }
     if (isMap(entry.absent)) {

@@ -28,7 +28,8 @@
  */
 
 import { BRIEF_KEYS, briefValueProblems } from './graph.mjs';
-import { sourcesOf } from './state.mjs';
+import { frozenOnCopilot, sourcesOf } from './state.mjs';
+import { shippedHost } from './subagents.mjs';
 
 /**
  * The merged block: a null-prototype map from node id to a null-prototype entry
@@ -101,6 +102,30 @@ export function briefOfRun(doc, runDir, read = undefined) {
   } catch {
     return null;
   }
+}
+
+/**
+ * The delegates a brief entry declares for `host`: the list itself, which
+ * holds on both hosts, or the host's own set in a per-host map. A host the
+ * map leaves out declares nothing there — the step runs inline like one with
+ * no delegates, and the writer holds it to none.
+ */
+export function delegatesFor(entry, host) {
+  const value = isMap(entry) ? entry.delegates : undefined;
+  if (Array.isArray(value)) return value;
+  return isMap(value) && Array.isArray(value[host]) ? value[host] : [];
+}
+
+/**
+ * The host a run is on, as its freeze recorded it: `copilot` when the
+ * delegation was frozen on Copilot (`frozenOnCopilot`), `claude` when a
+ * delegation was frozen otherwise, and the host this plugin ships for when
+ * the freeze recorded none — a terminal freeze naming no host.
+ */
+export function runHost(doc) {
+  const options = isMap(doc?.orchestrator) && isMap(doc.orchestrator.options) ? doc.orchestrator.options : {};
+  if (!isMap(options.delegation)) return shippedHost();
+  return frozenOnCopilot(options.delegation) ? 'copilot' : 'claude';
 }
 
 function collectDisabled(list, into) {

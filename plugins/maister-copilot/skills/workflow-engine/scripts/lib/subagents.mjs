@@ -67,7 +67,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { parseDefinition } from './definition.mjs';
-import { locateTarget, pluginRoot } from './graph.mjs';
+import { BUILT_IN_AGENTS, HOSTS, locateTarget, pluginRoot } from './graph.mjs';
 
 /** The ladder, cheapest first. A project remaps a rung's cells; it adds none. */
 export const LADDER = ['light', 'standard', 'deep'];
@@ -75,8 +75,8 @@ export const LADDER = ['light', 'standard', 'deep'];
 /** What `effort` may be, on a tier, a preset or an entry. */
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 
-/** The hosts the verb answers for. */
-export const HOSTS = ['claude', 'copilot'];
+/** The hosts the verb answers for, declared beside the grammar that names them too. */
+export { HOSTS };
 
 /**
  * Claude Code's model aliases. A Claude Code call takes one of these and
@@ -86,9 +86,6 @@ export const HOSTS = ['claude', 'copilot'];
  * never one of these.
  */
 const CLAUDE_ALIASES = ['haiku', 'sonnet', 'opus', 'fable'];
-
-/** The agent types each host provides itself, matched without regard to case. */
-const BUILT_IN_AGENTS = ['Explore', 'general-purpose', 'Plan'];
 
 /**
  * Copilot's per-request cost of a model, where it is above one request. A

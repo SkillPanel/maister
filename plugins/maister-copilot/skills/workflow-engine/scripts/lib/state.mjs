@@ -95,9 +95,9 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
+import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { companionsOf, owedCompanions } from './companions.mjs';
-import { briefOfRun } from './brief.mjs';
+import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
@@ -3400,7 +3400,7 @@ function assertItems(at, entry) {
     const delegated = entry.delegated;
     if (!Array.isArray(delegated)) refuse('delegated', delegated, 'a list of the agents the step dispatched');
     delegated.forEach((agent, index) => {
-      if (typeof agent !== 'string' || !TARGET_REF.test(agent)) refuse(`delegated[${index}]`, agent, 'an agent name, or one plugin name and a colon before it');
+      if (typeof agent !== 'string' || !(TARGET_REF.test(agent) || BUILT_IN_AGENTS.includes(agent))) refuse(`delegated[${index}]`, agent, 'an agent name, or one plugin name and a colon before it, or a built-in agent type');
     });
   }
   if (Object.hasOwn(entry, 'metrics')) {
@@ -4193,6 +4193,10 @@ function settleNeeds(doc, nodes, before, runDir, now, out, graphOf) {
  * so a step that dispatched them loses nothing; one that did not is refused
  * before anything lands, and told which agents to dispatch.
  *
+ * The declared set is the run's host's (`delegatesFor`, `runHost`): a list
+ * holds on both hosts, a per-host map only its own host's list, and a host the
+ * map leaves out is held to nothing.
+ *
  * Names compare by their agent part, after any plugin name and colon, so the
  * name under either variant's prefix and the bare name are one delegate. A
  * definition that cannot be read declares nothing, and holds nobody; a
@@ -4209,9 +4213,10 @@ function assertDelegates(doc, before, runDir, graphOf) {
   const brief = briefOfRun(typed, runDir);
   if (brief === null) return;
   const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  const host = runHost(typed);
   const agentOf = name => String(name).slice(String(name).lastIndexOf(':') + 1);
   for (const id of completing) {
-    const declared = Array.isArray(brief[id]?.delegates) ? brief[id].delegates : [];
+    const declared = delegatesFor(brief[id], host);
     if (!declared.length) continue;
     const uses = graphOf === null ? null : resolvedNode(graphOf(), id)?.uses;
     if (typeof uses === 'string' && !uses.startsWith('direct:')) continue;

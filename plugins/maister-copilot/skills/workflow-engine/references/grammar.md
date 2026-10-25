@@ -161,7 +161,7 @@ Keys are node ids; each entry holds any of these keys:
 | `absent` | Artifact key → a one-line reason the node may leave that artifact unwritten |
 | `budget` | A whole number from 1 to 10: the recovery attempts the node may make, printed as a rule and not enforced. A node with no recovery budget has no `budget` key |
 | `recommends` | `with:` key → (value → continue option id): which option the gate the node feeds should recommend for each value. Values are read as text, so quote `"yes"`, `"no"`, `"true"`, `"false"` |
-| `delegates` | A list of the agents a `direct:` node always dispatches, each named as `agent:` names one, each once. The brief names them on its `runs:` line and prints each beside the model and effort its call carries, and the writer refuses the node's completion until its summary lists every one under `delegated` (`state-delegates-unrecorded`). An agent the node dispatches only sometimes is not one |
+| `delegates` | The agents a `direct:` node always dispatches, each named as `agent:` names one or as a built-in agent type (`Explore`, `general-purpose`, `Plan`), each once: a list, which holds on both hosts, or a map of host (`claude`, `copilot`) to that host's own list, for a step whose delegate depends on the host. The engine uses the set for the run's host, as its freeze recorded it; a host the map leaves out declares nothing there — the node runs inline like one with no delegates, and nothing is held. The brief names the set on its `runs:` line and prints each agent beside the model and effort its call carries, and the writer refuses the node's completion until its summary lists every one under `delegated` (`state-delegates-unrecorded`). An agent the node dispatches only sometimes is not one |
 
 A question the node asks inside itself has no key here: its default is stated once, in the
 *Without question sets* line of the node's section (§ 11), which the brief prints.
@@ -172,7 +172,9 @@ set to `null` removes the node's entry. `null` is an overlay's or a profile's re
 error in a definition. A node an overlay or the profile disables gets no brief data.
 
 **Checks.** A block that is not a mapping, a key that is not a node id, an entry that is not a
-mapping, a key outside the table, and a value of the wrong shape or with a line break are errors,
+mapping, a key outside the table, and a value of the wrong shape or with a line break are errors — for
+`delegates` also an empty list or map, a host key other than `claude` and `copilot`, and an agent
+listed twice in one set —
 each located at its path (`brief.<node>.<key>…`, prefixed `profiles.<name>.` in a profile). A
 node the resolved graph does not carry, an `absent` key the node does not declare, a `recommends`
 key that is not one of its `with:` keys, a recommended option that is not a continue option
