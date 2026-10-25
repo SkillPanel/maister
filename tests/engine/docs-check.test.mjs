@@ -42,7 +42,7 @@ function check(where, args = []) {
 const codes = list => list.map(each => each.code);
 
 const INDEX = [
-  '<!-- Maintained by maister: edit the source documents, not this file. -->',
+  '<!-- Maintained by maister — edit the source documents, not this file. -->',
   '# Documentation Index',
   '',
   '## Project documentation',

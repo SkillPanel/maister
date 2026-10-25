@@ -148,6 +148,28 @@ test('banner: the freeze prints the task, its directory, the dashboard and the f
   ].join('\n'));
 });
 
+test('banner: a freeze that leaves nodes out for the writer to fill prints the same checkpoints and first phase as a full one', t => {
+  const full = scratch(t);
+  const bare = scratch(t, { name: '2026-01-05-bare' });
+  const resolved = JSON.parse(verb(['resolve', `--definition=${DEVELOPMENT}`]).stdout);
+  const nodes = Object.fromEntries(resolved.nodes.map(node => [node.id, { kind: node.type === 'gate' ? 'gate' : node.uses.split(':')[0] }]));
+  const patch = withNodes => ({
+    task: { title: 'Fix the parser', status: 'in_progress' },
+    workflow: { source: DEVELOPMENT, graph_hash: resolved.graph_hash, grammar_version: 1, name: 'development', ...(withNodes ? { nodes } : {}) },
+    orchestrator: { options: { inputs: { task_description: 'Fix the parser' } } },
+  });
+  const bannerOf = (run, withNodes) => {
+    const result = verb(['write-state', `--state=${run.state}`], patch(withNodes));
+    assert.equal(result.code, 0, result.stderr);
+    return result.stdout.split('\n\n')[0].split('\n').filter(line => !line.startsWith('Directory: ') && !line.startsWith('Dashboard: '));
+  };
+  const expected = bannerOf(full, true);
+  assert.ok(expected.includes('Checkpoints: up to 11 where you decide'), expected.join('\n'));
+  assert.ok(expected.includes('First phase: Intake'));
+  assert.deepEqual(bannerOf(bare, false), expected);
+  assert.equal(Object.keys(readState(bare).workflow.nodes).length, resolved.nodes.length, 'the writer filled every node');
+});
+
 test('banner: with html_output false the dashboard line says there is none', t => {
   const run = scratch(t);
   const result = verb(['write-state', `--state=${run.state}`],

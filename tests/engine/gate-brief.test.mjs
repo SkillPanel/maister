@@ -1325,6 +1325,33 @@ test('Review line: names the registered artifact and its companion from the proj
   assert.match(picker(run, 'approval').options[0].preview, /^Review: analysis\/report\.md \(HTML beside it\)$/m);
 });
 
+test('Review line: a page older than its markdown is marked stale, and every form warns of it on stderr', t => {
+  const run = atApproval(t, { ...SUMMARY, artifacts: [{ path: 'analysis/report.md', label: 'Report', html: 'analysis/report.html' }] });
+  onDisk(run, 'analysis/report.md');
+  onDisk(run, 'analysis/report.html');
+  const page = path.join(run.dir, 'analysis/report.html');
+  const earlier = new Date(Date.now() - 60_000);
+  fs.utimesSync(page, earlier, earlier);
+  const warning = `warning: companion-stale: ${fromRoot(run, 'analysis/report.html')} is older than report.md; regenerate the page before asking`;
+
+  const text = brief(run, 'approval');
+  assert.equal(text.code, 0, text.stderr);
+  assert.equal(lastLine(text.stdout),
+    `Review: ${fromRoot(run, 'analysis/report.md')} (HTML: report.html — stale, older than its markdown: regenerate it)`);
+  assert.ok(text.stderr.split('\n').includes(warning), text.stderr);
+  // The labels-only call the session passes on unchanged carries no Review line: the warning stands in.
+  const asked = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--ask']);
+  assert.equal(asked.code, 0, asked.stderr);
+  assert.ok(asked.stderr.split('\n').includes(warning), asked.stderr);
+
+  // Regenerated, the page is newer than its markdown: no mark and no warning.
+  const later = new Date(Date.now() + 60_000);
+  fs.utimesSync(page, later, later);
+  const fresh = brief(run, 'approval');
+  assert.equal(lastLine(fresh.stdout), `Review: ${fromRoot(run, 'analysis/report.md')} (HTML: report.html)`);
+  assert.doesNotMatch(fresh.stderr, /companion-stale/);
+});
+
 test('Review line: a companion kept elsewhere is named by its path from the project root', t => {
   const run = atApproval(t, { ...SUMMARY, artifacts: [{ path: 'analysis/report.md', label: 'Report', html: 'html/report.html' }] });
   onDisk(run, 'analysis/report.md');

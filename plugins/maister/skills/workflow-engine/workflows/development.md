@@ -510,7 +510,7 @@ adds public API, so a usage guide helps"). Its answer is this node's
 `user_docs_enabled` output.
 
 Before asking, check whether the session can drive a
-browser (`orchestrator-framework/references/browser-tools.md`, *Which tool*). When it cannot, the question
+browser (`<plugin root>/skills/orchestrator-framework/references/browser-tools.md`, *Which tool*). When it cannot, the question
 carries that reference's no-browser warning, recommends off whatever the seed
 says, and gives on its consequence: the guide is written without screenshots.
 The browser-checks line says the same will be recommended at the verification
@@ -585,7 +585,7 @@ chose "Stop", one `stop` risk saying why the run should not go on.
 verifier records every cycle, are not repeated.
 
 Recommend whether the browser checks run. When the session has no browser
-tool (`orchestrator-framework/references/browser-tools.md`), recommend `continue-past-verification`
+tool (`<plugin root>/skills/orchestrator-framework/references/browser-tools.md`), recommend `continue-past-verification`
 whatever the input or seed says, its reason that reference's no-browser warning,
 which the brief carries before the choice; picking the browser checks anyway
 still runs them, and they report that they could not. Otherwise: a set

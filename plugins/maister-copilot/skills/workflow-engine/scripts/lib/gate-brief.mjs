@@ -117,7 +117,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
-import { childRootOf, definitionPathOf, htmlOutput, projectRootOf } from './state.mjs';
+import { childRootOf, definitionPathOf, htmlOutput, isStalePage, projectRootOf } from './state.mjs';
 import { approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
@@ -389,6 +389,13 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   let reading = null;
   const policyOf = () => (reading ??= policyReading(doc, workflow.name, node, options));
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
+  // A page the checkpoint names that is older than its markdown, on every
+  // form: the labels-only call a session passes on carries no Review line, so
+  // the warning is what tells it to regenerate the page before asking.
+  for (const { file, html } of reviewFiles(doc, runDir, ids, byId).filter(each => each.stale)) {
+    const shown = path.relative(projectRootOf(runDir), html).split(path.sep).join('/');
+    warnings.push({ code: 'companion-stale', message: `companion-stale: ${shown} is older than ${path.basename(file)}; regenerate the page before asking` });
+  }
   let built = null;
   const checkpointOf = () => (built ??= buildCheckpoint({
     doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId, held, settling, advised,
@@ -817,12 +824,16 @@ function richHeldPicker(checkpoint, options) {
   return shaped;
 }
 
+/** The mark a `Review:` line puts on a page older than its markdown. */
+const STALE = '— stale, older than its markdown: regenerate it';
+
 /** How many files the `Review:` line names before it stops. */
 const REVIEW_MAX = 3;
 
 /**
  * The `Review:` line: the files the gate's closing nodes wrote, each with its
- * HTML companion when that is on disk — or null when there are none. The
+ * HTML companion when that is on disk, marked stale when it is older than its
+ * markdown — or null when there are none. The
  * dashboard is not named: the line reaches the question, where a full path is
  * hard to read, and the dashboard is already open in the browser. A file is
  * named only when it exists, by its path from the
@@ -841,7 +852,9 @@ function reviewLine(doc, runDir, ids, byId) {
   // whole path again would spend the brief's budget on what the reader
   // already has in front of them.
   const companion = (file, html) => (path.dirname(html) === path.dirname(file) ? path.basename(html) : shown(html));
-  return `Review: ${files.map(({ file, html, folder }) => (html ? `${shown(file)} (HTML: ${companion(file, html)})` : `${shown(file)}${folder ? '/' : ''}`)).join(', ')}`;
+  // A page older than its document is said so, where the operator would open it.
+  const page = (file, html, stale) => `${companion(file, html)}${stale ? ` ${STALE}` : ''}`;
+  return `Review: ${files.map(({ file, html, folder, stale }) => (html ? `${shown(file)} (HTML: ${page(file, html, stale)})` : `${shown(file)}${folder ? '/' : ''}`)).join(', ')}`;
 }
 
 /**
@@ -893,12 +906,14 @@ function reviewFiles(doc, runDir, ids, byId) {
       return;
     }
     const sibling = typeof html === 'string' && html !== '' ? path.resolve(runDir, html) : file.replace(/\.md$/, '.html');
+    const page = sibling !== file && isFile(sibling) ? sibling : null;
     files.push({
       id,
       file,
-      html: sibling !== file && isFile(sibling) ? sibling : null,
+      html: page,
       label: typeof label === 'string' && label !== '' ? label : null,
       role: typeof role === 'string' ? role : null,
+      ...(page !== null && isStalePage(file, page) ? { stale: true } : {}),
     });
   };
   for (const id of ids) {

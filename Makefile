@@ -22,6 +22,8 @@ diagram:
 # The containment sentence every source agent carries, as validate checks it.
 # It holds no apostrophe, so the recipe can single-quote it.
 CONTAINMENT = **You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
+# The scratch-file sentence, the same way: no apostrophe, and each $ doubled for make.
+SCRATCH = **Scratch files go in the system temp directory.** Read the output of a command as it prints rather than redirecting it to a file. When a file is unavoidable — a long log, an export, a copy — make its directory with `mktemp -d` (it uses `$$TMPDIR`) or put it under `"$${TMPDIR:-/tmp}"`, never at a literal `/tmp` path, which can stop the run for a permission prompt, and delete it when done.
 
 # Prerequisites: bash, find, grep and node (the diagram check and the guide
 # template lint). The compatibility contracts runner is a Pro Edition feature
@@ -69,6 +71,8 @@ validate:
 	@node tests/browser-tool-lint.mjs
 	@echo "Checking every dispatch-model invocation names the workflow script..."
 	@node tests/dispatch-command-lint.mjs
+	@echo "Checking every agent and workflow guide names a plugin file under the plugin root..."
+	@node tests/plugin-path-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."
 	@test $$(find plugins/maister-copilot/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)
 	@echo "Checking every source agent carries the containment sentence..."
@@ -78,6 +82,13 @@ validate:
 	@sentence='$(CONTAINMENT)'; \
 	for f in plugins/maister/agents/*.md plugins/maister-copilot/agents/*.md; do \
 	  grep -qxF -- "$$sentence" "$$f" || { echo "FAIL: $$f lacks the containment sentence, so nothing keeps it from starting a workflow, a command or an orchestrator skill"; exit 1; }; \
+	done
+	@echo "Checking every source agent carries the scratch-file sentence..."
+	@# An agent's own file is all it reads before it runs a command, so the
+	@# rule that keeps its throwaway files off a literal /tmp path lives there.
+	@sentence='$(SCRATCH)'; \
+	for f in plugins/maister/agents/*.md plugins/maister-copilot/agents/*.md; do \
+	  grep -qxF -- "$$sentence" "$$f" || { echo "FAIL: $$f lacks the scratch-file sentence, so nothing keeps its throwaway files off a literal /tmp path"; exit 1; }; \
 	done
 	@echo "Checking every Copilot agent has a tool allowlist without the agent tool..."
 	@# Copilot runs each subagent level under a session of its own, so no agent
@@ -130,6 +141,10 @@ validate:
 	@for f in plugins/maister-copilot/hooks/*.mjs; do grep -q "^const HOOK_SHAPE = 'copilot';$$" "$$f" || { echo "FAIL: $$f emits Claude Code's output shape, which Copilot drops"; exit 1; }; done
 	@echo "Checking no maister- prefix in copilot command names..."
 	@! grep -r '^name: maister-' plugins/maister-copilot/commands/ 2>/dev/null || (echo "FAIL: maister- prefix in command names" && exit 1)
+	@echo "Checking no prose maister: in the source, which the Copilot build would strip..."
+	@# The build turns every other maister:<name> into the bare name, so a
+	@# maister: followed by a space or a line end reads with the name gone.
+	@! grep -rnE 'maister:([[:space:]]|$$)' plugins/maister/ --include="*.md" 2>/dev/null || (echo "FAIL: a maister: before a space or a line end loses the name in the Copilot build; write the name without the colon" && exit 1)
 	@echo "Checking no maister: prefixes in copilot variant..."
 	@! grep -r 'maister:' plugins/maister-copilot/ --include="*.md" --include="*.json" --include="*.mjs" --include="*.yml" 2>/dev/null || (echo "FAIL: maister: prefix found" && exit 1)
 	@echo "Checking no maister-<name> form survives (Copilot registers neither)..."

@@ -1,4 +1,4 @@
-<!-- Maintained by  edit the source documents, not this file. -->
+<!-- Maintained by maister — edit the source documents, not this file. -->
 # Documentation Index
 
 A map of this project's documentation: one entry per file, saying what it is for and when to open it. Open the files themselves; an entry never holds their content.

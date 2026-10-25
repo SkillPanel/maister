@@ -515,6 +515,9 @@ const WORKFLOW_CONTEXT = {
  * for each HTML companion a node this write completed owes and that is not on
  * disk (`companionCheck`); `workflow.mjs` prints one `companion-missing:` line
  * for each. It is data about the run, never a refusal: the write landed.
+ * `companionStale`, on the same terms, lists `{node, path}` for each companion
+ * of a completed node that is older than its markdown, checked on every write
+ * that completes a node (`staleCheck`); one `companion-stale:` line each.
  *
  * The clock is read once, here, and handed to everything downstream. It used to be
  * read inside `apply`, which `writeState` never saw — so the projection would have
@@ -576,7 +579,7 @@ export function writeState({ state, patch, regress = null, host = null }) {
     const freeze = Boolean(patch.workflow) && !hadWorkflow;
     if (freeze) createFolders(state, text, warnings);
     if (freeze) installViewer(state, text, changed, warnings);
-    const banner = freeze ? bannerOf(state, text, patch.workflow) : null;
+    const banner = freeze ? bannerOf(state, text) : null;
     // After the viewer, so the status file's dashboard link sees the page the
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
@@ -585,6 +588,8 @@ export function writeState({ state, patch, regress = null, host = null }) {
     if (out.asking !== null) result.asking = out.asking;
     const companionMissing = companionCheck(text, path.dirname(path.resolve(state)), before);
     if (companionMissing.length) result.companionMissing = companionMissing;
+    const companionStale = staleCheck(text, path.dirname(path.resolve(state)), before);
+    if (companionStale.length) result.companionStale = companionStale;
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -611,13 +616,18 @@ export function writeState({ state, patch, regress = null, host = null }) {
  * The model composes its own message from it: the terminal collapses tool
  * output to a count, so nothing here is seen until the model writes it.
  * The dashboard line reads the committed state, so an `html_output: false` the
- * same patch carries is already in force. Beside the lines, the same facts as
+ * same patch carries is already in force; the checkpoints and the first phase
+ * are counted from the nodes the committed block holds, whether the patch sent
+ * them or the writer filled them in. Beside the lines, the same facts as
  * fields — the counts as numbers, the directory and dashboard as `file://`
  * URLs — for the display file, whose reader draws them its own way.
  */
-function bannerOf(state, text, workflow) {
+function bannerOf(state, text) {
   const runDir = path.dirname(path.resolve(state));
   const doc = parseState(text);
+  // The committed block, not the patch's: a freeze may leave `nodes` out for
+  // the writer to fill from the frozen graph, and only the text has them then.
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const title = isPlainObject(doc.task) ? doc.task.title : undefined;
   // Folded onto one line: a hand-written file can carry a block-scalar title,
   // and its line breaks would add lines to a banner of fixed lines.
@@ -4291,6 +4301,35 @@ function companionCheck(text, runDir, before) {
 }
 
 /**
+ * The write-state staleness check: `{node, path}` for each HTML companion of a
+ * completed node that is on disk and older than its markdown, in
+ * `workflow.nodes` order — read only on a write that completes a node, and
+ * then over every completed node of the run, not just the ones it completed.
+ *
+ * It exists because a page goes stale behind its own node's back: a later
+ * step edits an earlier step's markdown — an audit applying its fixes to the
+ * specification — and registers nothing of it, so nothing tied to the first
+ * node's write would notice. The next write that completes a node is the
+ * first moment after such an edit that the engine sees, and the page is still
+ * cheap to regenerate before the checkpoint shows it.
+ *
+ * Never a refusal and never a failure of the write: a definition that cannot
+ * be read yields nothing.
+ */
+function staleCheck(text, runDir, before) {
+  try {
+    const doc = parseState(text);
+    if (!htmlOutput(doc)) return [];
+    const nodes = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+    const completed = Object.keys(nodes).filter(id => isPlainObject(nodes[id]) && nodes[id].status === 'completed');
+    if (!completed.some(id => before[id] !== 'completed')) return [];
+    return staleCompanions({ companions: companionsOfRun(doc, runDir), nodes, ids: completed, runDir, absences: sanctionedAbsences(doc) });
+  } catch {
+    return [];
+  }
+}
+
+/**
  * The HTML companions `ids` owe and do not have, as `{node, path}` in the order
  * given, each node's in its declaration order. Shared by the write-state check
  * and `run-complete`'s, so the two can never disagree about what a node owes.
@@ -4314,10 +4353,47 @@ function companionCheck(text, runDir, before) {
  * child.
  */
 export function missingCompanions({ companions, nodes, ids, runDir, absences }) {
+  const missing = [];
+  for (const page of owedPages({ companions, nodes, ids, runDir, absences })) {
+    if (!isFile(page.md) || isFile(page.html)) continue;
+    missing.push({ node: page.node, path: page.shown });
+  }
+  return missing;
+}
+
+/**
+ * The HTML companions `ids` owe that are on disk and older than their
+ * markdown, as `{node, path}` in `missingCompanions`' order and spelling: the
+ * markdown was written again after its page, so the page shows what the
+ * markdown no longer says. Same skips as `missingCompanions`.
+ */
+export function staleCompanions({ companions, nodes, ids, runDir, absences }) {
+  const stale = [];
+  for (const page of owedPages({ companions, nodes, ids, runDir, absences })) {
+    if (isStalePage(page.md, page.html)) stale.push({ node: page.node, path: page.shown });
+  }
+  return stale;
+}
+
+/** Whether the page at `html` is on disk and older than the markdown at `md`. */
+export function isStalePage(md, html) {
+  try {
+    return fs.statSync(md).mtimeMs > fs.statSync(html).mtimeMs;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The pages `ids` owe that this run can hold them to, as `{node, md, html,
+ * shown}` — both files absolute, `shown` the page's path as the check lines
+ * print it — by the skips `missingCompanions` lists.
+ */
+function owedPages({ companions, nodes, ids, runDir, absences }) {
   if (companions === null || companions === undefined) return [];
   const definitionNodes = isPlainObject(companions.definition?.nodes) ? companions.definition.nodes : {};
   const root = projectRootOf(runDir);
-  const missing = [];
+  const pages = [];
   for (const id of ids) {
     const owed = owedCompanions(companions, id);
     if (!owed.length) continue;
@@ -4335,11 +4411,10 @@ export function missingCompanions({ companions, nodes, ids, runDir, absences }) 
     const sanctioned = absences(id);
     for (const { key, md, html } of owed) {
       if (sanctioned.has(key)) continue;
-      if (!isFile(path.resolve(base, md)) || isFile(path.resolve(base, html))) continue;
-      missing.push({ node: id, path: prefix === null ? html : path.posix.join(prefix, html) });
+      pages.push({ node: id, md: path.resolve(base, md), html: path.resolve(base, html), shown: prefix === null ? html : path.posix.join(prefix, html) });
     }
   }
-  return missing;
+  return pages;
 }
 
 /**

@@ -245,3 +245,67 @@ test('recovery without a summary: the companion is registered by the summary wri
   const artifacts = readState(run).node_summaries.review.artifacts;
   assert.deepEqual(artifacts.map(artifact => artifact.html), ['review/notes.html', 'review/log.html']);
 });
+
+/** The `companion-stale:` lines a write printed; [] when there is none. */
+function staleLines(stdout) {
+  return stdout.split('\n').filter(line => line.startsWith('companion-stale: '));
+}
+
+/** Date the file at `relative` under `dir` `seconds` from now, its access and modification times both. */
+function age(dir, relative, seconds) {
+  const when = new Date(Date.now() + seconds * 1000);
+  fs.utimesSync(path.join(dir, relative), when, when);
+}
+
+test('a page older than its markdown is named by the next write that completes a node, whichever node owns it', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/report.md');
+  put(run.dir, 'analysis/report.html');
+  let result = writeState(run, { nodes: { draft: { status: 'completed' } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(staleLines(result.stdout), []);
+
+  // A later step edits the draft's markdown and registers nothing of it.
+  age(run.dir, 'analysis/report.html', -60);
+  put(run.dir, 'review/notes.md');
+  put(run.dir, 'review/notes.html');
+  // A write that completes nothing says nothing.
+  result = writeState(run, { nodes: { review: { status: 'running' } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(staleLines(result.stdout), []);
+  // The review completing is the first write that judges the run's pages.
+  result = writeState(run, { nodes: { review: { status: 'completed' } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  assert.match(result.stdout, /\n\ncompanion-stale: draft analysis\/report\.html\n$/);
+  assert.deepEqual(staleLines(result.stdout), ['companion-stale: draft analysis/report.html']);
+
+  // Regenerated, the page is newer again and nothing is named.
+  age(run.dir, 'analysis/report.html', 60);
+  walkTo(run, ['deep-dive']);
+  put(run.dir, 'analysis/deep.md');
+  put(run.dir, 'analysis/deep.html');
+  result = writeState(run, { nodes: { 'deep-dive': { status: 'completed' } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(staleLines(result.stdout), []);
+});
+
+test('a stale page shares the paragraph of a missing one; html_output off names neither', t => {
+  const run = frozen(t);
+  put(run.dir, 'analysis/report.md');
+  put(run.dir, 'analysis/report.html');
+  writeState(run, { nodes: { draft: { status: 'completed' } } });
+  age(run.dir, 'analysis/report.html', -60);
+  put(run.dir, 'review/notes.md');
+  const result = writeState(run, { nodes: { review: { status: 'completed' } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /\n\ncompanion-missing: review review\/notes\.html\ncompanion-stale: draft analysis\/report\.html\n$/);
+
+  const off = frozen(t, { html: false });
+  put(off.dir, 'analysis/report.md');
+  put(off.dir, 'analysis/report.html');
+  age(off.dir, 'analysis/report.html', -60);
+  const silent = writeState(off, { nodes: { draft: { status: 'completed' } } });
+  assert.equal(silent.code, 0, silent.stderr);
+  assert.deepEqual(staleLines(silent.stdout), []);
+});

@@ -254,7 +254,7 @@ After the verifier returns, run the four migration-specific checks:
 The verifier has already recorded `verification_context.last_status` and
 `issues_found`. Write each issue a check raised as a finding of
 `verification/migration-checks-findings.json`, in the reviewers' findings
-schema (`implementation-verifier/references/review-findings.md`) with the
+schema (`<plugin root>/skills/implementation-verifier/references/review-findings.md`) with the
 cycle the verifier ran; a data integrity issue takes `category:
 data-integrity` and `fixable: false`. Then run `findings-merge --state=<state>`
 again, which records `verification_context.issues_found` itself, so the

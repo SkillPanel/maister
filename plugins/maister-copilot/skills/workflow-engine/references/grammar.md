@@ -135,7 +135,8 @@ resolved graph does not carry, a key the node does not declare, and a declared p
 not end in `.md` each warn (§ 14), and owe nothing.
 
 **At run time**, with HTML output on, a node's run context lists the pages it owes; completing
-the node without one prints `companion-missing:`, and closing the run prints
+the node without one prints `companion-missing:`, a page left older than its markdown is
+named `companion-stale:` by the next write that completes a node, and closing the run prints
 `missing-companion:` for each still absent. A definition without the block owes nothing.
 The block is outside the recorded identity: declaring a companion moves no frozen run. It is
 not the prose companion of § 11, which is the definition's own `.md` file.
