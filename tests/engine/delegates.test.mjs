@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, ROOT, freeze, readState, run as runScript, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, ROOT, freeze, freezePatch, readState, run as runScript, scratch, verb, write } from '../helpers.mjs';
 
 // A `direct:` step's declared delegates: `brief.<node>.delegates` names the
 // agents a step run inline always dispatches. The brief names them on its
@@ -146,4 +146,102 @@ test('validate: delegates on a step that is not direct warns', t => {
   const report = validateWith(t, { review: '[gap-analyzer]' });
   assert.equal(report.ok, true);
   assert.ok(report.warnings.includes('brief-delegates-not-direct:brief.review.delegates:review'), JSON.stringify(report.warnings));
+});
+
+test('validate: delegates per host maps a host to its own set', t => {
+  for (const good of ['{claude: [Plan], copilot: ["maister:implementation-planner"]}', '{copilot: [gap-analyzer]}', '[Explore, spec-auditor]']) {
+    assert.deepEqual(validateWith(t, { step: good }).errors, [], good);
+  }
+  for (const [bad, at] of [['{}', 'brief.step.delegates'], ['{claude: []}', 'brief.step.delegates.claude'],
+    ['{gemini: [spec-auditor]}', 'brief.step.delegates.gemini'], ['{claude: [spec-auditor, spec-auditor]}', 'brief.step.delegates.claude[1]'],
+    ['{claude: plan}', 'brief.step.delegates.claude'], ['[PLAN]', 'brief.step.delegates[0]']]) {
+    const report = validateWith(t, { step: bad });
+    assert.equal(report.ok, false, bad);
+    assert.ok(report.errors.some(error => JSON.stringify(error).includes(`"${at}`)), `${bad}: ${JSON.stringify(report.errors)}`);
+  }
+});
+
+test('validate: delegates per host on a step that is not direct warns', t => {
+  const report = validateWith(t, { review: '{claude: [gap-analyzer]}' });
+  assert.equal(report.ok, true);
+  assert.ok(report.warnings.includes('brief-delegates-not-direct:brief.review.delegates:review'), JSON.stringify(report.warnings));
+});
+
+const PER_HOST = { claude: ['Plan'], copilot: ['maister:implementation-planner'] };
+
+/** A one-step definition whose direct step declares `delegates`, frozen under `host` (null: no --host). */
+function perHostRun(t, delegates, host) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-delegates-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'plan.yml'), [
+    'name: plan', 'version: 1', 'description: "Plans a change."',
+    `brief:\n  step:\n    delegates: ${JSON.stringify(delegates)}`,
+    'nodes:', '  step:', '    uses: direct:step', '    needs: []', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(dir, 'plan.md'), '# Plan\n\nPlans a change.\n\n## `step`\n\n**Does.** Writes the plan.\n');
+  const run = scratch(t);
+  const { patch } = freezePatch({ definition: path.join(dir, 'plan.yml') });
+  const result = verb(['write-state', `--state=${run.state}`, ...(host ? [`--host=${host}`] : [])], patch);
+  assert.equal(result.code, 0, result.stderr);
+  return run;
+}
+
+function completeStep(run, delegated) {
+  const summary = { headline: 'The plan is written.', summary: 'One plan.' };
+  if (delegated !== undefined) summary.delegated = delegated;
+  return verb(['write-state', `--state=${run.state}`], { nodes: { step: { status: 'completed' } }, node_summaries: { step: summary } });
+}
+
+test('a per-host set: the brief and the closing patch name the run host\'s set', t => {
+  for (const [host, line, listed] of [
+    [null, '- Plan: ', '"Plan"'],
+    ['claude', '- Plan: ', '"Plan"'],
+    ['copilot', '- maister:implementation-planner: ', '"maister:implementation-planner"'],
+  ]) {
+    const run = perHostRun(t, PER_HOST, host);
+    const result = brief(run, 'step');
+    assert.equal(result.code, 0, result.stderr);
+    const lines = result.stdout.split('\n');
+    assert.equal(lines[1], 'runs: direct:step — inline, its delegates dispatched through the Task tool', String(host));
+    const at = lines.findIndex(each => each.startsWith('delegates: '));
+    assert.ok(lines[at + 1].startsWith(line), `${host}: ${lines[at + 1]}`);
+    assert.ok(!lines[at + 2].startsWith('- '), `${host}: one delegate only`);
+    assert.ok(lines.find(each => each.startsWith('closing patch')).includes(`"delegated": [${listed}]`), String(host));
+  }
+});
+
+test('a per-host set holds each host to its own set, and the other host\'s set is refused', t => {
+  for (const [host, own, other] of [['claude', ['Plan'], ['maister-copilot:implementation-planner']], ['copilot', ['maister-copilot:implementation-planner'], ['Plan']]]) {
+    const run = perHostRun(t, PER_HOST, host);
+    const before = fs.readFileSync(run.state, 'utf8');
+    const refused = completeStep(run, other);
+    assert.equal(refused.code, 1, refused.stdout);
+    assert.match(refused.stderr, /state-delegates-unrecorded/);
+    assert.equal(fs.readFileSync(run.state, 'utf8'), before);
+    const landed = completeStep(run, own);
+    assert.equal(landed.code, 0, landed.stderr);
+    assert.equal(readState(run).workflow.nodes.step.status, 'completed');
+  }
+});
+
+test('a host the per-host map leaves out declares nothing there', t => {
+  const run = perHostRun(t, { copilot: ['gap-analyzer'] }, 'claude');
+  const result = brief(run, 'step');
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stdout, /^delegates: /m);
+  assert.doesNotMatch(result.stdout, /"delegated"/);
+  assert.doesNotMatch(result.stdout, /its delegates dispatched/);
+  const landed = completeStep(run, undefined);
+  assert.equal(landed.code, 0, landed.stderr);
+  const held = completeStep(perHostRun(t, { copilot: ['gap-analyzer'] }, 'copilot'), undefined);
+  assert.equal(held.code, 1, held.stdout);
+  assert.match(held.stderr, /state-delegates-unrecorded/);
+});
+
+test('the Copilot variant names a per-host delegate under its own plugin', t => {
+  const run = perHostRun(t, PER_HOST, 'copilot');
+  const variant = path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs');
+  const result = runScript(variant, ['node-brief', `--state=${run.state}`, '--node=step']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^- maister-copilot:implementation-planner: /m);
 });

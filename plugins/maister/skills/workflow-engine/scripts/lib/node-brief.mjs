@@ -95,12 +95,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse, isPlainObject } from './state-read.mjs';
-import { guideRows, proseSection, readerRows, sectionNameOf } from './graph.mjs';
+import { BUILT_IN_AGENTS, guideRows, proseSection, readerRows, sectionNameOf } from './graph.mjs';
 import { closingCandidates, evaluate, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
 import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, writeState } from './state.mjs';
 import { owedCompanions } from './companions.mjs';
-import { briefOfRun } from './brief.mjs';
+import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
 import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
@@ -317,7 +317,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
     return lines;
   }
   const brief = (sources ? briefOfRun(context.doc, context.runDir, sources) : null)?.[node] ?? {};
-  const delegates = scheme === 'direct' && !dispatched && Array.isArray(brief.delegates) ? brief.delegates : [];
+  const delegates = scheme === 'direct' && !dispatched ? delegatesFor(brief, runHost(context.doc)) : [];
   if (delegates.length) {
     lines[1] = `runs: ${uses} — inline, its delegates dispatched through the Task tool`;
     lines.push(DELEGATES, ...delegates.map(agent => `- ${dispatchName(agent)}: ${modelText(agent.slice(agent.indexOf(':') + 1), node, context.doc)}`));
@@ -407,10 +407,21 @@ function closingLine(node, values, brief, continues, delegates) {
  */
 const DELEGATES = 'delegates: dispatch each agent below through the Task tool, on the model and effort beside it, whatever the size of the project or the task — never do its work in this session. The closing write lists each in "delegated" and is refused without it';
 
-/** An agent as the Task tool takes it: a declared plugin name kept, a bare one under this plugin's. */
+/**
+ * An agent as the Task tool takes it: a built-in agent type bare, another
+ * plugin's name kept, and a bare name or one under either variant's prefix
+ * under this plugin's — a definition is not rewritten by the Copilot build,
+ * so a name under this plugin's own prefix reaches the variant as written.
+ */
 function dispatchName(agent) {
-  return agent.includes(':') ? agent : `${shippedPluginName()}:${agent}`;
+  if (BUILT_IN_AGENTS.includes(agent)) return agent;
+  const at = agent.indexOf(':');
+  if (at < 0 || OWN_PLUGINS.includes(agent.slice(0, at))) return `${shippedPluginName()}:${agent.slice(at + 1)}`;
+  return agent;
 }
+
+/** The names this plugin is registered under, one per host's variant. */
+const OWN_PLUGINS = ['maister', 'maister-copilot'];
 
 /** A declared value's placeholder: its literal alternatives, or the kind of string it takes. */
 function placeholderOf(type) {
