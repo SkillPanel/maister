@@ -14,8 +14,9 @@ Group findings by `category + standard_name`. When multiple findings match:
 Calculate final confidence using these factors:
 
 ### Source Count (max 45 points)
-- Each unique source: +15 points (config, code-patterns, documentation, pr-reviews, ci-config, pre-commit)
+- The first source: +25 points; each further unique source: +10 (config, code-patterns, documentation, pr-reviews, ci-config, pre-commit)
 - Cap at 45 points (3+ sources)
+- Why the first source weighs most: a small repository often has one source for a convention — its code. A pattern the code follows consistently, with several examples, scores 60–70 from that source alone and is offered for review; an inconsistent one stays below the threshold. Reaching High still takes a second source or an explicit config rule.
 
 ### Consistency (max 20 points)
 - >= 90% consistency across sampled files: +20
