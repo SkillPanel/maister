@@ -413,14 +413,16 @@ dispatched run that reaches its end with no close-out in the outbox
 outbox, and step 7 is what the operator gets instead.
 
 **Asks.** Only when step 4 offers standard candidates: one multi-select
-question, the question saying that each chosen one is added through
-standards-update at its suggested destination, which it confirms. Its first
+question, the question saying that each chosen one is added now, before
+the run closes, through standards-update, which asks to confirm its
+destination. Its first
 option is fixed: *"None now: list them as next steps"*. Each candidate follows
 as an option — its label the consolidation's few words, its description the
 candidate line, then its destination (a new rule in a named file, the rule it
 extends, or a project document) and its evidence. No option is recommended.
 Each chosen candidate is added with `maister:standards-update`, its line and
-suggested destination as the description, one after another; an unchosen one
+suggested destination as the description, one after another, its destination
+asked, never taken as given; an unchosen one
 is dropped. *None now* adds nothing: every candidate goes under **Next** as its
 `/maister:standards-update "<candidate> (suggested: <destination>)"` command, as
 when nothing is asked. Chosen together with candidates, *None now* gives way:

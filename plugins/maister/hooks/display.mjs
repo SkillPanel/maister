@@ -494,11 +494,12 @@ function card(elements, start, links) {
 
 /**
  * The band above the prompt: the run and its links where they open, then
- * where it is. Framed when the rows allow, with no blank row of its own: the
- * engine's `[-]` sits beside the top border, and the row between the band and
- * the prompt is the engine's. While a phase with parts runs, a third line
- * shows them. With fewer rows that line folds away first; then the band drops
- * the frame, then keeps to one row.
+ * where it is — the phase, and how long that phase has been under way by its
+ * own start, never the run's. Framed when the rows allow, with no blank row of
+ * its own: the engine's `[-]` sits beside the top border, and the row between
+ * the band and the prompt is the engine's. While a phase with parts runs, a
+ * third line shows them. With fewer rows that line folds away first; then the
+ * band drops the frame, then keeps to one row.
  */
 function band(elements, status, time, maxRows, links) {
   const { Box, Text } = elements;
@@ -506,7 +507,7 @@ function band(elements, status, time, maxRows, links) {
   const where = [];
   const phase = status.phase ?? {};
   if (!ended && phase.title && Number.isInteger(phase.index)) where.push(h(Text, { key: 'phase' }, `phase ${phase.index} of ${phase.total} · `, h(Text, { bold: true }, phase.title)));
-  const elapsed = ended ? null : elapsedText(status.started, time);
+  const elapsed = ended ? null : elapsedText(phase.started, time);
   if (elapsed) where.push(h(Text, { key: 'elapsed', color: DIM }, elapsed));
 
   const dots = !ended && Number.isInteger(phase.index) && phase.total <= DOTS_MAX ? dotsOf({ Text }, phase) : null;
@@ -668,7 +669,7 @@ function panelRows(elements, parts, linked) {
   return lines;
 }
 
-/** `running for 9 min`: how long the run has been going, never how long it will. */
+/** `running for 9 min`: how long the phase under way has been going, never how long it will. */
 function elapsedText(started, time) {
   const from = typeof started === 'string' ? Date.parse(started) : NaN;
   if (!Number.isFinite(from) || !Number.isFinite(time)) return null;

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { freeze, gitScratch, scratch, verb } from '../helpers.mjs';
+import { freeze, gitScratch, readState, scratch, verb, write } from '../helpers.mjs';
 
 // `findings-merge` folds one cycle's reviewer findings into the run's one
 // numbered list: duplicates across reviewers become one finding, ids stay put
@@ -110,6 +110,40 @@ test('findings-merge: the issues_found projection has the state contract\'s shap
   assert.equal(report.cycle, 1);
   assert.equal(report.file, path.join(run.dir, 'verification', 'findings.json'));
   assert.deepEqual(merged(run), merged(run, 1), 'findings.json is the latest cycle\'s copy');
+});
+
+test('findings-merge: a run named by --state has issues_found recorded in its state, and the cycle\'s other keys kept', t => {
+  const run = project(t);
+  write(run, { verification_context: { last_status: 'passed_with_issues', reviews: { done: ['spec'] }, fixes_applied: [] } });
+  const { code, stderr, report } = cycleOne(run);
+  assert.equal(code, 0, stderr);
+  assert.doesNotMatch(stderr, /findings-merge-state-unwritten/);
+  const context = readState(run).verification_context;
+  assert.deepEqual(context.issues_found, report.issues_found);
+  assert.equal(context.last_status, 'passed_with_issues');
+  assert.deepEqual(context.reviews, { done: ['spec'] });
+  assert.deepEqual(context.fixes_applied, []);
+});
+
+test('findings-merge: a state write the writer refuses is a warning, and the merge stays ok', t => {
+  const run = project(t);
+  fs.writeFileSync(path.join(run.dir, 'orchestrator-state.yml.tmp'), '');
+  const { code, stderr, report } = cycleOne(run);
+  assert.equal(code, 0, stderr);
+  assert.match(stderr, /^warning: findings-merge-state-unwritten: state-temp-exists; /m);
+  assert.equal(report.issues_found.length, 4);
+  assert.ok(fs.existsSync(path.join(run.dir, 'verification', 'findings.json')));
+});
+
+test('findings-merge: a standalone --task-path merge writes no state', t => {
+  const run = project(t);
+  const before = fs.readFileSync(run.state, 'utf8');
+  put(run, 'review-brief-1.json', { cycle: 1, mode: 'full', fix: null, recheck: null });
+  put(run, 'spec-findings.json', full('spec', 1, [finding('pr-1', 'info', 'resilience', at('src/upload.mjs', 48), 'No backoff on 503')]));
+  const { code, stdout, stderr } = verb(['findings-merge', `--task-path=${run.dir}`]);
+  assert.equal(code, 0, stderr);
+  assert.equal(JSON.parse(stdout).issues_found.length, 1);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before);
 });
 
 test('findings-merge: ids stay stable across cycles, and a new finding takes the next number', t => {

@@ -351,6 +351,13 @@ fi
 # The interface file describes the tree it sits in: the engine is the same
 # bytes, but the hooks this host registers and the tool names it calls are its
 # own, so the copy carried over from the source is regenerated from this tree.
+# It is removed first, so a generator that writes nothing fails the build below
+# instead of leaving the source's copy in place.
+rm -f "$OUT/interface.json"
 node "$ROOT/tools/interface.mjs" --root "$OUT" --baseline "$PREVIOUS_INTERFACE" >/dev/null
+if [ ! -f "$OUT/interface.json" ]; then
+  echo "build: $OUT/interface.json was not written; the interface generator did not run" >&2
+  exit 1
+fi
 
 echo "Built Copilot CLI variant at $OUT"

@@ -232,6 +232,15 @@ test('node-brief: every rule a step of a built-in can trigger reaches it — the
   }
 });
 
+test('node-brief: a step run in the main session is told where its throwaway files go, never a fixed /tmp', t => {
+  const run = scratch(t, { type: 'research' });
+  freeze(run, { definition: path.join(ENGINE_DIR, 'workflows', 'research.yml'), inputs: { question: 'A question' } });
+  const text = nodeBrief(run.state, 'research-foundation').stdout;
+  const line = text.split('\n').find(each => each.startsWith('convention (every step): '));
+  assert.ok(line, text);
+  assert.match(line, /throwaway file .* `mktemp -d` makes, never a fixed path such as `\/tmp`/);
+});
+
 test('node-brief: the asks line follows the driver — in session, in a question set, or the Without line nobody is asked', t => {
   const sample = sampleRun(t);
   write(sample, { orchestrator: { driver: { kind: 'cockpit', features: ['question-sets'] } } });

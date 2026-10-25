@@ -216,7 +216,9 @@ options[{id, label, description, recommended, preview}], details, more_details, 
 warnings}`. The recommended option comes first, its label already marked `(Recommended)`. The
 `rich` profile's question is the one-line ask and every option has a `preview`; the `plain`
 profile's question is the glance followed by the ask, its header the title of the step the
-gate closes, and its option labels carry their consequence. Both end with the More details
+gate closes, and its option labels carry their consequence; it also returns `form`, right after
+`picker` — `{message, requestedSchema}`, that question and those options as the arguments of a
+message-and-form question tool, one property `decision` whose value is the chosen id. Both end with the More details
 option — `{id: "more-details", details: true}`, never an answer — while the tool has a slot
 free (`details: "option"`); otherwise the question ends `Type "details" for the full brief.`
 (`details: "typed"`). `more_details` is the full brief. A revise option adds `note: true`,
@@ -259,18 +261,21 @@ questions.
    **The picker is built field by field, never by hand.** `question` is the question, verbatim.
    `header` is the header. `options` are the options, in the order given, each shown by its
    `label` exactly as given — the recommended one first, already reading `(Recommended)`.
-   The question tool takes a message and a form rather than these fields by name. Pass
-   `question` whole as the `message`, verbatim: never reworded, shortened or moved into the
-   form, even after More details has written the brief out. Its last line is the ask, so the ask
-   stays on screen while the user decides. The form has one property, titled by `header`, whose
-   choices are the options in the order given — each option's `id` as the value and its `label`
-   as the title, which already says what the option does — with the recommended one as the
-   default. After More details, the gate is asked again with the same `question`, verbatim, as
-   the `message`.
+   The question tool takes a message and a form rather than these fields by name, and
+   `gate-brief` returns both, built: `form` is the call's arguments as they stand — `question`
+   whole as its `message`, and one property, titled by `header`, whose choices are the options in
+   the order given, each option's `id` as the value and its `label` as the title, the recommended
+   one as the default. **Pass `form` unchanged.** Read the whole output first, never through
+   `head` or `tail`, which cut options off the end. Never reword, shorten or move the message, and
+   add no property: a revise's note is asked after the revise is chosen, from its
+   `note_question` (*Revising at a gate*), never as a field beside the choice. The message's last
+   line is the ask, so the ask stays on screen while the user decides. After More details, the
+   gate is asked again with the same `form`.
 
-   > **SELF-CHECK before the `ask_user` call** (the gate SELF-CHECK): is the `message`
-   > you pass exactly `question`, every line through the ask? Is what you wrote before it one
-   > line at most? If you shortened, reworded or split it, STOP and pass it whole. Then ask.
+   > **SELF-CHECK before the `ask_user` call** (the gate SELF-CHECK): are the arguments
+   > exactly `form`, the message every line through the ask and the one property every option?
+   > Is what you wrote before it one line at most? If you shortened, reworded, split or added to
+   > it, STOP and pass `form` as given. Then ask.
 
    Where the picker has no header or no description, leave them out; the labels still carry the
    choice. The recorded answer is the chosen option's `id`, never its label. **The

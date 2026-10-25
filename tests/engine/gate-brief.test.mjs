@@ -1653,6 +1653,26 @@ test('picker plain: the question carries the glance then the ask, and each title
   ]);
 });
 
+test('picker plain: the form is the asking tool\'s arguments — the question whole, one property, every option', t => {
+  for (const [run, node] of [[atApproval(t), 'approval'], [atReview(t), 'review-approval'], [atFullGate(t), 'approval']]) {
+    const result = profiled(run, node, 'plain');
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(Object.keys(result).filter(key => !['code', 'stderr'].includes(key)).slice(0, 3), ['ok', 'picker', 'form'], 'the form comes first, ahead of anything a cut output loses');
+    assert.equal(result.form.message, result.question);
+    assert.deepEqual(result.form.requestedSchema.required, ['decision']);
+    const properties = result.form.requestedSchema.properties;
+    assert.deepEqual(Object.keys(properties), ['decision'], 'no note or other property beside the choice');
+    assert.equal(properties.decision.title, result.header);
+    assert.deepEqual(properties.decision.oneOf, result.options.map(option => ({ const: option.id, title: option.label })));
+    assert.equal(properties.decision.default, result.options.find(option => option.recommended).id);
+    const offered = properties.decision.oneOf.map(choice => choice.const);
+    for (const id of profiled(run, node, 'rich').options.map(option => option.id).filter(id => id !== 'more-details')) {
+      assert.ok(offered.includes(id), `${node}: ${id} is a choice of the form, as on the rich profile`);
+    }
+  }
+  assert.equal(profiled(atApproval(t), 'approval', 'rich').form, undefined, 'the rich profile carries no form');
+});
+
 test('picker profiles: every option keeps its id and order in both, so an answer records the same either way', t => {
   for (const run of [atApproval(t), atReview(t), atFullGate(t)]) {
     const node = fs.readFileSync(run.state, 'utf8').includes('review-approval') ? 'review-approval' : 'approval';

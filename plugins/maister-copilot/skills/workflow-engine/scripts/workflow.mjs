@@ -122,8 +122,9 @@
  *                  `warning:` line — writes only under the run's verification/
  *   findings-merge --state, or --task-path; optional --cycle  JSON on stdout
  *                  (the cycle's reviewer findings merged into findings.json,
- *                  its counts and the issues_found projection) — writes only
- *                  under the run's verification/
+ *                  its counts and the issues_found projection) — writes under
+ *                  the run's verification/, and with --state records
+ *                  issues_found in the run's verification_context
  *   project-profile the detected profile as JSON on stdin   JSON on stdout
  *                  (the profile `init` detected, written into the project's
  *                  .maister/config.yml under `project:` — appended, or the

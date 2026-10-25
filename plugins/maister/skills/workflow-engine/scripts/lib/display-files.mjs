@@ -19,7 +19,8 @@
  *   task, the phase by `phaseOf`'s rule, the next checkpoint by
  *   `checkpointOf`'s, the run's status, `line`, the status line composed —
  *   with the run's delegation mode after the phase while the executor's or
- *   the verifier's phase is under way — when the run started, the nodes — each one's title and
+ *   the verifier's phase is under way — when the run started (the phase's
+ *   own start is `phase.started`), the nodes — each one's title and
  *   status, and the ones this write changed — the artifact paths the nodes declare, relative to
  *   the run directory, and `parts`: the parts of the phase under way, when it
  *   has any — the implementation plan's task groups, or the reviews the
@@ -113,16 +114,20 @@ const SETTLED = new Set(['completed', 'skipped']);
  * phase is the first under way; when none is — the run waits at a checkpoint,
  * or has just started or finished — it is the last one completed, or else the
  * first not skipped. `index` is its place, `title` its title; both are null
- * only for a run with no phase at all.
+ * only for a run with no phase at all. `started` is when that phase's node
+ * went running, while it is under way, else null: the run's own start is the
+ * status file's `started`, and a clock beside a phase reads as the phase's.
  *
  * Never a pending node after a completed one: a guard may skip it, and only
  * the brief's walk knows, so naming it would name work that never runs.
  */
 export function phaseOf(doc, titles) {
   const { phases, at, nodes } = currentPhase(doc);
-  if (!phases.length) return { index: null, total: 0, title: null, skipped: [] };
+  if (!phases.length) return { index: null, total: 0, title: null, skipped: [], started: null };
   const skipped = phases.flatMap((id, place) => (nodes[id].status === 'skipped' ? [place + 1] : []));
-  return { index: at + 1, total: phases.length, title: titleOf(titles, phases[at]), skipped };
+  const current = nodes[phases[at]];
+  const started = ONGOING.has(current.status) && typeof current.started === 'string' ? current.started : null;
+  return { index: at + 1, total: phases.length, title: titleOf(titles, phases[at]), skipped, started };
 }
 
 /** The phases `phaseOf` counts, and the place of the current one among them. */

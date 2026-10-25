@@ -686,8 +686,19 @@ function compare(before, after) {
   return { broken, added };
 }
 
+// Node resolves symlinks in the main module's URL but not in argv[1], so the
+// invoked path is resolved the same way before comparing; run through a
+// symlinked directory (macOS /tmp is one) the script would otherwise do nothing.
+function invokedPath(arg) {
+  try {
+    return fs.realpathSync(arg);
+  } catch {
+    return path.resolve(arg);
+  }
+}
+
 // Run as a script, not when a test imports the functions above.
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && invokedPath(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     process.exitCode = await main(process.argv.slice(2));
   } catch (err) {
