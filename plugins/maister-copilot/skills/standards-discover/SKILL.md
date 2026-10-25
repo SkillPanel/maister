@@ -80,7 +80,7 @@ Launch all applicable subagents in one message so they run in parallel.
 
 **Step 1: Determine which phases to run** based on scope and flags.
 
-**Step 1.5: Create temp output directory** — Run `mktemp -d` via Bash to create a unique temp directory for this invocation. Store the path (e.g., `/tmp/abc123`). Each subagent will write its results to a dedicated file in this directory: `{tmpdir}/config.yml`, `{tmpdir}/code.yml`, `{tmpdir}/docs.yml`, `{tmpdir}/external.yml`.
+**Step 1.5: Create temp output directory** — Run `mktemp -d` via Bash to create a unique temp directory for this invocation. Store the path exactly as it prints — it differs per host and per run, so never assume `/tmp` or write a fixed path in its place. Each subagent will write its results to a dedicated file in this directory: `{tmpdir}/config.yml`, `{tmpdir}/code.yml`, `{tmpdir}/docs.yml`, `{tmpdir}/external.yml`.
 
 **Step 2: Read prompt templates**
 
