@@ -21,6 +21,7 @@
  */
 
 import { flowLine } from './checkpoint.mjs';
+import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
 import { HEADER_MAX } from './display.mjs';
 import { evidenceKey } from './evidence.mjs';
 import { oneLine, provenanceOf } from './items.mjs';
@@ -198,8 +199,8 @@ export function questionCheckpoint({ set, node, title, header, progress, run }) 
   const count = set.questions.length;
   const lowered = title.charAt(0).toLowerCase() + title.slice(1);
   return {
-    version: 1,
-    kind: 'question',
+    version: CHECKPOINT_VERSION,
+    kind: CHECKPOINT_KIND.question,
     node,
     header,
     ask: set.ask ?? `${title}: ${count} ${count === 1 ? 'question' : 'questions'} to answer`,
@@ -241,7 +242,7 @@ export function questionRequest(checkpoint) {
   const [first] = checkpoint.questions;
   return {
     node: checkpoint.node,
-    kind: 'question',
+    kind: CHECKPOINT_KIND.question,
     question: flowLine(first.question),
     context: { summary: summaryOf(checkpoint), artifacts: [], checkpoint },
     options: requestOptions(first),

@@ -126,6 +126,13 @@ workspace with work in flight.
   Every later phase reads it as background. A path that cannot be read is reported and the run
   continues without it. Adding it changed both definitions' graphs, so an eject or an overlay of
   either built-in is checked again against the new base.
+- **An interface file for tools that pin the plugin.** `interface.json` at the plugin's root
+  describes what the plugin offers a tool built on it — every key of a driven gate request with its
+  type and whether it is required, the checkpoint's kinds and keys, the keys and statuses the engine
+  writes into state, each engine verb with its flags and refusal codes, and the agents, skills,
+  commands, hook events and MCP tool names. It is generated from the code, so a diff between two
+  pins shows what changed; an additive change raises its minor version, a removal or a changed
+  type or required flag its major.
 - **Also new.** Umbrella workspaces span several repositories (`/maister:umbrella init`, `validate`
   and `prune`) and are driven as chains from the
   [maister cockpit](https://github.com/SkillPanel/maister-cockpit). On GitHub Copilot CLI, the

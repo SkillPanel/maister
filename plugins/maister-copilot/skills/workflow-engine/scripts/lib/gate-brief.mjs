@@ -123,6 +123,7 @@ import { questionSets } from './driver.mjs';
 import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
 import { checkEvidence, evidenceKey } from './evidence.mjs';
 import { subjectKey, subjectOf } from './gate-subject.mjs';
+import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, REVISION_CEILING, frozenIds, gateHeldRevises, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 
@@ -1641,8 +1642,8 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
 
   const gates = order.filter(gateId);
   return {
-    version: 1,
-    kind: 'gate',
+    version: CHECKPOINT_VERSION,
+    kind: CHECKPOINT_KIND.gate,
     node,
     header: headerOf(display, node, closing.id),
     ask: gateAsk(gateNode?.ask, title(closing.id), Object.hasOwn(titles ?? {}, node) ? titles[node] : null),

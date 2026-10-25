@@ -15,6 +15,12 @@ sedi() {
   fi
 }
 
+# The variant's interface file is versioned against the one it replaces, so
+# that one is kept aside before the tree is rebuilt (see the end of this file).
+PREVIOUS_INTERFACE="$(mktemp)"
+trap 'rm -f "$PREVIOUS_INTERFACE"' EXIT
+if [ -f "$OUT/interface.json" ]; then cp "$OUT/interface.json" "$PREVIOUS_INTERFACE"; fi
+
 rm -rf "$OUT"
 cp -r "$CORE" "$OUT"
 # The hooks. Copilot CLI loads a plugin's hooks/hooks.json -- Claude's nested
@@ -314,5 +320,10 @@ if [ ! -f "$OUT/lib/state-scan.mjs" ]; then
   echo "build: $OUT/lib/state-scan.mjs is missing; the emitted engine cannot resolve its state reader" >&2
   exit 1
 fi
+
+# The interface file describes the tree it sits in: the engine is the same
+# bytes, but the hooks this host registers and the tool names it calls are its
+# own, so the copy carried over from the source is regenerated from this tree.
+node "$ROOT/tools/interface.mjs" --root "$OUT" --baseline "$PREVIOUS_INTERFACE" >/dev/null
 
 echo "Built Copilot CLI variant at $OUT"

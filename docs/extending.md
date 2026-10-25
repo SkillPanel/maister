@@ -467,6 +467,33 @@ the definition, a node, a gate option, `display:`, an overlay and its profiles �
 the accepted keys and names the one you probably meant. A misspelt `when:` is refused rather than
 quietly dropping the guard.
 
+## The interface file
+
+A tool that pins a commit of the plugin — a driver, a dashboard, a validator — can read what that
+commit offers from one file instead of keeping its own list: `interface.json` at the plugin's root
+(`plugins/maister/interface.json`, and the Copilot variant's own `plugins/maister-copilot/interface.json`).
+Diff it between two pins to see what changed.
+
+It holds:
+
+- `gate_request`: every key a driven gate request may carry — at the top level, in `context`, in an
+  option and its suggested notes, in a question of a set — each with its `type` and whether it is
+  `required`;
+- `checkpoint`: its version, its kinds, the kinds a gate's subject may have, and its keys by kind;
+- `state`: the state file's schema version and the keys and statuses the engine writes;
+- `engine.verbs`: each verb with its flags and the refusal codes it can raise;
+- `agents`, `skills`, `commands`, the `hooks` events (with their matchers) and modules, and the
+  `mcp` servers shipped and tool names called.
+
+It is generated from the code by `make build` and never edited by hand; `make validate` fails while
+the committed file differs from a fresh generation. The two trees each carry their own because their
+engine is the same but their hooks and tool names are each host's.
+
+**Versioning.** `interface_version` is `MAJOR.MINOR`, worked out by the build against the file it
+replaces. An additive change — a new key, verb, flag, refusal, name or value — raises the minor. A
+changed type, required flag or version number, or anything removed, raises the major. A reader that accepts any
+key the file declares needs nothing new for a minor step; a major step is the one to look at.
+
 ## Related reading
 
 - [Workflow definition grammar](../plugins/maister/skills/workflow-engine/references/grammar.md)

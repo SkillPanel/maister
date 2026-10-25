@@ -1,0 +1,1067 @@
+{
+  "agents": [
+    "ascii-mockup-generator",
+    "bottleneck-analyzer",
+    "code-risk-review",
+    "codebase-analysis-reporter",
+    "docs-operator",
+    "e2e-test-verifier",
+    "gap-analyzer",
+    "html-companion-writer",
+    "implementation-planner",
+    "implementation-runner",
+    "information-gatherer",
+    "project-analyzer",
+    "research-planner",
+    "research-synthesizer",
+    "simplicity-review",
+    "solution-brainstormer",
+    "solution-designer",
+    "spec-auditor",
+    "spec-conformance-review",
+    "specification-creator",
+    "task-classifier",
+    "task-group-implementer",
+    "test-suite-runner",
+    "user-docs-generator",
+    "verification-runner"
+  ],
+  "checkpoint": {
+    "keys": {
+      "gate": {
+        "approves": {
+          "required": true,
+          "type": "array"
+        },
+        "ask": {
+          "required": true,
+          "type": "string"
+        },
+        "closed": {
+          "required": true,
+          "type": "array"
+        },
+        "decisions": {
+          "required": true,
+          "type": "object"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "required": false,
+          "type": "array"
+        },
+        "fixes": {
+          "required": true,
+          "type": "array"
+        },
+        "grants": {
+          "required": true,
+          "type": "object"
+        },
+        "header": {
+          "required": true,
+          "type": "string"
+        },
+        "headline": {
+          "required": true,
+          "type": "string|null"
+        },
+        "held": {
+          "required": false,
+          "type": "array"
+        },
+        "kind": {
+          "required": true,
+          "type": "string",
+          "values": [
+            "gate",
+            "question"
+          ]
+        },
+        "next": {
+          "required": true,
+          "type": "object|null"
+        },
+        "node": {
+          "required": true,
+          "type": "string"
+        },
+        "options": {
+          "required": true,
+          "type": "array"
+        },
+        "progress": {
+          "required": true,
+          "type": "object"
+        },
+        "recommended": {
+          "required": true,
+          "type": "object"
+        },
+        "review": {
+          "required": true,
+          "type": "array"
+        },
+        "risks": {
+          "required": true,
+          "type": "object"
+        },
+        "run": {
+          "required": true,
+          "type": "object"
+        },
+        "subject": {
+          "keys": {
+            "kind": {
+              "required": true,
+              "type": "string"
+            },
+            "path": {
+              "required": true,
+              "type": "string"
+            }
+          },
+          "required": false,
+          "type": "object"
+        },
+        "truncated": {
+          "required": true,
+          "type": "boolean"
+        },
+        "version": {
+          "required": true,
+          "type": "integer"
+        }
+      },
+      "question": {
+        "ask": {
+          "required": true,
+          "type": "string"
+        },
+        "header": {
+          "required": true,
+          "type": "string"
+        },
+        "headline": {
+          "required": true,
+          "type": "string|null"
+        },
+        "kind": {
+          "required": true,
+          "type": "string",
+          "values": [
+            "gate",
+            "question"
+          ]
+        },
+        "node": {
+          "required": true,
+          "type": "string"
+        },
+        "progress": {
+          "required": true,
+          "type": "object"
+        },
+        "questions": {
+          "required": true,
+          "type": "array"
+        },
+        "run": {
+          "required": true,
+          "type": "object"
+        },
+        "truncated": {
+          "required": true,
+          "type": "boolean"
+        },
+        "version": {
+          "required": true,
+          "type": "integer"
+        }
+      }
+    },
+    "kinds": [
+      "gate",
+      "question"
+    ],
+    "subject_kinds": [
+      "delivery-scope",
+      "brief",
+      "specification",
+      "plan",
+      "mockups"
+    ],
+    "version": 1
+  },
+  "commands": [
+    "reviews-code-risk",
+    "reviews-simplicity",
+    "reviews-spec",
+    "reviews-spec-audit",
+    "work"
+  ],
+  "engine": {
+    "verbs": {
+      "area-brief": {
+        "flags": [
+          "area",
+          "json",
+          "node",
+          "patch-file",
+          "picker",
+          "state"
+        ],
+        "refusals": [
+          "area-brief-not-running",
+          "area-brief-state-unreadable",
+          "area-brief-unknown-area",
+          "area-brief-unknown-node"
+        ]
+      },
+      "diagram": {
+        "flags": [
+          "definition",
+          "out",
+          "overlay",
+          "profile"
+        ],
+        "refusals": []
+      },
+      "dispatch-model": {
+        "flags": [
+          "agent",
+          "host",
+          "node",
+          "state",
+          "tier"
+        ],
+        "refusals": [
+          "dispatch-model-not-a-run",
+          "dispatch-model-state-unreadable",
+          "dispatch-model-unknown-node"
+        ]
+      },
+      "finding-brief": {
+        "flags": [
+          "findings-file",
+          "node",
+          "patch-file",
+          "state"
+        ],
+        "refusals": [
+          "finding-brief-not-running",
+          "finding-brief-state-unreadable",
+          "finding-brief-undeclared",
+          "finding-brief-unknown-node"
+        ]
+      },
+      "findings-merge": {
+        "flags": [
+          "cycle",
+          "state",
+          "task-path"
+        ],
+        "refusals": [
+          "findings-merge-no-cycle",
+          "findings-merge-state-unreadable",
+          "findings-merge-task-unreadable"
+        ]
+      },
+      "gate-brief": {
+        "flags": [
+          "checkpoint",
+          "json",
+          "node",
+          "oneline",
+          "patch-file",
+          "picker",
+          "reask",
+          "request",
+          "state"
+        ],
+        "refusals": [
+          "gate-brief-no-graph",
+          "gate-brief-no-summary",
+          "gate-brief-not-a-gate",
+          "gate-brief-not-askable",
+          "gate-brief-nothing-held",
+          "gate-brief-nothing-to-ask",
+          "gate-brief-questions-invalid",
+          "gate-brief-questions-unsupported",
+          "gate-brief-reask-not-revise",
+          "gate-brief-unknown-node",
+          "gate-brief-value-missing",
+          "gate-guard-false",
+          "state-unreadable"
+        ]
+      },
+      "gate-request": {
+        "flags": [
+          "patch-file",
+          "state"
+        ],
+        "refusals": [
+          "gate-brief-value-missing",
+          "gate-guard-false",
+          "gate-request-unavailable"
+        ]
+      },
+      "gate-revise": {
+        "flags": [
+          "node",
+          "option",
+          "patch-file",
+          "state"
+        ],
+        "refusals": [
+          "edition-collision",
+          "gate-brief-value-missing",
+          "gate-temp-exists",
+          "gate-unwritable",
+          "revise-budget-exhausted",
+          "revise-gate-not-current",
+          "revise-not-a-gate",
+          "revise-note-missing",
+          "revise-option-unknown",
+          "revise-stretch-has-subrun",
+          "state-absent-invalid",
+          "state-candidate-unsound",
+          "state-context-block-unknown",
+          "state-entry-unserializable",
+          "state-freeze-input-missing",
+          "state-freeze-name-mismatch",
+          "state-freeze-nodes-mismatch",
+          "state-freeze-unproven",
+          "state-gate-option-unknown",
+          "state-gate-pending-form",
+          "state-gate-values-sent",
+          "state-held-approval-not-askable",
+          "state-incomplete",
+          "state-inline-collection",
+          "state-node-regressed",
+          "state-node-status-unknown",
+          "state-node-unknown",
+          "state-non-canonical",
+          "state-on-behalf-of-not-operator",
+          "state-patch-invalid",
+          "state-patch-unknown-key",
+          "state-question-answer-invalid",
+          "state-subrun-held-open",
+          "state-subrun-path-mismatch",
+          "state-summary-item-invalid",
+          "state-temp-exists",
+          "state-unreadable",
+          "state-unwritable",
+          "state-value-invalid",
+          "state-workflow-frozen",
+          "state-workflow-without-nodes",
+          "state-workflow-without-task",
+          "value-not-flow-safe"
+        ]
+      },
+      "group-done": {
+        "flags": [
+          "entry-file",
+          "groups",
+          "plan"
+        ],
+        "refusals": [
+          "companion-unreadable",
+          "companion-unwritable",
+          "gate-brief-value-missing",
+          "gate-temp-exists",
+          "gate-unwritable",
+          "group-done-entry-invalid",
+          "group-done-log-unreadable",
+          "group-done-log-unwritable",
+          "group-done-no-wave",
+          "group-done-plan-unreadable",
+          "group-done-plan-unwritable",
+          "group-done-unknown-group",
+          "plan-unreadable",
+          "state-absent-invalid",
+          "state-candidate-unsound",
+          "state-context-block-unknown",
+          "state-entry-unserializable",
+          "state-freeze-input-missing",
+          "state-freeze-name-mismatch",
+          "state-freeze-nodes-mismatch",
+          "state-freeze-unproven",
+          "state-gate-option-unknown",
+          "state-gate-pending-form",
+          "state-gate-values-sent",
+          "state-held-approval-not-askable",
+          "state-incomplete",
+          "state-inline-collection",
+          "state-node-regressed",
+          "state-node-status-unknown",
+          "state-node-unknown",
+          "state-non-canonical",
+          "state-on-behalf-of-not-operator",
+          "state-patch-invalid",
+          "state-patch-unknown-key",
+          "state-question-answer-invalid",
+          "state-subrun-held-open",
+          "state-subrun-path-mismatch",
+          "state-summary-item-invalid",
+          "state-temp-exists",
+          "state-unreadable",
+          "state-unwritable",
+          "state-value-invalid",
+          "state-workflow-frozen",
+          "state-workflow-without-nodes",
+          "state-workflow-without-task",
+          "value-not-flow-safe"
+        ]
+      },
+      "import": {
+        "flags": [
+          "as",
+          "from",
+          "state",
+          "to"
+        ],
+        "refusals": [
+          "import-destination-outside",
+          "import-destination-reserved",
+          "import-not-a-run",
+          "import-state-unreadable"
+        ]
+      },
+      "locate": {
+        "flags": [
+          "name",
+          "overlay",
+          "profile"
+        ],
+        "refusals": []
+      },
+      "node-brief": {
+        "flags": [
+          "node",
+          "state"
+        ],
+        "refusals": [
+          "gate-brief-value-missing",
+          "gate-temp-exists",
+          "gate-unwritable",
+          "node-brief-not-a-run",
+          "node-brief-state-unreadable",
+          "node-brief-unknown-node",
+          "state-absent-invalid",
+          "state-candidate-unsound",
+          "state-context-block-unknown",
+          "state-entry-unserializable",
+          "state-freeze-input-missing",
+          "state-freeze-name-mismatch",
+          "state-freeze-nodes-mismatch",
+          "state-freeze-unproven",
+          "state-gate-option-unknown",
+          "state-gate-pending-form",
+          "state-gate-values-sent",
+          "state-held-approval-not-askable",
+          "state-incomplete",
+          "state-inline-collection",
+          "state-node-regressed",
+          "state-node-status-unknown",
+          "state-node-unknown",
+          "state-non-canonical",
+          "state-on-behalf-of-not-operator",
+          "state-patch-invalid",
+          "state-patch-unknown-key",
+          "state-question-answer-invalid",
+          "state-subrun-held-open",
+          "state-subrun-path-mismatch",
+          "state-summary-item-invalid",
+          "state-temp-exists",
+          "state-unreadable",
+          "state-unwritable",
+          "state-value-invalid",
+          "state-workflow-frozen",
+          "state-workflow-without-nodes",
+          "state-workflow-without-task",
+          "value-not-flow-safe"
+        ]
+      },
+      "prior-context": {
+        "flags": [
+          "background",
+          "node",
+          "state"
+        ],
+        "refusals": [
+          "prior-context-absent",
+          "run-context-not-a-run",
+          "run-context-state-unreadable",
+          "run-context-unknown-node",
+          "state-patch-invalid",
+          "state-unreadable"
+        ]
+      },
+      "project-profile": {
+        "flags": [],
+        "refusals": [
+          "project-profile-bad-input"
+        ]
+      },
+      "resolve": {
+        "flags": [
+          "definition",
+          "overlay",
+          "profile"
+        ],
+        "refusals": []
+      },
+      "resume-check": {
+        "flags": [
+          "state"
+        ],
+        "refusals": [
+          "run-set-aside",
+          "state-patch-invalid",
+          "state-unreadable",
+          "written-by-2x"
+        ]
+      },
+      "review-brief": {
+        "flags": [
+          "base",
+          "cycle",
+          "fixed-issues",
+          "recheck",
+          "refresh",
+          "state",
+          "task-path"
+        ],
+        "refusals": [
+          "review-brief-bad-base",
+          "review-brief-no-base",
+          "review-brief-no-brief",
+          "review-brief-no-previous",
+          "review-brief-not-a-repository",
+          "review-brief-state-unreadable",
+          "review-brief-task-unreadable"
+        ]
+      },
+      "run-complete": {
+        "flags": [
+          "dispatch-id",
+          "outbox",
+          "state"
+        ],
+        "refusals": [
+          "closeout-unpublished",
+          "gate-brief-value-missing",
+          "outbox-message-invalid",
+          "outbox-unreadable",
+          "run-failed",
+          "run-held-unapproved",
+          "run-nodes-unfinished",
+          "run-not-ended",
+          "state-missing",
+          "state-unreadable"
+        ]
+      },
+      "run-context": {
+        "flags": [
+          "node",
+          "state"
+        ],
+        "refusals": [
+          "run-context-not-a-run",
+          "run-context-state-unreadable",
+          "run-context-unknown-node"
+        ]
+      },
+      "runner-result": {
+        "flags": [
+          "node",
+          "patch-file",
+          "runner",
+          "state"
+        ],
+        "refusals": [
+          "runner-result-invalid",
+          "runner-result-not-running",
+          "runner-result-state-unreadable",
+          "runner-result-unknown-node"
+        ]
+      },
+      "runner-step": {
+        "flags": [
+          "answered",
+          "node",
+          "runner",
+          "state"
+        ],
+        "refusals": [
+          "runner-step-not-running",
+          "runner-step-state-unreadable",
+          "runner-step-unknown-node"
+        ]
+      },
+      "subrun-path": {
+        "flags": [
+          "node",
+          "state"
+        ],
+        "refusals": [
+          "subrun-child-foreign",
+          "subrun-on-dir-node",
+          "subrun-path-definition-unread",
+          "subrun-path-not-a-run",
+          "subrun-path-not-a-subrun",
+          "subrun-path-state-unreadable",
+          "subrun-path-unknown-node",
+          "subrun-recursion",
+          "subrun-target-unresolved"
+        ]
+      },
+      "sync-plan": {
+        "flags": [
+          "plan"
+        ],
+        "refusals": [
+          "companion-unreadable",
+          "companion-unwritable",
+          "plan-unreadable"
+        ]
+      },
+      "validate": {
+        "flags": [
+          "definition",
+          "overlay",
+          "profile"
+        ],
+        "refusals": []
+      },
+      "wave-start": {
+        "flags": [
+          "groups",
+          "plan",
+          "wave"
+        ],
+        "refusals": [
+          "gate-brief-value-missing",
+          "gate-temp-exists",
+          "gate-unwritable",
+          "state-absent-invalid",
+          "state-candidate-unsound",
+          "state-context-block-unknown",
+          "state-entry-unserializable",
+          "state-freeze-input-missing",
+          "state-freeze-name-mismatch",
+          "state-freeze-nodes-mismatch",
+          "state-freeze-unproven",
+          "state-gate-option-unknown",
+          "state-gate-pending-form",
+          "state-gate-values-sent",
+          "state-held-approval-not-askable",
+          "state-incomplete",
+          "state-inline-collection",
+          "state-node-regressed",
+          "state-node-status-unknown",
+          "state-node-unknown",
+          "state-non-canonical",
+          "state-on-behalf-of-not-operator",
+          "state-patch-invalid",
+          "state-patch-unknown-key",
+          "state-question-answer-invalid",
+          "state-subrun-held-open",
+          "state-subrun-path-mismatch",
+          "state-summary-item-invalid",
+          "state-temp-exists",
+          "state-unreadable",
+          "state-unwritable",
+          "state-value-invalid",
+          "state-workflow-frozen",
+          "state-workflow-without-nodes",
+          "state-workflow-without-task",
+          "value-not-flow-safe",
+          "wave-start-group-done",
+          "wave-start-log-unreadable",
+          "wave-start-log-unwritable",
+          "wave-start-plan-unreadable",
+          "wave-start-unknown-group"
+        ]
+      },
+      "write-state": {
+        "flags": [
+          "host",
+          "patch-file",
+          "state"
+        ],
+        "refusals": [
+          "edition-collision",
+          "gate-brief-value-missing",
+          "gate-temp-exists",
+          "gate-unwritable",
+          "state-absent-invalid",
+          "state-candidate-unsound",
+          "state-context-block-unknown",
+          "state-entry-unserializable",
+          "state-freeze-input-missing",
+          "state-freeze-name-mismatch",
+          "state-freeze-nodes-mismatch",
+          "state-freeze-unproven",
+          "state-gate-option-unknown",
+          "state-gate-pending-form",
+          "state-gate-values-sent",
+          "state-held-approval-not-askable",
+          "state-incomplete",
+          "state-inline-collection",
+          "state-node-regressed",
+          "state-node-status-unknown",
+          "state-node-unknown",
+          "state-non-canonical",
+          "state-on-behalf-of-not-operator",
+          "state-patch-invalid",
+          "state-patch-unknown-key",
+          "state-question-answer-invalid",
+          "state-subrun-held-open",
+          "state-subrun-path-mismatch",
+          "state-summary-item-invalid",
+          "state-temp-exists",
+          "state-unreadable",
+          "state-unwritable",
+          "state-value-invalid",
+          "state-workflow-frozen",
+          "state-workflow-without-nodes",
+          "state-workflow-without-task",
+          "value-not-flow-safe"
+        ]
+      }
+    }
+  },
+  "gate_request": {
+    "keys": {
+      "context": {
+        "keys": {
+          "artifacts": {
+            "items": {
+              "type": "string"
+            },
+            "required": true,
+            "type": "array"
+          },
+          "checkpoint": {
+            "required": true,
+            "see": "checkpoint",
+            "type": "object"
+          },
+          "summary": {
+            "required": true,
+            "type": "string"
+          }
+        },
+        "required": true,
+        "type": "object"
+      },
+      "evidence": {
+        "items": {
+          "type": "string"
+        },
+        "required": false,
+        "type": "array"
+      },
+      "kind": {
+        "required": true,
+        "type": "string",
+        "values": [
+          "gate",
+          "question"
+        ]
+      },
+      "multi_select": {
+        "required": true,
+        "type": "boolean"
+      },
+      "node": {
+        "required": true,
+        "type": "string"
+      },
+      "options": {
+        "items": {
+          "keys": {
+            "description": {
+              "required": false,
+              "type": "string"
+            },
+            "effect": {
+              "required": true,
+              "type": "string",
+              "values": [
+                "continue",
+                "revise",
+                "stop"
+              ]
+            },
+            "id": {
+              "required": true,
+              "type": "string"
+            },
+            "label": {
+              "required": true,
+              "type": "string"
+            },
+            "note": {
+              "required": false,
+              "type": "boolean"
+            },
+            "recommended": {
+              "required": false,
+              "type": "boolean"
+            },
+            "suggestions": {
+              "items": {
+                "keys": {
+                  "label": {
+                    "required": true,
+                    "type": "string"
+                  },
+                  "note": {
+                    "required": true,
+                    "type": "string"
+                  },
+                  "recommended": {
+                    "required": false,
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              },
+              "required": false,
+              "type": "array"
+            }
+          },
+          "type": "object"
+        },
+        "required": true,
+        "type": "array"
+      },
+      "question": {
+        "required": true,
+        "type": "string"
+      },
+      "questions": {
+        "items": {
+          "keys": {
+            "evidence": {
+              "items": {
+                "type": "string"
+              },
+              "required": false,
+              "type": "array"
+            },
+            "id": {
+              "required": true,
+              "type": "string"
+            },
+            "multi_select": {
+              "required": true,
+              "type": "boolean"
+            },
+            "options": {
+              "items": {
+                "keys": {
+                  "description": {
+                    "required": false,
+                    "type": "string"
+                  },
+                  "effect": {
+                    "required": true,
+                    "type": "string",
+                    "values": [
+                      "continue",
+                      "revise",
+                      "stop"
+                    ]
+                  },
+                  "id": {
+                    "required": true,
+                    "type": "string"
+                  },
+                  "label": {
+                    "required": true,
+                    "type": "string"
+                  },
+                  "note": {
+                    "required": false,
+                    "type": "boolean"
+                  },
+                  "recommended": {
+                    "required": false,
+                    "type": "boolean"
+                  },
+                  "suggestions": {
+                    "items": {
+                      "keys": {
+                        "label": {
+                          "required": true,
+                          "type": "string"
+                        },
+                        "note": {
+                          "required": true,
+                          "type": "string"
+                        },
+                        "recommended": {
+                          "required": false,
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "required": false,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              },
+              "required": true,
+              "type": "array"
+            },
+            "question": {
+              "required": true,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "required": false,
+        "type": "array"
+      },
+      "triage": {
+        "required": false,
+        "type": "object"
+      }
+    }
+  },
+  "generated": "Generated by make build from this plugin's code; never edited by hand. interface_version is MAJOR.MINOR: a minor step only adds (a key, a verb, a refusal, a name, a value); a major step removes something, or changes a type, a required flag or a value.",
+  "hooks": {
+    "events": {
+      "PreToolUse": [
+        "Bash"
+      ],
+      "SessionStart": [
+        "*"
+      ]
+    },
+    "modules": []
+  },
+  "interface_version": "1.0",
+  "mcp": {
+    "servers": [],
+    "tools": [
+      "github-mcp-server/web_search",
+      "mcp__claude-in-chrome__*",
+      "mcp__github",
+      "mcp__jira"
+    ]
+  },
+  "skills": [
+    "codebase-analyzer",
+    "development",
+    "docs-manager",
+    "implementation-plan-executor",
+    "implementation-verifier",
+    "init",
+    "migration",
+    "mockup-studio",
+    "orchestrator-framework",
+    "performance",
+    "product-design",
+    "quick-bugfix",
+    "quick-design",
+    "quick-dev",
+    "quick-plan",
+    "research",
+    "run",
+    "standards-discover",
+    "standards-update",
+    "umbrella",
+    "workflow-author",
+    "workflow-engine"
+  ],
+  "state": {
+    "clock_fields": [
+      "started",
+      "completed"
+    ],
+    "context_blocks": [
+      "task_context",
+      "research_context",
+      "design_context",
+      "performance_context",
+      "migration_context"
+    ],
+    "node_keys": [
+      "kind",
+      "status",
+      "attempt",
+      "started",
+      "completed",
+      "needs",
+      "reruns",
+      "sets",
+      "on",
+      "values",
+      "dir",
+      "provider",
+      "session"
+    ],
+    "node_statuses": [
+      "pending",
+      "running",
+      "waiting",
+      "suspended",
+      "completed",
+      "skipped",
+      "failed",
+      "stopped"
+    ],
+    "parent_keys": [
+      "run",
+      "node"
+    ],
+    "patch_keys": [
+      "orchestrator",
+      "task",
+      "workflow",
+      "nodes",
+      "context",
+      "phase_summaries",
+      "node_summaries",
+      "project_context",
+      "related_tasks",
+      "verification_context",
+      "external_research"
+    ],
+    "pending_gate_keys": [
+      "node",
+      "request",
+      "since"
+    ],
+    "schema_version": 1,
+    "top_level_blocks": [
+      "project_context",
+      "related_tasks",
+      "verification_context",
+      "external_research"
+    ],
+    "workflow_keys": [
+      "source",
+      "overlays",
+      "profile",
+      "graph_hash",
+      "grammar_version",
+      "name"
+    ],
+    "writer_fields": [
+      "attempt",
+      "reruns",
+      "sets"
+    ]
+  }
+}
