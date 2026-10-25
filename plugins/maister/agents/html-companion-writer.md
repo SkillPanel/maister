@@ -29,6 +29,8 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 
 ## Workflow
 
+**Every path you use is absolute.** Read, write and list by absolute path, and never `cd` — not into the task directory, not to shorten a path. A relative path is resolved from the project root, not from where you meant, and a host may stop the run to ask for access to it. Whether a breadcrumb sibling exists is one look at its absolute path: `md_path`'s directory joined with the href.
+
 1. **Read the style guide** at the `html:` path. It is binding: self-contained single file, standard CSS block, breadcrumb bar, stat-tile row, conditional anchor TOC, no external resources, all `.md` links `target="_blank" rel="noopener"`.
 2. **Read `md_path`** fully. The md is the single source of truth.
 3. **Derive the stat tiles** from the artifact's own content — pick 3-5 headline numbers that fit this artifact (e.g. brief → personas / key decisions / open risks; feature-spec → requirements / surfaces / out-of-scope; design-decisions → decisions / trade-offs accepted). If the artifact has no natural counts, use the most meaningful labels available; never fabricate numbers.

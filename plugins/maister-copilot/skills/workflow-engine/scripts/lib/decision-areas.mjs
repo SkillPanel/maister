@@ -51,7 +51,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DETAILS_CUT, MORE_DETAILS_ID, PREVIEW_BUDGET, RECOMMENDED_MARK, clip, detailsPreview, unmarked } from './checkpoint.mjs';
+import { DETAILS_CUT, MORE_DETAILS_ID, PREVIEW_BUDGET, RECOMMENDED_MARK, clip, detailsPreview, markedLabel, unmarked, unrecommended } from './checkpoint.mjs';
 import { clipHeader } from './question-set.mjs';
 
 /** The id every area's answer is recorded under, before the area's own id. */
@@ -416,7 +416,7 @@ export function areaPicker(area, areas, profile = 'rich') {
     header = unmarked(area.area);
     options = all.map(alternative => ({
       id: alternative.id,
-      label: unmarked(`${alternative.title}${isRecommended(alternative) ? RECOMMENDED_MARK : ''}`),
+      label: unmarked(markedLabel(alternative.title, isRecommended(alternative))),
       recommended: isRecommended(alternative),
     }));
     options.push({ id: MORE_DETAILS_ID, label: MORE_DETAILS_LABEL, recommended: false, details: true });
@@ -430,7 +430,7 @@ export function areaPicker(area, areas, profile = 'rich') {
       const reason = isRecommended(alternative) ? area.recommendation.reason : null;
       return {
         id: alternative.id,
-        label: `${alternative.title}${reason !== null ? RECOMMENDED_MARK : ''}`,
+        label: markedLabel(alternative.title, reason !== null),
         description: reason ?? proCon(alternative),
         recommended: reason !== null,
         preview: preview(alternative, reason),
@@ -473,7 +473,7 @@ export function areaDetails(area, areas) {
   const blocks = [head.join('\n')];
   for (const alternative of area.alternatives) {
     blocks.push([
-      `**${alternative.title}**${alternative === recommended ? RECOMMENDED_MARK : ''}\n${alternative.description}`,
+      `**${unrecommended(alternative.title)}**${alternative === recommended ? RECOMMENDED_MARK : ''}\n${alternative.description}`,
       [PROS_LABEL, ...alternative.pros.map(item => `- ${item}`)].join('\n'),
       [CONS_LABEL, ...alternative.cons.map(item => `- ${item}`)].join('\n'),
     ].join('\n\n'));

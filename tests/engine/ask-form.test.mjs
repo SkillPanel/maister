@@ -164,6 +164,43 @@ test('ask --patch-file: a question set in a terminal run is one call, each optio
   assert.equal(candidates.default, undefined);
 });
 
+/** A one-question set whose options are as given, asked through the form. */
+function formOf(t, options) {
+  const run = asking(t);
+  const file = path.join(run.dir, '.state-patch.json');
+  fs.writeFileSync(file, JSON.stringify({ questions: [{ id: 'bad-filter', header: 'Invalid filter', question: 'What does an invalid ?priority= return?', options }] }));
+  return callOf(brief(run, 'verification-options', '--ask', `--patch-file=${file}`)).requestedSchema.properties['bad-filter'];
+}
+
+test('ask --patch-file: a label already marked (Recommended) and flagged recommended reads the mark once', t => {
+  const form = formOf(t, [
+    { id: 'reject', label: 'Return 400 (Recommended)', recommended: true },
+    { id: 'ignore', label: 'Ignore it' },
+  ]);
+  assert.deepEqual(form.oneOf, [{ const: 'reject', title: 'Return 400 (Recommended)' }, { const: 'ignore', title: 'Ignore it' }]);
+  assert.ok(form.description.split('\n').includes('Recommended: Return 400.'), form.description);
+  assert.doesNotMatch(form.description, /\(Recommended\)/);
+  assert.equal(form.default, 'reject');
+});
+
+test('ask --patch-file: a mark typed into a label alone recommends that option, and a doubled one is read once', t => {
+  const form = formOf(t, [
+    { id: 'ignore', label: 'Ignore it' },
+    { id: 'reject', label: 'Return 400 (Recommended) (recommended)' },
+  ]);
+  assert.deepEqual(form.oneOf.map(choice => choice.title), ['Ignore it', 'Return 400 (Recommended)']);
+  assert.equal(form.default, 'reject', 'the typed mark is the recommendation the form defaults to');
+});
+
+test('ask --patch-file: a typed mark on one option gives way to the flag on another, and is dropped', t => {
+  const form = formOf(t, [
+    { id: 'ignore', label: 'Ignore it (Recommended)' },
+    { id: 'reject', label: 'Return 400', recommended: true },
+  ]);
+  assert.deepEqual(form.oneOf.map(choice => choice.title), ['Ignore it', 'Return 400 (Recommended)']);
+  assert.equal(form.default, 'reject');
+});
+
 test('ask --patch-file: a set that fails its check is refused and the file kept; a gate takes no set', t => {
   const run = asking(t);
   const file = path.join(run.dir, '.state-patch.json');

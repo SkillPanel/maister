@@ -107,6 +107,8 @@ development run) is written as `context`. Correct the prose that sent it rather 
 ## What the freeze write adds
 
 The freeze patch carries what engine Step 4 lists; the writer checks it and adds the rest.
+A `workflow` block sent without `nodes` gets them from the graph the proof below re-resolves:
+one `pending` entry per node, under its kind.
 
 **The writer proves the freeze before it installs it.** It re-resolves the recorded `source`,
 `overlays` and `profile` from the run's own project root, and writes nothing when the result

@@ -97,6 +97,24 @@ const SOURCE_HEADING = { run: 'the run', audit: 'the audit' };
 /** Where the recommended option says so, in its label. */
 export const RECOMMENDED_MARK = ' (Recommended)';
 
+/** Every trailing "(Recommended)" on a label, however many and in any case. */
+const TRAILING_MARKS = /(?:\s*\(recommended\))+\s*$/i;
+
+/** `label` without the marks it ends with: what a writer put in the label is never doubled. */
+export function unrecommended(label) {
+  return typeof label === 'string' ? label.replace(TRAILING_MARKS, '') : label;
+}
+
+/**
+ * `label` with the one `RECOMMENDED_MARK` it is owed: any it already ends with
+ * dropped first, so a label a writer marked by hand and also flagged
+ * `recommended` reads the mark once.
+ */
+export function markedLabel(label, recommended) {
+  const bare = unrecommended(label);
+  return recommended ? `${bare}${RECOMMENDED_MARK}` : bare;
+}
+
 /** The id of the request for the full brief, which is never an answer. */
 export const MORE_DETAILS_ID = 'more-details';
 
@@ -877,7 +895,7 @@ export function richPicker(checkpoint) {
     else lines = stopLines(checkpoint, option);
     return {
       id: option.id,
-      label: `${grantedLabel(checkpoint, option)}${option.recommended ? RECOMMENDED_MARK : ''}`,
+      label: markedLabel(grantedLabel(checkpoint, option), option.recommended),
       description: option.consequence,
       recommended: option.recommended,
       ...answerFields(option, 'rich'),
@@ -899,7 +917,7 @@ export function plainPicker(checkpoint) {
   const question = [...glance(shown, { companion: 'name', lines: Infinity, budget: Infinity }), shown.ask].join('\n');
   const options = ordered(shown).map(option => ({
     id: option.id,
-    label: `${plainTitle(shown, option)}${option.recommended ? RECOMMENDED_MARK : ''}`,
+    label: markedLabel(plainTitle(shown, option), option.recommended),
     recommended: option.recommended,
     ...answerFields(option, 'plain'),
   }));

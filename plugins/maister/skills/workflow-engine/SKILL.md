@@ -180,10 +180,12 @@ found.
 
 **The `workflow` block is `resolve`'s output, copied through.** `source`, `overlays`,
 `profile`, `graph_hash` and `name` go into the freeze exactly as `resolve` printed them, beside
-`grammar_version: 1`, and `nodes` carries one entry per node `resolve` printed and no other:
-`kind: gate` for a gate, `kind: workflow` for a `workflow:` node and `kind: task` for every other
-node, each `status: pending`. The writer fills in each node's `needs`, and on a gate that offers
-a revise its `reruns`. Copy `graph_hash` without reformatting it: it arrives in the spelling the
+`grammar_version: 1`, **and no `nodes`**: the writer lays out one entry per resolved node itself,
+each `pending` under its kind, with its `needs` and, on a gate that offers a revise, its
+`reruns`. The whole patch is then a few short values, sent as a here-string: never save
+`resolve`'s output to a file or script the block out of it. A patch that does send `nodes` is
+held to the graph: one entry per node `resolve` printed and no other, `kind: gate` for a gate,
+`kind: workflow` for a `workflow:` node and `kind: task` for every other node. Copy `graph_hash` without reformatting it: it arrives in the spelling the
 state block accepts. The overlays and the profile are the ones the run was resolved with. The
 writer proves the freeze before it installs it, and its refusal names the recovery.
 

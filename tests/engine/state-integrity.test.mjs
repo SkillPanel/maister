@@ -69,6 +69,63 @@ test('freeze: a freeze naming a definition nothing can find is refused', t => {
   refused(run, patch, 'state-freeze-unproven');
 });
 
+// A freeze may send the block without its nodes: the writer lays them out from
+// the graph it re-resolves, so a session copies five scalars from resolve and
+// never a node list.
+
+const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
+
+/** `freezePatch`'s patch with the node list left to the writer. */
+function nodeless(options) {
+  const { patch, graph } = freezePatch(options);
+  delete patch.workflow.nodes;
+  return { patch, graph };
+}
+
+test('freeze: a block sent without nodes is frozen with every resolved node, as the full list freezes it', t => {
+  const full = scratch(t);
+  write(full, freezePatch({ definition: REVISE }).patch);
+  const left = scratch(t);
+  const { patch, graph } = nodeless({ definition: REVISE });
+  const result = write(left, patch);
+  assert.match(result.stdout, /^workflow$/m);
+  const frozen = readState(left).workflow;
+  assert.deepEqual(Object.keys(frozen.nodes), graph.nodes.map(node => node.id));
+  for (const node of graph.nodes) {
+    assert.equal(frozen.nodes[node.id].status, 'pending', node.id);
+    assert.equal(frozen.nodes[node.id].kind, node.type === 'gate' ? 'gate' : 'task', node.id);
+  }
+  const unclocked = nodes => Object.fromEntries(Object.entries(nodes).map(([id, { kind: _kind, ...entry }]) => [id, entry]));
+  assert.deepEqual(unclocked(frozen.nodes), unclocked(readState(full).workflow.nodes),
+    'needs, reruns and sets are what a freeze sending the list records');
+  assert.ok(Object.values(frozen.nodes).some(entry => entry.reruns), 'a gate that revises records where to');
+});
+
+test('freeze: a block without nodes re-sent unchanged is the retry that changes nothing', t => {
+  const run = scratch(t);
+  const { patch } = nodeless({ definition: REVISE });
+  write(run, patch);
+  const before = fs.readFileSync(run.state, 'utf8');
+  const again = write(run, { workflow: patch.workflow });
+  assert.doesNotMatch(again.stdout, /^workflow/m);
+  assert.match(again.stderr, /^note: ignored the supplied workflow block, which matches the frozen one/m);
+  assert.equal(fs.readFileSync(run.state, 'utf8').replace(/updated: .*/g, ''), before.replace(/updated: .*/g, ''));
+});
+
+test('freeze: a block without nodes whose hash the definition does not resolve to is refused', t => {
+  const run = scratch(t);
+  const { patch } = nodeless();
+  patch.workflow.graph_hash = 'sha256:0000';
+  refused(run, patch, 'state-freeze-unproven');
+});
+
+test('freeze: a block without nodes re-sent with another hash after the freeze is refused as frozen', t => {
+  const run = scratch(t);
+  const { patch } = nodeless();
+  write(run, patch);
+  refused(run, { workflow: { ...patch.workflow, graph_hash: 'sha256:0000' } }, 'state-workflow-frozen');
+});
+
 for (const name of ['task', 'development', undefined]) {
   test(`freeze: a workflow name ${name === undefined ? 'left out' : `relabelled "${name}"`} is refused`, t => {
     const run = scratch(t, { type: 'survey' });

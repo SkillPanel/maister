@@ -86,7 +86,7 @@ Launch all applicable subagents in one message so they run in parallel.
 
 **Step 2: Read prompt templates**
 
-Read the template for each phase you will run — they define the YAML output schema the aggregation step depends on:
+Read the template for each phase you will run — they define the YAML output schema the aggregation step depends on. Read each by its absolute path under this skill's base directory; never `cd` into the skill to read them, since every later command, the engine's included, would then run from there instead of the project root:
 
 | Phase | Condition | Read This File |
 |-------|-----------|----------------|

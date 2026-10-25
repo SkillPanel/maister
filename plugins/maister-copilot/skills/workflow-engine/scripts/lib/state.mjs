@@ -1758,7 +1758,13 @@ function splitTopLevel(body) {
 function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = []) {
   if (!isPlainObject(workflow)) throw new Refusal('state-patch-invalid', 'the workflow patch must be an object');
   const nodes = workflow.nodes;
-  if (!isPlainObject(nodes) || Object.keys(nodes).length === 0) {
+  // A freeze may leave its nodes to the writer: the block carries `resolve`'s
+  // provenance and hash, and the writer lays out one pending entry per node of
+  // the graph it re-resolves to prove them. A node list copied by hand is the
+  // part of a freeze a session would script, through a scratch file a host
+  // may stop the run to ask access for.
+  const derived = nodes === undefined && Object.hasOwn(workflow, 'graph_hash');
+  if (!derived && (!isPlainObject(nodes) || Object.keys(nodes).length === 0)) {
     throw new Refusal('state-workflow-without-nodes',
       'a workflow block is written only together with a non-empty nodes child, at the freeze; '
       + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
@@ -1775,7 +1781,7 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
   // the one harmless case: it is dropped, with a note naming where node
   // updates go, and the rest of the patch lands.
   if (doc.has('workflow')) {
-    const differences = frozenDifferences(doc, workflow);
+    const differences = frozenDifferences(doc, derived ? { ...workflow, nodes: null } : workflow);
     if (differences.length) {
       throw new Refusal('state-workflow-frozen',
         `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — `
@@ -1836,7 +1842,6 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
  * offers a revise records where each revise option sends the run (`rerunsOf`).
  */
 function provenNodes(doc, workflow, runDir) {
-  const nodes = workflow.nodes;
   const proof = provenGraph(workflow, runDir);
   if (!proof.graph) {
     throw new Refusal('state-freeze-unproven',
@@ -1853,6 +1858,7 @@ function provenNodes(doc, workflow, runDir) {
       + 'name: the run\'s context block and every reader keyed by the name follow it');
   }
 
+  const nodes = workflow.nodes === undefined ? pendingNodes(graph.nodes) : workflow.nodes;
   const differences = nodeDifferences(nodes, graph.nodes);
   if (differences.length) {
     throw new Refusal('state-freeze-nodes-mismatch',
@@ -1882,6 +1888,11 @@ function provenNodes(doc, workflow, runDir) {
     if (sets) filled[id].sets = sets;
   }
   return filled;
+}
+
+/** One entry per resolved node, each `pending` under the first kind the graph allows it. */
+function pendingNodes(resolved) {
+  return Object.fromEntries(resolved.map(node => [node.id, { kind: kindsOf(node)[0], status: 'pending' }]));
 }
 
 /**
@@ -2031,6 +2042,8 @@ function frozenDifferences(doc, workflow) {
   const differences = [];
   const scalars = Object.keys(workflow).filter(key => key !== 'nodes' && !sameValue(workflow[key], held[key]));
   if (scalars.length) differences.push(`changes ${scalars.join(', ')}`);
+  // A freeze that left its nodes to the writer says nothing about them.
+  if (workflow.nodes === null) return differences;
   // The reserved closing checkpoint's status entry is the writer's, never the
   // freeze's: a re-sent freeze that lacks it drops nothing.
   const dropped = frozenIds(recorded).filter(id => !Object.hasOwn(workflow.nodes, id));
