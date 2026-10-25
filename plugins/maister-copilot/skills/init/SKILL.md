@@ -58,12 +58,12 @@ Wait for completion. Store analysis results for use in Phases 3 and 6.
 
 Every question here carries its own context — the findings go in the question, never in a message above it.
 
-**Step 1 — Confirm the analysis.** One ask_user whose question lists what was detected, one line each: project type, language and framework, architecture, the main tech stack, and anything the analyzer flagged as custom or low confidence. Options: "Looks right (Recommended)" and up to three generated corrections, drawn from what the analyzer was least sure of ("It's a monorepo, not a single app", "The backend is Fastify, not Express"). A free-text correction is the Other answer. Apply corrections before going on.
+**Step 1 — Confirm the analysis.** One ask_user whose question lists what was detected, one line each: project type, language and framework, architecture, the main tech stack, anything the analyzer flagged as custom or low confidence, and the project profile fields (Phase 5 Step 3) the analysis could not settle, by what each asks ("Not found: where it deploys, who reaches it"), so a correction can settle them. Options: "Looks right (Recommended)" and up to three generated corrections, drawn from what the analyzer was least sure of ("It's a monorepo, not a single app", "The backend is Fastify, not Express"). A free-text correction is the Other answer. Apply corrections before going on.
 
 **Step 2 — Project context, one page.** One ask_user call with up to three questions:
 - **Description**: drafted from the README and the analysis in one or two sentences, quoted in the question itself ("Describe the project as: '…'?"), with "Use this (Recommended)"; the user's own wording is the Other answer. The project name comes from the manifest or folder and is not asked.
-- **Goals** (optional): up to three generated goals fitting a new, existing or legacy project, plus "Skip".
-- **Team context** (optional): generated options ("Solo project", "Small team", "Several teams") plus "Skip".
+- **Goals** (optional): up to three generated goals fitting a new, existing or legacy project, plus "Skip". The goal the analysis best supports comes first, marked "(Recommended)", the question saying in a few words what it rests on.
+- **Team context** (optional): generated options ("Solo project", "Small team", "Several teams") plus "Skip". The option the repository's history supports — the number of distinct commit authors — is marked "(Recommended)", the question naming that count; with no history to read, "Skip" is.
 
 **Step 3 — Which project documents.** ask_user — "Which project documents should be written? The tech stack is always included.":
 - "Vision, roadmap, tech stack and architecture (Recommended)" — recommended for a standard, frontend-only or backend-only project
@@ -194,7 +194,7 @@ with `LARGE_CODEBASE_FILES`'s value as the number in the comment. Otherwise writ
 | `scale` | from the team context and the architecture: `single-user`, `team` or `multi-tenant` |
 | `ui` | `none`, `web`, `tui` or `native` |
 
-Leave out any field the analysis does not settle; a guess is worse than a gap, because a field rules checks out. Send the fields as one JSON object to the workflow engine's `project-profile` verb, from the project root: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs project-profile <<< '<json>'`. It writes the block only when `config.yml` has no top-level `project:` key — appended after one blank line, every other line unchanged — and leaves an existing key alone; a field left out, or one with a value it does not take, is written commented out with the values it takes, the latter with a `warning:` line. Its JSON reply says what it did (`action`: `created`, `appended` or `kept`) and the block it wrote; keep both for Phase 7's summary.
+Leave out any field the analysis or a correction does not settle; a guess is worse than a gap, because a field rules checks out. `deploy` and `exposure` are settled only by something found — a deploy configuration, a container or infrastructure file, a bind address, a public route — or by the user's answer; finding nothing settles nothing, so `none` or `local` is never written for lack of evidence. Send the fields as one JSON object to the workflow engine's `project-profile` verb, from the project root: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs project-profile <<< '<json>'`. It writes the block only when `config.yml` has no top-level `project:` key — appended after one blank line, every other line unchanged — and leaves an existing key alone; a field left out, or one with a value it does not take, is written commented out with the values it takes, the latter with a `warning:` line. Its JSON reply says what it did (`action`: `created`, `appended` or `kept`) and the block it wrote; keep both for Phase 7's summary.
 
 ---
 
@@ -230,7 +230,7 @@ Wait for docs-operator to complete, then immediately continue with Step 2.
 - Structure created (tree with check marks for created items)
 - Documentation status (which docs generated, which standards initialized)
 - Project config: whether `.maister/config.yml` was created, had the `subagents` block appended, or already held a `subagents` block and was left alone; the file count and the `Explore` tier it chose; and the `subagents` block written or appended, as written. Note that the block governs the agent calls maister makes; the explore agents a host's own plan mode starts are outside it
-- Project profile: whether the `project:` block was written or appended, or an existing one was left alone; the block written, as written, with each field it left commented out and any `warning:` line; and that a run freezes the profile when it starts, so a correction reaches the next run
+- Project profile: whether the `project:` block was written or appended, or an existing one was left alone; the block written, as written, with each field it left commented out and any `warning:` line, and a line asking the user to fill in those fields, since they decide which checks the reviewers apply; and that a run freezes the profile when it starts, so a correction reaches the next run
 - Key findings (strengths, opportunities)
 - Next steps:
   1. Review generated documentation
