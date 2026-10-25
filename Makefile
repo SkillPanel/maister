@@ -3,7 +3,7 @@
 # The interface file first: build.sh copies the source tree, then regenerates
 # the variant's own from what it built.
 build:
-	node tools/interface.mjs --root plugins/maister
+	@out="$$(node tools/interface.mjs --root plugins/maister)" && test -n "$$out" || { echo "build: plugins/maister/interface.json was not written; the interface generator did not run" >&2; exit 1; }; echo "$$out"
 	bash platforms/copilot-cli/build.sh
 
 # Regenerate every shipped workflow diagram. `make validate` byte-compares each

@@ -22,6 +22,7 @@
  * dependencies beyond the engine's own modules, `node:` builtins only.
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -76,4 +77,15 @@ function main(argv) {
   return failures.length ? 1 : 0;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+// Node resolves symlinks in the main module's URL but not in argv[1], so the
+// invoked path is resolved the same way before comparing; run through a
+// symlinked directory (macOS /tmp is one) the script would otherwise do nothing.
+function invokedPath(arg) {
+  try {
+    return fs.realpathSync(arg);
+  } catch {
+    return path.resolve(arg);
+  }
+}
+
+if (process.argv[1] && invokedPath(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

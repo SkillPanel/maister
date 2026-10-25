@@ -213,6 +213,69 @@ test('a removed verb steps the major version; a removed state key is refused unt
 });
 
 // ---------------------------------------------------------------------------
+// run through a symlinked path
+// ---------------------------------------------------------------------------
+
+/**
+ * The repository reached through a symlink in a scratch directory, the way a
+ * checkout under macOS /tmp (a link to /private/tmp) is reached. Node resolves
+ * the link in a script's own URL but not in the path it was started by.
+ */
+function linkedRepo(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-linked-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const link = path.join(dir, 'repo');
+  fs.symlinkSync(ROOT, link, 'junction');
+  return { dir, link };
+}
+
+test('started through a symlinked path, the generator writes the file, and --check still finds a stale one', t => {
+  const { link } = linkedRepo(t);
+  const linked = path.join(link, 'tools/interface.mjs');
+
+  const root = treeCopy(t);
+  fs.rmSync(path.join(root, 'interface.json'));
+  const written = run(linked, ['--root', root]);
+  assert.equal(written.code, 0, written.stderr);
+  assert.ok(fs.existsSync(path.join(root, 'interface.json')), 'the file is written');
+  const direct = treeCopy(t);
+  fs.rmSync(path.join(direct, 'interface.json'));
+  assert.equal(run(GENERATOR, ['--root', direct]).code, 0);
+  assert.deepEqual(generated(root), generated(direct), 'the same file as a run started directly');
+
+  const stale = treeCopy(t);
+  edit(engineFile(stale, 'lib/state.mjs'), "'provider', 'session'];", "'provider', 'session', 'binding'];");
+  assert.equal(run(linked, ['--root', stale, '--check']).code, 1, 'the stale file is caught');
+});
+
+test('started through a symlinked path, each lint reports what it reports when started directly', t => {
+  const { dir, link } = linkedRepo(t);
+  fs.writeFileSync(path.join(dir, 'bad.md'), '---\nname: bad: value\n---\n');
+  fs.mkdirSync(path.join(dir, 'plugins/maister'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'plugins/maister/.mcp.json'), '{}\n');
+  fs.writeFileSync(path.join(dir, 'twin.yml'), [
+    'name: twin', 'version: 1', 'nodes:',
+    '  analysis: {uses: "direct:analysis", needs: []}',
+    '  first: {type: gate, needs: [analysis], ask: "Ready?", options: {go: continue, halt: stop}}',
+    '  second: {type: gate, needs: [first], ask: "Ready?", options: {go: continue, halt: stop}}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(dir, 'twin.md'), '# Twin workflow — node prose\n\n## `analysis`\n\nWrite the report.\n');
+  const lints = {
+    'frontmatter-lint.mjs': [`--file=${path.join(dir, 'bad.md')}`],
+    'browser-tool-lint.mjs': [`--root=${dir}`],
+    'gate-title-lint.mjs': [`--definition=${path.join(dir, 'twin.yml')}`],
+  };
+  for (const [name, args] of Object.entries(lints)) {
+    const direct = run(path.join(ROOT, 'tests', name), args);
+    const linked = run(path.join(link, 'tests', name), args);
+    assert.equal(direct.code, 1, `${name}: ${direct.stderr}`);
+    assert.match(direct.stdout, /^FAIL: /, `${name} reports the finding`);
+    assert.equal(linked.code, direct.code, `${name}: ${linked.stderr}`);
+    assert.equal(linked.stdout, direct.stdout, name);
+  }
+});
+
+// ---------------------------------------------------------------------------
 // the refusals, by the verb that raises them
 // ---------------------------------------------------------------------------
 
