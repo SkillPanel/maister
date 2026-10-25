@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DECLARED, FIXTURES, freeze, freezePatch, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { DECLARED, FIXTURES, freeze, freezePatch, reach, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 
 // The writer holds a run to the definition it froze: the freeze is refused
 // unless the graph it records re-resolves from the provenance it records, and
@@ -225,7 +225,7 @@ test('values: a workflow node carries task_path and run_id without a warning', t
   const run = scratch(t, { type: 'survey' });
   freeze(run, { definition: DECLARED, inputs: SUBJECT });
   const values = { task_path: '.maister/tasks/research/2026-01-05-probe', run_id: '2026-01-05-probe', conclusions: 'two gaps' };
-  const result = write(run, { nodes: { probe: { status: 'completed', values } } });
+  const result = reach(run, { nodes: { probe: { status: 'completed', values } } });
   assert.doesNotMatch(result.stderr, /^warning:/m);
 });
 

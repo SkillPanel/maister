@@ -132,19 +132,21 @@ not depend on one another — are asked four to a page, further pages following 
 turn. A later page opens by saying, in one line, how many questions are left ("Two more scope
 questions"), so the user knows the end is near.
 <!-- plain-picker
-The question tool takes a message and a form: a page is one call whose form has a property per
-question, each titled by its header, with its question — its own context included — as the
-property's description and its options as the choices, each option's id as the value and its
-label as the title, the recommended one as the default. The message names what the page is
-about, and on a later page how many questions are left. A multi-select is one property of type
-array whose items are the options, any of them, the recommended ones as its default.
-
-The form shows no option descriptions, so a recommendation's reason rides in the question: the
-property's description ends "Recommended: <option>, because <reason>." Write the form as plain
-text, because it shows markdown as typed: no `**`, no backticks and no list markers in the
-message or a description. A property's title is a short noun phrase in sentence case, with
-nothing after its last word — the form adds a colon of its own, so "Explore alternatives?"
-reads "Explore alternatives?:" — and every word spelled out: "Specification", never "Spec".
+The question tool takes a message and a form, and the engine builds the call: never compose a
+form by hand, except a free-text property a node's own section names beside a set. Write the questions as a question set — `{ask?, headline?, questions: [...]}`,
+each question with the fields *When a question suspends* lists, every option with its `id`,
+its `label` and its `description` — to `<run>/.state-patch.json`, then run `gate-brief
+--state=<state> --node=<the asking node> --ask --patch-file=<run>/.state-patch.json`. Its whole
+output is the call's arguments: pass it unchanged. It holds every question of the set as one
+form, a property per question keyed by the question's id, and it carries what the tool would
+otherwise hide: each option's description, the question's `why` and the recommendation ride in
+the property's description, and the recommended option's title reads `(Recommended)`. The
+answer names each question by its id and each choice by its option id; record it as above,
+with the chosen option's label as the answer. The patch file is deleted once the call is
+printed. Write the set as plain text, because the form shows markdown as typed: no `**` and no
+backticks. A header is a short noun phrase in sentence case, with nothing after its last word
+— the form adds a colon of its own — and every word spelled out: "Specification", never
+"Spec". A decision area is asked from `area-brief --ask` (*Decision areas from the brainstorm*).
 -->
 For assumption confirmations alone, "Accept all N as stated (Recommended)" may come
 first — its question listing the N assumptions, one line each — going through the items only
@@ -197,6 +199,7 @@ and the order they are asked in, are the file's.
 root written as its absolute path rather than the variable (the invocation contract in this
 skill's `SKILL.md` says why):
 
+<!-- rich-picker -->
 ```
 node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<run>/orchestrator-state.yml --node=<the convergence node> --area=<area id> --json --picker=rich
 ```
@@ -204,6 +207,17 @@ node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brie
 Pass `question`, `header` and `options` to the question tool as given, and record the answer
 under the printed `question_id`, `convergence-decisions-<area id>`. On More details, print
 `more_details` as given, then ask the same area again from the same picker; nothing is recorded.
+<!-- /rich-picker -->
+<!-- plain-picker
+```
+node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<run>/orchestrator-state.yml --node=<the convergence node> --area=<area id> --ask
+```
+
+Its whole output is the question tool's arguments: pass it unchanged, never rebuilt, and
+record the answer under `convergence-decisions-<area id>`. On More details, run the same
+command with `--details` added, print its output as given, then ask the same area again with
+the same arguments; nothing is recorded.
+-->
 <!-- rich-picker -->
 The `rich` profile offers the recommended alternative and its strongest rivals, each with its
 preview, and names the rest in the question for the user to type.
@@ -223,8 +237,8 @@ and suspend with `gate-request` (*When a question suspends*). A `policy-hash-mis
 means no area carries `triage`; the request still goes.
 
 **When the file cannot be used**, the verb prints one warning on stderr, exits `0` and gives
-nothing to ask from — under `--json`, `{ok: true, fallback: true}`; with `--patch-file`, no
-file:
+nothing to ask from — under `--json`, `{ok: true, fallback: true}`; under `--ask`, no output;
+with `--patch-file`, no file:
 
 | Warning | The file |
 |---|---|

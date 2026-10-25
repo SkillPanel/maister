@@ -17,6 +17,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { parse } from '../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { isContextBlock } from '../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
+import { unmetNeeds } from '../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const ENGINE_DIR = path.join(ROOT, 'plugins/maister/skills/workflow-engine');
@@ -270,6 +271,43 @@ export function write(run, patch) {
   const result = verb(['write-state', `--state=${run.state}`], patch);
   if (result.code !== 0) throw new Error(`write-state exited ${result.code}: ${result.stderr}`);
   return result;
+}
+
+/**
+ * The nodes a write completing `ids` has to find ended first: every node still
+ * on the run's path that one of `ids` needs, directly or behind another unended
+ * need, in frozen order — the engine's own judgement (`unmetNeeds`), read from
+ * the state as it stands. A need off the path is not listed: the writer records
+ * it skipped itself when the completion lands.
+ */
+export function prerequisites(run, ids) {
+  const doc = parse(fs.readFileSync(run.state, 'utf8'));
+  return unmetNeeds({ doc, runDir: run.dir, ids }).toRun;
+}
+
+/**
+ * Walk the run up to `ids`, for a test about those nodes and not the steps
+ * ahead of them: the nodes `prerequisites` names, less `except`, are written
+ * completed in one write (their declared delegates listed, as `delegating`
+ * adds them). The writer refuses a node completed past a need that never
+ * ended, so a test that completes a node out of order walks its path first.
+ * Returns the nodes written, [] when there were none and nothing was written.
+ */
+export function walkTo(run, ids, { except = [] } = {}) {
+  const ahead = prerequisites(run, ids).filter(id => !except.includes(id));
+  if (ahead.length) write(run, delegating({ nodes: Object.fromEntries(ahead.map(id => [id, { status: 'completed' }])) }));
+  return ahead;
+}
+
+/**
+ * Write `patch` the way a run reaches it: `walkTo` the nodes the patch
+ * completes, less those the patch records itself, then the patch.
+ */
+export function reach(run, patch) {
+  const nodes = patch && typeof patch.nodes === 'object' && patch.nodes !== null ? patch.nodes : {};
+  const completing = Object.keys(nodes).filter(id => nodes[id]?.status === 'completed');
+  if (completing.length) walkTo(run, completing, { except: Object.keys(nodes) });
+  return write(run, patch);
 }
 
 /**

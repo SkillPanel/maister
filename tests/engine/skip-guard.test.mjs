@@ -91,10 +91,19 @@ test('the brief keeps such a gate on the path: its Next line names it although i
 
 test('run-complete owes such a gate while it is pending, and offers it no record-skipped recovery', t => {
   const { run } = reviewed(t, { approved: true });
+  // The writer keeps it on the path too: the gate behind it does not complete
+  // past it, and the false guard does not get it recorded skipped.
+  const before = fs.readFileSync(run.state, 'utf8');
+  const past = verb(['write-state', `--state=${run.state}`], { nodes: { confirmation: { status: 'completed' } } });
+  assert.equal(past.code, 1, past.stdout);
+  assert.match(past.stderr, /^state-node-needs-unmet: .*confirmation needs findings-approval/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+
+  // Every other node ended, the gate behind it recorded skipped, so the gate alone is owed.
   write(run, {
     task: { status: 'completed' },
     nodes: {
-      confirmation: { status: 'completed' },
+      confirmation: { status: 'skipped' },
       design: { status: 'skipped' },
       finish: { status: 'completed' },
     },

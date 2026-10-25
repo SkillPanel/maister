@@ -237,6 +237,7 @@ test('display: a revise republishes the status from the rerun node', t => {
 test('display: a state write removes a gate panel the write has answered', t => {
   const run = scratch(t);
   freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } } });
   const next = path.join(run.dir, 'display/next.json');
   fs.writeFileSync(next, '{"version":1}\n');
   write(run, { nodes: { approval: { status: 'completed' } } });

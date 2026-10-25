@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, briefOf, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, briefOf, freeze, reach, scratch, verb, write } from '../helpers.mjs';
 
 // A verb that briefs a moment of the run, or refuses one, names the reference
 // section that governs it: `rules: <file> § <heading>`. The pointer is one
@@ -76,7 +76,7 @@ function gateBrief(run, ...flags) {
 function atConvergence(t, { file = true } = {}) {
   const run = scratch(t, { type: 'research', name: '2026-10-10-research-areas' });
   freeze(run, { definition: path.join(ENGINE_DIR, 'workflows/research.yml'), inputs: { question: 'Where do shared calendars live?' } });
-  write(run, { nodes: { 'solution-generation': { status: 'completed' }, 'solution-convergence': { status: 'running' } } });
+  reach(run, { nodes: { 'solution-generation': { status: 'completed' }, 'solution-convergence': { status: 'running' } } });
   if (file) {
     const doc = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'decision-areas/valid.json'), 'utf8'));
     doc.source.path = 'outputs/solution-exploration.md';

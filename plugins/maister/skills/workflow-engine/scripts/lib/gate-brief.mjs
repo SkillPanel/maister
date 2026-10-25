@@ -122,7 +122,10 @@ import { approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainP
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
-import { checkSet, questionCheckpoint, questionRequest } from './question-set.mjs';
+import { checkSet, questionCheckpoint, questionRequest, setForm } from './question-set.mjs';
+
+// The note question's call, for `gate-brief --ask --note`: the verb loads this module alone.
+export { noteForm } from './checkpoint.mjs';
 import { checkEvidence, evidenceKey } from './evidence.mjs';
 import { subjectKey, subjectOf } from './gate-subject.mjs';
 import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
@@ -486,7 +489,9 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
     return refuse('gate-brief-not-askable',
       `--node=${node} is a gate, and a gate is asked from its own brief: run the verb again without --patch-file. Nothing was written`);
   }
-  if (!questionSets(doc)) {
+  // Asked in session, a set needs no driver to carry it: `ask` renders it for
+  // the session's own question tool.
+  if (form !== 'ask' && !questionSets(doc)) {
     const driver = isPlainObject(doc.orchestrator?.driver) ? doc.orchestrator.driver : {};
     return refuse('gate-brief-questions-unsupported',
       `this run's driver (${JSON.stringify(driver.kind ?? 'terminal')}) does not carry question sets: only a cockpit driver whose features list question-sets, in a run that is not dispatched, does. `
@@ -548,6 +553,9 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
     progress: { node: order.indexOf(node) + 1, nodes_total: order.length },
     run: { dir: runDir, dashboard: hasViewer(doc, runDir) ? path.join(runDir, 'dashboard.html') : null },
   });
+  // In session the set is the question tool's call and nothing else: no
+  // panel, since no request waits on a driver while the session asks it.
+  if (form === 'ask') return { ok: true, ask: setForm(checkpoint), panel: null, errors: [], warnings };
   // The panel a pending set shows: display only, as a gate's is, so one that
   // cannot be built costs the brief nothing. The asking node is running, so it
   // is the phase the status line names, counted the same way.
@@ -788,18 +796,23 @@ const RICH_SLOTS = 4;
  * The rich picker of a frozen gate. Its four slots take the gate's own options
  * first; the revises offered for held choices fill the room left, nearest the
  * end, the recommended one always among them, and the question names the rest,
- * reached by typing.
+ * reached by typing. A gate whose own options are more than the slots — ways
+ * on, a revise and a stop — names its stop the same way, unless the stop is
+ * recommended: every way on and every revise stays a listed option.
  */
 function richHeldPicker(checkpoint, options) {
   const own = id => isPlainObject(options) && Object.hasOwn(options, id);
+  const mine = checkpoint.options.filter(option => own(option.id));
+  const excess = mine.length - RICH_SLOTS;
+  const spare = excess > 0 ? mine.filter(option => option.effect === 'stop' && !option.recommended).slice(-excess) : [];
   const held = checkpoint.options.filter(option => !own(option.id));
-  const room = Math.max(0, RICH_SLOTS - (checkpoint.options.length - held.length));
-  if (held.length <= room) return richPicker(checkpoint);
+  const room = Math.max(0, RICH_SLOTS - (mine.length - spare.length));
+  if (held.length <= room && !spare.length) return richPicker(checkpoint);
   const chosen = held.find(option => option.recommended);
   let listed = room ? held.slice(-room) : [];
   if (chosen && !listed.includes(chosen)) listed = [chosen, ...listed.slice(1)];
-  const rest = held.filter(option => !listed.includes(option));
-  const shaped = richPicker({ ...checkpoint, options: checkpoint.options.filter(option => own(option.id) || listed.includes(option)) });
+  const rest = [...held.filter(option => !listed.includes(option)), ...spare];
+  const shaped = richPicker({ ...checkpoint, options: checkpoint.options.filter(option => (own(option.id) && !spare.includes(option)) || listed.includes(option)) });
   shaped.question = `${shaped.question} Also offered, not listed: ${rest.map(option => `${option.label} (${option.id})`).join(', ')}; name one to choose it.`;
   return shaped;
 }
@@ -2454,7 +2467,8 @@ const ENDED = new Set([...ENDED_OK, ...ENDED_BADLY]);
 
 /**
  * What a run that recorded `completed` still owes, for `run-complete`:
- * `{owed, graph, drift}`.
+ * `{owed, skipped, graph, drift}`; `skipped` lists the pending nodes the walk
+ * takes off the path, which are owed a recorded `skipped`.
  *
  * `owed` lists, in frozen order, every node that has not finished and that the
  * ready set cannot rule out, as `{id, status, guard}`; `guard` names the guard
@@ -2486,7 +2500,7 @@ export function atClose({ doc, runDir }) {
   const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   // The reserved closing checkpoint is judged by its own rules, never here.
   const ids = frozenIds(recorded);
-  if (!ids.length) return { owed: [], graph: null, drift: false };
+  if (!ids.length) return { owed: [], skipped: [], graph: null, drift: false };
 
   const current = reread(doc, workflow, runDir);
   const graph = current.drift ? null : current.graph;
@@ -2536,7 +2550,54 @@ export function atClose({ doc, runDir }) {
     if (guard.ok && !guard.value) status.set(next, 'skipped');
     else owe(next, guard.ok ? null : when);
   }
-  return { owed: ids.filter(id => owed.has(id)).map(id => owed.get(id)), graph, drift: current.drift };
+  // The pending nodes the walk took off the path: each is owed a recorded
+  // `skipped`, which is what lets the nodes behind it start (`unmetNeeds`).
+  const skipped = ids.filter(id => recordedStatus(id) === 'pending' && status.get(id) === 'skipped');
+  return { owed: ids.filter(id => owed.has(id)).map(id => owed.get(id)), skipped, graph, drift: current.drift };
+}
+
+/**
+ * The needs a starting or completing node finds unsettled, for the state
+ * writer and `run-complete`: `{gaps, skippable, toRun}`, all empty when every
+ * node in `ids` may stand where it is recorded.
+ *
+ * `gaps` lists each of `ids` whose recorded needs do not settle by the
+ * ready-set rule (`settles`, the node's own `on` honoured), as `{id, needs}`.
+ * A node recorded `running` or `completed` behind such a need has started past
+ * a node that never ended: the run's record no longer says what happened.
+ * `skippable` and `toRun` split every unsettled node upstream of a gap —
+ * the unmet needs and the unended nodes behind them, in frozen order — by
+ * what the walk at the close says of it: a node off the path the run took
+ * (a false guard, or a skip the rule decides) is owed a recorded `skipped`;
+ * any other one has to run first.
+ */
+export function unmetNeeds({ doc, runDir, ids }) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const frozen = frozenIds(recorded);
+  const current = reread(doc, workflow, runDir);
+  const byId = new Map((current.drift ? [] : current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
+  const statusOf = id => entryOf(recorded, id).status ?? 'pending';
+  const gaps = [];
+  for (const id of ids) {
+    const on = byId.get(id)?.on;
+    const needs = needsOf(recorded, byId, id).filter(need => frozen.includes(need) && !settles(statusOf(need), on));
+    if (needs.length) gaps.push({ id, needs });
+  }
+  if (!gaps.length) return { gaps, skippable: [], toRun: [] };
+  const upstream = new Set();
+  const queue = gaps.flatMap(gap => gap.needs);
+  while (queue.length) {
+    const next = queue.pop();
+    if (upstream.has(next)) continue;
+    upstream.add(next);
+    for (const need of needsOf(recorded, byId, next)) {
+      if (frozen.includes(need) && !ENDED.has(statusOf(need))) queue.push(need);
+    }
+  }
+  const off = new Set(atClose({ doc, runDir }).skipped);
+  const ordered = frozen.filter(id => upstream.has(id));
+  return { gaps, skippable: ordered.filter(id => off.has(id)), toRun: ordered.filter(id => !off.has(id)) };
 }
 
 /**

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freeze, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { FIXTURES, freeze, readState, scratch, sibling, verb, walkTo, write } from '../helpers.mjs';
 
 // The two companion checks and the registration fix, on a custom definition:
 // a node that completes owes the HTML companions its definition declares, the
@@ -86,6 +86,7 @@ test('an overlay-added node owes the companion its overlay declares', t => {
   put(run.dir, 'verification/extra.md');
   put(run.dir, 'review/notes.md');
   put(run.dir, 'review/notes.html');
+  walkTo(run, ['review']);
   const result = writeState(run, { nodes: { review: { status: 'completed' }, extra: { status: 'completed' } } });
   assert.equal(result.code, 0, result.stderr);
   assert.deepEqual(companionLines(result.stdout), ['companion-missing: extra verification/extra.html']);
@@ -97,6 +98,7 @@ test('a sub-run node is held to the companion in its child\'s directory, joined 
   put(child.dir, 'analysis/findings.md');
   // A file of the same name in the parent's directory is not the child's.
   put(run.dir, 'analysis/findings.html');
+  walkTo(run, ['audit']);
   const result = writeState(run, { nodes: { audit: { status: 'completed', values: { task_path: child.path, run_id: child.name } } } });
   assert.equal(result.code, 0, result.stderr);
   assert.deepEqual(companionLines(result.stdout), [`companion-missing: audit ${child.path}/analysis/findings.html`]);
@@ -104,6 +106,7 @@ test('a sub-run node is held to the companion in its child\'s directory, joined 
   // Without the child's address there is nowhere to look, and nothing is printed.
   const bare = frozen(t);
   put(bare.dir, 'analysis/findings.md');
+  walkTo(bare, ['audit']);
   const silent = writeState(bare, { nodes: { audit: { status: 'completed' } } });
   assert.equal(silent.code, 0, silent.stderr);
   assert.deepEqual(companionLines(silent.stdout), []);
@@ -227,6 +230,7 @@ test('recovery without a summary: the companion is registered by the summary wri
   const run = frozen(t);
   put(run.dir, 'review/notes.md');
   put(run.dir, 'review/log.md');
+  walkTo(run, ['review']);
   const first = writeState(run, { nodes: { review: { status: 'completed' } } });
   assert.equal(first.code, 0, first.stderr);
   assert.deepEqual(companionLines(first.stdout),

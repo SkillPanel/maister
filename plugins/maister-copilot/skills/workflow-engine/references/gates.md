@@ -110,9 +110,10 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   shape by the writer; a question nobody could ask is recorded `by: default`
   (`references/in-node-questions.md` § *When nobody can be asked*). Choosing More details, or
   typing "details", is never recorded.
-- **Run `gate-brief --state=<state> --node=<gate>` in its own call** — with `--json --picker=plain`
-  when the gate is asked in session, with `--request` when a driver suspends on it — and only
-  after the closing write (the patch carrying the node's summary and its `completed` status)
+- **Run `gate-brief --state=<state> --node=<gate>` in its own call** — with `--request` when a
+  driver suspends on it, and when the gate is asked in session
+  with `--ask`
+  — and only after the closing write (the patch carrying the node's summary and its `completed` status)
   has returned successfully. Never issue the two in parallel: a brief that reads the state
   before the write lands is refused for a summary that is about to exist. Its output is what the
   user is asked. Never write a gate question by hand.
@@ -134,6 +135,9 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   revise options it still offers; the message lists them. Nothing is written. Correct it to the
   revise option the answer named; when that option is gone because the gate reached its ceiling
   of ten, ask the gate again without `--reask`, with its continue and stop options.
+- **`gate-brief-note-not-revise`**: `--ask --note` names an option that is not one of the gate's
+  revise options; the message lists them. Nothing is written. Correct it to the revise option the
+  answer named.
 - **`gate-brief-questions-unsupported`**: a question set was sent, but the run's driver carries
   none — only a cockpit whose features list `question-sets`, in a run that is not dispatched, does. Nothing is written. Do not
   suspend: in a terminal run ask the questions in session; under any other driver take the
@@ -227,6 +231,17 @@ recommended — and `note_question`, the note question built for the profile: `{
 question, multi_select, options}`, its `options` empty when there are fewer than two
 suggestions, its question then asking for the note typed.
 
+`--ask` prints the `plain` profile's `form` alone, as JSON — the arguments of a message-and-form
+question tool's call and nothing else, so the whole output is the call. With `--note=<revise
+option>` it prints that revise's note question the same way, one property `note`: an array of
+the suggestions, each its note as value and title, or text when there are fewer than two; with
+`--details`, `more_details` as text. With `--patch-file` and a running node, the node's question
+set as one call — a property per question, keyed by its id and titled by its header, its
+description the question, why it is asked, a line per described option and the recommendation,
+its choices the options by id and label, the recommended one marked, the set's default as the
+default; a multi-select is an array — and the patch file is deleted once printed. No driver is
+needed for that: it is asked in session.
+
 `--request` prints the whole driven gate request as JSON: `{node, kind, question, context:
 {summary, artifacts, checkpoint}, options, multi_select}`, then `evidence` — the files the
 recommendation rests on, repository-relative: every file the closing nodes registered that is on
@@ -258,31 +273,29 @@ questions.
    option does, and the full brief one More details away. A second brief written above it only
    repeats what the user is about to read.
 
-   **The picker is built field by field, never by hand.** `question` is the question, verbatim.
-   `header` is the header. `options` are the options, in the order given, each shown by its
-   `label` exactly as given — the recommended one first, already reading `(Recommended)`.
-   The question tool takes a message and a form rather than these fields by name, and
-   `gate-brief` returns both, built: `form` is the call's arguments as they stand — `question`
-   whole as its `message`, and one property, titled by `header`, whose choices are the options in
-   the order given, each option's `id` as the value and its `label` as the title, the recommended
-   one as the default. **Pass `form` unchanged.** Read the whole output first, never through
-   `head` or `tail`, which cut options off the end. Never reword, shorten or move the message, and
-   add no property: a revise's note is asked after the revise is chosen, from its
-   `note_question` (*Revising at a gate*), never as a field beside the choice. The message's last
-   line is the ask, so the ask stays on screen while the user decides. After More details, the
-   gate is asked again with the same `form`.
+   The question tool takes a message and a form, and `gate-brief --ask` prints its call and
+   nothing else: the whole output is the call's arguments — the question whole as the
+   `message`, and one property, `decision`, whose choices are the options in order, each
+   option's id as the value and its label as the title, the recommended one first, reading
+   `(Recommended)`, and the default, More details last. **Pass the output as the arguments,
+   unchanged.** There is nothing else to build it from: never run `gate-brief --json` for a gate
+   asked in session, never turn the choices into a bare list of ids, never drop More details,
+   and never reword, shorten or move the message. Read the whole output, never through `head`,
+   `tail` or a script that picks fields out of it. A revise's note is asked after the revise is
+   chosen (*Revising at a gate*), never as a field beside the choice. The message's last line
+   is the ask, so the ask stays on screen while the user decides.
 
    > **SELF-CHECK before the `ask_user` call** (the gate SELF-CHECK): are the arguments
-   > exactly `form`, the message every line through the ask and the one property every option?
-   > Is what you wrote before it one line at most? If you shortened, reworded, split or added to
-   > it, STOP and pass `form` as given. Then ask.
+   > exactly the `--ask` output — every choice with its title, `(Recommended)` on one, More
+   > details last? Is what you wrote before it one line at most? If you rebuilt, shortened,
+   > reworded or added to it, STOP and pass the output as given. Then ask.
 
    Where the picker has no header or no description, leave them out; the labels still carry the
    choice. The recorded answer is the chosen option's `id`, never its label. **The
    `more-details` option is never recorded**: it is the More details request (`references/in-node-questions.md` § *In-node
    questions*), and the writer refuses it as an answer.
-   Write `more_details` out as your message, as given, then ask this gate again with the same
-   picker, in the same turn.
+   Run `gate-brief --ask --details` for the gate, write its output out as your message, as
+   given, then ask this gate again with the same `--ask` output, in the same turn.
    When `details` is `typed`, the question already asks the user to type "details", and a
    typed "details" is the same request, answered by writing `more_details` out as given, since
    no option previews it. When `options` is empty — the definition changed and no longer holds the
@@ -512,15 +525,13 @@ the rule; here is what the engine does with the answer.
 
 **Terminal mode.** When the operator picks an option whose `note` is `true`, ask what should change
 before writing anything, and ask it at once: the question is the very next call after the gate's
-answer, built from the `gate-brief --json` output the gate was asked from. Everything it needs is
-already there, so run no second `gate-brief`, read none of the stretch's artifacts, compose no
-suggestions of your own and print nothing in between. Ask it multi-select, built field by field
-from that option's `note_question` — its `header`, its `question`, and its `options` in the
-order given, each by its `label` and, where it has one, its `description`. No suggestion is
-recommended, marked `(Recommended)` or chosen in advance. The note is the chosen suggestions'
-`note`s — `note_question.options` and `suggestions` are in the same order — joined by `; `,
-then any text typed through Other. When `note_question.options` is empty, ask its `question` as
-text, verbatim, and the reply is the note — a reply of "yes" sends the one suggestion's `note`.
+answer. Read none of the stretch's artifacts, compose no suggestions of your own and print
+nothing in between.
+`gate-brief --ask --note=<the revise option>` prints that question's call: pass its whole output
+as the arguments, unchanged, as at the gate. Its one property, `note`, offers the suggestions,
+any of them, none recommended; the note is the chosen values joined by `; `, then any text typed
+through Other. With fewer than two suggestions the property is text, and the reply is the note —
+a reply of "yes" sends the one suggestion the question names.
 When nothing is chosen and nothing typed, there is no note: ask the gate again from its brief.
 Then write `{"note": "<the note>"}` to the patch file and run `gate-revise
 --state=<state> --node=<gate> --option=<id> --patch-file=<the patch file>`. That one call is the

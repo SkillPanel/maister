@@ -155,8 +155,9 @@ with its file and the change the analysis expects; each generated target's
 preview says what it measures and where.
 <!-- /rich-picker -->
 <!-- plain-picker
-The page is one form of three properties; where the tool shows no option
-descriptions, each option's reason is its line in the property's description.
+The page is one call of three properties, from `gate-brief --ask --patch-file`
+(`references/in-node-questions.md`), which puts each option's reason in its
+property's description, since the tool shows no option descriptions.
 -->
 
 **With question sets** (`optimization-priorities`): asked through the cockpit,

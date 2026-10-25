@@ -51,9 +51,10 @@
  *                  over a run
  *   gate-brief     --state, --node, optional one of --oneline,
  *                  --json [--picker=rich|plain], --checkpoint, --request
- *                  [--reask=<revise option>]; with --patch-file
- *                  (--checkpoint or --request only) the question set a
- *                  running node asks inside itself            the gate brief:
+ *                  [--reask=<revise option>], --ask [--note=<revise option>
+ *                  | --details]; with --patch-file (--checkpoint, --request
+ *                  or --ask only) the question set a running node asks
+ *                  inside itself                              the gate brief:
  *                  with no form, the closing summary and the node that runs
  *                  next as text; --checkpoint the checkpoint, the one
  *                  structured object every surface projects from; --json the
@@ -62,14 +63,19 @@
  *                  --request the whole driven gate request, its question
  *                  opened by a line asking for the note when --reask names
  *                  the revise answered without one; --oneline the
- *                  one-line fallback a request's summary carries — reads
+ *                  one-line fallback a request's summary carries; --ask the
+ *                  labels-only question tool's call arguments as JSON and
+ *                  nothing else — the gate's, a revise's note question's
+ *                  under --note, a question set's under --patch-file (the
+ *                  file then deleted) — or the full brief under --details — reads
  *                  the run, and writes only its display/next.json, the panel
  *                  an editor extension draws above the question. --node
  *                  names a frozen gate, or held-approval: the checkpoint a
  *                  run raises before it closes while choices are held
  *   area-brief     --state, --node (the convergence node asking), and one of
- *                  --area --json [--picker=rich|plain], --area alone, or
- *                  --patch-file with --area repeated or omitted
+ *                  --area --json [--picker=rich|plain], --area --ask
+ *                  [--details], --area alone, or --patch-file with --area
+ *                  repeated or omitted
  *                                                             one decision
  *                  area of the brainstorm: the picker as JSON, the write-up as
  *                  markdown, or the driven question set written to the patch
@@ -256,14 +262,14 @@ const VERBS = {
   // `--patch-file` carries the question set a running node asks inside
   // itself, from the one place a patch is read, so the request a driver
   // suspends on is built by the same verb a gate's is.
-  'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline', 'json', 'picker', 'checkpoint', 'request', 'reask', 'patch-file'] },
+  'gate-brief': { module: 'gate-brief.mjs', flags: ['state', 'node', 'oneline', 'json', 'picker', 'checkpoint', 'request', 'reask', 'patch-file', 'ask', 'note', 'details'] },
   // One decision area of a brainstorm, rendered from the file it wrote, so a
   // convergence node pastes its questions instead of composing them. `--node`
   // for `gate-brief`'s reason, and because the file is found through that
   // node's `with:`; `--area` repeatable for the driven set, which may carry
   // only some areas. `--json` and `--picker` as in `gate-brief`; `--patch-file`
   // is the one place the set is written, so a driver hands it on unchanged.
-  'area-brief': { module: 'area-brief.mjs', flags: ['state', 'node', 'area', 'json', 'picker', 'patch-file'] },
+  'area-brief': { module: 'area-brief.mjs', flags: ['state', 'node', 'area', 'json', 'picker', 'patch-file', 'ask', 'details'] },
   // A reviewer's findings, one question each, rendered from the list it wrote,
   // so a reviewing node pastes its questions instead of composing them.
   // `--findings-file` because the list is the reviewer's own artifact, named
@@ -369,7 +375,7 @@ const REPEATABLE = new Set(['overlay', 'area', 'from']);
 const PICKERS = ['rich', 'plain'];
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered']);
+const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -1041,6 +1047,12 @@ async function runGateBrief(flags) {
       + '--json is the in-session picker, --oneline the driven summary, --checkpoint the structured checkpoint, --request the driven gate request');
   }
   const form = forms[0] ?? 'plain';
+  if ((flags.note !== undefined || flags.details === true) && form !== 'ask') {
+    throw new UsageError('gate-brief takes --note and --details only with --ask: they print the question tool\'s call for a revise\'s note, or the full brief, at a gate asked in session');
+  }
+  if (flags.note !== undefined && flags.details === true) {
+    throw new UsageError('gate-brief --ask takes --note or --details, not both: --note asks a chosen revise\'s note, --details writes out the full brief');
+  }
   // The profile shapes the in-session picker and nothing else: every other
   // form is read by a driver or a cockpit, which has no picker of this kind.
   if (flags.picker !== undefined && form !== 'json') {
@@ -1059,8 +1071,11 @@ async function runGateBrief(flags) {
   // read and kept: the request printed here is what the caller writes over it.
   let questions;
   if (flags['patch-file'] !== undefined) {
-    if (form !== 'checkpoint' && form !== 'request') {
-      throw new UsageError('gate-brief takes --patch-file only with --request or --checkpoint: a question set is carried to a driver, never rendered as a picker');
+    if (form !== 'checkpoint' && form !== 'request' && form !== 'ask') {
+      throw new UsageError('gate-brief takes --patch-file only with --request, --checkpoint or --ask: a question set is carried to a driver, or to the question tool as its call, never rendered as a picker');
+    }
+    if (form === 'ask' && (flags.note !== undefined || flags.details === true)) {
+      throw new UsageError('gate-brief --ask takes --patch-file or --note or --details: a question set has no revise and no full brief');
     }
     // A set asked again in a node's new attempt is asked as in its first:
     // nothing was missing from the earlier answer, so there is no revise to name.
@@ -1071,16 +1086,26 @@ async function runGateBrief(flags) {
   }
   const module = await loadModule(VERBS['gate-brief'].module);
   const render = entryOf(module, 'gateBrief', VERBS['gate-brief'].module);
-  const result = render({ state: flags.state, node: flags.node, form, picker, reask: flags.reask, questions });
+  // A gate asked with --ask is the labels-only picker, rendered and cut down
+  // to the one thing the session passes on; a question set renders its own.
+  const asked = form === 'ask' && questions === undefined;
+  const result = render({ state: flags.state, node: flags.node, form: asked ? 'json' : form, picker: asked ? 'plain' : picker, reask: flags.reask, questions });
   // A refusal's code comes first on stderr, and a drift warning is kept after
   // it: a drifted run that also lacks a summary must still say it drifted.
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
   // Only the plain text is read by the asking session; the driven forms are
   // closed documents a driver or a panel reads, so they point at nothing.
-  if (!result.ok && form === 'plain') refuseRules('gateBrief');
+  if (!result.ok && (form === 'plain' || form === 'ask')) refuseRules('gateBrief');
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning.message ?? warning}\n`);
   if (result.ok && result.panel) await publishPanel(flags.state, result.panel);
   const warnings = (result.warnings || []).map(warning => warning.message ?? warning);
+  if (form === 'ask') {
+    const code = printAsk(flags, result, entryOf(module, 'noteForm', VERBS['gate-brief'].module));
+    // The set has become the call: a file left behind would read as a patch
+    // not yet applied. A refusal keeps it, for the caller to correct.
+    if (code === EXIT.OK && questions !== undefined) consumeFile(patchFileOf(flags));
+    return code;
+  }
   if (form === 'json') {
     // The picker as data, so nothing is parsed out of prose: a refusal is the
     // same JSON with `ok: false`, beside the stderr lines above.
@@ -1103,7 +1128,42 @@ async function runGateBrief(flags) {
 }
 
 /** The forms `gate-brief` renders besides its plain text, one at a time. */
-const GATE_BRIEF_FORMS = ['oneline', 'json', 'checkpoint', 'request'];
+const GATE_BRIEF_FORMS = ['oneline', 'json', 'checkpoint', 'request', 'ask'];
+
+/**
+ * `gate-brief --ask`: the question tool's call arguments as JSON — the gate's
+ * form, the form of a chosen revise's note question under `--note`, or a
+ * question set's form under `--patch-file` — and nothing else on stdout, so
+ * the whole output is the call. Every time a session was handed the call
+ * beside the parts it is built from, it rebuilt the call from the parts and
+ * dropped the labels, the recommendation and More details on the way. Under
+ * `--details` the full brief, as text, which the session writes out when More
+ * details is chosen.
+ */
+function printAsk(flags, result, noteForm) {
+  if (!result.ok) return EXIT.REJECTED;
+  if (result.ask) {
+    process.stdout.write(`${JSON.stringify(result.ask, null, 2)}\n`);
+    return EXIT.OK;
+  }
+  if (flags.details === true) {
+    process.stdout.write(result.more_details.endsWith('\n') ? result.more_details : `${result.more_details}\n`);
+    return EXIT.OK;
+  }
+  if (flags.note !== undefined) {
+    const option = result.picker.options.find(each => each.id === flags.note);
+    if (!option?.note_question) {
+      const revises = result.picker.options.filter(each => each.note_question).map(each => each.id);
+      process.stderr.write(`gate-brief-note-not-revise: --note=${flags.note} is not a revise option this gate offers (${revises.length ? revises.join(', ') : 'it offers none'}); correct the --note argument to the revise the operator chose — no state write fixes this\n`);
+      refuseRules('gateBrief');
+      return EXIT.REJECTED;
+    }
+    process.stdout.write(`${JSON.stringify(noteForm(option.note_question), null, 2)}\n`);
+    return EXIT.OK;
+  }
+  process.stdout.write(`${JSON.stringify(result.picker.form, null, 2)}\n`);
+  return EXIT.OK;
+}
 
 /**
  * Print one decision area for the convergence node asking it.
@@ -1123,7 +1183,15 @@ async function runAreaBrief(flags) {
   if (set && flags.json === true) {
     throw new UsageError('area-brief takes --json or --patch-file, not both: --json is the in-session picker, --patch-file the driven question set');
   }
-  const form = set ? 'set' : flags.json === true ? 'picker' : 'write-up';
+  if (flags.ask === true && (set || flags.json === true)) {
+    throw new UsageError('area-brief takes --ask alone, without --json or --patch-file: --ask prints the question tool\'s call for one area');
+  }
+  if (flags.details === true && flags.ask !== true) {
+    throw new UsageError('area-brief takes --details only with --ask: it writes out the area\'s full write-up when More details is chosen');
+  }
+  // `--ask` is the labels-only picker cut down to the call the session passes on.
+  const asked = flags.ask === true;
+  const form = set ? 'set' : flags.json === true || asked ? 'picker' : 'write-up';
   if (flags.picker !== undefined && form !== 'picker') {
     throw new UsageError('area-brief takes --picker only with --json: it shapes the in-session picker');
   }
@@ -1132,7 +1200,7 @@ async function runAreaBrief(flags) {
     throw new UsageError(`area-brief --picker takes ${PICKERS.join(' or ')}, not "${picker}"`);
   }
   if (form !== 'set' && areas.length !== 1) {
-    throw new UsageError(`area-brief ${form === 'picker' ? '--json' : 'without --json or --patch-file'} takes exactly one --area, not ${areas.length}: `
+    throw new UsageError(`area-brief ${asked ? '--ask' : form === 'picker' ? '--json' : 'without --json or --patch-file'} takes exactly one --area, not ${areas.length}: `
       + 'one area is asked, or shown in full, at a time');
   }
   // The set is the verb's own write, so nothing need be there yet; what is
@@ -1140,10 +1208,20 @@ async function runAreaBrief(flags) {
   const patchFile = set ? patchFileOf(flags, { absentOk: true }) : null;
   const module = await loadModule(VERBS['area-brief'].module);
   const render = entryOf(module, 'areaBrief', VERBS['area-brief'].module);
-  const result = render({ state: flags.state, node: flags.node, areas, form, picker, patchFile });
+  const result = render({ state: flags.state, node: flags.node, areas, form, picker: asked ? 'plain' : picker, patchFile });
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
-  if (!result.ok && form !== 'picker') refuseRules('areaBrief');
+  if (!result.ok && (form !== 'picker' || asked)) refuseRules('areaBrief');
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
+  if (asked) {
+    // The whole output is the call, or the write-up under --details; a
+    // fallback prints nothing, as the text forms' does, and the node composes
+    // the area itself.
+    if (!result.ok) return EXIT.REJECTED;
+    if (result.fallback) return EXIT.OK;
+    if (flags.details === true) process.stdout.write(result.more_details.endsWith('\n') ? result.more_details : `${result.more_details}\n`);
+    else process.stdout.write(`${JSON.stringify(entryOf(module, 'formOf', VERBS['area-brief'].module)(result), null, 2)}\n`);
+    return EXIT.OK;
+  }
   if (form === 'picker') {
     // The key rides on a fallback too: the node then composes the area
     // itself, and the section says how.

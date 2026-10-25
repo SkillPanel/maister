@@ -14,7 +14,7 @@ const write = (run, patch) => writeState(run, delegating(patch));
 // operator can take is walked here, as the gate brief walks it.
 
 const RESEARCH = path.join(ENGINE_DIR, 'workflows/research.yml');
-const FOUNDATION_OPTIONS = ['continue-to-brainstorming', 'continue-to-design', 'finish-with-research', 'revise-research'];
+const FOUNDATION_OPTIONS = ['continue-to-brainstorming', 'continue-to-design', 'finish-with-research', 'revise-research', 'stop-research'];
 const CONVERGENCE_OPTIONS = ['continue-to-design', 'finish-without-design', 'revise-convergence', 'stop-research'];
 
 /** A research run waiting at the foundation gate, its closing node summarised with `summary`. */
@@ -75,11 +75,13 @@ function routes(run, node) {
   return routes;
 }
 
-test('research routes: the foundation gate offers the three ways on and its revise, and no stop', t => {
+test('research routes: the foundation gate offers the three ways on, its revise and its stop', t => {
   const run = atFoundation(t);
   const checkpoint = checkpointOf(run, 'foundation-approval');
   assert.deepEqual(checkpoint.options.map(option => option.id).sort(), [...FOUNDATION_OPTIONS].sort());
-  assert.equal(checkpoint.options.some(option => option.effect === 'stop'), false);
+  assert.deepEqual(checkpoint.options.filter(option => option.effect === 'stop').map(option => option.id), ['stop-research']);
+  // Five options are one more than the previewing picker lists: the ways on
+  // and the revise stay options, and the stop is named in the question.
   const picker = pickerOf(run, 'foundation-approval');
   assert.deepEqual(picker.options.map(option => [option.id, option.label]), [
     ['continue-to-brainstorming', 'Continue to brainstorming (Recommended)'],
@@ -87,7 +89,27 @@ test('research routes: the foundation gate offers the three ways on and its revi
     ['finish-with-research', 'Continue to final summary'],
     ['revise-research', 'Revise the research'],
   ]);
-  assert.equal(picker.details, 'typed', 'four options leave no slot for More details');
+  assert.match(picker.question, /Also offered, not listed: Stop here \(stop-research\); name one to choose it\.$/);
+  assert.equal(picker.details, 'typed', 'four listed options leave no slot for More details');
+  // The labels-only picker has room for all of them, More details last.
+  const plain = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=foundation-approval', '--json', '--picker=plain']).stdout);
+  assert.deepEqual(plain.options.map(option => option.id), ['continue-to-brainstorming', 'continue-to-design', 'finish-with-research', 'revise-research', 'stop-research', 'more-details']);
+  assert.doesNotMatch(plain.question, /Also offered/);
+});
+
+test('research routes: a stop at the foundation gate ends the run, every unexecuted node stopped', t => {
+  const run = atFoundation(t);
+  const stopped = write(run, {
+    task: { status: 'stopped' },
+    nodes: Object.fromEntries([['foundation-approval', { status: 'completed' }],
+      ...['findings-approval', 'solution-generation', 'brainstorm-approval', 'solution-convergence', 'convergence-approval', 'high-level-design', 'design-approval', 'completion']
+        .filter(id => Object.hasOwn(readState(run).workflow.nodes, id)).map(id => [id, { status: 'stopped' }])]),
+    node_summaries: { 'foundation-approval': { decisions: [{ option: 'stop-research' }] } },
+  });
+  assert.equal(stopped.code, 0, stopped.stderr);
+  const close = verb(['run-complete', `--state=${run.state}`]);
+  assert.equal(close.code, 0, close.stderr);
+  assert.ok(close.stdout.endsWith('run stopped: foundation-approval - stop-research\nRUN-COMPLETE\n'), close.stdout);
 });
 
 test('research routes: each foundation continue walks to its own next step', t => {

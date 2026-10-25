@@ -291,20 +291,42 @@ test('a skip satisfies what follows: the nodes behind a false guard are owed', t
   assertUnfinished(result, ['audit', 'notify', 'report']);
 });
 
+/**
+ * The writer's refusal of a node completed past `need`, still on the path:
+ * exit 1, the code first, the pair named, the state left byte for byte.
+ */
+function assertNeedRefused(run, patch, pair) {
+  const before = fs.readFileSync(run.state, 'utf8');
+  const refused = verb(['write-state', `--state=${run.state}`], patch);
+  assert.equal(refused.code, 1, refused.stdout);
+  assert.match(refused.stderr, /^state-node-needs-unmet: /);
+  assert.ok(refused.stderr.includes(pair), refused.stderr);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+}
+
+// A completed node behind a pending need is refused by the writer as it lands
+// (`state-node-needs-unmet`), so each guard below is judged with the nodes
+// behind it left pending: the walk owes the guarded node and everything after.
+
 test('a node whose guard is true is owed', t => {
   const run = frozen(t);
-  assertUnfinished(closeWith(run, closingNodes({ review: { status: 'pending' } })), ['review']);
+  assertNeedRefused(run, { task: { status: 'completed' }, nodes: closingNodes({ review: { status: 'pending' } }) }, 'audit needs review');
+  assertUnfinished(closeWith(run, { intake: closingNodes().intake, 'deep-dive': { status: 'skipped' } }), ['review', 'audit', 'notify', 'report']);
 });
 
 test('a guard on an input reads the inputs the run froze', t => {
   const run = frozen(t, { inputs: { deep: true } });
-  assertUnfinished(closeWith(run, closingNodes({ 'deep-dive': { status: 'pending' } })), ['deep-dive']);
+  assertNeedRefused(run, { task: { status: 'completed' }, nodes: closingNodes({ 'deep-dive': { status: 'pending' } }) }, 'audit needs deep-dive');
+  const { intake, review } = closingNodes();
+  assertUnfinished(closeWith(run, { intake, review }), ['deep-dive', 'audit', 'notify', 'report']);
 });
 
 test('a guard that reads a value never recorded cannot rule its node out, and the refusal says so', t => {
   const run = frozen(t);
-  const result = closeWith(run, closingNodes({ intake: { status: 'completed' }, review: { status: 'pending' } }));
-  assertUnfinished(result, ['review']);
+  // The writer cannot rule it out either: it refuses rather than record the node skipped.
+  assertNeedRefused(run, { task: { status: 'completed' }, nodes: closingNodes({ intake: { status: 'completed' }, review: { status: 'pending' } }) }, 'audit needs review');
+  const result = closeWith(run, { intake: { status: 'completed' }, 'deep-dive': { status: 'skipped' } });
+  assertUnfinished(result, ['review', 'audit', 'notify', 'report']);
   assert.match(result.stderr, /its guard \$\{intake\.values\.needs_review\} reads a value that was never recorded/);
 });
 
@@ -328,14 +350,18 @@ test('a definition changed since the freeze: no guard is evaluated, and recordin
   freeze(run, { definition });
   fs.writeFileSync(definition, fs.readFileSync(definition, 'utf8').replace('"the intake"', '"the intake, revised"'));
 
-  const result = closeWith(run, closingNodes({
+  // The writer evaluates no guard either: it refuses the completion behind the
+  // pending node rather than record it skipped.
+  assertNeedRefused(run, { task: { status: 'completed' }, nodes: closingNodes({
     intake: { status: 'completed', values: { needs_review: false } },
     review: { status: 'pending' },
-  }));
-  assertUnfinished(result, ['review']);
+  }) }, 'audit needs review');
+  const { intake: _intake, review: _review, audit, report, notify, ...ahead } = closingNodes();
+  const result = closeWith(run, { ...ahead, intake: { status: 'completed', values: { needs_review: false } } });
+  assertUnfinished(result, ['review', 'audit', 'notify', 'report']);
   assert.match(result.stderr, /has changed since the freeze, so no guard was evaluated/);
 
-  write(run, { nodes: { review: { status: 'skipped' } } });
+  write(run, { nodes: { review: { status: 'skipped' }, audit, report, notify } });
   const again = complete(run);
   assert.equal(again.code, 0, again.stderr);
   assert.equal(again.stdout, 'RUN-COMPLETE\n', 'no artifact is judged against a definition the run did not freeze');
@@ -349,7 +375,7 @@ test('only a completed run is judged: a stopped or failed one keeps its own endi
   assert.equal(lastLine(stop.stdout), 'RUN-COMPLETE');
 
   const failed = frozen(t);
-  const fail = closeWith(failed, closingNodes({ audit: { status: 'failed' }, notify: { status: 'pending' } }), 'failed');
+  const fail = closeWith(failed, closingNodes({ audit: { status: 'failed' }, report: { status: 'pending' }, notify: { status: 'pending' } }), 'failed');
   assert.equal(fail.code, 1);
   assert.equal(lastLine(fail.stdout), 'RUN-FAILED: node audit failed');
 });

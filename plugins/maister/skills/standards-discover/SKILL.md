@@ -67,7 +67,7 @@ Custom scope values are matched against existing `.maister/docs/standards/*/` di
 
 1. **Parse options** from command arguments
 2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, ask once — "Set up Maister first? (runs the setup, then this)": "Set it up (Recommended)" runs `maister:init` with the Skill tool, which ends by running a full discovery; any other answer stops here
-3. **Read existing standards** from `.maister/docs/INDEX.md` to identify updates vs creates and avoid duplicates
+3. **Read existing standards** from `.maister/docs/INDEX.md` to identify updates vs creates and avoid duplicates; Phase 6 reads the rules of the files a finding lands in, to find the ones it contradicts
 4. **Print the plan as one progress line** — scope, sources and rough time — and go on: the user asked for the discovery, so there is nothing to confirm
 
 ---
@@ -111,6 +111,7 @@ Every applicable phase is a subagent of its own, whatever the size of the reposi
 2. **Deduplicate** by grouping on `category + standard_name` — merge evidence and sources
 3. **Calculate final confidence** using multi-factor scoring from the reference
 4. **Detect conflicts** — flag contradictory standards (e.g., ESLint says semicolons, Prettier says no)
+   - **Against the standards already written.** Read the rules in each existing standards file a finding lands in, starter rules copied at setup included. A finding that says the opposite of a rule there is a conflict too, even with no second finding against it: "Implement versioning (URL path or headers)" in `backend/api.md` against discovered plural, unversioned paths is one. Writing the finding beside the rule, or merging it in, would leave two rules that cannot both hold, and nothing later reports them.
 5. **Categorize** into High (>= 80%), Medium (60-79%), Low (< 60%)
 6. **Filter** by `--confidence` threshold
 
@@ -129,12 +130,13 @@ Print one line of counts (high, medium, conflicts, below the threshold), then as
   Each Accept option's preview shows the standard as it would be written, with its preferred and avoided examples.
 <!-- /rich-picker -->
 <!-- plain-picker
-  A page is one form of up to four properties; the standard's examples go in each property's description, since the form shows no previews.
+  A page is one form of up to four properties, each a choice of its options — `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), never a bare `enum` of ids; the standard's rule, its evidence and its examples go in each property's description, since the form shows labels only.
 -->
 
 - **Below the threshold**: not asked. The summary report (Phase 9) lists them so a later run with a lower `--confidence` can pick them up.
 
 - **Conflicts**: pages of up to four, one question per conflict, both sides in the question with their evidence and sources. The better-evidenced side is recommended, its reason in its description; the other side and "Skip" are the remaining options, and a custom rule is the Other answer.
+  - A conflict with a rule already written asks which rule holds. One side is the written rule — its file, its heading and where it came from (a starter rule, or the project's own) — and the other the discovered one with its evidence. The options are "Use the discovered rule" (it replaces the written one), "Keep the written rule" (the finding is dropped) and "Skip" (both stay as they are, and Phase 9 lists the pair as unsettled). Discovered evidence from the code itself is recommended over a starter rule nobody chose for this project; a rule the project wrote itself is recommended over a pattern seen in a few files. A conflict is never decided without asking, `--auto-apply` included.
 
 If `--auto-apply` is set, automatically approve findings with confidence >= 90% and only ask about the rest.
 
@@ -144,7 +146,7 @@ If `--auto-apply` is set, automatically approve findings with confidence >= 90% 
 
 Write standard files through the docs-operator subagent rather than Write/Edit, so INDEX.md and CLAUDE.md stay consistent with the files.
 
-1. **Prepare content** for every approved standard — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. A rule cites at most one example path — never an inventory of call sites, a date or a ticket reference. Note create vs update for each target file, and prefer a new topic file (or a sub-folder for a topic with several) over appending to a file already past about 12 KB or 15 rules.
+1. **Prepare content** for every approved standard, and for every conflict with a written rule settled for the discovered side, the replacement: the written rule's section rewritten as the discovered rule, never a second section beside it — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. A rule cites at most one example path — never an inventory of call sites, a date or a ticket reference. Note create vs update for each target file, and prefer a new topic file (or a sub-folder for a topic with several) over appending to a file already past about 12 KB or 15 rules.
 2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before) with all prepared standards, instructing it to apply each create/update (merging updates with existing content), then refresh INDEX.md with every written path as changed — `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, as an absolute path — and confirm CLAUDE.md references the standards directory.
 
 Display application summary: created count, updated count, total active.
@@ -157,6 +159,7 @@ Display final results:
 - Sources analyzed (config files, code files sampled, docs parsed, PRs reviewed)
 - Standards applied (created/updated counts by category)
 - Standards skipped (low confidence, user declined)
+- Conflicts with written rules: each settled one, with the rule that now holds, and each skipped one, both rules named with their files, for the user to settle
 - Next steps (review, commit, re-run schedule)
 
 ---

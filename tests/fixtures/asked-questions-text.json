@@ -7913,6 +7913,18 @@
                 "n": 1
               },
               "suggestions": []
+            },
+            {
+              "consequence": "Ends the run here.",
+              "effect": "stop",
+              "id": "stop-research",
+              "keeps": [],
+              "label": "Stop here",
+              "not_run": {
+                "next": "Solution brainstorming",
+                "remaining": 4
+              },
+              "recommended": false
             }
           ],
           "progress": {
@@ -7963,6 +7975,12 @@
             "label": "Revise the research",
             "note": true,
             "suggestions": []
+          },
+          {
+            "description": "Ends the run here.",
+            "effect": "stop",
+            "id": "stop-research",
+            "label": "Stop here"
           }
         ],
         "question": "Approve the research foundation?"
@@ -8502,6 +8520,18 @@
                 "n": 1
               },
               "suggestions": []
+            },
+            {
+              "consequence": "Ends the run here.",
+              "effect": "stop",
+              "id": "stop-research",
+              "keeps": [],
+              "label": "Stop here",
+              "not_run": {
+                "next": "Solution brainstorming",
+                "remaining": 4
+              },
+              "recommended": false
             }
           ],
           "progress": {
@@ -8552,6 +8582,12 @@
             "label": "Revise the research",
             "note": true,
             "suggestions": []
+          },
+          {
+            "description": "Ends the run here.",
+            "effect": "stop",
+            "id": "stop-research",
+            "label": "Stop here"
           }
         ],
         "question": "Approve the research foundation?"
@@ -8667,7 +8703,7 @@
             "label": "Revise the research"
           }
         ],
-        "question": "Approve the research foundation? Type \"details\" for the full brief."
+        "question": "Approve the research foundation? Type \"details\" for the full brief. Also offered, not listed: Stop here (stop-research); name one to choose it."
       }
     },
     "reached": [

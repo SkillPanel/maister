@@ -566,17 +566,26 @@ test('embedded: a standalone run that never reached completion is refused as unf
 });
 
 /**
- * A run walked along the simple path only: the nodes the depth skips, the
- * personas and the prototypes are left pending, for the guards to keep off
- * the path.
+ * A run frozen at depth `simple` with its intake recorded, the personas and
+ * the prototypes switched off.
  */
-function simplePath(t, simple) {
+function simpleIntake(t, simple) {
   const run = scratch(t, { fixture: 'team-calendar-sharing', type: 'product-design', name: RUN_NAME });
   freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: TASK, simple } });
   write(run, {
     nodes: { intake: { status: 'completed', values: { personas_enabled: false, prototyping_enabled: false, complexity_level: 'simple' } } },
     node_summaries: { intake: { summary: 'A simple enhancement.', absent: { research_context: 'no research task was named' } } },
   });
+  return run;
+}
+
+/**
+ * A run walked along the simple path only, never writing the nodes the depth
+ * skips, the personas or the prototypes: the writer records each one skipped
+ * as the walk completes the node that needs it, its guard false.
+ */
+function simplePath(t, simple) {
+  const run = simpleIntake(t, simple);
   for (const id of ['context-synthesis', 'problem-exploration', 'problem-approval', 'feature-specification',
     'specification-approval', 'review-handoff', 'completion']) {
     write(run, { nodes: { [id]: { status: 'completed' } } });
@@ -588,16 +597,28 @@ function simplePath(t, simple) {
 test('simple: the depth keeps the skipped gates and the idea stretch off the path', t => {
   const run = simplePath(t, true);
   const nodes = readState(run).workflow.nodes;
-  for (const id of [...DEPTH_SKIPS, 'persona-exploration', 'visual-prototyping']) assert.equal(nodes[id].status, 'pending', id);
+  for (const id of [...DEPTH_SKIPS, 'persona-exploration', 'visual-prototyping']) {
+    assert.equal(nodes[id].status, 'skipped', id);
+    assert.ok(nodes[id].completed, `${id} is stamped like any skip`);
+  }
   const result = complete(run);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(lastLine(result.stdout), 'RUN-COMPLETE');
 });
 
 test('simple: the same walk at full depth leaves the characteristics gate owed', t => {
-  const result = complete(simplePath(t, false));
+  const run = simpleIntake(t, false);
+  // The gate is on the path: the writer refuses the step behind it rather than record it skipped.
+  const before = fs.readFileSync(run.state, 'utf8');
+  const past = verb(['write-state', `--state=${run.state}`], { nodes: { 'context-synthesis': { status: 'completed' } } });
+  assert.equal(past.code, 1, past.stdout);
+  assert.match(past.stderr, /^state-node-needs-unmet: .*context-synthesis needs characteristics-approval/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+
+  write(run, { task: { status: 'completed' } });
+  const result = complete(run);
   assert.equal(result.stdout, 'RUN-FAILED: run-nodes-unfinished\n');
-  assert.match(result.stderr, /characteristics-approval/);
+  assert.match(result.stderr, /not finished: characteristics-approval \(pending\)/);
 });
 
 test('simple: the problem gate goes straight to the specification and names what the depth skips', t => {

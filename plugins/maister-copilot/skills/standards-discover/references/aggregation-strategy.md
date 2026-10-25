@@ -44,8 +44,9 @@ Flag conflicts when two findings for the same aspect give contradictory guidance
 - Same tool, different settings (e.g., ESLint vs Prettier disagreeing on semicolons)
 - Documentation says one thing, config enforces another
 - Code patterns don't match documented standards
+- A finding says the opposite of a rule already in `.maister/docs/standards/` — a starter rule copied at setup included — even when no second finding disagrees with it
 
-Present each conflict to user with both sides and evidence.
+Present each conflict to user with both sides and evidence; a conflict with a written rule asks which rule holds (`SKILL.md` § Phase 7).
 
 ## Confidence Categories
 

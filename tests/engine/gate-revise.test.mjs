@@ -22,15 +22,18 @@ function atGate(t, { figures = true, orchestrator = {} } = {}) {
   return run;
 }
 
-/** Complete the stretch before `review-approval`, as a run reaching it does. */
-function complete(run, { figures = true } = {}) {
+/**
+ * Complete the stretch before `review-approval`, as a run reaching it does;
+ * `beside` lists more nodes completed with the steps that wait on the draft.
+ */
+function complete(run, { figures = true, beside = [] } = {}) {
   write(run, {
     nodes: { draft: { status: 'completed', values: { needs_figures: figures } } },
     node_summaries: {
       draft: { summary: 'Drafted the guide.', decisions: ['Wrote it for new operators'], risks: ['open: the intro repeats the title'] },
     },
   });
-  write(run, { nodes: { figures: { status: figures ? 'completed' : 'skipped' }, 'side-note': { status: 'completed' } } });
+  write(run, { nodes: { figures: { status: figures ? 'completed' : 'skipped' }, 'side-note': { status: 'completed' }, ...Object.fromEntries(beside.map(id => [id, { status: 'completed' }])) } });
   write(run, {
     nodes: { review: { status: 'completed' } },
     node_summaries: { review: { summary: 'Reviewed the draft.', risks: ['open: section 2 contradicts the summary'] } },
@@ -146,7 +149,10 @@ test('the reset stretch is owed: a run closed mid-revision is refused, the rerun
   write(run, { task: { status: 'completed' } });
   const close = verb(['run-complete', `--state=${run.state}`]);
   assert.equal(close.code, 1);
-  assert.match(close.stderr, /^run-nodes-unfinished: .*draft/m);
+  // `side-note`, outside the stretch, stays completed past the draft the revise
+  // reset, so the close names that pair first and sends the run to the draft.
+  assert.equal(close.stdout, 'RUN-FAILED: run-needs-unmet\n');
+  assert.match(close.stderr, /^run-needs-unmet: .*side-note needs draft\..* run draft\b/m);
 });
 
 test('a gate further on resets the earlier gate inside its stretch, and that gate spends a revision too', t => {
@@ -175,8 +181,8 @@ test('a node an overlay placed inside the stretch is reset with it', t => {
 
   const run = scratch(t);
   freeze(run, { definition: path.join(dir, 'revise.yml'), overlays: [overlay] });
-  complete(run);
-  write(run, { nodes: { 'fact-check': { status: 'completed' } } });
+  complete(run, { beside: ['fact-check'] });
+  assert.equal(readState(run).workflow.nodes['fact-check'].status, 'completed');
   assert.equal(revise(run).code, 0);
   const nodes = readState(run).workflow.nodes;
   assert.equal(nodes['fact-check'].status, 'pending');

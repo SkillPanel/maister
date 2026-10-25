@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { FIXTURES, briefOf, freeze, freezePatch, lastLine, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { FIXTURES, briefOf, freeze, freezePatch, lastLine, reach, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 
 // A workflow no built-in is named after, driven end to end the way a user's own
 // runs: authored into the project's `.maister/workflows/`, validated, resolved
@@ -623,7 +623,7 @@ test('overlay: the dashboard titles the added node and registers the artifact th
   for (const [profile, title] of [[null, 'Bill of materials'], ['quick', 'Quick bill of materials']]) {
     const { run } = frozen(t, { overlaid: true, profile });
     place(run, 'outputs/sbom.json');
-    write(run, { nodes: { sbom: { status: 'completed' } }, node_summaries: { sbom: { summary: 'Inventory of 212 packages.' } } });
+    reach(run, { nodes: { sbom: { status: 'completed' } }, node_summaries: { sbom: { summary: 'Inventory of 212 packages.' } } });
     const sbom = readDashboard(run).phases.find(phase => phase.id === 'sbom');
     assert.equal(sbom.name, title);
     assert.deepEqual(sbom.artifacts, [{ path: 'outputs/sbom.json', label: null, html: null }]);
@@ -635,11 +635,20 @@ test('overlay: run-complete owes the added node while it is pending', t => {
   const nodes = Object.fromEntries(Object.keys(readState(run).workflow.nodes).map(id => [id, { status: 'completed' }]));
   nodes.intake.values = { needs_security: true, risk_level: 'high' };
   nodes.sbom = { status: 'pending' };
+  // The writer refuses the nodes behind it completing while it is pending.
+  const before = fs.readFileSync(run.state, 'utf8');
+  const past = verb(['write-state', `--state=${run.state}`], { task: { status: 'completed' }, nodes });
+  assert.equal(past.code, 1, past.stdout);
+  assert.match(past.stderr, /^state-node-needs-unmet: .*triage needs sbom/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+
+  // So the close is written with them pending too, and the added node is owed first.
+  for (const id of ['triage', 'deep-audit', 'report']) nodes[id] = { status: 'pending' };
   write(run, { task: { status: 'completed' }, nodes });
   const result = complete(run);
   assert.equal(result.code, 1);
   assert.equal(result.stdout, 'RUN-FAILED: run-nodes-unfinished\n');
-  assert.match(result.stderr, /not finished: sbom \(pending\)\./);
+  assert.match(result.stderr, /not finished: sbom \(pending\), triage \(pending\)/);
 });
 
 test('overlay: the diagram draws the added node into the gate and leaves the disabled one out', t => {

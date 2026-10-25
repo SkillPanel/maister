@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { DECLARED, ENGINE_DIR, FIXTURES, OPERATOR, SAMPLE, freeze, freezePatch, legacyMirror, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { DECLARED, ENGINE_DIR, FIXTURES, OPERATOR, SAMPLE, freeze, freezePatch, legacyMirror, reach, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 import { scanState } from '../../plugins/maister/lib/state-scan.mjs';
 
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
@@ -866,7 +866,7 @@ test('write-state: a later answer at a revised gate keeps the revise decisions b
   const revise = { option: 'send-back', answered_by: 'marek', at: '2026-01-05T09:00:00Z', attempt: 1, reruns: 'draft', note: 'Tighten the intro' };
   write(run, { node_summaries: { 'review-approval': { decisions: [revise] } } });
   const answer = { option: 'publish-draft', answered_by: 'marek', at: '2026-01-05T10:00:00Z' };
-  write(run, { nodes: { 'review-approval': { status: 'completed' } }, node_summaries: { 'review-approval': { decisions: [answer] } } });
+  reach(run, { nodes: { 'review-approval': { status: 'completed' } }, node_summaries: { 'review-approval': { decisions: [answer] } } });
   // Each answer gains the label it was chosen by and who chose it, on the way in.
   const folded = decision => ({ ...decision, decision: decision.option === 'send-back' ? 'Send back with notes' : 'Publish', by: 'operator' });
   assert.deepEqual(readState(run).node_summaries['review-approval'].decisions, [folded(revise), folded(answer)]);
@@ -966,7 +966,7 @@ test('write-state: an exact re-ask replaces its answer, with or without a questi
 test('write-state: a gate answer written flat on the summary is folded into its decisions', t => {
   const run = scratch(t);
   freeze(run, { definition: REVISE });
-  const result = write(run, {
+  const result = reach(run, {
     nodes: { 'review-approval': { status: 'completed' } },
     node_summaries: { 'review-approval': { answer: 'publish-draft', answered_by: 'user', at: '2026-01-05T10:00:00Z' } },
   });
@@ -1017,7 +1017,7 @@ test('write-state: a gate answer under a cockpit or a dispatch driver is stamped
   for (const kind of ['cockpit', 'dispatch']) {
     const run = scratch(t);
     freeze(run, { definition: REVISE, orchestrator: { driver: { kind, cwd: '/work' } } });
-    const result = write(run, {
+    const result = reach(run, {
       nodes: { 'review-approval': { status: 'completed' } },
       node_summaries: { 'review-approval': { decisions: [{ option: 'publish-draft' }] } },
     });

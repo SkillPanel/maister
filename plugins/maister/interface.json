@@ -207,6 +207,8 @@
       "area-brief": {
         "flags": [
           "area",
+          "ask",
+          "details",
           "json",
           "node",
           "patch-file",
@@ -285,6 +287,7 @@
           "state-held-approval-not-askable",
           "state-incomplete",
           "state-inline-collection",
+          "state-node-needs-unmet",
           "state-node-regressed",
           "state-node-status-unknown",
           "state-node-unknown",
@@ -308,9 +311,12 @@
       },
       "gate-brief": {
         "flags": [
+          "ask",
           "checkpoint",
+          "details",
           "json",
           "node",
+          "note",
           "oneline",
           "patch-file",
           "picker",
@@ -323,6 +329,7 @@
           "gate-brief-no-summary",
           "gate-brief-not-a-gate",
           "gate-brief-not-askable",
+          "gate-brief-note-not-revise",
           "gate-brief-nothing-held",
           "gate-brief-nothing-to-ask",
           "gate-brief-questions-invalid",
@@ -378,6 +385,7 @@
           "state-held-approval-not-askable",
           "state-incomplete",
           "state-inline-collection",
+          "state-node-needs-unmet",
           "state-node-regressed",
           "state-node-status-unknown",
           "state-node-unknown",
@@ -434,6 +442,7 @@
           "state-held-approval-not-askable",
           "state-incomplete",
           "state-inline-collection",
+          "state-node-needs-unmet",
           "state-node-regressed",
           "state-node-status-unknown",
           "state-node-unknown",
@@ -504,6 +513,7 @@
           "state-held-approval-not-askable",
           "state-incomplete",
           "state-inline-collection",
+          "state-node-needs-unmet",
           "state-node-regressed",
           "state-node-status-unknown",
           "state-node-unknown",
@@ -598,6 +608,7 @@
           "outbox-unreadable",
           "run-failed",
           "run-held-unapproved",
+          "run-needs-unmet",
           "run-nodes-unfinished",
           "run-not-ended",
           "state-missing",
@@ -702,6 +713,7 @@
           "state-held-approval-not-askable",
           "state-incomplete",
           "state-inline-collection",
+          "state-node-needs-unmet",
           "state-node-regressed",
           "state-node-status-unknown",
           "state-node-unknown",
@@ -754,6 +766,7 @@
           "state-held-approval-not-askable",
           "state-incomplete",
           "state-inline-collection",
+          "state-node-needs-unmet",
           "state-node-regressed",
           "state-node-status-unknown",
           "state-node-unknown",
@@ -995,7 +1008,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.2",
+  "interface_version": "1.3",
   "mcp": {
     "servers": [],
     "tools": [

@@ -113,6 +113,7 @@ test('an ordinary write with no gates directory creates none and reports no inde
 test('terminal mode: an in-session answer writes no gate files at all', t => {
   const run = scratch(t);
   freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } } });
   const result = write(run, { orchestrator: { gate_pending: null }, nodes: { approval: { status: 'completed' } } });
   assert.doesNotMatch(result.stdout, /gates\//);
   assert.equal(fs.existsSync(path.join(run.dir, 'gates')), false);

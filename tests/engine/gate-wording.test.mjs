@@ -61,6 +61,7 @@ test('gate wording: the research foundation gate, as it reads now', t => {
       'Skips solution brainstorming, solution convergence and high-level design; runs final summary next.'],
     ['revise-research', 'Revise the research', 'Re-runs Research foundation with your note, then asks this again.'],
   ]);
+  assert.ok(checkpoint.options.some(option => option.id === 'stop-research' && option.effect === 'stop'), 'the stop is offered, named in the question on this picker');
 });
 
 test('gate wording: the two research gates that close the foundation ask different questions', t => {

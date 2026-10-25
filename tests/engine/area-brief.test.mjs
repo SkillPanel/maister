@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  ENGINE, ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, maskRoot, run as runScript, scratch, scratchPlugin, verb, write,
+  ENGINE, ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, maskRoot, delegating, prerequisites, reach, run as runScript, scratch, scratchPlugin, verb, write,
 } from '../helpers.mjs';
 import {
   FIXED_LABELS, areaDetails, areaEntry, areaPicker, loadAreas,
@@ -406,7 +406,7 @@ function atConvergence(t, { workflow = 'research', producer = 'completed', askin
   const spec = WORKFLOWS[workflow];
   const run = scratch(t, { type: workflow, name: `2026-10-10-${workflow}-areas` });
   freeze(run, { definition: spec.definition, inputs: spec.inputs });
-  write(run, { nodes: { [spec.producer]: { status: producer }, [spec.node]: { status: asking } } });
+  reach(run, { nodes: { [spec.producer]: { status: producer }, [spec.node]: { status: asking } } });
   if (file) placeAreas(run, spec);
   return { ...run, ...spec };
 }
@@ -651,6 +651,26 @@ test('area-brief: the picker and write-up forms print the goldens, the write-up 
   assert.equal(fs.readFileSync(path.join(GOLDEN, 'write-up.md'), 'utf8'), `${screen.more_details}\n`);
 });
 
+test('area-brief --ask: the call alone, built from the plain picker — every alternative titled, the recommendation marked, More details last', t => {
+  const run = atConvergence(t);
+  const asked = brief(run, ['--area=storage', '--ask']);
+  assert.equal(asked.code, 0, asked.stderr);
+  const call = JSON.parse(asked.stdout);
+  assert.deepEqual(Object.keys(call), ['message', 'requestedSchema'], 'the whole output is the call');
+  const plain = JSON.parse(brief(run, ['--area=storage', '--json', '--picker=plain']).stdout);
+  assert.equal(call.message, plain.question);
+  const decision = call.requestedSchema.properties.decision;
+  assert.equal(decision.title, plain.header);
+  assert.deepEqual(decision.oneOf, plain.options.map(option => ({ const: option.id, title: option.label })));
+  assert.equal(decision.oneOf.at(-1).const, 'more-details');
+  assert.equal(decision.default, plain.options.find(option => option.recommended).id);
+  const details = brief(run, ['--area=storage', '--ask', '--details']);
+  assert.equal(details.stdout.trimEnd(), plain.more_details.trimEnd());
+  // Control: --ask takes no --json, and --details needs --ask.
+  assert.equal(brief(run, ['--area=storage', '--ask', '--json']).code, 2);
+  assert.equal(brief(run, ['--area=storage', '--details']).code, 2);
+});
+
 // ---- driven set
 // ---------------------------------------------------------------------------
 // the set form: every area as the convergence node's question set, written to
@@ -672,6 +692,8 @@ function drivenRun(t, { engine = ENGINE, frozenBy = engine } = {}) {
   const run = scratch(t, { type: 'research', name: '2026-10-10-research-driven' });
   const { patch } = freezePatch({ definition: spec.definition, inputs: spec.inputs, orchestrator: { driver: DRIVER } });
   passed(frozenBy, ['write-state', `--state=${run.state}`], patch);
+  const ahead = Object.fromEntries(prerequisites(run, [spec.producer]).map(id => [id, { status: 'completed' }]));
+  passed(engine, ['write-state', `--state=${run.state}`], delegating({ nodes: ahead }));
   passed(engine, ['write-state', `--state=${run.state}`], { nodes: { [spec.producer]: { status: 'completed' }, [spec.node]: { status: 'running' } } });
   placeAreas(run, spec);
   return { ...run, ...spec, engine, patch: path.join(run.dir, '.state-patch.json') };

@@ -25,7 +25,7 @@ function verifying(t, { host = 'claude', env = {}, orchestrator = {} } = {}) {
   const { patch } = freezePatch({ overlays: [OVERLAY], orchestrator });
   const frozen = verb(['write-state', `--state=${run.state}`, ...(host === null ? [] : [`--host=${host}`])], patch, env);
   assert.equal(frozen.code, 0, frozen.stderr);
-  write(run, { nodes: { implementation: { status: 'completed' }, [NODE]: { status: 'running' } } });
+  write(run, { nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'completed' }, [NODE]: { status: 'running' } } });
   return { ...run, verification: path.join(run.dir, 'verification') };
 }
 

@@ -1,10 +1,10 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: research
-%% graph_hash: sha256:95b869ae2079a9009c0e4e349b6f0af1c005fec1debf64c1a727de09872cc166
+%% graph_hash: sha256:c80fd34e066ab8c1fe74513e84bcfe6f5403f5d62714a2538da0d0d4d22a5988
 
 flowchart TD
   n_research_foundation["Research foundation<br/>research-foundation<br/>direct:research-foundation"]
-  n_foundation_approval{{"Approve the research foundation<br/>foundation-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-brainstorming: continue, continue-to-design: continue, finish-with-research: continue, revise-research: revise → research-foundation<br/>when: !${inputs.findings_only}"}}
+  n_foundation_approval{{"Approve the research foundation<br/>foundation-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-brainstorming: continue, continue-to-design: continue, finish-with-research: continue, revise-research: revise → research-foundation, stop-research: stop<br/>when: !${inputs.findings_only}"}}
   n_findings_approval{{"Approve the research findings<br/>findings-approval<br/>gate<br/>Research complete. Continue?<br/>continue-to-completion: continue, revise-research: revise → research-foundation, stop-research: stop<br/>when: ${inputs.findings_only}"}}
   n_solution_generation{"Solution brainstorming<br/>solution-generation<br/>agent:solution-brainstormer<br/>when: ${foundation-approval.values.brainstorming_enabled}"}
   n_solution_convergence{"Solution convergence<br/>solution-convergence<br/>direct:solution-convergence<br/>when: ${foundation-approval.values.brainstorming_enabled}"}

@@ -108,7 +108,7 @@ import { baseAtFreeze } from './git-tree.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun } from './driver.mjs';
-import { atClose, heldApprovalBefore, renderedLabels } from './gate-brief.mjs';
+import { atClose, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, publishRun } from './display-files.mjs';
@@ -1311,6 +1311,7 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null) {
   }
   if (patch.nodes) mirrorOntoRecorded(doc, patch.nodes, patch.node_summaries, changed);
   if (patch.nodes && runDir !== null) registerCompleted(doc, patch.node_summaries, out.before, runDir, changed);
+  if (patch.nodes && runDir !== null) settleNeeds(doc, patch.nodes, out.before, runDir, now, out, graphOf);
   if (patch.nodes && runDir !== null) assertDelegates(doc, out.before, runDir, graphOf);
   // The document as it now stands, parsed once for the passes below and again
   // only after a pass that changed it.
@@ -4142,6 +4143,43 @@ function registerCompleted(doc, summaryPatch, before, runDir, changed) {
     doc.set(['node_summaries', id], block(id, entryCopy, 2));
     if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
   }
+}
+
+/**
+ * A node does not complete while a node it needs has not ended.
+ *
+ * Judged on the document this write produced, for each node the patch sends
+ * `completed` that was not already recorded so: a need the same write records
+ * `skipped` or `completed` counts as ended. A start is not judged: a session
+ * may start a step it was briefed before the record of the step ahead lands,
+ * and the completion is where the record must be whole. A run once recorded
+ * its implementation completed while the gate it needs was still pending, and
+ * its close took it for finished.
+ *
+ * What stands in the way is split the way the close splits it (`unmetNeeds`).
+ * A node off the path the run took — a false guard, or a skip the ready-set
+ * rule decides — is the engine's own judgement, so this write records it
+ * `skipped`, stamped like any skip, and says so in a note: the record then
+ * shows the skip on every host, whether or not the session wrote it. Any node
+ * still on the path refuses the write, naming it, and nothing is recorded.
+ */
+function settleNeeds(doc, nodes, before, runDir, now, out, graphOf) {
+  const completing = Object.entries(nodes)
+    .filter(([id, entry]) => id !== HELD_APPROVAL && isPlainObject(entry) && entry.status === 'completed' && before[id] !== 'completed')
+    .map(([id]) => id);
+  if (!completing.length) return;
+  const { gaps, skippable, toRun } = unmetNeeds({ doc: typedOf(doc), runDir, ids: completing });
+  if (!gaps.length) return;
+  if (toRun.length) {
+    const named = gaps.map(({ id, needs }) => `${id} needs ${needs.join(', ')}`).join('; ');
+    const off = skippable.length ? ` ${skippable.join(', ')} ${skippable.length === 1 ? 'is' : 'are'} off the path (a false guard) and will be recorded skipped by that write.` : '';
+    throw new Refusal('state-node-needs-unmet',
+      `this write completes a node before a node it needs has ended: ${named}. Nothing was written. ${toRun.join(', ')} `
+      + `${toRun.length === 1 ? 'is' : 'are'} on the path the run takes, so run or ask ${toRun.length === 1 ? 'it' : 'them'} first, then send this write again.${off} `
+      + 'Never record a node completed or skipped to get past this: the record says which steps ran');
+  }
+  applyNodes(doc, Object.fromEntries(skippable.map(id => [id, { status: 'skipped' }])), now, out.changed, out.ignored, graphOf, out.undeclared);
+  out.notes.push(`recorded ${skippable.join(', ')} skipped: ${skippable.length === 1 ? 'it is' : 'they are'} off the path this run took (a false guard), and ${gaps.map(({ id }) => id).join(', ')} needs ${skippable.length === 1 ? 'it' : 'them'} ended to complete`);
 }
 
 /**

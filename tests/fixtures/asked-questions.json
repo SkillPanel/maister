@@ -1775,7 +1775,8 @@
               "continue-to-brainstorming",
               "continue-to-design",
               "finish-with-research",
-              "revise-research"
+              "revise-research",
+              "stop-research"
             ],
             "transport": "gate-request"
           }
@@ -1844,7 +1845,8 @@
               "continue-to-brainstorming",
               "continue-to-design",
               "finish-with-research",
-              "revise-research"
+              "revise-research",
+              "stop-research"
             ],
             "transport": "gate-request"
           }
@@ -1952,7 +1954,8 @@
           "continue-to-brainstorming",
           "continue-to-design",
           "finish-with-research",
-          "revise-research"
+          "revise-research",
+          "stop-research"
         ]
       },
       {
