@@ -43,7 +43,7 @@ function plan(groups) {
 test('the implementation phase progresses wave by wave through write-state alone', t => {
   const run = scratch(t);
   freeze(run);
-  write(run, { nodes: { implementation: { status: 'running' } } });
+  write(run, { nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'running' } } });
   const dir = path.join(run.dir, 'implementation');
   fs.mkdirSync(dir);
   const planFile = path.join(dir, 'implementation-plan.md');

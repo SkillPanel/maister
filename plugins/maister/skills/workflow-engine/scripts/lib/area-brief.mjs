@@ -71,6 +71,9 @@ import { reread } from './gate-brief.mjs';
 import { QUESTION_PREFIX, WARNING, areaDetails, areaEntry, areaPicker, loadAreas } from './decision-areas.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
 
+// The question tool's call for an area, for `area-brief --ask`: the verb loads this module alone.
+export { formOf } from './checkpoint.mjs';
+
 /** The one reference a convergence node may name its areas by: the producer's declared artifact, whole. */
 const REFERENCE = /^\$\{([a-z][a-z0-9-]*)\.artifacts\.decision_areas\}$/;
 

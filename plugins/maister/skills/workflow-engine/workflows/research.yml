@@ -23,9 +23,10 @@
 # No node carries `on:`. Under the default, a `needs` entry is satisfied by a
 # completed or a skipped predecessor but never by a stopped one, which is what
 # makes each stop option actually end the run: nothing after it is ever ready.
-# The foundation gate carries no stop. Its four options are the most its
-# question holds, and finishing with the research is its way out, the final
-# summary still written.
+# The foundation gate offers a stop beside its three ways on and its revise,
+# as every approval gate does; finishing with the research is the way out that
+# still writes the final summary. Five options are one more than a previewing
+# picker lists, so there the stop is named in the question as also offered.
 #
 # A run for its findings only asks a different gate after the foundation. A
 # parent that wants the research and nothing after it sets `findings_only`, and
@@ -127,8 +128,8 @@ display:
     design-approval:          "Approve design"
     completion:               "Final summary"
   option_labels:
-    # Going on without brainstorming or the design takes the place of a stop.
-    # Its label is a bare "Continue", which the gate brief completes with where
+    # Going on without brainstorming or the design is a bare "Continue", which
+    # the gate brief completes with where
     # the run goes: the final summary, or under a parent run the parent's next
     # step, since an embedded run skips the summary and simply ends.
     foundation-approval:
@@ -136,6 +137,7 @@ display:
       continue-to-design: "Continue to the design, skip brainstorming"
       finish-with-research: "Continue"
       revise-research: "Revise the research"
+      stop-research: "Stop here"
     # The final summary is skipped in an embedded run, which then finishes:
     # the label names no destination and the gate brief names the one that runs.
     findings-approval:
@@ -231,6 +233,7 @@ nodes:
       continue-to-design: {effect: continue, sets: {brainstorming_enabled: false, design_enabled: true}}
       finish-with-research: {effect: continue, sets: {brainstorming_enabled: false, design_enabled: false}}
       revise-research: {effect: revise, reruns: research-foundation}
+      stop-research: stop
 
   findings-approval:
     type: gate

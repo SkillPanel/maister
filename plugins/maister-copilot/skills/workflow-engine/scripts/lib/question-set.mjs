@@ -20,7 +20,7 @@
  * Pure: no I/O. Zero dependencies beyond the checkpoint, display, evidence and item helpers.
  */
 
-import { flowLine } from './checkpoint.mjs';
+import { RECOMMENDED_MARK, flowLine, unmarked } from './checkpoint.mjs';
 import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
 import { HEADER_MAX } from './display.mjs';
 import { evidenceKey } from './evidence.mjs';
@@ -214,6 +214,43 @@ export function questionCheckpoint({ set, node, title, header, progress, run }) 
     })),
     run,
     truncated: false,
+  };
+}
+
+/**
+ * A question set as a labels-only question tool's own arguments: the ask as
+ * the message, and a form with one property per question, keyed by its id and
+ * titled by its header. The tool shows labels only, so everything an option's
+ * description says rides in the property's description — the question, why it
+ * is asked, a line per option with what choosing it does, and the
+ * recommendation — and the recommended option's title reads `(Recommended)`.
+ * A single choice is a string whose choices are the options, each its id as
+ * the value and its label as the title; a multi-select is an array of them;
+ * the default is the set's default. Built here so the session passes it as it
+ * stands: a form composed by hand dropped the labels and the descriptions and
+ * left the user choosing between bare ids. Plain text throughout, because the
+ * tool shows markdown as typed.
+ */
+export function setForm(checkpoint) {
+  const properties = {};
+  for (const question of checkpoint.questions) {
+    const choices = question.options.map(option => ({
+      const: option.id,
+      title: unmarked(`${option.label}${option.recommended ? RECOMMENDED_MARK : ''}`),
+    }));
+    const lines = [unmarked(question.question)];
+    if (question.why) lines.push(unmarked(question.why));
+    for (const option of question.options.filter(each => each.description)) lines.push(unmarked(`${option.label}: ${option.description}`));
+    const recommended = question.options.filter(option => option.recommended).map(option => option.label);
+    if (recommended.length) lines.push(unmarked(`Recommended: ${recommended.join(LABEL_JOIN)}.`));
+    const fallback = question.default === undefined ? {} : { default: question.default };
+    properties[question.id] = question.multi_select
+      ? { type: 'array', title: question.header, description: lines.join('\n'), items: { anyOf: choices }, ...fallback }
+      : { type: 'string', title: question.header, description: lines.join('\n'), oneOf: choices, ...fallback };
+  }
+  return {
+    message: unmarked([checkpoint.headline, checkpoint.ask].filter(Boolean).join('\n')),
+    requestedSchema: { type: 'object', properties, required: checkpoint.questions.map(question => question.id) },
   };
 }
 

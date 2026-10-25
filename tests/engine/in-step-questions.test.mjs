@@ -200,7 +200,7 @@ test('usage: a question set renders as the checkpoint or the request only', t =>
   for (const form of ['--json', '--oneline']) {
     const result = brief(run, questionSet(), form);
     assert.equal(result.code, 2);
-    assert.match(result.stderr, /--patch-file only with --request or --checkpoint/);
+    assert.match(result.stderr, /--patch-file only with --request, --checkpoint or --ask/);
   }
   assert.equal(brief(run, '{not json', '--request').code, 2);
 });

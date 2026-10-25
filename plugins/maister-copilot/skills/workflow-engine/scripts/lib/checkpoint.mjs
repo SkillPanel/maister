@@ -930,6 +930,26 @@ export function formOf({ question, header, options }) {
   };
 }
 
+/**
+ * A revise's note question as the labels-only tool's own arguments: the
+ * question as the message, and one property, `note`, whose choices are the
+ * suggestions — any of them, none recommended, each its note as both value and
+ * title, so the chosen values joined by `; ` are the note. With fewer than two
+ * suggestions the property is text, and the reply is the note.
+ */
+export function noteForm(noteQuestion) {
+  const property = noteQuestion.multi_select
+    ? { type: 'array', title: noteQuestion.header, items: { anyOf: noteQuestion.options.map(option => ({ const: option.label, title: option.label })) } }
+    : { type: 'string', title: noteQuestion.header };
+  return {
+    message: unmarked(noteQuestion.question),
+    requestedSchema: { type: 'object', properties: { [NOTE_PROPERTY]: property }, required: [NOTE_PROPERTY] },
+  };
+}
+
+/** The one property of a note question's form. */
+export const NOTE_PROPERTY = 'note';
+
 /** An inline code span: a run of backticks, the code, and a run of the same length. */
 const CODE_SPAN = /(?<!`)(`+)([^`\n][^\n]*?)(?<!`)\1(?!`)/g;
 

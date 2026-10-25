@@ -132,7 +132,7 @@ test('the status line names the mode while the executor or the verifier runs, an
   write(run, { nodes: { analysis: { status: 'completed' }, implementation: { status: 'running' } } });
   assert.match(statusOf(run).line, / · Implementation · nested · /);
 
-  write(run, { nodes: { implementation: { status: 'completed' }, review: { status: 'running' } } });
+  write(run, { nodes: { approval: { status: 'completed' }, implementation: { status: 'completed' }, review: { status: 'running' } } });
   const status = statusOf(run);
   assert.equal(status.line, `${status.workflow} · phase ${status.phase.index}/${status.phase.total} · Peer review · nested · Sample run`);
 

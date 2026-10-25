@@ -221,10 +221,12 @@ first area and a recommendation line for the rest:
   description the reason; each other's description its key pro and con —
   where the tool shows no descriptions, the question's line does — and
   **More details** last;
-- **the recommendation**: the question's last line before the ask is
-  "Recommended: <alternative> — <reason>", because the form shows no option
-  descriptions; the question is plain text, with no `**` or list markers,
-  which the form shows as typed;
+- **the call**: the area is a question set of one question, its options the
+  alternatives with their descriptions, the recommended one marked, asked from
+  `gate-brief --ask --patch-file` (`references/in-node-questions.md`), which
+  carries each description and the recommendation into the form; the
+  question is plain text, with no `**` or list markers, which the form shows
+  as typed;
 - **the cap**: with more alternatives than the options hold beside More
   details, offer the recommended one and its strongest rivals and name the
   rest in the question, for the free-text answer; every alternative stays in

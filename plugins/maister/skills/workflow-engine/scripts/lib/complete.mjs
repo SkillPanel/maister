@@ -83,6 +83,16 @@
  * before the close-out check, so a run with both defects finishes its work
  * before it publishes the close-out that says it is over.
  *
+ * WHAT A COMPLETED RUN MAY NOT HAVE PASSED. A node recorded `completed` while
+ * a node it needs never ended — still `pending`, say, because its guard was
+ * false and nobody recorded it skipped — is a record that no longer says which
+ * steps ran, and the close used to take it for finished, because the walk
+ * keeps a false-guard node off the path. So a run that recorded `completed` is
+ * refused `run-needs-unmet` first, naming each completed node and its unended
+ * needs, with the patch that records the off-path ones skipped. The state
+ * writer refuses the same write as it lands (`state-node-needs-unmet`); this
+ * catches a record that reached the close another way.
+ *
  * WHAT A COMPLETED RUN MAY NOT LEAVE UNAPPROVED. A choice the state writer
  * held for a person's approval is not the run's to take: `held-approval`, the
  * checkpoint raised before the close, asks for it. A run that recorded
@@ -127,7 +137,7 @@
  * nothing is checked and a warning says so rather than guessing.
  *
  * The codes this module raises: `state-missing`, `state-unreadable`,
- * `run-not-ended`, `run-nodes-unfinished`, `run-held-unapproved` and
+ * `run-not-ended`, `run-needs-unmet`, `run-nodes-unfinished`, `run-held-unapproved` and
  * `closeout-unpublished`. The
  * failed ending's `run-failed` rides beside its marker and is not a refusal.
  */
@@ -139,7 +149,7 @@ import { published } from '../../../../lib/outbox-files.mjs';
 import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
 import { isDispatchedRun } from './driver.mjs';
-import { atClose, heldApprovalBefore } from './gate-brief.mjs';
+import { atClose, heldApprovalBefore, unmetNeeds } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
 import { gateAnswer } from './items.mjs';
 import { HELD_APPROVAL, isOpenHeld, outstandingHeld } from './question-triage.mjs';
@@ -177,6 +187,10 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
 
     const runDir = path.dirname(path.resolve(state));
     const close = atClose({ doc, runDir });
+    if (status === 'completed') {
+      const passed = unmetNeeds({ doc, runDir, ids: nodesOf(doc).filter(([, entry]) => entry.status === 'completed').map(([id]) => id) });
+      if (passed.gaps.length) throw new Refusal('run-needs-unmet', needsUnmet(state, passed));
+    }
     if (status === 'completed' && close.owed.length) {
       throw new Refusal('run-nodes-unfinished', unfinished(state, close, heldApprovalBefore({ doc, runDir, owed: close.owed })));
     }
@@ -263,6 +277,21 @@ function unfinished(state, { owed, drift }, before = null) {
   return `${state} records task.status completed, but ${count} not finished: ${named.join(', ')}. ${rule} `
     + `Resume the run and run ${one ? 'it' : 'each of them'}${skipped}; then write the closing patch again and run this verb again. `
     + `A run that cannot finish ${one ? 'it' : 'them'} ends failed, or stopped with every unexecuted node, instead. Never record a node completed that did not run.`;
+}
+
+/**
+ * The passed-needs refusal: each completed node recorded past a need that never
+ * ended, and the recovery — record skipped the ones off the run's path, run the
+ * others — never a status written over a node to make the record fit.
+ */
+function needsUnmet(state, { gaps, skippable, toRun }) {
+  const named = gaps.map(({ id, needs }) => `${id} needs ${needs.join(', ')}`).join('; ');
+  const steps = [];
+  if (skippable.length) steps.push(`record skipped ${skippable.join(', ')}, off the path the run took (a false guard): ${JSON.stringify({ nodes: Object.fromEntries(skippable.map(id => [id, { status: 'skipped' }])) })}`);
+  if (toRun.length) steps.push(`resume the run and run ${toRun.join(', ')}, which the path still holds`);
+  return `${state} records task.status completed, but a completed node was recorded past a node it needs that never ended: ${named}. `
+    + `A completed node's needs have all ended, completed or recorded skipped, or the record does not say which steps ran. `
+    + `${steps.join('; then ').replace(/^./, c => c.toUpperCase())}; then run this verb again.`;
 }
 
 /**

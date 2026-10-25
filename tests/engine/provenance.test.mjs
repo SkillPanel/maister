@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, OPERATOR, freeze, readState, scratch, verb, write } from '../helpers.mjs';
+import { FIXTURES, OPERATOR, freeze, reach, readState, scratch, verb, write } from '../helpers.mjs';
 import { decisionOf, gateAnswer } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
@@ -87,7 +87,7 @@ function noGrants(run) {
 test('a terminal gate answer gains a person actor; one carrying its own name and no via gains none', t => {
   const run = scratch(t);
   freeze(run, { definition: REVISE });
-  write(run, {
+  reach(run, {
     nodes: { 'review-approval': { status: 'completed' } },
     node_summaries: { 'review-approval': { decisions: [{ option: 'publish-draft' }] } },
   });
@@ -96,7 +96,7 @@ test('a terminal gate answer gains a person actor; one carrying its own name and
 
   const named = scratch(t);
   freeze(named, { definition: REVISE });
-  write(named, {
+  reach(named, {
     nodes: { 'review-approval': { status: 'completed' } },
     node_summaries: { 'review-approval': { decisions: [{ option: 'publish-draft', answered_by: '@marek' }] } },
   });
@@ -280,7 +280,7 @@ test('a flat gate answer moves its provenance onto the decision; an actor it car
   const run = scratch(t);
   freeze(run, { definition: REVISE });
   const actor = { kind: 'agent', id: 'helper' };
-  write(run, {
+  reach(run, {
     nodes: { 'review-approval': { status: 'completed' } },
     node_summaries: { 'review-approval': { answer: 'publish-draft', actor, on_behalf_of: 'lee', evidence: ['notes.md'], override_of: 'hold-draft' } },
   });
@@ -294,7 +294,7 @@ test('a flat gate answer moves its provenance onto the decision; an actor it car
 test('a flat gate answer drops a grants key written beside it', t => {
   const run = scratch(t);
   freeze(run, { definition: REVISE });
-  write(run, {
+  reach(run, {
     nodes: { 'review-approval': { status: 'completed' } },
     node_summaries: { 'review-approval': { answer: 'publish-draft', grants: ['push'], on_behalf_of: 'lee' } },
   });
@@ -390,7 +390,7 @@ test('a changed in-node answer does not inherit the held answer\'s provenance, a
 test('the writer strips grants from any decision a patch sends', t => {
   const run = scratch(t);
   freeze(run, { definition: REVISE });
-  write(run, {
+  reach(run, {
     nodes: { 'review-approval': { status: 'completed' } },
     node_summaries: {
       'review-approval': { decisions: [{ option: 'publish-draft', grants: ['push'] }] },
@@ -404,7 +404,7 @@ test('the writer strips grants from any decision a patch sends', t => {
 test('a flat answer whose decision was already sent merges its provenance onto that decision', t => {
   const run = scratch(t);
   freeze(run, { definition: REVISE });
-  write(run, {
+  reach(run, {
     nodes: { 'review-approval': { status: 'completed' } },
     node_summaries: { 'review-approval': { answer: 'publish-draft', on_behalf_of: 'lee', evidence: ['notes.md'], decisions: [{ option: 'publish-draft', override_of: 'hold-draft' }] } },
   });

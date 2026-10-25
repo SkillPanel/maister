@@ -89,9 +89,11 @@ question for the mockups.
   decision for that area.
 <!-- /rich-picker -->
 <!-- plain-picker
-  The call is one form with one property per question, each an enum of its options with the
-  recommended option as its default and the recommendation's reason in the property's
-  description; the form shows each property on a tab of its own.
+  The call is one form with one property per question, each a choice of its options — `oneOf`
+  entries of `const` (the option's id) and `title` (its label, the recommended one's ending
+  "(Recommended)"), never a bare `enum` of ids — with the recommended option as its default, and
+  each option's description and the recommendation's reason as lines of the property's
+  description, since the form shows labels only; the form shows each property on a tab of its own.
 -->
 
 **"Show me mockups first"** makes the sketches as in step 3, shows them, and asks the area

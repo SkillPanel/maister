@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, scratch, scratchPlugin, run, sibling, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, scratch, scratchPlugin, run, sibling, verb, write } from '../helpers.mjs';
 
 // The brief a step reads before it runs: the facts the engine derives for it —
 // how it runs, its guard, its attempt, its inputs filled in, the files it
@@ -134,7 +134,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   const red = nodeBrief(dev.state, 'tdd-red');
   assert.equal(red.code, 0, red.stderr);
   assert.match(red.stdout, /^when: \$\{gap-analysis\.values\.has_reproducible_defect\} — now not yet decidable$/m);
-  write(dev, { nodes: { 'gap-analysis': { status: 'completed', values: { has_reproducible_defect: true, mockups_needed: false, risk_level: 'low' } } } });
+  reach(dev, { nodes: { 'gap-analysis': { status: 'completed', values: { has_reproducible_defect: true, mockups_needed: false, risk_level: 'low' } } } });
   assert.match(nodeBrief(dev.state, 'tdd-red').stdout, /^when: .* — now true$/m);
   assert.match(nodeBrief(dev.state, 'ui-mockups').stdout, /^when: .* — now false$/m);
 

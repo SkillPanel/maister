@@ -149,8 +149,9 @@ brief's `delegates:` line prints; the closing write lists it under `delegated`.
   each saying what the verification would check; a target of the user's own
   comes through Other.
 
-The page is one form of three properties; where the tool shows no option
-descriptions, each option's reason is its line in the property's description.
+The page is one call of three properties, from `gate-brief --ask --patch-file`
+(`references/in-node-questions.md`), which puts each option's reason in its
+property's description, since the tool shows no option descriptions.
 
 **With question sets** (`optimization-priorities`): asked through the cockpit,
 in this node's one request; "Choose individually" would

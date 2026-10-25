@@ -923,8 +923,13 @@ test('approvals: re-sending an earlier gate\'s continue after a later hold appro
   assert.equal(decisionsAt(run, 'review-approval').length, before.length);
   assert.deepEqual(keyed(outstandingHeld(readState(run))), [['drafting', 'signed-choice', 1]]);
 
-  // So the run still owes a checkpoint for it, and run-complete refuses while it is unasked.
-  ok(QUESTIONS.engine, run, { task: { status: 'completed' }, nodes: { notes: { status: 'skipped' }, finish: { status: 'completed' } } });
+  // So the run still owes a checkpoint for it: the writer refuses the step behind
+  // it completing, the gate still on the path, and run-complete refuses while it is unasked.
+  const unasked = fs.readFileSync(run.state, 'utf8');
+  const past = refused(send(QUESTIONS.engine, run, { nodes: { notes: { status: 'skipped' }, finish: { status: 'completed' } } }), 'state-node-needs-unmet');
+  assert.match(past.stderr, /finish needs notes-approval/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), unasked, 'nothing was written');
+  ok(QUESTIONS.engine, run, { task: { status: 'completed' }, nodes: { notes: { status: 'skipped' } } });
   const closing = runScript(QUESTIONS.engine, ['run-complete', `--state=${run.state}`]);
   assert.equal(closing.stdout, 'RUN-FAILED: run-nodes-unfinished\n', closing.stderr);
   assert.match(closing.stderr, /notes-approval \(pending; asked because held choices wait for approval\)/);
