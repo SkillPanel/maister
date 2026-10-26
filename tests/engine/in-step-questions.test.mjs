@@ -6,6 +6,7 @@ import path from 'node:path';
 import { FIXTURES, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { scanState } from '../../plugins/maister/lib/state-scan.mjs';
+import { checkSet } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-set.mjs';
 
 // A question a node asks inside itself suspends to the operator only under a
 // cockpit driver that lists `question-sets`. The node writes its set to the
@@ -102,6 +103,83 @@ test('request: a question set becomes one kind: question request, the committed 
   delete fixture.context.checkpoint.run;
   delete checkpoint.run;
   assert.deepEqual(request, fixture);
+});
+
+test('request: a recommendation read from a label mark or a "Recommended:" description is stated in the written request, leaving a second reader nothing to derive', t => {
+  const run = running(t);
+  const set = {
+    questions: [{
+      // A typed mark wins over a description that also says "Recommended:".
+      id: 'bad-filter', question: 'What does an invalid ?priority= return?', options: [
+        { id: 'reject', label: 'Return 400 (Recommended)', description: 'Rejects bad input early.' },
+        { id: 'ignore', label: 'Ignore it', description: 'Recommended: matches ?done=.' },
+      ],
+    }, {
+      // The description alone recommends, and keeps only its reason.
+      id: 'user-docs', question: 'Write an end-user guide?', options: [
+        { id: 'off', label: 'No user guide', description: 'Recommended: nothing to document.' },
+        { id: 'on', label: 'Write a user guide', description: 'A guide in the task directory.' },
+      ],
+    }, {
+      // A multi-select whose marks recommend two of three.
+      id: 'csv-extras', question: 'Which extra columns?', multi_select: true, options: [
+        { id: 'timestamp', label: 'Timestamp (Recommended)' },
+        { id: 'operator', label: 'Operator (recommended)' },
+        { id: 'emoji', label: 'Emoji' },
+      ],
+    }, {
+      // The writer's flag stands, and another option's "Recommended" opening goes.
+      id: 'tag-case', question: 'Ignore letter case?', options: [
+        { id: 'exact', label: 'Exact match', description: '(Recommended) - the tags are typed by hand.' },
+        { id: 'folded', label: 'Ignore case', recommended: true },
+      ],
+    }, {
+      // Nothing recommended: an option flagged false keeps no opening to adopt.
+      id: 'export', question: 'Export format?', options: [
+        { id: 'csv', label: 'CSV', description: 'Recommended: spreadsheets read it.', recommended: false },
+        { id: 'json', label: 'JSON' },
+      ],
+    }],
+  };
+  const result = brief(run, set);
+  assert.equal(result.code, 0, result.stderr);
+  const request = JSON.parse(result.stdout);
+  const { checkpoint } = request.context;
+  const expected = { 'bad-filter': ['reject'], 'user-docs': ['off'], 'csv-extras': ['timestamp', 'operator'], 'tag-case': ['folded'], export: null };
+
+  // Every copy of the options a reader may take: the top level, each request question, the checkpoint.
+  const copies = [
+    ['options', 'bad-filter', request.options],
+    ...request.questions.map(question => ['questions', question.id, question.options]),
+    ...checkpoint.questions.map(question => ['checkpoint', question.id, question.options]),
+  ];
+  assert.equal(copies.length, 11);
+  for (const [where, id, options] of copies) {
+    const at = `${where} ${id}`;
+    for (const option of options) {
+      assert.doesNotMatch(option.label, /\(recommended\)/i, `${at} ${option.id}: no mark left in a label`);
+      if (option.description !== undefined) assert.doesNotMatch(option.description, /^\s*\(?recommended\)?\s*[:.—–-]/i, `${at} ${option.id}: no "Recommended:" opening`);
+    }
+    if (expected[id] === null) {
+      assert.ok(options.every(option => !Object.hasOwn(option, 'recommended')), `${at}: nothing recommended, nothing flagged`);
+      continue;
+    }
+    assert.ok(options.every(option => typeof option.recommended === 'boolean'), `${at}: every option says true or false`);
+    assert.deepEqual(options.filter(option => option.recommended).map(option => option.id), expected[id], at);
+  }
+  // The reasons stay, without the opening.
+  const options = Object.fromEntries(checkpoint.questions.map(question => [question.id, question.options]));
+  assert.equal(options['user-docs'][0].description, 'Nothing to document.');
+  assert.equal(options['bad-filter'][1].description, 'Matches ?done=.');
+  assert.equal(options['tag-case'][0].description, 'The tags are typed by hand.');
+  assert.equal(options.export[0].description, 'Spreadsheets read it.');
+  assert.deepEqual(checkpoint.questions.map(question => question.default), ['reject', 'off', ['timestamp', 'operator'], 'folded', undefined]);
+
+  // A second reader that normalises the written checkpoint again reads the same set, option for option.
+  const reread = checkSet({ questions: checkpoint.questions });
+  assert.ok(reread.ok, reread.errors?.join('; '));
+  assert.deepEqual(reread.set.questions.map(question => question.options), checkpoint.questions.map(question => question.options));
+  assert.deepEqual(reread.set.questions.map(question => question.default), checkpoint.questions.map(question => question.default));
 });
 
 test('request: --checkpoint prints the same checkpoint, and the set may name its own ask, headline and triage', t => {

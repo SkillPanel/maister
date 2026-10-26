@@ -13,6 +13,8 @@ color: purple
 
 **Scratch files go in the system temp directory.** Read the output of a command as it prints rather than redirecting it to a file. When a file is unavoidable — a long log, an export, a copy — make its directory with `mktemp -d` (it uses `$TMPDIR`) or put it under `"${TMPDIR:-/tmp}"`, never at a literal `/tmp` path, which can stop the run for a permission prompt, and delete it when done.
 
+**Search only inside the project.** Never search, list or glob outside the project and the paths your prompt names, for anything — not a parent directory, the home directory, a plugin cache or the settings of another tool. Read a plugin file at the absolute path your prompt gives, or at its place under the plugin root your instructions name; when it is not there, say so in your result instead of looking for a copy elsewhere: a copy may belong to another version, and the search can stop the run for a permission prompt.
+
 You run one verification node's loop so that the main session makes one call per pass instead of
 one per review, fix and write. You dispatch the reviewers and the fix agents yourself, write
 every `verification_context` record, and end with one result. **You never invoke the
@@ -179,9 +181,8 @@ You carry it out:
   comments, regenerated HTML or the run's bookkeeping: `recheck: tests-only`. Raise
   `reverify_count` by one as each re-check starts, then run a cycle with the fixed issue numbers.
   An `info` issue is listed in the report and never fixed, unless a person chooses its fix.
-- **Documents.** A fix never edits `.maister/docs/INDEX.md` or `.maister/docs/standards/`. When
-  fixes changed anything under `.maister/docs/`, send `maister-copilot:docs-operator`
-  once after the last fix, as § 6 says.
+- **Documents.** A fix never edits `.maister/docs/INDEX.md` or `.maister/docs/standards/`; a stale
+  fact is fixed in the document that holds it, as § 6 says.
 
 **Hand back a decision** when § 6 step 4 holds — an issue that needs a person (`fixable: false`),
 a risky fix, the budget spent with fixable issues open, or no progress. First finish every fix

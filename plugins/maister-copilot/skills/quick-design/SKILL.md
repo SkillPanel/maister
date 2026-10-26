@@ -36,7 +36,9 @@ once, and write `decision.md`. No engine run, no state file, no phases.
 ### 1. Get the question
 
 Use the argument. If none, take it from the recent conversation. Only when nothing there is
-inferable, ask with `ask_user`: "What design question should we settle?"
+inferable, ask in plain text — "What design question should we settle?" — and wait for the answer:
+with nothing to pick from it is not a question-tool call, which takes two options or more on
+Claude Code.
 
 ### 2. Frame
 

@@ -56,14 +56,14 @@ Wait for completion. Store analysis results for use in Phases 3 and 6.
 
 ## PHASE 3: Confirm Findings & Gather Context
 
-Every question here carries its own context — the findings go in the question, never in a message above it.
+Every question here carries its own context — the findings go in the question, never in a message above it. Every question offers at least two real options — one option is nothing to choose, and Claude Code's question tool refuses it: a finding with nothing to choose is stated, never asked.
 
-**Step 1 — Confirm the analysis.** One AskUserQuestion whose question lists what was detected, one line each: project type, language and framework, architecture, the main tech stack, anything the analyzer flagged as custom or low confidence, and the project profile fields (Phase 5 Step 3) the analysis could not settle, by what each asks ("Not found: where it deploys, who reaches it"), so a correction can settle them. Options: "Looks right (Recommended)" and up to three generated corrections, drawn from what the analyzer was least sure of ("It's a monorepo, not a single app", "The backend is Fastify, not Express"). A free-text correction is the Other answer. Apply corrections before going on.
+**Step 1 — Confirm the analysis.** One AskUserQuestion whose question lists what was detected, one line each: project type, language and framework, architecture, the main tech stack, anything the analyzer flagged as custom or low confidence, and the project profile fields (Phase 5 Step 3) the analysis could not settle, by what each asks ("Not found: where it deploys, who reaches it, who uses it"), so a correction can settle them. Options: "Looks right (Recommended)" and one to three generated corrections, drawn from what the analyzer was least sure of ("It's a monorepo, not a single app", "The backend is Fastify, not Express"). A free-text correction is the Other answer. Apply corrections before going on.
 
 **Step 2 — Project context, one page.** One AskUserQuestion call with up to three questions:
-- **Description**: drafted from the README and the analysis in one or two sentences, quoted in the question itself ("Describe the project as: '…'?"), with "Use this (Recommended)"; the user's own wording is the Other answer. The project name comes from the manifest or folder and is not asked.
-- **Goals** (optional): up to three generated goals fitting a new, existing or legacy project, plus "Skip". The goal the analysis best supports comes first, marked "(Recommended)", the question saying in a few words what it rests on.
-- **Team context** (optional): generated options ("Solo project", "Small team", "Several teams") plus "Skip". The option the repository's history supports — the number of distinct commit authors — is marked "(Recommended)", the question naming that count; with no history to read, "Skip" is.
+- **Description**: drafted from the README and the analysis in one or two sentences, quoted in the question itself ("Describe the project as: '…'?"), with "Use this (Recommended)" and one generated alternative — a shorter wording, or one built on another reading of what the project is — its full text in the option's description; the user's own wording is the Other answer. When no real alternative exists, the description is not asked: Phase 7's summary states it, and the documents it lands in can be edited. The project name comes from the manifest or folder and is not asked.
+- **Goals** (optional): one to three generated goals fitting a new, existing or legacy project, plus "Skip". The goal the analysis best supports comes first, marked "(Recommended)", the question saying in a few words what it rests on.
+- **Team context** (optional): generated options ("Solo project", "Small team", "Several teams") plus "Skip". The option the repository's history supports — the number of distinct commit authors — is marked "(Recommended)", the question naming that count; with no history to read, "Skip" is. It says who builds the project, never who uses it, so it settles no profile field.
 
 Each question's default is its recommended option. "Skip" is offered on an optional question, never its default, unless it is the option recommended: a user who confirms the page as it stands takes what the analysis supports.
 <!-- plain-picker
@@ -148,7 +148,9 @@ subagents:
   agents:
     Explore: { tier: light }   # the codebase scouts maister starts
     project-analyzer: { tier: light }
-    docs-operator: { tier: light }
+    # the docs operator and the standards scans: your session's model on Claude Code, standard on Copilot
+    docs-operator: { tier: { claude: inherit, copilot: standard } }
+    standards-scanner: { tier: { claude: inherit, copilot: standard } }
     task-classifier: { tier: light }
     test-suite-runner: { tier: light }
     html-companion-writer: { tier: light }
@@ -196,10 +198,10 @@ with `LARGE_CODEBASE_FILES`'s value as the number in the comment. Otherwise writ
 | `deploy` | the infrastructure found: `none`, `local`, `container`, `kubernetes`, `serverless`, `package-registry` or `app-store` |
 | `exposure` | who reaches its entry points: `local`, `internal` or `public` |
 | `data` | the stores it writes (`[postgres, files]`); `[]` for none |
-| `scale` | from the team context and the architecture: `single-user`, `team` or `multi-tenant` |
+| `scale` | who uses it, from what the code shows — per-user accounts or sessions, tenant or organisation keys on its data — or the user's answer: `single-user`, `team` or `multi-tenant` |
 | `ui` | `none`, `web`, `tui` or `native` |
 
-Leave out any field the analysis or a correction does not settle; a guess is worse than a gap, because a field rules checks out. `deploy` and `exposure` are settled only by something found — a deploy configuration, a container or infrastructure file, a bind address, a public route — or by the user's answer; finding nothing settles nothing, so `none` or `local` is never written for lack of evidence. Send the fields as one JSON object to the workflow engine's `project-profile` verb, from the project root: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs project-profile <<< '<json>'`. It writes the block only when `config.yml` has no top-level `project:` key — appended after one blank line, every other line unchanged — and leaves an existing key alone; a field left out, or one with a value it does not take, is written commented out with the values it takes, the latter with a `warning:` line. Its JSON reply says what it did (`action`: `created`, `appended` or `kept`) and the block it wrote; keep both for Phase 7's summary.
+Leave out any field the analysis or a correction does not settle; a guess is worse than a gap, because a field rules checks out. `deploy`, `exposure` and `scale` are settled only by something found — a deploy configuration, a container or infrastructure file, a bind address, a public route, accounts or tenant keys in the data model — or by the user's answer; finding nothing settles nothing, so `none`, `local` or `single-user` is never written for lack of evidence, and the team context, which says who builds the project, never settles `scale`. A field Step 1 named as not found stays out unless a correction settled it, as that question told the user. Send the fields as one JSON object to the workflow engine's `project-profile` verb, from the project root: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs project-profile <<< '<json>'`. It writes the block only when `config.yml` has no top-level `project:` key — appended after one blank line, every other line unchanged — and leaves an existing key alone; a field left out, or one with a value it does not take, is written commented out with the values it takes, the latter with a `warning:` line. Its JSON reply says what it did (`action`: `created`, `appended` or `kept`) and the block it wrote; keep both for Phase 7's summary.
 
 ---
 
@@ -231,7 +233,7 @@ Write each file to `.maister/docs/project/`.
 Wait for docs-operator to complete, then immediately continue with Step 2.
 
 **Step 2**: Display comprehensive summary. Include any failure docs-operator reported.
-- Project analysis results (type, language, framework, architecture)
+- Project analysis results (type, language, framework, architecture), and the project description as written when Phase 3 did not ask it
 - Structure created (tree with check marks for created items)
 - Documentation status (which docs generated, which standards initialized)
 - Project config: whether `.maister/config.yml` was created, had the `subagents` block appended, or already held a `subagents` block and was left alone; the file count and the `Explore` tier it chose; and the `subagents` block written or appended, as written. Note that the block governs the agent calls maister makes; the explore agents a host's own plan mode starts are outside it

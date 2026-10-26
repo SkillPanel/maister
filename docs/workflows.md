@@ -550,9 +550,11 @@ start a new task.
 
 Most of a workflow's work is done by subagents. By default:
 
-- **The clerical agents** (project analysis, the docs operator, task classification, the
-  test-suite runner and HTML companions) and **the codebase scouts** maister starts (`Explore`)
-  run on the `light` tier: a lightweight model on high effort.
+- **The clerical agents** (project analysis, task classification, the test-suite runner and
+  HTML companions) and **the codebase scouts** maister starts (`Explore`) run on the `light`
+  tier: a lightweight model on high effort.
+- **The docs operator and the standards scans** run on your session's model on Claude Code and
+  on the `standard` tier on Copilot.
 - **Implementers follow the plan.** Each task group runs on the tier its plan gives it, `light`,
   `standard` or `deep`; a group with no tier runs on `standard`, and a fourth `deep` group in a
   run asks first. On Copilot, where the deep model bills 15 requests each, groups stop at
@@ -671,7 +673,7 @@ project:
   deploy: package-registry   # none | local | container | kubernetes | serverless | package-registry | app-store
   exposure: local            # local | internal | public: who can reach its entry points
   data: []                   # the stores it writes, e.g. [postgres, files]; [] for none
-  scale: team                # single-user | team | multi-tenant
+  scale: team                # single-user | team | multi-tenant: who uses it
   ui: none                   # none | web | tui | native
 ```
 

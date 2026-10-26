@@ -130,15 +130,16 @@ test('level 7: the shipped agents win over the project\'s default, which covers 
   const run = scratch(t);
   config(run, 'subagents:\n  default: { tier: standard }\n');
   freezeRun(run);
-  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light');
+  assert.equal(lineOf(run, 'project-analyzer'), 'project-analyzer: model haiku, effort high — source: shipped agents.project-analyzer, tier light');
+  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model omit, effort omit — source: shipped agents.docs-operator');
   assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model sonnet, effort omit — source: project default, tier standard');
 });
 
 test('a project entry naming a clerical agent still wins over the shipped light pick', t => {
   const run = scratch(t);
-  config(run, 'subagents:\n  default: { tier: deep }\n  agents:\n    docs-operator: { tier: standard }\n');
+  config(run, 'subagents:\n  default: { tier: deep }\n  agents:\n    project-analyzer: { tier: standard }\n');
   freezeRun(run);
-  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model sonnet, effort omit — source: project agents.docs-operator, tier standard');
+  assert.equal(lineOf(run, 'project-analyzer'), 'project-analyzer: model sonnet, effort omit — source: project agents.project-analyzer, tier standard');
   assert.equal(lineOf(run, 'task-classifier'), 'task-classifier: model haiku, effort high — source: shipped agents.task-classifier, tier light');
 });
 
@@ -147,7 +148,7 @@ test('every entry naming the agent wins over every default, an overlay\'s defaul
   config(run, 'subagents:\n  agents:\n    gap-analyzer: { tier: light }\n');
   freezeRun(run, { overlays: [overlay(run, 'subagents:\n  default: { tier: deep }\n')] });
   assert.equal(lineOf(run, 'gap-analyzer'), 'gap-analyzer: model haiku, effort high — source: project agents.gap-analyzer, tier light');
-  assert.equal(lineOf(run, 'docs-operator'), 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light');
+  assert.equal(lineOf(run, 'project-analyzer'), 'project-analyzer: model haiku, effort high — source: shipped agents.project-analyzer, tier light');
   // An agent nobody names takes the most specific default: the overlay's over the project's.
   assert.equal(lineOf(run, 'information-gatherer'), 'information-gatherer: model opus, effort omit — source: overlay default, tier deep');
 });
@@ -155,11 +156,10 @@ test('every entry naming the agent wins over every default, an overlay\'s defaul
 test('level 8: the shipped agents put the clerical agents on light', t => {
   const run = scratch(t);
   freezeRun(run);
-  const result = dispatch(run, ['--agent=project-analyzer,docs-operator,task-classifier,test-suite-runner,html-companion-writer']);
+  const result = dispatch(run, ['--agent=project-analyzer,task-classifier,test-suite-runner,html-companion-writer']);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, [
     'project-analyzer: model haiku, effort high — source: shipped agents.project-analyzer, tier light',
-    'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light',
     'task-classifier: model haiku, effort high — source: shipped agents.task-classifier, tier light',
     'test-suite-runner: model haiku, effort high — source: shipped agents.test-suite-runner, tier light',
     'html-companion-writer: model haiku, effort high — source: shipped agents.html-companion-writer, tier light',
@@ -167,27 +167,50 @@ test('level 8: the shipped agents put the clerical agents on light', t => {
   ].join('\n'));
 });
 
+test('the docs operator and the standards scanner run on the session\'s model on Claude Code and on standard on Copilot', t => {
+  const run = scratch(t);
+  const agents = ['--agent=docs-operator,standards-scanner'];
+  assert.equal(dispatch(run, agents, { state: false }).stdout,
+    'docs-operator: model omit, effort omit — source: shipped agents.docs-operator\n'
+    + 'standards-scanner: model omit, effort omit — source: shipped agents.standards-scanner\n');
+  assert.equal(dispatch(run, agents, { state: false, host: 'copilot' }).stdout,
+    'docs-operator: model claude-sonnet-5.5, effort omit — source: shipped agents.docs-operator, tier standard\n'
+    + 'standards-scanner: model claude-sonnet-5.5, effort omit — source: shipped agents.standards-scanner, tier standard\n');
+  // Under the plugin's own prefix, and frozen into a run, the answer is the same.
+  freezeRun(run);
+  assert.equal(lineOf(run, 'maister:standards-scanner'), 'maister:standards-scanner: model omit, effort omit — source: shipped agents.standards-scanner');
+  assert.equal(lineOf(run, 'docs-operator', [], { host: 'copilot' }), 'docs-operator: model claude-sonnet-5.5, effort omit — source: shipped agents.docs-operator, tier standard');
+
+  // A project entry naming one wins on each host, and a per-host inherit is the project's own to write.
+  const own = scratch(t);
+  config(own, 'subagents:\n  agents:\n    standards-scanner: { tier: light }\n    docs-operator: { tier: { claude: standard, copilot: inherit } }\n');
+  assert.equal(lineOf(own, 'standards-scanner', [], { state: false }), 'standards-scanner: model haiku, effort high — source: project agents.standards-scanner, tier light');
+  assert.equal(lineOf(own, 'standards-scanner', [], { state: false, host: 'copilot' }), 'standards-scanner: model claude-haiku-5.5, effort high — source: project agents.standards-scanner, tier light');
+  assert.equal(lineOf(own, 'docs-operator', [], { state: false }), 'docs-operator: model sonnet, effort omit — source: project agents.docs-operator, tier standard');
+  assert.equal(lineOf(own, 'docs-operator', [], { state: false, host: 'copilot' }), 'docs-operator: model omit, effort omit — source: project agents.docs-operator');
+});
+
 test('with no config, Explore and the clerical agents run on Haiku at high effort, on either host', t => {
   const run = scratch(t);
-  assert.equal(dispatch(run, ['--agent=Explore,docs-operator'], { state: false }).stdout,
+  assert.equal(dispatch(run, ['--agent=Explore,project-analyzer'], { state: false }).stdout,
     'Explore: model haiku, effort high — source: shipped agents.Explore, tier light\n'
-    + 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light\n');
-  assert.equal(dispatch(run, ['--agent=explore,docs-operator'], { state: false, host: 'copilot' }).stdout,
+    + 'project-analyzer: model haiku, effort high — source: shipped agents.project-analyzer, tier light\n');
+  assert.equal(dispatch(run, ['--agent=explore,project-analyzer'], { state: false, host: 'copilot' }).stdout,
     'explore: model claude-haiku-5.5, effort high — source: shipped agents.Explore, tier light\n'
-    + 'docs-operator: model claude-haiku-5.5, effort high — source: shipped agents.docs-operator, tier light\n');
+    + 'project-analyzer: model claude-haiku-5.5, effort high — source: shipped agents.project-analyzer, tier light\n');
 });
 
 test('the light rung\'s high effort yields to an entry\'s own effort and to a project cell that sets one', t => {
   const own = scratch(t);
-  config(own, 'subagents:\n  agents:\n    docs-operator: { tier: light, effort: low }\n    Explore: { tier: light, effort: inherit }\n');
-  assert.equal(lineOf(own, 'docs-operator', [], { state: false }), 'docs-operator: model haiku, effort low — source: project agents.docs-operator, tier light');
+  config(own, 'subagents:\n  agents:\n    project-analyzer: { tier: light, effort: low }\n    Explore: { tier: light, effort: inherit }\n');
+  assert.equal(lineOf(own, 'project-analyzer', [], { state: false }), 'project-analyzer: model haiku, effort low — source: project agents.project-analyzer, tier light');
   assert.equal(lineOf(own, 'Explore', [], { state: false }), 'Explore: model haiku, effort omit — source: project agents.Explore, tier light');
 
   // A project cell is laid over the shipped one: without an effort the high effort stays.
   const remapped = scratch(t);
   config(remapped, 'subagents:\n  tiers:\n    light: { claude: sonnet, copilot: gpt-6-luna }\n');
-  assert.equal(lineOf(remapped, 'docs-operator', [], { state: false }), 'docs-operator: model sonnet, effort high — source: shipped agents.docs-operator, tier light');
-  assert.equal(lineOf(remapped, 'docs-operator', [], { state: false, host: 'copilot' }), 'docs-operator: model gpt-6-luna, effort high — source: shipped agents.docs-operator, tier light');
+  assert.equal(lineOf(remapped, 'project-analyzer', [], { state: false }), 'project-analyzer: model sonnet, effort high — source: shipped agents.project-analyzer, tier light');
+  assert.equal(lineOf(remapped, 'project-analyzer', [], { state: false, host: 'copilot' }), 'project-analyzer: model gpt-6-luna, effort high — source: shipped agents.project-analyzer, tier light');
 
   // A cell with its own effort uses it, and inherit sends none.
   const medium = scratch(t);
@@ -380,7 +403,7 @@ test('the subagents block init writes holds exactly the built-in values', t => {
   const skill = fs.readFileSync(path.join(ROOT, 'plugins/maister/skills/init/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
   const block = [...skill.matchAll(/```yaml\n([\s\S]*?)```/g)].map(match => match[1]).find(text => /^subagents:/m.test(text));
   assert.ok(block, 'init carries a subagents block');
-  const agents = `--agent=Explore,project-analyzer,docs-operator,task-classifier,test-suite-runner,html-companion-writer,${REVIEWERS.join(',')},task-group-implementer,gap-analyzer`;
+  const agents = `--agent=Explore,project-analyzer,docs-operator,standards-scanner,task-classifier,test-suite-runner,html-companion-writer,${REVIEWERS.join(',')},task-group-implementer,gap-analyzer`;
   const values = result => result.stdout.replace(/ — source: [^\n]*/g, '');
   const compare = (written, bare, args, options, label) => {
     const own = dispatch(written, args, options);
@@ -567,10 +590,10 @@ test('standalone, a refused block falls back to the shipped defaults with a warn
 
 test('with no config at all the verb answers from the shipped defaults, standalone and in a run', t => {
   const run = scratch(t);
-  assert.equal(lineOf(run, 'docs-operator', [], { state: false }), 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light');
+  assert.equal(lineOf(run, 'project-analyzer', [], { state: false }), 'project-analyzer: model haiku, effort high — source: shipped agents.project-analyzer, tier light');
   freezeRun(run);
-  const result = dispatch(run, ['--agent=docs-operator']);
-  assert.equal(result.stdout, 'docs-operator: model haiku, effort high — source: shipped agents.docs-operator, tier light\n');
+  const result = dispatch(run, ['--agent=project-analyzer']);
+  assert.equal(result.stdout, 'project-analyzer: model haiku, effort high — source: shipped agents.project-analyzer, tier light\n');
 });
 
 test('a config.yml changed since the freeze adds one note, and the run keeps what it froze', t => {

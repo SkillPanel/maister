@@ -40,7 +40,7 @@ Code pattern findings: **60-88%** confidence. Higher when consistency is >= 90%.
 
 ## Output Format
 
-Write this YAML to `[output_file]` (the orchestrator puts the file's absolute path in place of the placeholder):
+Write this YAML to `[output_file]` (the `output_file` your prompt names):
 
 ```yaml
 findings:

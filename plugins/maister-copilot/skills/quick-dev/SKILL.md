@@ -14,7 +14,7 @@ This works exactly as if you asked the main agent to implement the task directly
 
 ## Workflow
 
-1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask with `ask_user`: "What would you like to implement?"
+1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask in plain text — "What would you like to implement?" — and wait for the answer: with nothing to pick from it is not a question-tool call, which takes two options or more on Claude Code.
 
 2. **Implement it** — Explore the relevant code and make the changes exactly as you normally would for a direct development request.
 
@@ -25,6 +25,6 @@ This works exactly as if you asked the main agent to implement the task directly
 
 4. **Verify compliance (mandatory)** — After implementing, go through each applicable standard and verify it was followed — report a **Standards Compliance Checklist** (pass/fail per guideline, each annotated with its source file) in your summary, alongside what changed and any tests run. Address any failure before marking the task complete.
 
-5. **Keep the docs index whole** — Never edit `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`; name every document you changed under `.maister/docs/` in your summary. Then run the docs index check from the project root — `node <plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path — and report its result in one line. When it fails on a document this task added, changed or removed, invoke `docs-operator` via Task tool (agent_type: `maister-copilot:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]", and report the check it returns. A convention worth keeping is suggested in one line for `/maister-copilot:standards-update`, never written into a standards file here.
+5. **Keep the docs index whole** — Never edit `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`; name every document you changed under `.maister/docs/` in your summary. A convention worth keeping is suggested in one line for `/maister-copilot:standards-update`, never written into a standards file here.
 
 If `.maister/docs/INDEX.md` does not exist, implement normally and note: "No Maister standards found. Consider running `/maister-copilot:init`."

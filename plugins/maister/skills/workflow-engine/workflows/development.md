@@ -703,8 +703,7 @@ than retried.
    matched against the specification, and say which, or that none matched. A
    tick changes no document's purpose, so its index entry stays as it is.
 4. **Consolidate, then offer the standard candidates** the work log records —
-   the implementers' and the fix loop's — before the check, so a standard added
-   here is in its view. When there are any, invoke `docs-operator` once
+   the implementers' and the fix loop's. When there are any, invoke `docs-operator` once
    (subagent_type `maister:docs-operator`, with the model and effort
    `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude --state=<task path>/orchestrator-state.yml --node=finalization`
    prints,
@@ -716,18 +715,13 @@ than retried.
    list is what *Asks* below offers. When the call fails, the work log's lines
    are offered as written, and a line of the close says they were not
    consolidated.
-5. **Run the docs index check** from the project root: docs-manager's
-   `scripts/docs-check.mjs` under the plugin root, by its absolute path. Its
-   result goes under **Done** when it passes, warnings named in a line; each
-   failure goes under **Needs you** with its fix, a refresh of the index
-   (`/maister:standards-update --refresh-index`). INDEX.md is never edited here.
-6. **Set the task status to completed**.
-7. **Guide the next steps**, which for this workflow are its own four: a commit
+5. **Set the task status to completed**.
+6. **Guide the next steps**, which for this workflow are its own four: a commit
    message covering the change; a review of the diff; a pull request; and
    deployment as the project's own process has it. Suggest a fresh session for
    whatever comes next. **Write the commit message to `commit-message.txt` in
    the task directory** and name the file; never print the message itself.
-8. **Publish when the plan gate granted it.** Only when `planning-approval-publish`
+7. **Publish when the plan gate granted it.** Only when `planning-approval-publish`
    completed on its continue — read from state; under the plain plan gate this
    step does not exist. Commit what the run changed on its own branch if any of
    it is uncommitted, with `commit-message.txt` as the message. Never push the
@@ -737,13 +731,13 @@ than retried.
    opened again; otherwise `gh pr create` against the default branch, its body
    drawn from the executive summary. Merging is never part of this. The pull
    request goes in the close-out's `prs` as `{repo, number, url}` under a
-   dispatch driver, and its URL under **Done** in a terminal run, where step 7's
+   dispatch driver, and its URL under **Done** in a terminal run, where step 6's
    pull request is then dropped from **Next**. A push or a pull request that is refused or held is not routed
    around: under a dispatch driver the seed's close-out section says how it is
    reported; in a terminal run the held command goes under **Needs you**.
 
 **Close for whoever reads the end** (the engine skill's run-end rule).
-**Next** holds every one of step 7's next steps, a line each: commit first, with
+**Next** holds every one of step 6's next steps, a line each: commit first, with
 the message file's path, then the rest of this workflow's own four, then the
 fresh-session suggestion, none dropped or merged.
 
@@ -757,7 +751,7 @@ says.
 verb before this node ends** — the grade and the summary the seed's close-out
 contract asks for, drawn from the executive summary above; a dispatched run that
 ends with none is `RUN-FAILED: closeout-unpublished`. Under a terminal driver
-step 7 is what the operator gets.
+step 6 is what the operator gets.
 
 **Asks.** Only when step 4 offers standard candidates: one multi-select
 question, the question saying that each chosen one is added now, before

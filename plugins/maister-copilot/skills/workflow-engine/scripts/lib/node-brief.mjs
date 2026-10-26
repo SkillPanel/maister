@@ -21,7 +21,10 @@
  *   and a line saying so adds nothing.
  * - An owed HTML page beside its markdown is named by its file name, and a
  *   `companion writer:` line follows the pages: the html-companion-writer call
- *   with its model and effort, for a page the step's work leaves unwritten.
+ *   with its model and effort, for a page the step's work leaves unwritten,
+ *   and under it the lines that call's prompt carries — the style guide's
+ *   absolute path once and each owed page's markdown by its absolute path. A
+ *   writer dispatched without them went looking for its style guide on disk.
  * - The `direct:` row only when the step owes a page or has no section — run
  *   inline from the section is what `runs:` and the section already say.
  * - `every step` only when the step declares an artifact or a value.
@@ -108,6 +111,7 @@ import { closingCandidates, evaluate, readinessOf, reread } from './gate-brief.m
 import { titleOf } from './display.mjs';
 import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, writeState } from './state.mjs';
 import { owedCompanions } from './companions.mjs';
+import { STYLE_GUIDE } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
@@ -338,9 +342,9 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   const filled = Object.fromEntries(Object.entries(withs).map(([key, value]) => [key, interpolate(value, context)]));
   if (Object.keys(filled).length) lines.push('with:', ...Object.entries(filled).map(([key, value]) => `- ${key}: ${shown(value)}`));
 
-  const writes = writeLines(node, resolved, entry, brief, context, sources);
+  const { lines: writes, pages } = writeLines(node, resolved, entry, brief, context, sources);
   if (writes.length) lines.push('writes:', ...writes);
-  if (writes.some(line => line.includes(OWED))) lines.push(companionLine(node, context.doc));
+  if (pages.length) lines.push(...companionLines(node, context.doc, pages));
 
   const values = isPlainObject(resolved.outputs?.values) ? resolved.outputs.values : {};
   if (Object.keys(values).length) {
@@ -348,7 +352,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   }
 
   const keys = [];
-  if (known && (scheme !== 'direct' || section === null || writes.some(line => line.includes(OWED)))) keys.push(known.row);
+  if (known && (scheme !== 'direct' || section === null || pages.length)) keys.push(known.row);
   if (writes.length || Object.keys(values).length) keys.push('every step');
 
   const asks = askLines(origin, resolved, context, node);
@@ -415,12 +419,18 @@ function closingLine(node, values, brief, continues, delegates) {
 
 /**
  * The `companion writer:` line: the html-companion-writer call for a page the
- * step owes, with the model and effort it carries. Printed beside the owed
- * pages, because a session that dispatched the writer from memory left the
- * model off and ran it on its own.
+ * step owes, with the model and effort it carries, and under it the lines its
+ * prompt carries — the style guide once, then each owed page's markdown.
+ * Printed beside the owed pages, because a session that dispatched the writer
+ * from memory left the model off and ran it on its own, and one that sent no
+ * run context left the writer searching the disk for its style guide.
  */
-function companionLine(node, doc) {
-  return `companion writer: ${dispatchName(COMPANION_WRITER)}, ${modelText(COMPANION_WRITER, node, doc)} — the call for each page owed above that is not on disk when the step's work is done, never on the session's model`;
+function companionLines(node, doc, pages) {
+  return [
+    `companion writer: ${dispatchName(COMPANION_WRITER)}, ${modelText(COMPANION_WRITER, node, doc)} — the call for each page owed above that is not on disk when the step's work is done, never on the session's model; its prompt carries the html line and that page's md_path line below, as printed`,
+    `- html: ${STYLE_GUIDE}`,
+    ...pages.map(page => `- md_path: ${page}`),
+  ];
 }
 
 /** The agent that writes an owed page a step did not write itself. */
@@ -465,21 +475,28 @@ function whenLine(when, { byId, recorded, status, inputs, defaults }) {
 /**
  * One line per declared artifact: the path repository-root-relative, the page
  * it owes when HTML output is on, and the reason `brief:` gives when it may be
- * absent.
+ * absent. Returns `{lines, pages}`, `pages` the markdown of each owed page as
+ * the companion writer is handed it: absolute, since the writer never `cd`s,
+ * and placed as any path is where it cannot be (a sub-run's not yet recorded).
  */
 function writeLines(node, resolved, entry, brief, context, sources) {
   const artifacts = isPlainObject(resolved.outputs?.artifacts) ? resolved.outputs.artifacts : {};
-  if (!Object.keys(artifacts).length) return [];
+  if (!Object.keys(artifacts).length) return { lines: [], pages: [] };
   const owing = htmlOutput(context.doc) && sources ? companionsOfRun(context.doc, context.runDir, sources) : null;
   const owed = new Map(owing ? owedCompanions(owing, node).map(each => [each.key, each.html]) : []);
   const absent = isPlainObject(brief.absent) ? brief.absent : {};
   const where = artifactBase(resolved, entry, context);
-  return Object.entries(artifacts).map(([key, declared]) => {
+  const pages = [];
+  const lines = Object.entries(artifacts).map(([key, declared]) => {
     let line = `- ${key}: ${placed(declared, where)}`;
-    if (owed.has(key)) line += ` — ${OWED} ${pageOf(declared, owed.get(key), where)}`;
+    if (owed.has(key)) {
+      line += ` — ${OWED} ${pageOf(declared, owed.get(key), where)}`;
+      pages.push(where.base === undefined ? placed(declared, where) : path.resolve(context.root, placed(declared, where)));
+    }
     if (Object.hasOwn(absent, key)) line += ` — may be absent: ${absent[key]}`;
     return line;
   });
+  return { lines, pages };
 }
 
 /**

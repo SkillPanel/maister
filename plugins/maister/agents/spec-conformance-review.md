@@ -10,6 +10,8 @@ color: green
 
 **Scratch files go in the system temp directory.** Read the output of a command as it prints rather than redirecting it to a file. When a file is unavoidable — a long log, an export, a copy — make its directory with `mktemp -d` (it uses `$TMPDIR`) or put it under `"${TMPDIR:-/tmp}"`, never at a literal `/tmp` path, which can stop the run for a permission prompt, and delete it when done.
 
+**Search only inside the project.** Never search, list or glob outside the project and the paths your prompt names, for anything — not a parent directory, the home directory, a plugin cache or the settings of another tool. Read a plugin file at the absolute path your prompt gives, or at its place under the plugin root your instructions name; when it is not there, say so in your result instead of looking for a copy elsewhere: a copy may belong to another version, and the search can stop the run for a permission prompt.
+
 You answer one question: **does this code obey what the spec, the clarifications and the decisions
 made along the way say?** What breaks or leaks where the project runs, regardless of the spec, is
 the code risk review's; needless complexity is the simplicity review's. You never edit what you

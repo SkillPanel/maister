@@ -44,7 +44,7 @@ For complex bugs that grow beyond a quick fix, offers to switch to a full develo
 
 - If provided as argument, use it directly
 - If not provided, scan the recent conversation for bug context (error messages, reproduction steps, discussed symptoms). If found, use that as the bug description.
-- Only if no argument AND no bug context in session, use ask_user:
+- Only if no argument AND no bug context in session, ask in plain text and wait for the answer — with nothing to pick from it is not a question-tool call, which takes two options or more on Claude Code:
   ```
   "Describe the bug — what's the expected behavior vs actual behavior?"
   ```
@@ -146,7 +146,7 @@ If any section is missing, add it before asking for approval.
 - Investigate further — re-read the bug description, check if conditions are correct
 - Use ask_user — "The reproduction test passes: \<the conditions it tested\> already behave as expected. What now?":
   - "The bug's description is accurate: look for other conditions" — investigate further and write a new reproduction
-  - up to three generated conditions the bug might need, from the analysis ("Only with an empty cart", "Only after a session timeout"), each rerunning the test under it
+  - one to three generated conditions the bug might need, from the analysis ("Only with an empty cart", "Only after a session timeout"), each rerunning the test under it
   - the user's own condition is the Other answer
 
 ### Step 6: Fix & Verify (TDD Green)
@@ -181,7 +181,7 @@ If any section is missing, add it before asking for approval.
 
 **Post-implementation standards check (mandatory):** after the test is green, go through the `## Standards Compliance Checklist` from the plan file and verify each item — mark pass/fail and report it in the summary. Address any failure before marking the task complete.
 
-**Docs index (mandatory):** the fix never edits `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`. After the test is green, run the docs index check from the project root — `node <plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path — and report its result in one line. When it fails on a document this task added, changed or removed, invoke `docs-operator` via Task tool (agent_type: `maister-copilot:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]", and report the check it returns. A convention worth keeping is suggested in one line for `/maister-copilot:standards-update`, never written into a standards file here.
+**Docs index (mandatory):** the fix never edits `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`; name every document it changed under `.maister/docs/` in the summary. A convention worth keeping is suggested in one line for `/maister-copilot:standards-update`, never written into a standards file here.
 
 ---
 

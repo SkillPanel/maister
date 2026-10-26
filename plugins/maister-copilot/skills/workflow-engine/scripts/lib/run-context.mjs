@@ -51,9 +51,10 @@ import { HELD_APPROVAL } from './question-triage.mjs';
  * The two plugin files the block names, built from this module's own location
  * as the dashboard viewer's source is: the variant a build generates resolves
  * its own copy, and a delegate is pointed at the files of the plugin it runs.
+ * The node brief prints the same style guide on its `companion writer:` lines.
  */
 const REFERENCES = new URL('../../../orchestrator-framework/references/', import.meta.url);
-const STYLE_GUIDE = fileURLToPath(new URL('html-report-style.md', REFERENCES));
+export const STYLE_GUIDE = fileURLToPath(new URL('html-report-style.md', REFERENCES));
 const PATTERNS = fileURLToPath(new URL('orchestrator-patterns.md', REFERENCES));
 
 /** Where a project's standards index lives, relative to its root; listed when it exists. */

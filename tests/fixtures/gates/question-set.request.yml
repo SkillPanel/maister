@@ -22,7 +22,7 @@ context:
         allow_other: true
         options:
           - {id: all, label: "Match all requested tags", description: "AND, like SQL WHERE; a narrower result.", recommended: true}
-          - {id: any, label: "Match any requested tag", description: "OR; a wider result."}
+          - {id: any, label: "Match any requested tag", description: "OR; a wider result.", recommended: false}
         default: all
       - id: tag-case
         header: "Tag case"
@@ -41,13 +41,13 @@ context:
         options:
           - {id: timestamp, label: Timestamp, description: "When each note was last changed.", recommended: true}
           - {id: operator, label: Operator, description: "Who changed it last.", recommended: true}
-          - {id: emoji, label: Emoji, description: "The note's emoji marker."}
+          - {id: emoji, label: Emoji, description: "The note's emoji marker.", recommended: false}
         default: [timestamp, operator]
     run: {dir: /work/.maister/tasks/development/2026-01-05-sample, dashboard: null}
     truncated: false
 options:
   - {id: all, label: "Match all requested tags", effect: continue, description: "AND, like SQL WHERE; a narrower result.", recommended: true}
-  - {id: any, label: "Match any requested tag", effect: continue, description: "OR; a wider result."}
+  - {id: any, label: "Match any requested tag", effect: continue, description: "OR; a wider result.", recommended: false}
 multi_select: false
 questions:
   - id: tag-filter
@@ -55,7 +55,7 @@ questions:
     multi_select: false
     options:
       - {id: all, label: "Match all requested tags", effect: continue, description: "AND, like SQL WHERE; a narrower result.", recommended: true}
-      - {id: any, label: "Match any requested tag", effect: continue, description: "OR; a wider result."}
+      - {id: any, label: "Match any requested tag", effect: continue, description: "OR; a wider result.", recommended: false}
   - id: tag-case
     question: "Should tag matching ignore letter case?"
     multi_select: false
@@ -68,6 +68,6 @@ questions:
     options:
       - {id: timestamp, label: Timestamp, effect: continue, description: "When each note was last changed.", recommended: true}
       - {id: operator, label: Operator, effect: continue, description: "Who changed it last.", recommended: true}
-      - {id: emoji, label: Emoji, effect: continue, description: "The note's emoji marker."}
+      - {id: emoji, label: Emoji, effect: continue, description: "The note's emoji marker.", recommended: false}
 asked_at: "2026-01-05T09:00:00Z"
 answer: null

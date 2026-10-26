@@ -24,6 +24,8 @@ diagram:
 CONTAINMENT = **You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
 # The scratch-file sentence, the same way: no apostrophe, and each $ doubled for make.
 SCRATCH = **Scratch files go in the system temp directory.** Read the output of a command as it prints rather than redirecting it to a file. When a file is unavoidable — a long log, an export, a copy — make its directory with `mktemp -d` (it uses `$$TMPDIR`) or put it under `"$${TMPDIR:-/tmp}"`, never at a literal `/tmp` path, which can stop the run for a permission prompt, and delete it when done.
+# The search-scope sentence, the same way: no apostrophe and no $.
+SEARCH = **Search only inside the project.** Never search, list or glob outside the project and the paths your prompt names, for anything — not a parent directory, the home directory, a plugin cache or the settings of another tool. Read a plugin file at the absolute path your prompt gives, or at its place under the plugin root your instructions name; when it is not there, say so in your result instead of looking for a copy elsewhere: a copy may belong to another version, and the search can stop the run for a permission prompt.
 
 # Prerequisites: bash, find, grep and node (the diagram check and the guide
 # template lint). The compatibility contracts runner is a Pro Edition feature
@@ -89,6 +91,13 @@ validate:
 	@sentence='$(SCRATCH)'; \
 	for f in plugins/maister/agents/*.md plugins/maister-copilot/agents/*.md; do \
 	  grep -qxF -- "$$sentence" "$$f" || { echo "FAIL: $$f lacks the scratch-file sentence, so nothing keeps its throwaway files off a literal /tmp path"; exit 1; }; \
+	done
+	@echo "Checking every source agent carries the search-scope sentence..."
+	@# The same reason: a file the agent was not handed is reported, never
+	@# hunted for across the home directory or another copy of the plugin.
+	@sentence='$(SEARCH)'; \
+	for f in plugins/maister/agents/*.md plugins/maister-copilot/agents/*.md; do \
+	  grep -qxF -- "$$sentence" "$$f" || { echo "FAIL: $$f lacks the search-scope sentence, so nothing keeps it from searching outside the project"; exit 1; }; \
 	done
 	@echo "Checking every Copilot agent has a tool allowlist without the agent tool..."
 	@# Copilot runs each subagent level under a session of its own, so no agent

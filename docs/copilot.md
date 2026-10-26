@@ -287,9 +287,10 @@ shows as "Denied by preToolUse hook" and the agent continues without it.
 ## Models and cost
 
 **Maister's defaults.** Pick the session's model with `/model` before you start: most agents
-run on it. The clerical agents (the project analyzer, the docs operator, the task classifier, the
-test-suite runner and the HTML companion writer) and the built-in `explore` agent maister starts
-run on `claude-haiku-5.5` at high reasoning effort. Each task group of an implementation runs on
+run on it. The clerical agents (the project analyzer, the task classifier, the test-suite runner
+and the HTML companion writer) and the built-in `explore` agent maister starts run on
+`claude-haiku-5.5` at high reasoning effort. The docs operator and the standards scans run on
+`claude-sonnet-5.5`. Each task group of an implementation runs on
 the tier its plan gives it, up to `standard`: `claude-haiku-5.5` at high effort for `light`, and
 `claude-sonnet-5.5` for `standard`, for `deep` and for a group with no tier. The five
 verification reviewers and the specification auditor run on `claude-sonnet-5.5` too, where

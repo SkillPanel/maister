@@ -35,10 +35,21 @@ test('every companion writer returns a companion field with each status', () => 
   for (const name of WRITERS) {
     const text = agent(name);
     assert.match(text, /^\s*companion:\s*"?written/m, `${name} returns a companion field in its structured result`);
-    for (const status of ['not-requested', 'disabled', 'failed']) {
+    // The html-companion-writer is dispatched only to write a page, so a prompt
+    // with no style guide path is not a page nobody asked for.
+    const statuses = name === 'html-companion-writer' ? ['disabled', 'failed'] : ['not-requested', 'disabled', 'failed'];
+    for (const status of statuses) {
       assert.match(text, new RegExp(`companion: ${status}`), `${name} returns companion: ${status}`);
     }
   }
+});
+
+test('the html-companion-writer reads the plugin\'s own style guide when the prompt names no path, and never searches for one', () => {
+  const text = agent('html-companion-writer');
+  assert.ok(text.includes('`<plugin root>/skills/orchestrator-framework/references/html-report-style.md`'), 'it names the guide under the plugin root');
+  assert.match(text, /never search for it/);
+  assert.doesNotMatch(text, /not-requested/, 'it never returns not-requested');
+  assert.ok(fs.existsSync(path.join(ROOT, 'plugins/maister/skills/orchestrator-framework/references/html-report-style.md')), 'the guide is where the agent says');
 });
 
 test('e2e-test-verifier returns its verdict and companions in a structured result', () => {

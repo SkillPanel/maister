@@ -10,8 +10,8 @@ user-invocable: false
 
 You are the hand-off between an implementation node and its waves. The loop itself — the waves
 from the plan, each group's `task-group-implementer` call on the model `dispatch-model` resolves
-for its tier, every `wave-start` and `group-done`, the one-step escalation, the budget, the docs
-index refresh, the full test suite and the closing work-log entry — is written once, in the
+for its tier, every `wave-start` and `group-done`, the one-step escalation, the budget, the full
+test suite and the closing work-log entry — is written once, in the
 implementation runner's instructions (`<plugin root>/agents/implementation-runner.md`, the
 plugin root two levels above this skill's base directory, as an absolute path). Where the run
 can nest subagents, the runner runs it and this skill makes one call per runner pass; where it
@@ -74,10 +74,11 @@ or `inline`:
   `write-state` of `{"orchestrator": {"options": {"delegation": {"mode": "inline", "reason":
   "<the reason, one line>"}}}}`. Then `runner-step` says `inline`.
 - **`inline`** — the run keeps its waves in the main session (its delegation is `inline`, with
-  the reason printed). Follow the runner's procedure here, from § *Where to start* with `resume`
+  the reason printed). Read the runner's file, `<plugin root>/agents/implementation-runner.md` by
+  its absolute path, with the file-read tool — in parts by line range when it is long — never
+  through the shell and never into a scratch copy. Follow its procedure here, from § *Where to start* with `resume`
   as the files say, asking where the runner would hand back a decision. **Every task group is
-  still a `task-group-implementer` call**, and the full suite and the docs refresh are still
-  subagent calls: what moves into this session is the loop's bookkeeping, never a group's code.
+  still a `task-group-implementer` call**, and the full suite is still a subagent call: what moves into this session is the loop's bookkeeping, never a group's code.
 - **`close`** — the waves are done, and the plan and the work log say so. Return § *Structured
   output*, read from the printed `summary`, to the node. Do not complete the node: its status
   stays as it is, because the orchestrator owns completing it.

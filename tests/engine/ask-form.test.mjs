@@ -150,7 +150,7 @@ test('ask --patch-file: a question set in a terminal run is one call, each optio
   assert.deepEqual(guide.oneOf, [{ const: 'off', title: 'No guide (Recommended)' }, { const: 'on', title: 'Write a guide' }]);
   assert.equal(guide.default, 'off');
   for (const line of ['Write an end-user guide for this change?', 'Test suite: passed in implementation; runs again after any fix.',
-    'No guide: Recommended: the change adds no public surface.', 'Write a guide: A usage guide with screenshots.', 'Recommended: No guide.']) {
+    'No guide: The change adds no public surface.', 'Write a guide: A usage guide with screenshots.', 'Recommended: No guide.']) {
     assert.ok(guide.description.split('\n').includes(line), `the description carries "${line}"`);
   }
 

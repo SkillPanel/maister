@@ -107,7 +107,9 @@ const UNASSESSED = 'standard';
 
 /**
  * Maister's own table: the ladder with a cell per host, the light rung on high
- * effort, the clerical agents and the built-in explore agent on `light`, and
+ * effort, the clerical agents and the built-in explore agent on `light`, the
+ * docs operator and the standards scanner on the session's model on Claude
+ * Code and on `standard` on Copilot, where the session's model may be any, and
  * the task-group implementer on the planner's tier, up to `deep` on Claude
  * Code and `standard` on Copilot, where the deep model bills far above one
  * request, and the reviewers on `deep` and `standard` by the same reckoning. The verification fix loops of the built-in workflows hand their
@@ -128,7 +130,8 @@ export const SHIPPED = Object.freeze({
   default: { tier: INHERIT },
   agents: {
     'project-analyzer': { tier: 'light' },
-    'docs-operator': { tier: 'light' },
+    'docs-operator': { tier: { claude: INHERIT, copilot: 'standard' } },
+    'standards-scanner': { tier: { claude: INHERIT, copilot: 'standard' } },
     'task-classifier': { tier: 'light' },
     'test-suite-runner': { tier: 'light' },
     'html-companion-writer': { tier: 'light' },
