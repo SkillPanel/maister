@@ -9,8 +9,9 @@ import { ENGINE_DIR, ROOT, run } from '../helpers.mjs';
 // A workflow run never writes standards and asks nothing about its standard
 // candidates: finalization consolidates them, writes them to the run's
 // candidates file, lists them in the close and names standards-update once
-// under Next. standards-update, run bare in a fresh session, finds the latest
-// run whose candidates are not all applied and offers them. Pinned here: the
+// under Next, naming its task directory. standards-update, run bare, takes a
+// run's close it finds in the session to that run's candidates file, and in a
+// fresh session finds the latest run whose candidates are not all applied. Pinned here: the
 // three guides word that hand-over alike and ask nothing, every step that
 // writes or takes a candidate points at the one reference, and the lookup
 // script, run as a child process from a scratch project.
@@ -60,6 +61,8 @@ test('each guide consolidates, writes the candidates file and asks nothing about
     }
     const close = paragraph(section, '**Standard candidates in the close**:');
     assert.ok(close.includes('with one line more: `/maister:standards-update`, run with no argument'), `${workflow}: Next names the bare command`);
+    assert.ok(close.includes('the close names the run\'s task directory'), `${workflow}: the close names the task directory standards-update reads`);
+    assert.ok(close.includes('run with no argument in this session or a fresh one'), `${workflow}: the command works in the same session too`);
     assert.ok(close.includes('never one per candidate; with no candidates there is no such line'), `${workflow}: once, and only with candidates`);
     return [consolidate, close];
   });
@@ -96,6 +99,19 @@ test('standards-update, given nothing, offers the latest run\'s candidates throu
   assert.ok(skill.includes('other runs hold candidates too'), 'the others are mentioned');
   assert.ok(skill.includes('When none is, the question says no candidate has support beyond one place yet'), 'none qualifying is said');
   assert.ok(skill.includes('never taken as given'), 'the destination is still confirmed');
+});
+
+test('standards-update scans back far enough to reach a run\'s close and takes that run\'s candidates from its file', () => {
+  const skill = fs.readFileSync(path.join(PLUGIN_DIR, 'skills/standards-update/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.ok(!/15-20 messages/.test(skill), 'the old fixed window is gone');
+  assert.ok(skill.includes('about the last 50 messages, or back to the most recent workflow run\'s close when that is further'), 'the scan is widened to the close');
+  assert.ok(skill.includes('the count is guidance, not a limit'), 'the count stays guidance');
+  assert.ok(skill.includes('**A workflow run\'s close in the scan** — a close that lists the run\'s standard candidates and names its task directory'), 'a close is detected in the scan');
+  assert.ok(skill.includes('Take them through § Candidates from a Workflow Run with that task directory'), 'the close routes to the run\'s candidates');
+  assert.ok(skill.includes('offered beside them in the same flow'), 'other conventions are offered beside them, not instead');
+  assert.ok(skill.includes('`node <plugin root>/skills/standards-update/scripts/candidates.mjs show --run=<task dir>`'), 'the close\'s run is read through the script');
+  assert.ok(skill.includes('in a fresh session, `node <plugin root>/skills/standards-update/scripts/candidates.mjs latest`'), 'a fresh session keeps the latest lookup');
+  assert.ok(skill.includes('If no argument and the conversation holds none'), 'the fallback is for an empty conversation only');
 });
 
 // The lookup script.
@@ -183,6 +199,35 @@ test('applied: an applied candidate is not offered again, a fully applied run gi
   assert.equal(fs.statSync(path.join(newer, 'standard-candidates.json')).mtimeMs, 2_000_000_000, 'its time stays the run\'s');
 });
 
+test('show: the named run, not the newest, less its applied candidates, with the others counted', t => {
+  const where = project(t);
+  const named = runWith(where, 'development', '2026-01-05-named', {
+    candidates: [candidate('a'), candidate('b', { recommended: true, reason: 'two groups' })],
+    already_held: [{ line: '- Held', held_by: 'standards/global/errors.md § Errors' }],
+  }, 1_000_000);
+  const newer = runWith(where, 'performance', '2026-01-06-newer', { candidates: [candidate('c')] }, 2_000_000);
+
+  const first = script(where, ['show', `--run=${named}`]);
+  assert.equal(first.code, 0, first.stderr);
+  assert.deepEqual(first.report.run, { dir: named, type: 'development', name: '2026-01-05-named' });
+  assert.deepEqual(first.report.candidates.map(each => [each.id, each.recommended]), [['a', false], ['b', true]]);
+  assert.deepEqual(first.report.already_held.map(each => each.held_by), ['standards/global/errors.md § Errors']);
+  assert.deepEqual(first.report.others, [{ dir: newer, count: 1 }], 'the named run is not among the others');
+
+  script(where, ['applied', `--run=${named}`, '--id=a']);
+  assert.deepEqual(script(where, ['show', `--run=${named}`]).report.candidates.map(each => each.id), ['b'], 'an applied candidate is dropped');
+  script(where, ['applied', `--run=${named}`, '--id=b']);
+  const done = script(where, ['show', `--run=${named}`]).report;
+  assert.equal(done.run.dir, named, 'a fully applied run is still the run named');
+  assert.deepEqual(done.candidates, []);
+
+  const missing = script(where, ['show', `--run=${path.join(where.tasks, 'development', '2026-01-07-none')}`]);
+  assert.equal(missing.code, 0, missing.stderr);
+  assert.equal(missing.report.run, null);
+  assert.equal(missing.report.problems.length, 1, 'the unreadable file is named');
+  assert.deepEqual(missing.report.others.map(each => path.basename(each.dir)), ['2026-01-06-newer']);
+});
+
 test('applied: an id the run does not hold is refused and nothing is recorded; a malformed call is a usage error', t => {
   const where = project(t);
   const dir = runWith(where, 'development', '2026-01-05-run', { candidates: [candidate('a')] }, 1_000_000);
@@ -192,7 +237,7 @@ test('applied: an id the run does not hold is refused and nothing is recorded; a
   assert.match(refused.report.refused.join('\n'), /zzz is not a candidate of this run/);
   assert.equal(fs.existsSync(path.join(dir, 'standard-candidates-applied.json')), false);
 
-  for (const args of [[], ['nonsense'], ['applied', `--run=${dir}`], ['latest', '--id=a'], ['latest', '--bogus=1']]) {
+  for (const args of [[], ['nonsense'], ['applied', `--run=${dir}`], ['latest', '--id=a'], ['latest', '--bogus=1'], ['show'], ['show', `--run=${dir}`, '--id=a']]) {
     const usage = script(where, args);
     assert.equal(usage.code, 2, args.join(' '));
     assert.match(usage.stderr, /^usage:/m, args.join(' '));

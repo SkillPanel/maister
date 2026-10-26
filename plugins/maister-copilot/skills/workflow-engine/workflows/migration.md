@@ -425,11 +425,11 @@ says. **Next** holds every one of step 6's next steps, a line each — all four,
 then the fresh-session suggestion, none dropped or merged.
 
 **Standard candidates in the close**: when step 4 wrote the candidates file,
-the close lists each candidate — its line, its destination and its evidence —
-and each already-held line with the rule that holds it, and **Next** ends, after
-the fresh-session suggestion, with one line more: `/maister-copilot:standards-update`,
-run with no argument in a fresh terminal session, which offers this run's
-candidates and asks where each goes. One line for all of them, never one per
+the close names the run's task directory, lists each candidate — its line, its
+destination and its evidence — and each already-held line with the rule that
+holds it, and **Next** ends, after the fresh-session suggestion, with one line
+more: `/maister-copilot:standards-update`, run with no argument in this session or a
+fresh one, which offers this run's candidates and asks where each goes. One line for all of them, never one per
 candidate; with no candidates there is no such line.
 
 **No close-out while a choice is held**: when the freeze recorded
