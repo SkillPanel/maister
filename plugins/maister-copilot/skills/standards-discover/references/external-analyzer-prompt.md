@@ -16,7 +16,7 @@ which gh && gh auth status
 ```
 
 If gh CLI available:
-- Get last `[pr_count]` merged PRs: `gh pr list --state merged --limit [pr_count] --json number,title`
+- Get the last `[pr_count]` merged PRs (`pr_count` from your prompt): `gh pr list --state merged --limit [pr_count] --json number,title`
 - For each PR, check review comments for repeated feedback patterns
 - Look for: "Please use...", "Always...", "Avoid...", "Per our convention...", "Style:", "Nit:"
 - Only report patterns that appear in **3+ different PRs** (significant feedback, not one-off)
@@ -50,7 +50,7 @@ Extract: mandatory checks, formatting enforcement, commit message validation.
 
 ## Output Format
 
-Write this YAML to `[output_file]` (the orchestrator puts the file's absolute path in place of the placeholder):
+Write this YAML to `[output_file]` (the `output_file` your prompt names):
 
 ```yaml
 github_available: true  # or false

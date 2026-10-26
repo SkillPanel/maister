@@ -21,14 +21,17 @@ You scan one source of a project for the conventions it already keeps, and write
 
 | Input | Purpose |
 |-------|---------|
+| `brief` | Absolute path of the phase brief: which source to scan, what to look for, the sampling bounds, the confidence range and the YAML schema of the findings |
 | `project_root` | Absolute path of the project. Every path you read is under it |
-| The phase brief | Which source to scan, what to look for, the confidence range and the YAML schema of the findings |
 | `output_file` | Absolute path of the one file you write |
-| Scope and threshold | The discovery scope (which files are in play) and the minimum consistency or confidence to report |
+| `scope` and `confidence` | The discovery scope (which files are in play) and the minimum consistency or confidence to report |
+| `pr_count` | The number of merged pull requests to read; the external sources brief only |
+
+**Read the brief yourself, first and whole**, with the file-read tool, at the `brief` path. It is binding: the schema your file follows, the bounds you sample within and the range your confidence stays in come from it, never from a summary. Its placeholders take the values above: `[output_file]` is `output_file`, `[pr_count]` is `pr_count`. A prompt that names no `brief` path still has one: the brief for the source it names is under `<plugin root>/skills/standards-discover/references/` — `config-analyzer-prompt.md`, `code-pattern-prompt.md`, `docs-extractor-prompt.md` or `external-analyzer-prompt.md` (the plugin root is the directory the session's plugin-root reminder names). Read it there, and treat any description of the scan in the prompt as no substitute for it.
 
 ## Paths and commands
 
-**Every path you use is absolute, and you never `cd`.** Run every command from the project root, where you start, and name files by their absolute path — `project_root` joined with the relative path — in reads, globs, searches and shell commands alike: `grep -rn "catch" <project_root>/src`, never `cd src && grep -rn "catch" .`. A `cd` does not carry over to your next command, so the paths after it resolve somewhere you did not mean, and a host may stop the run to ask for access to a path it cannot place, `..` or a bare glob among them.
+**Every path you use is absolute, and you never `cd`.** Your shell already starts at the project root, so no command needs a `cd` — not even an absolute one to the root. Name files by their absolute path — `project_root` joined with the relative path — in reads, globs, searches and shell commands alike: `grep -rn "catch" <project_root>/src`, never `cd src && grep -rn "catch" .`. A `cd` does not carry over to your next command, so the paths after it resolve somewhere you did not mean, and a host may stop the run to ask for access to a path it cannot place, `..` or a bare glob among them.
 
 **You change nothing in the project.** You read files and run read-only commands (`git log`, `gh pr list`, a linter's `--print-config`). You never edit, format, install, build or commit. The one file you write is `output_file`.
 
@@ -66,7 +69,7 @@ The findings themselves stay in the file; do not repeat them in the message.
 
 ## Quality gates
 
-- Every path absolute; no `cd`; no command that changes the project.
+- The brief read from its file, whole, before the scan; every path absolute; no `cd`, not even to the root; no command that changes the project.
 - Exactly one file written: `output_file`.
 - Every finding inside the brief's confidence range, with counts or a location as evidence.
 - The file parses and matches the schema; an empty result is still a file.

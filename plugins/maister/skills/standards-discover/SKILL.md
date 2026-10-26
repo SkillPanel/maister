@@ -80,26 +80,31 @@ Launch all applicable subagents in one message so they run in parallel.
 
 **Step 1.5: Create temp output directory** — Run `mktemp -d` via Bash to create a unique temp directory for this invocation; it uses `$TMPDIR`, the system temp directory. Store the path exactly as it prints — it differs per host and per run, so never assume `/tmp` or write a fixed path in its place: a literal `/tmp` path can stop the run for a permission prompt. Each subagent will write its results to a dedicated file in this directory: `{tmpdir}/config.yml`, `{tmpdir}/code.yml`, `{tmpdir}/docs.yml`, `{tmpdir}/external.yml`.
 
-**Step 2: Read prompt templates**
+**Step 2: Name the phase briefs**
 
-Read the template for each phase you will run — they define the YAML output schema the aggregation step depends on. Read each by its absolute path under this skill's base directory; never `cd` into the skill to read them, since every later command, the engine's included, would then run from there instead of the project root:
+Each phase's brief is a template under this skill's base directory: which source to scan, what to look for, the sampling bounds, the confidence range and the YAML schema the aggregation step depends on. Name each by its absolute path — never `cd` into the skill, since every later command, the engine's included, would then run from there instead of the project root. This session does not read, fill in or condense a brief: the scanner reads it itself, so nothing in it is lost on the way.
 
-| Phase | Condition | Read This File |
-|-------|-----------|----------------|
+| Phase | Condition | Brief |
+|-------|-----------|-------|
 | 2: Config Analysis | Always | `references/config-analyzer-prompt.md` |
 | 3: Code Patterns | scope != `quick` | `references/code-pattern-prompt.md` |
 | 4: Documentation | scope != `quick` | `references/docs-extractor-prompt.md` |
 | 5: External Sources | `--skip-external` not set | `references/external-analyzer-prompt.md` |
 
-**Step 3: Adapt templates** — Replace `[scope]`, `[confidence]`, and other placeholders with actual values. Replace the `[output_file]` placeholder in each template with the actual temp file path for that phase (e.g., `{tmpdir}/config.yml`).
+**Step 3: Launch subagents in parallel** — Use the Task tool with `subagent_type: maister:standards-scanner` for each phase. Its prompt is these lines, each filled in, and no part of the brief itself — never pasted, reworded or summed up:
+- `brief:` the phase brief's absolute path
+- `project_root:` the project root's absolute path
+- `output_file:` the phase's temp file
+- `scope:` the discovery scope, and `confidence:` the threshold
+- `pr_count:` the number of pull requests, for the external phase only
 
-**Step 4: Launch subagents in parallel** — Use the Task tool with `subagent_type: maister:standards-scanner` for each phase, its prompt the project root's absolute path as `project_root`, the adapted template as the phase brief and the phase's temp file as `output_file`; the scanner carries the rest itself — read-only, absolute paths and no `cd`, one file written. Each call carries the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:standards-scanner --host=claude` prints once just before the launch (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
+The scanner carries the rest itself — read-only, absolute paths, one file written. Each call carries the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:standards-scanner --host=claude` prints once just before the launch (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
 
 Every applicable phase is a subagent of its own, whatever the size of the repository: a small repository, one commit or no linter config is no reason to run a phase's discovery in this session or to write its file yourself. The phases read different sources than this session has in view, which is what makes their findings worth scoring.
 
-**Step 5: Wait** for ALL subagents to complete, then read each temp file using the Read tool to collect findings. A phase whose file is missing did not run: dispatch it once more, and report it as not run if it is still missing.
+**Step 4: Wait** for ALL subagents to complete, then read each temp file using the Read tool to collect findings. A phase whose file is missing did not run: dispatch it once more, and report it as not run if it is still missing.
 
-**Step 6: Display progress** — Show count of findings per phase.
+**Step 5: Display progress** — Show count of findings per phase.
 
 ---
 
@@ -121,7 +126,7 @@ Display aggregation summary: total raw findings, unique standards, conflicts det
 
 ### Phase 7: User Review & Approval
 
-Print one line of counts (high, medium, conflicts, below the threshold), then ask. Every question carries its own findings — never a table above it for the question to point at. Name each standard in plain words, never as `category/file` alone.
+Print one line of counts (high, medium, conflicts, below the threshold), then ask. The counts split the findings once: a finding in a conflict counts as a conflict only, never also as high or medium, and each count is the number of findings asked or listed under it — the high question lists exactly the N it names, the medium pages ask every medium finding, the conflict pages every conflict, and Phase 9 lists every finding below the threshold. A count with nothing asked or listed under it is wrong: correct the count before asking. Every question carries its own findings — never a table above it for the question to point at. Name each standard in plain words, never as `category/file` alone.
 
 - **High confidence (>= 80%)**: one question — "Apply these N standards?" with one line each in the question (what the standard says, in a few words). "Apply all N (Recommended)" / "Go through them". Going through them uses the medium-confidence pages below.
 
@@ -146,8 +151,8 @@ If `--auto-apply` is set, automatically approve findings with confidence >= 90% 
 
 Write standard files through the docs-operator subagent rather than Write/Edit, so INDEX.md and CLAUDE.md stay consistent with the files.
 
-1. **Prepare content** for every approved standard, and for every conflict with a written rule settled for the discovered side, the replacement: the written rule's section rewritten as the discovered rule, never a second section beside it — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. A rule cites at most one example path — never an inventory of call sites, a date or a ticket reference. Note create vs update for each target file, and prefer a new topic file (or a sub-folder for a topic with several) over appending to a file already past about 12 KB or 15 rules.
-2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before) with all prepared standards, instructing it to apply each create/update (merging updates with existing content), then refresh INDEX.md with every written path as changed — `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, as an absolute path — and confirm CLAUDE.md references the standards directory.
+1. **Prepare content** for every approved standard, and for every conflict with a written rule settled for the discovered side, the replacement: the written rule's section rewritten as the discovered rule, never a second section beside it — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. A rule cites at most one example path — never an inventory of call sites, a date or a ticket reference. Note create vs update for each target file, and prefer a new topic file (or a sub-folder for a topic with several) over appending to a file already past about 12 KB or 15 rules. A rule already written — a starter rule or the project's own — is replaced or removed only through a conflict the user settled for the discovered side. A finding that overlaps one without contradicting it is written beside it, or added to it with its heading and its text kept; it is never folded into a new section that takes the written one's place.
+2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before) with all prepared standards, instructing it to apply each create/update — adding to existing content, every section the call does not name for replacement kept as it is, and naming each written rule a settled conflict replaces — then refresh INDEX.md with every written path as changed — `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, as an absolute path — and confirm CLAUDE.md references the standards directory.
 
 Display application summary: created count, updated count, total active.
 

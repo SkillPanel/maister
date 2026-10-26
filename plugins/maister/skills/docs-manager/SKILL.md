@@ -208,7 +208,7 @@ Use this to help the user update or modify existing project documentation.
 2. Check if the documentation exists in `.maister/docs/`
 3. If the documentation exists:
    - Read the current documentation
-   - Apply the change the caller describes; with none described, return the question as a decision needed
+   - Apply the change the caller describes, and only that; with none described, return the question as a decision needed. A section the caller does not name for replacement or removal stays as it is: content that overlaps it is added beside it or to it, never folded into a new section in its place
    - Include the plugin's baseline version for reference when the caller asks for it
 4. If the documentation doesn't exist, return a decision needed: add it from the plugin baseline ("Add Documentation File") or create it from scratch
 5. After updating:

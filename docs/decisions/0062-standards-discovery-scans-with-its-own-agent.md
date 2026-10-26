@@ -59,6 +59,11 @@ every plugin agent its own tool list, so a source agent declares none.
   what to look at, what to detect, the sampling bounds, the confidence range and the YAML
   schema. What every scan shares — the output rules, the evidence rules, the path rule — lives
   in the agent, once.
+- **The scanner reads its brief.** The dispatch names the brief by its absolute path, with the
+  values its placeholders take (`output_file`, `pr_count`) and the scope, threshold and project
+  root; the session never fills in, rewords or condenses it. (Amended after the first trial:
+  the session first filled in the template and passed its text, and one host passed a condensed
+  rewrite instead, which found fewer conventions.)
 - **What the agent takes from the built-ins:**
 
 | Practice | Taken from | Why here |

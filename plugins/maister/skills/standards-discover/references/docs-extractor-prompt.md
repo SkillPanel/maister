@@ -39,7 +39,7 @@ Higher end (90+) when multiple docs agree or when stated as mandatory rules.
 
 ## Output Format
 
-Write this YAML to `[output_file]` (the orchestrator puts the file's absolute path in place of the placeholder):
+Write this YAML to `[output_file]` (the `output_file` your prompt names):
 
 ```yaml
 findings:

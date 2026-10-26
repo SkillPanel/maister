@@ -41,7 +41,7 @@ Config-based findings: **70-85%** confidence (explicit configuration = strong ev
 
 ## Output Format
 
-Write this YAML to `[output_file]` (the orchestrator puts the file's absolute path in place of the placeholder):
+Write this YAML to `[output_file]` (the `output_file` your prompt names):
 
 ```yaml
 findings:
