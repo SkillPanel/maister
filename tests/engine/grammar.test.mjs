@@ -585,6 +585,21 @@ test('an overlay says nothing about what the workflow is for', t => {
   assert.match(errorAt(report, 'description').message, /"description" is not an overlay key/);
 });
 
+test('chain_only validates as true or false and leaves the graph hash where it was', t => {
+  const hashOf = file => JSON.parse(verb(['resolve', `--definition=${file}`]).stdout);
+  const plain = hashOf(definition(t));
+  for (const written of ['chain_only: true', 'chain_only: false']) {
+    const marked = hashOf(definition(t, ['name: acme', 'version: 1', written, ...BASE.slice(2)]));
+    assert.equal(marked.ok, true, `${written}: ${JSON.stringify(marked.errors)}`);
+    assert.equal(marked.graph_hash, plain.graph_hash, written);
+  }
+  for (const written of ['chain_only: "yes"', 'chain_only: 1']) {
+    const { code, report } = validate(definition(t, ['name: acme', 'version: 1', written, ...BASE.slice(2)]));
+    assert.equal(code, 1, written);
+    assert.match(errorAt(report, 'chain_only').message, /chain_only is true or false/, written);
+  }
+});
+
 /** A project's `.maister/workflows/` (or `generated/` under it) in a scratch root. */
 function projectHome(t, sub = '') {
   const dir = path.join(workspace(t), '.maister', 'workflows', sub);

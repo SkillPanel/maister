@@ -278,6 +278,7 @@
           "state-context-block-unknown",
           "state-delegates-unrecorded",
           "state-entry-unserializable",
+          "state-freeze-chain-only",
           "state-freeze-input-missing",
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
@@ -376,6 +377,7 @@
           "state-context-block-unknown",
           "state-delegates-unrecorded",
           "state-entry-unserializable",
+          "state-freeze-chain-only",
           "state-freeze-input-missing",
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
@@ -433,6 +435,7 @@
           "state-context-block-unknown",
           "state-delegates-unrecorded",
           "state-entry-unserializable",
+          "state-freeze-chain-only",
           "state-freeze-input-missing",
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
@@ -504,6 +507,7 @@
           "state-context-block-unknown",
           "state-delegates-unrecorded",
           "state-entry-unserializable",
+          "state-freeze-chain-only",
           "state-freeze-input-missing",
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
@@ -705,6 +709,7 @@
           "state-context-block-unknown",
           "state-delegates-unrecorded",
           "state-entry-unserializable",
+          "state-freeze-chain-only",
           "state-freeze-input-missing",
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
@@ -759,6 +764,7 @@
           "state-context-block-unknown",
           "state-delegates-unrecorded",
           "state-entry-unserializable",
+          "state-freeze-chain-only",
           "state-freeze-input-missing",
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
@@ -1011,7 +1017,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.5",
+  "interface_version": "1.6",
   "mcp": {
     "servers": [],
     "tools": [

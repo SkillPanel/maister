@@ -92,7 +92,8 @@ carry `dir:` as `dispatches`, and the companion's `title`.
 - **A chain.** A non-empty `dispatches` means nodes hand work to member repositories. That is a
   chain — whether the definition declares those nodes or an overlay or the profile adds them —
   and chains are started and driven from maister cockpit, which owns the dispatch ledger and the
-  workers. Name the dispatching nodes and stop.
+  workers. Name the dispatching nodes and stop. A workflow declaring `chain_only: true` is a
+  step such a chain dispatches: the engine's freeze refuses it from here, and nothing opens.
 - **A legacy folder name.** `bug-fixes`, `enhancements`, `new-features`, `refactoring` and
   `mockups` are pre-v3 task folders that every run reader skips as inventory, and a run's folder
   is its workflow's name — so a run started under one of them could never be found again. Say

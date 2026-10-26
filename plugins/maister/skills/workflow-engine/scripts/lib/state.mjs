@@ -107,7 +107,7 @@ import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
-import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun } from './driver.mjs';
+import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver } from './driver.mjs';
 import { atClose, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -1846,6 +1846,11 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
  *              `orchestrator.options.inputs` as this write leaves it — the
  *              patch's `orchestrator` keys are applied before this block, so a
  *              freeze that carries its inputs beside it is read with them.
+ *   driver     a definition declaring `chain_only: true` is frozen only
+ *              under a cockpit or dispatch driver, as this write leaves it: a
+ *              chain-only workflow started from the terminal is refused here,
+ *              before anything is written, so it never installs or opens a
+ *              dashboard for a run that cannot go on.
  *
  * A resolved `needs` then replaces whatever the patch carried for that node, so
  * a caller that copied only the kinds still freezes the edges, and a gate that
@@ -1859,7 +1864,7 @@ function provenNodes(doc, workflow, runDir) {
       + 'Run resolve with the --definition, --overlay and --profile the run was started with, and send its '
       + 'source, overlays, profile, graph_hash and name exactly as resolve printed them');
   }
-  const { graph, inputs } = proof;
+  const { graph, inputs, chainOnly } = proof;
 
   if (graph.name !== null && workflow.name !== graph.name) {
     throw new Refusal('state-freeze-name-mismatch',
@@ -1877,6 +1882,12 @@ function provenNodes(doc, workflow, runDir) {
       + 'and every other node as task');
   }
   for (const [id, entry] of Object.entries(nodes)) assertStatus(id, entry);
+
+  if (chainOnly && isTerminalDriver(currentState(doc))) {
+    throw new Refusal('state-freeze-chain-only',
+      `"${graph.name ?? workflow.name}" runs as a step of a chain started from maister cockpit; it can't be started from the terminal. `
+      + 'Nothing was written. Start the chain from maister cockpit; a run a chain dispatches records its driver in this same freeze');
+  }
 
   const missing = missingInputs(doc, inputs);
   if (missing.length) {
@@ -1973,7 +1984,11 @@ export function provenGraph(workflow, runDir) {
     if (graph.graph_hash !== recorded) {
       return { reason: `it resolves to ${graph.graph_hash}, not to the recorded ${recorded}` };
     }
-    return { graph, inputs: isPlainObject(definition.doc.inputs) ? definition.doc.inputs : {} };
+    return {
+      graph,
+      inputs: isPlainObject(definition.doc.inputs) ? definition.doc.inputs : {},
+      chainOnly: definition.doc.chain_only === true,
+    };
   } catch (err) {
     return { reason: `its definition cannot be resolved (${err && err.message ? err.message : err})` };
   }
@@ -2017,6 +2032,16 @@ function kindsOf(node) {
  * that the document as this write leaves it records no value for. A null is
  * no value.
  */
+/** The state as this write leaves it so far, as plain objects; `{}` when it does not parse. */
+function currentState(doc) {
+  try {
+    const parsed = parseState(doc.text());
+    return isPlainObject(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 function missingInputs(doc, declared) {
   const required = Object.entries(declared)
     .filter(([, input]) => isPlainObject(input) && input.required === true && !Object.hasOwn(input, 'default'))

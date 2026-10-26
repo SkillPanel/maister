@@ -406,7 +406,12 @@ destination. Its first
 option is fixed: *"None now: list them as next steps"*. Each candidate follows
 as an option — its label the consolidation's few words, its description the
 candidate line, then its destination (a new rule in a named file, the rule it
-extends, or a project document) and its evidence. No option is recommended.
+extends, or a project document) and its evidence. Each candidate the
+consolidation found well supported — its evidence in more than one place, or
+its action extending a rule the project already has — is recommended, its
+description opening with that reason; the candidates are separate choices, so
+more than one may be. When none qualifies, *None now* is recommended, its
+description saying no candidate has support beyond one place yet.
 Each chosen candidate is added with `standards-update`, its line and
 suggested destination as the description, one after another, its destination
 asked, never taken as given; an unchosen one
@@ -421,7 +426,8 @@ The question counts only the candidates it lists, never more than it shows.
 
 **With question sets** (`standard-candidates`): the same multi-select, with the
 multi-choice flag, as this node's one request in its attempt — *None now* first,
-under the id `none-now`, and no option recommended. The chosen candidates go
+under the id `none-now`, and every option `recommended` true or false by the
+rule above. The chosen candidates go
 under **Next**, each as the
 `/maister-copilot:standards-update "<candidate> (suggested: <destination>)"` command to
 run, since adding one asks its own questions in session. *None now* alone puts
