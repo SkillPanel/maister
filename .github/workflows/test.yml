@@ -1,5 +1,15 @@
 name: Test
-on: [push, pull_request]
+# Pushes run CI only on the long-lived branches and release branches; other
+# branches are checked through their pull request.
+on:
+  push:
+    branches: [master, beta, 'release/**']
+  pull_request:
+
+# A newer push to the same branch or pull request supersedes the run before it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -34,14 +44,15 @@ jobs:
       - name: Run the engine and the hooks through bash
         run: make smoke
 
-      # Notifies a downstream repository's CI of each push. Off unless the
+      # Notifies a downstream repository's CI of each push to master or beta,
+      # so a release reaches it once, when it is promoted. Off unless the
       # repository sets both the PRO_DISPATCH_REPO variable (owner/name) and the
       # PRO_DISPATCH_TOKEN secret, so forks and clones skip it; one without the
       # other warns and exits clean, and a rejected dispatch fails the step.
       # Every value is routed through env: and referenced as a quoted shell
       # variable, never interpolated into the run: body.
       - name: Notify downstream CI
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/beta')
         env:
           PRO_DISPATCH_TOKEN: ${{ secrets.PRO_DISPATCH_TOKEN }}
           PRO_DISPATCH_REPO: ${{ vars.PRO_DISPATCH_REPO }}
