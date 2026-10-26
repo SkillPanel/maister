@@ -75,9 +75,11 @@ The person still chooses: consolidation orders and places, it never decides what
 
 A workflow run never writes a standard and asks nothing about its candidates. Finalization writes
 what consolidation returned to `standard-candidates.json` in the task directory, lists the
-candidates in its close, and names `/maister:standards-update` once under **Next**. Run later
-with no argument, standards-update finds the most recent run whose file still holds a candidate
-to apply and offers them. The file is JSON:
+candidates in its close with that task directory, and names `/maister:standards-update` once
+under **Next**. Run with no argument in the same session, standards-update finds the close and
+offers that run's candidates; in a fresh session it finds the most recent run whose file still
+holds a candidate to apply and offers them. Either way an applied candidate is not offered again.
+The file is JSON:
 
 - `candidates` — each one offered: `id` (short, unique in the file), `label` (its few words),
   `line` (the candidate line), `action` (`new` or `extend`), `extends` (the rule's file and

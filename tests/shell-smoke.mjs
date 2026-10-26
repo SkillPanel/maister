@@ -271,15 +271,18 @@ try {
 
   // --- the standard candidates lookup ---------------------------------------
   // Run from the project root as standards-update runs it: a run's candidates
-  // file found, one applied through a --run path holding a space, and gone.
+  // file found, one applied through a --run path holding a space, and gone,
+  // and the run read by name through the same path.
   const candidateRun = path.join(project, '.maister', 'tasks', 'development', '2026-01-05-candidate run');
   fs.mkdirSync(candidateRun, { recursive: true });
   fs.writeFileSync(path.join(candidateRun, 'standard-candidates.json'), JSON.stringify({ candidates: [{ id: 'typed-errors', label: 'Typed errors', line: '- Raise typed errors', destination: 'standards/global/errors.md' }] }));
   const found = json(call('latest', [], null, candidatesLookup).stdout);
   const marked = call('applied', [flag('run', candidateRun), '--id=typed-errors'], null, candidatesLookup);
   const after = json(call('latest', [], null, candidatesLookup).stdout);
+  const named = json(call('show', [flag('run', candidateRun)], null, candidatesLookup).stdout);
   check('the candidates lookup finds a run under a path holding a space and records one applied',
-    found?.run?.name === '2026-01-05-candidate run' && marked.code === 0 && after?.run === null, show(marked));
+    found?.run?.name === '2026-01-05-candidate run' && marked.code === 0 && after?.run === null
+      && named?.run?.name === '2026-01-05-candidate run' && named.candidates.length === 0, show(marked));
 
   // --- the hooks ------------------------------------------------------------
   // Each hook is started from its `hooks.json` entry the way the host starts

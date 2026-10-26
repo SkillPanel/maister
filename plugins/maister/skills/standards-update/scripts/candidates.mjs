@@ -3,6 +3,7 @@
  * some still to apply, and which of them a person has applied since.
  *
  *   node <path to this file> latest [--tasks=<dir>]
+ *   node <path to this file> show --run=<task dir> [--tasks=<dir>]
  *   node <path to this file> applied --run=<task dir> --id=<id> [--id=<id> ...]
  *
  * A run's finalization writes `standard-candidates.json` into its task
@@ -22,6 +23,12 @@
  * newest first; `problems` names each file that could not be read and each
  * entry that is not a candidate, `{path, message}` — never a reason to fail.
  *
+ * `show` prints the same report for the one run named — the run whose close a
+ * person has in front of them — its candidates less the ones already applied
+ * (none, when all are), and `others` the runs under `--tasks` that still hold
+ * some. A run whose candidates file cannot be read is `run: null`, the file
+ * named under `problems`.
+ *
  * `applied` adds the ids to the run's applied file, once each, written whole
  * through a temporary file and a rename. An id the run's candidates file does
  * not hold is refused and nothing is recorded.
@@ -39,7 +46,7 @@ const EXIT = { OK: 0, REFUSED: 1, INTERNAL: 2 };
 const CANDIDATES = 'standard-candidates.json';
 const APPLIED = 'standard-candidates-applied.json';
 const DEFAULT_TASKS = path.join('.maister', 'tasks');
-const USAGE = 'usage: node candidates.mjs latest [--tasks=<dir>] | applied --run=<task dir> --id=<id> [--id=<id> ...]';
+const USAGE = 'usage: node candidates.mjs latest [--tasks=<dir>] | show --run=<task dir> [--tasks=<dir>] | applied --run=<task dir> --id=<id> [--id=<id> ...]';
 
 /** The fields every candidate carries as a non-empty string. */
 const REQUIRED = ['id', 'label', 'line', 'destination'];
@@ -48,7 +55,7 @@ class UsageError extends Error {}
 
 function parseArgs(argv) {
   const [verb, ...rest] = argv;
-  if (verb !== 'latest' && verb !== 'applied') throw new UsageError(verb ? `unknown verb ${verb}` : 'a verb is required');
+  if (!['latest', 'show', 'applied'].includes(verb)) throw new UsageError(verb ? `unknown verb ${verb}` : 'a verb is required');
   const flags = { verb, ids: [] };
   for (const arg of rest) {
     const match = /^--(tasks|run|id)=(.+)$/.exec(arg);
@@ -58,6 +65,7 @@ function parseArgs(argv) {
     else flags[name] = value;
   }
   if (verb === 'latest' && (flags.run || flags.ids.length)) throw new UsageError('latest takes only --tasks');
+  if (verb === 'show' && (!flags.run || flags.ids.length)) throw new UsageError('show takes --run and optionally --tasks');
   if (verb === 'applied' && (!flags.run || !flags.ids.length || flags.tasks)) throw new UsageError('applied takes --run and at least one --id');
   return flags;
 }
@@ -116,18 +124,26 @@ function runDirs(tasks) {
   return dirs;
 }
 
-function latest(tasks) {
-  const problems = [];
+/** A run's candidates less the ones already applied; null when its file cannot be read. */
+function openRun(where, problems) {
+  const read = readRun(where.dir, problems);
+  if (!read) return null;
+  const applied = appliedIds(where.dir, problems);
+  return { ...where, ...read, candidates: read.candidates.filter(candidate => !applied.has(candidate.id)) };
+}
+
+/** Every run under `tasks` with a candidate left to apply, newest first; `skip` is left out. */
+function openRuns(tasks, problems, skip) {
   const open = [];
   for (const where of runDirs(tasks)) {
-    const read = readRun(where.dir, problems);
-    if (!read) continue;
-    const applied = appliedIds(where.dir, problems);
-    const left = read.candidates.filter(candidate => !applied.has(candidate.id));
-    if (left.length) open.push({ ...where, ...read, candidates: left });
+    if (where.dir === skip) continue;
+    const each = openRun(where, problems);
+    if (each?.candidates.length) open.push(each);
   }
-  open.sort((a, b) => b.mtime - a.mtime || b.dir.localeCompare(a.dir));
-  const [chosen, ...rest] = open;
+  return open.sort((a, b) => b.mtime - a.mtime || b.dir.localeCompare(a.dir));
+}
+
+function report(chosen, rest, problems) {
   return {
     run: chosen ? { dir: chosen.dir, type: chosen.type, name: chosen.name } : null,
     candidates: chosen ? chosen.candidates : [],
@@ -135,6 +151,18 @@ function latest(tasks) {
     others: rest.map(each => ({ dir: each.dir, count: each.candidates.length })),
     problems,
   };
+}
+
+function latest(tasks) {
+  const problems = [];
+  const [chosen, ...rest] = openRuns(tasks, problems);
+  return report(chosen, rest, problems);
+}
+
+function show(dir, tasks) {
+  const problems = [];
+  const chosen = openRun({ dir, type: path.basename(path.dirname(dir)), name: path.basename(dir) }, problems);
+  return report(chosen, openRuns(tasks, problems, dir), problems);
 }
 
 function applied(dir, ids) {
@@ -164,9 +192,10 @@ function main() {
   }
   let result;
   try {
-    result = flags.verb === 'latest'
-      ? latest(path.resolve(flags.tasks ?? DEFAULT_TASKS))
-      : applied(path.resolve(flags.run), flags.ids);
+    const tasks = path.resolve(flags.tasks ?? DEFAULT_TASKS);
+    if (flags.verb === 'latest') result = latest(tasks);
+    else if (flags.verb === 'show') result = show(path.resolve(flags.run), tasks);
+    else result = applied(path.resolve(flags.run), flags.ids);
   } catch (error) {
     process.stderr.write(`candidates: ${error.message}\n`);
     return EXIT.INTERNAL;

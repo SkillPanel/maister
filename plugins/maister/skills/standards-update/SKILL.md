@@ -13,7 +13,7 @@ Every write goes through the `docs-operator` subagent, which preloads docs-manag
 ## Usage
 
 ```bash
-/maister:standards-update                                    # Detect from conversation, else offer the latest run's candidates
+/maister:standards-update                                    # Detect from conversation (a run's close included), else offer the latest run's candidates
 /maister:standards-update "always use React.memo for lists"  # From description
 /maister:standards-update --from=/path/to/other-project      # Sync from another project
 /maister:standards-update "split standards/backend/storage.md" # Split a file past its size guidance
@@ -89,9 +89,11 @@ When `--from` is NOT provided, the skill uses the standard detect-and-update flo
 
 **Step 1: Gather input**
 - **If the argument or the conversation asks to split a file**: go to § Splitting a Standards File instead.
-- **If argument provided**: Use the description as primary input. Also scan last 15-20 messages for additional context, examples, or related conventions.
-- **If no argument**: Scan last 15-20 messages for convention discussions. Look for patterns like "we should always...", "our convention is...", "prefer X over Y", "never use...", code examples showing patterns.
-- **If no argument and the conversation holds none** — a fresh session, typically right after a workflow run named this command under **Next**: go to § Candidates from a Workflow Run.
+- **How far back to scan**: about the last 50 messages, or back to the most recent workflow run's close when that is further. A run's close comes at the end of a long stretch of work and is where it hands its standard candidates over, so reaching it matters more than a fixed count; the count is guidance, not a limit.
+- **If argument provided**: Use the description as primary input. Also scan the conversation for additional context, examples, or related conventions.
+- **If no argument**: Scan the conversation for convention discussions. Look for patterns like "we should always...", "our convention is...", "prefer X over Y", "never use...", code examples showing patterns.
+- **A workflow run's close in the scan** — a close that lists the run's standard candidates and names its task directory: those are that run's candidates, not conventions of the conversation. Take them through § Candidates from a Workflow Run with that task directory, so the ones already applied are dropped and each one written is recorded. Conventions the scan finds elsewhere in the conversation are offered beside them in the same flow, through Step 2 onward — not instead of them, and a convention that repeats a run's candidate is offered once, as the candidate.
+- **If no argument and the conversation holds none** — a fresh session, typically right after a workflow run named this command under **Next**: go to § Candidates from a Workflow Run, which looks up the latest run.
 
 **Step 2: Discover existing categories and files**
 
@@ -169,9 +171,9 @@ Display a summary: what was updated/created, practices added, and next steps (re
 
 ## Candidates from a Workflow Run
 
-A workflow run writes no standard. Its finalization leaves the consolidated candidates in its task directory (*The run's candidates file* in the standard candidates reference) and names this command once; this is where they are applied.
+A workflow run writes no standard. Its finalization leaves the consolidated candidates in its task directory (*The run's candidates file* in the standard candidates reference), lists them in its close with that task directory, and names this command once; this is where they are applied — in the session the run closed in, or in a fresh one.
 
-1. **Find them.** Run `node <plugin root>/skills/standards-update/scripts/candidates.mjs latest` from the project root, the plugin root as above. It prints the most recent run whose candidates are not all applied yet (`run`), those candidates, the ones it found already held, the other runs that still hold some (`others`) and any file it could not read (`problems`). With `run` null, go back to *If nothing detected* in Phase 1.
+1. **Find them.** From a run's close in the conversation, run `node <plugin root>/skills/standards-update/scripts/candidates.mjs show --run=<task dir>` with the task directory the close names; in a fresh session, `node <plugin root>/skills/standards-update/scripts/candidates.mjs latest`. Either runs from the project root, the plugin root as above, and prints the run (`run` — for `latest`, the most recent run whose candidates are not all applied yet), its candidates less the ones already applied, the ones it found already held, the other runs that still hold some (`others`) and any file it could not read (`problems`). From a close whose candidates are all applied, say so and go on with the conversation's other conventions alone. With `run` null, a close's candidates are taken from the close as conventions of the conversation, the problem named; from `latest`, go back to *If nothing detected* in Phase 1.
 2. **Offer them** — one multi-select AskUserQuestion. The question names the run by its type and name, says how many candidates it offers, and, when `others` is not empty, that other runs hold candidates too (how many runs, named). Each candidate is an option: its `label` as the label; its destination, then its evidence, as the description. Each `recommended` candidate is marked recommended, its description opening with its `reason`; the candidates are separate choices, so more than one may be. When none is, the question says no candidate has support beyond one place yet. More than four candidates go in pages of four in the same call, each question counting its own out of the whole. The already-held ones are not offered; name them in the question with the rule that holds each. An unchosen candidate stays in the run's file and is offered again next time.
 3. **Apply the chosen ones**, one after another, through Phase 1 Step 3 onward: the candidate line as the description and its `destination` as the suggested destination (for `extend`, the rule it extends) — the destination is asked in Step 4, never taken as given. Once a candidate has been written (Phase 4 succeeded), record it: `node <plugin root>/skills/standards-update/scripts/candidates.mjs applied --run=<run dir> --id=<id>`, so it is not offered again. A candidate whose write failed is not recorded.
 4. **Summarize** as Phase 5 does, for all of them together, and say which candidates are left in that run and in the others.
