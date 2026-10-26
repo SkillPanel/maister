@@ -671,7 +671,7 @@ project:
   deploy: package-registry   # none | local | container | kubernetes | serverless | package-registry | app-store
   exposure: local            # local | internal | public: who can reach its entry points
   data: []                   # the stores it writes, e.g. [postgres, files]; [] for none
-  scale: team                # single-user | team | multi-tenant
+  scale: team                # single-user | team | multi-tenant: who uses it
   ui: none                   # none | web | tui | native
 ```
 

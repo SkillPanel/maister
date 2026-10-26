@@ -44,7 +44,7 @@ For complex bugs that grow beyond a quick fix, offers to switch to a full develo
 
 - If provided as argument, use it directly
 - If not provided, scan the recent conversation for bug context (error messages, reproduction steps, discussed symptoms). If found, use that as the bug description.
-- Only if no argument AND no bug context in session, use ask_user:
+- Only if no argument AND no bug context in session, ask in plain text and wait for the answer — a question with nothing to pick from is not an ask_user call, which refuses fewer than two options:
   ```
   "Describe the bug — what's the expected behavior vs actual behavior?"
   ```
@@ -146,7 +146,7 @@ If any section is missing, add it before asking for approval.
 - Investigate further — re-read the bug description, check if conditions are correct
 - Use ask_user — "The reproduction test passes: \<the conditions it tested\> already behave as expected. What now?":
   - "The bug's description is accurate: look for other conditions" — investigate further and write a new reproduction
-  - up to three generated conditions the bug might need, from the analysis ("Only with an empty cart", "Only after a session timeout"), each rerunning the test under it
+  - one to three generated conditions the bug might need, from the analysis ("Only with an empty cart", "Only after a session timeout"), each rerunning the test under it
   - the user's own condition is the Other answer
 
 ### Step 6: Fix & Verify (TDD Green)

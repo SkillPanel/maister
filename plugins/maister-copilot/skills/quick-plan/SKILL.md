@@ -14,7 +14,7 @@ This works exactly like Claude Code's built-in plan mode, with one addition: the
 
 ## Workflow
 
-1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask with `ask_user`: "What would you like to plan?"
+1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask in plain text — "What would you like to plan?" — and wait for the answer: a question with nothing to pick from is not an `ask_user` call, which refuses fewer than two options.
 
 2. **Plan without editing** — This host has no plan-mode tool for you to enter. Explore the codebase, design the approach and write the plan without creating, editing or deleting any project file and without running a command that changes one. Then present the plan and ask for approval with `ask_user`; implement only after it is approved. If the session is already in Copilot's plan mode (the user started it with `/plan` or `--plan`), the host itself blocks edits: present the plan with `exit_plan_mode`, which asks for that approval and leaves plan mode.
 
