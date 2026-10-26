@@ -81,7 +81,7 @@ import { randomBytes } from 'node:crypto';
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { isSetAside } from '../../../../lib/run-dirs.mjs';
 import { readDefinition } from './definition.mjs';
-import { driverCapability } from './envelope.mjs';
+import { driverCapability, gitHostKind, hostedRemote, remoteUrls } from './envelope.mjs';
 import { bareWorkflowName, locate as locateWorkflow, runRoot, TARGET_NAME, validate as validateGraph } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
 
 /** The refusal names `commit` and `openTemp` report under, kept in one place. */
@@ -180,6 +180,13 @@ const BRANCH_SAFE_MEMBER = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 /** The admitted autonomy tiers, and the provider names a member may default to. */
 const AUTONOMY = ['attended', 'auto-low', 'auto-medium', 'auto-high'];
 const PROVIDERS = ['claude', 'copilot'];
+
+/**
+ * The `git_host.kind` values `init` writes: the hosts a remote can be read as.
+ * `validate` keeps taking any string, so a workspace on another host states its
+ * kind by hand; `init` writes only a kind it can name.
+ */
+const GIT_HOST_KINDS = ['github', 'gitlab'];
 
 /**
  * `auto-low` is still a valid tier — the enum and its refusal texts keep it —
@@ -393,7 +400,7 @@ function contains(base, target) {
  * a different value. The shape is fixed — members as one-line flow maps under
  * an object map keyed by directory name.
  */
-function renderManifest({ umbrellaId, members }) {
+function renderManifest({ umbrellaId, members, gitHost = null, provider = null }) {
   const lines = [];
   lines.push('version: 1');
   lines.push(`umbrella_id: ${scalar(umbrellaId, 'umbrella_id')}`);
@@ -420,7 +427,7 @@ function renderManifest({ umbrellaId, members }) {
   lines.push('  project: null');
   lines.push(`  mirror: ${flow({ enabled: false, scope: null }, 'tracker.mirror')}`);
   lines.push('git_host:');
-  lines.push('  kind: null');
+  lines.push(`  kind: ${gitHost === null ? 'null' : scalar(gitHost, 'git_host.kind')}`);
   lines.push('  org: null');
   // A block sequence whose entries are maps is outside the reader's subset, so
   // an empty flow sequence is the only spelling of "no people yet" that reads
@@ -437,6 +444,10 @@ function renderManifest({ umbrellaId, members }) {
   lines.push('defaults:');
   lines.push('  autonomy: attended');
   lines.push('  worktree: true');
+  // Written only when the operator named it. A default provider is a decision,
+  // and `null` is not a provider the validator accepts, so an unnamed one is
+  // left out rather than spelled as a blank.
+  if (provider !== null) lines.push(`  provider: ${scalar(provider, 'defaults.provider')}`);
 
   return `${lines.join('\n')}\n`;
 }
@@ -476,18 +487,56 @@ function uuid7() {
  * The ledger index and log are written only when absent. `--force` is about the
  * manifest; rewriting a ledger that already records dispatches would destroy
  * the one append-only record the runtime has.
+ *
+ * Two manifest values are settled here rather than left blank when they can be:
+ * `git_host.kind`, from `gitHost` or else from the members' remotes when every
+ * hosted one names the same known host, and `defaults.provider`, from
+ * `provider` only — the runtime never invents a default provider, and neither
+ * does `init`. Whatever stays unset is named in the report's `unset`. With
+ * `dryRun` everything up to the first write runs, refusals included, and the
+ * report says what would be written; nothing is.
  */
-export function init(root, { membersRoot = null, force = false, scaffold = false } = {}) {
+export function init(root, { membersRoot = null, force = false, scaffold = false, provider = null, gitHost = null, dryRun = false } = {}) {
   try {
+    if (provider !== null && !PROVIDERS.includes(provider)) {
+      throw new Refusal('umbrella-provider-unknown',
+        `--provider=${provider} is not a provider this runtime dispatches to; it is one of ${PROVIDERS.join(', ')}. Nothing was written.`);
+    }
+    if (gitHost !== null && !GIT_HOST_KINDS.includes(gitHost)) {
+      throw new Refusal('umbrella-git-host-unknown',
+        `--git-host=${gitHost} is not a git host kind init writes; it is one of ${GIT_HOST_KINDS.join(', ')}. A workspace on another host leaves the flag out and sets git_host.kind in the manifest by hand. Nothing was written.`);
+    }
     const found = discover(root, { membersRoot });
     const base = found.root;
+    const detected = detectGitHost(base, found.members);
+    const hostKind = gitHost ?? detected.kind;
     const umbrellaId = uuid7();
-    const text = renderManifest({ umbrellaId, members: found.members });
+    const text = renderManifest({ umbrellaId, members: found.members, gitHost: hostKind, provider });
 
     const manifest = path.join(base, FRAMEWORK_DIR, 'umbrella.yml');
     if (exists(manifest) && !force) {
       throw new Refusal('umbrella-manifest-exists',
         `${relative(base, manifest)} already exists, so this workspace is already an umbrella. Nothing was written; re-run with --force to rewrite the manifest — the ledger and the outbox are left alone either way.`);
+    }
+
+    const settled = {
+      git_host: { kind: hostKind, source: gitHost !== null ? 'flag' : detected.kind !== null ? 'detected' : null, detected },
+      provider: { value: provider, source: provider !== null ? 'flag' : null },
+      unset: unsetDefaults({ hostKind, detected, provider }),
+    };
+
+    if (dryRun) {
+      return {
+        ok: true,
+        dry_run: true,
+        root: base,
+        manifest: relative(base, manifest),
+        members_root: found.membersRoot,
+        members: found.members,
+        ...settled,
+        unresolved: found.unresolved,
+        warnings: found.warnings,
+      };
     }
 
     const created = [];
@@ -559,12 +608,63 @@ export function init(root, { membersRoot = null, force = false, scaffold = false
       created,
       preserved,
       skipped,
+      ...settled,
       unresolved: found.unresolved,
       warnings: found.warnings,
     };
   } catch (err) {
     return refused(err);
   }
+}
+
+/**
+ * The git host the members' remotes agree on.
+ *
+ * Every remote of every member is read the way a dispatch reads them, and a
+ * remote on a path of this machine is no host and is passed over. The kind is
+ * settled only when at least one hosted remote exists and every hosted remote
+ * names the same known host; `reason` says why it is not: `no-hosted-remote`,
+ * `host-unknown` (a hosted remote whose kind this build cannot name) or
+ * `remotes-disagree`. `remotes` lists each hosted remote with its member and
+ * kind, so whoever asks the operator can show what was found.
+ */
+function detectGitHost(base, members) {
+  const remotes = [];
+  for (const member of members) {
+    for (const url of remoteUrls(path.join(base, member.path))) {
+      if (hostedRemote(url)) remotes.push({ member: member.name, url, kind: gitHostKind(url) });
+    }
+  }
+  if (remotes.length === 0) return { kind: null, reason: 'no-hosted-remote', remotes };
+  if (remotes.some((remote) => remote.kind === null)) return { kind: null, reason: 'host-unknown', remotes };
+  const kinds = new Set(remotes.map((remote) => remote.kind));
+  if (kinds.size > 1) return { kind: null, reason: 'remotes-disagree', remotes };
+  return { kind: remotes[0].kind, reason: null, remotes };
+}
+
+/** The manifest values `init` left unset, each with what setting it takes. */
+function unsetDefaults({ hostKind, detected, provider }) {
+  const unset = [];
+  if (hostKind === null) {
+    const why = {
+      'no-hosted-remote': 'no member has a remote on a git host',
+      'host-unknown': 'a member remote is on a host whose kind cannot be named',
+      'remotes-disagree': 'the member remotes name different hosts',
+    }[detected.reason];
+    unset.push({
+      path: 'git_host.kind',
+      reason: detected.reason,
+      message: `git_host.kind is not set: ${why}. Pass --git-host=${GIT_HOST_KINDS.join(' or --git-host=')}, or set it in the manifest.`,
+    });
+  }
+  if (provider === null) {
+    unset.push({
+      path: 'defaults.provider',
+      reason: 'not-given',
+      message: `defaults.provider is not set: no --provider was given, and a default provider is never guessed. Pass --provider=${PROVIDERS.join(' or --provider=')}, or set it in the manifest; until then each chain node names its provider, or its member's default_provider does.`,
+    });
+  }
+  return unset;
 }
 
 /**

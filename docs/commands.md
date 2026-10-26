@@ -340,7 +340,7 @@ set a workspace up for the cockpit, judge it and tidy it; the rest of the runtim
 running chain uses, documented here for the operator who needs to know what wrote a ledger or an
 outbox.
 
-### `/maister:umbrella init [--root DIR] [--members-root DIR] [--force]`
+### `/maister:umbrella init [--root DIR] [--members-root DIR] [--provider NAME] [--git-host KIND] [--force]`
 
 Scaffold a workspace: the manifest, the workflow directory with its `generated/` subdirectory, an
 empty ledger with its index and log, and the outbox root. The `generated/` subdirectory is the home
@@ -350,10 +350,19 @@ later `--force`. Members are discovered by a bounded two-level walk, following s
 repository checked out inside the workspace is found without being listed by hand. Run it from the
 workspace directory and `--root` defaults to it.
 
+The manifest also records the workspace's git host (`git_host.kind`) and its default provider
+(`defaults.provider`). The git host is read from the members' remotes when they all point at the
+same known host. Before writing, the command asks about whatever it could not settle that way:
+the default provider always, recommending the CLI it runs in, and the git host when the remotes
+disagree or there are none. Each flag answers its question in advance. A value left unanswered stays
+unset, and the report says so.
+
 | Flag | Description |
 |------|-------------|
 | `--root DIR` | The workspace root. Defaults to the current directory |
 | `--members-root DIR` | Where member checkouts live, when it is not the workspace root itself. Must be inside the workspace |
+| `--provider NAME` | The workspace's default provider: `claude` or `copilot` |
+| `--git-host KIND` | The workspace's git host: `github` or `gitlab`. Overrides what the remotes say |
 | `--scaffold` | Additionally create a knowledge README and a root guidance stub where neither exists — never overwriting one |
 | `--force` | Replace an existing manifest instead of refusing |
 
@@ -365,6 +374,7 @@ declines to write is named with a reason. A second `init` over an existing manif
 ```bash
 /maister:umbrella init
 /maister:umbrella init --root /work/acme-platform --members-root repos
+/maister:umbrella init --provider claude --git-host github
 /maister:umbrella init --force
 ```
 
