@@ -20,6 +20,7 @@
     "spec-auditor",
     "spec-conformance-review",
     "specification-creator",
+    "standards-scanner",
     "task-classifier",
     "task-group-implementer",
     "test-suite-runner",
@@ -1008,7 +1009,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.3",
+  "interface_version": "1.4",
   "mcp": {
     "servers": [],
     "tools": [

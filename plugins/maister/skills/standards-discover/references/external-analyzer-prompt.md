@@ -1,10 +1,10 @@
-# External Standards Analyzer — Subagent Prompt Template
+# External Standards Analyzer — Scanner Brief
 
 Analyze pull requests, CI/CD configurations, and pre-commit hooks to discover enforced standards.
 
 ## Task
 
-Mine external sources for standards evidence, return findings as YAML.
+Mine external sources for standards evidence, write the findings to the output file as YAML.
 
 ## Sources to Analyze
 
@@ -50,7 +50,7 @@ Extract: mandatory checks, formatting enforcement, commit message validation.
 
 ## Output Format
 
-Return YAML:
+Write this YAML to `[output_file]` (the orchestrator puts the file's absolute path in place of the placeholder):
 
 ```yaml
 github_available: true  # or false
@@ -67,9 +67,8 @@ findings:
 
 ## Rules
 
-- Handle gh CLI gracefully — return `github_available: false` and empty PR findings, not error
+- Handle gh CLI gracefully — write `github_available: false` and empty PR findings, not error
 - Only report PR patterns appearing in 3+ different PRs
 - For CI/CD: extract specific thresholds and rules, not just "runs tests"
-- Return empty findings list if no external sources available
+- Write an empty findings list if no external sources available
 - Be specific: "80% coverage required" not "has coverage check"
-- Do NOT write any files to the project directory. Write your YAML results to: `[output_file]` (the orchestrator replaces this placeholder with an actual temp file path when invoking you).

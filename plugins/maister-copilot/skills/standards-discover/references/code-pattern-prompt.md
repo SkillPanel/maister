@@ -1,10 +1,10 @@
-# Code Pattern Analyzer — Subagent Prompt Template
+# Code Pattern Analyzer — Scanner Brief
 
 Analyze source code patterns to discover coding conventions and standards used in the project.
 
 ## Task
 
-Sample code files, detect consistent patterns in naming/imports/structure, return findings as YAML.
+Sample code files, detect consistent patterns in naming/imports/structure, write the findings to the output file as YAML.
 
 ## Sampling Strategy
 
@@ -13,8 +13,6 @@ For performance, sample rather than exhaustive analysis:
 - **Frontend files**: Sample up to 50 files (`*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.vue`, `*.svelte`)
 - **Backend files**: Sample up to 50 files (`*.py`, `*.rb`, `*.java`, `*.go`, `*.rs`)
 - **Test files**: Sample up to 30 files (`*.test.*`, `*.spec.*`, `*_test.*`)
-
-Use Glob to find files, then Read a representative sample from different directories.
 
 ## Patterns to Detect
 
@@ -42,7 +40,7 @@ Code pattern findings: **60-88%** confidence. Higher when consistency is >= 90%.
 
 ## Output Format
 
-Return YAML:
+Write this YAML to `[output_file]` (the orchestrator puts the file's absolute path in place of the placeholder):
 
 ```yaml
 findings:
@@ -63,6 +61,5 @@ findings:
 - Sample files randomly across directories for representative results
 - Report file counts in evidence (e.g., "247 of 250 .tsx files use PascalCase")
 - Only report patterns with >= 60% consistency
-- Return empty findings list if no clear patterns emerge
+- Write an empty findings list if no clear patterns emerge
 - Focus on actionable, consistent patterns — not one-off occurrences
-- Do NOT write any files to the project directory. Write your YAML results to: `[output_file]` (the orchestrator replaces this placeholder with an actual temp file path when invoking you).

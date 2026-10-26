@@ -1,10 +1,10 @@
-# Config Standards Analyzer — Subagent Prompt Template
+# Config Standards Analyzer — Scanner Brief
 
 Analyze project configuration files to discover coding standards and conventions.
 
 ## Task
 
-Find and analyze configuration files, extract standards, return structured findings as YAML.
+Find and analyze configuration files, extract standards, write the findings to the output file as YAML.
 
 ## Configuration Files to Analyze
 
@@ -41,7 +41,7 @@ Config-based findings: **70-85%** confidence (explicit configuration = strong ev
 
 ## Output Format
 
-Return YAML:
+Write this YAML to `[output_file]` (the orchestrator puts the file's absolute path in place of the placeholder):
 
 ```yaml
 findings:
@@ -61,6 +61,5 @@ findings:
 - Only include findings with clear evidence from actual config files
 - Be specific in descriptions (not "follow ESLint rules" but "use single quotes for strings")
 - Include exact file paths in evidence
-- Return empty findings list if no config files found
+- Write an empty findings list if no config files found
 - Focus on actionable, verifiable standards
-- Do NOT write any files to the project directory. Write your YAML results to: `[output_file]` (the orchestrator replaces this placeholder with an actual temp file path when invoking you).
