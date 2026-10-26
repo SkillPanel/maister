@@ -1,6 +1,6 @@
 # ADR-0049 — The documentation index is an owned, written map with a check
 
-**Status**: Accepted · **Date**: 2026-10-22 · **Builds on**: ADR-0043 (run context), ADR-0040 (classed in-node questions) · **Sources**: `plugins/maister/skills/docs-manager/SKILL.md`, `references/index-md-template.md`, `scripts/docs-check.mjs`, `docs/INDEX.md`; `skills/standards-update/SKILL.md`; `skills/implementation-plan-executor/SKILL.md`; `skills/implementation-verifier/SKILL.md`; `agents/implementation-planner.md`, `task-group-implementer.md`, `implementation-completeness-checker.md`; `skills/orchestrator-framework/references/orchestrator-patterns.md` § 6; `skills/workflow-engine/workflows/{development,performance,migration}.md`; `skills/workflow-engine/scripts/lib/run-context.mjs`; `tests/engine/docs-check.test.mjs`, `run-context.test.mjs`, `same-questions.test.mjs`
+**Status**: Accepted; amended 2026-10-26 (the check and the refresh run only where maister writes documentation — see *Fixed points*) · **Date**: 2026-10-22 · **Builds on**: ADR-0043 (run context), ADR-0040 (classed in-node questions) · **Sources**: `plugins/maister/skills/docs-manager/SKILL.md`, `references/index-md-template.md`, `scripts/docs-check.mjs`, `docs/INDEX.md`; `skills/standards-update/SKILL.md`; `skills/implementation-plan-executor/SKILL.md`; `skills/implementation-verifier/SKILL.md`; `agents/implementation-planner.md`, `task-group-implementer.md`, `implementation-completeness-checker.md`; `skills/orchestrator-framework/references/orchestrator-patterns.md` § 6; `skills/workflow-engine/workflows/{development,performance,migration}.md`; `skills/workflow-engine/scripts/lib/run-context.mjs`; `tests/engine/docs-check.test.mjs`, `run-context.test.mjs`, `same-questions.test.mjs`
 
 ## TL;DR
 - **One writer.** Only docs-manager's Refresh INDEX.md writes `.maister/docs/INDEX.md`. It
@@ -9,6 +9,11 @@
   before:" and its topics, never its rules. No counts, dates, ticket references or history.
 - **Fixed points.** A refresh after implementation and after the fix loop when either changed
   documents; the check at verification, at finalization and in the quick skills that change files.
+  Amended 2026-10-26: those runs and the quick skills no longer refresh or check — they still
+  never edit the index or a standards file, and name the documents they changed. The check and
+  the refresh run only where maister writes documentation: init, standards-update,
+  standards-discover and docs-manager's own operations, a standard a finalization adds through
+  standards-update included.
 - **A format-agnostic check.** `docs-check.mjs` reads only the index and the file list. Structure
   fails; size and style only warn.
 - **Any Markdown file can live in the docs** as it is: no frontmatter, schema or naming.

@@ -181,7 +181,7 @@ If any section is missing, add it before asking for approval.
 
 **Post-implementation standards check (mandatory):** after the test is green, go through the `## Standards Compliance Checklist` from the plan file and verify each item — mark pass/fail and report it in the summary. Address any failure before marking the task complete.
 
-**Docs index (mandatory):** the fix never edits `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`. After the test is green, run the docs index check from the project root — `node <plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path — and report its result in one line. When it fails on a document this task added, changed or removed, invoke `docs-operator` via Task tool (agent_type: `maister-copilot:docs-operator`): "Refresh INDEX.md. Changed: [paths]. Check: [check path]", and report the check it returns. A convention worth keeping is suggested in one line for `/maister-copilot:standards-update`, never written into a standards file here.
+**Docs index (mandatory):** the fix never edits `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`; name every document it changed under `.maister/docs/` in the summary. A convention worth keeping is suggested in one line for `/maister-copilot:standards-update`, never written into a standards file here.
 
 ---
 

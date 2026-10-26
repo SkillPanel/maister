@@ -178,9 +178,8 @@ You carry it out:
   comments, regenerated HTML or the run's bookkeeping: `recheck: tests-only`. Raise
   `reverify_count` by one as each re-check starts, then run a cycle with the fixed issue numbers.
   An `info` issue is listed in the report and never fixed, unless a person chooses its fix.
-- **Documents.** A fix never edits `.maister/docs/INDEX.md` or `.maister/docs/standards/`. When
-  fixes changed anything under `.maister/docs/`, send `maister:docs-operator`
-  once after the last fix, as § 6 says.
+- **Documents.** A fix never edits `.maister/docs/INDEX.md` or `.maister/docs/standards/`; a stale
+  fact is fixed in the document that holds it, as § 6 says.
 
 **Hand back a decision** when § 6 step 4 holds — an issue that needs a person (`fixable: false`),
 a risky fix, the budget spent with fixable issues open, or no progress. First finish every fix

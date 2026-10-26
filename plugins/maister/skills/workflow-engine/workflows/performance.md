@@ -371,8 +371,7 @@ chosen below, and always runs.
    matched against the specification, and say which, or that none matched. A
    tick changes no document's purpose, so its index entry stays as it is.
 4. **Consolidate, then offer the standard candidates** the work log records —
-   the implementers' and the fix loop's — before the check, so a standard added
-   here is in its view. When there are any, invoke `docs-operator` once
+   the implementers' and the fix loop's. When there are any, invoke `docs-operator` once
    (subagent_type `maister:docs-operator`, with the model and effort
    `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude --state=<task path>/orchestrator-state.yml --node=finalization`
    prints,
@@ -384,13 +383,8 @@ chosen below, and always runs.
    list is what *Asks* below offers. When the call fails, the work log's lines
    are offered as written, and a line of the close says they were not
    consolidated.
-5. **Run the docs index check** from the project root: docs-manager's
-   `scripts/docs-check.mjs` under the plugin root, by its absolute path. Its
-   result goes under **Done** when it passes, warnings named in a line; each
-   failure goes under **Needs you** with its fix, a refresh of the index
-   (`/maister:standards-update --refresh-index`). INDEX.md is never edited here.
-6. **Set the task status to completed**.
-7. **Guide the next steps**, this workflow's own four: run the application and
+5. **Set the task status to completed**.
+6. **Guide the next steps**, this workflow's own four: run the application and
    confirm the improvement by hand; profile with runtime tools to measure the
    actual impact, since the ranking was static unless the user supplied data;
    watch the production metrics after deployment; and come back for the
@@ -398,7 +392,7 @@ chosen below, and always runs.
    for whatever comes next.
 
 **Close for whoever reads the end**, as the engine's *Operator visibility*
-says. **Next** holds every one of step 7's next steps, a line each — all four,
+says. **Next** holds every one of step 6's next steps, a line each — all four,
 then the fresh-session suggestion, none dropped or merged.
 
 **No close-out while a choice is held**. When the freeze recorded
@@ -411,7 +405,7 @@ verb before this node ends** — the grade and the summary the seed's close-out
 contract asks for, drawn from the executive summary above. The engine refuses a
 dispatched run that reaches its end with no close-out in the outbox
 (`RUN-FAILED: closeout-unpublished`). Under a terminal driver there is no
-outbox, and step 7 is what the operator gets instead.
+outbox, and step 6 is what the operator gets instead.
 
 **Asks.** Only when step 4 offers standard candidates: one multi-select
 question, the question saying that each chosen one is added now, before
