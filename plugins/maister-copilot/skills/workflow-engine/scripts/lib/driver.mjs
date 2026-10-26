@@ -80,7 +80,14 @@ export function questionSets(doc) {
  * run, a cockpit without the feature and any unknown kind cannot ask.
  */
 export function canAsk(doc) {
+  return isTerminalDriver(doc) || questionSets(doc);
+}
+
+/**
+ * Whether the run is watched from the terminal it runs in: its driver is
+ * absent, names no kind or is `terminal`. A cockpit or a dispatch is not.
+ */
+export function isTerminalDriver(doc) {
   const driver = driverOf(doc);
-  if (driver === null || driver.kind === undefined || driver.kind === null || driver.kind === 'terminal') return true;
-  return questionSets(doc);
+  return driver === null || driver.kind === undefined || driver.kind === null || driver.kind === 'terminal';
 }

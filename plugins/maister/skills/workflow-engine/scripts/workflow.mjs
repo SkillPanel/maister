@@ -16,7 +16,8 @@
  *                  --definition and --overlay values the three verbs above
  *                  take; without --name, the project's own workflows)
  *   write-state    --state, --patch-file (or the patch as JSON on stdin),
- *                  --host at the freeze (claude or copilot)
+ *                  --host at the freeze (claude or copilot), optional
+ *                  --no-open (the freeze opens the run's dashboard otherwise)
  *                                                             changed paths
  *                  (and, for a node's question set, a blank line and the
  *                  `ask:` line naming the ids still to ask, or `none`; then,
@@ -90,10 +91,11 @@
  *                  JSON on stdout, or written to the patch file; a findings
  *                  list it cannot use is a warning and nothing to paste —
  *                  reads the run, writes no state
- *   resume-check   --state                                    JSON on stdout
+ *   resume-check   --state, optional --no-open               JSON on stdout
  *                  (the frozen workflow's name, overlays and profile, or the
  *                  refusal for a directory the engine does not resume, a 2.x
- *                  one among them) — read-only over a run
+ *                  one among them) — read-only over a run; opens the run's
+ *                  dashboard for a run it accepts
  *   subrun-path    --state (the parent's), --node             JSON on stdout
  *                  (a workflow: node's child run directory, relative to the
  *                  project root, and its run id: the one the parent recorded,
@@ -217,7 +219,8 @@ const VERBS = {
   // state; it is a flag rather than a derived path so the call says what it
   // reads, and it is checked against that one place (`patchFileOf`).
   // `--host` is read at the freeze only, for the run's delegation record.
-  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file', 'host'] },
+  // `--no-open` keeps the freeze from opening the dashboard (`openAfter`).
+  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file', 'host', 'no-open'] },
   // The flags of `write-state`, and for the same reason: everything the verb
   // needs — the run directory, the `gates/` directory and the frozen graph — is
   // derived from the state file, so there is no second path a caller could get
@@ -279,8 +282,8 @@ const VERBS = {
   'finding-brief': { module: 'finding-brief.mjs', flags: ['state', 'node', 'findings-file', 'patch-file'] },
   // Read-only as well, and asked first by every resume: whether the directory
   // holds a run this engine froze, and what it froze. One flag for the reason
-  // the other state verbs take one.
-  'resume-check': { module: 'resume-check.mjs', flags: ['state'] },
+  // the other state verbs take one, and `--no-open` for `write-state`'s.
+  'resume-check': { module: 'resume-check.mjs', flags: ['state', 'no-open'] },
   // Read-only as well: where a `workflow:` node's child run lives. `--node`
   // because a run may hold several such nodes; the rest — the parent's
   // directory, its definition and the project root — is found from the state,
@@ -377,7 +380,7 @@ const REPEATABLE = new Set(['overlay', 'area', 'from']);
 const PICKERS = ['rich', 'plain'];
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details']);
+const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -705,7 +708,35 @@ async function runWriteState(flags) {
   if (refusedForEditions(module, flags)) return EXIT.REJECTED;
   const input = await readInput(flags, 'the patch');
   const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null });
-  return reportWrite(result, input, 'writeRefused');
+  const code = reportWrite(result, input, 'writeRefused');
+  // Only the freeze prints a banner, and a retried freeze prints none, so the
+  // dashboard opens once per run start and never on a later write.
+  if (result.ok && result.banner) await openAfter(flags);
+  return code;
+}
+
+/**
+ * Open the run's dashboard after the freeze or an accepted resume check, unless
+ * `--no-open` or the environment opts out (`open-dashboard.mjs`). The state is
+ * read as it now stands; a run that opens nothing prints nothing, and an opener
+ * that did not start is one `warning:` line naming the page, the exit code
+ * unmoved.
+ */
+async function openAfter(flags) {
+  if (flags['no-open']) return;
+  const opener = await loadModule('open-dashboard.mjs');
+  if (opener.optedOut()) return;
+  const { parse } = await loadModule('state-read.mjs');
+  let doc;
+  try {
+    doc = parse(fs.readFileSync(flags.state, 'utf8'));
+  } catch {
+    return;
+  }
+  const file = opener.dashboardToOpen(doc, path.dirname(path.resolve(flags.state)));
+  if (file === null) return;
+  const reason = await opener.openDashboard(file);
+  if (reason !== null) process.stderr.write(`warning: the dashboard did not open (${reason}); open ${file} in a browser\n`);
 }
 
 /** `edition-collision` for a verb that writes state, reported before anything is read. */
@@ -1389,6 +1420,7 @@ async function runResumeCheck(flags) {
   const { warnings = [], ...result } = check({ state: flags.state });
   report(result);
   for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
+  if (result.ok) await openAfter(flags);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 

@@ -68,7 +68,7 @@ Custom scope values are matched against existing `.maister/docs/standards/*/` di
 1. **Parse options** from command arguments
 2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, ask once — "Set up Maister first? (runs the setup, then this)": "Set it up (Recommended)" runs `maister:init` with the Skill tool, which ends by running a full discovery; "Not now" stops here, and so does any other answer
 3. **Read existing standards** from `.maister/docs/INDEX.md` to identify updates vs creates and avoid duplicates; Phase 6 reads the rules of the files a finding lands in, to find the ones it contradicts
-4. **Print the plan as one progress line** — scope, sources and rough time — and go on: the user asked for the discovery, so there is nothing to confirm
+4. **Print the plan as one progress line** — scope and sources — and go on: the user asked for the discovery, so there is nothing to confirm
 
 ---
 

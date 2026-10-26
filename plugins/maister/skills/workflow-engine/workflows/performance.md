@@ -12,9 +12,8 @@ and the profiling-data drop point the analysis node reads from.
 1. **Initialize** as `orchestrator-patterns.md` § 5 says: the clock from the
    shell, the state file with the task description,
    `options.html_output`
-   from the project configuration, the dashboard opened with the platform
-   opener unless that is false — never its path printed instead — and the
-   start banner shown.
+   from the project configuration and the start banner shown; the freeze
+   opened the dashboard itself unless that is false, so run no opener.
 2. **Create `analysis/user-profiling-data/`**, empty. **An empty directory is
    the answer "no profiling data", not a missing artifact.**
 3. **Discover the project documentation** — every path in the

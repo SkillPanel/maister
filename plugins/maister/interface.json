@@ -567,6 +567,7 @@
       },
       "resume-check": {
         "flags": [
+          "no-open",
           "state"
         ],
         "refusals": [
@@ -744,6 +745,7 @@
       "write-state": {
         "flags": [
           "host",
+          "no-open",
           "patch-file",
           "state"
         ],
@@ -1009,7 +1011,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.4",
+  "interface_version": "1.5",
   "mcp": {
     "servers": [],
     "tools": [
