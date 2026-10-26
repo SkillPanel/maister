@@ -1,6 +1,6 @@
 {
   "name": "maister",
-  "version": "3.0.0-beta.59",
+  "version": "3.0.0-beta.60",
   "description": "Structured, standards-aware development workflows for Claude Code",
   "types": "./types/index.d.ts",
   "author": {
