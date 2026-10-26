@@ -201,6 +201,46 @@ test('ask --patch-file: a typed mark on one option gives way to the flag on anot
   assert.equal(form.default, 'reject');
 });
 
+test('ask --patch-file: a recommendation written only as a description\'s "Recommended:" recommends that option, the reason kept', t => {
+  const form = formOf(t, [
+    { id: 'off', label: 'No user guide', description: 'Recommended: the change has no UI and the README documents it.' },
+    { id: 'on', label: 'Write a user guide', description: 'A usage guide in the task directory.' },
+  ]);
+  assert.deepEqual(form.oneOf, [{ const: 'off', title: 'No user guide (Recommended)' }, { const: 'on', title: 'Write a user guide' }]);
+  assert.equal(form.default, 'off');
+  assert.ok(form.description.includes('The change has no UI and the README documents it.'), form.description);
+  assert.doesNotMatch(form.description, /Recommended: the change/);
+});
+
+test('ask --patch-file: a description\'s "Recommended:" gives way to a flag or a typed mark, and never overrides a flag set to false', t => {
+  const flagged = formOf(t, [
+    { id: 'off', label: 'No user guide', description: 'Recommended: nothing to document.' },
+    { id: 'on', label: 'Write a user guide', recommended: true },
+  ]);
+  assert.deepEqual(flagged.oneOf.map(choice => choice.title), ['No user guide', 'Write a user guide (Recommended)']);
+  assert.equal(flagged.default, 'on');
+
+  const typed = formOf(t, [
+    { id: 'off', label: 'No user guide', description: 'Recommended: nothing to document.' },
+    { id: 'on', label: 'Write a user guide (Recommended)' },
+  ]);
+  assert.deepEqual(typed.oneOf.map(choice => choice.title), ['No user guide', 'Write a user guide (Recommended)']);
+
+  const refused = formOf(t, [
+    { id: 'off', label: 'No user guide', description: 'Recommended: nothing to document.', recommended: false },
+    { id: 'on', label: 'Write a user guide' },
+  ]);
+  assert.deepEqual(refused.oneOf.map(choice => choice.title), ['No user guide', 'Write a user guide']);
+  assert.equal(refused.default, undefined);
+
+  // A description that only mentions a recommendation further in is not read as one.
+  const mention = formOf(t, [
+    { id: 'off', label: 'No user guide', description: 'Skips the guide the review recommended.' },
+    { id: 'on', label: 'Write a user guide' },
+  ]);
+  assert.deepEqual(mention.oneOf.map(choice => choice.title), ['No user guide', 'Write a user guide']);
+});
+
 test('ask --patch-file: a set that fails its check is refused and the file kept; a gate takes no set', t => {
   const run = asking(t);
   const file = path.join(run.dir, '.state-patch.json');
