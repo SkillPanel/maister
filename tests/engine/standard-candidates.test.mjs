@@ -9,9 +9,10 @@ import { foldAnswer, requestQuestions } from '../../plugins/maister/skills/workf
 // The standard-candidates question at finalization is a multi-select, and a
 // multi-select answer names at least one option. Choosing no candidate is a
 // valid answer, so the question carries a fixed first option for it, worded the
-// same in every guide that asks it and recommended by none. Pinned here: the
-// wording in each guide, and a question-set request that carries the option and
-// takes it as the whole answer.
+// same in every guide that asks it. The question recommends: each well-supported
+// candidate, or the none option when no candidate is. Pinned here: the wording
+// in each guide, and a question-set request that carries the option, states
+// every option's recommendation and takes the none option as the whole answer.
 
 const WORKFLOWS_DIR = path.join(ENGINE_DIR, 'workflows');
 const ASKERS = ['development', 'performance', 'migration'];
@@ -44,36 +45,53 @@ const SET = {
     multi_select: true,
     options: [
       { id: NONE_ID, label: NONE_LABEL, description: 'Adds nothing now; every candidate is listed under Next as its standards-update command.' },
-      { id: 'typed-errors', label: 'Typed errors', description: 'Raise typed errors from the service layer.' },
-      { id: 'ids-in-logs', label: 'Ids in log lines', description: 'Every log line names the record it is about.' },
+      { id: 'typed-errors', label: 'Typed errors', description: 'Seen in two task groups. Raise typed errors from the service layer.', recommended: true },
+      { id: 'ids-in-logs', label: 'Ids in log lines', description: 'Every log line names the record it is about.', recommended: false },
     ],
   }],
 };
 
-test('each guide asking standard candidates offers the none option first, in the same words, recommending nothing', () => {
+/** The same set when no candidate is well supported: the none option is the recommendation. */
+const NONE_RECOMMENDED = {
+  questions: [{
+    ...SET.questions[0],
+    options: SET.questions[0].options.map(option => ({ ...option, recommended: option.id === NONE_ID })),
+  }],
+};
+
+/** Freeze a cockpit development run at finalization and build its request for `set`. */
+function requestFor(t, set) {
+  const run = scratch(t);
+  freeze(run, { definition: path.join(WORKFLOWS_DIR, 'development.yml'), inputs: { task_description: 'Add a settings page' }, orchestrator: { driver: COCKPIT } });
+  write(run, { nodes: { finalization: { status: 'running' } } });
+  const file = path.join(run.dir, '.state-patch.json');
+  fs.writeFileSync(file, JSON.stringify(set));
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=finalization', '--request', `--patch-file=${file}`]);
+  assert.equal(result.code, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+test('each guide asking standard candidates offers the none option first, in the same words, and recommends', () => {
   const asked = [];
   for (const workflow of ASKERS) {
     const section = sectionOf(workflow, 'finalization');
     const asks = paragraph(section, '**Asks.**');
     const withSets = paragraph(section, '**With question sets** (`standard-candidates`)');
     assert.ok(asks.includes(`Its first option is fixed: *"${NONE_LABEL}"*.`), `${workflow}: the in-session question names the option first`);
-    assert.ok(asks.includes('No option is recommended.'), `${workflow}: the in-session question recommends nothing`);
-    assert.ok(withSets.includes(`*None now* first, under the id \`${NONE_ID}\`, and no option recommended`), `${workflow}: the question set names the option and its id`);
+    assert.ok(!/no option (is )?recommended/i.test(asks + withSets), `${workflow}: no path recommends nothing`);
+    assert.ok(asks.includes('Each candidate the consolidation found well supported'), `${workflow}: well-supported candidates are recommended`);
+    assert.ok(asks.includes('When none qualifies, *None now* is recommended'), `${workflow}: with none supported, the none option is`);
+    assert.ok(withSets.includes(`*None now* first, under the id \`${NONE_ID}\`, and every option \`recommended\` true or false`), `${workflow}: the question set names the option, its id and every recommendation`);
+    const paged = section.slice(section.indexOf('<!-- rich-picker -->'), section.indexOf('<!-- /rich-picker -->')).replace(/\s+/g, ' ');
+    assert.ok(paged.includes('Each page recommends by the same rule'), `${workflow}: the paged form recommends per page`);
     assert.ok(withSets.includes('the candidates win'), `${workflow}: chosen with candidates, the candidates win`);
-    asked.push([asks, withSets]);
+    asked.push([asks, withSets, paged]);
   }
   for (const each of asked.slice(1)) assert.deepEqual(each, asked[0], 'the three guides word the question alike');
 });
 
 test('a standard-candidates request carries the none option, and that option alone is a valid answer', t => {
-  const run = scratch(t);
-  freeze(run, { definition: path.join(WORKFLOWS_DIR, 'development.yml'), inputs: { task_description: 'Add a settings page' }, orchestrator: { driver: COCKPIT } });
-  write(run, { nodes: { finalization: { status: 'running' } } });
-  const file = path.join(run.dir, '.state-patch.json');
-  fs.writeFileSync(file, JSON.stringify(SET));
-  const result = verb(['gate-brief', `--state=${run.state}`, '--node=finalization', '--request', `--patch-file=${file}`]);
-  assert.equal(result.code, 0, result.stderr);
-  const request = JSON.parse(result.stdout);
+  const request = requestFor(t, SET);
 
   const [carried] = request.questions;
   assert.equal(carried.id, 'standard-candidates');
@@ -81,18 +99,27 @@ test('a standard-candidates request carries the none option, and that option alo
   assert.deepEqual(carried.options.map(option => option.id), [NONE_ID, 'typed-errors', 'ids-in-logs'], 'the none option comes first');
   const [checkpointed] = request.context.checkpoint.questions;
   assert.equal(checkpointed.options[0].label, NONE_LABEL);
-  assert.ok(checkpointed.options.every(option => !option.recommended), 'no option is recommended');
-  assert.equal(checkpointed.default, undefined, 'nothing is chosen for a person who is not asked');
+  assert.deepEqual(carried.options.map(option => option.recommended), [false, true, false], 'every option states its recommendation');
+  assert.deepEqual(checkpointed.options.filter(option => option.recommended).map(option => option.label), ['Typed errors'], 'the well-supported candidate is recommended');
 
   const folded = foldAnswer(requestQuestions(request), { answers: { 'standard-candidates': [NONE_ID] }, answered_by: 'dana', via: 'cockpit' });
   assert.equal(folded.ok, true, JSON.stringify(folded.errors));
   assert.deepEqual(folded.decisions, [{
     decision: NONE_LABEL, by: 'operator', question_id: 'standard-candidates', question: SET.questions[0].question,
-    answer: NONE_LABEL, recommended: null, as_recommended: null, answered_by: 'dana', via: 'cockpit',
+    answer: NONE_LABEL, recommended: 'Typed errors', as_recommended: false, answered_by: 'dana', via: 'cockpit',
   }]);
 
   const empty = foldAnswer(requestQuestions(request), { answers: { 'standard-candidates': [] } });
   assert.equal(empty.ok, false, 'an empty selection is not an answer, which is why the none option exists');
+});
+
+test('with no well-supported candidate, the request recommends the none option alone', t => {
+  const request = requestFor(t, NONE_RECOMMENDED);
+  const [carried] = request.questions;
+  assert.deepEqual(carried.options.map(option => [option.id, option.recommended]), [[NONE_ID, true], ['typed-errors', false], ['ids-in-logs', false]]);
+  const folded = foldAnswer(requestQuestions(request), { answers: { 'standard-candidates': [NONE_ID] }, answered_by: 'dana', via: 'cockpit' });
+  assert.equal(folded.ok, true, JSON.stringify(folded.errors));
+  assert.equal(folded.decisions[0].as_recommended, true);
 });
 
 // What a candidate is, how one is written and how finalization consolidates

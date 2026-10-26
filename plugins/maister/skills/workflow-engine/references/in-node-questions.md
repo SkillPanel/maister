@@ -417,7 +417,8 @@ takes:
 
 `(Recommended)` appears once per question, on the recommended option, whose description (or,
 without descriptions, the question) gives the reason; behind "Choose individually", no option
-carries it.
+carries it. A multi-select whose options are separate choices, each taken or left on its own
+merits (finalization's standard candidates), marks each option it recommends.
 
 **What is recorded.** One entry per defaulted question on that node's summary `decisions`
 list:
