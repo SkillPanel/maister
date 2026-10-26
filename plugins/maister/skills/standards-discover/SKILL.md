@@ -93,7 +93,7 @@ Read the template for each phase you will run — they define the YAML output sc
 
 **Step 3: Adapt templates** — Replace `[scope]`, `[confidence]`, and other placeholders with actual values. Replace the `[output_file]` placeholder in each template with the actual temp file path for that phase (e.g., `{tmpdir}/config.yml`).
 
-**Step 4: Launch subagents in parallel** — Use the Task tool with `subagent_type: general-purpose` for each phase, each with the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=general-purpose --host=claude` prints once just before the launch (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
+**Step 4: Launch subagents in parallel** — Use the Task tool with `subagent_type: maister:standards-scanner` for each phase, its prompt the project root's absolute path as `project_root`, the adapted template as the phase brief and the phase's temp file as `output_file`; the scanner carries the rest itself — read-only, absolute paths and no `cd`, one file written. Each call carries the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:standards-scanner --host=claude` prints once just before the launch (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
 
 Every applicable phase is a subagent of its own, whatever the size of the repository: a small repository, one commit or no linter config is no reason to run a phase's discovery in this session or to write its file yourself. The phases read different sources than this session has in view, which is what makes their findings worth scoring.
 
@@ -130,7 +130,7 @@ Print one line of counts (high, medium, conflicts, below the threshold), then as
   Each Accept option's preview shows the standard as it would be written, with its preferred and avoided examples.
 <!-- /rich-picker -->
 <!-- plain-picker
-  A page is one form of up to four properties, each a choice of its options — `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), never a bare `enum` of ids; the standard's rule, its evidence and its examples go in each property's description, since the form shows labels only.
+  A page is one form of up to four properties, each `"type": "string"` — the question tool refuses a property without its type — and a choice of its options: `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), never a bare `enum` of ids; the standard's rule, its evidence and its examples go in each property's description, since the form shows labels only.
 -->
 
 - **Below the threshold**: not asked. The summary report (Phase 9) lists them so a later run with a lower `--confidence` can pick them up.

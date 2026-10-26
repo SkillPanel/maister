@@ -97,7 +97,7 @@ Read the template for each phase you will run — they define the YAML output sc
 
 **Step 3: Adapt templates** — Replace `[scope]`, `[confidence]`, and other placeholders with actual values. Replace the `[output_file]` placeholder in each template with the actual temp file path for that phase (e.g., `{tmpdir}/config.yml`).
 
-**Step 4: Launch subagents in parallel** — Use the Task tool with `agent_type: general-purpose` for each phase, each with the model and effort `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=general-purpose --host=copilot` prints once just before the launch (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
+**Step 4: Launch subagents in parallel** — Use the Task tool with `agent_type: maister-copilot:standards-scanner` for each phase, its prompt the project root's absolute path as `project_root`, the adapted template as the phase brief and the phase's temp file as `output_file`; the scanner carries the rest itself — read-only, absolute paths and no `cd`, one file written. Each call carries the model and effort `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:standards-scanner --host=copilot` prints once just before the launch (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
 
 Every applicable phase is a subagent of its own, whatever the size of the repository: a small repository, one commit or no linter config is no reason to run a phase's discovery in this session or to write its file yourself. The phases read different sources than this session has in view, which is what makes their findings worth scoring.
 
@@ -130,7 +130,7 @@ Print one line of counts (high, medium, conflicts, below the threshold), then as
 - **High confidence (>= 80%)**: one question — "Apply these N standards?" with one line each in the question (what the standard says, in a few words). "Apply all N (Recommended)" / "Go through them". Going through them uses the medium-confidence pages below.
 
 - **Medium confidence (60-79%)**: pages of up to four findings, one question per finding: what the standard says, its evidence in a line (where it was seen, how often) and its sources. Options "Accept (Recommended)" when the evidence is consistent, "Accept with a change" (the change is the follow-up answer), "Skip", and "Skip the rest" — this finding and every one not yet asked, so a long list never has to be walked to its end.
-  A page is one form of up to four properties, each a choice of its options — `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), never a bare `enum` of ids; the standard's rule, its evidence and its examples go in each property's description, since the form shows labels only.
+  A page is one form of up to four properties, each `"type": "string"` — the question tool refuses a property without its type — and a choice of its options: `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), never a bare `enum` of ids; the standard's rule, its evidence and its examples go in each property's description, since the form shows labels only.
 
 - **Below the threshold**: not asked. The summary report (Phase 9) lists them so a later run with a lower `--confidence` can pick them up.
 

@@ -177,9 +177,13 @@ function checkOptions(options, where, errors) {
       ...(option.recommended === true ? { recommended: true } : {}),
       ...(option.person_act === true ? { person_act: true } : {}),
       ...(label !== option.label && option.recommended === undefined ? { marked: true } : {}),
+      ...(isText(option.description) && DESCRIBED.test(option.description) && option.recommended === undefined ? { described: true } : {}),
     };
   });
 }
+
+/** A description that opens by saying its option is the recommended one: "Recommended: …". */
+const DESCRIBED = /^\s*\(?recommended\)?\s*[:.—–-]\s*/i;
 
 /**
  * A question's options with the "(Recommended)" a writer typed into a label
@@ -187,10 +191,23 @@ function checkOptions(options, where, errors) {
  * the label keeps none and the mark is shown once. A typed mark counts only
  * when no option of the question carries the flag, which then says which
  * option is meant; the flag set to false is never overridden.
+ *
+ * With neither a flag nor a typed mark, a description that opens with
+ * "Recommended:" is read the same way, and keeps only its reason: a writer who
+ * put the recommendation in the description alone left the label unmarked on
+ * a picker that shows labels only.
  */
 function adoptMarks(options) {
   const flagged = options.some(option => option.recommended);
-  return options.map(({ marked, ...option }) => (marked && !flagged ? { ...option, recommended: true } : option));
+  const typed = !flagged && options.some(option => option.marked);
+  return options.map(({ marked, described, ...option }) => {
+    if (flagged) return option;
+    if (typed) return marked ? { ...option, recommended: true } : option;
+    if (!described) return option;
+    const reason = option.description.replace(DESCRIBED, '');
+    const { description, ...rest } = option;
+    return { ...rest, ...(reason ? { description: reason.charAt(0).toUpperCase() + reason.slice(1) } : {}), recommended: true };
+  });
 }
 
 /** An id as a header in plain sentence case: `tag-case` reads "Tag case". */

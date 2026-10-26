@@ -305,7 +305,7 @@ If `.maister/` already exists, offers to backup, update, or cancel.
 
 ### `/maister:standards-discover [--scope=SCOPE]`
 
-Auto-discovers coding standards from multiple sources in parallel: config files, source code patterns, documentation, pull requests, and CI/CD pipelines.
+Auto-discovers coding standards from multiple sources in parallel: config files, source code patterns, documentation, pull requests, and CI/CD pipelines. Each source is scanned by its own read-only agent, which writes only its findings.
 
 | Flag | Description |
 |------|-------------|

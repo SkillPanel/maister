@@ -89,8 +89,8 @@ question for the mockups.
   decision for that area.
 <!-- /rich-picker -->
 <!-- plain-picker
-  The call is one form with one property per question, each a choice of its options — `oneOf`
-  entries of `const` (the option's id) and `title` (its label, the recommended one's ending
+  The call is one form with one property per question, each `"type": "string"` — the question tool refuses a
+  property without its type — and a choice of its options: `oneOf` entries of `const` (the option's id) and `title` (its label, the recommended one's ending
   "(Recommended)"), never a bare `enum` of ids — with the recommended option as its default, and
   each option's description and the recommendation's reason as lines of the property's
   description, since the form shows labels only; the form shows each property on a tab of its own.

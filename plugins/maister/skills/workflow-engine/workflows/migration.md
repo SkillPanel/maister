@@ -459,6 +459,13 @@ the candidates are taken, and a line of the close says the none option was set
 aside. The candidates the consolidation found already held go in a line of the
 close, each with the rule that holds it. With no candidates, nothing is
 asked.
+The question counts only the candidates it lists, never more than it shows.
+<!-- rich-picker -->
+The picker lists four options, *None now* among them, so more than three candidates go in
+pages of three in the same call: each page is its own multi-select with *None now* first, and
+its question counts its own candidates out of the whole ("Three of the five standards ideas
+this work turned up"). A page's *None now* sends only that page's candidates under **Next**.
+<!-- /rich-picker -->
 
 **With question sets** (`standard-candidates`): the same multi-select, with the
 multi-choice flag, as this node's one request in its attempt — *None now* first,

@@ -459,6 +459,7 @@ the candidates are taken, and a line of the close says the none option was set
 aside. The candidates the consolidation found already held go in a line of the
 close, each with the rule that holds it. With no candidates, nothing is
 asked.
+The question counts only the candidates it lists, never more than it shows.
 
 **With question sets** (`standard-candidates`): the same multi-select, with the
 multi-choice flag, as this node's one request in its attempt — *None now* first,

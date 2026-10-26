@@ -505,8 +505,8 @@ fix changes code — "Test suite: passed in implementation (40 of 40); runs agai
 after any fix". One line says the browser checks are decided at the verification
 gate. The recommended option is the seed `gap-analysis` wrote to
 `orchestrator.options.user_docs_enabled` — on when it is true, off when it is
-false or absent — its description giving the reason ("Recommended: the change
-adds public API, so a usage guide helps"). Its answer is this node's
+false or absent — and carries `recommended: true`, its description giving the
+reason ("The change adds public API, so a usage guide helps"). Its answer is this node's
 `user_docs_enabled` output.
 
 Before asking, check whether the session can drive a
@@ -777,6 +777,7 @@ the candidates are taken, and a line of the close says the none option was set
 aside. The candidates the consolidation found already held go in a line of the
 close, each with the rule that holds it. With no candidates, nothing is
 asked.
+The question counts only the candidates it lists, never more than it shows.
 
 **With question sets** (`standard-candidates`): the same multi-select, with the
 multi-choice flag, as this node's one request in its attempt — *None now* first,

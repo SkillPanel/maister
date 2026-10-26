@@ -1,10 +1,10 @@
-# Documentation Standards Extractor — Subagent Prompt Template
+# Documentation Standards Extractor — Scanner Brief
 
 Extract coding standards and conventions explicitly documented in project files.
 
 ## Task
 
-Find and parse documentation files, extract explicitly stated standards, return findings as YAML.
+Find and parse documentation files, extract explicitly stated standards, write the findings to the output file as YAML.
 
 ## Documentation Files to Analyze
 
@@ -39,7 +39,7 @@ Higher end (90+) when multiple docs agree or when stated as mandatory rules.
 
 ## Output Format
 
-Return YAML:
+Write this YAML to `[output_file]` (the orchestrator puts the file's absolute path in place of the placeholder):
 
 ```yaml
 findings:
@@ -58,7 +58,6 @@ findings:
 
 - Include exact quotes or close paraphrases in evidence
 - Note which file each standard comes from
-- Return empty findings list if no documentation files found
+- Write an empty findings list if no documentation files found
 - Prioritize actionable, clear standards over vague guidance
 - Do not duplicate what config files already enforce — focus on human-written guidelines
-- Do NOT write any files to the project directory. Write your YAML results to: `[output_file]` (the orchestrator replaces this placeholder with an actual temp file path when invoking you).

@@ -67,7 +67,7 @@ Every question here carries its own context — the findings go in the question,
 
 Each question's default is its recommended option. "Skip" is offered on an optional question, never its default, unless it is the option recommended: a user who confirms the page as it stands takes what the analysis supports.
 <!-- plain-picker
-The page is one form of up to three properties, each a choice of its options — `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), never a bare `enum` of labels — with `default` the recommended option's id.
+The page is one form of up to three properties, each `"type": "string"` — the question tool refuses a property without its type — and a choice of its options: `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), never a bare `enum` of labels — with `default` the recommended option's id.
 -->
 
 **Step 3 — Which project documents.** AskUserQuestion — "Which project documents should be written? The tech stack is always included.":
