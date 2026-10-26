@@ -719,7 +719,7 @@ function assertGitHost({ node, member, defined, entry, manifest, root, prRequire
  * directory walks up and would answer with the remotes of whatever repository
  * holds the workspace.
  */
-function remoteUrls(checkout) {
+export function remoteUrls(checkout) {
   if (!fs.existsSync(path.join(checkout, '.git'))) return [];
   try {
     const out = execFileSync('git', ['-C', checkout, 'config', '--get-regexp', '^remote\\..*\\.url$'],
@@ -736,10 +736,36 @@ function remoteUrls(checkout) {
  * host of the scp form is at least two characters, so a Windows drive letter is
  * read as the path it is.
  */
-function hostedRemote(url) {
-  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(url);
-  if (scheme) return scheme[1].toLowerCase() !== 'file';
-  return /^(?:[^@/\\\s]+@)?[^/\\:\s]{2,}:/.test(url);
+export function hostedRemote(url) {
+  return hostOf(url) !== null;
+}
+
+/**
+ * The host a remote URL names, lower-cased, or null for a repository on this
+ * machine. The two spellings `hostedRemote` admits: a URL with a scheme other
+ * than `file`, whose host follows any `user@` and stops at a port or a path,
+ * and the scp-like `user@host:path`.
+ */
+function hostOf(url) {
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\/(?:[^@/]*@)?([^/:]*)/i.exec(url);
+  if (scheme) return scheme[1].toLowerCase() === 'file' ? null : scheme[2].toLowerCase();
+  const scp = /^(?:[^@/\\\s]+@)?([^/\\:\s]{2,}):/.exec(url);
+  return scp ? scp[1].toLowerCase() : null;
+}
+
+/**
+ * The `git_host.kind` a remote URL is known to name, or null when its host is
+ * none this build recognises: `github` for github.com, `gitlab` for gitlab.com
+ * and for a host whose first label is `gitlab`, the usual spelling of a
+ * self-managed instance. A host outside both is somebody's own server, and
+ * naming its kind would be a guess.
+ */
+export function gitHostKind(url) {
+  const host = hostOf(url);
+  if (host === null) return null;
+  if (host === 'github.com' || host.endsWith('.github.com')) return 'github';
+  if (host === 'gitlab.com' || host.split('.')[0] === 'gitlab') return 'gitlab';
+  return null;
 }
 
 /**

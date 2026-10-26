@@ -8,7 +8,8 @@
  *
  * Eight verbs, one contract:
  *
- *   init      --root [--members-root --force --scaffold]        JSON on stdout
+ *   init      --root [--members-root --force --scaffold         JSON on stdout
+ *             --provider --git-host --dry-run]
  *   validate  --root [--definition…]                            JSON on stdout
  *   prune     --root [--name --dry-run]                         JSON on stdout
  *   runs      --root                                            JSON on stdout
@@ -78,7 +79,7 @@ const VERBS = {
   init: {
     module: 'manifest.mjs',
     entry: 'init',
-    flags: ['root', 'members-root', 'force', 'scaffold'],
+    flags: ['root', 'members-root', 'force', 'scaffold', 'provider', 'git-host', 'dry-run'],
     required: ['root'],
   },
   validate: {
@@ -404,7 +405,10 @@ function finish(result) {
  * Scaffold a workspace: the manifest, the workflow directory, the ledger and
  * the outbox. `--force` rewrites an existing manifest; without `--scaffold`
  * nothing outside the framework directory is written, and every skipped target
- * is named in the report rather than passing silently.
+ * is named in the report rather than passing silently. `--provider` and
+ * `--git-host` settle `defaults.provider` and `git_host.kind`; `--dry-run`
+ * reports what would be written, the detected git host among it, and writes
+ * nothing.
  */
 async function runInit(flags) {
   const init = await implementationOf('init');
@@ -413,6 +417,9 @@ async function runInit(flags) {
       membersRoot: flags['members-root'] ?? null,
       force: Boolean(flags.force),
       scaffold: Boolean(flags.scaffold),
+      provider: flags.provider ?? null,
+      gitHost: flags['git-host'] ?? null,
+      dryRun: Boolean(flags['dry-run']),
     }),
   );
 }

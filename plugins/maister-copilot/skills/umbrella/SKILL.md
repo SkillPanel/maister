@@ -1,7 +1,7 @@
 ---
 name: umbrella
 description: "The workspace runtime the maister cockpit uses for multi-repository runs — an umbrella directory whose members are checkouts of separate repositories, coordinated as one unit. A terminal user working in one repository does not need it. While the cockpit drives a chain, a workflow's orchestrator and the cockpit daemon use the same script to build the dispatch envelope a node hands to a worker in a member repository, render that worker's seed prompt, and keep the dispatch ledger and the per-dispatch outbox that carry results back. Setting a workspace up for the cockpit is the one place a person reaches it, as `/maister-copilot:umbrella <verb>`: `init` turns a directory into a workspace, `validate` judges it together with any chain files, and `prune` deletes the generated per-ticket chains whose runs have all closed. Eight verbs behind one script, every write atomic and every rejection named."
-argument-hint: "init [--root DIR] [--members-root DIR] [--force] | validate [--definition FILE ...] | prune [--root DIR] [--name STEM] [--dry-run]"
+argument-hint: "init [--root DIR] [--members-root DIR] [--provider NAME] [--git-host KIND] [--force] | validate [--definition FILE ...] | prune [--root DIR] [--name STEM] [--dry-run]"
 user-invocable: true
 ---
 
@@ -57,7 +57,7 @@ or newer, no dependencies to install.
 
 | Verb | What it is for | Required | Optional | Input |
 |---|---|---|---|---|
-| `init` | Scaffold a workspace: manifest, workflow directory, ledger, outbox | `--root` | `--members-root`, `--force`, `--scaffold` | — |
+| `init` | Scaffold a workspace: manifest, workflow directory, ledger, outbox | `--root` | `--members-root`, `--provider`, `--git-host`, `--force`, `--scaffold`, `--dry-run` | — |
 | `validate` | Judge the workspace, and the named workflow definitions with it | `--root` | `--definition` (repeatable) | — |
 | `prune` | Delete the generated chains whose runs have all closed | `--root` | `--name`, `--dry-run` | — |
 | `runs` | List the workspace's runs, one JSON array | `--root` | — | — |
@@ -129,7 +129,7 @@ three verbs are reachable this way:
 
 | A user types | What runs |
 |---|---|
-| `/maister-copilot:umbrella init [--root DIR] [--members-root DIR] [--force]` | the exec form above with `init` and the flags as given |
+| `/maister-copilot:umbrella init [--root DIR] [--members-root DIR] [--provider NAME] [--git-host KIND] [--force]` | the exec form above with `init`, the flags as given and the answers to *Before `init` writes* below |
 | `/maister-copilot:umbrella validate [--root DIR] [--definition FILE ...]` | the exec form above with `validate` and every `--definition` as given |
 | `/maister-copilot:umbrella prune [--root DIR] [--name STEM] [--dry-run]` | the exec form above with `prune` and the flags as given |
 
@@ -138,14 +138,42 @@ Flags pass through as spelled — the script accepts both `--flag=value` and
 is added: when no `--root` is given, pass the current working directory, since a
 user runs the command from inside the workspace they mean. Run the script with
 the shell tool, capture stdout and the exit code, and read the JSON report. The
-report is for machines; what goes back to the user is plain language:
+report is for machines; what goes back to the user is plain language.
+
+**Before `init` writes**, settle the two manifest values a workspace is
+registered by: `defaults.provider` and `git_host.kind`. Run `init` first with the
+user's flags and `--dry-run`, which writes nothing. A refusal there is answered
+as an exit `1` below. Otherwise read its `git_host` and `unset`, then ask one
+question set holding a question for each value still open:
+
+- **Default provider**, unless the user passed `--provider`. The runtime never
+  picks a default provider, so this is always asked, never assumed. Options
+  are Claude Code (`claude`) and Copilot CLI (`copilot`). Recommend the CLI this
+  session runs in, with that as the reason: workers then start in the tool the
+  operator already uses.
+- **Git host**, unless the user passed `--git-host` or `git_host.kind` came back
+  detected. Options are GitHub (`github`), GitLab (`gitlab`) and "No git host
+  yet": leave it unset, for members that push only to a path on this machine.
+  Show the remotes the report lists under `git_host.detected.remotes`, and
+  give the reason detection did not settle the kind: the remotes disagree, a
+  remote's host has no kind, or no member has a hosted remote. Recommend the
+  kind most of those remotes name. With none, recommend "No git host yet",
+  because a host nothing points at is a guess.
+
+Then run `init` without `--dry-run`, passing each answer as `--provider=` or
+`--git-host=`. Nothing is asked when nothing is open, or when no question can be
+asked in the session. In that case `init` runs with the flags as given, and the
+report's `unset` names what stayed blank.
 
 - **`init`, exit `0`** — the workspace root and the members root, each member
   found with its path, what was created, what was preserved, and every skipped
-  target with its reason. Say the manifest is complete as written, where it
-  lives (`.maister/umbrella.yml`), and which two fields are most often changed
-  first: `defaults.autonomy`, which starts at the most conservative tier, and
-  `defaults.worktree`.
+  target with its reason. Give the git host and the default provider it wrote,
+  and where each came from: a flag, an answer, or the members' remotes. Say
+  where the manifest lives (`.maister/umbrella.yml`), and which two fields are
+  most often changed first: `defaults.autonomy`, which starts at the most
+  conservative tier, and `defaults.worktree`. Give each `unset` entry's message:
+  that value is blank in the manifest until it is set there or `init` is re-run
+  with `--force` and the flag.
 - **`validate`, exit `0`** — what was judged (the manifest, and each definition
   by name, saying which of them sit in the generated home — the report marks
   each one `generated` or not) and that it passed; each warning with its file,
@@ -223,6 +251,17 @@ create a knowledge-directory README and a root guidance stub, but only where
 neither already exists — it never rewrites a file it did not author. A second
 `init` over an existing manifest refuses unless `--force` is given, and even
 `--force` publishes through a temp file and a rename.
+
+The manifest's git host and default provider are the two values a workspace
+cannot leave blank and still register cleanly. `--git-host` writes
+`git_host.kind`; without it, `init` reads every member's remotes the way a
+dispatch does. When each remote on a git host names the same known host, that
+host is the kind: github.com is `github`, while gitlab.com or a `gitlab.` host is
+`gitlab`. A remote on a path of this machine is no host and is passed over.
+`--provider` writes `defaults.provider`, and nothing else does: a default
+provider is a decision, and `init` does not guess one. A value neither a flag
+nor the remotes settled stays unset, and the report names it under `unset` with
+what setting it takes. `--dry-run` reports all of this and writes nothing.
 
 Member discovery is a bounded two-level walk: the workspace root's own children
 and the children of the members root. A directory carrying a git entry is a
@@ -633,6 +672,8 @@ tool because the script said no is the drift this whole design removes.
 | Refusal | Response |
 |---|---|
 | `umbrella-manifest-exists` | A manifest is already there and `--force` was not given. This is the guard working. Decide deliberately: keep what exists, or re-run with `--force`, which still publishes through a temp file and a rename. |
+| `umbrella-provider-unknown` | `--provider` names no provider this runtime dispatches to; it is `claude` or `copilot`. Nothing was written. Re-run with one of the two, or without the flag to leave `defaults.provider` unset. |
+| `umbrella-git-host-unknown` | `--git-host` names no kind `init` writes; it is `github` or `gitlab`. Nothing was written. A workspace on another host leaves the flag out and sets `git_host.kind` in the manifest by hand. |
 | `umbrella-root-unusable` | The workspace root is missing or is not a directory. Nothing about the invocation can be corrected by repeating it — fix the path or create the directory. |
 | `umbrella-members-root-outside` | The members root named resolves outside the workspace — a traversal, or an absolute path elsewhere. Nothing was scanned and nothing was written, deliberately: a directory outside the workspace would be recorded as a member path, and a worker is later pointed at exactly that path. Name a directory under the workspace, or point `--root` at the workspace that really holds the repositories. |
 | `umbrella-member-unreadable` | A candidate member could not be read at all. This is distinct from an unresolved symlink, which is reported and survived; an unreadable candidate stops the scan because a partial member list would silently drop work. Fix permissions and re-run. |
