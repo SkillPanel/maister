@@ -72,11 +72,15 @@ every plugin agent its own tool list, so a source agent declares none.
 | Ask nothing; a missing source is skipped and named | Copilot's `research` (autonomous; report gaps) | The scan has nobody to ask; a missing source is a gap, not an error |
 | Exact schema, the file written even when empty; a short final message | Copilot's `task` (brief on success) | A missing or unparsable file means the source did not run, and the skill re-dispatches it. The findings travel in the file, not in the message |
 
-- **The session's model.** The scanner has no shipped `subagents` entry, so `dispatch-model`
-  answers `omit` and the call runs on the session's model, as the general-purpose scans did.
-  The built-in explorers answer "where is X" on a cheap model at low effort. A scan does more:
-  it judges whether a pattern is a convention and how strongly the evidence holds. A project
-  that wants the scans cheaper names `standards-scanner` in its `config.yml`.
+- **The session's model on Claude Code, `standard` on Copilot.** The scanner's shipped
+  `subagents` entry is `{tier: {claude: inherit, copilot: standard}}`: on Claude Code
+  `dispatch-model` answers `omit` and the call runs on the session's model, as the
+  general-purpose scans did; on Copilot, where the session's model may be any, it runs on the
+  `standard` rung. The built-in explorers answer "where is X" on a cheap model at low effort. A
+  scan does more: it judges whether a pattern is a convention and how strongly the evidence
+  holds. A project that wants the scans cheaper names `standards-scanner` in its `config.yml`.
+  (Amended after the first trial: the scanner first had no shipped entry, and so inherited on
+  both hosts.)
 
 ### Consequences
 - The scratch, containment and plugin-path lints cover the scanner as they cover every agent.

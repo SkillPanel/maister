@@ -150,7 +150,9 @@ subagents:
   agents:
     Explore: { tier: light }   # the codebase scouts maister starts
     project-analyzer: { tier: light }
-    docs-operator: { tier: light }
+    # the docs operator and the standards scans: your session's model on Claude Code, standard on Copilot
+    docs-operator: { tier: { claude: inherit, copilot: standard } }
+    standards-scanner: { tier: { claude: inherit, copilot: standard } }
     task-classifier: { tier: light }
     test-suite-runner: { tier: light }
     html-companion-writer: { tier: light }
