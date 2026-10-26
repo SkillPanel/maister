@@ -44,7 +44,7 @@ For complex bugs that grow beyond a quick fix, offers to switch to a full develo
 
 - If provided as argument, use it directly
 - If not provided, scan the recent conversation for bug context (error messages, reproduction steps, discussed symptoms). If found, use that as the bug description.
-- Only if no argument AND no bug context in session, ask in plain text and wait for the answer — a question with nothing to pick from is not an ask_user call, which refuses fewer than two options:
+- Only if no argument AND no bug context in session, ask in plain text and wait for the answer — with nothing to pick from it is not a question-tool call, which takes two options or more on Claude Code:
   ```
   "Describe the bug — what's the expected behavior vs actual behavior?"
   ```

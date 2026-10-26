@@ -10,7 +10,7 @@ This works exactly as if you asked the main agent to implement the task directly
 
 ## Workflow
 
-1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask in plain text — "What would you like to implement?" — and wait for the answer: a question with nothing to pick from is not an `AskUserQuestion` call, which refuses fewer than two options.
+1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask in plain text — "What would you like to implement?" — and wait for the answer: with nothing to pick from it is not a question-tool call, which takes two options or more on Claude Code.
 
 2. **Implement it** — Explore the relevant code and make the changes exactly as you normally would for a direct development request.
 

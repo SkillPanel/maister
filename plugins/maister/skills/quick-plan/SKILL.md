@@ -10,7 +10,7 @@ This works exactly like Claude Code's built-in plan mode, with one addition: the
 
 ## Workflow
 
-1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask in plain text — "What would you like to plan?" — and wait for the answer: a question with nothing to pick from is not an `AskUserQuestion` call, which refuses fewer than two options.
+1. **Get the task** — Use the argument if provided. If none, take it from the recent conversation (what was just discussed, an error, a request left open). Only when nothing there is inferable, ask in plain text — "What would you like to plan?" — and wait for the answer: with nothing to pick from it is not a question-tool call, which takes two options or more on Claude Code.
 
 2. **Enter plan mode** — Call `EnterPlanMode` and let plan mode run exactly as it normally does (explore the codebase, design the approach, write the plan, then `ExitPlanMode` for approval). Do not redefine its phases.
 

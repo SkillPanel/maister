@@ -56,7 +56,7 @@ Wait for completion. Store analysis results for use in Phases 3 and 6.
 
 ## PHASE 3: Confirm Findings & Gather Context
 
-Every question here carries its own context — the findings go in the question, never in a message above it. Every question offers at least two real options, since the question tool refuses fewer: a finding with nothing to choose is stated, never asked.
+Every question here carries its own context — the findings go in the question, never in a message above it. Every question offers at least two real options — one option is nothing to choose, and Claude Code's question tool refuses it: a finding with nothing to choose is stated, never asked.
 
 **Step 1 — Confirm the analysis.** One AskUserQuestion whose question lists what was detected, one line each: project type, language and framework, architecture, the main tech stack, anything the analyzer flagged as custom or low confidence, and the project profile fields (Phase 5 Step 3) the analysis could not settle, by what each asks ("Not found: where it deploys, who reaches it, who uses it"), so a correction can settle them. Options: "Looks right (Recommended)" and one to three generated corrections, drawn from what the analyzer was least sure of ("It's a monorepo, not a single app", "The backend is Fastify, not Express"). A free-text correction is the Other answer. Apply corrections before going on.
 
