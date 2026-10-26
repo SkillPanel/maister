@@ -237,7 +237,8 @@ author at the section a problem falls under when the message alone leaves them g
 
 ## Resuming a run
 
-Run `resume-check --state=<run directory>/orchestrator-state.yml`. It reads the state, writes
+Run `resume-check --no-open --state=<run directory>/orchestrator-state.yml` — `--no-open`
+because the engine's own resume check opens the dashboard. It reads the state, writes
 nothing, and prints the frozen `workflow.name`, `overlays` and `profile` with the run's `title`
 and `status`.
 

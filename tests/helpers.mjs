@@ -19,6 +19,14 @@ import { parse } from '../plugins/maister/skills/workflow-engine/scripts/lib/sta
 import { isContextBlock } from '../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
 import { unmetNeeds } from '../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 
+/**
+ * No child of the suite opens a browser: the freeze and a resume check open the
+ * run's dashboard unless this is set. Set on the suite's own environment, so a
+ * test that spawns a child without `isolated` inherits it too; a test of the
+ * opener lays its own environment over it.
+ */
+process.env.MAISTER_NO_OPEN = '1';
+
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const ENGINE_DIR = path.join(ROOT, 'plugins/maister/skills/workflow-engine');
 export const ENGINE = path.join(ENGINE_DIR, 'scripts/workflow.mjs');

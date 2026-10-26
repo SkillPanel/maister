@@ -105,8 +105,8 @@ fs.mkdirSync(configDir);
 fs.writeFileSync(gitConfig, '');
 
 // The same isolation the verb suite gives its children: no operator config, no
-// operator git identity, a fixed login name.
-const env = { ...process.env, CLAUDE_CONFIG_DIR: configDir, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: '1', USER: 'tester', USERNAME: 'tester' };
+// operator git identity, a fixed login name, and no dashboard opened in a browser.
+const env = { ...process.env, CLAUDE_CONFIG_DIR: configDir, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: '1', USER: 'tester', USERNAME: 'tester', MAISTER_NO_OPEN: '1' };
 delete env.CLAUDE_PROJECT_DIR;
 
 const engine = path.join(pluginRoot, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs');

@@ -21,15 +21,12 @@ state file, and settles the HTML output option later nodes read.
    directory and its state file, with the task description.
 4. **Read the project configuration** and set `options.html_output` (default
    true when the file or the key is absent). When `html_output` is false, skip
-   the dashboard entirely — no dashboard asset, no data projection, no browser
-   open. Otherwise the freeze installed `dashboard.html` in the task root — copy
-   nothing; **run the platform opener** on the plain absolute path through the
-   shell — `open "<task path>/dashboard.html"` on macOS, `xdg-open` on Linux,
-   `start ""` on Windows. Never build a `file://` URL. On failure print the
-   path; never block.
+   the dashboard entirely — no dashboard asset, no data projection. Otherwise
+   the freeze installed `dashboard.html` in the task root and opened it — copy
+   nothing and run no opener.
 5. **Make sure the user has seen the start banner** (engine Step 4). If your
    messages since the freeze do not name the workflow and task, the checkpoints,
-   the directory and the dashboard link, write them now, from the freeze's
+   the directory and the dashboard link the engine opened, write them now, from the freeze's
    output, the paths copied as printed.
 6. **Discover the project documentation** — from the documentation index under
    the project's docs directory, if one exists, extract every path in its

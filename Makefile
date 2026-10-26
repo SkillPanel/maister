@@ -1,5 +1,9 @@
 .PHONY: build diagram validate test test-mod smoke clean watch
 
+# No target opens a browser: the engine opens a run's dashboard at the freeze and
+# at a resume check unless this is set, and every recipe's engine call inherits it.
+export MAISTER_NO_OPEN = 1
+
 # The interface file first: build.sh copies the source tree, then regenerates
 # the variant's own from what it built.
 build:
