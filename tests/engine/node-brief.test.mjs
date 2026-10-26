@@ -46,7 +46,8 @@ function conventions(skill = SKILL) {
 
 const row = key => `convention (${key}): ${conventions()[key]}`;
 const LATER = 'convention (named by a revise, has a budget): see rules';
-const COMPANION_WRITER = 'companion writer: maister:html-companion-writer, model haiku, effort high (source: shipped agents.html-companion-writer, tier light) — the call for each page owed above that is not on disk when the step\'s work is done, never on the session\'s model';
+const COMPANION_WRITER = 'companion writer: maister:html-companion-writer, model haiku, effort high (source: shipped agents.html-companion-writer, tier light) — the call for each page owed above that is not on disk when the step\'s work is done, never on the session\'s model; its prompt carries the html line and that page\'s md_path line below, as printed';
+const STYLE_GUIDE = path.join(ROOT, 'plugins/maister/skills/orchestrator-framework/references/html-report-style.md');
 
 /** The closing patch skeleton a step's brief prints, its node entry and any summary keys beyond the four every step has. */
 const SUMMARY_KEYS = '"headline": "<one sentence, at most 220 characters>", "summary": "<what was found and what it means>", "decisions": [{"decision": "<…>", "by": "operator|run|audit|default"}], "risks": [{"risk": "<…>", "tag": "open|tradeoff|followup|stop|resolved"}]';
@@ -164,6 +165,8 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
     `- extras: ${relative}/drafts/extras.md — may be absent: Written only when the draft raises open questions.`,
     `- notes: ${relative}/drafts/notes.md — HTML page owed: notes.html beside it`,
     COMPANION_WRITER,
+    `- html: ${STYLE_GUIDE}`,
+    `- md_path: ${path.join(sample.dir, 'drafts/notes.md')}`,
     'asks (in session): tone',
     'feeds: approval — continues: continue-to-audit, continue-to-wrap-up; revise: revise-draft → draft',
     'budget: 2 attempts — a prose rule; nothing enforces it',
@@ -635,29 +638,49 @@ test('node-brief: the closing patch skeleton names the exact keys, and no gate o
   assert.doesNotMatch(child.stdout, /^closing patch/m, 'a child run\'s outcome is mapped, not written from a skeleton');
 });
 
-test('node-brief: a step that owes a page names the companion writer\'s call with its model and effort; with pages off it names none', t => {
-  const companionOf = result => result.stdout.split('\n').filter(line => line.startsWith('companion writer:'));
+test('node-brief: a step that owes a page names the companion writer\'s call with its model and effort, and the lines its prompt carries; with pages off it names none', t => {
+  // The call line and the lines under it: the style guide once, then each owed page's markdown.
+  const companionOf = result => {
+    const lines = result.stdout.split('\n');
+    const at = lines.findIndex(line => line.startsWith('companion writer:'));
+    if (at < 0) return [];
+    const block = [lines[at]];
+    for (const line of lines.slice(at + 1)) {
+      if (!/^- (html|md_path): /.test(line)) break;
+      block.push(line);
+    }
+    return block;
+  };
   const dev = scratch(t);
   freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' }, orchestrator: { options: { html_output: true } } });
-  for (const node of ['specification', 'planning', 'verification']) {
+  const pages = { specification: 'implementation/spec.md', planning: 'implementation/implementation-plan.md', verification: 'verification/implementation-verification.md' };
+  for (const [node, md] of Object.entries(pages)) {
     const brief = nodeBrief(dev.state, node);
     assert.equal(brief.code, 0, brief.stderr);
-    assert.deepEqual(companionOf(brief), [COMPANION_WRITER], node);
+    assert.deepEqual(companionOf(brief), [COMPANION_WRITER, `- html: ${STYLE_GUIDE}`, `- md_path: ${path.join(dev.dir, md)}`], node);
     // The line follows the writes it is for.
     const lines = brief.stdout.split('\n');
     const writes = lines.slice(lines.indexOf('writes:') + 1, lines.indexOf(COMPANION_WRITER));
     assert.ok(writes.length && writes.every(line => line.startsWith('- ')), node);
     assert.ok(writes.some(line => line.includes('HTML page owed:')), node);
+    // The style guide is the one the run context hands a delegate of the same step.
+    const context = verb(['run-context', `--state=${dev.state}`, `--node=${node}`]);
+    assert.equal(context.code, 0, context.stderr);
+    assert.ok(context.stdout.split('\n').includes(`html: ${STYLE_GUIDE}`), node);
   }
   // A step that owes no page, and a gate, print none.
   for (const node of ['gap-analysis', 'specification-approval']) assert.deepEqual(companionOf(nodeBrief(dev.state, node)), [], node);
 
-  // The generated variant names its own agent and Copilot's model id.
+  // The generated variant names its own agent, Copilot's model id and its own style guide.
   const copilot = run(path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${dev.state}`, '--node=specification']);
   assert.equal(copilot.code, 0, copilot.stderr);
-  assert.deepEqual(companionOf(copilot), [COMPANION_WRITER
-    .replace('maister:html-companion-writer', 'maister-copilot:html-companion-writer')
-    .replace('model haiku', 'model claude-haiku-5.5')]);
+  assert.deepEqual(companionOf(copilot), [
+    COMPANION_WRITER
+      .replace('maister:html-companion-writer', 'maister-copilot:html-companion-writer')
+      .replace('model haiku', 'model claude-haiku-5.5'),
+    `- html: ${path.join(ROOT, 'plugins/maister-copilot/skills/orchestrator-framework/references/html-report-style.md')}`,
+    `- md_path: ${path.join(dev.dir, pages.specification)}`,
+  ]);
 
   const off = scratch(t);
   freeze(off, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' }, orchestrator: { options: { html_output: false } } });
