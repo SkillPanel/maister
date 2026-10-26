@@ -702,19 +702,23 @@ than retried.
    `.maister/docs/project/roadmap.md`: mark done the items this run completed,
    matched against the specification, and say which, or that none matched. A
    tick changes no document's purpose, so its index entry stays as it is.
-4. **Consolidate, then offer the standard candidates** the work log records —
-   the implementers' and the fix loop's. When there are any, invoke `docs-operator` once
-   (agent_type `maister-copilot:docs-operator`, with the model and effort
+4. **Consolidate, then hand over the standard candidates** the work log
+   records — the implementers' and the fix loop's. When there are any, invoke
+   `docs-operator` once (agent_type `maister-copilot:docs-operator`, with the model
+   and effort
    `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:docs-operator --host=copilot --state=<task path>/orchestrator-state.yml --node=finalization`
    prints,
    `orchestrator-patterns.md` § 1): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]." It
    merges duplicates, matches each against what the project's standards and
    documents already hold, suggests a destination and returns each with its
-   evidence, as docs-manager's `references/standard-candidates.md` says; its
-   list is what *Asks* below offers. When the call fails, the work log's lines
-   are offered as written, and a line of the close says they were not
-   consolidated.
+   evidence, as docs-manager's `references/standard-candidates.md` says. Write
+   what it returns to `standard-candidates.json` in the task directory, in the
+   shape that reference's *The run's candidates file* gives. When the call
+   fails, the work log's lines are written as they stand, marked not
+   consolidated, and a line of the close says so. The run applies none of them
+   and asks nothing about them: a person adds the ones worth keeping afterwards,
+   with standards-update.
 5. **Set the task status to completed**.
 6. **Guide the next steps**, which for this workflow are its own four: a commit
    message covering the change; a review of the diff; a pull request; and
@@ -741,6 +745,14 @@ than retried.
 the message file's path, then the rest of this workflow's own four, then the
 fresh-session suggestion, none dropped or merged.
 
+**Standard candidates in the close**: when step 4 wrote the candidates file,
+the close lists each candidate — its line, its destination and its evidence —
+and each already-held line with the rule that holds it, and **Next** ends, after
+the fresh-session suggestion, with one line more: `/maister-copilot:standards-update`,
+run with no argument in a fresh terminal session, which offers this run's
+candidates and asks where each goes. One line for all of them, never one per
+candidate; with no candidates there is no such line.
+
 **No close-out while a choice is held**: when the freeze recorded
 `orchestrator.classes_questions`, this node runs
 `gate-brief --node=held-approval` before its closing patch and before any
@@ -752,42 +764,3 @@ verb before this node ends** — the grade and the summary the seed's close-out
 contract asks for, drawn from the executive summary above; a dispatched run that
 ends with none is `RUN-FAILED: closeout-unpublished`. Under a terminal driver
 step 6 is what the operator gets.
-
-**Asks.** Only when step 4 offers standard candidates: one multi-select
-question, the question saying that each chosen one is added now, before
-the run closes, through standards-update, which asks to confirm its
-destination. Its first
-option is fixed: *"None now: list them as next steps"*. Each candidate follows
-as an option — its label the consolidation's few words, its description the
-candidate line, then its destination (a new rule in a named file, the rule it
-extends, or a project document) and its evidence. Each candidate the
-consolidation found well supported — its evidence in more than one place, or
-its action extending a rule the project already has — is recommended, its
-description opening with that reason; the candidates are separate choices, so
-more than one may be. When none qualifies, *None now* is recommended, its
-description saying no candidate has support beyond one place yet.
-Each chosen candidate is added with `standards-update`, its line and
-suggested destination as the description, one after another, its destination
-asked, never taken as given; an unchosen one
-is dropped. *None now* adds nothing: every candidate goes under **Next** as its
-`/maister-copilot:standards-update "<candidate> (suggested: <destination>)"` command, as
-when nothing is asked. Chosen together with candidates, *None now* gives way:
-the candidates are taken, and a line of the close says the none option was set
-aside. The candidates the consolidation found already held go in a line of the
-close, each with the rule that holds it. With no candidates, nothing is
-asked.
-The question counts only the candidates it lists, never more than it shows.
-
-**With question sets** (`standard-candidates`): the same multi-select, with the
-multi-choice flag, as this node's one request in its attempt — *None now* first,
-under the id `none-now`, and every option `recommended` true or false by the
-rule above. The chosen candidates go
-under **Next**, each as the
-`/maister-copilot:standards-update "<candidate> (suggested: <destination>)"` command to
-run, since adding one asks its own questions in session. *None now* alone puts
-every candidate there, as the Without line does; chosen with candidates, the
-candidates win, and a line of the close says so.
-
-**Without question sets** (`standard-candidates`): nothing is asked; every
-candidate goes under **Next** as its
-`/maister-copilot:standards-update "<candidate> (suggested: <destination>)"` command.

@@ -475,7 +475,7 @@ the index itself — a document with no entry, a dead or duplicate entry, a conf
 left for a refresh (`/maister-copilot:standards-update --refresh-index`), never fixed by hand. A
 convention, pitfall or fact a fix shows to be worth keeping is written to the work log as a
 standard candidate, one line as docs-manager's `references/standard-candidates.md` describes it,
-for finalization to consolidate and offer.
+for finalization to consolidate and hand over to standards-update.
 
 ### Fixability Assessment
 

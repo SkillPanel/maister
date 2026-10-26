@@ -116,7 +116,8 @@ You: /maister:development
 
 ```
 You: /maister:standards-update
-→ Scans conversation for patterns like "we always use..." or "prefer X over Y"
+→ Scans conversation for patterns like "we always use..." or "prefer X over Y";
+  in a fresh session, offers the standard candidates the latest workflow run left
 ```
 
 You can always be explicit when you prefer - arguments and flags simply override the auto-detection.

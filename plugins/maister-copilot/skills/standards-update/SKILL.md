@@ -1,6 +1,6 @@
 ---
 name: standards-update
-description: Update or create project standards from conversation context or explicit description
+description: Update or create project standards from conversation context, an explicit description, or the standard candidates a finished workflow run handed over
 argument-hint: "[description of standard/convention] [--from=PATH] [--refresh-index]"
 ---
 
@@ -10,14 +10,14 @@ argument-hint: "[description of standard/convention] [--from=PATH] [--refresh-in
 
 # Update Project Standards
 
-Update or create standards in `.maister/docs/standards/` based on conversation context or a provided description — or, when the knowledge is a decision or a fact about the system rather than a way of writing code, record it in a project document under `.maister/docs/project/`. What makes a good candidate and where one belongs is described once, in docs-manager's standard candidates reference, `<plugin root>/skills/docs-manager/references/standard-candidates.md`, the plugin root two levels above this skill's base directory; read it before Phase 1, and the project's own wording in its `.github/copilot-instructions.md` block or at the top of INDEX.md over it. Automatically detects the best-matching category and file. Supports both baseline categories (global, frontend, backend, testing) and custom user-defined categories, sub-folders as groups within them, splitting a file that has outgrown its size guidance, and refreshing the documentation index.
+Update or create standards in `.maister/docs/standards/` based on conversation context, a provided description or the candidates a finished workflow run left in its task directory — or, when the knowledge is a decision or a fact about the system rather than a way of writing code, record it in a project document under `.maister/docs/project/`. What makes a good candidate and where one belongs is described once, in docs-manager's standard candidates reference, `<plugin root>/skills/docs-manager/references/standard-candidates.md`, the plugin root two levels above this skill's base directory; read it before Phase 1, and the project's own wording in its `.github/copilot-instructions.md` block or at the top of INDEX.md over it. Automatically detects the best-matching category and file. Supports both baseline categories (global, frontend, backend, testing) and custom user-defined categories, sub-folders as groups within them, splitting a file that has outgrown its size guidance, and refreshing the documentation index.
 
 Every write goes through the `docs-operator` subagent, which preloads docs-manager. Each call that changes documents names the docs index check for it: `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root being two levels above this skill's base directory, written as an absolute path.
 
 ## Usage
 
 ```bash
-/maister-copilot:standards-update                                    # Detect from conversation
+/maister-copilot:standards-update                                    # Detect from conversation, else offer the latest run's candidates
 /maister-copilot:standards-update "always use React.memo for lists"  # From description
 /maister-copilot:standards-update --from=/path/to/other-project      # Sync from another project
 /maister-copilot:standards-update "split standards/backend/storage.md" # Split a file past its size guidance
@@ -95,6 +95,7 @@ When `--from` is NOT provided, the skill uses the standard detect-and-update flo
 - **If the argument or the conversation asks to split a file**: go to § Splitting a Standards File instead.
 - **If argument provided**: Use the description as primary input. Also scan last 15-20 messages for additional context, examples, or related conventions.
 - **If no argument**: Scan last 15-20 messages for convention discussions. Look for patterns like "we should always...", "our convention is...", "prefer X over Y", "never use...", code examples showing patterns.
+- **If no argument and the conversation holds none** — a fresh session, typically right after a workflow run named this command under **Next**: go to § Candidates from a Workflow Run.
 
 **Step 2: Discover existing categories and files**
 
@@ -106,13 +107,13 @@ Based on the topic detected, suggest the best-matching existing category and fil
 - File names and their content (read existing files if topic is close)
 - Whether the convention fits an existing file or needs a new one
 - Whether it is a way of writing code (a standards file) or a decision or fact about the system (a project document)
-- **A suggested destination in the description** — `(suggested: <destination>)`, as a workflow's finalization writes it — is the best match unless the file no longer exists
+- **A suggested destination** — a run's candidate's, or `(suggested: <destination>)` in the description — is the best match unless the file no longer exists
 
-**Step 4: Confirm the target** — one ask_user, the convention in a few words in the question. This step is always asked: a suggested destination makes the recommended answer, never the answer. Several conventions handed over together — a workflow's chosen standard candidates — are confirmed together, a question each and up to four to a page, before any is written. When the best-matching file is already past its size guidance (about 12 KB or 15 `###` rules), the recommended answer is a new file beside it, named from the convention, the question saying the matched file is full; adding to that file stays an option.
+**Step 4: Confirm the target** — one ask_user, the convention in a few words in the question. This step is always asked: a suggested destination makes the recommended answer, never the answer. Several conventions handed over together — a run's chosen standard candidates — are confirmed together, a question each and up to four to a page, before any is written. When the best-matching file is already past its size guidance (about 12 KB or 15 `###` rules), the recommended answer is a new file beside it, named from the convention, the question saying the matched file is full; adding to that file stays an option.
 
 - "Add it to the \<Category\> standards (\<file name\>)?" — "Yes (Recommended)" for the best match, up to two other candidate files by name with what each covers, and "New file" (its name and category the follow-up answer, or a new category). With no clear best match, the likeliest candidate is still offered first and recommended, the question saying why it is uncertain.
 - For a project document the question names it instead — "Add it to the project's \<document\> (project/\<file name\>)?" — with the same options; a standards file stays among the alternatives, and a project document among a standard's when the knowledge reads as a decision or a fact.
-- **If nothing detected** (no argument, no conversation context) → ask the user to describe the convention, free text, with an example in the question
+- **If nothing detected** (no argument, no conversation context, no run's candidates) → ask the user to describe the convention, free text, with an example in the question
 
 ---
 
@@ -167,6 +168,17 @@ Wait for docs-operator to complete, then immediately proceed to Phase 5.
 ## PHASE 5: Summarize
 
 Display a summary: what was updated/created, practices added, and next steps (review, commit, share with team). If docs-operator reported a failure, say so. When the file is past its size guidance, say so and suggest `/maister-copilot:standards-update "split <path>"` — a warning, never a refusal.
+
+---
+
+## Candidates from a Workflow Run
+
+A workflow run writes no standard. Its finalization leaves the consolidated candidates in its task directory (*The run's candidates file* in the standard candidates reference) and names this command once; this is where they are applied.
+
+1. **Find them.** Run `node <plugin root>/skills/standards-update/scripts/candidates.mjs latest` from the project root, the plugin root as above. It prints the most recent run whose candidates are not all applied yet (`run`), those candidates, the ones it found already held, the other runs that still hold some (`others`) and any file it could not read (`problems`). With `run` null, go back to *If nothing detected* in Phase 1.
+2. **Offer them** — one multi-select ask_user. The question names the run by its type and name, says how many candidates it offers, and, when `others` is not empty, that other runs hold candidates too (how many runs, named). Each candidate is an option: its `label` as the label; its destination, then its evidence, as the description. Each `recommended` candidate is marked recommended, its description opening with its `reason`; the candidates are separate choices, so more than one may be. When none is, the question says no candidate has support beyond one place yet. More than four candidates go in pages of four in the same call, each question counting its own out of the whole. The already-held ones are not offered; name them in the question with the rule that holds each. An unchosen candidate stays in the run's file and is offered again next time.
+3. **Apply the chosen ones**, one after another, through Phase 1 Step 3 onward: the candidate line as the description and its `destination` as the suggested destination (for `extend`, the rule it extends) — the destination is asked in Step 4, never taken as given. Once a candidate has been written (Phase 4 succeeded), record it: `node <plugin root>/skills/standards-update/scripts/candidates.mjs applied --run=<run dir> --id=<id>`, so it is not offered again. A candidate whose write failed is not recorded.
+4. **Summarize** as Phase 5 does, for all of them together, and say which candidates are left in that run and in the others.
 
 ---
 
