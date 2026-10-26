@@ -14,8 +14,9 @@
  * The run: `locate`, `validate`, `resolve`, the freeze, `run-context` and
  * `node-brief` for a node, two node writes with a patch no shell may touch, `area-brief`'s
  * fallback at a node that declares no decision areas, `gate-brief --json` at
- * the gate, the dashboard projection, `resume-check` and the documentation
- * check (`docs-manager/scripts/docs-check.mjs`). The freeze travels in
+ * the gate, the dashboard projection, `resume-check`, the documentation
+ * check (`docs-manager/scripts/docs-check.mjs`) and the standard candidates
+ * lookup (`standards-update/scripts/candidates.mjs`). The freeze travels in
  * the patch file under every shell; the node writes travel as a here-string
  * (`<<< '<json>'`, an apostrophe written `'\''`) under bash and zsh, and in the
  * patch file under every shell on Windows. Then the hooks, each started as `hooks.json`
@@ -112,6 +113,8 @@ delete env.CLAUDE_PROJECT_DIR;
 const engine = path.join(pluginRoot, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs');
 
 const docsCheck = path.join(pluginRoot, 'skills', 'docs-manager', 'scripts', 'docs-check.mjs');
+
+const candidatesLookup = path.join(pluginRoot, 'skills', 'standards-update', 'scripts', 'candidates.mjs');
 
 /** One engine call (or a call of another plugin script), as one command line through the shell, from the project root. */
 function call(verb, flags, hereString = null, script = engine) {
@@ -266,6 +269,18 @@ try {
   const docsReport = json(checked.stdout);
   check('docs-check reads the project\'s documentation from a path holding a space', checked.code === 0 && docsReport?.ok === true && docsReport.entries === 1, show(checked));
 
+  // --- the standard candidates lookup ---------------------------------------
+  // Run from the project root as standards-update runs it: a run's candidates
+  // file found, one applied through a --run path holding a space, and gone.
+  const candidateRun = path.join(project, '.maister', 'tasks', 'development', '2026-01-05-candidate run');
+  fs.mkdirSync(candidateRun, { recursive: true });
+  fs.writeFileSync(path.join(candidateRun, 'standard-candidates.json'), JSON.stringify({ candidates: [{ id: 'typed-errors', label: 'Typed errors', line: '- Raise typed errors', destination: 'standards/global/errors.md' }] }));
+  const found = json(call('latest', [], null, candidatesLookup).stdout);
+  const marked = call('applied', [flag('run', candidateRun), '--id=typed-errors'], null, candidatesLookup);
+  const after = json(call('latest', [], null, candidatesLookup).stdout);
+  check('the candidates lookup finds a run under a path holding a space and records one applied',
+    found?.run?.name === '2026-01-05-candidate run' && marked.code === 0 && after?.run === null, show(marked));
+
   // --- the hooks ------------------------------------------------------------
   // Each hook is started from its `hooks.json` entry the way the host starts
   // it: `${CLAUDE_PLUGIN_ROOT}` replaced by the plugin root and the exec-form
@@ -310,7 +325,7 @@ try {
   check('guard: a subagent\'s destructive command is denied', denied.code === 0 && json(denied.stdout)?.hookSpecificOutput?.permissionDecision === 'deny', show(denied));
 
   // --- line endings -----------------------------------------------------------
-  const carried = [...walk(path.join(SOURCE_PLUGIN, 'hooks')), ...walk(path.join(SOURCE_PLUGIN, 'skills', 'workflow-engine', 'scripts')), ...walk(path.join(SOURCE_PLUGIN, 'skills', 'docs-manager', 'scripts')), ...walk(path.join(SOURCE_PLUGIN, 'lib'))]
+  const carried = [...walk(path.join(SOURCE_PLUGIN, 'hooks')), ...walk(path.join(SOURCE_PLUGIN, 'skills', 'workflow-engine', 'scripts')), ...walk(path.join(SOURCE_PLUGIN, 'skills', 'docs-manager', 'scripts')), ...walk(path.join(SOURCE_PLUGIN, 'skills', 'standards-update', 'scripts')), ...walk(path.join(SOURCE_PLUGIN, 'lib'))]
     .filter(file => /\.(sh|mjs|json)$/.test(file) && fs.readFileSync(file, 'utf8').includes('\r'));
   check('the checked-out hooks and engine scripts carry no CR', carried.length === 0, carried.join('\n'));
 } catch (err) {

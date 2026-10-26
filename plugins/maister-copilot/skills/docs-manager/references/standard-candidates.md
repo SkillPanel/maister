@@ -1,8 +1,9 @@
 # Standard Candidates
 
 The one description of a standard candidate. The implementer writes candidates to it, a fix loop
-writes one to it, finalization's consolidation reads them against it, and `standards-update` and
-the project's `.github/copilot-instructions.md` block point here rather than restating it.
+writes one to it, finalization's consolidation reads them against it and hands them over in the
+run's candidates file, and `standards-update` and the project's `.github/copilot-instructions.md` block point here
+rather than restating it.
 
 ## What a candidate is
 
@@ -49,8 +50,8 @@ One bullet, on one line, compact — a few clauses, never a section:
 
 ## Consolidation
 
-Run once at finalization, before anything is offered, by the docs-manager operation of that name.
-It reads; it never writes a document.
+Run once at finalization, before the run hands its candidates over, by the docs-manager
+operation of that name. It reads; it never writes a document.
 
 1. **Merge duplicates.** The same lesson from different groups, in different words, becomes one
    candidate in the clearest wording; every source line stays as its evidence.
@@ -69,3 +70,25 @@ It reads; it never writes a document.
    groups or fixes showed it). Then each already-held line with the rule that holds it.
 
 The person still chooses: consolidation orders and places, it never decides what is kept.
+
+## The run's candidates file
+
+A workflow run never writes a standard and asks nothing about its candidates. Finalization writes
+what consolidation returned to `standard-candidates.json` in the task directory, lists the
+candidates in its close, and names `/maister-copilot:standards-update` once under **Next**. Run later
+with no argument, standards-update finds the most recent run whose file still holds a candidate
+to apply and offers them. The file is JSON:
+
+- `candidates` — each one offered: `id` (short, unique in the file), `label` (its few words),
+  `line` (the candidate line), `action` (`new` or `extend`), `extends` (the rule's file and
+  heading, for `extend`), `destination` (the suggested file), `evidence` (which groups or fixes
+  showed it), `recommended` (true when well supported — its evidence in more than one place, or
+  its action extending a rule the project already has) and `reason` (why, when recommended).
+- `already_held` — each `{line, held_by}`: the rule that already says it.
+- `consolidated` — false when consolidation failed and the lines are the work log's as written
+  (each then `action` `new`, its destination the likeliest file by *Where one belongs*, and
+  `recommended` false).
+
+`id`, `label`, `line` and `destination` are required; an entry without them is not offered.
+Which candidates have been applied is recorded beside it, in `standard-candidates-applied.json`,
+by standards-update's script — never by hand, and never in the candidates file itself.

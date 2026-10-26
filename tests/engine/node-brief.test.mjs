@@ -119,15 +119,13 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   assert.ok(!again.includes(row('named by a revise')), 'a retry is no revise');
   assert.ok(again.includes('convention (named by a revise): see rules'));
 
-  // A direct step that owes no page, keeps its section, declares no output and feeds no checkpoint: its header is its facts, the one question its prose asks, and the pointer.
+  // A direct step that owes no page, keeps its section, declares no output, asks nothing and feeds no checkpoint: its header is its facts and the pointer.
   const finalization = nodeBrief(dev.state, 'finalization').stdout;
   const finalHeader = finalization.slice(0, finalization.indexOf('\n\n')).split('\n');
   assert.deepEqual(finalHeader.filter(line => !line.startsWith('- ')), [
     '## Node: finalization — Finalization',
     'runs: direct:finalization — inline',
     'with:',
-    'asks (in session): standard-candidates',
-    row('asks'),
     closing('finalization'),
     RULES,
   ]);
@@ -603,7 +601,7 @@ test('node-brief: asked in session on Copilot, a step that asks names the questi
     + copilotEngine + ' gate-brief --state=' + path.resolve(dev.state) + ' --node=' + node + ' --ask --patch-file=' + patch
     + ' and pass its output to the question tool unchanged — never compose the form yourself';
 
-  for (const node of ['gap-analysis', 'finalization']) {
+  for (const node of ['gap-analysis', 'verification-options']) {
     const lines = nodeBrief(dev.state, node, copilotEngine).stdout.split('\n');
     const at = lines.findIndex(line => line.startsWith('asks (in session): '));
     assert.ok(at > 0, node);
@@ -612,7 +610,7 @@ test('node-brief: asked in session on Copilot, a step that asks names the questi
     assert.ok(!nodeBrief(dev.state, node).stdout.includes('ask with:'), `${node}: no line on Claude Code`);
   }
   // A step that asks nothing gets no line.
-  assert.ok(!nodeBrief(dev.state, 'implementation', copilotEngine).stdout.includes('ask with:'));
+  for (const node of ['implementation', 'finalization']) assert.ok(!nodeBrief(dev.state, node, copilotEngine).stdout.includes('ask with:'), node);
 
   // Nobody can be asked, or a cockpit asks the sets: no command to run in session.
   write(dev, { orchestrator: { driver: { kind: 'dispatch' } } });

@@ -125,12 +125,12 @@ const USER_GUIDE = {
       { id: 'on', label: 'Write a guide', description: 'A usage guide with screenshots.' },
     ],
   }, {
-    id: 'standard-candidates',
-    header: 'Standard candidates',
-    question: 'Which conventions should become standards?',
+    id: 'follow-ups',
+    header: 'Follow-ups',
+    question: 'Which follow-ups should the guide mention?',
     multi_select: true,
     options: [
-      { id: 'none-now', label: 'None now: list them as next steps', description: 'Adds nothing now.' },
+      { id: 'migration-note', label: 'Migration note', description: 'How existing settings carry over.' },
       { id: 'null-vs-absent', label: 'Null is not absent', description: 'Reject an explicit null; a missing key takes the default. Suggested: global/validation.md. Seen in src/validate.js.' },
     ],
   }],
@@ -143,7 +143,7 @@ test('ask --patch-file: a question set in a terminal run is one call, each optio
   const call = callOf(brief(run, 'verification-options', '--ask', `--patch-file=${file}`));
   assert.equal(fs.existsSync(file), false, 'the set has become the call');
   const { properties, required } = call.requestedSchema;
-  assert.deepEqual(required, ['user-docs', 'standard-candidates']);
+  assert.deepEqual(required, ['user-docs', 'follow-ups']);
 
   const guide = properties['user-docs'];
   assert.equal(guide.title, 'User guide');
@@ -154,11 +154,11 @@ test('ask --patch-file: a question set in a terminal run is one call, each optio
     assert.ok(guide.description.split('\n').includes(line), `the description carries "${line}"`);
   }
 
-  // The candidates' rule, destination and evidence are the option descriptions:
+  // A multi-select's option descriptions carry where the tool shows them:
   // the user reads them, not bare ids, and nothing is recommended.
-  const candidates = properties['standard-candidates'];
+  const candidates = properties['follow-ups'];
   assert.equal(candidates.type, 'array');
-  assert.deepEqual(candidates.items.anyOf.map(choice => choice.title), ['None now: list them as next steps', 'Null is not absent']);
+  assert.deepEqual(candidates.items.anyOf.map(choice => choice.title), ['Migration note', 'Null is not absent']);
   assert.match(candidates.description, /^Null is not absent: Reject an explicit null; a missing key takes the default\. Suggested: global\/validation\.md\. Seen in src\/validate\.js\.$/m);
   assert.doesNotMatch(candidates.description, /Recommended/);
   assert.equal(candidates.default, undefined);

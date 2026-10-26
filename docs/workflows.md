@@ -128,8 +128,11 @@ with why it matters, where it applies and what showed it. At finalization (devel
 performance and migration alike) a light-model pass merges duplicates, matches each against your
 existing standards ("extend rule X" rather than a near-duplicate), suggests where it belongs — a
 standards file, or a project document under `.maister/docs/project/` for a decision or a fact
-about the system — and shows the evidence. You choose which to keep; each one chosen goes through
-`/maister:standards-update`.
+about the system — and shows the evidence. The run writes no standard and asks nothing about
+them: it lists them in its close, keeps them in the task folder (`standard-candidates.json`), and
+names `/maister:standards-update` once under **Next**. Run that command with no argument in a fresh
+session and it offers the latest run's candidates — the well-supported ones recommended — and
+adds the ones you choose, asking where each goes. A candidate once added is not offered again.
 
 ### Research-Based Development
 

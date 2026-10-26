@@ -319,11 +319,11 @@ Use this to check that documentation is consistent, up-to-date, and properly int
 
 ### 9. Consolidate Standard Candidates
 
-Use this at a workflow's finalization, before its standard candidates are offered. Read-only: it writes no document and refreshes no index.
+Use this at a workflow's finalization, before the run writes its candidates file. Read-only: it writes no document and refreshes no index.
 
-**What to do:** follow *Consolidation* in `references/standard-candidates.md` over the candidate lines the caller passes, with the project's own wording from its `.github/copilot-instructions.md` block and the top of INDEX.md taking precedence over that file's description. Return the consolidated list and the already-held lines as that section says; no choice is returned as a decision needed — the caller asks the person.
+**What to do:** follow *Consolidation* in `references/standard-candidates.md` over the candidate lines the caller passes, with the project's own wording from its `.github/copilot-instructions.md` block and the top of INDEX.md taking precedence over that file's description. Return the consolidated list and the already-held lines as that section says; no choice is returned as a decision needed — the caller writes the list to the run's candidates file, and the person chooses later, through standards-update.
 
-**Result:** fewer, clearer candidates, each with its suggested destination and its evidence, for the person to choose from.
+**Result:** fewer, clearer candidates, each with its suggested destination and its evidence, for the person to choose from when they run standards-update.
 
 ---
 
