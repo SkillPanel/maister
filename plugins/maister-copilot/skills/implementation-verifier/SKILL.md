@@ -79,7 +79,9 @@ or `inline`:
   `write-state` of `{"orchestrator": {"options": {"delegation": {"mode": "inline", "reason":
   "<the reason, one line>"}}}}`. Then `runner-step` says `inline`.
 - **`inline`** — the run keeps its loop in the main session (its delegation is `inline`, with
-  the reason printed). Follow the runner's procedure here, from § *Where to start* with `resume`
+  the reason printed). Read the runner's file, `<plugin root>/agents/verification-runner.md` by its
+  absolute path, with the file-read tool — in parts by line range when it is long — never through
+  the shell and never into a scratch copy. Follow its procedure here, from § *Where to start* with `resume`
   as the files say, asking where the runner would hand back a decision — today's loop, one step
   at a time. **Every review, the test suite and every fix is still a subagent call**: what moves
   into this session is the loop's bookkeeping, never a check. Never run the tests, review the

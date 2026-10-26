@@ -70,7 +70,9 @@ or `inline`:
   `write-state` of `{"orchestrator": {"options": {"delegation": {"mode": "inline", "reason":
   "<the reason, one line>"}}}}`. Then `runner-step` says `inline`.
 - **`inline`** — the run keeps its waves in the main session (its delegation is `inline`, with
-  the reason printed). Follow the runner's procedure here, from § *Where to start* with `resume`
+  the reason printed). Read the runner's file, `<plugin root>/agents/implementation-runner.md` by
+  its absolute path, with the file-read tool — in parts by line range when it is long — never
+  through the shell and never into a scratch copy. Follow its procedure here, from § *Where to start* with `resume`
   as the files say, asking where the runner would hand back a decision. **Every task group is
   still a `task-group-implementer` call**, and the full suite is still a subagent call: what moves into this session is the loop's bookkeeping, never a group's code.
 - **`close`** — the waves are done, and the plan and the work log say so. Return § *Structured
