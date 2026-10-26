@@ -367,7 +367,11 @@ taking their defaults. Four rules hold:
   the terminal picker, which pages a long set in one turn; it is never written into a request.
 - **Each question carries its own context**, by the floor above: `question` the question itself,
   `why` what makes it matter, each option's `description` what choosing it does or costs, and
-  `recommended` on the recommended option, its reason in its description. `header` is a short
+  `recommended` on the recommended option, its reason in its description. A "(Recommended)" typed
+  into a label, or a description opening "Recommended:", is read as that flag when nothing else
+  says which option is meant; the request states the outcome, every option of a question with a
+  recommendation `recommended` true or false and no label or description keeping the words, so
+  nothing reading it has a recommendation left to work out. `header` is a short
   sentence-case title. `details`, optional, is the question's full write-up as markdown, shown
   on demand beside it; `area-brief` writes it for each decision area. The multi-choice flag and `allow_other` (the operator's own words, on
   unless said) are per question. `default` is what a non-answer would take, the recommendation when

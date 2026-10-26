@@ -193,20 +193,34 @@ const DESCRIBED = /^\s*\(?recommended\)?\s*[:.—–-]\s*/i;
  * option is meant; the flag set to false is never overridden.
  *
  * With neither a flag nor a typed mark, a description that opens with
- * "Recommended:" is read the same way, and keeps only its reason: a writer who
- * put the recommendation in the description alone left the label unmarked on
- * a picker that shows labels only.
+ * "Recommended:" is read the same way: a writer who put the recommendation in
+ * the description alone left the label unmarked on a picker that shows labels
+ * only.
+ *
+ * What comes out leaves a second reader nothing to read again: once a question
+ * has a recommendation, every option says `recommended` true or false, and no
+ * description keeps a "Recommended:" opening — only its reason stays, since
+ * every renderer says which option is recommended from the flag.
  */
 function adoptMarks(options) {
   const flagged = options.some(option => option.recommended);
   const typed = !flagged && options.some(option => option.marked);
-  return options.map(({ marked, described, ...option }) => {
+  const adopted = options.map(({ marked, described, ...option }) => {
     if (flagged) return option;
     if (typed) return marked ? { ...option, recommended: true } : option;
-    if (!described) return option;
-    const reason = option.description.replace(DESCRIBED, '');
-    const { description, ...rest } = option;
-    return { ...rest, ...(reason ? { description: reason.charAt(0).toUpperCase() + reason.slice(1) } : {}), recommended: true };
+    return described ? { ...option, recommended: true } : option;
+  });
+  const settled = adopted.some(option => option.recommended);
+  return adopted.map(({ id, label, description, recommended, ...rest }) => {
+    const reason = isText(description) ? description.replace(DESCRIBED, '') : '';
+    const kept = reason === description ? reason : reason.charAt(0).toUpperCase() + reason.slice(1);
+    return {
+      id,
+      label,
+      ...(kept ? { description: kept } : {}),
+      ...(settled ? { recommended: recommended === true } : {}),
+      ...rest,
+    };
   });
 }
 
@@ -286,14 +300,18 @@ export function setForm(checkpoint) {
   };
 }
 
-/** A question's options as the request carries them: each one continues the run. */
+/**
+ * A question's options as the request carries them: each one continues the
+ * run, and `recommended` is carried as the checked set says it, false included,
+ * so a reader of the request finds the recommendation stated, never to derive.
+ */
 function requestOptions(question) {
   return question.options.map(option => ({
     id: option.id,
     label: option.label,
     effect: 'continue',
     ...(option.description ? { description: option.description } : {}),
-    ...(option.recommended ? { recommended: true } : {}),
+    ...(typeof option.recommended === 'boolean' ? { recommended: option.recommended } : {}),
   }));
 }
 
