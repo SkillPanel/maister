@@ -19,7 +19,9 @@
  *   once the node has a status other than `pending`.
  * - `recommends:` only for an input that is set; unset, the section decides
  *   and a line saying so adds nothing.
- * - An owed HTML page beside its markdown is named by its file name.
+ * - An owed HTML page beside its markdown is named by its file name, and a
+ *   `companion writer:` line follows the pages: the html-companion-writer call
+ *   with its model and effort, for a page the step's work leaves unwritten.
  * - The `direct:` row only when the step owes a page or has no section — run
  *   inline from the section is what `runs:` and the section already say.
  * - `every step` only when the step declares an artifact or a value.
@@ -338,6 +340,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
 
   const writes = writeLines(node, resolved, entry, brief, context, sources);
   if (writes.length) lines.push('writes:', ...writes);
+  if (writes.some(line => line.includes(OWED))) lines.push(companionLine(node, context.doc));
 
   const values = isPlainObject(resolved.outputs?.values) ? resolved.outputs.values : {};
   if (Object.keys(values).length) {
@@ -409,6 +412,19 @@ function closingLine(node, values, brief, continues, delegates) {
   const id = JSON.stringify(node);
   return `closing patch (fill each <…>; never re-send workflow): {"nodes": {${id}: {${status}}}, "node_summaries": {${id}: {${summary.join(', ')}}}}`;
 }
+
+/**
+ * The `companion writer:` line: the html-companion-writer call for a page the
+ * step owes, with the model and effort it carries. Printed beside the owed
+ * pages, because a session that dispatched the writer from memory left the
+ * model off and ran it on its own.
+ */
+function companionLine(node, doc) {
+  return `companion writer: ${dispatchName(COMPANION_WRITER)}, ${modelText(COMPANION_WRITER, node, doc)} — the call for each page owed above that is not on disk when the step's work is done, never on the session's model`;
+}
+
+/** The agent that writes an owed page a step did not write itself. */
+const COMPANION_WRITER = 'html-companion-writer';
 
 /**
  * The `delegates:` line: the agents a `direct:` step's brief declares, each

@@ -46,6 +46,7 @@ function conventions(skill = SKILL) {
 
 const row = key => `convention (${key}): ${conventions()[key]}`;
 const LATER = 'convention (named by a revise, has a budget): see rules';
+const COMPANION_WRITER = 'companion writer: maister:html-companion-writer, model haiku, effort high (source: shipped agents.html-companion-writer, tier light) — the call for each page owed above that is not on disk when the step\'s work is done, never on the session\'s model';
 
 /** The closing patch skeleton a step's brief prints, its node entry and any summary keys beyond the four every step has. */
 const SUMMARY_KEYS = '"headline": "<one sentence, at most 220 characters>", "summary": "<what was found and what it means>", "decisions": [{"decision": "<…>", "by": "operator|run|audit|default"}], "risks": [{"risk": "<…>", "tag": "open|tradeoff|followup|stop|resolved"}]';
@@ -162,6 +163,7 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
     'writes:',
     `- extras: ${relative}/drafts/extras.md — may be absent: Written only when the draft raises open questions.`,
     `- notes: ${relative}/drafts/notes.md — HTML page owed: notes.html beside it`,
+    COMPANION_WRITER,
     'asks (in session): tone',
     'feeds: approval — continues: continue-to-audit, continue-to-wrap-up; revise: revise-draft → draft',
     'budget: 2 attempts — a prose rule; nothing enforces it',
@@ -631,4 +633,33 @@ test('node-brief: the closing patch skeleton names the exact keys, and no gate o
   const child = nodeBrief(sample.state, 'research');
   assert.equal(child.code, 0, child.stderr);
   assert.doesNotMatch(child.stdout, /^closing patch/m, 'a child run\'s outcome is mapped, not written from a skeleton');
+});
+
+test('node-brief: a step that owes a page names the companion writer\'s call with its model and effort; with pages off it names none', t => {
+  const companionOf = result => result.stdout.split('\n').filter(line => line.startsWith('companion writer:'));
+  const dev = scratch(t);
+  freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' }, orchestrator: { options: { html_output: true } } });
+  for (const node of ['specification', 'planning', 'verification']) {
+    const brief = nodeBrief(dev.state, node);
+    assert.equal(brief.code, 0, brief.stderr);
+    assert.deepEqual(companionOf(brief), [COMPANION_WRITER], node);
+    // The line follows the writes it is for.
+    const lines = brief.stdout.split('\n');
+    const writes = lines.slice(lines.indexOf('writes:') + 1, lines.indexOf(COMPANION_WRITER));
+    assert.ok(writes.length && writes.every(line => line.startsWith('- ')), node);
+    assert.ok(writes.some(line => line.includes('HTML page owed:')), node);
+  }
+  // A step that owes no page, and a gate, print none.
+  for (const node of ['gap-analysis', 'specification-approval']) assert.deepEqual(companionOf(nodeBrief(dev.state, node)), [], node);
+
+  // The generated variant names its own agent and Copilot's model id.
+  const copilot = run(path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${dev.state}`, '--node=specification']);
+  assert.equal(copilot.code, 0, copilot.stderr);
+  assert.deepEqual(companionOf(copilot), [COMPANION_WRITER
+    .replace('maister:html-companion-writer', 'maister-copilot:html-companion-writer')
+    .replace('model haiku', 'model claude-haiku-5.5')]);
+
+  const off = scratch(t);
+  freeze(off, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' }, orchestrator: { options: { html_output: false } } });
+  for (const node of ['specification', 'planning']) assert.deepEqual(companionOf(nodeBrief(off.state, node)), [], node);
 });
