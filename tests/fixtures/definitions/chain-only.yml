@@ -1,0 +1,11 @@
+# A workflow that runs only as a step of a chain: a chain reaches it as
+# `workflow:chain-only` from a node carrying `dir:`. The freeze refuses it under
+# an absent or terminal driver, before anything is written.
+name: chain-only
+version: 1
+description: "Plans one piece of work a chain dispatches into a member repository."
+chain_only: true
+nodes:
+  plan:
+    uses: direct:plan
+    needs: []

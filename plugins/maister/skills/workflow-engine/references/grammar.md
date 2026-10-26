@@ -36,7 +36,10 @@ is the same path with `.md`.
 **A chain is a definition with a node carrying `dir:`**, judged on the folded graph — base,
 overlays and profile — so an overlay that adds a `dir:` node turns the workflow into a chain.
 Chains dispatch into member repositories and are started from maister cockpit, never from
-`/maister:run`.
+`/maister:run`. **A chain-only workflow** — one a chain reaches as `workflow:<name>` from a node
+carrying `dir:`, and that has nothing to do anywhere else — declares `chain_only: true`. Its
+freeze is refused under an absent or `terminal` driver, before anything is written, so a start
+from the terminal leaves no run and opens no dashboard.
 
 **The file name and `name:` agree.** A run is looked up, stored and resumed under the workflow's
 name — its runs live in `.maister/tasks/<name>/` — so a file whose `name:` says something else
@@ -78,6 +81,7 @@ judges nothing else — so a newer definition in a mixed fleet is a diagnostic, 
 | `nodes` | yes | Node id → node (§ 4) |
 | `html_companions` | no | Node id → the artifact keys whose markdown owes an HTML companion (§ 3.2) |
 | `brief` | no | Node id → the data a node's brief prints beside its prose (§ 3.3) |
+| `chain_only` | no | `true` for a workflow that runs only as a step of a chain (§ 1); default `false`. Outside the recorded identity |
 
 `profiles:` is not a definition key: profiles belong to an overlay, and a definition's own are
 refused rather than silently ignored. Nor is there a `title:` key: a workflow's title is its

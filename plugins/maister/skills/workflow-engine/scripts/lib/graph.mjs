@@ -180,7 +180,7 @@ const TUNABLE = ['with', 'provider'];
  * key, so an `id:` written inside a node is refused like any other key outside
  * the set.
  */
-const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes', 'html_companions', 'brief'];
+const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes', 'html_companions', 'brief', 'chain_only'];
 const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display', 'html_companions', 'brief', 'subagents'];
 const PROFILE_KEYS = ['disable', 'tune', 'add', 'display', 'html_companions', 'brief', 'subagents'];
 const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
@@ -2561,6 +2561,13 @@ function checkDefinition(definition, errors) {
     fail(errors, file, 'description',
       `description is one paragraph of plain text saying what the workflow is for and when to use it, on one line; `
       + `${typeof doc.description === 'string' ? (doc.description.trim() === '' ? 'an empty string' : 'text with a line break or a tab') : describe(doc.description)} is not`, null);
+  }
+  // Read by the freeze, which refuses a chain-only workflow started from the
+  // terminal before it writes anything, and by no node: outside the hash, like
+  // `description`.
+  if (isPresent(doc.chain_only) && typeof doc.chain_only !== 'boolean') {
+    fail(errors, file, 'chain_only',
+      `chain_only is true or false, saying whether the workflow runs only as a step of a chain; ${describe(doc.chain_only)} is not`, null);
   }
 }
 

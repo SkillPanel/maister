@@ -155,7 +155,10 @@ overlays and profile.
 
 **A run starts from a name the lookup resolves, never from a path.** A definition whose resolved
 graph — overlays and profile included — has a node carrying `dir:` is a chain, started and driven
-by maister cockpit, never under an absent or `terminal` driver.
+by maister cockpit, never under an absent or `terminal` driver. **A definition declaring
+`chain_only: true`** runs only as a step a chain dispatches: its freeze under an absent or
+`terminal` driver is refused `state-freeze-chain-only` before anything is written, so no
+dashboard opens; relay the message and stop.
 
 ### Step 4: Freeze the graph before executing anything
 

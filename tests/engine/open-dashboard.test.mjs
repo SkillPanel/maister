@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { freezePatch, scratch, verb } from '../helpers.mjs';
+import { FIXTURES, freezePatch, scratch, verb } from '../helpers.mjs';
 import { openerCommand, optedOut } from '../../plugins/maister/skills/workflow-engine/scripts/lib/open-dashboard.mjs';
 
 /**
@@ -41,6 +41,43 @@ function freezeWith(run, env, { orchestrator = {}, args = [] } = {}) {
 }
 
 const viewer = run => path.join(run.dir, 'dashboard.html');
+
+const CHAIN_ONLY = path.join(FIXTURES, 'definitions/chain-only.yml');
+
+test('open-dashboard: a chain-only workflow started from the terminal is refused at the freeze and opens nothing', async t => {
+  for (const [label, orchestrator] of [['a terminal driver', { driver: { kind: 'terminal' } }], ['no driver', {}]]) {
+    const run = scratch(t, { name: `2026-01-08-chain-only-${label.replace(/\W+/g, '-')}` });
+    const opener = fakeOpener(t, run);
+    const { patch } = freezePatch({ definition: CHAIN_ONLY, orchestrator });
+    const result = verb(['write-state', `--state=${run.state}`], patch, opener.env);
+    assert.equal(result.code, 1, `${label}: ${result.stdout}${result.stderr}`);
+    assert.match(result.stderr, /^state-freeze-chain-only: "chain-only" runs as a step of a chain/m, label);
+    assert.ok(!fs.existsSync(run.state), `${label}: no state is written`);
+    assert.ok(!fs.existsSync(viewer(run)), `${label}: no dashboard is installed`);
+    assert.doesNotMatch(result.stdout, /Maister run started/, `${label}: no banner`);
+    assert.deepEqual(await opener.opened({ expect: false }), [], `${label}: the opener is never run`);
+  }
+});
+
+test('open-dashboard: a chain-only workflow a chain dispatches freezes, and its cockpit run opens nothing', async t => {
+  const run = scratch(t);
+  const opener = fakeOpener(t, run);
+  const { patch } = freezePatch({ definition: CHAIN_ONLY, orchestrator: { driver: { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-1' } } });
+  const result = verb(['write-state', `--state=${run.state}`], patch, opener.env);
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(fs.existsSync(viewer(run)));
+  assert.deepEqual(await opener.opened({ expect: false }), []);
+});
+
+test('open-dashboard: an accepted terminal start still opens the dashboard exactly once', async t => {
+  const run = scratch(t);
+  const opener = fakeOpener(t, run);
+  freezeWith(run, opener.env, { orchestrator: { driver: { kind: 'terminal' } } });
+  const retried = verb(['write-state', `--state=${run.state}`], freezePatch({ orchestrator: { driver: { kind: 'terminal' } } }).patch, opener.env);
+  assert.equal(retried.code, 0, retried.stderr);
+  assert.deepEqual(await opener.opened({ expect: true }), [viewer(run)]);
+  assert.deepEqual(await opener.opened({ expect: false }), [viewer(run)], 'a retried freeze opens nothing more');
+});
 
 test('open-dashboard: the freeze of a terminal run opens the dashboard once, by its absolute path', async t => {
   const run = scratch(t);
