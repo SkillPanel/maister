@@ -76,6 +76,7 @@ const SCRATCH = 'scratch: make any throwaway file — a copy, a probe, a benchma
 
 const CONTRACT = 'summary contract: open every markdown artifact you write with ## TL;DR (at most 5 lines, conclusions in plain words), '
   + '## Key Decisions (- decision — rationale) and ## Open Questions / Risks (- risk → what would change), omitting an empty section; '
+  + 'a risk that waits on a choice is written to the reader ("you have not yet chosen…") and never names a role as the one who decides; '
   + `the full contract is § 7 of ${PATTERNS}`;
 
 const UNKNOWN = 'companions: unknown — the definition this run froze cannot be re-read';

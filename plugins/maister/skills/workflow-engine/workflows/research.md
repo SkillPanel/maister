@@ -266,7 +266,10 @@ worked in full: the alternatives are weighed, the recommendation is reasoned,
 and `chosen_approach` is written for every element of `decision_areas`. An
 area with no recommendation is not guessed at — it is recorded with
 `chosen_approach` unset and as a `{risk, tag: open, change}` risk naming the
-alternatives to choose between, which the gate's revise offers.
+alternatives to choose between, which the gate's revise offers. Word it to
+whoever reads the gate ("<area>: you have not yet chosen between <A> and
+<B>"), never naming a role as the one who decides (`orchestrator-patterns.md`
+§ 7).
 
 **Summary.** For example: "Event-sourced storage with CRDT sync, settling three
 areas". In `summary`, the chosen combination in a line per area and the

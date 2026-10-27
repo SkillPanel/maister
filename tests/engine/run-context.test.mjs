@@ -22,6 +22,7 @@ const REFUSALS = ['run-context-state-unreadable', 'run-context-not-a-run', 'run-
 const SCRATCH = 'scratch: make any throwaway file — a copy, a probe, a benchmark — in a directory mktemp -d makes (it uses $TMPDIR) or under "${TMPDIR:-/tmp}", and leave it there; never a literal /tmp path, since a fixed /tmp path can stop the run for a permission prompt — no cleanup step, no rm -rf. Name every path absolute and never cd, into it or into the task directory: a relative path is resolved from the project root, and a host may stop the run to ask for access to it';
 const CONTRACT = 'summary contract: open every markdown artifact you write with ## TL;DR (at most 5 lines, conclusions in plain words), '
   + '## Key Decisions (- decision — rationale) and ## Open Questions / Risks (- risk → what would change), omitting an empty section; '
+  + 'a risk that waits on a choice is written to the reader ("you have not yet chosen…") and never names a role as the one who decides; '
   + `the full contract is § 7 of ${PATTERNS}`;
 
 function runContext(run, node) {
