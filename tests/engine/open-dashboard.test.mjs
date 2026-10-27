@@ -21,10 +21,11 @@ function fakeOpener(t, run) {
     env: { MAISTER_NO_OPEN: '', MAISTER_DASHBOARD_OPENER: JSON.stringify([process.execPath, script, log]) },
     async opened({ expect }) {
       // A detached child writes when it gets to it: wait for a line that is
-      // expected, and give one that is not the same chance to appear.
+      // expected — the file can exist before its line is written — and give one
+      // that is not the same chance to appear.
       const deadline = Date.now() + (expect ? 10000 : 750);
       while (Date.now() < deadline) {
-        if (expect && fs.existsSync(log)) break;
+        if (expect && fs.existsSync(log) && fs.readFileSync(log, 'utf8').includes('\n')) break;
         await new Promise(resolve => setTimeout(resolve, 25));
       }
       return fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : [];
