@@ -17,8 +17,8 @@
  * as what they point at, so nothing in the run points outside it, and a copy
  * already there is replaced, so importing again on a re-run gives the source as
  * it is now. Each source is judged on its own: one that is missing, lies
- * outside the project, overlaps the destination or fails to copy is reported
- * and the rest are still copied.
+ * outside the area it may come from, overlaps the destination or fails to
+ * copy is reported and the rest are still copied.
  *
  * Sources come from inside the project only, judged with every link resolved:
  * a path outside it, a link out of it, or a directory holding such a link is
@@ -27,6 +27,27 @@
  * carry a file the host's own permissions would have asked about. The
  * directory is checked whole before anything is copied, so a refused one
  * leaves no part of itself in the run.
+ *
+ * One wider area is admitted: the workspace a member run belongs to. A run the
+ * cockpit starts in a member of a workspace lives in that member's checkout,
+ * or in a worktree under its `.worktrees/`, while every input it is handed —
+ * the context pack, a research report, a design — lies under the workspace
+ * root, which the session is already granted. So for a run the cockpit drives,
+ * the workspace root is admitted beside the project, by the same rule: a link
+ * out of it, or a directory holding one, is still skipped. A terminal run is
+ * judged against its project alone, wherever it lies.
+ *
+ * The workspace is found on disk, never taken from a path a session gives or
+ * records: it is the nearest directory above the project holding
+ * `.maister/umbrella.yml`, and it counts only when that manifest declares a
+ * member whose checkout is this project, or holds it directly under
+ * `.worktrees/`, compared with links resolved. A member is a link to a
+ * repository elsewhere as often as not, so a run reached by its real path
+ * has no workspace above it; the cwd its driver records is then searched the
+ * same way, and only when it is the project under another spelling. A member
+ * path that is absolute or climbs with `..` declares nothing here. A
+ * manifest a session could write itself lies inside its project or inside the
+ * workspace already, so no state or argument widens the area further.
  *
  * It writes no state. Recording what was imported, and what a skipped source
  * means for the node, stays with the node's own `write-state`.
@@ -44,9 +65,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { projectRootOf } from './state.mjs';
+import { readDefinition } from './definition.mjs';
+import { isTerminalDriver } from './driver.mjs';
 
 /** The run's own folders, written by the engine alone: never a destination. */
 const RESERVED = ['gates', 'display'];
+
+/** The workspace manifest, under the workspace root, and the folder a member's worktrees sit in. */
+const MANIFEST = ['.maister', 'umbrella.yml'];
+const WORKTREES = '.worktrees';
 
 /**
  * Copy `from` (a list of paths, each absolute or relative to the project root)
@@ -78,6 +105,10 @@ export function importContext({ state, to, from, as = null }) {
 
   const root = projectRootOf(runDir);
   const project = realOf(root);
+  const workspace = workspaceOf(doc, root, project);
+  const areas = workspace === null ? [project] : [project, workspace];
+  const reach = workspace === null ? 'the project' : 'the project and its workspace';
+  const admitted = workspace === null ? root : `${root} or the workspace it belongs to, ${workspace}`;
   const copied = [];
   const skipped = [];
   for (const given of from) {
@@ -88,14 +119,14 @@ export function importContext({ state, to, from, as = null }) {
     }
     let outside;
     try {
-      outside = outsideOf(source, project);
+      outside = outsideOf(source, areas);
     } catch (err) {
       skipped.push({ from: given, code: 'import-copy-failed', message: `${given} could not be read to check its links: ${err.message}` });
       continue;
     }
     if (outside !== null) {
       const through = outside.link === null ? '' : ` through the link ${outside.link}`;
-      skipped.push({ from: given, code: 'import-source-outside', message: `${given} reaches outside the project${through} (read as ${outside.real}); import copies only from inside ${root}. Have the person copy the file into the project first, then import it from there.` });
+      skipped.push({ from: given, code: 'import-source-outside', message: `${given} reaches outside ${reach}${through} (read as ${outside.real}); import copies only from inside ${admitted}. Have the person copy the file into the project first, then import it from there.` });
       continue;
     }
     const target = path.join(dir, as ?? path.basename(source));
@@ -159,14 +190,67 @@ function realOf(file) {
 }
 
 /**
- * Where `source` leaves `project` (its real path), or null when it stays
- * inside: `{link, real}`, `link` null for the source itself, else the first
- * link below it whose target lies outside. A link to a directory inside is
- * walked as well, each real directory once, so a cycle of links ends.
+ * The real path of the workspace a run the cockpit drives belongs to, or null:
+ * the nearest directory above `root` whose manifest declares `project` (the
+ * real project root) as a member checkout or a worktree of one. `root` as the
+ * run reached it is searched first, then the driver's recorded cwd when that
+ * is the same directory spelled another way — the spelling through a member's
+ * link. A terminal run belongs to no workspace here.
  */
-function outsideOf(source, project) {
+function workspaceOf(doc, root, project) {
+  if (isTerminalDriver(doc)) return null;
+  const spellings = [root];
+  const cwd = doc.orchestrator.driver.cwd;
+  if (typeof cwd === 'string' && path.isAbsolute(cwd) && realOf(cwd) === project) spellings.push(path.resolve(cwd));
+  for (const spelled of spellings) {
+    const found = manifestAbove(spelled, project);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
+/**
+ * The real path of the nearest directory above `spelled` holding a workspace
+ * manifest, when that manifest declares `project`; null otherwise, the nearest
+ * manifest deciding alone.
+ */
+function manifestAbove(spelled, project) {
+  let at = path.resolve(spelled);
+  while (path.dirname(at) !== at) {
+    at = path.dirname(at);
+    const file = path.join(at, ...MANIFEST);
+    if (isFile(file)) return declares(at, readDefinition(file).doc, project) ? realOf(at) : null;
+  }
+  return null;
+}
+
+/**
+ * Whether the manifest `doc`, read at `base`, declares a member whose checkout
+ * is `project`, or holds it directly under its worktrees folder. A member's
+ * path defaults to its name, as the dispatch envelope reads it; one that is
+ * absolute or holds `..` is not inside the workspace and declares nothing.
+ */
+function declares(base, doc, project) {
+  const members = isPlainObject(doc?.members) ? doc.members : {};
+  return Object.entries(members).some(([name, entry]) => {
+    const declared = isPlainObject(entry) && typeof entry.path === 'string' && entry.path !== '' ? entry.path : name;
+    if (path.isAbsolute(declared) || /^[a-zA-Z]:/.test(declared) || declared.split(/[\\/]+/).includes('..')) return false;
+    const checkout = path.join(base, declared);
+    return realOf(checkout) === project || realOf(path.join(checkout, WORKTREES)) === path.dirname(project);
+  });
+}
+
+/**
+ * Where `source` leaves every one of `areas` (real paths), or null when it
+ * stays inside one: `{link, real}`, `link` null for the source itself, else
+ * the first link below it whose target lies outside them all. A link to a
+ * directory inside is walked as well, each real directory once, so a cycle of
+ * links ends.
+ */
+function outsideOf(source, areas) {
+  const inside = file => areas.some(area => isWithin(file, area));
   const real = realOf(source);
-  if (!isWithin(real, project)) return { link: null, real };
+  if (!inside(real)) return { link: null, real };
   const seen = new Set();
   const walk = dir => {
     if (seen.has(dir)) return null;
@@ -175,7 +259,7 @@ function outsideOf(source, project) {
       const at = path.join(dir, entry.name);
       if (entry.isSymbolicLink()) {
         const target = realOf(at);
-        if (!isWithin(target, project)) return { link: at, real: target };
+        if (!inside(target)) return { link: at, real: target };
         if (isDirectory(target)) {
           const found = walk(target);
           if (found !== null) return found;
@@ -188,6 +272,14 @@ function outsideOf(source, project) {
     return null;
   };
   return isDirectory(real) ? walk(real) : null;
+}
+
+function isFile(file) {
+  try {
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
 }
 
 function isDirectory(file) {
