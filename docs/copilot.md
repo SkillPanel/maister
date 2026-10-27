@@ -327,10 +327,11 @@ on `claude-opus-5.5`, give it `tier: { claude: deep, copilot: deep }` in `config
 **The planner's tiers.** The implementation plan gives each task group a tier (`light`,
 `standard` or `deep`). With `task-group-implementer: { choose: by-plan-tier }`, the default,
 each group runs on the cheapest model allowed for its tier, under a `ceiling` that may name one
-rung per host, a failed group is retried once a tier up, and `budget` caps how many groups a run
-may send to a tier before it asks you. Maister's own ceiling is `{ claude: deep, copilot: standard
+rung per host, a failed group is retried once a tier up, and a `budget`, which maister does not
+set, caps how many groups a run may send to a tier before it asks you. Maister's own ceiling is `{ claude: deep, copilot: standard
 }`; to let deep groups reach Opus on Copilot, set `copilot: deep` in the implementer's
-`ceiling` in `config.yml` and keep its `budget`.
+`ceiling` in `config.yml`, and add a `budget` such as `{ deep: 3 }` to cap how many groups a run
+sends there.
 
 **Copilot's built-in `explore` agent** runs the codebase analysis at the start of a development,
 performance or migration run. It takes a model per call like any agent: raise `Explore`'s entry

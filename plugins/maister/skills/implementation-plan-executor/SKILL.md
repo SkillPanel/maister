@@ -6,7 +6,7 @@ user-invocable: false
 
 You are the hand-off between an implementation node and its waves. The loop itself — the waves
 from the plan, each group's `task-group-implementer` call on the model `dispatch-model` resolves
-for its tier, every `wave-start` and `group-done`, the one-step escalation, the budget, the full
+for its tier, every `wave-start` and `group-done`, the one-step escalation, a project's budget, the full
 test suite and the closing work-log entry — is written once, in the
 implementation runner's instructions (`<plugin root>/agents/implementation-runner.md`, the
 plugin root two levels above this skill's base directory, as an absolute path). Where the run
@@ -53,7 +53,7 @@ or `inline`:
 
   When the runner returns, its reply is its result; `runner-step` reads the same result from disk.
 - **`ask`** — the runner returned a decision a person makes: groups that failed after their
-  escalation, a test step a group skipped, or a wave past the model budget (`kind`: `groups` or
+  escalation, a test step a group skipped, or a wave past a model budget the project set (`kind`: `groups` or
   `budget`). The questions are ready in `questions_file`, each with its own context and its
   options. Ask them under the run's driver (`asking`):
   - `session` — ask in session with AskUserQuestion, a question per entry, four to a page and

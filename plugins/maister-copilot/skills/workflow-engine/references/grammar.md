@@ -701,7 +701,7 @@ overlay's over the project's, and any entry naming an agent, the shipped table's
 over every `default`. The shipped table puts the clerical agents and `Explore` on `light`, whose
 cell carries `effort: high`, and `task-group-implementer` on the planner's tier (`choose:
 by-plan-tier` over the whole ladder, `unassessed: standard`, `ceiling: {claude: deep, copilot:
-standard}`, `budget: {deep: 3}`), except in the built-in fix-loop nodes — development's and
+standard}`, no `budget`), except in the built-in fix-loop nodes — development's and
 performance's `verification`, migration's `issue-resolution` — where it has `model: inherit`;
 the five verification reviewers and `spec-auditor` on `tier: {claude: deep, copilot: standard}`;
 every other agent inherits. A `ceiling` is a rung or a rung per host, and a host it does not
