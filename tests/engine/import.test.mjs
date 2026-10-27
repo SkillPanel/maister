@@ -254,3 +254,180 @@ test('import: --state, --to and --from are required', t => {
     assert.match(stderr, /^usage: import needs/);
   }
 });
+
+// A run the cockpit starts in a member of a workspace lives in the member's
+// worktree, while the inputs it is handed lie under the workspace root. Import
+// admits that root beside the project — found from the workspace manifest that
+// declares the run's checkout, never from a path the run gives.
+
+/** A cockpit driver for a run working in `cwd`, a dispatched one when `dispatch` is given. */
+function cockpit(cwd, dispatch = 'd-0001') {
+  return { driver: { kind: 'cockpit', cwd, ...(dispatch === null ? {} : { dispatch_id: dispatch }) } };
+}
+
+/**
+ * A scratch workspace declaring the member `api` at `projects/api`, its inputs
+ * under the workspace root, and a sibling folder beside it. `member` is the
+ * member checkout itself, or a directory elsewhere it links to with `linkedMember`.
+ */
+function workspace(t, { linkedMember = false, manifest = 'members:\n  api: {path: projects/api, kind: repo}\n' } = {}) {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-workspace-'));
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const ws = path.join(base, 'ws');
+  fs.mkdirSync(path.join(ws, '.maister'), { recursive: true });
+  fs.writeFileSync(path.join(ws, '.maister', 'umbrella.yml'), `version: 1\n${manifest}`);
+  const work = path.join(ws, '.maister', 'work', 'guest-invites');
+  fs.mkdirSync(work, { recursive: true });
+  fs.writeFileSync(path.join(work, 'context.md'), '# Context\n');
+  const research = path.join(ws, '.maister', 'tasks', 'research', '2026-10-26-invites', 'outputs');
+  fs.mkdirSync(research, { recursive: true });
+  fs.writeFileSync(path.join(research, 'research-report.md'), '# Research\n');
+  const pack = path.join(ws, '.maister', 'context', 'guest-invites');
+  fs.mkdirSync(path.join(pack, 'mockups'), { recursive: true });
+  fs.writeFileSync(path.join(pack, 'brief.md'), 'brief\n');
+  fs.writeFileSync(path.join(pack, 'mockups', 'screen.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]));
+  const sources = path.join(base, '.maister-cockpit-sources', 'guest-invites');
+  fs.mkdirSync(sources, { recursive: true });
+  fs.writeFileSync(path.join(sources, 'notes.md'), 'notes\n');
+  fs.mkdirSync(path.join(ws, 'projects'));
+  const member = path.join(ws, 'projects', 'api');
+  let repo = member;
+  if (linkedMember) {
+    repo = path.join(base, 'repos', 'api');
+    fs.mkdirSync(repo, { recursive: true });
+    if (!linked(repo, member)) return null;
+  } else {
+    fs.mkdirSync(member);
+  }
+  return {
+    ws, member, repo, sources,
+    context: path.join(work, 'context.md'),
+    research: path.join(research, 'research-report.md'),
+    pack,
+  };
+}
+
+/** A run frozen in `root` with `orchestrator`. */
+function frozenIn(root, orchestrator = {}) {
+  const run = sibling({ root }, { type: 'development', name: '2026-10-27-invites' });
+  freeze(run, { orchestrator });
+  return run;
+}
+
+/** The run frozen in the worktree `dev-api` of the workspace's member, driven as `driver` says. */
+function memberRun(space, orchestrator = cockpit(path.join(space.member, '.worktrees', 'dev-api'))) {
+  return frozenIn(path.join(space.member, '.worktrees', 'dev-api'), orchestrator);
+}
+
+test('import: a dispatched member run copies the workspace-root context pack and research report', t => {
+  const space = workspace(t);
+  const run = memberRun(space);
+  const context = importing(run, ['--to=analysis/work-context', `--from=${space.context}`]);
+  assert.equal(context.code, 0, JSON.stringify(context.report));
+  assert.deepEqual(context.report.copied, [{ from: space.context, to: 'analysis/work-context/context.md', files: 1 }]);
+  const research = importing(run, ['--to=analysis/research-context', `--from=${space.research}`]);
+  assert.equal(research.code, 0, JSON.stringify(research.report));
+  assert.equal(fs.readFileSync(path.join(run.dir, 'analysis/research-context/research-report.md'), 'utf8'), '# Research\n');
+});
+
+test('import: a member run the cockpit starts with no dispatch copies a workspace-root file and directory', t => {
+  const space = workspace(t);
+  const run = memberRun(space, cockpit(path.join(space.member, '.worktrees', 'dev-api'), null));
+  const { code, report } = importing(run, ['--to=analysis/work-context', `--from=${space.context}`, `--from=${space.pack}`]);
+  assert.equal(code, 0, JSON.stringify(report));
+  assert.deepEqual(report.copied.map(each => [each.to, each.files]), [
+    ['analysis/work-context/context.md', 1],
+    ['analysis/work-context/guest-invites', 2],
+  ]);
+  assert.deepEqual(
+    fs.readFileSync(path.join(run.dir, 'analysis/work-context/guest-invites/mockups/screen.png')),
+    fs.readFileSync(path.join(space.pack, 'mockups/screen.png')),
+  );
+});
+
+test('import: a run in the member checkout itself is admitted as well as one in its worktree', t => {
+  const space = workspace(t);
+  const run = frozenIn(space.member, cockpit(space.member));
+  assert.equal(importing(run, ['--to=analysis/work-context', `--from=${space.context}`]).code, 0);
+});
+
+test('import: a member linked in from elsewhere, its run reached by the real path, finds the workspace through the recorded cwd', t => {
+  const space = workspace(t, { linkedMember: true });
+  if (space === null) return;
+  const logical = path.join(space.member, '.worktrees', 'dev-api');
+  const run = frozenIn(path.join(space.repo, '.worktrees', 'dev-api'), cockpit(logical));
+  const { code, report } = importing(run, ['--to=analysis/work-context', `--from=${space.context}`]);
+  assert.equal(code, 0, JSON.stringify(report));
+});
+
+test('import: a member run still skips a link out of the workspace, a directory holding one, and a path outside both', t => {
+  const space = workspace(t);
+  const run = memberRun(space);
+  const away = outsider(t);
+  if (!linked(path.join(away, 'secret.txt'), path.join(space.ws, '.maister', 'work', 'out.txt'))) return;
+  assert.ok(linked(away, path.join(space.pack, 'mockups', 'away')));
+  const { code, report } = importing(run, [
+    '--to=analysis/work-context',
+    `--from=${path.join(space.ws, '.maister', 'work', 'out.txt')}`,
+    `--from=${space.pack}`,
+    `--from=${path.join(away, 'secret.txt')}`,
+    `--from=${space.context}`,
+  ]);
+  assert.equal(code, 1);
+  assert.deepEqual(report.copied.map(each => each.from), [space.context]);
+  assert.deepEqual(report.skipped.map(each => each.code), ['import-source-outside', 'import-source-outside', 'import-source-outside']);
+  assert.match(report.skipped[0].message, /outside the project and its workspace/);
+  assert.match(report.skipped[1].message, /through the link/);
+  assert.equal(fs.existsSync(path.join(run.dir, 'analysis/work-context/guest-invites')), false, 'nothing of the directory was copied');
+});
+
+test('import: a sources folder beside the workspace is skipped, for a member run and a workspace-root run alike', t => {
+  const space = workspace(t);
+  for (const run of [memberRun(space), frozenIn(space.ws, cockpit(space.ws, null))]) {
+    const { code, report } = importing(run, ['--to=analysis/work-context', `--from=${space.sources}`]);
+    assert.equal(code, 1, run.root);
+    assert.equal(report.skipped[0].code, 'import-source-outside', run.root);
+  }
+});
+
+test('import: a workspace-root run copies a context directory under the workspace', t => {
+  const space = workspace(t);
+  const run = frozenIn(space.ws, cockpit(space.ws, null));
+  const { code, report } = importing(run, ['--to=analysis/work-context', '--from=.maister/context/guest-invites']);
+  assert.equal(code, 0, JSON.stringify(report));
+  assert.deepEqual(report.copied, [{ from: '.maister/context/guest-invites', to: 'analysis/work-context/guest-invites', files: 2 }]);
+});
+
+test('import: a terminal run in a workspace member is judged against its project alone', t => {
+  const space = workspace(t);
+  const run = memberRun(space, {});
+  const { code, report } = importing(run, ['--to=analysis/work-context', `--from=${space.context}`]);
+  assert.equal(code, 1);
+  assert.equal(report.skipped[0].code, 'import-source-outside');
+  assert.match(report.skipped[0].message, /reaches outside the project \(/);
+});
+
+test('import: no argument, recorded cwd or manifest a run controls widens the area', t => {
+  const space = workspace(t);
+  const run = memberRun(space);
+  const flag = importing(run, ['--to=analysis/work-context', `--from=${space.context}`, '--workspace-root=/']);
+  assert.equal(flag.code, 2);
+  assert.match(flag.stderr, /takes no --workspace-root flag/);
+
+  // A recorded cwd naming another workspace is not this run's project, so it is not searched.
+  const other = workspace(t);
+  const elsewhere = memberRun(other, cockpit(path.join(space.member, '.worktrees', 'dev-api')));
+  fs.rmSync(path.join(other.ws, '.maister', 'umbrella.yml'));
+  const crafted = importing(elsewhere, ['--to=analysis/work-context', `--from=${space.context}`]);
+  assert.equal(crafted.report.skipped[0]?.code, 'import-source-outside', JSON.stringify(crafted.report));
+
+  // A manifest that does not declare the checkout, or declares it by a path climbing out, admits nothing.
+  for (const manifest of [
+    'members:\n  web: {path: projects/web}\n',
+    'members:\n  api: {path: ../ws/projects/api}\n',
+  ]) {
+    const declared = workspace(t, { manifest });
+    const result = importing(memberRun(declared), ['--to=analysis/work-context', `--from=${declared.context}`]);
+    assert.equal(result.report.skipped[0]?.code, 'import-source-outside', manifest);
+  }
+});
