@@ -1,10 +1,16 @@
 /**
- * PreToolUse (Bash): block destructive commands from subagents.
+ * PreToolUse (Bash): block data-loss commands from subagents.
+ *
+ * Its scope is narrow on purpose. It judges subagents only: the main agent (no
+ * `agent_type`) is always let through, and the user's own permissions govern
+ * it. And it judges only commands that throw work away — a stash, a hard reset,
+ * a checkout or clean of the tree, a forced push, `rm -rf`. It is not a guard
+ * on the main session, and not on outward actions such as a commit, a push or a
+ * pull request, which the host's permissions and the person decide.
  *
  * Registered in the exec form, zero dependencies, Node >= 20. A whitelist
- * approach: only explicitly trusted execution agents bypass the check, so a new
- * agent is protected by default. The main agent (no `agent_type`) is always let
- * through; the user's own permission system governs it.
+ * approach: only an agent named below bypasses the check, so a new agent is
+ * protected by default.
  *
  * Hook input (stdin): JSON with agent_type, tool_input.command, etc.
  * Hook output: a deny in the host's PreToolUse shape to block, or exit 0 with no
@@ -24,11 +30,14 @@ import fs from 'node:fs';
 
 const HOOK_SHAPE = 'copilot';
 
-// Agents that legitimately need full Bash access (test execution, docs).
+// Agents that need a command this hook blocks, each with its reason:
+// - test-suite-runner: runs the project's own test and check commands as the
+//   project spells them, which may clear output with one, and removes the
+//   export of the base it re-runs failures in.
 // Note: task-group-implementer is NOT whitelisted — destructive commands are
 // blocked to prevent a rogue git stash/reset --hard from clobbering sibling
 // implementers running in parallel waves.
-const WHITELIST = ['test-suite-runner', 'e2e-test-verifier', 'user-docs-generator', 'docs-operator'];
+const WHITELIST = ['test-suite-runner'];
 const OWN_PREFIXES = ['maister', 'maister-copilot'].map(name => `${name}:`);
 
 // `git stash list` and `git stash show` only read the stash, so they pass;

@@ -118,7 +118,7 @@ for (const [tree, dir, decisionOf] of [
   });
 
   test(`guard (${tree}): a whitelisted agent is let through under this plugin's spellings of its name`, () => {
-    for (const agent of ['docs-operator', 'maister:docs-operator', 'maister-copilot:docs-operator', 'maister-copilot:test-suite-runner']) {
+    for (const agent of ['test-suite-runner', 'maister:test-suite-runner', 'maister-copilot:test-suite-runner']) {
       const result = guard(dir, agent, 'git stash');
       assert.equal(result.code, 0, result.stderr);
       assert.equal(result.stdout, '', agent);
@@ -126,10 +126,20 @@ for (const [tree, dir, decisionOf] of [
   });
 
   test(`guard (${tree}): another plugin's or project's agent of a whitelisted name is judged like any other`, () => {
-    for (const agent of ['other:docs-operator', 'foo:test-suite-runner', 'maister-pro:docs-operator']) {
+    for (const agent of ['other:test-suite-runner', 'foo:test-suite-runner', 'maister-pro:test-suite-runner']) {
       const result = guard(dir, agent, 'git stash');
       assert.equal(result.code, 0, result.stderr);
       assert.equal(decisionOf(result.json), 'deny', `${agent}: ${result.stdout}`);
+    }
+  });
+
+  test(`guard (${tree}): the docs and browser agents are judged like any other subagent`, () => {
+    for (const name of ['docs-operator', 'user-docs-generator', 'e2e-test-verifier']) {
+      for (const agent of [name, `maister:${name}`, `maister-copilot:${name}`]) {
+        const result = guard(dir, agent, 'rm -rf build');
+        assert.equal(result.code, 0, result.stderr);
+        assert.equal(decisionOf(result.json), 'deny', `${agent}: ${result.stdout}`);
+      }
     }
   });
 
