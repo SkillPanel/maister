@@ -261,7 +261,7 @@ Combine relevant elements from above frameworks based on research objectives.
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [unresolved question or low-confidence area the user should know about]
+- [unresolved question or low-confidence area the user should know about — one that waits on a choice is written to the reader ("you have not yet chosen…"), never naming a role as the one who decides]
 [Omit section entirely when none]
 ```
 

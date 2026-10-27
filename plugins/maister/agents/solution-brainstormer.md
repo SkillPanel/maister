@@ -223,7 +223,7 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 [Omit section entirely when none]
 
 ## Open Questions / Risks
-- [open trade-off, area left open, or risk the user should weigh]
+- [open trade-off, area left open, or risk the user should weigh — an area left open is written to the reader ("you have not yet chosen between…"), never naming a role as the one who decides]
 [Omit section entirely when none]
 
 ## Problem Reframing

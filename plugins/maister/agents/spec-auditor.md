@@ -129,7 +129,7 @@ findings about the built code are never fixable here: this grading is about the 
 
 **How to write it**: Specific questions referencing exact spec sections and implementation evidence — the caller asks them, so each stands on its own
 
-**Output**: Clarification questions for user/stakeholder
+**Output**: Clarification questions for the user
 
 ---
 
@@ -142,7 +142,7 @@ findings about the built code are never fixable here: this grading is about the 
 2. **Critical Issues**: Must-fix items (Critical severity) with evidence
 3. **Important Gaps**: Missing/incorrect features (High/Medium severity)
 4. **Minor Discrepancies**: Small deviations (Low severity)
-5. **Clarification Needed**: Ambiguous areas requiring stakeholder input
+5. **Clarification Needed**: Ambiguous areas that need a decision
 6. **Extra Features**: Implementations not in specification
 7. **Recommendations**: Specific next steps to achieve compliance
 

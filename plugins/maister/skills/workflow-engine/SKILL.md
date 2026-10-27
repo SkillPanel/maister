@@ -810,6 +810,10 @@ The reader is a first-time user who sees only the terminal.
   screen: write "the per-order customer lookup", or "B1 (the per-order customer lookup)" when
   the code is worth keeping because it recurs.
 - **Say "you".** Never "the operator" or "a person".
+- **A choice still open is the reader's.** A risk or open question that waits on a choice is
+  written to whoever reads the gate — "you have not yet chosen between…", "confirm at this
+  checkpoint" — and never names a role (owner, lead, operator, reviewer) as the one who decides:
+  who is asked is decided outside the run.
 - **Credit each decision to whoever made it** — you, the audit, the step that settled it, or a
   default the run took. Its `by` records that; never write the source into the decision text. Never "as you chose" for something the spec decided.
 - **Every recommendation gives its reason**, in the option's description, and keeps every

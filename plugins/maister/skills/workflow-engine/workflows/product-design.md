@@ -416,7 +416,9 @@ built on it. This node does every part of the convergence except the choice:
 - `decision_areas` records every area with `recommended` set and
   `chosen_approach` unset, and `selected_approach` stays unset;
 - an area with no recommendation is recorded the same way, its risk naming the
-  alternatives to choose between.
+  alternatives to choose between and worded to whoever reads the gate
+  ("<area>: you have not yet chosen between <A> and <B>"), never naming a role
+  as the one who decides (`orchestrator-patterns.md` § 7).
 
 **Writes.** `analysis/design-decisions.md`: the chosen approach and its
 rationale, the key decision per area, the trade-offs accepted, and the

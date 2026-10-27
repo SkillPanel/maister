@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { ENGINE_DIR, SAMPLE, freeze, scratch, verb, write } from '../helpers.mjs';
 import { grantsText } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 
 // A version 1 document is closed: everything the file in hand can decide is
 // decided at validate time. Each case below starts from BASE — an intake node,
@@ -574,6 +575,24 @@ test('a description is one paragraph of text on one line', t => {
     const { code, report } = validate(definition(t, ['name: acme', 'version: 1', written, ...BASE.slice(2)]));
     assert.equal(code, 1, written);
     assert.match(errorAt(report, 'description').message, /description is one paragraph of plain text/, written);
+  }
+});
+
+test('a project workflow may leave its description out', t => {
+  const { code, report } = validate(definition(t));
+  assert.equal(code, 0, JSON.stringify(report.errors));
+});
+
+test('every built-in workflow says what it is for, in one line', () => {
+  const dir = path.join(ENGINE_DIR, 'workflows');
+  const names = fs.readdirSync(dir).filter(name => name.endsWith('.yml'));
+  assert.ok(names.length >= 5);
+  for (const name of names) {
+    const { doc, errors } = readDefinition(path.join(dir, name));
+    assert.deepEqual(errors, [], name);
+    assert.equal(typeof doc.description, 'string', `${name}: no description`);
+    assert.notEqual(doc.description.trim(), '', `${name}: an empty description`);
+    assert.doesNotMatch(doc.description, /[\n\r\t]/, `${name}: a description on more than one line`);
   }
 });
 
