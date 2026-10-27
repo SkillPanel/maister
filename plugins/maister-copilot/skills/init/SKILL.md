@@ -168,7 +168,7 @@ subagents:
       ceiling:                 # a failed group is retried once a rung up, never past this
         claude: deep
         copilot: standard      # Copilot bills its deep model 15x
-      budget: { deep: 3 }      # a fourth deep group in a run asks first
+      # budget: { deep: 3 }    # cap the groups a run sends to a rung: a fourth deep group asks first
   workflows:                   # the verification fix loops' fixes run on your session's model
     development: { nodes: { verification: { agents: { task-group-implementer: { model: inherit } } } } }
     performance: { nodes: { verification: { agents: { task-group-implementer: { model: inherit } } } } }

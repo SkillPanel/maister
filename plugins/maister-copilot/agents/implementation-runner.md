@@ -107,7 +107,8 @@ before each wave's fan-out (`<plugin_root>/skills/orchestrator-framework/referen
   to, or `unassessed: <rung>`. A note that the tier was ignored means the project fixed the
   implementer's choice: copy the line, record the planner's tier, and there is no rung to
   escalate to.
-- **The budget.** A budget note counts the groups already logged on that rung; add this wave's
+- **The budget.** Only a project's policy sets one; with none, no budget note is printed and
+  no wave waits on it. A budget note counts the groups already logged on that rung; add this wave's
   own. When the total passes the limit, the wave waits for a person: return a decision of kind
   `budget` before dispatching it, its one question "Groups \<names\> need \<rung\>, past the
   run's budget of \<limit\>. Run them anyway?" — "Run them on \<rung\> anyway" (recommended),
@@ -155,7 +156,7 @@ may still produce valid work.
 2. **Analyse the cause** from the report.
 3. **Escalate once, without asking.** When the group has not escalated yet and ran below the top
    of the ladder, run `dispatch-model` for it with `--tier=<the next rung up>`. When that
-   resolves a different model and its rung's budget, counting this wave, is not spent, run the
+   resolves a different model and its rung's budget, if any, counting this wave, is not spent, run the
    group again on it — the failure in its prompt, on top of its partial edits — and record
    `**Escalated**` in its entry. Failed groups of one wave escalate together, in one message.
 4. **Look for an easy fix**: a config issue, a missing dependency, a test setup.

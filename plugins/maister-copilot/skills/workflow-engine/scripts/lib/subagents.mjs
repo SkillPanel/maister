@@ -112,7 +112,8 @@ const UNASSESSED = 'standard';
  * Code and on `standard` on Copilot, where the session's model may be any, and
  * the task-group implementer on the planner's tier, up to `deep` on Claude
  * Code and `standard` on Copilot, where the deep model bills far above one
- * request, and the reviewers on `deep` and `standard` by the same reckoning. The verification fix loops of the built-in workflows hand their
+ * request, with no budget on any rung, since the plan's tiers already decided
+ * which groups need what, and the reviewers on `deep` and `standard` by the same reckoning. The verification fix loops of the built-in workflows hand their
  * fixes to the implementer with no planner tier; those calls inherit the
  * session's model instead. Everything else inherits — the two runners among
  * them, by having no entry: the verification runner judges what is fixable,
@@ -145,7 +146,6 @@ export const SHIPPED = Object.freeze({
       allowed: ['light', 'standard', 'deep'],
       unassessed: 'standard',
       ceiling: { claude: 'deep', copilot: 'standard' },
-      budget: { deep: 3 },
     },
   },
   workflows: {

@@ -593,8 +593,8 @@ starts are outside it. The block holds:
   one-line reason. With `task-group-implementer: { choose: by-plan-tier }`, the default, each
   group runs on the cheapest model allowed for its tier, under a `ceiling`, which may differ by
   host (`{ claude: deep, copilot: standard }` by default). A group that fails is
-  retried once on the next tier up before you are asked, and `budget` (by default `{ deep: 3 }`)
-  makes the run ask before it sends one more group to a tier. The work log records the model each group ran
+  retried once on the next tier up before you are asked, and a `budget`, which you
+  set in `config.yml` (maister sets none), makes the run ask before it sends one more group to a tier. The work log records the model each group ran
   on, and the implementation summary gives the tally.
 
 A run copies the block into its state when it starts, so a resumed run keeps its models and an
@@ -609,8 +609,8 @@ implementer subagent each, and every group that comes back is checked and record
 wave starts. Where your host lets a subagent start subagents of its own, the run hands all of that
 to one subagent, the implementation runner, and your session makes one call per pass instead of
 several per group. You are asked exactly what you were asked before: a group that failed again
-after moving up a model, a group that skipped its tests, or a wave that would run past the model
-budget. Your answers go to the runner's next pass. The same setting decides it as for verification
+after moving up a model, a group that skipped its tests, or a wave that would run past a model
+budget your `config.yml` sets. Your answers go to the runner's next pass. The same setting decides it as for verification
 below, and a run that stops part way through picks up from the plan and the work log.
 
 ## Verification in one subagent

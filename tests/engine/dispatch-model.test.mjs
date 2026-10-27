@@ -221,7 +221,7 @@ test('the light rung\'s high effort yields to an entry\'s own effort and to a pr
   assert.equal(lineOf(off, 'Explore', [], { state: false }), 'Explore: model haiku, effort omit — source: shipped agents.Explore, tier light');
 });
 
-test('with no config the implementer runs on the planner\'s tier, unassessed on standard, with three deep groups before asking', t => {
+test('with no config the implementer runs on the planner\'s tier, unassessed on standard, with no budget on any rung', t => {
   const run = scratch(t);
   freezeRun(run);
   const within = 'within shipped agents.task-group-implementer';
@@ -231,6 +231,29 @@ test('with no config the implementer runs on the planner\'s tier, unassessed on 
   assert.equal(lineOf(run, 'task-group-implementer'),
     'task-group-implementer: model sonnet, effort omit — source: shipped agents.task-group-implementer, unassessed: standard');
 
+  const log = path.join(run.dir, 'implementation', 'work-log.md');
+  fs.mkdirSync(path.dirname(log), { recursive: true });
+  const group = n => `## 2026-01-05 10:0${n} - Group ${n} Complete (wave ${n})\n**Model**: opus (tier deep, planner: "a schema change")\n`;
+  // Four deep groups already logged: the fifth still dispatches on deep with no note to ask.
+  fs.writeFileSync(log, [1, 2, 3, 4].map(group).join(''));
+  assert.equal(dispatch(run, ['--agent=task-group-implementer', '--tier=deep']).stdout,
+    `task-group-implementer: model opus, effort omit — source: plan tier deep ${within}\n`);
+});
+
+test('the budget init shows as a commented example still stops a run once uncommented', t => {
+  const run = scratch(t);
+  config(run, [
+    'subagents:',
+    '  agents:',
+    '    task-group-implementer:',
+    '      choose: by-plan-tier',
+    '      allowed: [light, standard, deep]',
+    '      unassessed: standard',
+    '      ceiling: { claude: deep, copilot: standard }',
+    '      budget: { deep: 3 }',
+    '',
+  ].join('\n'));
+  freezeRun(run);
   const log = path.join(run.dir, 'implementation', 'work-log.md');
   fs.mkdirSync(path.dirname(log), { recursive: true });
   const group = n => `## 2026-01-05 10:0${n} - Group ${n} Complete (wave ${n})\n**Model**: opus (tier deep, planner: "a schema change")\n`;
