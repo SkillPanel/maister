@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { FIXTURES, freeze, scratch, sibling, verb } from '../helpers.mjs';
@@ -76,11 +77,81 @@ test('import: a 2.x task directory is copied whole as a context pack', t => {
   }
 });
 
-test('import: an absolute source is taken as it is', t => {
+test('import: an absolute source inside the project is taken as it is', t => {
   const run = project(t);
   const { code, report } = importing(run, ['--to=analysis/work-context', `--from=${path.join(run.root, 'sources/report.md')}`]);
   assert.equal(code, 0);
   assert.equal(report.copied[0].to, 'analysis/work-context/report.md');
+});
+
+/** A secret outside the project, removed when the test ends. */
+function outsider(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-outside-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(dir, 'secret.txt'), 'secret\n');
+  return dir;
+}
+
+/** `link` made to point at `target`, or false where the runner may not make links (Windows). */
+function linked(target, link) {
+  try {
+    fs.symlinkSync(target, link, fs.statSync(target).isDirectory() ? 'junction' : 'file');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test('import: a source outside the project is skipped, the one inside beside it still copied, exit 1', t => {
+  const run = project(t);
+  const away = outsider(t);
+  const climb = path.relative(run.root, path.join(away, 'secret.txt'));
+  const { code, report } = importing(run, [
+    '--to=analysis/work-context', `--from=${path.join(away, 'secret.txt')}`, `--from=${climb}`, '--from=sources/report.md',
+  ]);
+  assert.equal(code, 1);
+  assert.equal(report.ok, false);
+  assert.deepEqual(report.copied.map(each => each.from), ['sources/report.md']);
+  assert.deepEqual(report.skipped.map(each => each.code), ['import-source-outside', 'import-source-outside']);
+  assert.match(report.skipped[0].message, /copy the file into the project first/);
+  assert.equal(fs.existsSync(path.join(run.dir, 'analysis/work-context/secret.txt')), false);
+});
+
+test('import: a link inside the project that points out is skipped; one that points inside is followed', t => {
+  const run = project(t);
+  const away = outsider(t);
+  if (!linked(path.join(away, 'secret.txt'), path.join(run.root, 'sources/out.txt'))) return;
+  assert.ok(linked(path.join(run.root, 'sources/report.md'), path.join(run.root, 'sources/in.md')));
+  const { code, report } = importing(run, ['--to=analysis/work-context', '--from=sources/out.txt', '--from=sources/in.md']);
+  assert.equal(code, 1);
+  assert.deepEqual(report.copied.map(each => each.from), ['sources/in.md']);
+  assert.equal(report.skipped[0].code, 'import-source-outside');
+  assert.equal(fs.existsSync(path.join(run.dir, 'analysis/work-context/out.txt')), false);
+  assert.equal(fs.readFileSync(path.join(run.dir, 'analysis/work-context/in.md'), 'utf8'), '# Report\n');
+});
+
+test('import: a directory holding a link out, at any depth or through a link inside, is skipped whole', t => {
+  const run = project(t);
+  const away = outsider(t);
+  if (!linked(away, path.join(run.root, 'sources/pack/nested/away'))) return;
+  assert.ok(linked(path.join(run.root, 'sources/pack'), path.join(run.root, 'sources/via')));
+  const { code, report } = importing(run, ['--to=analysis/work-context', '--from=sources/pack', '--from=sources/via']);
+  assert.equal(code, 1);
+  assert.deepEqual(report.copied, []);
+  assert.deepEqual(report.skipped.map(each => each.code), ['import-source-outside', 'import-source-outside']);
+  assert.match(report.skipped[0].message, /through the link/);
+  assert.equal(fs.existsSync(path.join(run.dir, 'analysis/work-context')), false, 'nothing of either was copied');
+});
+
+test('import: a directory link inside the project is walked and copied, and a cycle of links ends the check', t => {
+  const run = project(t);
+  if (!linked(path.join(run.root, 'sources/pack/nested'), path.join(run.root, 'sources/pack/also'))) return;
+  const { code, report } = importing(run, ['--to=analysis/work-context', '--from=sources/pack']);
+  assert.equal(code, 0, JSON.stringify(report));
+  assert.equal(fs.readFileSync(path.join(run.dir, 'analysis/work-context/pack/also/deep.txt'), 'utf8'), 'deep\n');
+  assert.ok(linked(path.join(run.root, 'sources/pack'), path.join(run.root, 'sources/pack/nested/loop')));
+  const cycle = importing(run, ['--to=analysis/loop-context', '--from=sources/pack']);
+  assert.notEqual(cycle.report.skipped[0]?.code, 'import-source-outside', JSON.stringify(cycle.report));
 });
 
 test('import: --as lands the one source under the name given', t => {

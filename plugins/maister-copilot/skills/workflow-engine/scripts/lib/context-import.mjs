@@ -16,8 +16,17 @@
  * recursively — or, with `as`, the one source to `<to>/<as>`. Links are copied
  * as what they point at, so nothing in the run points outside it, and a copy
  * already there is replaced, so importing again on a re-run gives the source as
- * it is now. Each source is judged on its own: one that is missing, overlaps
- * the destination or fails to copy is reported and the rest are still copied.
+ * it is now. Each source is judged on its own: one that is missing, lies
+ * outside the project, overlaps the destination or fails to copy is reported
+ * and the rest are still copied.
+ *
+ * Sources come from inside the project only, judged with every link resolved:
+ * a path outside it, a link out of it, or a directory holding such a link is
+ * skipped and nothing of it is copied. The call is allowed where an arbitrary
+ * read is not, and a task directory may leave the machine, so it must not
+ * carry a file the host's own permissions would have asked about. The
+ * directory is checked whole before anything is copied, so a refused one
+ * leaves no part of itself in the run.
  *
  * It writes no state. Recording what was imported, and what a skipped source
  * means for the node, stays with the node's own `write-state`.
@@ -25,7 +34,8 @@
  * Refusals of the whole call, as `{ok: false, code, message}`, nothing copied:
  * `import-state-unreadable`, `import-not-a-run`, `import-destination-outside`,
  * `import-destination-reserved`. A skipped source carries one of
- * `import-source-missing`, `import-source-overlaps`, `import-copy-failed`.
+ * `import-source-missing`, `import-source-outside`, `import-source-overlaps`,
+ * `import-copy-failed`.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -67,12 +77,25 @@ export function importContext({ state, to, from, as = null }) {
   const { dir } = destination;
 
   const root = projectRootOf(runDir);
+  const project = realOf(root);
   const copied = [];
   const skipped = [];
   for (const given of from) {
     const source = path.resolve(root, given);
     if (!fs.existsSync(source)) {
       skipped.push({ from: given, code: 'import-source-missing', message: `${given} does not exist (read as ${source})` });
+      continue;
+    }
+    let outside;
+    try {
+      outside = outsideOf(source, project);
+    } catch (err) {
+      skipped.push({ from: given, code: 'import-copy-failed', message: `${given} could not be read to check its links: ${err.message}` });
+      continue;
+    }
+    if (outside !== null) {
+      const through = outside.link === null ? '' : ` through the link ${outside.link}`;
+      skipped.push({ from: given, code: 'import-source-outside', message: `${given} reaches outside the project${through} (read as ${outside.real}); import copies only from inside ${root}. Have the person copy the file into the project first, then import it from there.` });
       continue;
     }
     const target = path.join(dir, as ?? path.basename(source));
@@ -132,6 +155,46 @@ function realOf(file) {
       rest.push(path.basename(at));
       at = parent;
     }
+  }
+}
+
+/**
+ * Where `source` leaves `project` (its real path), or null when it stays
+ * inside: `{link, real}`, `link` null for the source itself, else the first
+ * link below it whose target lies outside. A link to a directory inside is
+ * walked as well, each real directory once, so a cycle of links ends.
+ */
+function outsideOf(source, project) {
+  const real = realOf(source);
+  if (!isWithin(real, project)) return { link: null, real };
+  const seen = new Set();
+  const walk = dir => {
+    if (seen.has(dir)) return null;
+    seen.add(dir);
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const at = path.join(dir, entry.name);
+      if (entry.isSymbolicLink()) {
+        const target = realOf(at);
+        if (!isWithin(target, project)) return { link: at, real: target };
+        if (isDirectory(target)) {
+          const found = walk(target);
+          if (found !== null) return found;
+        }
+      } else if (entry.isDirectory()) {
+        const found = walk(realOf(at));
+        if (found !== null) return found;
+      }
+    }
+    return null;
+  };
+  return isDirectory(real) ? walk(real) : null;
+}
+
+function isDirectory(file) {
+  try {
+    return fs.statSync(file).isDirectory();
+  } catch {
+    return false;
   }
 }
 

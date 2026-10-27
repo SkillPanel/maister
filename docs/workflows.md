@@ -40,7 +40,9 @@ system up from the session's preset or the worker's autonomy tier, and decides n
   lists every grant in force, each with a revoke.
 
 The pauses between phases are asked as described above whatever the level, and the plugin's guard
-against destructive commands from subagents applies under the cockpit as in your terminal. Neither
+against data-loss commands from subagents applies under the cockpit as in your terminal. It judges
+subagents only, and only commands that throw work away; it is not a guard on the main session or on
+outward actions (a commit, a push, a pull request), which the CLI's permissions and you decide. Neither
 CLI's rules hold everything: a rule matches the start of a command, so it holds nothing spelled
 another way. Each level's details, and what is not held, are in the cockpit's guides:
 [Autonomy tiers and permissions](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/autonomy.md),

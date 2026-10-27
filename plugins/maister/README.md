@@ -57,7 +57,7 @@ The plugin registers four hooks, each a Node script with no dependencies. None o
 - **SessionStart**: injects a short reminder to run `/maister:*` commands through their skill and to ask at every workflow checkpoint.
 - **SessionStart (after compaction)**: when the project has `.maister/tasks/`, reminds Claude to re-read the active workflow's `orchestrator-state.yml` so a long workflow resumes at the right step.
 - **SessionStart (edition check)**: warns when two editions of the plugin are enabled at once. It reads local settings only.
-- **PreToolUse (Bash)**: blocks destructive commands (`git stash`, `git reset --hard`, `git checkout .`, `git clean`, `git push --force`, `rm -rf`) from subagents that should not run them. Your own commands in the main session are left to Claude Code's permission system.
+- **PreToolUse (Bash)**: blocks destructive commands (`git stash`, `git reset --hard`, `git checkout .`, `git clean`, `git push --force`, `rm -rf`) from subagents. It judges subagents only, and only commands that lose data: your own commands in the main session, and outward actions such as a commit, a push or a pull request, are left to Claude Code's permission system and to you.
 
 A Pro Edition, for driven sessions and multi-repository work, installs from a private marketplace; see the repository README.
 

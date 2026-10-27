@@ -280,9 +280,12 @@ refusal costs a retry.
 
 The plugin ships a hook that denies a subagent's `git stash`, `git reset --hard`,
 `git checkout .`, `git clean`, `git push --force` and `rm -rf`, so an implementer working in
-parallel with others cannot throw away work. The few agents that need full shell access are exempt,
-and your own commands in the main session are left to your permission settings. A denied command
-shows as "Denied by preToolUse hook" and the agent continues without it.
+parallel with others cannot throw away work. Its scope is that and no more: it judges subagents
+only, and only commands that lose data. It is not a guard on the main session, whose commands are
+left to your permission settings, and not on outward actions — a commit, a push, a pull request —
+which your permissions and you decide. The test-suite runner is exempt, since it runs the
+project's own check commands as the project spells them. A denied command shows as "Denied by
+preToolUse hook" and the agent continues without it.
 
 ## Models and cost
 
