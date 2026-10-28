@@ -38,7 +38,7 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 | `/maister:quick-bugfix` | TDD-driven bug fix: failing test, fix, verify |
 | `/maister:mockup-studio` | UI mockups bound to your project's design language |
 | `/maister:init` | Setting up Maister in a project |
-| `/maister:standards-update` | Adding or changing standards from conversation context, or from the candidates a finished run left |
+| `/maister:standards-update` | Adding or changing standards, or recording project knowledge (a decision, a fact about the system), from conversation context or the candidates a finished run left |
 | `/maister:standards-discover` | Re-scanning the project for standards |
 | `/maister:reviews-spec` | Checking that a change obeys its spec, clarifications and decisions |
 | `/maister:reviews-code-risk` | What can break, leak or fall over where the project runs |

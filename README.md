@@ -156,9 +156,9 @@ This is the key differentiator. Maister doesn't just run workflows - it learns y
 - **`/maister:init`** scans config files, source code, and documentation to auto-detect your coding standards
 - **Continuous checking** - standards are consulted before specification, during planning, and while coding (not just at the start)
 - **`/maister:standards-discover`** refreshes standards from your evolving codebase
-- **`/maister:standards-update`** lets you add or refine standards manually, or sync from another project with `--from=PATH`
+- **`/maister:standards-update`** lets you add or refine standards manually, record project knowledge (a decision, a fact about the system) in a project doc, or sync from another project with `--from=PATH`
 
-Standards live in `.maister/docs/standards/` and are indexed in `.maister/docs/INDEX.md`.
+Standards live in `.maister/docs/standards/`, project docs in `.maister/docs/project/`, and both are indexed in `.maister/docs/INDEX.md`. The project docs `/maister:init` writes are a start: add any Markdown doc the team wants every run to read, and `/maister:standards-update --refresh-index` indexes it.
 
 **Important**: Run workflows with **auto-accept edits** enabled. Do not use Claude Code's plan mode with workflows (see [Best Practices](#best-practices) below).
 
