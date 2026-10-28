@@ -293,9 +293,11 @@ Identifies ambiguities, missing details, and gaps. Uses external tools (GitHub C
 
 Initialize the Maister framework. Scans your codebase with a project-analyzer subagent, presents findings for confirmation, then generates:
 
-- `.maister/docs/` with INDEX.md, project docs (vision, roadmap, tech-stack), and coding standards
+- `.maister/docs/` with INDEX.md, project docs (vision, roadmap, tech stack, architecture), and coding standards
 - `.maister/tasks/` directory structure
 - CLAUDE.md integration
+
+The four project docs are a start, not a fixed set. Add any Markdown document the team wants every run to know — a glossary, a decision log, a domain or integration note — under `.maister/docs/project/` or anywhere in `.maister/docs/` outside `standards/`, as it is: no frontmatter or naming rules. Once it is in INDEX.md (`/maister:standards-update --refresh-index`, or the next refresh a workflow makes), every workflow run reads it with the predefined docs.
 
 | Flag | Description |
 |------|-------------|
@@ -319,14 +321,24 @@ Presents findings in confidence tiers (high/medium/low) for review before applyi
 
 ### `/maister:standards-update [description] [--from=PATH] [--refresh-index]`
 
-Update or create standards from conversation context or explicit description. When run without arguments, scans your current conversation for standards patterns like "we should always...", "our convention is...", "prefer X over Y" and proposes them as new standards. In a fresh session with nothing to scan, it finds the most recent workflow run that left standard candidates in its task folder and offers them — the well-supported ones recommended, other runs with candidates mentioned — then adds the ones you choose, one after another, asking where each goes; candidates already added are not offered again. A decision or a fact about the system rather than a way of writing code can go to a project document under `.maister/docs/project/` instead — a decision log, a glossary, an architecture note, whatever the project calls it. When the file a rule belongs in is past its size guidance (about 12 KB or 15 rules), it recommends a new file beside it; `/maister:standards-update "split <path>"` proposes splitting a large file into topic files or a sub-folder.
+Records what the team has learned: a coding standard, or project knowledge — a decision, a fact about the system — in a project document. Give it either kind as the description:
+
+```
+/maister:standards-update "prefer named exports over default exports"
+→ a rule in a standards file, e.g. standards/global/conventions.md
+
+/maister:standards-update "we chose Postgres over MongoDB because orders need transactions"
+→ an entry in a project document, e.g. project/decisions.md (an existing one or a new file — it asks which)
+```
+
+When run without arguments, scans your current conversation for standards patterns like "we should always...", "our convention is...", "prefer X over Y" and proposes them as new standards. In a fresh session with nothing to scan, it finds the most recent workflow run that left standard candidates in its task folder and offers them — the well-supported ones recommended, other runs with candidates mentioned — then adds the ones you choose, one after another, asking where each goes; candidates already added are not offered again. A decision or a fact about the system rather than a way of writing code can go to a project document under `.maister/docs/project/` instead — a decision log, a glossary, an architecture note, whatever the project calls it. When the file a rule belongs in is past its size guidance (about 12 KB or 15 rules), it recommends a new file beside it; `/maister:standards-update "split <path>"` proposes splitting a large file into topic files or a sub-folder.
 
 | Flag | Description |
 |------|-------------|
 | `--from=PATH` | Sync standards from another project. Analyzes differences, shows what's missing or changed, and lets you select which standards to import. |
 | `--refresh-index` | Bring `.maister/docs/INDEX.md` back in shape: rewrites the entries that run long or hold dates, ticket references or counts, adds missing entries, removes dead ones, settles a merge conflict, and keeps every entry that already follows the rules. Touches no other document. |
 
-INDEX.md is maintained by maister: one short entry per document, saying what it is for and when to open it. Don't edit it by hand — change the document, and the next refresh (after implementation, after the verification fixes, or this flag) updates its entry. Any Markdown file may live in `.maister/docs/` as it is; no frontmatter or naming is required.
+INDEX.md is maintained by maister: one short entry per document, saying what it is for and when to open it. Don't edit it by hand — change the document, and the next refresh (after implementation, after the verification fixes, or this flag) updates its entry. Any Markdown file may live in `.maister/docs/` as it is; no frontmatter or naming is required. A file you add by hand — written there or copied in from elsewhere — is picked up with `--refresh-index`.
 
 ---
 

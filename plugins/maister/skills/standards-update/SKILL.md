@@ -1,7 +1,7 @@
 ---
 name: maister:standards-update
-description: Update or create project standards from conversation context, an explicit description, or the standard candidates a finished workflow run handed over
-argument-hint: "[description of standard/convention] [--from=PATH] [--refresh-index]"
+description: Update or create project standards, or record project knowledge (a decision, a fact about the system) in a project document, from conversation context, an explicit description, or the standard candidates a finished workflow run handed over
+argument-hint: "[standard, convention or project fact] [--from=PATH] [--refresh-index]"
 ---
 
 # Update Project Standards

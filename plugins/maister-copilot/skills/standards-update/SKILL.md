@@ -1,7 +1,7 @@
 ---
 name: standards-update
-description: Update or create project standards from conversation context, an explicit description, or the standard candidates a finished workflow run handed over
-argument-hint: "[description of standard/convention] [--from=PATH] [--refresh-index]"
+description: Update or create project standards, or record project knowledge (a decision, a fact about the system) in a project document, from conversation context, an explicit description, or the standard candidates a finished workflow run handed over
+argument-hint: "[standard, convention or project fact] [--from=PATH] [--refresh-index]"
 ---
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.
