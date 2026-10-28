@@ -556,7 +556,9 @@
         ]
       },
       "project-profile": {
-        "flags": [],
+        "flags": [
+          "fill"
+        ],
         "refusals": [
           "project-profile-bad-input"
         ]
@@ -1014,7 +1016,7 @@
     },
     "modules": []
   },
-  "interface_version": "1.6",
+  "interface_version": "1.7",
   "mcp": {
     "servers": [],
     "tools": [

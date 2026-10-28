@@ -9,7 +9,8 @@
  * overkill. So the profile is one value, read here: `validate` judges it, the
  * freeze copies the judged profile into `orchestrator.options.project`, and
  * `review-brief` hands that copy to every reviewer of a cycle. `init` writes the
- * block once, from its project analysis, through `writeProfile`.
+ * block once, from its project analysis, through `writeProfile`; init's update
+ * fills in the fields a block lacks, and never changes one it sets.
  *
  * The shape, every field optional:
  *
@@ -156,11 +157,17 @@ export function projectProfile(root) {
  * null or gives a bad value is written commented out with what it takes, and a
  * bad value is a warning as well.
  *
+ * With `fill`, an existing key is not simply kept: each field `detected`
+ * settles that the block lacks, leaves empty or holds only commented out is
+ * written into it, and every field the block sets is left as it is — see
+ * `fillProfile`.
+ *
  * Returns `{ok, file, action, profile, block, warnings}`: `action` is
- * `created`, `appended` or `kept`, `block` the text written (null when kept)
- * and `profile` the fields written.
+ * `created`, `appended`, `filled` or `kept`, `block` the text written — for
+ * `filled`, the block as it now reads — (null when kept) and `profile` the
+ * fields written.
  */
-export function writeProfile({ root, detected }) {
+export function writeProfile({ root, detected, fill = false }) {
   const file = path.join(root, CONFIG);
   if (!isMap(detected)) {
     return { ok: false, errors: [{ code: 'project-profile-bad-input', message: `project-profile-bad-input: the detected profile is a JSON object of fields (${Object.keys(FIELDS).join(', ')}), not ${describe(detected)}. Nothing was written` }], warnings: [] };
@@ -170,6 +177,7 @@ export function writeProfile({ root, detected }) {
     if (FIELDS[name] === undefined) warnings.push(`project-profile: ${name} is not a profile field (${Object.keys(FIELDS).join(', ')}); it is not written`);
   }
   const existing = readProfileBlock(root);
+  if (existing.present && fill) return fillProfile({ file, detected, existing, warnings });
   if (existing.present) return { ok: true, file, action: 'kept', profile: null, block: null, warnings };
 
   const profile = {};
@@ -207,6 +215,79 @@ export function writeProfile({ root, detected }) {
   const gap = body === '' || body.endsWith(`${eol}${eol}`) ? '' : eol;
   writeText(file, `${body}${gap}${block.replace(/\n/g, eol)}`);
   return { ok: true, file, action: 'appended', profile, block, warnings };
+}
+
+/**
+ * Fill an existing `project:` block: each field `detected` settles with a value
+ * the field takes, and the block does not set, is written as a new block writes
+ * it — over its commented-out line (`  # deploy: …`) or its empty line when the
+ * block has one, else after the block's last indented line, at the block's
+ * indentation. A field the block sets is left alone, whatever `detected` says:
+ * changing a value is the person's choice, never this verb's. Every other byte
+ * of the file is unchanged, line endings included.
+ *
+ * A key that cannot be read, is not a map, or is written on one line is kept,
+ * with a warning saying the fields go in by hand.
+ */
+function fillProfile({ file, detected, existing, warnings }) {
+  const kept = why => {
+    warnings.push(`project-profile: ${file}: the project: key ${why}, so no field was filled in; add the missing ones by hand`);
+    return { ok: true, file, action: 'kept', profile: null, block: null, warnings };
+  };
+  if (existing.errors.length) return kept(`cannot be read (${existing.errors[0]})`);
+  if (existing.block !== null && !isMap(existing.block)) return kept('is not a map of fields');
+  const set = existing.block ?? {};
+
+  // Split on LF alone, so a CRLF line keeps its CR and every untouched line its bytes.
+  const text = fs.readFileSync(file, 'utf8');
+  const lines = text.split('\n');
+  const start = lines.findIndex(line => KEY_LINE.test(line));
+  if (!/^project\s*:\s*(?:#.*)?\r?$/.test(lines[start])) return kept('is written on one line');
+  const cr = text.includes('\r\n') ? '\r' : '';
+  let last = start;
+  for (let at = start + 1; at < lines.length; at++) {
+    const line = lines[at].replace(/\r$/, '');
+    if (line.trim() === '' || line.startsWith('#')) continue;
+    if (!/^\s/.test(line)) break;
+    last = at;
+  }
+  const inBlock = lines.slice(start + 1, last + 1).map(line => line.replace(/\r$/, ''));
+  const indent = (inBlock.find(line => /^\s+[^\s#]/.test(line)) ?? inBlock.find(line => /^\s+#/.test(line)) ?? '  ').match(/^\s*/)[0] || '  ';
+
+  const profile = {};
+  const appended = [];
+  for (const [name, accepted] of Object.entries(FIELDS)) {
+    const value = detected[name];
+    if (value === undefined || value === null || (set[name] !== undefined && set[name] !== null)) continue;
+    const judged = judgeField(name, value);
+    if (!judged.ok) {
+      warnings.push(`project-profile: ${name} ${judged.why}; it is not written`);
+      continue;
+    }
+    profile[name] = judged.value;
+    const line = `${indent}${name}: ${scalar(judged.value)}  # ${Array.isArray(accepted) ? accepted.join(' | ') : HINTS[name]}`;
+    const empty = new RegExp(`^\\s+${name}\\s*:\\s*(?:#.*)?$`);
+    const commented = new RegExp(`^\\s+#\\s*${name}\\s*:`);
+    const at = [empty, commented].map(pattern => inBlock.findIndex(each => pattern.test(each))).find(found => found >= 0);
+    if (at === undefined) appended.push(`${line}${cr}`);
+    else {
+      lines[start + 1 + at] = `${line}${lines[start + 1 + at].endsWith('\r') ? '\r' : ''}`;
+      inBlock[at] = line;
+    }
+  }
+  if (Object.keys(profile).length === 0) return { ok: true, file, action: 'kept', profile: null, block: null, warnings };
+
+  if (appended.length) {
+    // A block that ends the file with no newline after it gets one, and so does the file.
+    if (last === lines.length - 1) {
+      lines[last] += cr;
+      lines.push('');
+    }
+    lines.splice(last + 1, 0, ...appended);
+  }
+  writeText(file, lines.join('\n'));
+  const block = `${lines.slice(start, last + 1 + appended.length).map(line => line.replace(/\r$/, '')).join('\n')}\n`;
+  return { ok: true, file, action: 'filled', profile, block, warnings };
 }
 
 /** The comment a written block opens with. */

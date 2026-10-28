@@ -152,6 +152,101 @@ test('project-profile leaves an existing project key alone', t => {
   assert.equal(fs.readFileSync(configFile(run), 'utf8'), CLI);
 });
 
+// project-profile --fill: init's update. An existing key gets the fields it
+// lacks, holds empty or holds commented out; a field it sets is never changed.
+
+function fillProfile(run, detected) {
+  const result = verb(['project-profile', '--fill'], detected, { CLAUDE_PROJECT_DIR: run.root });
+  return { ...result, report: result.stdout ? JSON.parse(result.stdout) : null };
+}
+
+test('project-profile --fill writes over the commented-out fields a first run left, every other line unchanged', t => {
+  const run = scratch(t);
+  const first = writeProfile(run, { kind: 'cli', runtime: 'node 20' });
+  assert.equal(first.report.action, 'created');
+  const before = fs.readFileSync(configFile(run), 'utf8');
+  const { code, stderr, report } = fillProfile(run, { kind: 'library', deploy: 'package-registry', exposure: 'local', ui: 'none' });
+  assert.equal(code, 0, stderr);
+  assert.equal(report.action, 'filled');
+  assert.deepEqual(report.profile, { deploy: 'package-registry', exposure: 'local', ui: 'none' }, 'kind is set, so the analysis does not change it');
+  const text = fs.readFileSync(configFile(run), 'utf8');
+  assert.ok(text.endsWith(report.block) && report.block.startsWith('project:\n'), 'the reply carries the block as it now reads');
+  assert.equal(text, before
+    .replace(/^ {2}# deploy: {2}# (.*)$/m, '  deploy: package-registry  # $1')
+    .replace(/^ {2}# exposure: {2}# (.*)$/m, '  exposure: local  # $1')
+    .replace(/^ {2}# ui: {2}# (.*)$/m, '  ui: none  # $1'));
+  assert.match(text, /^ {2}kind: cli /m);
+  assert.deepEqual(validate(run).report.warnings.filter(each => each.startsWith('project-profile:')), [], 'the filled block reads back clean');
+  freeze(run);
+  assert.deepEqual(readState(run).orchestrator.options.project, { kind: 'cli', runtime: 'node 20', deploy: 'package-registry', exposure: 'local', ui: 'none' });
+});
+
+test('project-profile --fill fills an empty field and adds an absent one at the end of the block, before what follows', t => {
+  const run = scratch(t);
+  const before = ['html_output: true', 'project:', '    kind: service', '    deploy:', '    # a note of the team\'s', '', '# subagents — the models', 'subagents:', '  agents:', '    Explore: { tier: light }', ''].join('\n');
+  config(run, before);
+  const { code, stderr, report } = fillProfile(run, { kind: 'cli', deploy: 'kubernetes', data: ['postgres', 'files'] });
+  assert.equal(code, 0, stderr);
+  assert.equal(report.action, 'filled');
+  assert.deepEqual(report.profile, { deploy: 'kubernetes', data: ['postgres', 'files'] });
+  const text = fs.readFileSync(configFile(run), 'utf8');
+  assert.equal(text, ['html_output: true', 'project:', '    kind: service',
+    '    deploy: kubernetes  # none | local | container | kubernetes | serverless | package-registry | app-store',
+    '    # a note of the team\'s',
+    '    data: [postgres, files]  # the stores it writes, e.g. [postgres, files]; [] for none',
+    '', '# subagents — the models', 'subagents:', '  agents:', '    Explore: { tier: light }', ''].join('\n'));
+  freeze(run);
+  assert.deepEqual(readState(run).orchestrator.options.project, { kind: 'service', deploy: 'kubernetes', data: ['postgres', 'files'] });
+  assert.ok(readState(run).orchestrator.options.subagents, 'the subagents block still freezes');
+});
+
+test('project-profile --fill leaves a set field alone, even one whose value it would refuse', t => {
+  const run = scratch(t);
+  const before = 'project:\n  kind: website\n  ui: web\n';
+  config(run, before);
+  const { code, stderr, report } = fillProfile(run, { kind: 'web-app', ui: 'none', scale: 'everyone' });
+  assert.equal(code, 0, stderr);
+  assert.equal(report.action, 'kept');
+  assert.equal(report.block, null);
+  assert.match(stderr, /^warning: project-profile: scale is one of single-user, team, multi-tenant, not "everyone"; it is not written$/m);
+  assert.equal(fs.readFileSync(configFile(run), 'utf8'), before);
+});
+
+test('project-profile --fill with no project key appends the block as a first run does', t => {
+  const run = scratch(t);
+  config(run, 'html_output: true\n');
+  const { code, stderr, report } = fillProfile(run, { kind: 'plugin' });
+  assert.equal(code, 0, stderr);
+  assert.equal(report.action, 'appended');
+  assert.equal(fs.readFileSync(configFile(run), 'utf8'), `html_output: true\n\n${report.block}`);
+});
+
+test('project-profile --fill keeps CRLF line endings, and gives a block that ends the file its newline', t => {
+  const run = scratch(t);
+  config(run, 'html_output: true\r\nproject:\r\n  # deploy:  # none\r\n  kind: cli');
+  const { code, stderr, report } = fillProfile(run, { deploy: 'container', ui: 'tui' });
+  assert.equal(code, 0, stderr);
+  assert.equal(report.action, 'filled');
+  const text = fs.readFileSync(configFile(run), 'utf8');
+  assert.ok(text.startsWith('html_output: true\r\nproject:\r\n  deploy: container  # none | local'), JSON.stringify(text));
+  assert.ok(text.endsWith('  kind: cli\r\n  ui: tui  # none | web | tui | native\r\n'), JSON.stringify(text));
+  assert.doesNotMatch(text.replace(/\r\n/g, ''), /[\r\n]/, 'every line ends CRLF');
+  freeze(run);
+  assert.deepEqual(readState(run).orchestrator.options.project, { deploy: 'container', kind: 'cli', ui: 'tui' });
+});
+
+test('project-profile --fill keeps a key written on one line, or one that is not a map, and says to add the fields by hand', t => {
+  for (const before of ['project: { kind: cli }\n', 'project: cli\n']) {
+    const run = scratch(t);
+    config(run, before);
+    const { code, stderr, report } = fillProfile(run, { deploy: 'container' });
+    assert.equal(code, 0, stderr);
+    assert.equal(report.action, 'kept');
+    assert.match(stderr, /^warning: project-profile: .*the project: key (is written on one line|is not a map of fields), so no field was filled in; add the missing ones by hand$/m);
+    assert.equal(fs.readFileSync(configFile(run), 'utf8'), before);
+  }
+});
+
 test('project-profile refuses input that is not an object, writing nothing', t => {
   const run = scratch(t);
   const { code, stderr } = writeProfile(run, ['cli']);
