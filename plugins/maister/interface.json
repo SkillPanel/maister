@@ -1075,6 +1075,7 @@
       "sets",
       "on",
       "values",
+      "answered_in",
       "dir",
       "provider",
       "session"
@@ -1129,7 +1130,8 @@
     "writer_fields": [
       "attempt",
       "reruns",
-      "sets"
+      "sets",
+      "answered_in"
     ]
   }
 }

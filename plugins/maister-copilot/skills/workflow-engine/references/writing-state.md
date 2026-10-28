@@ -214,6 +214,17 @@ exempt: the node records those two about its child itself. This check and the ga
 (`references/gates.md` § *Terminal mode*) read the definition, so they apply only while the
 frozen block still resolves to its recorded hash.
 
+**A skipped gate may name the child answer that skipped it.** On the write that records a gate
+`skipped`, the writer traces its guard. When every operand reads a value a completed `workflow:`
+node adopted from its child, that value is what makes the operand false, the child's definition
+exposes it from a gate's `sets`, and that gate is completed with an answer that set the same value
+— all of them one answer — it records `answered_in: {run, node, option}` on the gate's entry: the
+child's run id as the parent node recorded it, the child's gate, and the option chosen there. In
+every other case the key is absent: a guard on an input or on a value a child's step recorded, two
+answers behind one guard, a child that cannot be read or no longer proves against its definition.
+A reader shows an absent key as a plain skip. Like `sets`, the key is the writer's own. A patch
+that sends it has it dropped and noted, and a revise that resets the gate clears it.
+
 **Artifacts are never copied into a node's values**; only declared *values* are. A declared path
 resolves against the task directory of the run that wrote it (engine § *Recording an outcome*),
 and is literal: `validate` refuses a `${…}` inside it.

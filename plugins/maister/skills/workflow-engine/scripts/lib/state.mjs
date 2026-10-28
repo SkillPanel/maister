@@ -95,7 +95,7 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
+import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardOperands, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { companionsOf, owedCompanions } from './companions.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
@@ -216,19 +216,21 @@ const PATCH_KEYS = ['orchestrator', 'task', 'workflow', 'nodes', 'context', 'pha
  * gate that offers a revise, a gate whose continue options set its values — so
  * every other line keeps the bytes it always had.
  */
-const NODE_KEYS = ['kind', 'status', 'attempt', 'started', 'completed', 'needs', 'reruns', 'sets', 'on', 'values', 'dir',
-  'provider', 'session'];
+const NODE_KEYS = ['kind', 'status', 'attempt', 'started', 'completed', 'needs', 'reruns', 'sets', 'on', 'values', 'answered_in',
+  'dir', 'provider', 'session'];
 
 /**
  * The node fields only this writer fills: `attempt` counts the revisions a
  * node has been reset by, `reruns` is the freeze's record of where each of a
  * gate's revise options sends the run, and `sets` its record of the values
- * each of a gate's continue options sets. A patch that carries any of them has
- * it dropped and noted, like a clock field — a counter a caller could set is a
- * budget a caller could reset, and a value map a caller could set is an answer
- * the operator never gave.
+ * each of a gate's continue options sets, and `answered_in` names the child
+ * run's gate answer a skipped gate's guard read (`stampAnsweredIn`). A patch
+ * that carries any of them has it dropped and noted, like a clock field — a
+ * counter a caller could set is a budget a caller could reset, a value map a
+ * caller could set is an answer the operator never gave, and a link a caller
+ * could set is a reason the engine never traced.
  */
-const WRITER_FIELDS = ['attempt', 'reruns', 'sets'];
+const WRITER_FIELDS = ['attempt', 'reruns', 'sets', 'answered_in'];
 
 /**
  * The statuses a node is never sent back to `pending` from by an ordinary
@@ -1331,6 +1333,7 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null) {
   const { judged, fresh } = judgedGates(answering, typedNow, runDir, answeredBefore);
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
+  if (runDir !== null && stampAnsweredIn(doc, typedNow(), out.before, graphOf, runDir, changed)) typed = null;
   judgeGates(doc, typedNow, judged, changed, writeWarnings);
   approveHeld(doc, fresh, graphOf, changed, runDir);
   for (const key of TOP_LEVEL_BLOCKS) {
@@ -1987,6 +1990,7 @@ export function provenGraph(workflow, runDir) {
     return {
       graph,
       inputs: isPlainObject(definition.doc.inputs) ? definition.doc.inputs : {},
+      outputs: isPlainObject(definition.doc.outputs) ? definition.doc.outputs : {},
       chainOnly: definition.doc.chain_only === true,
     };
   } catch (err) {
@@ -2280,13 +2284,14 @@ function assertForward(id, patchEntry, existing) {
 
 /**
  * One node of a revise's stretch, reset: `pending`, its clocks and values gone
- * — the next attempt records its own — and its `attempt` one higher, counting
+ * — the next attempt records its own, and a skipped gate's `answered_in` with
+ * them — and its `attempt` one higher, counting
  * from the first attempt as 1. Nothing else on the line moves: the edges, the
  * gate's `reruns` and `sets` and any field a newer build wrote survive as they
  * were. A gate's values go with the rest: its next answer records its own.
  */
 function reset(existing) {
-  const { started: _started, completed: _completed, values: _values, ...kept } = existing;
+  const { started: _started, completed: _completed, values: _values, answered_in: _answeredIn, ...kept } = existing;
   return { ...kept, status: 'pending', attempt: attemptOf(existing) + 1 };
 }
 
@@ -4931,6 +4936,97 @@ function isSettlement(item, gate) {
 /** A set value as a settlement item's text names it. */
 function scalarText(value) {
   return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+/**
+ * Which child run's gate answer skipped a gate, recorded by the writer as the
+ * gate's `answered_in: {run, node, option}` — the child's run id, its gate and
+ * the option chosen there — so a reader can say where the question was settled
+ * instead of only that it was skipped. Judged once, on the write that moves a
+ * gate to `skipped`, for a gate whose guard reads false.
+ *
+ * Written only when the link is certain. Every operand of the guard must read
+ * a value a completed `workflow:` node adopted from its child, the value must
+ * be what makes that operand false, the child's definition must expose it from
+ * a gate's `sets`, and that gate must be completed with an answer that set the
+ * same value. Every operand must lead to one and the same answer: an input, a
+ * value a child's step recorded, two answers, a child that cannot be read or no
+ * longer proves against its definition — each leaves the field absent, and
+ * none refuses the write. Returns whether it wrote.
+ */
+function stampAnsweredIn(doc, typed, before, graphOf, runDir, changed) {
+  const nodes = isPlainObject(typed.workflow) && isPlainObject(typed.workflow.nodes) ? typed.workflow.nodes : {};
+  const raw = recordedNodes(doc);
+  let wrote = false;
+  for (const [id, entry] of Object.entries(nodes)) {
+    if (!isPlainObject(entry) || entry.kind !== 'gate' || entry.status !== 'skipped') continue;
+    if (Object.hasOwn(before, id) && before[id] === 'skipped') continue;
+    if (!Object.hasOwn(raw, id) || entry.answered_in !== undefined) continue;
+    const graph = graphOf();
+    const when = resolvedNode(graph, id)?.when;
+    if (typeof when !== 'string') continue;
+    const links = guardOperands(when).map(operand => answerBehind(operand, nodes, graph, runDir));
+    const [first] = links;
+    if (!first || !links.every(link => link && sameValue(link, first))) continue;
+    doc.setNode(id, nodeLine(id, { ...raw[id], answered_in: first }));
+    if (!changed.includes(`workflow.nodes.${id}`)) changed.push(`workflow.nodes.${id}`);
+    wrote = true;
+  }
+  return wrote;
+}
+
+/**
+ * The child gate answer one guard operand read, as `{run, node, option}`, or
+ * null when the operand reads anything else or the trace breaks anywhere.
+ */
+function answerBehind(operand, nodes, graph, runDir) {
+  const match = /^(!?)\$\{([a-z][a-z0-9-]*)\.values\.([a-z_]+)\}$/.exec(operand);
+  if (!match) return null;
+  const [, negated, owner, key] = match;
+  const subrun = resolvedNode(graph, owner);
+  if (typeof subrun?.uses !== 'string' || !subrun.uses.startsWith(WORKFLOW_SCHEME)) return null;
+  if (typeof subrun.dir === 'string' && subrun.dir !== '') return null;
+  const recorded = Object.hasOwn(nodes, owner) && isPlainObject(nodes[owner]) ? nodes[owner] : {};
+  const values = isPlainObject(recorded.values) ? recorded.values : {};
+  const adopted = boolOf(Object.hasOwn(values, key) ? values[key] : undefined);
+  // The operand reads false only on the value it negates; any other is not the reason the gate was skipped.
+  if (recorded.status !== 'completed' || adopted === null || adopted !== (negated === '!')) return null;
+  if (typeof values.run_id !== 'string' || values.run_id === '') return null;
+  const child = childRun(values.task_path, runDir);
+  if (child === null) return null;
+  const proof = provenGraph(child.state.workflow, child.dir);
+  const exposed = isPlainObject(proof.outputs?.values) ? proof.outputs.values[key] : undefined;
+  const parts = typeof exposed === 'string' ? exposed.split('.') : [];
+  if (!proof.graph || parts.length !== 3 || parts[1] !== 'values') return null;
+  const [gate, , gateKey] = parts;
+  if (resolvedNode(proof.graph, gate)?.type !== 'gate') return null;
+  const childNodes = isPlainObject(child.state.workflow.nodes) ? child.state.workflow.nodes : {};
+  const answered = Object.hasOwn(childNodes, gate) && isPlainObject(childNodes[gate]) ? childNodes[gate] : {};
+  const set = isPlainObject(answered.values) && Object.hasOwn(answered.values, gateKey) ? boolOf(answered.values[gateKey]) : null;
+  const option = latestOption(child.state, gate);
+  if (answered.status !== 'completed' || option === null || set !== adopted) return null;
+  return { run: values.run_id, node: gate, option };
+}
+
+/** A child run's directory and parsed state, by the `task_path` its parent recorded; null when it cannot be read. */
+function childRun(taskPath, runDir) {
+  if (typeof taskPath !== 'string' || taskPath === '' || path.isAbsolute(taskPath)) return null;
+  const root = projectRootOf(runDir);
+  const dir = path.resolve(root, taskPath);
+  if (!dir.startsWith(`${root}${path.sep}`)) return null;
+  try {
+    const state = parseState(fs.readFileSync(path.join(dir, 'orchestrator-state.yml'), 'utf8'));
+    return isPlainObject(state.workflow) ? { dir, state } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A recorded bool, written as one or read back as its text; null for anything else. */
+function boolOf(value) {
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  return null;
 }
 
 /** The values a gate holds as recorded, or undefined when its status and answer settle none. */

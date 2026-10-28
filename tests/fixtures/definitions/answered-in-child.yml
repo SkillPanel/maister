@@ -1,0 +1,50 @@
+# The child `answered-in.yml` starts as a sub-run: embeddable, exposing two
+# gate values — each set by the answer to one of its gates — and one value its
+# survey step records, so a parent guard can read either kind.
+name: answered-in-child
+version: 1
+description: "Surveys a subject, settles its findings and its scope, then closes."
+inputs:
+  subject: {type: string, required: true}
+  embedded: {type: bool, required: false, default: false}
+
+outputs:
+  values:
+    approved: findings-approval.values.approved
+    scoped: scope-approval.values.scoped
+    checked: survey.values.checked
+
+nodes:
+  survey:
+    uses: direct:survey
+    needs: []
+    with:
+      subject: "${inputs.subject}"
+    outputs:
+      values:
+        checked: bool
+  findings-approval:
+    type: gate
+    needs: [survey]
+    ask: "Survey complete. Approve its findings?"
+    options:
+      approve-findings: {effect: continue, sets: {approved: true}}
+      leave-open: {effect: continue, sets: {approved: false}}
+      stop-here: stop
+  scope-approval:
+    type: gate
+    needs: [findings-approval]
+    ask: "Findings settled. Approve the scope?"
+    options:
+      approve-scope: {effect: continue, sets: {scoped: true}}
+      widen-scope: {effect: continue, sets: {scoped: false}}
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [scope-approval]
+    when: "!${inputs.embedded}"
+display:
+  titles:
+    survey: Survey
+    findings-approval: Findings approval
+    scope-approval: Scope approval
+    wrap-up: Wrap-up

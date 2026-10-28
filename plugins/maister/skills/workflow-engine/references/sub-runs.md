@@ -150,6 +150,13 @@ This is the dispatch runtime's rule, not a new one: it re-resolves at every disp
 reason and refuses `dispatch-graph-drifted` on a mismatch. Two runtimes that read a definition
 after a freeze must both prove it has not moved underneath them.
 
+**A parent gate the child's answer skipped names that answer.** When a parent gate's guard reads
+a value the node adopted at W4, and the child exposes that value from one of its gates' `sets`,
+the parent's gate is skipped on the child's answer: the question was settled in the child. The
+writer records where, as the gate's `answered_in` (`references/writing-state.md` § *Recording an
+outcome — the detail*), on the write that records the gate `skipped`. The driver sends nothing
+for it.
+
 ---
 
 ## The child directory name

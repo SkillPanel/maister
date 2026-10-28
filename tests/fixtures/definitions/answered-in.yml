@@ -1,0 +1,65 @@
+# A parent whose confirmations a sub-run's answers can skip. Each gate is a
+# pure confirmation — one continue, nothing set — so its guard may skip it on a
+# value the child exposes. `findings-confirmation` reads one child gate's value:
+# the one skip the writer can trace to the answer behind it. The other three
+# skip for reasons it cannot name one answer for: two child gates at once, a
+# value the child's survey step recorded, and an input.
+name: answered-in
+version: 1
+description: "Runs a research child, confirms what it left open, then reports."
+inputs:
+  confirm_scope: {type: bool, required: false, default: false}
+nodes:
+  research:
+    uses: workflow:answered-in-child
+    needs: []
+    with:
+      subject: "the store"
+    outputs:
+      values:
+        approved: bool
+        scoped: bool
+        checked: bool
+  findings-confirmation:
+    type: gate
+    needs: [research]
+    when: "!${research.values.approved}"
+    ask: "The findings were left open. Continue anyway?"
+    options:
+      continue-past-findings: continue
+      stop-at-findings: stop
+  both-confirmation:
+    type: gate
+    needs: [research]
+    when: "!${research.values.approved} || !${research.values.scoped}"
+    ask: "The findings or the scope were left open. Continue anyway?"
+    options:
+      continue-past-both: continue
+      stop-at-both: stop
+  survey-confirmation:
+    type: gate
+    needs: [research]
+    when: "!${research.values.checked}"
+    ask: "The survey was not checked. Continue anyway?"
+    options:
+      continue-past-survey: continue
+      stop-at-survey: stop
+  scope-confirmation:
+    type: gate
+    needs: [research]
+    when: "${inputs.confirm_scope}"
+    ask: "Confirm the scope before reporting?"
+    options:
+      continue-past-scope: continue
+      stop-at-scope: stop
+  report:
+    uses: direct:report
+    needs: [findings-confirmation, both-confirmation, survey-confirmation, scope-confirmation]
+display:
+  titles:
+    research: Research
+    findings-confirmation: Findings confirmation
+    both-confirmation: Findings and scope confirmation
+    survey-confirmation: Survey confirmation
+    scope-confirmation: Scope confirmation
+    report: Report
