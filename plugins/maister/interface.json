@@ -1017,7 +1017,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.6",
+  "interface_version": "1.7",
   "mcp": {
     "servers": [],
     "tools": [
@@ -1073,6 +1073,7 @@
       "sets",
       "on",
       "values",
+      "answered_in",
       "dir",
       "provider",
       "session"
@@ -1127,7 +1128,8 @@
     "writer_fields": [
       "attempt",
       "reruns",
-      "sets"
+      "sets",
+      "answered_in"
     ]
   }
 }

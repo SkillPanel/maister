@@ -318,8 +318,11 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared, verif
     phase.started = scalar(node.started);
     phase.completed = scalar(node.completed);
     // State has no dedicated key: a skipped node's reason is written into its
-    // summary.
-    phase.skip_reason = status === 'skipped' ? text : null;
+    // summary. A gate a child run's answer skipped falls back to where it was
+    // answered, and carries the link itself, additive and only on that gate.
+    const answeredIn = status === 'skipped' ? answeredInOf(node, nodes, titles) : null;
+    phase.skip_reason = status === 'skipped' ? text ?? (answeredIn ? `Answered in ${answeredIn.title}` : null) : null;
+    if (answeredIn) phase.answered_in = answeredIn;
     phase.summary = text;
     // Additive: the one *Done* sentence the node wrote for its gate, only when
     // it wrote one — the viewer leads the card with it.
@@ -356,6 +359,18 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared, verif
     if ((id === reviewer || id === executor) && delegation !== null) phase.delegation = delegation;
     return phase;
   });
+}
+
+/**
+ * A skipped gate's `answered_in` — the child run, its gate and the option
+ * chosen there — with `title`, what this run calls the sub-run node that
+ * started that child; null when the node records no usable link.
+ */
+function answeredInOf(node, nodes, titles) {
+  const link = node.answered_in;
+  if (!isPlainObject(link) || ![link.run, link.node, link.option].every(each => typeof each === 'string' && each !== '')) return null;
+  const owner = frozenIds(nodes).find(id => isPlainObject(nodes[id]) && isPlainObject(nodes[id].values) && nodes[id].values.run_id === link.run);
+  return { run: link.run, node: link.node, option: link.option, title: owner ? titleOf(titles, owner) : link.run };
 }
 
 /**
