@@ -135,11 +135,14 @@
  *                  its counts and the issues_found projection) — writes under
  *                  the run's verification/, and with --state records
  *                  issues_found in the run's verification_context
- *   project-profile the detected profile as JSON on stdin   JSON on stdout
+ *   project-profile the detected profile as JSON on stdin; optional --fill
+ *                                                          JSON on stdout
  *                  (the profile `init` detected, written into the project's
  *                  .maister/config.yml under `project:` — appended, or the
  *                  file created — only when no `project:` key is there;
- *                  an existing key is kept as it is)
+ *                  an existing key is kept as it is, or with --fill gets the
+ *                  fields it lacks or holds commented out, every field it
+ *                  sets left alone)
  *   runner-result  --state, --node, optional --runner, --patch-file (or the
  *                  result as JSON on stdin)                   JSON on stdout
  *                  (a runner's result — `--runner=verification`, the
@@ -311,8 +314,9 @@ const VERBS = {
   'findings-merge': { module: 'findings-merge.mjs', flags: ['state', 'task-path', 'cycle'] },
   // The project profile `init` detected, written into the project's
   // config.yml only when it has no `project:` key. The fields come on stdin:
-  // there is no run, so no run directory to anchor a patch file in.
-  'project-profile': { module: 'project-profile.mjs', flags: [] },
+  // there is no run, so no run directory to anchor a patch file in. `--fill`
+  // is init's update: an existing key gets only the fields it lacks.
+  'project-profile': { module: 'project-profile.mjs', flags: ['fill'] },
   // A runner's two ends: its result, written by the runner through the one
   // place a patch is read from, and the node's next step, read from the run.
   // `--node` because the node is the one state records as running, and both
@@ -380,7 +384,7 @@ const REPEATABLE = new Set(['overlay', 'area', 'from']);
 const PICKERS = ['rich', 'plain'];
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open']);
+const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open', 'fill']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -1549,7 +1553,7 @@ async function runProjectProfile(flags) {
   const write = entryOf(module, 'writeProfile', VERBS['project-profile'].module);
   const graph = await loadModule(VERBS.validate.module);
   const input = await readInput(flags, 'the detected profile');
-  const { warnings = [], ...result } = write({ root: entryOf(graph, 'projectRoot', VERBS.validate.module)(), detected: input.document });
+  const { warnings = [], ...result } = write({ root: entryOf(graph, 'projectRoot', VERBS.validate.module)(), detected: input.document, fill: flags.fill === true });
   report(result);
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
   for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);

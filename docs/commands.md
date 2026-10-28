@@ -303,7 +303,27 @@ The four project docs are a start, not a fixed set. Add any Markdown document th
 |------|-------------|
 | `--standards-from=PATH` | Copy standards from another project's `.maister/docs/standards/` instead of built-in defaults. Useful when starting a new project that should follow the same conventions as an existing one. |
 
-If `.maister/` already exists, offers to backup, update, or cancel.
+If `.maister/` already exists, it asks whether to update the setup or start over (the old one moved to a dated backup); leaving without changes is the free-text answer.
+
+**Updating.** The update first looks without writing: it re-analyzes the codebase, compares
+`.maister/config.yml` with what init writes today, compares the project profile and the vision,
+roadmap, tech-stack and architecture documents with the analysis, notes standards categories the
+stack needs that `standards/` lacks, and checks INDEX.md. Then it asks one question listing every
+proposed change: apply the recommended changes, choose change by change, or leave everything as
+it is.
+
+- Only additions are recommended: missing config keys and blocks, missing profile fields, missing
+  project documents.
+- A config value that differs from today's default, a profile field the analysis contradicts, or
+  a project document it contradicts is offered one line or one file at a time, and kept unless you
+  take the change. Edits are made line by line, so the rest of the file stays as it is.
+- Standards are never changed; a missing category is named with its
+  `/maister:standards-discover --scope=<category>` command.
+- Other Markdown you keep in `.maister/docs/` is never rewritten or flagged; it only gets an
+  INDEX.md entry when it has none.
+
+Whatever you choose, INDEX.md is refreshed and the `CLAUDE.md` pointer repaired, and a summary
+says what changed, what was kept and what drift remains.
 
 ### `/maister:standards-discover [--scope=SCOPE]`
 
