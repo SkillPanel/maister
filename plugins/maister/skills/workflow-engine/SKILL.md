@@ -699,7 +699,7 @@ writer drops a `phase_summaries` key, top-level or under `context`, with a `note
 
 The writer mirrors a node's status onto its summary and registers, on a completing summary,
 every declared artifact on disk the entry does not list; the closing write still lists what the
-section asks for (`references/writing-state.md` § *Recording an outcome — the detail*).
+section asks for, each path relative to the task directory and each file once (`references/writing-state.md` § *Recording an outcome — the detail*).
 
 **Retry budgets are prose, never `with:` data**: nothing consults a budget written in `with:`;
 the number sits in the node's `brief:` `budget` and is printed as a prose rule.

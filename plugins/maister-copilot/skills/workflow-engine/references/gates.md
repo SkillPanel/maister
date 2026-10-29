@@ -79,7 +79,10 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   - **Only `open` and `stop` risks become a revise's suggested notes**, so give each its
     `change`: `{risk: "list(null) now throws", tag: open, change: "keep list(null) returning
     every note"}`.
-  - **`artifacts`** may carry a `role`: `primary`, `review`, `evidence` or `log`. Evidence and
+  - **`artifacts`** name each `path` and `html` relative to the task directory, the way the
+    dashboard beside them links it: `outputs/report.md`. The `writes:` line prints a declared
+    path repository-relative, for the delegate; drop the task path before listing it. Each may
+    carry a `role`: `primary`, `review`, `evidence` or `log`. Evidence and
     logs are never offered for review. A node may add `metrics`, a list of
     `{label, value, unit?, of?}`.
   - **`recommends`** — the option this node recommends at the gate that closes it, and why:
