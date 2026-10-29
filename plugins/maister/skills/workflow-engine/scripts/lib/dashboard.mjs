@@ -46,6 +46,7 @@
 
 import { ICON_HINTS, delegationOf, labelOf as optionLabelOf, titleOf } from './display.mjs';
 import * as items from './items.mjs';
+import { placedArtifacts, whereOf } from './artifact-paths.mjs';
 import { approvalKey, approvalsOf, frozenIds } from './question-triage.mjs';
 
 // ---------------------------------------------------------------------------
@@ -182,7 +183,9 @@ const CHARACTERISTIC_KEYS = [
  * `progress` carries at most one entry keyed by the executor node,
  * `declared` maps a node id to its declared artifact paths by key, and
  * `verifier` is the node that runs the reviews, or null, and `executor` the
- * node that runs the implementation plan, or null.
+ * node that runs the implementation plan, or null, and `place` the run's
+ * `{runDir, root}`, absolute, that a summary's artifact paths are placed
+ * against — without it the state's `orchestrator.task_path` names the folder.
  *
  * `generated` is the **first** top-level key: that is what hand-written files
  * already carried, and the cockpit
@@ -201,12 +204,18 @@ export function render(view, { now }) {
   const declared = isPlainObject(source.declared) ? source.declared : {};
   const verifier = typeof source.verifier === 'string' ? source.verifier : null;
   const executor = typeof source.executor === 'string' ? source.executor : null;
+  const place = isPlainObject(source.place) ? source.place : {};
+  const where = whereOf({
+    state,
+    runDir: typeof place.runDir === 'string' ? place.runDir : null,
+    root: typeof place.root === 'string' ? place.root : null,
+  });
 
   const data = {
     generated: now,
     task: taskOf(state),
     characteristics: characteristicsOf(state),
-    phases: phasesOf(state, icons, titles, labels, gates, progress, declared, verifier, executor),
+    phases: phasesOf(state, icons, titles, labels, gates, progress, declared, verifier, executor, where),
     verification: verificationOf(state),
   };
   return `window.MAISTER_DATA = ${JSON.stringify(data, null, 1)};\n`;
@@ -286,7 +295,7 @@ function characteristicsOf(state) {
  * It is never sorted and never re-derived: a second ordering rule beside the
  * resolver's is a second thing to keep in step, and the two would drift.
  */
-function phasesOf(state, icons, titles, labels, gates, progress, declared, verifier, executor = null) {
+function phasesOf(state, icons, titles, labels, gates, progress, declared, verifier, executor = null, where = whereOf({ state })) {
   const workflow = isPlainObject(state.workflow) ? state.workflow : {};
   const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   const reviewer = verifier ?? (Object.hasOwn(nodes, 'verification') ? 'verification' : null);
@@ -343,7 +352,10 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared, verif
     // settled nothing by it.
     const fixes = list(summary.fixes_applied).map(items.fixOf).filter((f) => f !== null);
     if (fixes.length) phase.fixes = fixes;
-    phase.artifacts = list(summary.artifacts).map(artifactOf).filter((a) => a !== null);
+    // Read as the writer now keeps them: placed task-relative, an entry with no
+    // place in the task folder left out — its link would resolve nowhere — and
+    // each file once, so a run written before the rule links only what works.
+    phase.artifacts = placedArtifacts(list(summary.artifacts), where).map(artifactOf).filter((a) => a !== null);
     // Additive, and only on a node whose summary sanctioned an absence: the
     // declared artifacts it completed without, each with its reason, so the
     // viewer says "not produced" and why instead of leaving a gap.

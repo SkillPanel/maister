@@ -97,6 +97,7 @@ import * as dashboard from './dashboard.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardOperands, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { companionsOf, owedCompanions } from './companions.mjs';
+import { placedArtifacts, whereOf } from './artifact-paths.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
@@ -780,6 +781,7 @@ function project(state, text, now, changed, warnings) {
       declared: declaredOf(doc, definition, runDir),
       verifier: dashboard.verifierNodeOf(definition),
       executor: dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc),
+      place: { runDir, root: projectRootOf(runDir) },
     };
     canonical.commit({
       target,
@@ -3287,6 +3289,14 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
         entry.decisions = [...earlierAnswers(prior, entry.decisions), ...kept, ...entry.decisions];
       }
     }
+    // The sent list is placed before the held entry is merged under it: a path
+    // the write spelled from the repository root is kept task-relative, one
+    // outside the task folder is refused, and a file listed twice is kept once.
+    // A held list the write does not resend is not judged here.
+    if (Array.isArray(entry.artifacts) && runDir !== null) {
+      run ??= runOf(doc, runDir);
+      entry.artifacts = placedArtifacts(entry.artifacts, run.where, (index, field, item) => refuseOutside(key, index, field, item, run.where));
+    }
     const prior = heldOf(key);
     if (prior) {
       const { status: _status, ...kept } = prior;
@@ -3316,6 +3326,17 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
     doc.set(at, block(key, entry, 2));
     changed.push(at.join('.'));
   }
+}
+
+/**
+ * A summary artifact whose path lies outside the task folder: the dashboard
+ * links every entry from inside that folder, so the link would resolve nowhere.
+ */
+function refuseOutside(key, index, field, value, where) {
+  throw new Refusal('state-summary-artifact-outside',
+    `node_summaries.${key}.artifacts[${index}].${field} is ${JSON.stringify(value)}, which lies outside the task folder `
+    + `${where.taskPath}. Nothing was written. Name the file relative to the task folder (outputs/report.md, not `
+    + `${where.taskPath}/outputs/report.md), or leave it out of the summary: a file outside the task folder is not this run's artifact`);
 }
 
 /**
@@ -4049,9 +4070,11 @@ function runOf(doc, runDir) {
     definition = null;
   }
   const workflow = isPlainObject(state.workflow) ? state.workflow : {};
+  const root = projectRootOf(runDir);
   return {
     runDir,
-    root: projectRootOf(runDir),
+    root,
+    where: whereOf({ state, runDir, root }),
     definition,
     nodes: isPlainObject(workflow.nodes) ? workflow.nodes : {},
     html: htmlOutput(state),
@@ -4085,7 +4108,11 @@ function registerArtifacts(entry, nodeId, run) {
   const nodes = isPlainObject(run.definition?.nodes) ? run.definition.nodes : {};
   const node = Object.hasOwn(nodes, nodeId) && isPlainObject(nodes[nodeId]) ? nodes[nodeId] : {};
   const declared = isPlainObject(node.outputs?.artifacts) ? Object.values(node.outputs.artifacts) : [];
-  const artifacts = Array.isArray(entry.artifacts) ? [...entry.artifacts] : [];
+  const listed = Array.isArray(entry.artifacts) ? entry.artifacts : [];
+  // A list held from an earlier write is read as the dashboard reads it:
+  // placed task-relative, an entry with no place in the task folder left out,
+  // each file once — so what is appended below is never a second copy.
+  const artifacts = placedArtifacts(listed, run.where);
   const pathOf = item => (typeof item === 'string' ? item : isPlainObject(item) ? item.path : undefined);
   const named = new Set(artifacts.map(pathOf));
   const literal = relative => typeof relative === 'string' && relative !== '' && !path.isAbsolute(relative)
@@ -4100,7 +4127,7 @@ function registerArtifacts(entry, nodeId, run) {
   };
   const registered = registeredPath(node, nodeId, run);
 
-  let touched = false;
+  let touched = JSON.stringify(artifacts) !== JSON.stringify(listed);
   for (const declaredPath of declared) {
     const relative = registered(declaredPath);
     if (relative === null || named.has(relative) || !exists(relative)) continue;
