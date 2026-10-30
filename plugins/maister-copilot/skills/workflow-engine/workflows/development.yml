@@ -65,17 +65,19 @@ version: 1
 description: "Builds a change to the code — a new feature, an enhancement, a bug fix or a refactor — from analysis through specification, planning, implementation and verification, with an operator gate after each phase. Use it for any task that modifies code; the optional stretches (a failing test written before the fix, UI mockups, a specification audit, browser checks, user documentation) run only when the task calls for them."
 inputs:
   task_description: {type: string, required: true}
-  research: {type: string, required: false}
+  # The path of a completed research task whose report and artifacts the
+  # intake copies in as the run's research context.
+  research: {type: path, required: false}
   # The path of a context pack — a file or a directory — handed over by
   # whatever started the run; the intake copies it in as context.
   context: {type: path, required: false}
   # The path of a completed product-design task, or of its brief, whose brief
   # and mockups the intake copies in as the run's design context.
-  design: {type: string, required: false}
+  design: {type: path, required: false}
   # The path of a high-level design document, or of a research task whose
   # outputs hold one; the intake copies it in, with the decision log beside it,
   # as constraints the specification and the plan work within.
-  architecture: {type: string, required: false}
+  architecture: {type: path, required: false}
   # Tri-state, and a string rather than a bool for that reason: absent means
   # no flag was set, `yes`/`no` means it was. Never referenced from a `when`
   # clause. `user_docs` is turned into a declared bool by the node that reads

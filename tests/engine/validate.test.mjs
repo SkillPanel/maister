@@ -105,7 +105,7 @@ test('a chain step passes a product-design path to development as its design inp
 test('development declares an optional architecture input, a path beside the design input', () => {
   const { doc, errors } = parseDefinition(fs.readFileSync(DEVELOPMENT, 'utf8'), DEVELOPMENT);
   assert.deepEqual(errors, []);
-  assert.deepEqual({ ...doc.inputs.architecture }, { type: 'string', required: false });
+  assert.deepEqual({ ...doc.inputs.architecture }, { type: 'path', required: false });
 });
 
 test('development hands the architecture to the intake, and the copied context to the specification and the plan', () => {
