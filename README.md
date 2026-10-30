@@ -246,7 +246,7 @@ The Pro Edition adds what unattended and multi-repository work needs: driven ses
 /plugin install maister@maister-pro
 ```
 
-Because both editions use the plugin name `maister`, uninstall the other channel first. With both enabled, Claude Code can load each skill from either edition. Maister detects this: a warning at session start names both editions and the command that disables each, and the workflow engine won't start or resume a run until only one is enabled and Claude Code has been restarted:
+Because both editions use the plugin name `maister`, uninstall the other channel first. With both enabled, Claude Code can load each skill from either edition. Maister detects this: a warning at session start names both editions and the command that disables each, and the workflow engine won't start or resume a run until only one is enabled and Claude Code has been restarted. A tool that starts sessions with `--settings` to turn an edition off for that session also sets `MAISTER_SESSION_SETTINGS` to the same file path or JSON, so the check sees that layer (see [the plugin README](plugins/maister/README.md#sessions-started-with---settings)):
 
 ```bash
 /plugin uninstall maister@maister-plugins

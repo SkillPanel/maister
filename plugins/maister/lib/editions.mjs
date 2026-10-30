@@ -14,11 +14,18 @@
  * and runs whichever of them wins.
  *
  * Where the answer comes from. `enabledPlugins` in the documented settings
- * files, merged by precedence — user, then project, then local, then managed,
- * the later scope winning key by key, so a `false` above overrides a `true`
- * below. File reads only: no subprocess, no `claude` on PATH, nothing a hook on
- * Windows without a shell could miss. A layer that lives only in the session —
- * `--settings` — is invisible here, as it is to every other reader.
+ * sources, merged by precedence — user, then project, then local, then the
+ * session's `--settings`, then managed, the later scope winning key by key, so
+ * a `false` above overrides a `true` below. File reads only: no subprocess, no
+ * `claude` on PATH, nothing a hook on Windows without a shell could miss.
+ *
+ * The session layer. Claude Code hands neither a hook nor a child process the
+ * value a session was started with through `--settings`, so whoever starts the
+ * session names it a second time in the environment: `MAISTER_SESSION_SETTINGS`
+ * holds what `--settings` was given — an absolute path to a settings file, or
+ * the inline JSON itself (a value whose first non-blank character is `{`).
+ * Without the variable a session that disables an edition only through
+ * `--settings` is still reported as a collision.
  *
  * When a collision is real. At least two distinct `<name>@<marketplace>` ids
  * are enabled, and the copy running this code is one of them. A copy loaded
@@ -29,7 +36,9 @@
  *
  * It fails open. A settings file that is absent counts as empty; one that
  * cannot be read or parsed, or anything else that goes wrong, answers "no
- * collision". A detection failure never warns and never refuses a run.
+ * collision". A detection failure never warns and never refuses a run. The
+ * session layer alone is softer still: a value that cannot be read, parsed or
+ * understood counts as no information from that layer, and the files decide.
  */
 
 import fs from 'node:fs';
@@ -47,14 +56,18 @@ const SHARED_NAME = 'maister';
 const MANIFEST_DEPTH = 3;
 
 /** The settings label a scope is reported under, and the `--scope` it is disabled with. */
-const SCOPE_LABEL = { user: 'user settings', project: 'project settings', local: 'local settings', managed: 'managed settings' };
+const SCOPE_LABEL = { user: 'user settings', project: 'project settings', local: 'local settings', session: 'session settings', managed: 'managed settings' };
+
+/** The variable naming what the session's `--settings` was given. */
+const SESSION_VARIABLE = 'MAISTER_SESSION_SETTINGS';
 
 /**
  * The collision this session is in, or null.
  *
  * Returns `{ name, editions: [{ id, scope }], message }`. `projectDir` is the
- * directory the session started in; without one only the user and managed
- * scopes are read. `managedFiles` defaults to this platform's managed settings
+ * directory the session started in; without one only the user, session and
+ * managed scopes are read. `env` supplies the config directory and the session
+ * layer. `managedFiles` defaults to this platform's managed settings
  * and is a parameter so a test can supply its own. Never throws.
  */
 export function findEditionCollision({ pluginRoot, projectDir = null, env = process.env, managedFiles } = {}) {
@@ -71,19 +84,19 @@ function detect({ pluginRoot, projectDir, env, managedFiles }) {
   const own = ownMarketplace(pluginRoot, name);
   if (own === null) return null;
 
-  const enabled = new Map();
   const configDir = env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
-  const scopes = [['user', [path.join(configDir, 'settings.json')]]];
+  const layers = [['user', enabledPluginsOf(path.join(configDir, 'settings.json'))]];
   if (projectDir) {
-    scopes.push(['project', [path.join(projectDir, '.claude', 'settings.json')]]);
-    scopes.push(['local', [path.join(projectDir, '.claude', 'settings.local.json')]]);
+    layers.push(['project', enabledPluginsOf(path.join(projectDir, '.claude', 'settings.json'))]);
+    layers.push(['local', enabledPluginsOf(path.join(projectDir, '.claude', 'settings.local.json'))]);
   }
-  scopes.push(['managed', managedFiles]);
-  for (const [scope, files] of scopes) {
-    for (const file of files) {
-      for (const [id, value] of Object.entries(enabledPluginsOf(file))) {
-        if (typeof value === 'boolean') enabled.set(id, { value, scope });
-      }
+  layers.push(['session', sessionEnabledPlugins(env[SESSION_VARIABLE])]);
+  for (const file of managedFiles) layers.push(['managed', enabledPluginsOf(file)]);
+
+  const enabled = new Map();
+  for (const [scope, plugins] of layers) {
+    for (const [id, value] of Object.entries(plugins)) {
+      if (typeof value === 'boolean') enabled.set(id, { value, scope });
     }
   }
 
@@ -99,7 +112,7 @@ function detect({ pluginRoot, projectDir, env, managedFiles }) {
   return {
     name,
     editions: editions.map(({ id, scope }) => ({ id, scope })),
-    message: messageFor(name, editions),
+    message: messageFor(name, editions, Boolean(env[SESSION_VARIABLE])),
   };
 }
 
@@ -162,10 +175,29 @@ function managedSettingsFiles() {
  */
 function enabledPluginsOf(file) {
   const doc = readJson(file);
-  if (doc === null) return {};
-  if (!isPlainObject(doc)) throw new Error(`${file} is not a settings object`);
+  return doc === null ? {} : pluginsOfSettings(doc, file);
+}
+
+/**
+ * The session layer's `enabledPlugins`: from the inline JSON or the file the
+ * variable names, the way `--settings` takes either. Unset, empty, unreadable,
+ * not JSON or the wrong shape is empty — no information from this layer.
+ */
+function sessionEnabledPlugins(value) {
+  if (typeof value !== 'string' || value.trim() === '') return {};
+  try {
+    if (value.trimStart().startsWith('{')) return pluginsOfSettings(JSON.parse(value), SESSION_VARIABLE);
+    return enabledPluginsOf(value);
+  } catch {
+    return {};
+  }
+}
+
+/** A parsed settings document's `enabledPlugins`; the wrong shape throws. */
+function pluginsOfSettings(doc, label) {
+  if (!isPlainObject(doc)) throw new Error(`${label} is not a settings object`);
   if (doc.enabledPlugins === undefined) return {};
-  if (!isPlainObject(doc.enabledPlugins)) throw new Error(`${file} has an enabledPlugins that is not an object`);
+  if (!isPlainObject(doc.enabledPlugins)) throw new Error(`${label} has an enabledPlugins that is not an object`);
   return doc.enabledPlugins;
 }
 
@@ -204,19 +236,31 @@ function isPlainObject(value) {
 
 /**
  * What the operator reads: every enabled edition with the scope that enabled
- * it, why that breaks, and the fix on one line. A managed-scope edition has no
- * command an operator can run, so it is named without one.
+ * it, why that breaks, and the fix. A managed-scope or session-scope edition has
+ * no command an operator can run, so it is named without one. When the session
+ * layer was not supplied, the message says how a session started with
+ * `--settings` makes it visible, since that may be all that is wrong.
  */
-function messageFor(name, editions) {
+function messageFor(name, editions, sessionSupplied) {
   const listed = editions.map(({ id, scope }) => `${id} (${SCOPE_LABEL[scope]})`);
   const commands = editions
-    .filter(({ scope }) => scope !== 'managed')
+    .filter(({ scope }) => scope !== 'managed' && scope !== 'session')
     .map(({ id, scope }) => `\`claude plugin disable ${id} --scope ${scope}\``);
-  const fix = commands.length
-    ? `Keep one enabled and disable the others, then restart Claude Code: ${commands.join(' or ')}.`
-    : 'All of them are set by managed settings; ask the administrator who manages them to keep only one enabled.';
+  const fixes = [];
+  if (commands.length) fixes.push(`Keep one enabled and disable the others, then restart Claude Code: ${commands.join(' or ')}.`);
+  if (editions.some(({ scope }) => scope === 'session')) {
+    fixes.push(`An edition enabled by session settings is changed in the settings the session was started with (\`--settings\`, named again in ${SESSION_VARIABLE}).`);
+  }
+  if (editions.every(({ scope }) => scope === 'managed')) {
+    fixes.push('All of them are set by managed settings; ask the administrator who manages them to keep only one enabled.');
+  } else if (editions.some(({ scope }) => scope === 'managed')) {
+    fixes.push('An edition set by managed settings is changed only by the administrator who manages them.');
+  }
+  if (!sessionSupplied) {
+    fixes.push(`If this session was started with \`--settings\` that disables an edition, set ${SESSION_VARIABLE} to the same file path or JSON when starting it, so this check reads that layer too.`);
+  }
   const count = ['Two', 'Three', 'Four'][editions.length - 2] ?? String(editions.length);
   return `${count} editions of the ${name} plugin are enabled: ${listed.join(', ')}. `
     + 'Claude Code then loads each skill from either edition, so a workflow can fail on a file only the other edition ships. '
-    + fix;
+    + fixes.join(' ');
 }

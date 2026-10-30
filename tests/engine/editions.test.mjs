@@ -184,6 +184,111 @@ test('editions: the Copilot variant is a no-op', t => {
 });
 
 // ---------------------------------------------------------------------------
+// the session layer: what --settings was given, named in MAISTER_SESSION_SETTINGS
+// ---------------------------------------------------------------------------
+
+/**
+ * The launcher's case: this edition on in user settings, the other at local
+ * scope. Returns the project, its env and a detector bound to both.
+ */
+function launcherCase(t) {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-project-'));
+  t.after(() => fs.rmSync(project, { recursive: true, force: true }));
+  const env = settings(t, project, { user: enabled([[MINE, true]]), local: enabled([[OTHER, true]]) });
+  const detect = (extra = {}, managedFiles = []) => findEditionCollision({ pluginRoot: PLUGIN, projectDir: project, env: { ...env, ...extra }, managedFiles });
+  return { project, env, detect };
+}
+
+function sessionFile(project, value) {
+  const file = path.join(project, 'session-settings.json');
+  place(file, value);
+  return file;
+}
+
+test('editions: a session layer turning this edition off clears the collision', t => {
+  const { project, detect } = launcherCase(t);
+  const file = sessionFile(project, enabled([[MINE, false]]));
+  assert.equal(detect({ MAISTER_SESSION_SETTINGS: file }), null);
+});
+
+test('editions: without the session layer the same settings are a collision that says how to supply it', t => {
+  const { detect } = launcherCase(t);
+  const found = detect();
+  assert.deepEqual(found?.editions, [{ id: MINE, scope: 'user' }, { id: OTHER, scope: 'local' }]);
+  assert.ok(found.message.includes('MAISTER_SESSION_SETTINGS'), found.message);
+});
+
+test('editions: a session layer turning the other edition off clears the collision', t => {
+  const { project, detect } = launcherCase(t);
+  const file = sessionFile(project, enabled([[OTHER, false]]));
+  assert.equal(detect({ MAISTER_SESSION_SETTINGS: file }), null);
+});
+
+test('editions: the session layer takes inline JSON, as --settings does', t => {
+  const { detect } = launcherCase(t);
+  assert.equal(detect({ MAISTER_SESSION_SETTINGS: `  ${JSON.stringify(enabled([[MINE, false]]))}` }), null);
+});
+
+test('editions: a session layer that cannot be read or understood counts as absent', t => {
+  const { project, detect } = launcherCase(t);
+  const cases = {
+    missing: path.join(project, 'no-such-settings.json'),
+    directory: sessionFile(project, DIR),
+    malformedFile: sessionFile(path.join(project, 'bad'), '{ not json'),
+    malformedInline: '{ not json',
+    notAnObject: sessionFile(path.join(project, 'array'), '[1, 2]'),
+    badShape: sessionFile(path.join(project, 'shape'), { enabledPlugins: ['maister'] }),
+    empty: '',
+  };
+  for (const [label, value] of Object.entries(cases)) {
+    const found = detect({ MAISTER_SESSION_SETTINGS: value });
+    assert.deepEqual(found?.editions.map(edition => edition.id), [MINE, OTHER], label);
+  }
+});
+
+test('editions: managed settings win over the session layer', t => {
+  const { project, detect } = launcherCase(t);
+  const file = sessionFile(project, enabled([[MINE, false]]));
+  const managed = path.join(project, 'managed-settings.json');
+  fs.writeFileSync(managed, JSON.stringify(enabled([[MINE, true]])));
+  const found = detect({ MAISTER_SESSION_SETTINGS: file }, [managed]);
+  assert.deepEqual(found?.editions, [{ id: MINE, scope: 'managed' }, { id: OTHER, scope: 'local' }]);
+});
+
+test('editions: the session layer wins over local settings and is named without a disable command', t => {
+  const { project, detect } = launcherCase(t);
+  // Local settings turn the other edition on; the session layer turns this one on over a local false.
+  const file = sessionFile(project, enabled([[MINE, true]]));
+  const local = path.join(project, '.claude', 'settings.local.json');
+  fs.writeFileSync(local, JSON.stringify(enabled([[MINE, false], [OTHER, true]])));
+  const found = detect({ MAISTER_SESSION_SETTINGS: file });
+  assert.deepEqual(found?.editions, [{ id: MINE, scope: 'session' }, { id: OTHER, scope: 'local' }]);
+  assert.ok(found.message.includes(`claude plugin disable ${OTHER} --scope local`), found.message);
+  assert.doesNotMatch(found.message, /--scope session/);
+  assert.match(found.message, /session settings/);
+  assert.doesNotMatch(found.message, /If this session was started with/, 'the layer was supplied');
+});
+
+test('editions: the engine starts a run when the session layer turns an edition off', t => {
+  const run = scratch(t);
+  const env = settings(t, run.root, { user: enabled([[MINE, true]]), local: enabled([[OTHER, true]]) });
+  const file = path.join(run.root, 'session-settings.json');
+  place(file, enabled([[MINE, false]]));
+  assertRefused(freezeUnder(run, env));
+  const result = freezeUnder(run, { ...env, MAISTER_SESSION_SETTINGS: file });
+  assert.equal(result.code, 0, result.stderr);
+});
+
+test('editions: the session-start hook reads the session layer', t => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-project-'));
+  t.after(() => fs.rmSync(project, { recursive: true, force: true }));
+  const env = settings(t, project, { user: enabled([[MINE, true]]), local: enabled([[OTHER, true]]) });
+  const inline = JSON.stringify(enabled([[OTHER, false]]));
+  const result = run(HOOK, [], { hook_event_name: 'SessionStart', cwd: project }, { ...env, MAISTER_SESSION_SETTINGS: inline });
+  assert.deepEqual([result.code, result.stdout], [0, '']);
+});
+
+// ---------------------------------------------------------------------------
 // the session-start hook
 // ---------------------------------------------------------------------------
 
