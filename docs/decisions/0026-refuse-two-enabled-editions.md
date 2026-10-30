@@ -6,14 +6,15 @@
 The free and pro editions share the plugin name `maister`. When both are enabled, Claude Code
 resolves skills **per skill directory**, not per plugin, so one session can draw skill bodies from
 both editions, and a workflow then fails on a file only the other edition ships, with
-nothing but `ENOENT` to say why. The plugin now detects the case from the settings scopes and acts
+nothing but `ENOENT` to say why. The plugin now detects the case from the settings scopes, the
+session's `--settings` among them when the launcher names it in `MAISTER_SESSION_SETTINGS`, and acts
 on it in two places:
 - a **SessionStart hook** warns the operator (`systemMessage`) and the model (`additionalContext`);
 - **`write-state`**, the verb that freezes a run and carries every write after it, **refuses** with
   `edition-collision`, so neither a start nor a resume lands.
 
 A definition that can't be read while the collision holds reports it next to the missing file.
-Detection reads files only and **fails open**.
+Detection reads files and that one variable only, and **fails open**.
 
 ## ADR-0026: Two enabled editions are detected, warned about and refused {#adr-0026}
 
@@ -37,12 +38,24 @@ plugins outright, belongs to Claude Code's loader, not to a plugin.
 ### Decision Outcome
 Chosen option: **the settings-scope merge**.
 
-`enabledPlugins` is read from these files, in rising precedence, with each later scope winning key
+`enabledPlugins` is read from these sources, in rising precedence, with each later scope winning key
 by key, so a `false` above overrides a `true` below:
 1. user (`$CLAUDE_CONFIG_DIR` or `~/.claude`)
 2. project `.claude/settings.json`
 3. local `.claude/settings.local.json`
-4. managed (`managed-settings.json`, then `managed-settings.d/*.json` in name order)
+4. session: what `MAISTER_SESSION_SETTINGS` names, the same value the session's `--settings` was given
+5. managed (`managed-settings.json`, then `managed-settings.d/*.json` in name order)
+
+This is Claude Code's documented order: settings precedence runs "managed settings, command line,
+project local, shared project, user", and `enabledPlugins` merges key by key, the highest source
+that mentions an id deciding it.
+
+**The session layer.** Claude Code passes a hook or a child process neither the `--settings` value
+nor the merged settings: no hook input field and no environment variable carries them. So whoever
+starts the session names the layer a second time, in `MAISTER_SESSION_SETTINGS`, in either form
+`--settings` takes: an absolute path to a settings file, or inline JSON (a value whose first
+non-blank character is `{`). Reading the parent process's command line was rejected: it needs a
+subprocess or a platform-specific procfs read, and a hook on Windows without a shell has neither.
 
 The format is documented and the reads cost milliseconds, which matters on every `write-state` and
 inside a 10-second hook. The subprocess would add a CLI spawn to every write, a dependency on
@@ -65,7 +78,9 @@ plugin of the same name, so it's never a collision. For the same reason, a `--pl
 beside installed editions disabled in `settings.local.json` isn't a collision.
 
 **Fails open.** An absent settings file counts as empty. An unreadable or malformed one, or any
-other error, answers "no collision": nothing is warned and nothing is refused.
+other error, answers "no collision": nothing is warned and nothing is refused. The session layer
+is softer: a value that can't be read, parsed or understood counts as no information from that
+layer, and the settings files decide.
 
 **Copilot variant.** The check is a no-op there. Its manifest name is `maister-copilot`, and the
 build drops `hooks/`, so the SessionStart hook is never emitted.
@@ -77,8 +92,10 @@ build drops `hooks/`, so the SessionStart hook is never emitted.
 - Free-edition sessions now run one Node hook at session start. The engine already requires Node
   20 (ADR-0025). Without Node the hook exits non-zero, which Claude Code reports as a non-blocking
   error.
-- **Blind spot: `--settings`.** A disable passed only through `--settings` lives in the session and
-  isn't visible to any file reader. Such a session is reported as a collision.
+- **The session layer needs the launcher.** A disable passed only through `--settings`, with
+  `MAISTER_SESSION_SETTINGS` unset, is still invisible, and such a session is reported as a
+  collision. The message then says how to make the layer visible. An edition enabled by the session
+  layer is named without a `claude plugin disable` command, since none reaches that layer.
 - **Blind spot: an inline copy loaded from a marketplace's own plugin directory.** Take a
   `--plugin-dir` session loaded from a directory-source marketplace's own plugin directory, while
   that marketplace and another edition are both still enabled. By path it can't be told apart from

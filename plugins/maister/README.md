@@ -56,8 +56,16 @@ The plugin registers four hooks, each a Node script with no dependencies. None o
 
 - **SessionStart**: injects a short reminder to run `/maister:*` commands through their skill and to ask at every workflow checkpoint.
 - **SessionStart (after compaction)**: when the project has `.maister/tasks/`, reminds Claude to re-read the active workflow's `orchestrator-state.yml` so a long workflow resumes at the right step.
-- **SessionStart (edition check)**: warns when two editions of the plugin are enabled at once. It reads local settings only.
+- **SessionStart (edition check)**: warns when two editions of the plugin are enabled at once. It reads local settings only: the settings files, and the file or JSON `MAISTER_SESSION_SETTINGS` names when a session is started with `--settings` (see [Sessions started with `--settings`](#sessions-started-with---settings)).
 - **PreToolUse (Bash)**: blocks destructive commands (`git stash`, `git reset --hard`, `git checkout .`, `git clean`, `git push --force`, `rm -rf`) from subagents. It judges subagents only, and only commands that lose data: your own commands in the main session, and outward actions such as a commit, a push or a pull request, are left to Claude Code's permission system and to you.
+
+### Sessions started with `--settings`
+
+Claude Code doesn't tell a hook or a script what a session's `--settings` holds, so the edition check can't see an edition that `--settings` turns off. A tool that starts sessions with `--settings` sets `MAISTER_SESSION_SETTINGS` in the session's environment to the same value: an absolute path to the settings file, or the inline JSON. The check then reads that layer where Claude Code ranks `--settings`: above user, project and local settings, below managed settings. A value it can't read or parse is ignored, and the settings files decide.
+
+```bash
+MAISTER_SESSION_SETTINGS=/path/to/session-settings.json claude --settings /path/to/session-settings.json
+```
 
 A Pro Edition, for driven sessions and multi-repository work, installs from a private marketplace; see the repository README.
 
