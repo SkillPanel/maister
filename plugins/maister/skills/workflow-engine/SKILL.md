@@ -580,7 +580,7 @@ names a target as written. Each reference reads the run's state, never a recolle
 |---|---|
 | `${inputs.<name>}` | `orchestrator.options.inputs.<name>`; else the input's declared `default`; else null |
 | `${<node>.values.<key>}` | the value the node recorded in `workflow.nodes.<node>.values`. A skipped node recorded its bools false and its strings and enums null |
-| `${<node>.artifacts.<key>}` | the path the node declares, joined onto the task directory of the run that wrote it and spelled repository-root-relative (*Recording an outcome*) |
+| `${<node>.artifacts.<key>}` | the path the node declares, joined onto the task directory of the run that wrote it and spelled repository-root-relative (*Recording an outcome*). A node with `dir:` declares a member repository's path: a dispatch envelope reads it in that dispatch's worktree once its close-out is published (the umbrella skill, `seed`) |
 
 **A value keeps its type when the reference is the whole string.** `with: {deep:
 "${intake.values.deep}"}` hands over the bool `true`, and a null stays null. A reference inside

@@ -468,7 +468,22 @@ a path is stated as given, and without a root every input is stated as named.
 One rule decides what a path is, for the envelope and the prompt alike: a value
 with no whitespace and no `${…}` that holds a `/`. A bare filename such as
 `context.md` is an argument, not an input; write `./context.md` to hand that
-file over. The prompt tells the worker to read each input where it is and never
+file over.
+A `${…}` reference in the `with:` map is filled in when the envelope is built,
+by the workflow engine's interpolation rule — a reference that is the whole
+value keeps its type, one inside longer text becomes text — and the envelope's
+`workflow.with` carries the filled values. `${inputs.<name>}` and
+`${<node>.values.<key>}` read the run's state, and the filled value is judged
+by the path rule like a literal. A whole-value `${<node>.artifacts.<key>}` is
+an input under its key whatever it spells. When the node it names dispatches
+into a member, its declared path is that member repository's: it is read where
+that dispatch worked, the member's path then the run's worktree from the
+dispatch's published envelope (`repos/alpha/.worktrees/<run>-alpha/docs/plan.md`),
+so a later node for the same member and a node for another member read the same
+file. The earlier dispatch must have published its close-out and the file must
+be on disk there; otherwise the envelope is refused. Any other node's artifact
+is placed as the engine places it, under the run's task directory or a sub-run's
+recorded `task_path`. The prompt tells the worker to read each input where it is and never
 copy it into its checkout, which the read-only grant would refuse. A step that
 brings an input into its run does it with the workflow engine's `import` verb,
 which reads from the workspace root as well as the member checkout for a run the
@@ -697,6 +712,9 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. Nothing was written. |
 | `dispatch-no-git-host` | The node sets `publish: true` and owes a pull request, but no git host resolves for its member: the manifest's `git_host.kind` is unset and the member's checkout has no remote on a host. The worker could neither push for review nor open the pull request, and would find out only at its close-out. Set `git_host.kind` in the manifest, give the member a remote on its git host, or drop `publish` from the node's `with:` map. Nothing was written. |
 | `dispatch-siblings-invalid` | The dispatch override carries a `siblings` field that is not a list of `{member, branch, worktree}`, each a non-empty string. It is refused rather than trimmed, because a worker sent to half a path reads the wrong tree. Correct the list the caller builds from the outcome's recorded dispatches, or leave the field out, and re-run. Nothing was written. |
+| `dispatch-reference-unclosed` | The node's `with:` map reads `${<node>.artifacts.<key>}` from a node that dispatches into a member, and that dispatch has not finished: no envelope for it is published in the run's `dispatch/` directory, or its outbox holds no close-out. A worker dispatched now would be told to read a file nobody has written. Build this envelope once the earlier node has closed out. Nothing was written. |
+| `dispatch-reference-missing` | The earlier dispatch closed out, but the artifact the reference names is not on disk where it worked — its declared path under the member's path and the run's worktree — or the earlier node declares no such artifact. Re-dispatch the earlier node so it writes the file, or correct its declared path or the reference, and run `validate` again. Nothing was written. |
+| `dispatch-reference-unresolved` | Any other reference in the node's `with:` map that finds nothing: a value the run never recorded for the node it names, a sub-run whose task path is not recorded yet, or a form the grammar does not admit. A reference is never dropped or handed on as text. Record the value through the workflow engine's `write-state` or let the earlier node finish, then build the envelope again. Nothing was written. |
 | `dispatch-envelope-exists` | An envelope for this node is already published. The runtime never overwrites one, because a worker may already hold it. The check runs before the ledger entry is opened, so nothing was written. If the dispatch really is being redone, it is a new dispatch. |
 | `dispatch-id-mismatch` | The overrides name a `dispatch_id` whose ledger entry records a different run or node, and an envelope under that id would hand this node's work to another dispatch's records. Nothing was written. Drop `dispatch_id` from the overrides — the verb then uses this node's own entry, or opens one — or name the id the node's entry carries. |
 | `dispatch-unwritable` | The dispatch directory could not be written. Fix the path or its permissions, then re-run. When the report carries `entry_written: true`, the ledger entry was opened before the publish failed; re-running `envelope` finds it by its run and node and publishes under the same id, so it is never opened twice. |

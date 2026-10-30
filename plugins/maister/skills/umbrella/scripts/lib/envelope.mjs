@@ -83,7 +83,9 @@
  * `dispatch-run-unresolved`, `dispatch-permissions-override-unsupported`,
  * `dispatch-closeout-impossible`, `dispatch-no-git-host`, `dispatch-siblings-invalid`,
  * `dispatch-envelope-exists`, `dispatch-id-mismatch`, `dispatch-unwritable`,
- * `dispatch-temp-exists`, and `value-not-flow-safe` from the shared emitter.
+ * `dispatch-temp-exists`, `dispatch-reference-unclosed`,
+ * `dispatch-reference-missing`, `dispatch-reference-unresolved`, and
+ * `value-not-flow-safe` from the shared emitter.
  * A refusal of the entry's creation is reported under the ledger's own code.
  * Each is documented with its recovery in `SKILL.md`.
  */
@@ -96,6 +98,7 @@ import { fileURLToPath } from 'node:url';
 import { Refusal, commit, flow, scalar } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
 import { createEntry } from './ledger.mjs';
+import { published } from './outbox.mjs';
 import {
   bareWorkflowName, effectiveCeiling, loadPolicy, locateTarget, narrowerLevel, resolve as resolveGraph, TARGET_REF,
 } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
@@ -307,7 +310,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const resolved = definition ?? resolveFromState({ state, run });
   assertGraphUnchanged({ state, resolved });
 
-  const defined = resolved.nodes.find((entry) => entry.id === node);
+  let defined = resolved.nodes.find((entry) => entry.id === node);
   if (!defined) {
     throw new Refusal('dispatch-node-incomplete',
       `the resolved graph carries no node "${node}", so there is nothing to dispatch`);
@@ -334,12 +337,15 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
 
   assertDriverCapable({ node, uses: defined.uses ?? null });
 
+  const filled = fillReferences({ state, resolved, defined, run, root, node });
+  defined = filled.node;
+
   const provider = resolveProvider({ node, member, defined, recorded, entry, manifest });
   const autonomy = resolveAutonomy({ node, member, defined, entry, manifest });
   const ceiling = resolveCeiling({ state, defined, entry, manifest });
   const runId = runIdOf({ state, run });
 
-  const inputs = inputsOf(defined);
+  const inputs = inputsOf(defined, filled.references);
   const worktree = worktreeOf({ manifest, runId, node, member });
   const session = mapOf(overrides.session);
   const statement = statementOf({ defined, overrides });
@@ -900,14 +906,206 @@ function resolveCeiling({ state, defined, entry, manifest }) {
  * node's `with` map — the only place in the grammar where a node names a file
  * it wants to be handed. The `with` key becomes the input's role, which is what
  * lets a worker tell a research report from a decision log without reading both.
+ *
+ * A key whose value was one whole artifact reference is an input by
+ * construction: `fillReferences` has already resolved it to the file it names,
+ * and a path spelled from a member checkout need not pass the literal rule. Every
+ * other value — literal, or filled from an input or a value — is judged by
+ * `pathLike` exactly as a literal always was.
  */
-function inputsOf(defined) {
+function inputsOf(defined, references = new Set()) {
   const inputs = [];
   for (const [role, value] of Object.entries(mapOf(defined.with))) {
-    if (!pathLike(value)) continue;
+    if (!references.has(role) && !pathLike(value)) continue;
     inputs.push({ path: value, role });
   }
   return inputs;
+}
+
+// ---------------------------------------------------------------------------
+// references in `with:`
+// ---------------------------------------------------------------------------
+
+/** A `${…}` reference anywhere in a string, and one that is the whole string. */
+const REFERENCE = /\$\{([^}]*)\}/g;
+const WHOLE_REFERENCE = /^\$\{([^}]*)\}$/;
+
+/** The statuses whose node recorded no values, so the engine's defaults stand in. */
+const NO_VALUES = new Set(['skipped', 'stopped', 'failed']);
+
+/**
+ * The node with every `${…}` in its `with` map filled in, and the keys whose
+ * value was one whole artifact reference.
+ *
+ * The freeze validates the references a chain node's `with:` carries, but the
+ * envelope reads the definition, where they are still text — so they are
+ * filled here, by the engine's rule (workflow engine § *Interpolating*): a
+ * reference that is the whole string keeps its type, one inside longer text
+ * becomes text and a null there becomes empty. Every consumer of the map below
+ * — autonomy, ceiling, statement, close-out, inputs — reads the filled values,
+ * and the envelope's `workflow.with` carries them, so a worker never receives a
+ * reference it cannot resolve.
+ *
+ * A reference that resolves to nothing is refused, never dropped or passed on
+ * as text: a worker dispatched without an input its node named does the work
+ * blind. A map with no reference comes back as it was, so a literal is
+ * untouched.
+ */
+function fillReferences({ state, resolved, defined, run, root, node }) {
+  const map = mapOf(defined.with);
+  if (!Object.values(map).some(holdsReference)) return { node: defined, references: new Set() };
+  const context = {
+    state,
+    run,
+    root: rootOf(root) ?? process.cwd(),
+    node,
+    byId: new Map(resolved.nodes.map((entry) => [entry.id, entry])),
+    recorded: mapOf(mapOf(state.workflow).nodes),
+    defaults: null,
+  };
+  const references = new Set();
+  const filled = {};
+  for (const [key, value] of Object.entries(map)) {
+    const whole = typeof value === 'string' ? WHOLE_REFERENCE.exec(value) : null;
+    if (whole !== null && whole[1].split('.')[1] === 'artifacts') references.add(key);
+    filled[key] = fillValue(value, context);
+  }
+  return { node: { ...defined, with: filled }, references };
+}
+
+function holdsReference(value) {
+  if (Array.isArray(value)) return value.some(holdsReference);
+  if (value && typeof value === 'object') return Object.values(value).some(holdsReference);
+  return typeof value === 'string' && value.includes('${');
+}
+
+function fillValue(value, context) {
+  if (Array.isArray(value)) return value.map((each) => fillValue(each, context));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, each]) => [key, fillValue(each, context)]));
+  }
+  if (typeof value !== 'string') return value;
+  const whole = WHOLE_REFERENCE.exec(value);
+  if (whole !== null) return lookup(whole[1], context);
+  return value.replace(REFERENCE, (_, reference) => {
+    const found = lookup(reference, context);
+    return found === null ? '' : typeof found === 'object' ? JSON.stringify(found) : String(found);
+  });
+}
+
+/** One reference's value, read from the run's state and, for an artifact, from disk. */
+function lookup(reference, context) {
+  const parts = reference.split('.');
+  if (parts[0] === 'inputs' && parts.length === 2) {
+    const given = mapOf(mapOf(mapOf(context.state.orchestrator).options).inputs);
+    if (Object.hasOwn(given, parts[1])) return given[parts[1]];
+    context.defaults ??= inputDefaultsOf(context);
+    return Object.hasOwn(context.defaults, parts[1]) ? context.defaults[parts[1]] : null;
+  }
+  if (parts.length === 3 && parts[1] === 'values') return valueOf(parts[0], parts[2], context);
+  if (parts.length === 3 && parts[1] === 'artifacts') return artifactOf(parts[0], parts[2], context);
+  throw new Refusal('dispatch-reference-unresolved',
+    `the node "${context.node}" carries \${${reference}} in its with: map, which is not a reference the grammar admits — \${inputs.<name>}, \${<node>.values.<key>} or \${<node>.artifacts.<key>}. Correct the chain and run validate again. Nothing was written.`);
+}
+
+/**
+ * A value a node recorded. A node that recorded none because it was skipped,
+ * stopped or failed reads as the engine reads it — a bool or a gate value as
+ * false, anything else as null — and any other absence is the earlier node's
+ * defect, refused rather than guessed.
+ */
+function valueOf(owner, key, context) {
+  const entry = mapOf(context.recorded[owner]);
+  const values = mapOf(entry.values);
+  if (Object.hasOwn(values, key)) return values[key];
+  if (NO_VALUES.has(entry.status)) {
+    const declared = context.byId.get(owner);
+    return mapOf(mapOf(declared?.outputs).values)[key] === 'bool' || declared?.type === 'gate' ? false : null;
+  }
+  throw new Refusal('dispatch-reference-unresolved',
+    `the node "${context.node}" reads \${${owner}.values.${key}}, but the run records no value "${key}" for the node "${owner}". Record it on that node through the workflow engine's write-state, or re-drive the node, then build the envelope again. Nothing was written.`);
+}
+
+/**
+ * The file an artifact reference names, spelled relative to the workspace root.
+ *
+ * A dispatching node's declared path is the member repository's, so it is read
+ * where that dispatch worked: joined onto the `target` its published envelope
+ * records — the member's path, then the worktree inside it — which is the same
+ * tree a later node for the same member continues in, and the place a node for
+ * another member reads it from. The dispatch must have published its close-out,
+ * the record that it finished, and the file must be on disk at that spelling;
+ * either missing refuses, because a worker told to read a file that is not
+ * there yet reads nothing. Any other node's declared path is the run's own, as
+ * the engine resolves it: joined onto a `workflow:` child's recorded
+ * `task_path`, or onto this run's task directory.
+ */
+function artifactOf(owner, key, context) {
+  const declared = context.byId.get(owner);
+  const declaredPath = mapOf(mapOf(declared?.outputs).artifacts)[key];
+  if (typeof declaredPath !== 'string' || declaredPath === '') {
+    throw new Refusal('dispatch-reference-missing',
+      `the node "${context.node}" reads \${${owner}.artifacts.${key}}, but the node "${owner}" declares no artifact "${key}" under outputs.artifacts. Declare it there or correct the reference, and run validate again. Nothing was written.`);
+  }
+  if (typeof declared.dir === 'string' && declared.dir !== '') return dispatchedArtifact({ owner, key, declaredPath, context });
+  if (typeof declared.uses === 'string' && declared.uses.startsWith('workflow:')) {
+    const taskPath = mapOf(mapOf(context.recorded[owner]).values).task_path;
+    if (typeof taskPath !== 'string' || taskPath === '') {
+      throw new Refusal('dispatch-reference-unresolved',
+        `the node "${context.node}" reads \${${owner}.artifacts.${key}}, but the run records no task_path for the sub-run "${owner}", so its artifact cannot be placed. Let the sub-run's outcome be adopted first, then build the envelope again. Nothing was written.`);
+    }
+    return path.posix.join(taskPath, declaredPath);
+  }
+  return path.posix.join(taskDirOf(context), declaredPath);
+}
+
+function dispatchedArtifact({ owner, key, declaredPath, context }) {
+  const reference = `\${${owner}.artifacts.${key}}`;
+  const file = path.join(context.run, 'dispatch', `${owner}.envelope.yml`);
+  const dispatched = isFile(file) ? readDefinition(file).doc : null;
+  const target = mapOf(dispatched?.target);
+  if (dispatched === null || typeof dispatched.dispatch_id !== 'string' || typeof dispatched.outbox !== 'string'
+    || typeof target.path !== 'string' || target.path === '') {
+    throw new Refusal('dispatch-reference-unclosed',
+      `the node "${context.node}" reads ${reference}, but no readable envelope for the node "${owner}" is published at ${file}, so it has not been dispatched and nothing it wrote can be found. Dispatch "${owner}" and let it close out first. Nothing was written.`);
+  }
+  const id = dispatched.dispatch_id;
+  const outbox = path.resolve(context.root, dispatched.outbox);
+  const outboxRoot = path.basename(outbox) === id ? path.dirname(outbox) : outbox;
+  let messages;
+  try {
+    messages = published({ outbox: outboxRoot, dispatch_id: id });
+  } catch (err) {
+    if (!(err instanceof Refusal)) throw err;
+    throw new Refusal('dispatch-reference-unclosed',
+      `the node "${context.node}" reads ${reference}, but the outbox of ${id}, the dispatch of "${owner}", could not be read: ${err.message} Nothing was written.`);
+  }
+  if (!messages.some((message) => message.type === 'closeout')) {
+    throw new Refusal('dispatch-reference-unclosed',
+      `the node "${context.node}" reads ${reference}, but ${id}, the dispatch of "${owner}", has published no close-out in ${path.join(outboxRoot, id)}, so it has not finished. Build this envelope once "${owner}" has closed out. Nothing was written.`);
+  }
+  const spelled = path.posix.join(target.path, typeof target.worktree === 'string' ? target.worktree : '', declaredPath);
+  if (!fs.existsSync(path.resolve(context.root, spelled))) {
+    throw new Refusal('dispatch-reference-missing',
+      `the node "${context.node}" reads ${reference}, but ${id}, the dispatch of "${owner}", closed out without writing it: nothing is at ${spelled} under the workspace root. Re-dispatch "${owner}" so it writes ${declaredPath}, or correct its declared path. Nothing was written.`);
+  }
+  return spelled;
+}
+
+/** The run's task directory, workspace-root-relative and spelled with `/`, as the engine places it. */
+function taskDirOf({ state, run, root }) {
+  const recorded = mapOf(state.orchestrator).task_path;
+  const dir = typeof recorded === 'string' && recorded.trim() !== '' ? path.resolve(root, recorded) : path.resolve(run);
+  return path.relative(root, dir).split(path.sep).join('/');
+}
+
+/** The input defaults the run's definition declares, read only when a reference needs one. */
+function inputDefaultsOf({ state, run }) {
+  const read = readDefinition(definitionPath({ source: mapOf(state.workflow).source, run }));
+  const declared = mapOf(read.doc?.inputs);
+  return Object.fromEntries(Object.entries(declared)
+    .filter(([, each]) => Object.hasOwn(mapOf(each), 'default'))
+    .map(([name, each]) => [name, each.default]));
 }
 
 /**
