@@ -11,9 +11,11 @@ import { buildSeed, renderSeed } from '../../plugins/maister/skills/umbrella/scr
 // `${plan.artifacts.plan}` — and the freeze validates it. The envelope fills it
 // in: a dispatching node's declared artifact is the member repository's path, so
 // it is read in the worktree that dispatch worked in, once the dispatch has
-// closed out and the file is there. The filled path becomes a read-only input
-// under its `with` key, as a literal path does. A reference that cannot be
-// filled is refused by name, never dropped.
+// closed out and the file is there. A dispatching `workflow:` node's worker
+// names its own task directory only when its run starts, so its artifact is
+// read from the `{key, path}` list its close-out carries instead. The filled
+// path becomes a read-only input under its `with` key, as a literal path does.
+// A reference that cannot be filled is refused by name, never dropped.
 
 const RUN_ID = '2026-01-05-chain';
 
@@ -35,12 +37,18 @@ function workspace(t) {
   };
 }
 
-/** A chain whose `plan` node writes `docs/plan.md` in alpha and whose `change` node reads it. */
-function chain({ member = 'alpha', withLines = ['      plan: ${plan.artifacts.plan}'], head = [] } = {}) {
+/**
+ * A chain whose `plan` node writes its plan in alpha and whose `change` node
+ * reads it. By default `plan` is a plain dispatching node, a skill writing
+ * `docs/plan.md` in the member; with `uses: 'workflow:plan'` it is a dispatched
+ * workflow run whose declared path is relative to the child's task directory.
+ */
+function chain({ member = 'alpha', withLines = ['      plan: ${plan.artifacts.plan}'], head = [], uses = 'skill:development' } = {}) {
+  const declared = uses.startsWith('workflow:') ? 'implementation/plan.md' : 'docs/plan.md';
   return [
     'name: chain', 'version: 1', ...head, 'nodes:',
-    '  plan:', '    uses: workflow:plan', '    dir: alpha', '    provider: claude', '    needs: []',
-    '    outputs:', '      artifacts:', '        plan: docs/plan.md',
+    '  plan:', `    uses: ${uses}`, '    dir: alpha', '    provider: claude', '    needs: []',
+    '    outputs:', '      artifacts:', `        plan: ${declared}`,
     '  change:', '    uses: workflow:plan', `    dir: ${member}`, '    provider: claude', '    needs: [plan]',
     '    with:', ...withLines,
   ].join('\n') + '\n';
@@ -59,10 +67,10 @@ function envelope(ws, node) {
 }
 
 /** Publish a close-out for a dispatch through the outbox verb, as a worker does. */
-function closeOut(ws, id) {
+function closeOut(ws, id, extra = {}) {
   const input = path.join(ws.outbox, id, '.umbrella-input.json');
   fs.mkdirSync(path.dirname(input), { recursive: true });
-  fs.writeFileSync(input, JSON.stringify({ grade: 'success', summary: 'planned', prs: [], commits: [] }));
+  fs.writeFileSync(input, JSON.stringify({ grade: 'success', summary: 'planned', prs: [], commits: [], ...extra }));
   const result = umbrella(['outbox', `--outbox=${ws.outbox}`, `--dispatch-id=${id}`, '--type=closeout', `--input-file=${input}`]);
   assert.equal(result.code, 0, result.stdout + result.stderr);
 }
@@ -203,4 +211,151 @@ test('references: the seed states the filled input under the workspace root with
   assert.equal(lines[header + 1], `  ${path.resolve(ws.root)}/${PLAN_PATH} (plan)`);
   assert.equal(lines.some((line) => line.startsWith('Arguments:')), false, 'the promoted key is not repeated as an argument');
   assert.equal(lines.some((line) => line.includes('${')), false, 'no reference reaches the worker');
+});
+
+// A dispatched `workflow:` node: the worker's run mints its task directory in
+// the member worktree, and its close-out lists where each artifact landed.
+
+const TASK = '.maister/tasks/development/2026-01-05-plan';
+const WORKTREE = `repos/alpha/.worktrees/${RUN_ID}-alpha`;
+const REPORTED_PATH = `${WORKTREE}/${TASK}/implementation/plan.md`;
+
+/** Write a file in alpha's run worktree, at a path relative to that worktree. */
+function writeInWorktree(ws, relative) {
+  const file = path.join(ws.root, WORKTREE, relative);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, '# Plan\n');
+}
+
+/** Dispatch the workflow node `plan` and close it out with the given artifacts list, or none. */
+function dispatchedWorkflow(ws, artifacts) {
+  const built = envelope(ws, 'plan');
+  assert.equal(built.code, 0, JSON.stringify(built.report.errors));
+  closeOut(ws, built.report.dispatch_id, artifacts === undefined ? {} : { artifacts });
+  return built;
+}
+
+function refusedWith(ws, code, pattern) {
+  const { code: exit, report } = envelope(ws, 'change');
+  assert.equal(exit, 1, JSON.stringify(report));
+  assert.equal(report.errors[0].code, code);
+  if (pattern) assert.match(report.errors[0].message, pattern);
+  assert.equal(fs.existsSync(path.join(ws.run, 'dispatch/change.envelope.yml')), false, 'no envelope is published');
+}
+
+test('references: a dispatched workflow node\'s artifact is read from the path its close-out lists, in the same member', (t) => {
+  const ws = workspace(t);
+  frozen(ws, chain({ uses: 'workflow:plan' }));
+  dispatchedWorkflow(ws, [{ key: 'plan', path: `${TASK}/implementation/plan.md` }]);
+  writeInWorktree(ws, `${TASK}/implementation/plan.md`);
+
+  const { code, report } = envelope(ws, 'change');
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.deepEqual(report.envelope.inputs, [{ path: REPORTED_PATH, role: 'plan' }]);
+  assert.equal(report.envelope.workflow.with.plan, REPORTED_PATH);
+});
+
+test('references: a dispatched workflow node\'s artifact is read in its own member by a node for another member', (t) => {
+  const ws = workspace(t);
+  frozen(ws, chain({ uses: 'workflow:plan', member: 'beta' }));
+  dispatchedWorkflow(ws, [{ key: 'plan', path: `${TASK}/implementation/plan.md` }]);
+  writeInWorktree(ws, `${TASK}/implementation/plan.md`);
+
+  const { code, report } = envelope(ws, 'change');
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.equal(report.envelope.target.member, 'beta');
+  assert.deepEqual(report.envelope.inputs, [{ path: REPORTED_PATH, role: 'plan' }]);
+});
+
+test('references: the newest close-out of a dispatched workflow node is the one read', (t) => {
+  const ws = workspace(t);
+  frozen(ws, chain({ uses: 'workflow:plan' }));
+  const built = dispatchedWorkflow(ws, [{ key: 'plan', path: 'stale/plan.md' }]);
+  closeOut(ws, built.report.dispatch_id, { artifacts: [{ key: 'plan', path: `${TASK}/implementation/plan.md` }] });
+  writeInWorktree(ws, `${TASK}/implementation/plan.md`);
+
+  const { code, report } = envelope(ws, 'change');
+  assert.equal(code, 0, JSON.stringify(report.errors));
+  assert.equal(report.envelope.workflow.with.plan, REPORTED_PATH);
+});
+
+test('references: a dispatched workflow node with no close-out is refused dispatch-reference-unclosed', (t) => {
+  const ws = workspace(t);
+  frozen(ws, chain({ uses: 'workflow:plan' }));
+  refusedWith(ws, 'dispatch-reference-unclosed', /no readable envelope for the node "plan"/);
+  const built = envelope(ws, 'plan');
+  assert.equal(built.code, 0, JSON.stringify(built.report.errors));
+  writeInWorktree(ws, `${TASK}/implementation/plan.md`);
+  refusedWith(ws, 'dispatch-reference-unclosed', /has published no close-out/);
+});
+
+test('references: a close-out that does not list the key is refused dispatch-reference-missing, never guessed', (t) => {
+  for (const artifacts of [undefined, [], [{ key: 'other', path: `${TASK}/other.md` }]]) {
+    const ws = workspace(t);
+    frozen(ws, chain({ uses: 'workflow:plan' }));
+    dispatchedWorkflow(ws, artifacts);
+    // The declared child-relative path is on disk at the worktree root, and is still not taken.
+    writeInWorktree(ws, 'implementation/plan.md');
+    refusedWith(ws, 'dispatch-reference-missing', /lists no artifact "plan" under artifacts/);
+  }
+});
+
+test('references: a close-out listing an unsafe path is refused dispatch-reference-missing', (t) => {
+  for (const unsafe of ['/etc/plan.md', 'C:/plan.md', '../outside/plan.md', `${TASK}/../../plan.md`, 'my plan.md', '${inputs.x}/plan.md']) {
+    const ws = workspace(t);
+    frozen(ws, chain({ uses: 'workflow:plan' }));
+    dispatchedWorkflow(ws, [{ key: 'plan', path: unsafe }]);
+    refusedWith(ws, 'dispatch-reference-missing', /is not a relative path inside its working directory/);
+  }
+});
+
+test('references: a close-out listing a file that is not on disk is refused dispatch-reference-missing', (t) => {
+  const ws = workspace(t);
+  frozen(ws, chain({ uses: 'workflow:plan' }));
+  dispatchedWorkflow(ws, [{ key: 'plan', path: `${TASK}/implementation/plan.md` }]);
+  refusedWith(ws, 'dispatch-reference-missing', new RegExp(`nothing is at ${REPORTED_PATH.replace(/\./g, '\\.')}`));
+});
+
+test('references: a dispatched workflow node\'s envelope asks for its declared keys, and its seed tells the worker to list them', (t) => {
+  const ws = workspace(t);
+  frozen(ws, chain({ uses: 'workflow:plan' }));
+  const { report } = envelope(ws, 'plan');
+  assert.deepEqual(report.envelope.closeout_contract.artifacts, ['plan']);
+
+  const lines = renderSeed(buildSeed(report.envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') })).split(/\r?\n/);
+  const asked = lines.find((line) => line.startsWith('It also carries `artifacts`'));
+  assert.ok(asked, lines.join('\n'));
+  assert.match(asked, /one \{key, path\} entry for each of the keys plan that your run wrote/);
+  assert.match(asked, /relative to your working directory/);
+});
+
+test('references: a plain dispatching node asks for no artifacts list, and its seed says nothing of one', (t) => {
+  const ws = workspace(t);
+  frozen(ws, chain());
+  const { report } = envelope(ws, 'plan');
+  assert.equal(Object.hasOwn(report.envelope.closeout_contract, 'artifacts'), false);
+  const text = renderSeed(buildSeed(report.envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') }));
+  assert.equal(text.includes('It also carries `artifacts`'), false);
+});
+
+test('outbox: a close-out without artifacts still lands; a malformed artifacts list is refused', (t) => {
+  const outbox = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-artifacts-outbox-'));
+  t.after(() => fs.rmSync(outbox, { recursive: true, force: true }));
+  const send = (body) => umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-0001', '--type=closeout'],
+    { grade: 'success', summary: 'Done.', prs: [], commits: [], ...body });
+
+  const bare = send({});
+  assert.equal(bare.code, 0, bare.stdout + bare.stderr);
+  const listed = send({ artifacts: [{ key: 'plan', path: `${TASK}/implementation/plan.md` }] });
+  assert.equal(listed.code, 0, listed.stdout + listed.stderr);
+  const written = fs.readFileSync(JSON.parse(listed.stdout).written, 'utf8');
+  assert.match(written, /^artifacts: \[\{key: plan, path: \.maister\/tasks\/development\/2026-01-05-plan\/implementation\/plan\.md\}\]$/m);
+
+  for (const artifacts of [['implementation/plan.md'], [{ key: 'plan' }], [{ key: '', path: 'a.md' }],
+    [{ key: 'plan', path: 'a.md' }, { key: 'plan', path: 'b.md' }]]) {
+    const refused = send({ artifacts });
+    assert.equal(refused.code, 1, JSON.stringify(artifacts));
+    assert.equal(JSON.parse(refused.stdout).errors[0].code, 'outbox-message-invalid');
+  }
+  assert.equal(fs.readdirSync(path.join(outbox, 'd-0001')).filter((name) => name.endsWith('.yml')).length, 2);
 });

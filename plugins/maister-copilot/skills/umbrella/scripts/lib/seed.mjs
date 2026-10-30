@@ -512,6 +512,12 @@ function closeoutLines({ closeout, autonomy, permissions }) {
   }
   lines.push(`Grade the run ${listOf(Array.isArray(closeout.grade) && closeout.grade.length ? closeout.grade.map(oneLine) : ['success', 'partial', 'failed'])}.`);
   lines.push('The closeout message carries the grade, a summary of what changed, and what a reviewer must check.');
+  // A dispatched workflow run names its task directory only once it starts, so
+  // the chain learns where its artifacts are from this list and from nowhere else.
+  const reported = Array.isArray(closeout.artifacts) ? closeout.artifacts.filter((key) => typeof key === 'string' && key !== '') : [];
+  if (reported.length) {
+    lines.push(`It also carries \`artifacts\`: one {key, path} entry for each of the keys ${reported.map(oneLine).join(', ')} that your run wrote, the key as your workflow exposes it under its outputs and the path the file relative to your working directory, spelled with \`/\` (the run's task directory under \`.maister/tasks/\`, then the file). Leave out a key whose file your run did not write; a later node that reads it is refused rather than handed a guess.`);
+  }
   return lines;
 }
 

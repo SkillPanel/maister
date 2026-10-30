@@ -22,6 +22,11 @@
  *   blocked    — `reason`
  *   closeout   — `grade`
  *
+ * A close-out may also carry `artifacts`, the `{key, path}` list a dispatched
+ * `workflow:` run reports its artifacts in. It stays optional: a close-out
+ * without it still closes the dispatch, and only a later reference to one of
+ * its artifacts is refused.
+ *
  * The body is checked against that table — and every field it declares against
  * its declared type — *before* the filesystem is touched, so a malformed
  * message costs no directory, no descriptor and no sequence number.
@@ -109,6 +114,21 @@ const PULL_REQUESTS = {
   expected: 'an array of {repo, number, url} objects, one per pull request',
   accepts: value => Array.isArray(value) && value.every(isPullRequest),
 };
+/**
+ * What a dispatched `workflow:` run wrote, one `{key, path}` entry per artifact
+ * key its envelope asked for, `path` relative to the worker's working
+ * directory. Only the shape is judged here; whether the path is safe to join
+ * and whether the file is there is judged by the envelope that reads it, where
+ * the path is used. A key listed twice is refused: a reader taking either entry
+ * would be guessing which one the worker meant.
+ */
+const ARTIFACTS = {
+  expected: 'an array of {key, path} objects, each a non-empty string and each key listed once',
+  accepts: value => Array.isArray(value)
+    && value.every(item => item !== null && typeof item === 'object' && !Array.isArray(item)
+      && typeof item.key === 'string' && item.key !== '' && typeof item.path === 'string' && item.path !== '')
+    && new Set(value.map(item => item.key)).size === value.length,
+};
 const listOf = values => ({
   expected: `an array of ${values.join(', ')}`,
   accepts: value => Array.isArray(value) && value.every(item => values.includes(item)),
@@ -147,7 +167,7 @@ const DECLARED = {
   grade: oneOf(GRADES),
   prs: PULL_REQUESTS,
   commits: LIST,
-  artifacts: LIST,
+  artifacts: ARTIFACTS,
 };
 
 /** The envelope fields this writer owns; a body may not carry them. */
