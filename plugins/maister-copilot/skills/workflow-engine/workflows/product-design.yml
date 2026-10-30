@@ -79,7 +79,7 @@ description: "Turns a fuzzy product or feature idea into a development-ready pro
 inputs:
   task_description: {type: string, required: true}
   # The path of a completed research task whose findings inform the design.
-  research: {type: string, required: false}
+  research: {type: path, required: false}
   # Mockups in the terminal rather than through the browser companion. The
   # project's mockup format setting does the same for every run; this is the
   # per-run override.

@@ -474,7 +474,7 @@ These four are the whole set; any other attribute is an error.
 |---|---|
 | `string` | Free text |
 | `bool` | `true` or `false`, nothing else |
-| `path` | A path, relative to the project root |
+| `path` | A path inside the project, relative to its root or absolute; recorded as given |
 
 An input named `embedded` has one meaning: the engine sets it when this workflow runs as a child
 (§ 13.1). An operator never passes it.
