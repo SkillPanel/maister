@@ -353,6 +353,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const prRequired = closeoutPrOf({ node, defined, autonomy, permissions, overrides });
   assertGitHost({ node, member, defined, entry, manifest, root, prRequired });
   const siblings = siblingsOf(overrides, members);
+  const reported = reportedKeysOf(defined);
 
   return {
     version: VERSION,
@@ -388,9 +389,23 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
     closeout_contract: {
       pr_required: prRequired,
       grade: [...GRADES],
+      ...(reported.length === 0 ? {} : { artifacts: reported }),
     },
     ...(siblings === null ? {} : { siblings }),
   };
+}
+
+/**
+ * The artifact keys a dispatched `workflow:` run reports in its close-out: the
+ * keys the node declares under `outputs.artifacts`. They are bound by name to
+ * what the child workflow exposes, and they are the only keys a later node's
+ * reference can name, so no other node and no child definition — which may
+ * exist only in the member — is read. Any other node reports none: its declared
+ * path already places its artifact.
+ */
+function reportedKeysOf(defined) {
+  if (typeof defined.uses !== 'string' || !defined.uses.startsWith('workflow:')) return [];
+  return Object.keys(mapOf(mapOf(defined.outputs).artifacts));
 }
 
 /**
@@ -1036,9 +1051,17 @@ function valueOf(owner, key, context) {
  * another member reads it from. The dispatch must have published its close-out,
  * the record that it finished, and the file must be on disk at that spelling;
  * either missing refuses, because a worker told to read a file that is not
- * there yet reads nothing. Any other node's declared path is the run's own, as
- * the engine resolves it: joined onto a `workflow:` child's recorded
- * `task_path`, or onto this run's task directory.
+ * there yet reads nothing.
+ *
+ * A dispatching `workflow:` node is the exception: its worker starts a run of
+ * its own and names that run's task directory only when it starts, so no
+ * declared path can place its artifact. Its newest close-out lists what it
+ * wrote, one `{key, path}` entry per key its envelope asked for, and that path
+ * is joined onto the same target instead. No task directory is ever guessed.
+ *
+ * Any other node's declared path is the run's own, as the engine resolves it:
+ * joined onto a `workflow:` child's recorded `task_path`, or onto this run's
+ * task directory.
  */
 function artifactOf(owner, key, context) {
   const declared = context.byId.get(owner);
@@ -1047,8 +1070,13 @@ function artifactOf(owner, key, context) {
     throw new Refusal('dispatch-reference-missing',
       `the node "${context.node}" reads \${${owner}.artifacts.${key}}, but the node "${owner}" declares no artifact "${key}" under outputs.artifacts. Declare it there or correct the reference, and run validate again. Nothing was written.`);
   }
-  if (typeof declared.dir === 'string' && declared.dir !== '') return dispatchedArtifact({ owner, key, declaredPath, context });
-  if (typeof declared.uses === 'string' && declared.uses.startsWith('workflow:')) {
+  const workflowNode = typeof declared.uses === 'string' && declared.uses.startsWith('workflow:');
+  if (typeof declared.dir === 'string' && declared.dir !== '') {
+    return workflowNode
+      ? reportedArtifact({ owner, key, context })
+      : dispatchedArtifact({ owner, key, declaredPath, context });
+  }
+  if (workflowNode) {
     const taskPath = mapOf(mapOf(context.recorded[owner]).values).task_path;
     if (typeof taskPath !== 'string' || taskPath === '') {
       throw new Refusal('dispatch-reference-unresolved',
@@ -1060,6 +1088,55 @@ function artifactOf(owner, key, context) {
 }
 
 function dispatchedArtifact({ owner, key, declaredPath, context }) {
+  const { id, target } = closedDispatch({ owner, key, context });
+  const spelled = path.posix.join(target.path, typeof target.worktree === 'string' ? target.worktree : '', declaredPath);
+  if (!fs.existsSync(path.resolve(context.root, spelled))) {
+    throw new Refusal('dispatch-reference-missing',
+      `the node "${context.node}" reads \${${owner}.artifacts.${key}}, but ${id}, the dispatch of "${owner}", closed out without writing it: nothing is at ${spelled} under the workspace root. Re-dispatch "${owner}" so it writes ${declaredPath}, or correct its declared path. Nothing was written.`);
+  }
+  return spelled;
+}
+
+/**
+ * A dispatched `workflow:` node's artifact, from the entry its newest close-out
+ * lists under `artifacts`. The path is the worker's, relative to its working
+ * directory, and it is joined onto the workspace only when it stays inside that
+ * tree: relative, with no whitespace, no `${…}` and no `..` segment.
+ */
+function reportedArtifact({ owner, key, context }) {
+  const reference = `\${${owner}.artifacts.${key}}`;
+  const { id, target, closeouts } = closedDispatch({ owner, key, context });
+  const newest = closeouts[closeouts.length - 1];
+  const listed = mapOf(readDefinition(newest.file).doc).artifacts;
+  const entry = (Array.isArray(listed) ? listed : []).map(mapOf).find((each) => each.key === key);
+  if (entry === undefined) {
+    throw new Refusal('dispatch-reference-missing',
+      `the node "${context.node}" reads ${reference}, but the close-out of ${id}, the dispatch of "${owner}", lists no artifact "${key}" under artifacts, so where its run wrote it is unknown. Re-dispatch "${owner}" so its close-out lists {key: ${key}, path: <the file, relative to its working directory>}. Nothing was written.`);
+  }
+  if (!safeRelative(entry.path)) {
+    throw new Refusal('dispatch-reference-missing',
+      `the node "${context.node}" reads ${reference}, but the close-out of ${id}, the dispatch of "${owner}", lists it at ${JSON.stringify(String(entry.path))}, which is not a relative path inside its working directory — it must have no whitespace, no \${…} and no .. segment. Re-dispatch "${owner}" so its close-out lists the file relative to its working directory. Nothing was written.`);
+  }
+  const spelled = path.posix.join(target.path, typeof target.worktree === 'string' ? target.worktree : '', entry.path);
+  if (!fs.existsSync(path.resolve(context.root, spelled))) {
+    throw new Refusal('dispatch-reference-missing',
+      `the node "${context.node}" reads ${reference}, but nothing is at ${spelled} under the workspace root, where the close-out of ${id}, the dispatch of "${owner}", says its run wrote it. Re-dispatch "${owner}" so it writes the file, or correct the path its close-out lists. Nothing was written.`);
+  }
+  return spelled;
+}
+
+/** A path a worker reported that stays inside its working directory once joined. */
+function safeRelative(value) {
+  return typeof value === 'string' && value !== '' && !/\s/.test(value) && !value.includes('${')
+    && !/^([A-Za-z]:|[\\/])/.test(value) && !value.split(/[\\/]/).includes('..');
+}
+
+/**
+ * The published envelope of an earlier dispatch and the close-outs its outbox
+ * holds, oldest first, or a `dispatch-reference-unclosed` refusal when it was
+ * never dispatched or has not closed out.
+ */
+function closedDispatch({ owner, key, context }) {
   const reference = `\${${owner}.artifacts.${key}}`;
   const file = path.join(context.run, 'dispatch', `${owner}.envelope.yml`);
   const dispatched = isFile(file) ? readDefinition(file).doc : null;
@@ -1080,16 +1157,12 @@ function dispatchedArtifact({ owner, key, declaredPath, context }) {
     throw new Refusal('dispatch-reference-unclosed',
       `the node "${context.node}" reads ${reference}, but the outbox of ${id}, the dispatch of "${owner}", could not be read: ${err.message} Nothing was written.`);
   }
-  if (!messages.some((message) => message.type === 'closeout')) {
+  const closeouts = messages.filter((message) => message.type === 'closeout');
+  if (closeouts.length === 0) {
     throw new Refusal('dispatch-reference-unclosed',
       `the node "${context.node}" reads ${reference}, but ${id}, the dispatch of "${owner}", has published no close-out in ${path.join(outboxRoot, id)}, so it has not finished. Build this envelope once "${owner}" has closed out. Nothing was written.`);
   }
-  const spelled = path.posix.join(target.path, typeof target.worktree === 'string' ? target.worktree : '', declaredPath);
-  if (!fs.existsSync(path.resolve(context.root, spelled))) {
-    throw new Refusal('dispatch-reference-missing',
-      `the node "${context.node}" reads ${reference}, but ${id}, the dispatch of "${owner}", closed out without writing it: nothing is at ${spelled} under the workspace root. Re-dispatch "${owner}" so it writes ${declaredPath}, or correct its declared path. Nothing was written.`);
-  }
-  return spelled;
+  return { id, target, closeouts };
 }
 
 /** The run's task directory, workspace-root-relative and spelled with `/`, as the engine places it. */

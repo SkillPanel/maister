@@ -481,7 +481,15 @@ that dispatch worked, the member's path then the run's worktree from the
 dispatch's published envelope (`repos/alpha/.worktrees/<run>-alpha/docs/plan.md`),
 so a later node for the same member and a node for another member read the same
 file. The earlier dispatch must have published its close-out and the file must
-be on disk there; otherwise the envelope is refused. Any other node's artifact
+be on disk there; otherwise the envelope is refused. A dispatching node that
+runs a `workflow:` is placed by its worker instead, because its run names its
+task directory only when it starts: the envelope's `closeout_contract.artifacts`
+lists the keys the node declares under `outputs.artifacts`, the seed asks the
+worker to list each one it wrote in its close-out, and the reference reads the
+entry for its key from the newest close-out, joined onto the same member path
+and worktree. An entry that is absent, a path that is not relative and free of
+whitespace, `${…}` and `..`, or a file not on disk there is refused; no task
+directory is guessed. Any other node's artifact
 is placed as the engine places it, under the run's task directory or a sub-run's
 recorded `task_path`. The prompt tells the worker to read each input where it is and never
 copy it into its checkout, which the read-only grant would refuse. A step that
@@ -556,6 +564,12 @@ the report marked degraded. The other three refuse, because there is no frozen
 line for them and inventing one would freeze a sixth spelling forever. Their
 recovery is to retry once the path is writable, or to fold what they carried
 into the eventual close-out summary: a lost status line is not a lost result.
+A close-out may add `artifacts`, a list of `{key, path}` maps — one per key the
+envelope's `closeout_contract.artifacts` names that the run wrote, each key once,
+the path relative to the worker's working directory — which is how a later node
+finds what a dispatched workflow run wrote. It is optional: a close-out without
+it still closes the dispatch, and only a later reference to one of its
+artifacts is refused.
 Any message may add `needs` — a list of `permission`, `decision` or `input` — to
 say what it is waiting on. A worker holding a push or a pull request for an
 operator's approval sends a followup with `needs: [permission]` beside its prose:
@@ -712,8 +726,8 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. Nothing was written. |
 | `dispatch-no-git-host` | The node sets `publish: true` and owes a pull request, but no git host resolves for its member: the manifest's `git_host.kind` is unset and the member's checkout has no remote on a host. The worker could neither push for review nor open the pull request, and would find out only at its close-out. Set `git_host.kind` in the manifest, give the member a remote on its git host, or drop `publish` from the node's `with:` map. Nothing was written. |
 | `dispatch-siblings-invalid` | The dispatch override carries a `siblings` field that is not a list of `{member, branch, worktree}`, each a non-empty string. It is refused rather than trimmed, because a worker sent to half a path reads the wrong tree. Correct the list the caller builds from the outcome's recorded dispatches, or leave the field out, and re-run. Nothing was written. |
-| `dispatch-reference-unclosed` | The node's `with:` map reads `${<node>.artifacts.<key>}` from a node that dispatches into a member, and that dispatch has not finished: no envelope for it is published in the run's `dispatch/` directory, or its outbox holds no close-out. A worker dispatched now would be told to read a file nobody has written. Build this envelope once the earlier node has closed out. Nothing was written. |
-| `dispatch-reference-missing` | The earlier dispatch closed out, but the artifact the reference names is not on disk where it worked — its declared path under the member's path and the run's worktree — or the earlier node declares no such artifact. Re-dispatch the earlier node so it writes the file, or correct its declared path or the reference, and run `validate` again. Nothing was written. |
+| `dispatch-reference-unclosed` | The node's `with:` map reads `${<node>.artifacts.<key>}` from a node that dispatches into a member, and that dispatch has not finished: no envelope for it is published in the run's `dispatch/` directory, or its outbox holds no close-out. This holds for a dispatched `workflow:` node too, whose close-out is where its artifacts are listed. A worker dispatched now would be told to read a file nobody has written. Build this envelope once the earlier node has closed out. Nothing was written. |
+| `dispatch-reference-missing` | The earlier dispatch closed out, but the artifact the reference names is not on disk where it worked — its declared path under the member's path and the run's worktree — or the earlier node declares no such artifact. For a dispatched `workflow:` node the place is the path its newest close-out lists for the key, so the refusal also covers a close-out that lists no entry for the key (a worker that predates the list, or one that did not write the file) and an entry whose path is absolute or holds whitespace, `${…}` or a `..` segment. Re-dispatch the earlier node so it writes the file and lists it, or correct its declared path or the reference, and run `validate` again. Nothing was written. |
 | `dispatch-reference-unresolved` | Any other reference in the node's `with:` map that finds nothing: a value the run never recorded for the node it names, a sub-run whose task path is not recorded yet, or a form the grammar does not admit. A reference is never dropped or handed on as text. Record the value through the workflow engine's `write-state` or let the earlier node finish, then build the envelope again. Nothing was written. |
 | `dispatch-envelope-exists` | An envelope for this node is already published. The runtime never overwrites one, because a worker may already hold it. The check runs before the ledger entry is opened, so nothing was written. If the dispatch really is being redone, it is a new dispatch. |
 | `dispatch-id-mismatch` | The overrides name a `dispatch_id` whose ledger entry records a different run or node, and an envelope under that id would hand this node's work to another dispatch's records. Nothing was written. Drop `dispatch_id` from the overrides — the verb then uses this node's own entry, or opens one — or name the id the node's entry carries. |
@@ -765,7 +779,7 @@ instruction and "re-issue" is not.
 | Refusal | Response |
 |---|---|
 | `outbox-type-invalid` | The message type is outside the five. A caller defect. |
-| `outbox-message-invalid` | The body is missing the field its type requires, or gives a declared field the wrong type (`detail` as a mapping rather than a string is the one seen in the wild). The report names the field. An undeclared key is not an error — the message format is additive. Fix the body and re-send. |
+| `outbox-message-invalid` | The body is missing the field its type requires, or gives a declared field the wrong type (`detail` as a mapping rather than a string is the one seen in the wild; `artifacts` as anything but `{key, path}` maps with each key once). The report names the field. An undeclared key is not an error — the message format is additive. Fix the body and re-send. |
 | `outbox-sequence-taken` | The next sequence kept being claimed by another writer across several attempts. Unlike the lock codes this one means genuine contention rather than a stale file: re-issue once the burst subsides. |
 | `outbox-unwritable` | The directory could not be created, or the exclusive open failed for a reason other than the name being taken, or the file could not be flushed — in which case the partial file is removed before refusing. Retry once the path is writable, or fold what the message carried into the eventual close-out summary. |
 | `outbox-unreadable` | The dispatch directory exists but cannot be listed, so no sequence can be chosen. Fix permissions and re-issue. |
