@@ -379,15 +379,20 @@ empty ledger with its index and log, and the outbox root. The `generated/` subdi
 of chains the planner publishes for one ticket; it gets an ignore file (`*` and `!.gitignore`) so
 ticket-derived text is never committed by default, written only when absent and left alone by a
 later `--force`. Members are discovered by a bounded two-level walk, following symlinks, so a
-repository checked out inside the workspace is found without being listed by hand. Run it from the
-workspace directory and `--root` defaults to it.
+repository checked out inside the workspace is found without being listed by hand. The workspace's
+own `.gitignore` gains `.worktrees/`, the members root (`repos/` for `--members-root repos`) and
+each member outside it as `/<name>`, so a workspace that is itself a repository never commits its
+members; existing lines are kept and none is added twice. Run it from the workspace directory and
+`--root` defaults to it.
 
 The manifest also records the workspace's git host (`git_host.kind`) and its default provider
 (`defaults.provider`). The git host is read from the members' remotes when they all point at the
 same known host. Before writing, the command asks about whatever it could not settle that way:
 the default provider always, recommending the CLI it runs in, and the git host when the remotes
 disagree or there are none. Each flag answers its question in advance. A value left unanswered stays
-unset, and the report says so.
+unset, and the report says so. A git host that takes no pull request — a mirror or a local bare
+repository — is declared by hand as `pull_requests: false` under `git_host` (or on one member's
+entry); dispatched workers then push and close out without opening one.
 
 | Flag | Description |
 |------|-------------|

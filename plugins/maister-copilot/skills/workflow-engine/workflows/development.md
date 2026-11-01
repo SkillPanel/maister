@@ -736,7 +736,9 @@ than retried.
    drawn from the executive summary. Merging is never part of this. The pull
    request goes in the close-out's `prs` as `{repo, number, url}` under a
    dispatch driver, and its URL under **Done** in a terminal run, where step 6's
-   pull request is then dropped from **Next**. A push or a pull request that is refused or held is not routed
+   pull request is then dropped from **Next**. When a dispatch seed's close-out says the member's
+   git host takes no pull request, the push is the whole of the publish: no `gh pr view` or
+   `gh pr create`, and `prs` stays empty. A push or a pull request that is refused or held is not routed
    around: under a dispatch driver the seed's close-out section says how it is
    reported; in a terminal run the held command goes under **Needs you**.
 
