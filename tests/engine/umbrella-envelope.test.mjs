@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { freeze, umbrella } from '../helpers.mjs';
+import { ROOT, freeze, umbrella } from '../helpers.mjs';
+import { buildSeed, renderSeed } from '../../plugins/maister/skills/umbrella/scripts/lib/seed.mjs';
 
 // A dispatch works in one worktree and on one branch per run and member, so a
 // later node for a member continues the branch an earlier node started and its
@@ -352,6 +353,79 @@ test('validate: control — publish alone, or a declared false alone, warns noth
     assert.equal(report.warnings.filter((entry) => entry.code === 'publish-pr-declined').length, 0);
   }
 });
+
+// A git host that takes no pull request is declared in the manifest —
+// `git_host.pull_requests: false`, or on one member's entry — and never probed.
+// On such a member no pull request is owed at any tier, `publish: true`
+// included; the envelope records why and the seed tells the worker to push and
+// close out without one. A host that takes one is dispatched exactly as before.
+
+/** Declare `pull_requests: false` on the workspace's git host. */
+function noPullRequests(ws) {
+  const text = fs.readFileSync(ws.manifest, 'utf8');
+  fs.writeFileSync(ws.manifest, text.replace(/^( {2}org: null)$/m, '$1\n  pull_requests: false'));
+}
+
+function closeoutSection(envelope) {
+  const lines = renderSeed(buildSeed(envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') })).split('\n');
+  return lines.slice(lines.indexOf('# closeout'), lines.indexOf('# siblings'));
+}
+
+test('envelope: a host declared to take no pull request owes none, publish and the attended relay notwithstanding', (t) => {
+  const ws = workspace(t);
+  gitHost(ws);
+  noPullRequests(ws);
+  const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true']).replace('autonomy: auto-medium', 'autonomy: attended')));
+  assert.deepEqual(envelope.closeout_contract, { pr_required: false, host_takes_pr: false, grade: ['success', 'partial', 'failed'] });
+  const closeout = closeoutSection(envelope);
+  assert.match(closeout[1], /^No pull request can be opened - the workspace declares that this member's git host takes none\. Do not run `gh pr view` or `gh pr create`/);
+  assert.match(closeout[1], /close out with `prs` empty/);
+  assert.equal(closeout.filter((line) => /pull request is required/.test(line)).length, 0);
+});
+
+test('envelope: a member declared to take no pull request wins over a hosted workspace', (t) => {
+  const ws = workspace(t);
+  gitHost(ws);
+  const text = fs.readFileSync(ws.manifest, 'utf8');
+  fs.writeFileSync(ws.manifest, text.replace('alpha: {path: repos/alpha, kind: repo}', 'alpha: {path: repos/alpha, kind: repo, pull_requests: false}'));
+  const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true'])));
+  assert.equal(envelope.closeout_contract.pr_required, false);
+  assert.equal(envelope.closeout_contract.host_takes_pr, false);
+});
+
+test('envelope: a declared pull request on a host that takes none is refused dispatch-closeout-impossible', (t) => {
+  const ws = workspace(t);
+  noPullRequests(ws);
+  const result = dispatch(ws, publishChain(ws, ['closeout_contract: {pr_required: true}']).replace('autonomy: auto-medium', 'autonomy: auto-high'));
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.errors[0].code, 'dispatch-closeout-impossible');
+  assert.match(report.errors[0].message, /pull_requests: false/);
+});
+
+test('envelope: control — a host that takes one keeps the close-out contract it had, with no new key', (t) => {
+  const ws = workspace(t);
+  gitHost(ws);
+  const text = fs.readFileSync(ws.manifest, 'utf8');
+  fs.writeFileSync(ws.manifest, text.replace(/^( {2}org: null)$/m, '$1\n  pull_requests: true'));
+  const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true'])));
+  assert.deepEqual(envelope.closeout_contract, { pr_required: true, grade: ['success', 'partial', 'failed'] });
+  assert.equal(closeoutSection(envelope)[1], 'A pull request is required before close-out; open it and put its URL in the closeout message.');
+});
+
+test('validate: a pull_requests that is not a boolean is an error at its path, on the host and on a member', (t) => {
+  const ws = workspace(t);
+  const text = fs.readFileSync(ws.manifest, 'utf8')
+    .replace(/^( {2}org: null)$/m, '$1\n  pull_requests: no-thanks')
+    .replace('beta: {path: repos/beta, kind: repo}', 'beta: {path: repos/beta, kind: repo, pull_requests: 0}');
+  fs.writeFileSync(ws.manifest, text);
+  const { code, report } = validate(ws);
+  assert.equal(code, 1);
+  const paths = report.errors.map((error) => error.path);
+  assert.ok(paths.includes('git_host.pull_requests'), JSON.stringify(report.errors));
+  assert.ok(paths.includes('members.beta.pull_requests'), JSON.stringify(report.errors));
+});
+
 
 // The other dispatches of an outcome travel in the envelope only when the
 // caller lists them. Listed, each is written and read back into the seed as a

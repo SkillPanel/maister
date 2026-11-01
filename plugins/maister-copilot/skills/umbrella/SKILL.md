@@ -231,19 +231,27 @@ two lines, `*` and `!.gitignore`, so ticket-derived text is never committed by
 default; the file is written only when absent, and a later `--force` leaves an
 edited one alone.
 
+The workspace root's own `.gitignore` also gets the members, because each is a
+repository of its own and a workspace that is itself a repository would
+otherwise commit every one of them as an embedded repository: the members root
+as `<root>/` (`repos/` for `--members-root repos`, or `projects/` when that
+default exists), and each member outside it — one at the top level — as
+`/<name>`, anchored and without a trailing slash so a symlinked member is
+matched too. The framework directory and the manifest are never ignored.
+
 It also adds one ignore rule for the directory a dispatch worktree lands in,
 `.worktrees/`, in the two places a worktree can make a status dirty: the
 workspace root's own `.gitignore`, and each member's `.git/info/exclude` — the
 member's, because that is where the worktree is actually created, and the
 exclude file rather than the member's `.gitignore`, because a member is
 somebody's project and a workspace tool has no business committing a line to a
-tracked file of theirs. The rule is appended, never written over: an ignore
-file keeps every byte it had, gains the line exactly once however often `init`
-runs, and is reported as preserved when it already carried it. A member whose
+tracked file of theirs. The rules are appended, never written over: an ignore
+file keeps every byte it had, gains each line exactly once however often `init`
+runs, and is reported as preserved when it already carried them all. A member whose
 git entry is a *file* is a worktree of a repository kept outside the workspace;
 its exclude file is left alone and named in the report.
 
-Its write scope is a hard boundary, and those two ignore rules are its one
+Its write scope is a hard boundary, and those ignore rules are its one
 declared exception: without `--scaffold` it writes nothing else outside the
 framework directory, and every target it declines to write is named in the
 report with a reason rather than passing silently. With `--scaffold` it will additionally
@@ -457,6 +465,25 @@ member's own checkout that points at a host — a URL with a scheme other than
 `file://`, or `user@host:path`. A remote that is a path on this machine is no
 host. Neither found refuses `dispatch-no-git-host`. A node without
 `publish: true`, or one whose close-out is declared `false`, is not asked.
+
+A git host that takes no pull request is declared in the manifest, never
+probed: `pull_requests: false` under `git_host`, for every member, or on one
+member's entry, which wins over the workspace's value. Absent, the host takes
+one and everything above holds unchanged. A host the worker's tooling does not
+know, a local bare repository or a mirror that takes pushes only is where this
+is set. When it is false no pull request is owed at any tier, `publish: true`
+included: the envelope's close-out carries `pr_required: false` with
+`host_takes_pr: false`, and the seed tells the worker to push where its tier
+allows, open nothing, and close out with `prs` empty, saying what a reviewer has
+to do with the pushed branch. A close-out declared `true` on such a member is
+refused `dispatch-closeout-impossible`.
+
+```yaml
+git_host:
+  kind: null
+  org: null
+  pull_requests: false
+```
 
 **`seed`** — after the envelope, to render the prompt the worker starts from. It
 is a pure function of the envelope, so its output is reproducible and testable.
@@ -727,7 +754,7 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-workflow-not-driver-capable` | The node dispatches into a member but names a workflow that cannot run under a driver — it would ask a question no one is there to answer. Point `uses:` at an orchestrator skill or a `workflow:`, or drop the `dir:` and run the step in the coordinating repository. Nothing was written. |
 | `dispatch-run-unresolved` | The node would be dispatched into a per-run worktree, but no run id resolves, and a worktree named after nothing would be shared by every run of the chain. Point `--run` at the run directory whose basename is the run id, or record the run's task path in its state, or set `defaults.worktree: false` to work in the member checkout itself. Nothing was written. |
 | `dispatch-permissions-override-unsupported` | The dispatch carries a `permissions` override. Permissions belong to the autonomy tier and to nothing else: each tier renders one fixed allow and deny list, and a per-dispatch override would hand a worker permissions its tier never granted. The field is refused rather than ignored, because a discarded security override leaves the caller believing it was applied. Drop `permissions` from the override document and dispatch the node at the tier whose permissions you mean. Nothing was written. |
-| `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. Nothing was written. |
+| `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. The same refusal answers a declared pull request on a member whose git host the manifest declares takes none (`pull_requests: false`): drop the declaration, or change the manifest once the host can take one. Nothing was written. |
 | `dispatch-no-git-host` | The node sets `publish: true` and owes a pull request, but no git host resolves for its member: the manifest's `git_host.kind` is unset and the member's checkout has no remote on a host. The worker could neither push for review nor open the pull request, and would find out only at its close-out. Set `git_host.kind` in the manifest, give the member a remote on its git host, or drop `publish` from the node's `with:` map. Nothing was written. |
 | `dispatch-siblings-invalid` | The dispatch override carries a `siblings` field that is not a list of `{member, branch, worktree}`, each a non-empty string. It is refused rather than trimmed, because a worker sent to half a path reads the wrong tree. Correct the list the caller builds from the outcome's recorded dispatches, or leave the field out, and re-run. Nothing was written. |
 | `dispatch-reference-unclosed` | The node's `with:` map reads `${<node>.artifacts.<key>}` from a node that dispatches into a member, and that dispatch has not finished: no envelope for it is published in the run's `dispatch/` directory, or its outbox holds no close-out. This holds for a dispatched `workflow:` node too, whose close-out is where its artifacts are listed. A worker dispatched now would be told to read a file nobody has written. Build this envelope once the earlier node has closed out. Nothing was written. |

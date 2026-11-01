@@ -350,7 +350,8 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const session = mapOf(overrides.session);
   const statement = statementOf({ defined, overrides });
   const permissions = permissionsOf(autonomy);
-  const prRequired = closeoutPrOf({ node, defined, autonomy, permissions, overrides });
+  const hostTakesPr = hostTakesPrOf({ entry, manifest });
+  const prRequired = closeoutPrOf({ node, member, defined, autonomy, permissions, overrides, hostTakesPr });
   assertGitHost({ node, member, defined, entry, manifest, root, prRequired });
   const siblings = siblingsOf(overrides, members);
   const reported = reportedKeysOf(defined);
@@ -388,6 +389,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
     ticket: overrides.ticket ?? ticketOf(state),
     closeout_contract: {
       pr_required: prRequired,
+      ...(hostTakesPr ? {} : { host_takes_pr: false }),
       grade: [...GRADES],
       ...(reported.length === 0 ? {} : { artifacts: reported }),
     },
@@ -696,7 +698,14 @@ function assertNoPermissionsOverride(overrides) {
  * alone could reach. Only the literal boolean counts. A declared `false` still
  * wins; `validate` warns about that pair rather than refusing it.
  */
-function closeoutPrOf({ node, defined, autonomy, permissions, overrides }) {
+function closeoutPrOf({ node, member, defined, autonomy, permissions, overrides, hostTakesPr }) {
+  if (!hostTakesPr) {
+    if (closeoutDeclaration({ node, defined, overrides }) === true) {
+      throw new Refusal('dispatch-closeout-impossible',
+        `a pull request is required for the node "${node}" while the manifest declares that the git host of the member "${member}" takes none (pull_requests: false) — so the worker would be told to open what its host cannot take. Drop the declaration, or set pull_requests in .maister/umbrella.yml to true once the host can take one.`);
+    }
+    return false;
+  }
   const publishes = mapOf(defined.with).publish === true;
   const permitted = publishes || closeoutReachable({ autonomy, permissions });
   const declared = closeoutDeclaration({ node, defined, overrides });
@@ -706,6 +715,25 @@ function closeoutPrOf({ node, defined, autonomy, permissions, overrides }) {
       `a pull request is required for the node "${node}" while the autonomy tier "${autonomy}" can never open one — it denies ${CAN.prCreate} and has no operator to approve it — so the worker would be told to do what its own permissions forbid. Dispatch at a tier that permits it, or drop the declaration and let the tier decide.`);
   }
   return declared;
+}
+
+/**
+ * Whether the member's git host takes a pull request, as the workspace declares
+ * it: `members.<member>.pull_requests`, else `git_host.pull_requests`, else yes.
+ *
+ * A host is known to take none only when someone says so. An unset
+ * `git_host.kind` is not that statement — it is also what `init` leaves when it
+ * cannot name a host — and asking `gh` at envelope time would answer for the
+ * machine building the envelope, not for the worker. So the answer is a declared
+ * boolean, and a manifest that declares nothing keeps every close-out it had.
+ * When the answer is no, no pull request is owed whatever the tier or `publish`
+ * says, and the envelope records why so the seed can tell the worker plainly.
+ */
+function hostTakesPrOf({ entry, manifest }) {
+  for (const value of [mapOf(entry).pull_requests, mapOf(manifest?.git_host).pull_requests]) {
+    if (typeof value === 'boolean') return value;
+  }
+  return true;
 }
 
 /**

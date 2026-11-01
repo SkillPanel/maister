@@ -575,6 +575,10 @@ export function init(root, { membersRoot = null, force = false, scaffold = false
     // already there, so an operator's own ignore file keeps every byte it had
     // and a second `init` adds nothing. Neither is governed by `--force`: this
     // adds a line, it never replaces a file.
+    // The workspace's own ignore file also gets the members: each is a
+    // repository of its own, and a workspace that is itself a repository would
+    // otherwise commit every one of them as an embedded repository.
+    const rootRules = [WORKTREE_IGNORE, ...memberRules(found)];
     for (const target of ignoreTargets(base, found.members)) {
       if (target.reason !== null) {
         preserved.push(target.at);
@@ -584,7 +588,8 @@ export function init(root, { membersRoot = null, force = false, scaffold = false
       // already there — and `preserved` means it was already present and
       // nothing was written. A file that gains a line has not been preserved,
       // and saying so would hide the one write `init` makes outside `.maister`.
-      (appendRule(target.file, WORKTREE_IGNORE, base) ? created : preserved).push(target.at);
+      const rules = target.at === '.gitignore' ? rootRules : [WORKTREE_IGNORE];
+      (appendRules(target.file, rules, base) ? created : preserved).push(target.at);
     }
 
     const skipped = [];
@@ -703,8 +708,26 @@ function ignoreTargets(base, members) {
 }
 
 /**
- * Add one line to an ignore file, or leave it exactly as it is. True when the
- * line was added.
+ * The workspace `.gitignore` lines that keep the members out of the
+ * workspace's own history: the members root as `<root>/`, and each member
+ * outside it — one at the top level — as `/<path>`, anchored to the workspace
+ * and without a trailing slash so a member that is a symlink is matched too.
+ * Never the framework directory or the manifest, which are the workspace's own.
+ */
+function memberRules(found) {
+  const root = found.membersRoot;
+  const scoped = root !== null && root !== '' && root !== '.';
+  const rules = scoped ? [`${root}/`] : [];
+  for (const member of found.members) {
+    if (scoped && member.path.startsWith(`${root}/`)) continue;
+    rules.push(`/${member.path}`);
+  }
+  return rules;
+}
+
+/**
+ * Add lines to an ignore file, each one it does not already carry, or leave it
+ * exactly as it is. True when a line was added.
  *
  * Read, decide, then write the whole file through the shared publish path —
  * never an append in place, because a half-written ignore file is a repository
@@ -712,20 +735,22 @@ function ignoreTargets(base, members) {
  * gains one first, so the rule does not land on the end of somebody's last
  * line.
  */
-function appendRule(file, rule, base) {
+function appendRules(file, rules, base) {
   let text = '';
   if (exists(file)) {
     try {
       text = fs.readFileSync(file, 'utf8');
     } catch (err) {
       throw new Refusal(CODES.unwritable,
-        `${relative(base, file)} could not be read, so the worktree ignore rule cannot be added without losing what is in it: ${err.message}`);
+        `${relative(base, file)} could not be read, so its ignore rules cannot be added without losing what is in it: ${err.message}`);
     }
-    if (text.split('\n').some((line) => line.trim() === rule)) return false;
   }
+  const present = new Set(text.split('\n').map((line) => line.trim()));
+  const missing = [...new Set(rules)].filter((rule) => !present.has(rule));
+  if (missing.length === 0) return false;
   const separator = text === '' || text.endsWith('\n') ? '' : '\n';
   makeDirectory(path.dirname(file), base);
-  write(file, `${text}${separator}${rule}\n`, base);
+  write(file, `${text}${separator}${missing.join('\n')}\n`, base);
   return true;
 }
 
@@ -1314,6 +1339,9 @@ function checkManifest(doc, file, errors, warnings, base) {
       } else if (entry.autonomy === RETIRED_TIER) {
         warnings.push(retiredTier(file, null, `${at}.autonomy`));
       }
+      if (Object.hasOwn(entry, 'pull_requests') && typeof entry.pull_requests !== 'boolean') {
+        fail(`${at}.pull_requests`, 'pull_requests is true or false: whether the member\'s git host takes a pull request');
+      }
       if (Object.hasOwn(entry, 'workflows')) checkMemberWorkflows(entry, at, base, fail, warn);
       members.names.add(name);
     }
@@ -1349,6 +1377,9 @@ function checkManifest(doc, file, errors, warnings, base) {
     else {
       checkNullableString(doc.git_host, 'kind', fail, 'git_host');
       checkNullableString(doc.git_host, 'org', fail, 'git_host');
+      if (Object.hasOwn(doc.git_host, 'pull_requests') && typeof doc.git_host.pull_requests !== 'boolean') {
+        fail('git_host.pull_requests', 'pull_requests is true or false: whether the git host takes a pull request');
+      }
     }
   }
 
