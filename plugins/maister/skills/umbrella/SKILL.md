@@ -553,7 +553,13 @@ optional `on_behalf_of`, held to the same rule — a name on one line, or a
 `ledger-args-invalid` refusal — and record it as `claimed_on_behalf_of` on the
 entry and as `on_behalf_of` in its `closeout`. The actor stays the caller,
 named on the log line, and an op sent without it records nothing new;
-query takes no lock at all. Conflicts resolve on read by update time and actor —
+query takes no lock at all. `close-out` takes the grade and records, in the
+entry's `closeout`, `prs` (one `{repo, number, url}` map per pull request),
+`commits`, `artifacts` (one `{key, path}` map per artifact a dispatched
+`workflow:` run wrote, each key once — the shape a close-out message's
+`artifacts` is held to), `summary` and `at`; a list left out is recorded
+empty, and a malformed one is refused `ledger-args-invalid` with nothing
+written. Conflicts resolve on read by update time and actor —
 the engine wins on status, the daemon wins on follow-ups and close-out.
 
 Every mutating op runs one sequence and no other: take the per-entry lock, read
