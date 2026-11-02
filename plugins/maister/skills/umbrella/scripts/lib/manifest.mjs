@@ -125,6 +125,17 @@ export const GENERATED_IGNORE = '*\n!.gitignore\n';
 export const WORKTREE_DIR = '.worktrees';
 export const WORKTREE_IGNORE = `${WORKTREE_DIR}/`;
 
+/**
+ * The run-written folders under the framework directory that the workspace
+ * root's `.gitignore` keeps out of its history. `umbrella/` holds the ledger
+ * and the outboxes, which every machine writes on its own: committed, a pull
+ * brings in another machine's entries. `display/` holds per-session display
+ * files, and `tickets/` the ticket descriptors, which carry ticket text.
+ * Anchored to the workspace root. `tasks/` is not here: whether a workspace
+ * keeps its task directories is the workspace's own choice.
+ */
+export const RUN_IGNORES = ['/.maister/umbrella/', '/.maister/display/', '/.maister/tickets/'];
+
 /** Where a workspace's coordinated runs keep their state, and the file that holds it. */
 const RUNS_DIR = ['umbrella', 'runs'];
 const STATE_FILE = 'orchestrator-state.yml';
@@ -578,7 +589,8 @@ export function init(root, { membersRoot = null, force = false, scaffold = false
     // The workspace's own ignore file also gets the members: each is a
     // repository of its own, and a workspace that is itself a repository would
     // otherwise commit every one of them as an embedded repository.
-    const rootRules = [WORKTREE_IGNORE, ...memberRules(found)];
+    // And the folders runs write under the framework directory (RUN_IGNORES).
+    const rootRules = [WORKTREE_IGNORE, ...RUN_IGNORES, ...memberRules(found)];
     for (const target of ignoreTargets(base, found.members)) {
       if (target.reason !== null) {
         preserved.push(target.at);
@@ -712,7 +724,7 @@ function ignoreTargets(base, members) {
  * workspace's own history: the members root as `<root>/`, and each member
  * outside it — one at the top level — as `/<path>`, anchored to the workspace
  * and without a trailing slash so a member that is a symlink is matched too.
- * Never the framework directory or the manifest, which are the workspace's own.
+ * Never the framework directory itself or the manifest, which are the workspace's own.
  */
 function memberRules(found) {
   const root = found.membersRoot;

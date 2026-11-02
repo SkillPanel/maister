@@ -237,7 +237,18 @@ otherwise commit every one of them as an embedded repository: the members root
 as `<root>/` (`repos/` for `--members-root repos`, or `projects/` when that
 default exists), and each member outside it — one at the top level — as
 `/<name>`, anchored and without a trailing slash so a symlinked member is
-matched too. The framework directory and the manifest are never ignored.
+matched too. The framework directory itself and the manifest are never ignored.
+
+It also gets the three folders runs write under the framework directory, each
+anchored to the workspace root: `/.maister/umbrella/`, `/.maister/display/` and
+`/.maister/tickets/`. `umbrella/` holds the ledger and the outboxes, which each
+machine writes for itself, so committing them would make a pull bring in another
+machine's entries; `display/` holds per-session display files; and `tickets/`
+holds ticket descriptors, which carry the tickets' text. `.maister/tasks/` is
+left out: whether a workspace keeps its task directories in its history is its
+own choice. A workspace set up before these rules existed does not gain them by
+itself, since `init` refuses a workspace that already has a manifest; add the
+three lines to its `.gitignore`.
 
 It also adds one ignore rule for the directory a dispatch worktree lands in,
 `.worktrees/`, in the two places a worktree can make a status dirty: the
