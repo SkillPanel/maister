@@ -20,7 +20,7 @@ test('every state write republishes dashboard-data.js beside the state', t => {
   assert.equal(data.task.current_activity, null);
   assert.deepEqual(data.phases.map(phase => phase.id), ['analysis', 'approval', 'implementation', 'research']);
   assert.deepEqual(data.phases.map(phase => phase.icon_hint), ['analysis', 'spec', 'code', 'analysis']);
-  assert.deepEqual(data.verification, { status: null, issues: [], fixes: [], reverify_count: 0 });
+  assert.deepEqual(data.verification, { status: null, suite_run: null, issues: [], fixes: [], reverify_count: 0 });
 });
 
 test('the type is read from a task path recorded with either separator', t => {
@@ -158,6 +158,7 @@ test('verification issues are normalized to objects; a bare count is dropped', t
   });
   assert.deepEqual(readDashboard(run).verification, {
     status: 'passed_with_issues',
+    suite_run: null,
     issues: [
       { severity: 'critical', description: 'the lock is never released' },
       { severity: 'info', description: 'e2e minor: the focus ring' },

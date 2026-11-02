@@ -92,14 +92,21 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     recommends going on past the gap; the reason names what is missing, and each missing point
     is an `open` risk with its `change`, which the revise offers as a suggested note. It keeps
     every stated criterion, as an in-node recommendation does (`references/in-node-questions.md`
-    § *In-node questions*). Without it the continue that turns the most steps on is
+    § *In-node questions*). `{option: null, reason}` recommends **no** option: work the node
+    could not confirm — a done-when line of the task nothing showed met — is the person's to
+    judge, and the reason says what. Without it the continue that turns the most steps on is
     recommended; a `stop` risk still recommends stopping on a gate that offers a stop, and a
-    gate whose revises are spent falls back to the continue.
+    gate whose revises are spent falls back to the continue. **A stretch whose verification did
+    not run the test suite recommends no continue either**, whatever the summary names: when it
+    holds a node that ran the verification loop and `verification_context.suite_run` is
+    `not_run`, or is not recorded for that node's current attempt, the brief marks no option, and
+    each continue's consequence says why. The checkpoint then carries `recommended: {option:
+    null, reason}`, the driven line reads `Recommended: none`, and no picker marks an option.
 
   Items written as strings are still read (`open:`, `tradeoff:`, `followup:`, `left for later:`,
   `recommend stop:` prefixes; untagged reads as `open`); write new items typed. The writer
   refuses an unknown `by`, tag or role, a fix naming neither its finding nor its change, or a
-  `recommends` that is not a continue or a revise of a gate waiting on this node or lacks a one-line reason,
+  `recommends` that is not a continue or a revise of a gate waiting on this node, or null, or lacks a one-line reason,
   with `state-summary-item-invalid`. The engine's `feeds a checkpoint` convention names what
   belongs in each field, and the node's *Summary* part adds what is its own.
 - **Every answer the user gives inside a node is recorded** on that node's summary, one

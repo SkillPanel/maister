@@ -309,6 +309,7 @@ All orchestrators with verification phases use:
 ```yaml
 verification_context:
   last_status: passed | passed_with_issues | failed | null
+  suite_run: passed | failed | skipped | not_run  # whether the cycle's full test suite ran; absent: not recorded
   issues_found: []           # [{id, severity, source, description, fixable, risky, fixed}]
   fixes_applied: []
   decisions_made: []
@@ -321,7 +322,16 @@ verification_context:
 ```
 
 Whoever runs the loop writes this block: the verification runner when the run nests, the main
-session otherwise. The orchestrator's own writes around a runner are the node's start, its end and
+session otherwise.
+
+**`suite_run` says whether the full test suite ran in the cycle**, written on every cycle so its
+absence never reads as a run: `passed` — it ran and passed; `failed` — it ran and tests failed,
+the base's failures included (the verdict tells them apart); `skipped` — it did not run again
+because the implementation phase's full run passed and no fix has changed code since
+(`skip_test_suite`); `not_run` — it did not run and no earlier run stands in. The cycle's entry
+write sets `not_run`, and `findings-merge` records the cycle's value from the test suite's result.
+A block without the key — a run recorded before it existed — is read as *not recorded*, never as
+a suite that ran: the gate after verification then recommends no way on (§ 6 step 9). The orchestrator's own writes around a runner are the node's start, its end and
 the answers to the decisions the runner hands back.
 
 The workflow engine's `findings-merge`, run with `--state` over the cycle's reviewer findings files (`implementation-verifier/references/review-findings.md`), records `issues_found` in the state itself, so the numbering and the shape below are kept in code. Record every issue in `issues_found` as an object, never as a bare string: `severity` is `critical`, `warning` or `info` as the report graded it, `id` is the report's own number for the finding — kept across re-checks, a new finding taking the next unused number — `risky` is the verifier's grading of whether its fix would reach beyond the item, and `fixed: true` marks one fixed since (keep its original severity). The dashboard shows each issue under its `severity`. A string carries no severity field, so its severity has to be guessed from the text.
@@ -457,7 +467,14 @@ answers travel to the next runner dispatch in `verification/decisions-<cycle>.js
 9. **What the gate is handed.** Issues still needing a decision become `open` risks, with the
    fix as their `change`; items left for later stay `followup` risks; accepted ones `tradeoff`
    risks; a spent budget with critical issues still open is a `stop` risk, which makes Stop the
-   gate's recommended answer.
+   gate's recommended answer. **Unchecked work never recommends a way on.** When
+   `verification_context.suite_run` is `not_run` or not recorded, the gate brief itself
+   recommends no continue: the person chooses, told that the suite did not run. When the task
+   states done-when lines — its acceptance criteria or "done when" lines — each one the
+   verification could not confirm with evidence (a passing test, a review's finding that it is
+   built) is an `open` risk naming the line ("Not confirmed: <the line>"), and the node's summary
+   writes `recommends: {option: null, reason}` naming how many are unconfirmed, so the gate
+   recommends no way on over them either.
 10. **Under a driver** with question sets, the finding set is the phase's one request in its
    attempt, so the stopping point after it takes "Continue as is". Under any other driver
    nothing is asked: the findings stay `open` risks, or take what the policy's class gives them.
@@ -568,7 +585,7 @@ Each task directory carries a self-contained HTML dashboard so the operator can 
 - `dashboard.html` — static viewer, copied verbatim from `[plugin]/skills/orchestrator-framework/assets/dashboard.html` at initialization (§ 5). NEVER generated or modified by the model — it is a maintained plugin asset. `dashboard.html` is a frozen asset.
 - `dashboard-data.js` — data projection. The state writer projects it from state on every successful `write-state`; nothing else writes it. The viewer reads it via `<script>` (`window.MAISTER_DATA = {...}`), so it works from `file://` with no server.
 
-**There are no rewrite moments: the projection is the file's only writer.** It is a full projection of `orchestrator-state.yml` plus the summaries, never an incremental patch, and its `generated` stamp is the writer's own clock. A node that wants the dashboard current writes state. The implementation and verification phases run under a skill, outside the engine's turns, and the skill keeps the dashboard current from inside them the same way, never by writing the file. The implementation loop — the implementation runner, or `implementation-plan-executor` in the main session — records each wave start and each group return through the engine's `wave-start` and `group-done` verbs, and each call re-projects the dashboard and the status line itself; the projection derives the phase's `progress` from the plan's checkboxes and the work log's wave and revert headings. The verification loop — the verification runner, or `implementation-verifier` in the main session — records each cycle's `last_status` and `issues_found` in `verification_context`, and the verification panel is projected from that block. A skill run standalone, with no workflow run and so no state file, has no dashboard.
+**There are no rewrite moments: the projection is the file's only writer.** It is a full projection of `orchestrator-state.yml` plus the summaries, never an incremental patch, and its `generated` stamp is the writer's own clock. A node that wants the dashboard current writes state. The implementation and verification phases run under a skill, outside the engine's turns, and the skill keeps the dashboard current from inside them the same way, never by writing the file. The implementation loop — the implementation runner, or `implementation-plan-executor` in the main session — records each wave start and each group return through the engine's `wave-start` and `group-done` verbs, and each call re-projects the dashboard and the status line itself; the projection derives the phase's `progress` from the plan's checkboxes and the work log's wave and revert headings. The verification loop — the verification runner, or `implementation-verifier` in the main session — records each cycle's `last_status`, `issues_found` and `suite_run` in `verification_context`, and the verification panel is projected from that block, `suite_run` shown as whether the test suite ran and `not recorded` when the block lacks it. A skill run standalone, with no workflow run and so no state file, has no dashboard.
 
 **What it carries.** The file is one statement, `window.MAISTER_DATA = <strict JSON>;`, projected from state: the task (title, its workflow as `type`, status, path, the running phase's activity line), the task or design characteristics, one entry per phase (status, `started`/`completed` from the § 4 timestamps, skip reason (for a gate a sub-run's answer skipped, where it was answered), summary, decisions, risks, artifacts with their `html` companion, the gate's question and answer, and for the plan-executor phase a `progress` derived from the plan and the work log), and a verification panel mirrored from `verification_context`. Its shape is the projection's; nothing in a run composes it.
 

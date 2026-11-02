@@ -195,7 +195,11 @@ function gatesUnder(t, name, driverName) {
         ? { decisions: [{ option: firstContinue(earlier), answered_by: 'operator', at: '2026-10-09T09:00:00Z' }] }
         : SUMMARY;
     }
-    if (Object.keys(nodes).length) write(run, { nodes, node_summaries });
+    // A verification before the gate ran its full suite, as its loop records
+    // it: the gate after one that did not recommends no way on.
+    const verifier = graph.nodes.slice(done, index).find(earlier => earlier.uses === 'skill:implementation-verifier');
+    const ran = verifier ? { verification_context: { node: verifier.id, attempt: 1, suite_run: 'passed' } } : {};
+    if (Object.keys(nodes).length) write(run, { nodes, node_summaries, ...ran });
     done = index;
     const base = ['gate-brief', `--state=${run.state}`, `--node=${node.id}`];
     const restore = askable(run, graph, node, [...base, '--checkpoint']);

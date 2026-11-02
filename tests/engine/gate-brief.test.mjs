@@ -111,9 +111,15 @@ function atVerificationApproval(t, values) {
     nodes[node.id] = { status: 'completed' };
   }
   if (values) nodes['verification-options'] = { status: 'completed', values };
-  write(run, { nodes, node_summaries: { verification: { ...SUMMARY, summary: 'Verification passed with 2 warnings.' } } });
+  write(run, { nodes, node_summaries: { verification: { ...SUMMARY, summary: 'Verification passed with 2 warnings.' } }, verification_context: SUITE_RAN });
   return { run, graph };
 }
+
+/**
+ * The verification loop's record of a cycle whose full test suite ran: a gate
+ * after verification recommends no way on without one (`suite-run.test.mjs`).
+ */
+const SUITE_RAN = { node: 'verification', attempt: 1, suite_run: 'passed' };
 
 const continueOf = (graph, id) => {
   const gate = graph.nodes.find(node => node.id === id);
@@ -337,7 +343,7 @@ test('gate-brief: the verification node\'s recommends decides which continue is 
   }
   nodes['verification-options'] = { status: 'completed', values: { user_docs_enabled: false } };
   const reason = 'The change adds a page; driving it in a browser catches what the reviews cannot';
-  write(run, { nodes, node_summaries: { verification: { ...SUMMARY, recommends: { option: 'continue-to-browser-checks', reason } } } });
+  write(run, { nodes, node_summaries: { verification: { ...SUMMARY, recommends: { option: 'continue-to-browser-checks', reason } } }, verification_context: SUITE_RAN });
   assert.equal(recommendedOf(run, 'verification-approval'), 'continue-to-browser-checks');
   const result = picker(run, 'verification-approval');
   assert.equal(result.options[0].id, 'continue-to-browser-checks');
@@ -354,7 +360,7 @@ test('gate-brief: without recommends the continue that turns the step on is reco
     nodes[node.id] = { status: 'completed' };
   }
   nodes['verification-options'] = { status: 'completed', values: { user_docs_enabled: false } };
-  write(run, { nodes, node_summaries: { verification: SUMMARY } });
+  write(run, { nodes, node_summaries: { verification: SUMMARY }, verification_context: SUITE_RAN });
   // continue-past-verification sorts first and turns nothing on.
   assert.equal(recommendedOf(run, 'verification-approval'), 'continue-to-browser-checks');
 });
@@ -835,7 +841,7 @@ function atOverlaidVerificationApproval(t, overlays, summaries) {
     nodes[node.id] = { status: 'completed' };
   }
   nodes['verification-options'] = { status: 'completed', values: { user_docs_enabled: false } };
-  write(run, { nodes, node_summaries: summaries });
+  write(run, { nodes, node_summaries: summaries, verification_context: SUITE_RAN });
   return run;
 }
 

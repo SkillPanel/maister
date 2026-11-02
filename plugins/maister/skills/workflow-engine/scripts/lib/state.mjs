@@ -2614,6 +2614,7 @@ function applyTopLevel(doc, key, value, changed) {
     throw new Refusal('state-patch-invalid',
       `the ${key} patch must be an object or an array`);
   }
+  if (key === 'verification_context') assertSuiteRun(value);
   const entries = Object.entries(value);
   if (!entries.length) {
     doc.set([key], block(key, value, 0));
@@ -2624,6 +2625,22 @@ function applyTopLevel(doc, key, value, changed) {
     doc.set([key, name], block(name, item, 2));
     changed.push(`${key}.${name}`);
   }
+}
+
+/** `verification_context.suite_run`'s values; absent or null reads as not recorded. */
+export const SUITE_RUNS = ['passed', 'failed', 'skipped', 'not_run'];
+
+/**
+ * `verification_context.suite_run`, whether the cycle's full test suite ran:
+ * a reader takes `passed` alone as a suite that ran and passed, so a value it
+ * does not know would be read as an unknown run at best and a pass at worst —
+ * refused, naming the values. Null clears it to not recorded.
+ */
+function assertSuiteRun(value) {
+  if (!Object.hasOwn(value, 'suite_run') || value.suite_run === null || SUITE_RUNS.includes(value.suite_run)) return;
+  throw new Refusal('state-patch-invalid',
+    `verification_context.suite_run is ${JSON.stringify(value.suite_run)}, which is not one of ${SUITE_RUNS.join(', ')} or null. `
+    + 'Nothing was written. Correct that value and send the write again');
 }
 
 /**
@@ -3494,7 +3511,8 @@ function assertItems(at, entry) {
  * A task node's `recommends`: the option it recommends at the gate that closes
  * it, `{option, reason}`, or null to withdraw one. A continue says which way on;
  * a revise sends the run back through that gate, for a node that finds its own
- * work short of what was agreed. The gate brief marks that option recommended
+ * work short of what was agreed; `{option: null, reason}` recommends no option,
+ * for work the node could not confirm and a person has to judge. The gate brief marks that option recommended
  * and shows the reason on it, so an option the gate does not offer as a
  * continue or a revise would recommend nothing while reading as though it did —
  * refused, whenever the run's frozen graph still proves. The reason is shown on
@@ -3510,7 +3528,9 @@ function assertRecommends(id, recommends, graph) {
   };
   if (!isPlainObject(recommends)) refuse(recommends, 'an {option, reason} map naming the option recommended and why');
   const { option, reason } = recommends;
-  if (typeof option !== 'string' || option.trim() === '') refuse(recommends, 'an {option, reason} map naming the option recommended and why');
+  if (option !== null && (typeof option !== 'string' || option.trim() === '')) {
+    refuse(recommends, 'an {option, reason} map naming the option recommended, or null for none, and why');
+  }
   if (typeof reason !== 'string' || reason.trim() === '' || /[\r\n]/.test(reason)) {
     refuse(recommends, 'an {option, reason} map whose reason is one non-empty sentence on one line');
   }
@@ -3523,7 +3543,8 @@ function assertRecommends(id, recommends, graph) {
   if (own?.type === 'gate' || offered.length === 0) {
     refuse(recommends, `a recommendation ${id} can make: no gate waits on ${id} with a continue or a revise option to recommend`);
   }
-  if (!offered.includes(option)) {
+  // Null withholds a recommendation: the gate's options are then the person's to weigh.
+  if (option !== null && !offered.includes(option)) {
     refuse(option, `a continue or a revise option of the gate that waits on ${id}, which offers ${offered.join(', ')}`);
   }
 }

@@ -89,9 +89,9 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    without a brief. **Every reviewer prompt carries `review_brief: <the printed path>`.**
 3. **Cycle entry write.** `verification_context` with `cycle` and `snapshot` copied from the
    brief's own `cycle` and `snapshot` fields (null only without a brief), `node`, `attempt` (the
-   node's `attempt` in `workflow.nodes`, 1 when unset), `last_status: null` and
-   `issues_found: []`. This clears the previous cycle's picture so the dashboard never shows a
-   pre-fix verdict as current. `verification_context` merges key by key: this write never touches
+   node's `attempt` in `workflow.nodes`, 1 when unset), `last_status: null`,
+   `issues_found: []` and `suite_run: not_run`. This clears the previous cycle's picture so the
+   dashboard never shows a pre-fix verdict, or a suite run of an earlier cycle, as current. `verification_context` merges key by key: this write never touches
    `fixes_applied`, `decisions_made` or `reverify_count`.
 4. **Model and effort.** Run `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs
    dispatch-model --agent=<every agent this cycle sends> --host=claude --state=<state>
@@ -124,9 +124,11 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    schema, `reviewer: "artifacts"`, `severity: "warning"`, category `docs`) naming the agent and
    the path, and transcribe its reply's issues there. The report says plainly which findings are
    a transcription.
-9. **Merge.** `findings-merge --state=<state>`. It also records the cycle's `issues_found` in
-   `verification_context`; a `warning: findings-merge-state-unwritten` line says it could not, and
-   step 12 then carries `issues_found` exactly as the merge printed it. Read the counts, every
+9. **Merge.** `findings-merge --state=<state>`. It also records the cycle's `issues_found` and
+   `suite_run` — whether the full test suite ran: `passed`, `failed`, `skipped` (the
+   implementation phase's run stands) or `not_run` — in `verification_context`; a `warning:
+   findings-merge-state-unwritten` line says it could not, and step 12 then carries both exactly
+   as the merge printed them. Read the counts, every
    issue and `failures` from `verification/findings.json`, never from the replies. `not_reported`
    stays open; `out_of_scope` is listed, never counted.
 10. **The verdict.** It reads `failures`: `introduced`, the failing tests and checks that are the
@@ -152,7 +154,8 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
     Re-Verification History** section: each issue → fix → re-check outcome with its one-line
     evidence. Re-check notes stay side files; they never replace the canonical report.
 12. **Cycle record write.** `verification_context` with `last_status` the verdict and
-    `reviews.done` as returned. `issues_found` is not copied: the merge recorded it.
+    `reviews.done` as returned. `issues_found` and `suite_run` are not copied: the merge recorded
+    them. A cycle that ended before the merge keeps the entry write's `suite_run: not_run`.
 
 With `fixes: off`, end with the verdict now (§ *Ending a dispatch*).
 

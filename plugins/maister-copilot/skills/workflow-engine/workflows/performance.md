@@ -339,6 +339,10 @@ the pre-fix state rather than leaving a side file to carry the truth.
 **Summary.** The `headline` — the verdict, what was fixed and what is left; the
 total issues found, how many were fixed and how many remain by severity in
 `summary`. The fixes and risks follow § 6's fix loop, steps 1 and 9.
+Unchecked work recommends no way on (§ 6 step 9): each done-when line of the
+task the verification could not confirm with evidence is an `open` risk naming
+it, and `recommends` is `{option: null, reason}` saying how many; whether the
+suite ran the gate reads from `verification_context.suite_run` itself.
 
 **Budget.** Fix the failing tests and re-run before asking the operator how to
 proceed.

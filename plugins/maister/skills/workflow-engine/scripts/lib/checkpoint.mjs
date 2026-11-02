@@ -680,6 +680,11 @@ export function moreDetails(checkpoint) {
   // title may carry only its first sentences.
   const reasoned = (checkpoint.options ?? []).find(option => option.recommended && option.reason);
   if (reasoned) nexts.push(`Recommended (${lowered(reasoned.label)}): ${sentenceOf(reasoned.reason)}`);
+  // A gate that recommends no option says why, so the choice is not read as an oversight.
+  const unmarked = checkpoint.recommended;
+  if (unmarked !== null && typeof unmarked === 'object' && unmarked.option === null && typeof unmarked.reason === 'string' && unmarked.reason.trim() !== '') {
+    nexts.push(`No option is recommended: ${sentenceOf(unmarked.reason)}`);
+  }
   blocks.push(nexts.join('\n'));
   return blocks.join('\n\n');
 }

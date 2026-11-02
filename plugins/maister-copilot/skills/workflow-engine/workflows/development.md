@@ -581,10 +581,19 @@ total issues found, how many were fixed and how many remain by severity. In
 `decisions`, each review finding the verifier itself settled, `by: audit`. In
 `risks`, what § 6 step 9 hands the gate, the critical ones first; when the user
 chose "Stop", one `stop` risk saying why the run should not go on.
-`verification_context.last_status`, `issues_found` and `reviews`, which the
-verifier records every cycle, are not repeated.
+`verification_context.last_status`, `suite_run`, `issues_found` and `reviews`,
+which the verifier records every cycle, are not repeated.
 
-Recommend whether the browser checks run. When the session has no browser
+**Unchecked work recommends no way on** (`orchestrator-patterns.md` § 6 step
+9). Whether the suite ran the gate reads from `verification_context.suite_run`
+itself: `not_run`, or not recorded, and it recommends neither continue. Each
+done-when line of the task the verification could not confirm with evidence is
+an `open` risk naming the line ("Not confirmed: <the line>"); with any such
+line, `recommends` is `{option: null, reason}` saying how many, and the
+browser-checks recommendation below goes into that reason instead ("Two
+done-when lines are not confirmed; the browser checks would drive the new page").
+
+Otherwise, recommend whether the browser checks run. When the session has no browser
 tool (`<plugin root>/skills/orchestrator-framework/references/browser-tools.md`), recommend `continue-past-verification`
 whatever the input or seed says, its reason that reference's no-browser warning,
 which the brief carries before the choice; picking the browser checks anyway

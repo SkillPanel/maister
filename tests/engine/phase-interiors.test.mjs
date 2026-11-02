@@ -227,20 +227,21 @@ test('each verification cycle reaches the dashboard through its verification_con
 
   // Cycle 1: entry clears, the cycle records its verdict.
   write(run, clear);
-  assert.deepEqual(readDashboard(run).verification, { status: null, issues: [], fixes: [], reverify_count: 0 });
+  assert.deepEqual(readDashboard(run).verification, { status: null, suite_run: null, issues: [], fixes: [], reverify_count: 0 });
   write(run, { verification_context: { last_status: 'failed', issues_found: [lock, focus] } });
-  assert.deepEqual(readDashboard(run).verification, { status: 'failed', issues: [lock, focus], fixes: [], reverify_count: 0 });
+  assert.deepEqual(readDashboard(run).verification, { status: 'failed', suite_run: null, issues: [lock, focus], fixes: [], reverify_count: 0 });
 
   // The caller's fix loop records the fix and the re-run.
   write(run, { verification_context: { fixes_applied: ['released the lock'], reverify_count: 1 } });
 
   // Cycle 2: the entry clear drops the old verdict and keeps the fix record.
   write(run, clear);
-  assert.deepEqual(readDashboard(run).verification, { status: null, issues: [], fixes: ['released the lock'], reverify_count: 1 });
+  assert.deepEqual(readDashboard(run).verification, { status: null, suite_run: null, issues: [], fixes: ['released the lock'], reverify_count: 1 });
   const fixed = { ...lock, fixed: true };
   write(run, { verification_context: { last_status: 'passed_with_issues', issues_found: [fixed, focus] } });
   assert.deepEqual(readDashboard(run).verification, {
     status: 'passed_with_issues',
+    suite_run: null,
     issues: [fixed, focus],
     fixes: ['released the lock'],
     reverify_count: 1,
