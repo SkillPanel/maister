@@ -76,7 +76,7 @@ import path from 'node:path';
 
 import { DISPATCH_ID, MESSAGE_FILE } from '../../../../lib/outbox-files.mjs';
 import { Refusal, flow, scalar, stamp } from './canonical.mjs';
-import { isPullRequest } from './ledger.mjs';
+import { isArtifactList, isPullRequest } from './ledger.mjs';
 
 /** The message types, and the one field each conditionally requires. */
 const TYPES = {
@@ -117,17 +117,15 @@ const PULL_REQUESTS = {
 /**
  * What a dispatched `workflow:` run wrote, one `{key, path}` entry per artifact
  * key its envelope asked for, `path` relative to the worker's working
- * directory. Only the shape is judged here; whether the path is safe to join
+ * directory. Only the shape is judged here, by the ledger's own check, so the
+ * message and the ledger entry it is relayed into hold one shape; whether the path is safe to join
  * and whether the file is there is judged by the envelope that reads it, where
  * the path is used. A key listed twice is refused: a reader taking either entry
  * would be guessing which one the worker meant.
  */
 const ARTIFACTS = {
   expected: 'an array of {key, path} objects, each a non-empty string and each key listed once',
-  accepts: value => Array.isArray(value)
-    && value.every(item => item !== null && typeof item === 'object' && !Array.isArray(item)
-      && typeof item.key === 'string' && item.key !== '' && typeof item.path === 'string' && item.path !== '')
-    && new Set(value.map(item => item.key)).size === value.length,
+  accepts: isArtifactList,
 };
 const listOf = values => ({
   expected: `an array of ${values.join(', ')}`,

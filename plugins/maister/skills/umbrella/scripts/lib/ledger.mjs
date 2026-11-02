@@ -16,6 +16,12 @@
  * no way to tell a line that landed from a line whose writer died between the
  * append and the rename.
  *
+ * An entry carries `version`, `dispatch_id`, `chain`, `target`, `provider`,
+ * `session`, `claimed_on_behalf_of`, `status`, `grade`, `created`, `updated`,
+ * `constraints`, `followups` and `closeout`. `closeout` is null until the
+ * dispatch is closed out, and then records `prs`, `commits`, `artifacts`,
+ * `summary`, `on_behalf_of` when one was given, and `at`.
+ *
  * **The eight ops are the whole write surface** and their names are frozen.
  * They are named exports first and a CLI second: the cockpit daemon calls
  * `closeOut(...)` in process, with no subprocess and no JSON round trip. That
@@ -306,6 +312,30 @@ function requirePullRequests(value, field) {
   return value;
 }
 
+/**
+ * What a dispatched `workflow:` run wrote, as a close-out lists it: one
+ * `{key, path}` map per artifact, both non-empty strings, and each key listed
+ * once — a reader taking either of two entries for one key would be guessing
+ * which one the worker meant. Only the shape is judged; whether a path is safe
+ * to join and whether the file is there is judged where the path is used.
+ * Exported because the outbox writer holds a close-out message's `artifacts`
+ * to the same shape before the ledger ever sees it.
+ */
+export function isArtifactList(value) {
+  return Array.isArray(value)
+    && value.every(item => isPlainObject(item)
+      && typeof item.key === 'string' && item.key !== ''
+      && typeof item.path === 'string' && item.path !== '')
+    && new Set(value.map(item => item.key)).size === value.length;
+}
+
+function requireArtifacts(value, field) {
+  if (!isArtifactList(value)) {
+    throw new Refusal('ledger-args-invalid', `${field} must be a list of {key, path} maps, each a non-empty string and each key listed once`);
+  }
+  return value;
+}
+
 /** Timestamps compare lexically in this form, which is the point of the form. */
 const laterOf = (a, b) => (typeof a === 'string' && a > b ? a : b);
 
@@ -412,7 +442,7 @@ function renderEntry(entry) {
     }
     if (key === 'closeout' && isPlainObject(value)) {
       lines.push('closeout:');
-      const known = ['prs', 'commits', 'summary', 'on_behalf_of', 'at'];
+      const known = ['prs', 'commits', 'artifacts', 'summary', 'on_behalf_of', 'at'];
       for (const name of [...known, ...Object.keys(value).filter(k => !known.includes(k))]) {
         if (Object.hasOwn(value, name)) lines.push(`  ${name}: ${flow(value[name], `closeout.${name}`)}`);
       }
@@ -999,7 +1029,10 @@ export function resolveFollowup(call) {
 
 /**
  * Close the dispatch out: the grade, what shipped, and the terminal status, in
- * one write. The status transition belongs to the engine everywhere else; here
+ * one write. `closeout` records `prs` (`{repo, number, url}` maps), `commits`,
+ * `artifacts` (`{key, path}` maps, what a dispatched `workflow:` run wrote),
+ * `summary` and `at`; an absent list is recorded empty, and a malformed one is
+ * refused `ledger-args-invalid` with nothing written. The status transition belongs to the engine everywhere else; here
  * it rides with the close-out because a graded entry that is not closed would
  * describe a state no reader can act on. `closeout.on_behalf_of`, when
  * `args.on_behalf_of` carries it, names the person a relaying side says closed
@@ -1018,6 +1051,7 @@ export function closeOut(call) {
     entry.closeout = {
       prs: args.prs === undefined ? [] : requirePullRequests(args.prs, 'closeout.prs'),
       commits: args.commits === undefined ? [] : requireList(args.commits, 'closeout.commits'),
+      artifacts: args.artifacts === undefined ? [] : requireArtifacts(args.artifacts, 'closeout.artifacts'),
       summary: args.summary ?? null,
       ...(onBehalfOf !== undefined ? { on_behalf_of: onBehalfOf } : {}),
       at,
