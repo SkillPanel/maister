@@ -24,8 +24,9 @@
  * the counts and the `issues_found` projection. A run named by `--state` also
  * has that projection recorded as its `verification_context.issues_found`,
  * through the state writer, so the dashboard's verification card never waits
- * on the caller to copy it; a standalone `--task-path` merge has no state and
- * writes none. A write the writer refuses, or one that throws, is a
+ * on the caller to copy it, and beside it `verification_context.suite_run`,
+ * whether the cycle's full test suite ran (`suiteRunOf`); a standalone
+ * `--task-path` merge has no state and writes none. A write the writer refuses, or one that throws, is a
  * `findings-merge-state-unwritten` warning and the merge stays ok: its files
  * are written, and the caller's cycle record write can still carry the list.
  * Running a cycle's merge again gives the same result, because it reads the
@@ -280,26 +281,44 @@ export function findingsMerge({ state = null, taskPath = null, cycle = null }) {
   const file = path.join(dir, 'findings.json');
   writeJson(file, document);
   const issuesFound = projection(findings);
-  if (state !== null) recordIssues(state, issuesFound, number, warnings);
-  return { ok: true, file, cycle: number, mode, counts, failures: split, issues_found: issuesFound, errors: [], warnings };
+  const suiteRun = suiteRunOf(thisCycle.find(file => file.stem === TEST_SUITE)?.doc.tests ?? brief?.tests);
+  if (state !== null) recordIssues(state, issuesFound, suiteRun, number, warnings);
+  return { ok: true, file, cycle: number, mode, counts, failures: split, issues_found: issuesFound, suite_run: suiteRun, errors: [], warnings };
 }
 
 /**
- * The projection recorded as the run's `verification_context.issues_found`.
- * The writer merges `verification_context` key by key, so the cycle's other
- * keys — `last_status`, `reviews`, `fixes_applied` — are left as they are. A
- * refusal is a warning, never the merge's failure.
+ * Whether the cycle's full test suite ran, from the test suite's own `tests`
+ * block for the cycle, else the brief's: `passed`; `failed` when it ran and
+ * tests failed, the base's failures included; `skipped` when the run's options
+ * skipped it because the implementation phase's full run stands; `not_run`
+ * for anything else — pending, no result, a status nobody knows — so a cycle
+ * whose suite never reported never reads as one that ran.
  */
-function recordIssues(state, issuesFound, number, warnings) {
+export function suiteRunOf(tests) {
+  const status = isPlainObject(tests) ? tests.status : null;
+  if (status === 'passed') return 'passed';
+  if (status === 'failed' || status === 'passed_with_issues') return 'failed';
+  if (status === 'skipped') return 'skipped';
+  return 'not_run';
+}
+
+/**
+ * The projection recorded as the run's `verification_context.issues_found`,
+ * and the cycle's `suite_run` beside it. The writer merges
+ * `verification_context` key by key, so the cycle's other keys —
+ * `last_status`, `reviews`, `fixes_applied` — are left as they are. A refusal
+ * is a warning, never the merge's failure.
+ */
+function recordIssues(state, issuesFound, suiteRun, number, warnings) {
   let result;
   try {
-    result = writeState({ state, patch: { verification_context: { issues_found: issuesFound } } });
+    result = writeState({ state, patch: { verification_context: { issues_found: issuesFound, suite_run: suiteRun } } });
   } catch (err) {
     result = { ok: false, errors: [{ code: 'state-unwritable', message: err.message }] };
   }
   if (!result.ok) {
     warnings.push(`findings-merge-state-unwritten: ${result.errors.map(error => error.code).join(', ')}; `
-      + `cycle ${number}'s issues_found is not in the state, so the cycle record write carries it`);
+      + `cycle ${number}'s issues_found and suite_run are not in the state, so the cycle record write carries them`);
   }
 }
 

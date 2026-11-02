@@ -616,6 +616,9 @@ function verificationOf(state) {
   const count = context.reverify_count;
   return {
     status: scalar(context.last_status),
+    // Whether the cycle's full test suite ran; null when the run never
+    // recorded it, which a reader shows as not recorded, never as ran.
+    suite_run: scalar(context.suite_run),
     issues: list(context.issues_found).map(issueOf).filter((issue) => issue !== null),
     fixes: list(context.fixes_applied),
     reverify_count: typeof count === 'number' && Number.isFinite(count) ? count : 0,

@@ -248,7 +248,7 @@ After the verifier returns, run the four migration-specific checks:
    the constraints the specification named.
 4. **Performance benchmarks**, before and after, when the specification set any.
 
-The verifier has already recorded `verification_context.last_status` and
+The verifier has already recorded `verification_context.last_status`, `suite_run` and
 `issues_found`. Write each issue a check raised as a finding of
 `verification/migration-checks-findings.json`, in the reviewers' findings
 schema (`<plugin root>/skills/implementation-verifier/references/review-findings.md`) with the
@@ -272,7 +272,11 @@ compatibility and rollback test results and the data integrity status in
 an `open` risk with the fix as its `change`; a breaking change the
 specification chose is a `tradeoff` risk; an issue that predates the migration
 is a `followup` risk. **When the verdict failed and nothing in it is fixable,
-add a `stop` risk** saying why.
+add a `stop` risk** saying why. Unchecked work recommends no way on
+(`orchestrator-patterns.md` § 6 step 9): each done-when line of the task the
+verification could not confirm with evidence is an `open` risk naming it, and
+`recommends` is `{option: null, reason}` saying how many; whether the suite ran
+the gate reads from `verification_context.suite_run` itself.
 
 **Budget.** Fix the failing tests and re-run before asking how to proceed. **A
 data integrity issue is never one of those attempts**: `issue-resolution` halts

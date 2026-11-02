@@ -630,8 +630,20 @@ function renderDrawer(phases) {
     '<div class="body">' + rows + '</div></details></div>';
 }
 
+/* Whether the cycle's full test suite ran: verification.suite_run, null when the run never recorded it. */
+const SUITE_RUN_TEXT = {
+  passed: "Test suite: ran and passed",
+  failed: "Test suite: ran, with failures",
+  skipped: "Test suite: not run again; it passed during implementation",
+  not_run: "Test suite: not run"
+};
+function suiteRunLine(v) {
+  const text = SUITE_RUN_TEXT[v.suite_run] || "Test suite: whether it ran is not recorded";
+  return '<div class="cat">' + esc(text) + '</div>';
+}
+
 function renderVerification(v) {
-  if (!v || (!v.status && !(v.issues || []).length)) return "";
+  if (!v || (!v.status && !v.suite_run && !(v.issues || []).length)) return "";
   const issues = v.issues || [];
   const fixedSet = new Set((v.fixes || []).map(f => typeof f === "string" ? f : (f.finding || f.issue || f.description || "")));
   const isFixed = i => i.fixed === true || i.severity === "resolved" || fixedSet.has(i.description);
@@ -641,6 +653,7 @@ function renderVerification(v) {
   return '<div class="card"><h2>Verification</h2><div class="body">' +
     (v.status ? '<div class="v-status ' + esc(v.status) + '">' + esc(String(v.status).replace(/_/g, " ")) +
       (v.reverify_count ? ' <span style="font-weight:400;color:var(--text-faint)">(' + v.reverify_count + ' re-run' + (v.reverify_count > 1 ? "s" : "") + ')</span>' : "") + '</div>' : "") +
+    suiteRunLine(v) +
     (sorted.length ? sorted.map(i =>
       '<div class="issue' + (isFixed(i) ? ' fixed' : '') + '"><span class="sev ' + esc(i.severity || "info") + '">' + esc(i.severity || "info") + '</span>' +
       esc(i.description || "") +

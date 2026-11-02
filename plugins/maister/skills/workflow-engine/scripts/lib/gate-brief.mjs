@@ -117,7 +117,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
-import { childRootOf, definitionPathOf, htmlOutput, isStalePage, projectRootOf } from './state.mjs';
+import { SUITE_RUNS, attemptOf, childRootOf, definitionPathOf, htmlOutput, isStalePage, projectRootOf } from './state.mjs';
 import { approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
@@ -353,7 +353,8 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   // continue's walk, the one every single-next reader shows.
   const preferred = preferredContinue(doc, options, closing);
   const advised = revisions.spent ? null : advisedRevise(doc, options, closing);
-  const recommended = settling?.option ?? recommend(options, closing.risks, preferred, advised);
+  const withheld = withheldContinue(doc, recorded, byId, closing);
+  const recommended = settling?.option ?? recommend(options, closing.risks, preferred, advised, withheld);
   // The recommended continue walked first, as the pickers list it, so every
   // form's per-continue Next lines read in the options' order.
   const continues = continuesOf(options).sort(([a], [b]) => (b === recommended) - (a === recommended));
@@ -379,7 +380,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
         : [nextLine(walked, titles)];
     const offered = revisions.spent ? [] : revisions.options.map(each => `revise: ${each.id} reruns=${each.reruns} revision=${revisions.revision}/${REVISION_CEILING}`);
     const granting = Object.entries(grantsOf(options)).map(([id, names]) => `${id} ${grantsText(names)}`);
-    const tail = [...next, ...offered, ...granting, `Recommended: ${recommended}`, runLine(doc, runDir)];
+    const tail = [...next, ...offered, ...granting, `Recommended: ${recommended ?? NO_RECOMMENDATION}`, runLine(doc, runDir)];
     return fit(closing, DRIVEN, tail, pointerOf(doc, runDir), held);
   };
 
@@ -398,7 +399,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   }
   let built = null;
   const checkpointOf = () => (built ??= buildCheckpoint({
-    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId, held, settling, advised,
+    doc, runDir, node, recorded, byId, titles, display: current.display, closing, ids, gateNode, options, walked, walks, recommended, preferred, revisions, gateId, held, settling, advised, withheld,
     graph: current.drift ? null : graph, defaults: current.defaults, parent: parentOf(doc, runDir),
     approves: policyOf().matches ? policyOf().approves : [],
   }));
@@ -1496,7 +1497,7 @@ const KEEPS_MAX = 3;
  * counted rather than listed. A fix is kept apart from the decisions: the run
  * changed it without asking, and settled nothing by it.
  */
-function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [], settling = null, advised = null, graph = null, defaults = {}, parent = null }) {
+function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, closing, ids, gateNode, options, walked, walks = new Map(), recommended, preferred = null, revisions, gateId, held = [], approves = [], settling = null, advised = null, withheld = null, graph = null, defaults = {}, parent = null }) {
   const title = id => titleOf(titles, id);
   // The frozen nodes alone: the reserved closing checkpoint's status entry is
   // never counted, and it stands after them all.
@@ -1631,6 +1632,8 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
       // option, so either picker shows why it is the one marked.
       const why = base.recommended && preferred?.option === id ? preferred.reason : null;
       if (why) consequence = `${consequence} ${sentenceOf(why)}`;
+      // A way on over unchecked work says why it is not the one marked.
+      if (withheld !== null && recommended === null) consequence = `${consequence} Not recommended: ${sentenceOf(withheld.reason)}`;
       // A continue approves every choice held for approval, and says so.
       if (held.length) consequence = `${consequence} ${sentenceOf(approvesHeld(held))}`;
       return [{ ...base, consequence, ...(why ? { reason: why } : {}), ...(sets ? { sets, next: own } : {}) }];
@@ -1666,6 +1669,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
   const stopping = risks.stop.length > 0 && listed.some(option => option.recommended && option.effect === 'stop');
   let reason = null;
   if (stopping) reason = risks.stop[0].risk;
+  else if (withheld !== null && recommended === null) reason = withheld.reason;
   else if (settling && settling.option === recommended) reason = settling.reason;
   else if (advised && advised.option === recommended) reason = advised.reason;
   else if (preferred?.reason && preferred.option === recommended) reason = preferred.reason;
@@ -2642,9 +2646,61 @@ function readiness(needStatuses, on) {
  * (`advisedRevise`), else the preferred continue (`preferredContinue`).
  * Without the options the line names the role, not an id.
  */
-function recommend(options, risks, preferred, advised = null) {
+function recommend(options, risks, preferred, advised = null, withheld = null) {
   const stop = risks.some(isStopRisk);
-  return (stop ? optionWith(options, 'stop') : null) ?? advised?.option ?? preferred?.option ?? RECOMMENDED_UNKNOWN;
+  const stopping = stop ? optionWith(options, 'stop') : null;
+  if (stopping !== null) return stopping;
+  // Work nothing has checked recommends no way on: the person chooses.
+  if (withheld !== null) return null;
+  return advised?.option ?? preferred?.option ?? RECOMMENDED_UNKNOWN;
+}
+
+/** The driven line's word for a gate that recommends no option. */
+const NO_RECOMMENDATION = 'none';
+
+/** The verifier the built-in workflows run their verification loop under. */
+const VERIFIER_USES = 'skill:implementation-verifier';
+
+/**
+ * Why no continue is recommended at this gate, `{reason}`, or null when the
+ * usual rules hold. Two cases withhold one, and the person chooses:
+ *
+ * - **The suite is unchecked.** The stretch holds a node that ran the
+ *   verification loop — one using the verifier, or the node
+ *   `verification_context` names — and the block does not record, for that
+ *   node's current attempt, a `suite_run` saying the full test suite ran
+ *   (`passed` or `failed`) or that the implementation phase's run stands
+ *   (`skipped`). `not_run`, and a block without the key — a run recorded
+ *   before it existed — are never read as a suite that ran.
+ * - **The node withholds it.** A closing node's summary names `recommends:
+ *   {option: null, reason}`: work it could not confirm, such as a done-when
+ *   line of the task, is the person's to judge. Read in `advisedRevise`'s
+ *   order, the lead closing node first.
+ *
+ * A `stop` risk still recommends the stop, ahead of both.
+ */
+function withheldContinue(doc, recorded, byId, closing) {
+  const context = isPlainObject(doc.verification_context) ? doc.verification_context : null;
+  const ids = [closing.id, ...closing.entries.map(entry => entry.id).filter(id => id !== closing.id)];
+  const skipped = new Set(closing.entries.filter(entry => entry.skipped).map(entry => entry.id));
+  for (const id of ids) {
+    if (skipped.has(id)) continue;
+    const verifies = byId.get(id)?.uses === VERIFIER_USES || context?.node === id;
+    if (!verifies) continue;
+    const own = context !== null && context.node === id
+      && (context.attempt === undefined || Number(context.attempt) === attemptOf(recorded?.[id]));
+    const run = own && SUITE_RUNS.includes(context.suite_run) ? context.suite_run : null;
+    if (run === 'not_run') return { reason: 'the full test suite did not run in verification; run it, or choose knowing nothing ran it' };
+    if (run === null) return { reason: 'whether the full test suite ran in verification is not recorded; check it before going on' };
+  }
+  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+  for (const id of ids) {
+    const named = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].recommends : null;
+    if (!isPlainObject(named) || named.option !== null) continue;
+    if (typeof named.reason !== 'string' || named.reason.trim() === '') continue;
+    return { reason: scalarText(named.reason) };
+  }
+  return null;
 }
 
 /**
