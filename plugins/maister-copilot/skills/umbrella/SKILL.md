@@ -418,6 +418,13 @@ branch, and a later node updates the pull request an earlier one opened rather
 than opening a second. `defaults.worktree: false` works in the member checkout
 itself instead.
 
+Each member is a repository of its own, so it has to build and test from its own
+checkout. A worktree sits inside its member, which means a relative path from
+one member into another (`../api/src/types.ts`) does not resolve there. Such a
+path only ever worked where the repositories happened to be cloned side by side,
+and it is not supported: share code between members as a package, a submodule
+or a dependency the member declares.
+
 Provider and autonomy each resolve down a short chain and refuse at the end of
 it rather than acquiring a default nobody chose. A node's own value wins, then
 the member's, then the workspace default; an autonomy value outside the frozen
