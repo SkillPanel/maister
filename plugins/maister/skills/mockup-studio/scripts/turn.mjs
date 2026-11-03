@@ -38,6 +38,12 @@
  * deletes the input files. It prints the turn result plus `values`, the run
  * record ready to record: lists comma-joined, `notes_count` a decimal string.
  *
+ * Once a publishing `finish` of an html version has printed its result, it
+ * opens that version's gallery for a person at the terminal: `openGallery`
+ * below says when. A preview and an ascii version open nothing. This is best
+ * effort and records nothing; whatever happens to the opener, the turn's result
+ * and exit code are the ones already decided.
+ *
  * `ground-seal` reads `<pack>/.sources.json` (`SOURCES_FILE`, the input-file
  * rule), hashes each source and image under `--root` (default the working
  * directory), writes `<pack>/grounding.json` and deletes the input; it prints
@@ -74,6 +80,9 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal, claimLock, commit, stamp } from '../../../lib/canonical.mjs';
 import { anchoredFile, consume, readFileText } from '../../../lib/input-file.mjs';
+import { openFile, optedOut } from '../../../lib/open-file.mjs';
+import { isTerminalDriver } from '../../workflow-engine/scripts/lib/driver.mjs';
+import { parse as parseState } from '../../workflow-engine/scripts/lib/state-read.mjs';
 import {
   GROUNDING_FILE, compare, digestOf, hashSource, hashesPackage, inside, blobHash, readGrounding,
 } from './lib/grounding.mjs';
@@ -499,6 +508,40 @@ function finish(flags) {
   return { ok: true, ...work.result, values: work.values };
 }
 
+/**
+ * Whether a person is at the terminal for this turn, read off the run that holds
+ * it. The run's state sits beside `--record` when there is one, since a later
+ * turn's task path may hold an earlier run's state, and otherwise in the task
+ * path. No state means no run: an inline call or a terminal turn. A state that
+ * cannot be read throws, and a turn that cannot tell opens nothing.
+ */
+function personAtTerminal(flags) {
+  const runDir = flags.record === undefined ? flags['task-path'] : path.dirname(flags.record);
+  return isTerminalDriver(parseState(fs.readFileSync(path.join(runDir, 'orchestrator-state.yml'), 'utf8')));
+}
+
+/**
+ * Open a published html version's gallery, once, as a file in the default
+ * browser; a version is published once, so this runs once for it. Never under a
+ * cockpit or a dispatch driver. Silent: a failed open leaves the turn as it was,
+ * and the close still names the path.
+ */
+function openGallery(flags, result) {
+  try {
+    if (result.preview || result.gallery === null || optedOut()) return;
+    let terminal;
+    try {
+      terminal = personAtTerminal(flags);
+    } catch (err) {
+      if (err.code !== 'ENOENT') return;
+      terminal = true;
+    }
+    if (terminal) openFile(path.resolve(flags['task-path'], result.gallery));
+  } catch {
+    // Best effort: nothing about opening a page may touch the turn.
+  }
+}
+
 // ---------------------------------------------------------------- grounding
 
 /** The input file is not what `ground-seal` can read: a link, not a file, not the declared shape. */
@@ -629,6 +672,7 @@ function main() {
     const handlers = { begin, finish, 'ground-seal': groundSeal, 'ground-status': groundStatus };
     const result = handlers[parsed.verb](parsed.flags);
     process.stdout.write(json(result));
+    if (parsed.verb === 'finish') openGallery(parsed.flags, result);
     return EXIT.OK;
   } catch (error) {
     if (error instanceof Refusal) {

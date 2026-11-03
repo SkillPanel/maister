@@ -78,6 +78,6 @@ The browser-less path, per step:
 |---|---|
 | Browser checks | Recommend continuing without them. Chosen anyway, the step reports that it could not run, as a follow-up rather than a defect of the change |
 | User guide | Recommend leaving it off. On, the guide is written without screenshots and says so |
-| Mockup gallery | HTML mockups still render: the gallery opens in the user's default browser, or its address is logged for them to open. ASCII mockups in the terminal are the alternative |
+| Mockup gallery | HTML mockups still render: the turn opens the gallery in the user's default browser when they are at the terminal, and names its path either way. ASCII mockups in the terminal are the alternative |
 
 A question that carries the warning offers real choices: each one changes what the run does next.

@@ -17,7 +17,8 @@ gallery, write every manifest and index, and refresh the flat view. Every shape 
 in `<plugin root>/skills/mockup-studio/references/turn-contract.md`.
 
 The skill runs in the main agent: it dispatches the ASCII agent, and its look pass drives whatever
-browser tool the session has.
+browser tool the session has. So does `finish`, which opens the gallery (step 6): no subagent runs
+it, and the ASCII agent only writes its document.
 
 ---
 
@@ -67,8 +68,9 @@ say so. A prototype also needs Node, which the export runs on.
 
 **No browser tool is not degradation.** HTML is still written. The notes then carry the no-browser
 line from `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` (*When there is
-none*), with the step named as "the mockup look pass", and the hint to open
-`versions/vNNN/index.html` by hand or to run again with `--format ascii`.
+none*), with the step named as "the mockup look pass", and the hint that the turn opens
+`versions/vNNN/index.html` in the default browser for a person at the terminal, and otherwise to
+open it by hand or to run again with `--format ascii`.
 
 ---
 
@@ -153,6 +155,12 @@ The steps say what each one does; the references say how.
    writes the rows and the record, and prints the turn result with a `values` block. A refusal is
    recovered by its row in `references/turn-contract.md` and `finish` run again — except a
    `folder-unwritable` that says the version is already published, which is never finished twice.
+
+   Publishing an `html` version also opens its gallery once, as a file in the person's default
+   browser, when a person is at the terminal: no run at all, or a run with no driver or a terminal
+   one. Never under a cockpit or dispatch driver. The script reads that and does this, so no step
+   here or in a caller opens it again (`references/turn-contract.md`). Opening is best effort: a
+   failed open changes nothing and is not degradation, and the close still names the path.
 7. **Stop the viewer** if step 5 started one, and return.
 
 ### What a turn returns

@@ -18,7 +18,7 @@ function fakeOpener(t, run) {
   const log = path.join(dir, 'opened.log');
   fs.writeFileSync(script, "import fs from 'node:fs';\nfs.appendFileSync(process.argv[2], `${process.argv[3]}\\n`);\n");
   return {
-    env: { MAISTER_NO_OPEN: '', MAISTER_DASHBOARD_OPENER: JSON.stringify([process.execPath, script, log]) },
+    env: { MAISTER_NO_OPEN: '', MAISTER_OPENER: JSON.stringify([process.execPath, script, log]) },
     async opened({ expect }) {
       // A detached child writes when it gets to it: wait for a line that is
       // expected — the file can exist before its line is written — and give one
@@ -142,7 +142,7 @@ test('open-dashboard: MAISTER_NO_OPEN opens nothing', async t => {
 test('open-dashboard: an opener that cannot start prints the path, and the freeze still succeeds', t => {
   const run = scratch(t);
   const missing = path.join(path.dirname(run.dir), 'no-such-opener');
-  const result = freezeWith(run, { MAISTER_NO_OPEN: '', MAISTER_DASHBOARD_OPENER: JSON.stringify([missing]) });
+  const result = freezeWith(run, { MAISTER_NO_OPEN: '', MAISTER_OPENER: JSON.stringify([missing]) });
   const lines = result.stderr.split('\n').filter(line => line.includes('did not open'));
   assert.equal(lines.length, 1, result.stderr);
   assert.match(lines[0], /^warning: the dashboard did not open \(/);
