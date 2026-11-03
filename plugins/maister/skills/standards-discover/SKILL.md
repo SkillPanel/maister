@@ -119,14 +119,15 @@ Every applicable phase is a subagent of its own, whatever the size of the reposi
    - **Against the standards already written.** Read the rules in each existing standards file a finding lands in, starter rules copied at setup included. A finding that says the opposite of a rule there is a conflict too, even with no second finding against it: "Implement versioning (URL path or headers)" in `backend/api.md` against discovered plural, unversioned paths is one. Writing the finding beside the rule, or merging it in, would leave two rules that cannot both hold, and nothing later reports them.
 5. **Categorize** into High (>= 80%), Medium (60-79%), Low (< 60%)
 6. **Filter** by `--confidence` threshold
+7. **Write the list once**, as `{tmpdir}/findings.yml`: every finding after the merge, numbered, each with its tier — high, medium, conflict or below the threshold, exactly one — its plain name, what it says and its sources. A finding in a conflict is listed once, as the conflict. This list is the one count from here to the close: every number Phases 7 to 9 print is read from it, never recounted from memory, and nothing is asked, written or reported that it does not hold.
 
-Display aggregation summary: total raw findings, unique standards, conflicts detected.
+A finding merged into another at the dedupe is said once, in Phase 7's count line, and never again.
 
 ---
 
 ### Phase 7: User Review & Approval
 
-Print one line of counts (high, medium, conflicts, below the threshold), then ask. The counts split the findings once: a finding in a conflict counts as a conflict only, never also as high or medium, and each count is the number of findings asked or listed under it — the high question lists exactly the N it names, the medium pages ask every medium finding, the conflict pages every conflict, and Phase 9 lists every finding below the threshold. A count with nothing asked or listed under it is wrong: correct the count before asking. Every question carries its own findings — never a table above it for the question to point at. Name each standard in plain words, never as `category/file` alone.
+Print one line of counts from the list, then ask: "14 raw findings, 3 merged into others — 2 high, 7 medium, 2 conflicts, 0 below the threshold" (the merge clause only when one was merged). The counts split the findings once: a finding in a conflict counts as a conflict only, never also as high or medium, and each count is the number of findings asked or listed under it — the high question lists exactly the N it names, the medium pages ask every medium finding, the conflict pages every conflict, and Phase 9 lists every finding below the threshold. A count with nothing asked or listed under it is wrong: correct the count before asking. Each entry of the list is asked as one question, never split into two or merged with another, and nothing is asked that the list does not hold; a question that names its place counts against the list ("Medium 3 of 7", the total the count line printed, plus the high ones when the user chose to go through them). Each answer is recorded against its entry in the list, an accepted change keeping the entry's number. Every question carries its own findings — never a table above it for the question to point at. Name each standard in plain words, never as `category/file` alone.
 
 - **High confidence (>= 80%)**: one question — "Apply these N standards?" with one line each in the question (what the standard says, in a few words). "Apply all N (Recommended)" / "Go through them". Going through them uses the medium-confidence pages below.
 
@@ -154,16 +155,16 @@ Write standard files through the docs-operator subagent rather than Write/Edit, 
 1. **Prepare content** for every approved standard, and for every conflict with a written rule settled for the discovered side, the replacement: the written rule's section rewritten as the discovered rule, never a second section beside it — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. A rule cites at most one example path — never an inventory of call sites, a date or a ticket reference. Note create vs update for each target file, and prefer a new topic file (or a sub-folder for a topic with several) over appending to a file already past about 12 KB or 15 rules. A rule already written — a starter rule or the project's own — is replaced or removed only through a conflict the user settled for the discovered side. A finding that overlaps one without contradicting it is written beside it, or added to it with its heading and its text kept; it is never folded into a new section that takes the written one's place.
 2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before) with all prepared standards, instructing it to apply each create/update — adding to existing content, every section the call does not name for replacement kept as it is, and naming each written rule a settled conflict replaces — then refresh INDEX.md with every written path as changed — `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, as an absolute path — and confirm CLAUDE.md references the standards directory.
 
-Display application summary: created count, updated count, total active.
+Display the application summary in findings, read from the list: "N findings applied, in F files (c created, u updated)". A finding added to a rule already written is still one applied finding. An approved finding that was not written is named here, once, with the reason, and counted as not applied.
 
 ---
 
 ### Phase 9: Summary Report
 
-Display final results:
+Display final results. Every count is read from the list, and the counts add up to the count line's total: applied, skipped, below the threshold, and conflicts settled or left unsettled. Nothing merged or dropped is said again here; it was said where it happened.
 - Sources analyzed (config files, code files sampled, docs parsed, PRs reviewed)
-- Standards applied (created/updated counts by category)
-- Standards skipped (low confidence, user declined)
+- Findings applied, by category
+- Findings skipped (user declined, or skipped with the rest) and below the threshold, each named
 - Conflicts with written rules: each settled one, with the rule that now holds, and each skipped one, both rules named with their files, for the user to settle
 - Next steps (review, commit, re-run schedule)
 
