@@ -195,3 +195,105 @@ test('variant hooks.json registers no hooks module and no compact-only start', (
     assert.ok(!fs.existsSync(path.join(VARIANT, dropped)), `${dropped} is not shipped`);
   }
 });
+
+// ---- the question hand-over (Copilot variant only)
+// The engine records each call it prints as .ask.json in the run's directory;
+// the hook puts a fresh, matching record in place of the call the session
+// retyped, once, and leaves every other call as it was written.
+
+const CALL = {
+  message: 'Done: the spec is written.\nDecided by the run:\n- Default kept in the store — specification\nApprove specification?',
+  requestedSchema: {
+    type: 'object',
+    properties: { decision: { type: 'string', title: 'Specification', oneOf: [
+      { const: 'continue-to-planning', title: 'Continue to planning (Recommended)' },
+      { const: 'stop-development', title: 'Stop here — keeps everything written so far' },
+      { const: 'more-details', title: 'More details' },
+    ], default: 'continue-to-planning' } },
+    required: ['decision'],
+  },
+};
+/** The same question as the session retyped it: the run's decision dropped, the ids kept. */
+const RETYPED = { ...CALL, message: 'Done: the spec is written.\nApprove specification?' };
+
+/** A project with one run per name, each run's record written `ageMs` ago and its state `stateAgeMs` ago. */
+function project(t, runs) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-hand-over-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const now = Date.now();
+  const dirs = {};
+  for (const { name, call = CALL, ageMs = 1000, stateAgeMs = 1000 } of runs) {
+    const dir = path.join(root, '.maister/tasks/development', name);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, '.ask.json'), `${JSON.stringify(call, null, 2)}\n`);
+    fs.writeFileSync(path.join(dir, 'orchestrator-state.yml'), 'workflow: {}\n');
+    fs.utimesSync(path.join(dir, '.ask.json'), new Date(now - ageMs), new Date(now - ageMs));
+    fs.utimesSync(path.join(dir, 'orchestrator-state.yml'), new Date(now - stateAgeMs), new Date(now - stateAgeMs));
+    dirs[name] = dir;
+  }
+  return { root, dirs };
+}
+
+const handOver = (dir, root, args, extra = {}) => hook(dir, 'hand-over-question.mjs', {
+  hook_event_name: 'PreToolUse', tool_name: 'ask_user', tool_input: args, cwd: root, ...extra,
+});
+const handedArgs = (tree, json) => (tree === VARIANT ? json?.modifiedArgs : json?.hookSpecificOutput?.updatedInput);
+
+for (const [label, tree] of [['source', SOURCE], ['variant', VARIANT]]) {
+  test(`hand-over (${label}): a retyped call is replaced by the fresh record, which is then used up`, t => {
+    const { root, dirs } = project(t, [{ name: '2026-11-03-a' }]);
+    const result = handOver(tree, root, RETYPED);
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(handedArgs(tree, result.json), CALL);
+    if (tree === VARIANT) assert.deepEqual(Object.keys(result.json), ['modifiedArgs'], 'Copilot reads it at the top level');
+    assert.equal(fs.existsSync(path.join(dirs['2026-11-03-a'], '.ask.json')), false);
+    assert.equal(fs.existsSync(path.join(dirs['2026-11-03-a'], '.ask.used.json')), true);
+    // A consumed record hands nothing over: the same question asked again goes through as written.
+    const again = handOver(tree, root, RETYPED);
+    assert.equal(again.stdout, '');
+  });
+
+  test(`hand-over (${label}): a call already equal to the record passes untouched, and the record is used up`, t => {
+    const { root, dirs } = project(t, [{ name: '2026-11-03-a' }]);
+    assert.equal(handOver(tree, root, CALL).stdout, '');
+    assert.equal(fs.existsSync(path.join(dirs['2026-11-03-a'], '.ask.used.json')), true);
+  });
+
+  test(`hand-over (${label}): a stale record, other ids, an agent's call, toolArgs as a string, and unreadable input`, t => {
+    const stale = project(t, [{ name: '2026-11-03-a', ageMs: 11 * 60 * 1000 }]);
+    assert.equal(handOver(tree, stale.root, RETYPED).stdout, '', 'a record older than ten minutes is never handed over');
+    assert.equal(fs.existsSync(path.join(stale.dirs['2026-11-03-a'], '.ask.json')), true, 'and is left where it is');
+
+    const { root } = project(t, [{ name: '2026-11-03-a' }]);
+    const other = structuredClone(RETYPED);
+    other.requestedSchema.properties.decision.oneOf.pop();
+    assert.equal(handOver(tree, root, other).stdout, '', 'a call asking other choices is another question');
+    assert.equal(handOver(tree, root, RETYPED, { agent_type: 'maister-copilot:spec-auditor' }).stdout, '', 'an agent never asks the person');
+    const stringArgs = hook(tree, 'hand-over-question.mjs', { toolName: 'ask_user', toolArgs: JSON.stringify(RETYPED), cwd: root });
+    assert.deepEqual(handedArgs(tree, stringArgs.json), CALL, 'Copilot\'s toolArgs string is read as the call');
+
+    const broken = hook(tree, 'hand-over-question.mjs', 'not json');
+    assert.equal(broken.code, 0);
+    assert.equal(broken.stdout, '', 'unreadable input fails open');
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-hand-over-'));
+    t.after(() => fs.rmSync(empty, { recursive: true, force: true }));
+    assert.equal(handOver(tree, empty, RETYPED).stdout, '', 'a project with no runs leaves the call alone');
+  });
+
+  test(`hand-over (${label}): of two matching records, the run whose state was written last wins`, t => {
+    const older = { ...CALL, message: 'Earlier run.\nApprove specification?' };
+    const { root, dirs } = project(t, [
+      { name: '2026-11-03-old', call: older, ageMs: 2000, stateAgeMs: 120_000 },
+      { name: '2026-11-03-new', ageMs: 60_000, stateAgeMs: 500 },
+    ]);
+    assert.deepEqual(handedArgs(tree, handOver(tree, root, RETYPED).json), CALL);
+    assert.equal(fs.existsSync(path.join(dirs['2026-11-03-old'], '.ask.json')), true, 'the other run\'s record stays');
+  });
+}
+
+test('hand-over: registered for ask_user in the variant only', () => {
+  const variant = fs.readFileSync(path.join(VARIANT, 'hooks.json'), 'utf8');
+  const source = fs.readFileSync(path.join(SOURCE, 'hooks.json'), 'utf8');
+  assert.match(variant, /"matcher": "ask_user"[\s\S]*hand-over-question\.mjs/);
+  assert.doesNotMatch(source, /hand-over-question/);
+});

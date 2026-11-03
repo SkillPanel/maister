@@ -1184,10 +1184,7 @@ const GATE_BRIEF_FORMS = ['oneline', 'json', 'checkpoint', 'request', 'ask'];
  */
 function printAsk(flags, result, noteForm) {
   if (!result.ok) return EXIT.REJECTED;
-  if (result.ask) {
-    process.stdout.write(`${JSON.stringify(result.ask, null, 2)}\n`);
-    return EXIT.OK;
-  }
+  if (result.ask) return printCall(flags, result.ask);
   if (flags.details === true) {
     process.stdout.write(result.more_details.endsWith('\n') ? result.more_details : `${result.more_details}\n`);
     return EXIT.OK;
@@ -1200,10 +1197,33 @@ function printAsk(flags, result, noteForm) {
       refuseRules('gateBrief');
       return EXIT.REJECTED;
     }
-    process.stdout.write(`${JSON.stringify(noteForm(option.note_question), null, 2)}\n`);
-    return EXIT.OK;
+    return printCall(flags, noteForm(option.note_question));
   }
-  process.stdout.write(`${JSON.stringify(result.picker.form, null, 2)}\n`);
+  return printCall(flags, result.picker.form);
+}
+
+/**
+ * The question tool's call, as `--ask` prints it, recorded beside the run's
+ * state as ASK_RECORD. The session still retypes the call into the tool, and
+ * a session retyping a long brief rewords and shortens it; a host hook that
+ * can replace a tool call's arguments hands this file over in their place,
+ * once, while it is fresh (the Copilot variant's `hand-over-question.mjs`).
+ * The record is a convenience, never the verb's result: a run directory it
+ * cannot be written to leaves the printed call as it is.
+ */
+const ASK_RECORD = '.ask.json';
+
+function printCall(flags, call) {
+  const text = `${JSON.stringify(call, null, 2)}\n`;
+  process.stdout.write(text);
+  try {
+    const record = path.join(path.dirname(path.resolve(flags.state)), ASK_RECORD);
+    const scratchFile = `${record}.${process.pid}.tmp`;
+    fs.writeFileSync(scratchFile, text, 'utf8');
+    fs.renameSync(scratchFile, record);
+  } catch {
+    // The call is printed; a hand-over that cannot happen leaves it to the session.
+  }
   return EXIT.OK;
 }
 
@@ -1261,7 +1281,7 @@ async function runAreaBrief(flags) {
     if (!result.ok) return EXIT.REJECTED;
     if (result.fallback) return EXIT.OK;
     if (flags.details === true) process.stdout.write(result.more_details.endsWith('\n') ? result.more_details : `${result.more_details}\n`);
-    else process.stdout.write(`${JSON.stringify(entryOf(module, 'formOf', VERBS['area-brief'].module)(result), null, 2)}\n`);
+    else return printCall(flags, entryOf(module, 'formOf', VERBS['area-brief'].module)(result));
     return EXIT.OK;
   }
   if (form === 'picker') {

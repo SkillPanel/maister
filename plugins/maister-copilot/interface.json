@@ -1025,7 +1025,8 @@
   "hooks": {
     "events": {
       "PreToolUse": [
-        "Bash"
+        "Bash",
+        "ask_user"
       ],
       "SessionStart": [
         "*"
@@ -1033,7 +1034,7 @@
     },
     "modules": []
   },
-  "interface_version": "1.11",
+  "interface_version": "1.12",
   "mcp": {
     "servers": [],
     "tools": [

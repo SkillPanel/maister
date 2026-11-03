@@ -258,7 +258,7 @@ Invoke the `standards-discover` skill via Skill tool with `--scope=full` to auto
 
 The standards-discover skill handles its own user interaction (presenting findings by confidence tier, asking for approval, and asking which rule holds wherever a finding contradicts a starter standard Phase 5 copied). Let it run its full workflow — this is the last phase of init, so context handoff is fine here.
 
-After completion, display a brief summary of how many standards were discovered and applied, and name every contradiction with a starter standard: the rule that now holds for each settled one, and both rules with their files for each one left unsettled.
+After completion, display a brief summary of how many findings were discovered and applied — the counts standards discovery closed with, as it gave them, never a recount — and name every contradiction with a starter standard: the rule that now holds for each settled one, and both rules with their files for each one left unsettled.
 ---
 
 ## UPDATE PATH: Bring an Existing Setup Up to Date
