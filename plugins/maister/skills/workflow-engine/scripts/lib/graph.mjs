@@ -81,15 +81,28 @@ const NODE_ID = /^[a-z][a-z0-9-]{1,40}$/;
 const OPTION_ID = /^[a-z][a-z0-9-]*$/;
 
 /**
- * One operand of a guard: a reference, optionally negated. A guard is one
- * operand, or several joined by `||` — true when any is. There is no other
- * operator: no `&&`, no parentheses, no comparison.
+ * One operand of a guard: a reference, optionally negated. A guard is one or
+ * more terms joined by `||` — true when any is — and a term is one or more
+ * operands joined by `&&` — true when every one is. `&&` binds tighter than
+ * `||`; there are no parentheses and no comparison.
  */
 const WHEN_REF = /^!?\$\{(inputs|[a-z][a-z0-9-]*)\.(values\.)?[a-z_]+\}$/;
 
-/** A guard's operands, in the order written: the pieces between its `||`s, trimmed. */
+/** The operators a guard joins its references with, in the order they bind: loosest first. */
+export const GUARD_OPERATORS = ['||', '&&'];
+
+/**
+ * A guard's terms, in the order written: the pieces between its `||`s, each
+ * split again at its `&&`s into its operands, trimmed. A stray `&`, `|` or a
+ * dangling operator is left inside an operand, where `WHEN_REF` refuses it.
+ */
+export function guardTerms(when) {
+  return when.split('||').map(term => term.split('&&').map(operand => operand.trim()));
+}
+
+/** A guard's operands, in the order written, whatever term each sits in. */
 export function guardOperands(when) {
-  return when.split('||').map(operand => operand.trim());
+  return guardTerms(when).flat();
 }
 
 /** Every `${…}` occurrence inside a `with` value, wherever it is nested. */
@@ -3253,7 +3266,7 @@ function childInterface(file, children) {
 
 /**
  * A `when` clause names booleans and nothing else: one reference, or several
- * joined by `||`, each optionally negated. Every reference must clear the
+ * joined by `&&` and `||`, each optionally negated. Every reference must clear the
  * frozen pattern, must reach either a declared `bool` input or a declared
  * boolean value output, and — for the output case — that node must be inside
  * the guarded node's own `needs` closure, because a value the engine has not
@@ -3264,7 +3277,7 @@ function checkWhen(node, id, at, file, errors, scope) {
   const dotted = `${at}.when`;
   const operands = typeof node.when === 'string' ? guardOperands(node.when) : [];
   if (!operands.length || !operands.every(operand => WHEN_REF.test(operand))) {
-    fail(errors, file, dotted, 'a when clause is one reference, or several joined by ||, each optionally negated', id);
+    fail(errors, file, dotted, 'a when clause is one reference, or several joined by && and ||, each optionally negated; && binds tighter than || and there are no parentheses', id);
     return;
   }
   for (const operand of operands) checkWhenReference(operand, id, dotted, file, errors, scope);

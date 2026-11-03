@@ -202,7 +202,7 @@ state, which is why the set is closed. An `id:` written inside a node is refused
 | `id` | — | The map key the node is written under; never a key inside the node |
 | `uses` | task | What runs the node, as `<scheme>:<name>` (§ 5). A gate may not carry it |
 | `needs` | both | The node ids this one waits for. Absent or empty makes it a root |
-| `when` | both | A guard: one reference, optionally negated (§ 7) |
+| `when` | both | A guard: one reference, or several joined by `&&` and `\|\|`, each optionally negated (§ 7) |
 | `with` | task | Free-form context handed to whatever runs the node; may interpolate (§ 9) |
 | `outputs` | task | The artifacts and values the node declares (§ 8.2). A gate may not carry it |
 | `type` | gate | `gate` — the only node type; everything else is a task node |
@@ -399,8 +399,11 @@ A node is ready when every need is satisfied, its `on:` allows it, and its guard
 whose guard is false is recorded `skipped`, and **a skip satisfies everything downstream** — that
 is how an optional stretch is written without any routing construct.
 
-**`when`** is one reference, or several joined by `||`, each optionally negated with a leading
-`!`, the whole quoted. A guard with several references is true when any of them is:
+**`when`** is one reference, or several joined by `&&` and `||`, each optionally negated with a
+leading `!`, the whole quoted. `&&` binds tighter than `||`: a guard is true when any of its
+`||` terms is, and a term is true when every reference `&&` joins in it is. Spaces around either
+operator are optional; none goes inside a reference or between `!` and its `${`. Each reference
+is one of:
 
 | Form | Reads |
 |---|---|
@@ -408,10 +411,12 @@ is how an optional stretch is written without any routing construct.
 | `"${<node>.values.<key>}"` | A `bool` value declared by a node inside this node's `needs` closure |
 | `"${<gate>.values.<key>}"` | A value a continue option of a gate inside this node's `needs` closure sets |
 
-There is no further expression language: no `and`, no parentheses, no comparison, no enum test,
-no artifact, and no gate answer by option id — a gate is read through the values its continues
-set. `||` exists for one shape: a stretch two gates can each switch on, the earlier one when the
-stretch between them is skipped and the later one when it ran —
+Every reference is checked on its own, whichever operator joins it. There is no further
+expression language: no `and` or `or` words, no parentheses, no comparison, no enum test, no
+artifact, and no gate answer by option id — a gate is read through the values its continues set.
+A guard of another shape is refused at `nodes.<id>.when`. `||` serves a stretch two gates can
+each switch on, the earlier one when the stretch between them is skipped and the later one when
+it ran —
 
 ```yaml
   design:
@@ -419,9 +424,20 @@ stretch between them is skipped and the later one when it ran —
     when: "${foundation-approval.values.design_enabled} || ${convergence-approval.values.design_enabled}"
 ```
 
-An all-of condition is still a `bool` an earlier node records. A reference to a node that
-did not complete — skipped, failed or stopped — reads false. A completed node that never recorded
-the value is a defect the gate brief refuses to paper over. The closing gate of a guarded stretch repeats the stretch's guard,
+`&&` serves a stretch that needs two values at once — a split into three ways on from two values,
+where each way's gate reads one combination and no combination leaves every gate off:
+
+```yaml
+  pr-approval:    {needs: [ship-choice], when: "${ship-choice.values.pr}"}
+  push-approval:  {needs: [ship-choice], when: "${ship-choice.values.push} && !${ship-choice.values.pr}"}
+  local-approval: {needs: [ship-choice], when: "!${ship-choice.values.push} && !${ship-choice.values.pr}"}
+```
+
+A condition that would need parentheses is still a `bool` an earlier node records. A reference
+to a node that did not complete — skipped, failed or stopped — reads false. A completed node that
+never recorded the value is a defect the gate brief refuses to paper over, unless the guard is
+settled without it: another term reads true, or another reference in its own term reads false.
+The closing gate of a guarded stretch repeats the stretch's guard,
 because an unguarded gate would fire for a stretch that never ran.
 
 **A guard may skip a gate only when someone chose the value it reads, or when the gate only

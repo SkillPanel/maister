@@ -1026,9 +1026,9 @@ test('a guard may join references with ||, each checked as a single reference is
   assert.equal(validate(definition(t, setting({ guard: '"!${intake.values.deep}||${review-approval.values.audit}"' }))).code, 0);
 
   const refused = guard => errorAt(validate(definition(t, setting({ guard }))).report, 'nodes.audit.when').message;
-  assert.match(refused('"${intake.values.deep} && ${review-approval.values.audit}"'),
-    /a when clause is one reference, or several joined by \|\|, each optionally negated/);
-  assert.match(refused('"${intake.values.deep} ||"'), /a when clause is one reference, or several joined by \|\|/);
+  assert.match(refused('"${intake.values.deep} & ${review-approval.values.audit}"'),
+    /a when clause is one reference, or several joined by && and \|\|, each optionally negated/);
+  assert.match(refused('"${intake.values.deep} ||"'), /a when clause is one reference, or several joined by && and \|\|/);
   assert.match(refused('"(${intake.values.deep} || ${review-approval.values.audit})"'), /a when clause is one reference/);
   assert.match(refused('"${intake.values.deep} || ${review-approval.values.deep}"'),
     /"review-approval.values.deep" is not one/);

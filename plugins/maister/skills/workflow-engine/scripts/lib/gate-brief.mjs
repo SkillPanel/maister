@@ -115,7 +115,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
-import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
+import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, guardTerms, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
 import { SUITE_RUNS, attemptOf, childRootOf, definitionPathOf, htmlOutput, isStalePage, projectRootOf } from './state.mjs';
 import { approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
@@ -2378,20 +2378,33 @@ function optionWith(options, effect) {
 }
 
 /**
- * A `when` guard: true when any of its operands is (grammar § 7). `{ok,
- * value}`, or the value-missing refusal when no operand reads true and a
- * completed node never recorded a value one of them reads — an operand that
- * reads true decides the guard whatever another one would have said.
+ * A `when` guard: true when any of its `||` terms is, a term true when every
+ * one of its `&&` operands is (grammar § 7). `{ok, value}`, or the
+ * value-missing refusal when no term reads true and a term with no operand
+ * reading false reads a value a completed node never recorded — a term that
+ * reads true decides the guard, and an operand that reads false decides its
+ * term, whatever another one would have said.
  * Exported for `node-brief`, whose `when:` line reads a guard by this rule.
  */
 export function evaluate(when, context) {
   let refusal = null;
-  for (const operand of guardOperands(when)) {
-    const read = evaluateReference(operand, when, context);
+  for (const term of guardTerms(when)) {
+    const read = evaluateTerm(term, when, context);
     if (read.ok && read.value) return read;
     if (!read.ok) refusal ??= read;
   }
   return refusal ?? { ok: true, value: false };
+}
+
+/** One `&&` term: false once an operand reads false, else the first refusal, else true. */
+function evaluateTerm(term, when, context) {
+  let refusal = null;
+  for (const operand of term) {
+    const read = evaluateReference(operand, when, context);
+    if (read.ok && !read.value) return read;
+    if (!read.ok) refusal ??= read;
+  }
+  return refusal ?? { ok: true, value: true };
 }
 
 /**
