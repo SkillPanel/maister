@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { FIXTURES, ROOT, freeze, run, scratch, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
@@ -308,4 +309,101 @@ test('every code the engine\'s shipped recovery tables name is raised by some ve
     }
   }
   assert.deepEqual(missing, []);
+});
+
+// ---------------------------------------------------------------------------
+// the mockup studio's section
+// ---------------------------------------------------------------------------
+
+const STUDIO = path.join(SOURCE, 'skills/mockup-studio/scripts');
+const WORKFLOWS = path.join(SOURCE, 'skills/workflow-engine/workflows');
+const SHAPES_URL = pathToFileURL(path.join(STUDIO, 'lib/shapes.mjs')).href;
+const DEFINITION_URL = pathToFileURL(path.join(SOURCE, 'skills/workflow-engine/scripts/lib/definition.mjs')).href;
+
+test('the file names the mockup-studio workflow and every built-in workflow, at interface version 1.9 or later', () => {
+  assert.equal(INTERFACE.mockup_studio.workflow, 'mockup-studio');
+  const stems = fs.readdirSync(WORKFLOWS).filter(name => name.endsWith('.yml')).map(name => name.slice(0, -4)).sort();
+  assert.deepEqual(INTERFACE.workflows, stems);
+  for (const builtin of ['development', 'research', 'performance', 'migration', 'product-design', 'mockup-studio']) {
+    assert.ok(INTERFACE.workflows.includes(builtin), `${builtin} is listed`);
+  }
+  const [major, minor] = INTERFACE.interface_version.split('.').map(Number);
+  assert.ok(major > 1 || (major === 1 && minor >= 9), `interface_version ${INTERFACE.interface_version} is at least 1.9`);
+});
+
+test('the inputs and values mockup-studio.yml declares equal the shapes module in name, engine type, required flag and default', async () => {
+  const { readDefinition } = await import(DEFINITION_URL);
+  const { TURN_INPUTS, RUN_RECORD } = await import(SHAPES_URL);
+  const { doc, errors } = readDefinition(path.join(WORKFLOWS, 'mockup-studio.yml'));
+  assert.deepEqual(errors, []);
+
+  const fromYaml = Object.fromEntries(Object.entries(doc.inputs).map(([name, spec]) => [name, { input_type: spec.type, required: spec.required, default: spec.default }]));
+  const fromShapes = Object.fromEntries(Object.entries(TURN_INPUTS).map(([name, spec]) => [name, { input_type: spec.input_type, required: spec.required, default: spec.default }]));
+  assert.deepEqual(fromShapes, fromYaml);
+
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(RUN_RECORD.values).map(([name, spec]) => [name, spec.value_type])),
+    JSON.parse(JSON.stringify(doc.nodes.turn.outputs.values)),
+  );
+  assert.deepEqual(Object.keys(RUN_RECORD.artifacts), Object.keys(doc.nodes.turn.outputs.artifacts));
+  assert.equal(RUN_RECORD.artifacts.turn_result.path, doc.nodes.turn.outputs.artifacts.turn_result);
+
+  // and the file carries what the module declares, with the engine type and the mapping
+  for (const [name, spec] of Object.entries(TURN_INPUTS)) {
+    const carried = INTERFACE.mockup_studio.inputs[name];
+    assert.equal(carried.input_type, spec.input_type, name);
+    assert.equal(carried.required, spec.required, name);
+    assert.equal(carried.default, spec.default, name);
+    assert.equal(carried.maps_to, spec.maps_to, name);
+  }
+  assert.equal(INTERFACE.mockup_studio.inputs.note.maps_to, 'turn.note');
+});
+
+test('the files real turn.mjs runs write depart from nothing the file declares', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-interface-studio-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const task = path.join(root, '.maister', 'tasks', 'development', '2026-01-01-task');
+  const out = path.join(task, 'analysis', 'mockups');
+  fs.mkdirSync(task, { recursive: true });
+  const turn = args => {
+    const result = run(path.join(STUDIO, 'turn.mjs'), args, undefined, {}, root);
+    assert.equal(result.code, 0, result.stdout + result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const record = path.join(root, '.maister', 'tasks', 'mockup-studio', 'run', 'turn-result.json');
+  fs.mkdirSync(path.dirname(record), { recursive: true });
+
+  for (const [index, screens] of [
+    [0, [{ slug: 'home', title: 'Home', html: '<p>home</p>', css: 'p{}', annotations: [{ selector: 'p', note: 'hi' }] }]],
+    [1, [{ title: 'Settings', html: '<p>settings</p>' }]],
+  ]) {
+    const started = turn(['begin', `--task-path=${task}`]);
+    fs.writeFileSync(path.join(started.version_dir, '.turn.json'), JSON.stringify({
+      note: 'a note', format: 'html', fidelity: 'sketch', grounding: { digest: null, stale: false }, screens,
+    }));
+    turn(['finish', `--task-path=${task}`, `--version=${started.version}`, ...(index === 1 ? [`--record=${record}`] : [])]);
+  }
+
+  const declaredFile = (keys, label) => ({ type: 'object', keys, label });
+  const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
+  const studio = INTERFACE.mockup_studio;
+  const checks = [
+    ['versions/index.json', read(path.join(out, 'versions', 'index.json')), studio.versions_index],
+    ['manifest.json', read(path.join(out, 'versions', 'v002', 'manifest.json')), studio.manifest],
+    ['.mockups.json', read(path.join(out, 'versions', 'v002', '.mockups.json')), studio.mockups_json],
+    ['turn-result.json', read(record), studio.returns],
+  ];
+
+  // grounding.json, sealed over a project holding one source
+  const pack = path.join(root, '.maister', 'docs', 'design-context');
+  fs.mkdirSync(pack, { recursive: true });
+  fs.writeFileSync(path.join(root, 'theme.css'), ':root { --a: 1; }\n');
+  fs.writeFileSync(path.join(pack, '.sources.json'), JSON.stringify({ sources: [{ path: 'theme.css', kind: 'theme' }], images: [] }));
+  turn(['ground-seal', `--pack=${pack}`, `--root=${root}`]);
+  checks.push(['grounding.json', read(path.join(pack, 'grounding.json')), studio.grounding.keys]);
+
+  for (const [label, value, keys] of checks) {
+    assert.deepEqual(departures(value, declaredFile(keys), label), [], label);
+  }
+  assert.equal(read(path.join(pack, 'grounding.json')).schema_version, studio.grounding.schema_version);
 });
