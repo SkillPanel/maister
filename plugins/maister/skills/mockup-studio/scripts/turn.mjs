@@ -18,7 +18,10 @@
  * `{ok, version, version_dir, against, first, screens: [{slug, title}]}`, the
  * screens being `against`'s.
  *
- * Between the two, the turn writes one input file, `versions/<vNNN>/.turn.json`
+ *   node <path to this file> ground-seal   --pack=<dir> [--root=<project root>]
+ *   node <path to this file> ground-status --pack=<dir> [--root=<project root>]
+ *
+ * Between `begin` and `finish`, the turn writes one input file, `versions/<vNNN>/.turn.json`
  * (the `TURN_FILE` shape in `lib/shapes.mjs`), with its own file tool — and,
  * for prototype fidelity, `frames.mjs export` writes `.frames.json` beside it.
  * Both are read by the input-file rule: one fixed name in one fixed place,
@@ -35,6 +38,16 @@
  * deletes the input files. It prints the turn result plus `values`, the run
  * record ready to record: lists comma-joined, `notes_count` a decimal string.
  *
+ * `ground-seal` reads `<pack>/.sources.json` (`SOURCES_FILE`, the input-file
+ * rule), hashes each source and image under `--root` (default the working
+ * directory), writes `<pack>/grounding.json` and deletes the input; it prints
+ * `{ok, digest, sources, images}`. `ground-status` writes nothing: it prints
+ * `{ok, status, pack, digest, schema_version, plugin_schema_version, reasons,
+ * changed, gone}` with `status` fresh, stale or missing, `reasons` from
+ * source-changed, source-gone, schema-older and schema-newer (the last never
+ * stales a pack), `changed` and `gone` the source paths. Images and time never
+ * make a pack stale. The hashing rules live in `lib/grounding.mjs`.
+ *
  * Every file is written whole, through a temp and a rename
  * (`lib/canonical.mjs`). The scripts return codes only and never command
  * text; the notes a person reads are written by the skill.
@@ -49,6 +62,9 @@
  *   finish  version-unknown, version-published, turn-file-missing,
  *           turn-file-malformed, slug-invalid, screens-empty, index-locked,
  *           index-malformed, folder-unwritable
+ *   ground-seal    sources-file-missing, sources-file-malformed, source-missing,
+ *                  folder-unwritable
+ *   ground-status  grounding-malformed
  * The write primitives' own codes, `mockup-unwritable` and
  * `mockup-temp-exists`, are reported as `folder-unwritable`.
  */
@@ -59,9 +75,12 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal, claimLock, commit, stamp } from '../../../lib/canonical.mjs';
 import { anchoredFile, consume, readFileText } from '../../../lib/input-file.mjs';
+import {
+  GROUNDING_FILE, compare, digestOf, hashSource, hashesPackage, inside, blobHash, readGrounding,
+} from './lib/grounding.mjs';
 import { rewriteIndex } from './lib/index-rows.mjs';
 import { mockupsJson, renderGallery, renderPage } from './lib/render.mjs';
-import { FRAMES_FILE, TURN_FILE, departures } from './lib/shapes.mjs';
+import { FRAMES_FILE, GROUNDING_SCHEMA_VERSION, SOURCES_FILE, TURN_FILE, departures } from './lib/shapes.mjs';
 import { assertSlug, resolveSlugs } from './lib/slugs.mjs';
 import { isVersion, layout, nextVersion, published, readIndex, readManifest, readScreens } from './lib/versions.mjs';
 
@@ -74,7 +93,10 @@ const FOLDED = new Set(Object.values(WRITE_CODES));
 const VERBS = {
   begin: { values: ['task-path', 'subdir', 'against'], switches: [] },
   finish: { values: ['task-path', 'subdir', 'version', 'index', 'record'], switches: ['preview'] },
+  'ground-seal': { values: ['pack', 'root'], switches: [] },
+  'ground-status': { values: ['pack', 'root'], switches: [] },
 };
+const GROUND_VERBS = ['ground-seal', 'ground-status'];
 
 class UsageError extends Error {}
 
@@ -109,7 +131,8 @@ function parseArgs(argv) {
     }
     flags[name] = value;
   }
-  if (flags['task-path'] === undefined) throw new UsageError(`${verb} needs --task-path`);
+  const needed = GROUND_VERBS.includes(verb) ? 'pack' : 'task-path';
+  if (flags[needed] === undefined) throw new UsageError(`${verb} needs --${needed}`);
   return { verb, flags };
 }
 
@@ -465,6 +488,121 @@ function finish(flags) {
   return { ok: true, ...work.result, values: work.values };
 }
 
+// ---------------------------------------------------------------- grounding
+
+/** The input file is not what `ground-seal` can read: a link, not a file, not the declared shape. */
+class MalformedSources extends Refusal {
+  constructor(message) {
+    super('sources-file-malformed', `${message}. Nothing was written and the input file is kept; correct it and run ground-seal again.`);
+  }
+}
+
+function groundDirs(flags) {
+  return { pack: path.resolve(flags.pack), root: path.resolve(flags.root ?? process.cwd()) };
+}
+
+function groundSeal(flags) {
+  const { pack, root } = groundDirs(flags);
+  const expected = path.join(pack, '.sources.json');
+  try {
+    fs.lstatSync(expected);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      throw new Refusal('sources-file-missing',
+        `${expected} does not exist. Nothing was written; write the list of sources and images there and run ground-seal again.`);
+    }
+    throw new MalformedSources(`${expected} could not be read (${err.message})`);
+  }
+  const file = anchoredFile({ given: expected, expected, noun: 'the input file .sources.json', beside: 'in the pack folder', Usage: MalformedSources });
+  let document;
+  try {
+    document = JSON.parse(readFileText(file, 'the input file .sources.json', MalformedSources));
+  } catch (err) {
+    if (err instanceof Refusal) throw err;
+    throw new MalformedSources(`${expected} is not JSON (${err.message})`);
+  }
+  const found = departures(document, { type: 'object', keys: SOURCES_FILE }, '.sources.json');
+  if (found.length) throw new MalformedSources(`${expected} does not have the declared shape: ${found.slice(0, 5).join('; ')}`);
+
+  const missing = what => new Refusal('source-missing',
+    `${what}. Nothing was written and the input file is kept; correct the path (relative to ${root}) or drop the entry, and run ground-seal again.`);
+  const relative = each => {
+    const rel = inside(each.path);
+    if (rel === null) throw new MalformedSources(`${expected} names ${each.path}, which is not a path inside the project root`);
+    return rel;
+  };
+  const sources = document.sources.map(each => {
+    const rel = relative(each);
+    const hashed = hashSource(root, { ...each, path: rel });
+    if (hashed === null) {
+      throw missing(hashesPackage({ ...each, path: rel }) && fs.existsSync(path.join(root, rel))
+        ? `${rel} does not list the package ${each.package}`
+        : `${rel} is not a file under ${root}`);
+    }
+    return {
+      path: rel,
+      hash: hashed.hash,
+      kind: each.kind,
+      ...(hashed.version === undefined ? {} : { package: each.package, version: hashed.version }),
+    };
+  });
+  const images = document.images.map(each => {
+    const rel = relative(each);
+    let bytes;
+    try {
+      bytes = fs.statSync(path.join(root, rel)).isFile() ? fs.readFileSync(path.join(root, rel)) : null;
+    } catch {
+      bytes = null;
+    }
+    if (bytes === null) throw missing(`${rel} is not a file under ${root}`);
+    return { path: rel, hash: blobHash(bytes) };
+  });
+
+  // The pack folder's files are hashed into the digest as they are now; the
+  // input file is a dot-file and is not among them.
+  const digest = digestOf({ schema: GROUNDING_SCHEMA_VERSION, sources, images, pack });
+  const grounding = { schema_version: GROUNDING_SCHEMA_VERSION, built: stamp(), sources, images, digest };
+  try {
+    put(path.join(pack, GROUNDING_FILE), json(grounding));
+  } catch (err) {
+    if (err instanceof Refusal && FOLDED.has(err.code)) {
+      throw new Refusal('folder-unwritable', `${err.message.replace(/^[a-z-]+: /, '')}. Nothing was written and the input file is kept; make the pack folder writable and run ground-seal again.`);
+    }
+    throw err;
+  }
+  consume(file);
+  return { ok: true, digest, sources: sources.length, images: images.length };
+}
+
+function groundStatus(flags) {
+  const { pack, root } = groundDirs(flags);
+  const document = readGrounding(pack);
+  if (document === null) {
+    return {
+      ok: true, status: 'missing', pack, digest: null, schema_version: null,
+      plugin_schema_version: GROUNDING_SCHEMA_VERSION, reasons: [], changed: [], gone: [],
+    };
+  }
+  const { changed, gone } = compare(root, document);
+  const reasons = [];
+  if (changed.length) reasons.push('source-changed');
+  if (gone.length) reasons.push('source-gone');
+  if (document.schema_version < GROUNDING_SCHEMA_VERSION) reasons.push('schema-older');
+  if (document.schema_version > GROUNDING_SCHEMA_VERSION) reasons.push('schema-newer');
+  const stale = reasons.some(reason => reason !== 'schema-newer');
+  return {
+    ok: true,
+    status: stale ? 'stale' : 'fresh',
+    pack,
+    digest: document.digest,
+    schema_version: document.schema_version,
+    plugin_schema_version: GROUNDING_SCHEMA_VERSION,
+    reasons,
+    changed,
+    gone,
+  };
+}
+
 // ---------------------------------------------------------------- main
 
 function main() {
@@ -473,11 +611,12 @@ function main() {
     parsed = parseArgs(process.argv.slice(2));
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
-    process.stderr.write(`turn: ${error.message}\nusage: node turn.mjs begin|finish --task-path=<dir> [flags]\n`);
+    process.stderr.write(`turn: ${error.message}\nusage: node turn.mjs begin|finish --task-path=<dir> | ground-seal|ground-status --pack=<dir> [flags]\n`);
     return EXIT.INTERNAL;
   }
   try {
-    const result = parsed.verb === 'begin' ? begin(parsed.flags) : finish(parsed.flags);
+    const handlers = { begin, finish, 'ground-seal': groundSeal, 'ground-status': groundStatus };
+    const result = handlers[parsed.verb](parsed.flags);
     process.stdout.write(json(result));
     return EXIT.OK;
   } catch (error) {

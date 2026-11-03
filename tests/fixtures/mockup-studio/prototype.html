@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Order summary</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    .summary { padding: 1.5rem; max-width: 32rem; }
+  </style>
+  <style>
+    .total { font-weight: 600; }
+    .empty { color: #666; }
+  </style>
+</head>
+<body>
+  <main id="app"></main>
+
+  <script id="mockup-scenes">
+    const scenes = [
+      {
+        id: 'order-summary',
+        title: 'Order summary',
+        state: { items: [{ name: 'Desk lamp', price: '24.00' }, { name: 'Notebook', price: '6.50' }], coupon: 'Code $& applied' },
+        annotations: [{ selector: '.total', note: 'Reuses the existing price formatter' }],
+        behaviour: ['Removing the last item shows the empty state'],
+      },
+      {
+        id: 'empty-cart',
+        title: 'Empty cart',
+        state: { items: [], coupon: null },
+      },
+    ];
+
+    function render(state) {
+      if (state.items.length === 0) return '<section class="summary"><p class="empty">Your cart is empty.</p></section>';
+      const rows = state.items.map(item => `<li>${item.name} <span>${item.price}</span></li>`).join('');
+      const coupon = state.coupon ? `<p class="coupon">${state.coupon}</p>` : '';
+      return `<section class="summary"><ul>${rows}</ul>${coupon}<p class="total">Total</p></section>`;
+    }
+  </script>
+
+  <script>
+    // The page's own runtime: mounts render's output and follows #<slug>.
+    function show() {
+      const wanted = location.hash.slice(1);
+      const scene = scenes.find(each => each.id === wanted) ?? scenes[0];
+      document.getElementById('app').innerHTML = render(scene.state);
+    }
+    window.addEventListener('hashchange', show);
+    show();
+  </script>
+</body>
+</html>

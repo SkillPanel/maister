@@ -352,10 +352,10 @@ nodes:
     when: "${gap-analysis.values.mockups_needed}"
     with:
       output_subdir: analysis/design-context/mockups
-      iteration: single
+      fidelity: sketch
       emit_index_rows: true
       gap: "${gap-analysis.artifacts.gap}"
-      scope: "${gap-analysis.artifacts.scope}"
+      scope_clarifications: "${gap-analysis.artifacts.scope}"
       design_index: "${intake.artifacts.design_index}"
     outputs:
       artifacts:

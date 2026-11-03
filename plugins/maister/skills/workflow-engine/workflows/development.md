@@ -28,10 +28,12 @@ and the context ingests the rest of the run reads from.
 5. **Ingest design context from three sources** and unify them under
    `analysis/design-context/`: a product-design task path, named in the
    description or supplied through the design input, whose brief is imported
-   as `brief.md` and whose mockups under `mockups/`; inline mockup paths and
-   design-tool links in the task description, the files imported under
-   `mockups/` and the links recorded; and legacy locations from a resumed run,
-   imported the same way. Skip silently when no source exists. Every file
+   as `brief.md` and whose mockups under `mockups/` — its flat latest view
+   only (`analysis/mockups/*.html`, `analysis/mockups/.mockups.json` and
+   `analysis/mockups/ascii-mockups.md`), never its `versions/` folder; inline
+   mockup paths and design-tool links in the task description, the files
+   imported under `mockups/` and the links recorded; and legacy locations from
+   a resumed run, imported the same way. Skip silently when no source exists. Every file
    comes in through `import` — mockups are often binary, which only the verb
    carries intact. The mockups are **binding**, so a mockup the verb skips
    fails the node, its summary naming each skipped file and the verb's
@@ -209,43 +211,35 @@ artifact rather than proceeding on a test that proves nothing.
 
 ## `ui-mockups`
 
-**Does.** The studio runs design-resource discovery first and renders against
-what it found. Pass the mockup format from `options.mockup_format` (default
-`html`; the studio falls back to a terminal rendering on its own when the
-runtime cannot serve one). Record what the discovery bound to — the standards,
-design system and design skills it found — as `task_context.design_resources`.
+**Does.** Invoke the studio with this node's `with:` values for one turn: it
+draws one new version of the screens under `analysis/design-context/mockups/`
+and asks nothing. Pass `format` from `options.mockup_format` (default `html`).
+The turn grounds itself on the project's design-context pack before it draws.
+Record `task_context.design_resources` from what it returns and the version's
+manifest: the grounding digest and whether the pack was stale, and what the
+turn bound to — the standards, design system and design skills its notes name.
 
-**Companion-server teardown**: the gate fires *after* this node returns, so the
-server must still be up then. Do not shut it down between generation and the
-gate, nor on a revise. Tear it down **only after the gate resolves to
-continue**, by posting to the server's shutdown route. On a stop, the server
-goes with the session.
+**Summary.** Open the `headline` with the version, the screens and the gallery
+file ("v001 of the mockups — four screens: the board, the card editor, the
+empty state and the error state; open
+analysis/design-context/mockups/versions/v001/index.html"). The gate question is
+fixed by the graph hash and cannot carry the path, so the brief does. The
+`summary` names the screens and components designed and what each settles. A
+brief that has to trim keeps the headline whole and the summary's opening
+sentences. In `risks`, each `degraded` reason the turn returned and each screen
+it could not bind to the project's design resources as `open`, its `change`
+what a revise would draw instead: the revise of `mockup-approval` is the way to
+change the screens. Record the format and fidelity actually written and the
+turn's notes. The entry carries the components designed, the screen and
+component counts and the index path.
 
-**Summary.** The gallery pointer: the gate question is fixed by the graph hash
-and cannot carry the address, so the brief does. When the studio reports a live
-gallery address, open the `headline` with it, verbatim, and say how many
-screens it holds ("Mockups ready at http://localhost:4173 — four screens: the
-board, the card editor, the empty state and the error state"). Open the
-`summary` with the same address and the navigation the operator has: the
-gallery grid, each screen, previous and next, and back to the grid; then the
-screens and components designed and what each settles. A brief that has to trim
-keeps the headline whole and the summary's opening sentences. **When the
-companion never came up** — a terminal rendering, or a browser or port failure —
-say so plainly and reference the saved mockup files by path. Never write an
-address that was never served. In `risks`, each screen the studio could not bind
-to the project's design resources as `open`, its `change` what a revise would
-render instead: the revise of `mockup-approval` is the way to change the
-screens. Record the format actually used and any fallback note. The
-entry carries the components designed, the screen and component counts and
-the index path.
+**Re-run.** One more turn, with the gate's revise note as its note, against the
+latest version. The earlier versions stay in the folder; the index rows come
+from the latest version. Say which screens changed.
 
-**Re-run.** Hand the studio the existing mockups under
-`analysis/design-context/`: the same screen ids, a row appended only for a
-screen the note adds. Reuse the companion server when it is still up, write the
-gallery pointer again, and say which screens changed.
-
-**Budget.** None: a studio that cannot render falls back rather than failing,
-and the fallback is a recorded note, not a retry.
+**Budget.** None: a turn that cannot draw everything records why and finishes
+its version rather than failing, and the reason is a recorded note, not a
+retry.
 
 ## `specification`
 

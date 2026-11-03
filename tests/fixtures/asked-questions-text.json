@@ -4408,6 +4408,18 @@
       "verification-approval"
     ]
   },
+  "mockup-studio/cockpit": {
+    "gates": {},
+    "reached": []
+  },
+  "mockup-studio/dispatch": {
+    "gates": {},
+    "reached": []
+  },
+  "mockup-studio/terminal": {
+    "gates": {},
+    "reached": []
+  },
   "performance/cockpit": {
     "gates": {
       "bottleneck-approval": {
@@ -6022,9 +6034,9 @@
           ],
           "progress": {
             "checkpoint": 1,
-            "checkpoints_max": 5,
+            "checkpoints_max": 6,
             "node": 2,
-            "nodes_total": 15
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-context-synthesis",
@@ -6140,9 +6152,9 @@
           ],
           "progress": {
             "checkpoint": 2,
-            "checkpoints_max": 5,
+            "checkpoints_max": 6,
             "node": 4,
-            "nodes_total": 15
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-problem-exploration",
@@ -6286,9 +6298,9 @@
           ],
           "progress": {
             "checkpoint": 4,
-            "checkpoints_max": 5,
+            "checkpoints_max": 6,
             "node": 10,
-            "nodes_total": 15
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-specification",
@@ -6337,6 +6349,130 @@
           }
         ],
         "question": "Approve design direction?"
+      },
+      "mockup-approval": {
+        "checkpoint": {
+          "approves": [],
+          "ask": "Approve the screens?",
+          "closed": [
+            {
+              "headline": "Done.",
+              "node": "visual-prototyping",
+              "summary": "Done.",
+              "title": "Visual prototyping"
+            },
+            {
+              "headline": "Done.",
+              "node": "feature-specification",
+              "summary": "Done.",
+              "title": "Feature specification"
+            }
+          ],
+          "decisions": {
+            "audit": [],
+            "default": [],
+            "operator": {
+              "count": 0,
+              "not_recommended": []
+            },
+            "run": []
+          },
+          "fixes": [],
+          "grants": {},
+          "header": "Screens",
+          "headline": "Done.",
+          "kind": "gate",
+          "next": {
+            "end": false,
+            "node": "specification-approval",
+            "skipped": [],
+            "title": "Approve specification and prototypes"
+          },
+          "node": "mockup-approval",
+          "options": [
+            {
+              "consequence": "Runs approve specification and prototypes next.",
+              "effect": "continue",
+              "id": "continue-to-specification-review",
+              "label": "Continue to the specification review",
+              "recommended": true
+            },
+            {
+              "consequence": "Re-runs Visual prototyping with your note, then asks this again.",
+              "effect": "revise",
+              "id": "revise-mockups",
+              "label": "Revise the screens",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "visual-prototyping",
+                  "title": "Visual prototyping"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Ends the run here.",
+              "effect": "stop",
+              "id": "stop-design",
+              "keeps": [],
+              "label": "Stop here",
+              "not_run": {
+                "next": "Approve specification and prototypes",
+                "remaining": 2
+              },
+              "recommended": false
+            }
+          ],
+          "progress": {
+            "checkpoint": 5,
+            "checkpoints_max": 6,
+            "node": 13,
+            "nodes_total": 16
+          },
+          "recommended": {
+            "option": "continue-to-specification-review",
+            "reason": "nothing open blocks approve specification and prototypes"
+          },
+          "review": [],
+          "risks": {
+            "followup": [],
+            "open": [],
+            "resolved": [],
+            "stop": [],
+            "tradeoff": []
+          },
+          "truncated": false,
+          "version": 1
+        },
+        "options": [
+          {
+            "description": "Runs approve specification and prototypes next.",
+            "effect": "continue",
+            "id": "continue-to-specification-review",
+            "label": "Continue to the specification review",
+            "recommended": true
+          },
+          {
+            "description": "Re-runs Visual prototyping with your note, then asks this again.",
+            "effect": "revise",
+            "id": "revise-mockups",
+            "label": "Revise the screens",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Ends the run here.",
+            "effect": "stop",
+            "id": "stop-design",
+            "label": "Stop here"
+          }
+        ],
+        "question": "Approve the screens?"
       },
       "problem-approval": {
         "checkpoint": {
@@ -6418,9 +6554,9 @@
           ],
           "progress": {
             "checkpoint": 3,
-            "checkpoints_max": 5,
+            "checkpoints_max": 6,
             "node": 7,
-            "nodes_total": 15
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-idea-generation",
@@ -6541,10 +6677,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 5,
-            "checkpoints_max": 5,
-            "node": 13,
-            "nodes_total": 15
+            "checkpoint": 6,
+            "checkpoints_max": 6,
+            "node": 14,
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-product-brief",
@@ -6671,9 +6807,9 @@
           ],
           "progress": {
             "checkpoint": 1,
-            "checkpoints_max": 5,
+            "checkpoints_max": 6,
             "node": 2,
-            "nodes_total": 15
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-context-synthesis",
@@ -6789,9 +6925,9 @@
           ],
           "progress": {
             "checkpoint": 2,
-            "checkpoints_max": 5,
+            "checkpoints_max": 6,
             "node": 4,
-            "nodes_total": 15
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-problem-exploration",
@@ -6935,9 +7071,9 @@
           ],
           "progress": {
             "checkpoint": 4,
-            "checkpoints_max": 5,
+            "checkpoints_max": 6,
             "node": 10,
-            "nodes_total": 15
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-specification",
@@ -6986,6 +7122,130 @@
           }
         ],
         "question": "Approve design direction?"
+      },
+      "mockup-approval": {
+        "checkpoint": {
+          "approves": [],
+          "ask": "Approve the screens?",
+          "closed": [
+            {
+              "headline": "Done.",
+              "node": "visual-prototyping",
+              "summary": "Done.",
+              "title": "Visual prototyping"
+            },
+            {
+              "headline": "Done.",
+              "node": "feature-specification",
+              "summary": "Done.",
+              "title": "Feature specification"
+            }
+          ],
+          "decisions": {
+            "audit": [],
+            "default": [],
+            "operator": {
+              "count": 0,
+              "not_recommended": []
+            },
+            "run": []
+          },
+          "fixes": [],
+          "grants": {},
+          "header": "Screens",
+          "headline": "Done.",
+          "kind": "gate",
+          "next": {
+            "end": false,
+            "node": "specification-approval",
+            "skipped": [],
+            "title": "Approve specification and prototypes"
+          },
+          "node": "mockup-approval",
+          "options": [
+            {
+              "consequence": "Runs approve specification and prototypes next.",
+              "effect": "continue",
+              "id": "continue-to-specification-review",
+              "label": "Continue to the specification review",
+              "recommended": true
+            },
+            {
+              "consequence": "Re-runs Visual prototyping with your note, then asks this again.",
+              "effect": "revise",
+              "id": "revise-mockups",
+              "label": "Revise the screens",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "visual-prototyping",
+                  "title": "Visual prototyping"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Ends the run here.",
+              "effect": "stop",
+              "id": "stop-design",
+              "keeps": [],
+              "label": "Stop here",
+              "not_run": {
+                "next": "Approve specification and prototypes",
+                "remaining": 2
+              },
+              "recommended": false
+            }
+          ],
+          "progress": {
+            "checkpoint": 5,
+            "checkpoints_max": 6,
+            "node": 13,
+            "nodes_total": 16
+          },
+          "recommended": {
+            "option": "continue-to-specification-review",
+            "reason": "nothing open blocks approve specification and prototypes"
+          },
+          "review": [],
+          "risks": {
+            "followup": [],
+            "open": [],
+            "resolved": [],
+            "stop": [],
+            "tradeoff": []
+          },
+          "truncated": false,
+          "version": 1
+        },
+        "options": [
+          {
+            "description": "Runs approve specification and prototypes next.",
+            "effect": "continue",
+            "id": "continue-to-specification-review",
+            "label": "Continue to the specification review",
+            "recommended": true
+          },
+          {
+            "description": "Re-runs Visual prototyping with your note, then asks this again.",
+            "effect": "revise",
+            "id": "revise-mockups",
+            "label": "Revise the screens",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Ends the run here.",
+            "effect": "stop",
+            "id": "stop-design",
+            "label": "Stop here"
+          }
+        ],
+        "question": "Approve the screens?"
       },
       "problem-approval": {
         "checkpoint": {
@@ -7067,9 +7327,9 @@
           ],
           "progress": {
             "checkpoint": 3,
-            "checkpoints_max": 5,
+            "checkpoints_max": 6,
             "node": 7,
-            "nodes_total": 15
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-idea-generation",
@@ -7190,10 +7450,10 @@
             }
           ],
           "progress": {
-            "checkpoint": 5,
-            "checkpoints_max": 5,
-            "node": 13,
-            "nodes_total": 15
+            "checkpoint": 6,
+            "checkpoints_max": 6,
+            "node": 14,
+            "nodes_total": 16
           },
           "recommended": {
             "option": "continue-to-product-brief",
@@ -7323,6 +7583,32 @@
           }
         ],
         "question": "Approve design direction? Type \"details\" for the full brief."
+      },
+      "mockup-approval": {
+        "header": "Screens",
+        "options": [
+          {
+            "description": "Runs approve specification and prototypes next.",
+            "id": "continue-to-specification-review",
+            "label": "Continue to the specification review (Recommended)"
+          },
+          {
+            "description": "Re-runs Visual prototyping with your note, then asks this again.",
+            "id": "revise-mockups",
+            "label": "Revise the screens"
+          },
+          {
+            "description": "Ends the run here.",
+            "id": "stop-design",
+            "label": "Stop here"
+          },
+          {
+            "description": "Shows the full brief, risks included, then asks this again. Nothing is recorded.",
+            "id": "more-details",
+            "label": "More details"
+          }
+        ],
+        "question": "Approve the screens?"
       },
       "problem-approval": {
         "header": "Problem",

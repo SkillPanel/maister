@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Async render</title>
+</head>
+<body>
+  <script id="mockup-scenes">
+    const scenes = [{ id: 'feed', title: 'Feed', state: {} }];
+
+    async function render(state) {
+      await null;
+      for (;;) {
+        // spins after the await, inside a microtask
+      }
+    }
+  </script>
+</body>
+</html>

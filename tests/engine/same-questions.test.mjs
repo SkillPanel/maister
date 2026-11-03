@@ -66,7 +66,7 @@ const IN_NODE_COUNTS = {
   development: 10,
   migration: 4,
   performance: 6,
-  'product-design': 13,
+  'product-design': 12,
   research: 5,
   'mockup-studio': 0,
 };
@@ -373,14 +373,11 @@ test('the in-node question parser finds every id each node-prose file names', ()
   }
 });
 
-test('the product-design mockup pair: no id on the With line, a qualifier before the Without line\'s id', () => {
-  const lines = proseOf('product-design').split('\n');
-  const withLine = lines.find(line => line.startsWith('**With question sets**: the same'));
-  const withoutLine = lines.find(line => line.includes('(the studio\'s `mockup-refinement`)'));
-  assert.ok(withLine && withoutLine, 'the visual-prototyping pair is where the snapshot expects it');
-  assert.deepEqual(inNodeQuestions(`## \`visual-prototyping\`\n${withLine}\n`), []);
-  assert.deepEqual(inNodeQuestions(`## \`visual-prototyping\`\n${withLine}\n${withoutLine}\n`), [{ node: 'visual-prototyping', id: 'mockup-refinement' }]);
-  assert.ok(inNodeQuestions(proseOf('product-design')).some(each => each.node === 'visual-prototyping' && each.id === 'mockup-refinement'));
+test('the product-design visual-prototyping node names no in-node question: a turn asks nothing, its gate does', () => {
+  const prose = proseOf('product-design');
+  assert.ok(prose.includes('## `visual-prototyping`'), 'the visual-prototyping section is where the snapshot expects it');
+  assert.deepEqual(inNodeQuestions(prose).filter(each => each.node === 'visual-prototyping'), []);
+  assert.ok(!prose.includes('mockup-refinement'), 'the retired in-node loop is named nowhere');
 });
 
 test('every built-in asks the same questions, carried the same way, under each driver', t => {

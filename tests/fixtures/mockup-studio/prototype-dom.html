@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Touches the DOM</title>
+  <style>.card { padding: 1rem; }</style>
+</head>
+<body>
+  <script id="mockup-scenes">
+    const scenes = [{ id: 'card', title: 'Card', state: { label: 'Hello' } }];
+
+    function render(state) {
+      const node = document.createElement('div');
+      node.className = 'card';
+      node.textContent = state.label;
+      return node.outerHTML;
+    }
+  </script>
+</body>
+</html>

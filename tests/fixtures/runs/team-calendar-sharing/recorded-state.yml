@@ -1,5 +1,5 @@
 orchestrator:
-  completed_phases: [intake, characteristics-approval, context-synthesis, context-approval, problem-exploration, problem-approval, idea-generation, idea-convergence, direction-approval, feature-specification, visual-prototyping, specification-approval, review-handoff, completion]
+  completed_phases: [intake, characteristics-approval, context-synthesis, context-approval, problem-exploration, problem-approval, idea-generation, idea-convergence, direction-approval, feature-specification, visual-prototyping, mockup-approval, specification-approval, review-handoff, completion]
   failed_phases: []
   task_ids: {}
   task_path: .maister/tasks/product-design/2026-10-02-team-calendar-sharing
@@ -33,7 +33,8 @@ workflow:
     direction-approval: {kind: gate, status: completed, completed: "2026-10-02T10:09:30Z", needs: [idea-convergence]}
     feature-specification: {kind: task, status: completed, started: "2026-10-02T10:09:30Z", completed: "2026-10-02T10:58:12Z", needs: [direction-approval]}
     visual-prototyping: {kind: task, status: completed, started: "2026-10-02T10:58:12Z", completed: "2026-10-02T11:21:40Z", needs: [feature-specification]}
-    specification-approval: {kind: gate, status: completed, completed: "2026-10-02T11:24:05Z", needs: [feature-specification, visual-prototyping]}
+    mockup-approval: {kind: gate, status: completed, completed: "2026-10-02T11:22:30Z", needs: [visual-prototyping]}
+    specification-approval: {kind: gate, status: completed, completed: "2026-10-02T11:24:05Z", needs: [feature-specification, mockup-approval]}
     review-handoff: {kind: task, status: completed, started: "2026-10-02T11:24:05Z", completed: "2026-10-02T11:42:55Z", needs: [specification-approval]}
     completion: {kind: task, status: completed, started: "2026-10-02T11:42:55Z", completed: "2026-10-02T11:43:20Z", needs: [review-handoff]}
 
@@ -44,8 +45,7 @@ design_context:
   research_topics: []
   user_files_list: []
   project_context_summary: "A team scheduling app; calendars are private to the organisation today."
-  refinement_iterations: {problem_statement: 1, personas: 0, direction: 0, specification_sections: {sharing-model: 1}, prototypes: 2}
-  visual_companion: {available: true, port: 52341, pid: 48810, fallback_to_ascii: false}
+  refinement_iterations: {problem_statement: 1, personas: 0, direction: 0, specification_sections: {sharing-model: 1}}
 
 node_summaries:
   intake:
@@ -115,8 +115,13 @@ node_summaries:
     decisions: []
     risks: []
     status: completed
+  mockup-approval:
+    summary: Operator approved the screens.
+    decisions:
+      - {option: continue-to-specification-review, answered_by: operator, at: "2026-10-02T11:22:28Z"}
+    status: completed
   specification-approval:
-    summary: Operator approved the specification and the prototypes.
+    summary: Operator approved the specification.
     decisions:
       - {option: continue-to-product-brief, answered_by: operator, at: "2026-10-02T11:24:01Z"}
     status: completed
