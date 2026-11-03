@@ -15,8 +15,8 @@
 ## ADR-0067 {#adr-0067}
 
 ### Status
-Accepted. No workflow definition changes, so no `graph_hash` moves. Interface 1.11 → 1.12 (the variant's
-hooks gain a `PreToolUse` matcher, `ask_user`).
+Accepted. No workflow definition changes, so no `graph_hash` moves. The variant's interface file goes 1.11 → 1.12 (its
+hooks gain a `PreToolUse` matcher, `ask_user`); the source's stays at 1.11, since each file is versioned against its own tree.
 
 ### Context
 On Copilot the session asks a gate with `ask_user`. It is told to pass the output of `gate-brief --ask`
