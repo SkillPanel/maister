@@ -14,12 +14,9 @@ This works exactly as if you asked the main agent to implement the task directly
 
 2. **Implement it** — Explore the relevant code and make the changes exactly as you normally would for a direct development request.
 
-3. **Discover and enforce standards (the addition)** — As you work:
-   - Read `.maister/docs/INDEX.md` to find which standards exist.
-   - **Then read the specific standard files it points to that are relevant to what you touch.** Reading INDEX.md alone is NOT sufficient — this is mandatory. When you reach a new area mid-task (e.g. auth, database, forms), read its standards before coding it.
-   - Apply the matched standards while implementing.
+3. **Discover and enforce standards (the addition)** — Before coding, read the Standards Compliance Checklist reference, `<plugin root>/skills/orchestrator-framework/references/standards-compliance-checklist.md` (the plugin root two levels above this skill's base directory, as an absolute path). Follow its *Where the standards come from* as you work — including reading a new area's standards before coding it — and apply the matched standards while implementing.
 
-4. **Verify compliance (mandatory)** — After implementing, go through each applicable standard and verify it was followed — report a **Standards Compliance Checklist** (pass/fail per guideline, each annotated with its source file) in your summary, alongside what changed and any tests run. Address any failure before marking the task complete.
+4. **Verify compliance (mandatory)** — After implementing, verify each applicable standard as the reference's *Verifying the checklist* says for work with no plan — report a **Standards Compliance Checklist** (pass/fail per guideline, each annotated with its source file) in your summary, alongside what changed and any tests run. Address any failure before marking the task complete.
 
 5. **Keep the docs index whole** — Never edit `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`; name every document you changed under `.maister/docs/` in your summary. A convention worth keeping is suggested in one line for `/maister:standards-update`, never written into a standards file here.
 
