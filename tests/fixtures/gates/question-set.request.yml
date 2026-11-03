@@ -69,5 +69,6 @@ questions:
       - {id: timestamp, label: Timestamp, effect: continue, description: "When each note was last changed.", recommended: true}
       - {id: operator, label: Operator, effect: continue, description: "Who changed it last.", recommended: true}
       - {id: emoji, label: Emoji, effect: continue, description: "The note's emoji marker.", recommended: false}
+round: 1
 asked_at: "2026-01-05T09:00:00Z"
 answer: null

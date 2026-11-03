@@ -14,9 +14,11 @@
  *
  * - `question-sets` — the driver carries every question a node asks as one
  *   `kind: question` request, and writes the answers back as `answer.answers`.
- *   Honoured under `kind: cockpit` only, and never in a dispatched run
- *   (`isDispatchedRun`): a dispatch worker has no form to show a set on, so
- *   its runs keep the defaults their node prose names.
+ *   Honoured under `kind: cockpit` only, in a run the cockpit drives directly
+ *   and in a dispatched run alike: a dispatched run's question sets travel the
+ *   way its gates do. A dispatched run whose driver does not list the feature
+ *   keeps the defaults its node prose names, and so does the legacy
+ *   `kind: dispatch`, which no host that carries sets records.
  *
  * A dispatched run is one a worker runs for a dispatch of a chain: its driver
  * is a cockpit that records the `dispatch_id` it belongs to, or carries the
@@ -65,19 +67,19 @@ export function isDispatchedRun(doc) {
 
 /**
  * Whether an in-node question suspends to the operator in this run: the driver
- * is a cockpit that lists `question-sets` and the run is not dispatched.
- * Otherwise the node takes the default its prose names.
+ * is a cockpit that lists `question-sets`, dispatched or not. Otherwise the
+ * node takes the default its prose names.
  */
 export function questionSets(doc) {
   const driver = driverOf(doc);
-  return QUESTION_SET_KINDS.has(driver?.kind) && !isDispatchedRun(doc) && driverFeatures(doc).includes(QUESTION_SETS);
+  return QUESTION_SET_KINDS.has(driver?.kind) && driverFeatures(doc).includes(QUESTION_SETS);
 }
 
 /**
  * Whether a person can be asked an in-node question in this run: the driver is
  * absent, names no kind or is `terminal` (the question is asked in session), or
- * is a cockpit that lists `question-sets` and runs no dispatch. A dispatched
- * run, a cockpit without the feature and any unknown kind cannot ask.
+ * is a cockpit that lists `question-sets`. A cockpit without the feature, the
+ * legacy dispatch kind and any unknown kind cannot ask.
  */
 export function canAsk(doc) {
   return isTerminalDriver(doc) || questionSets(doc);

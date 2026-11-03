@@ -56,7 +56,7 @@ dual-run requirements and the code or configuration to preserve are confirmed
 there, after the gap analysis has proposed them.
 
 **With question sets** (`clarifications`): asked through the cockpit, in this
-node's one request.
+node's first request.
 
 **Without question sets** (`clarifications`): none is asked, and
 the analysis's own answers stand. The file is written and
@@ -141,8 +141,8 @@ one", one tab each, and More details. Save the round to
 `analysis/requirements.md`.
 
 **With question sets** (`specification-requirements`): asked through the
-cockpit, in this node's one request; "Go through them one by one" would need a
-second ask, so it is not offered.
+cockpit, in this node's first request; "Go through them one by one" would need a
+round per assumption, so it is not offered.
 
 **Without question sets** (`specification-requirements`): the
 assumptions stand as framed, recorded as one `by: default` decision, and carried
@@ -317,24 +317,25 @@ migration — then **"Continue anyway: I accept the data risk"**. "Stop and roll
 back" writes a `stop` risk naming the issue and `analysis/rollback-plan.md`;
 the run never rolls anything back on its own. "Continue anyway" records the
 issue as a `tradeoff` risk, and the loop goes on. With question sets, the same
-question goes through the cockpit when it is the first thing this node asks in
-its attempt. Otherwise, and under any other driver, there is nobody to ask:
+question goes through the cockpit, as a follow-up round when an earlier request
+of this attempt already went out. Once the attempt's follow-up rounds are spent,
+and under any other driver, there is nobody to ask:
 **record this node `failed`**, and the run ends `RUN-FAILED` with the state
 intact — never an automated repair applied to the user's data.
 
 **With question sets** (`issue-resolution-findings`): asked through the cockpit
-as this node's one request in its attempt, with the verification report and
-every fix so far written first; after the data-integrity question in the same
-attempt, the default below is taken.
+as this node's first request in its attempt, with the verification report and
+every fix so far written first; a later question of the attempt goes as a
+follow-up round, and once the rounds are spent the default below is taken.
 
 **Without question sets** (`issue-resolution-findings`): nothing is asked. An
 issue the policy does not class stays open as an `open` risk; a classed one
 takes the outcome the classing write gives it.
 
-**With question sets** (`verification-fix-loop`): asked through the cockpit only
-when it is the first thing this node asks in its attempt, with the verification
-report and every fix so far written first; after an earlier request in the same
-attempt — the finding questions — the default below is taken.
+**With question sets** (`verification-fix-loop`): asked through the cockpit, with
+the verification report and every fix so far written first — after the finding
+questions, as a follow-up round; once the attempt's rounds are spent, the
+default below is taken.
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same

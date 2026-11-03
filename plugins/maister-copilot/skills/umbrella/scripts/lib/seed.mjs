@@ -343,10 +343,11 @@ function taskLines({ document, workflow, pluginRoot }) {
   // A dispatched run records the cockpit kind: a run the cockpit drives
   // directly and one a worker runs for a dispatch differ only by the dispatch
   // they belong to, and the dispatch id is what makes the run a dispatched one
-  // to the engine — its close-out owed to the outbox, no question sets. It also
+  // to the engine — its close-out owed to the outbox. It also
   // tells apart dispatches into one member, which share its worktree: two runs
   // in one checkout differ by the dispatch each records, and by nothing else in
-  // their state. No `features` are seeded: a dispatch worker has no form to show.
+  // their state. No `features` are seeded here: a run is given question sets only
+  // when whatever starts its worker records `question-sets` in its driver.
   lines.push(`You run as a dispatched run under the cockpit driver: record \`orchestrator.driver: {kind: cockpit, cwd: <the directory named above, absolute>, dispatch_id: ${oneLine(document.dispatch_id)}}\` in your run state, and nothing else in it - the cwd is required beside the kind, and a block carrying only the kind is an invalid state; the dispatch id is what makes your run a dispatched one and tells it apart from another dispatch working in the same checkout. At every gate suspend the run through the gate-request verb alone, never by hand-writing the request file, the gate index or the pending marker; on resume, apply the operator's answer exactly as the driver-suspended resume in ${gatesReference(pluginRoot)} says. The only source of the request is the engine's gate-brief verb:`);
   lines.push(`  node ${workflowScript(pluginRoot)} gate-brief --state=<your own orchestrator-state.yml> --node=<the gate's node id> --request`);
   lines.push('Write what it prints, unchanged, with your file tool to `.state-patch.json` beside that state file - never composed or edited by you, never through a heredoc or a pipe. Then make one call to the gate-request verb:');

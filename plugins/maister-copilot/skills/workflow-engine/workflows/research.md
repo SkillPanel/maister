@@ -182,9 +182,9 @@ alternatives fails the step like a missing one.
 <cause>. Try again?"* — *"Try once more (Recommended)"*, saying why it may work
 now, or *"Skip brainstorming"*, *"go on without the alternatives"*.
 
-**With question sets** (`brainstormer-retry`): asked through the cockpit only
-when it is the first thing this node asks in its attempt; after an earlier
-request in the same attempt, the default below is taken.
+**With question sets** (`brainstormer-retry`): asked through the cockpit, as a
+follow-up round when an earlier request of this attempt already went out; once
+the attempt's follow-up rounds are spent, the default below is taken.
 
 **Without question sets** (`brainstormer-retry`): none — neither
 retry nor skip. With the budget exhausted and nobody to ask, the node is
@@ -331,15 +331,16 @@ now, or *"Skip the design"*, *"finish with the research and the chosen
 approach"*.
 
 **With question sets** (`design-constraints`): asked through the cockpit, in
-this node's one request.
+this node's first request.
 
 **Without question sets** (`design-constraints`): none is
 supplied, and the delegate is invoked on the convergence output and the research
 report alone.
 
-**With question sets** (`designer-retry`): asked through the cockpit only when
-it is the first thing this node asks in its attempt; after an earlier request in
-the same attempt — the constraints question, say — the default below is taken.
+**With question sets** (`designer-retry`): asked through the cockpit, as a
+follow-up round when an earlier request of this attempt — the constraints
+question, say — already went out; once the attempt's follow-up rounds are spent,
+the default below is taken.
 
 **Without question sets** (`designer-retry`): none — neither retry
 nor skip. The budget is exhausted and nobody is there, so the node is recorded

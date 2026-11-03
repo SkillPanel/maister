@@ -104,7 +104,7 @@ will decide. When more than four things are open, ask the four that change the
 most and name the rest in the file as unsettled, the analysis's own answer
 standing.
 
-**With question sets** (`clarifications`): in this node's one request.
+**With question sets** (`clarifications`): in this node's first request.
 
 **Without question sets** (`clarifications`): none is asked; the analysis's
 answers stand, and what it could not settle is named in the file as unsettled.
@@ -155,7 +155,7 @@ decisions, ask each as its own question, its recommended option first: a
 critical one in a call of its own, important ones up to four to a call. When
 both lists are empty, record that no scope decision was needed.
 
-**With question sets** (`scope-decisions`): in this node's one request, each
+**With question sets** (`scope-decisions`): in this node's first request, each
 decision its own question, critical ones included.
 
 **Without question sets** (`scope-decisions`): each decision takes the option
@@ -297,7 +297,7 @@ task as not UI-heavy and intake found no design source;
 `analysis/requirements.md` then says "no visual assets: the change has no user
 interface".
 
-**With question sets** (`technical-questions`): in this node's one request,
+**With question sets** (`technical-questions`): in this node's first request,
 each architecture area its own question beside the technical ones.
 
 **Without question sets** (`technical-questions`): the recommended answer to
@@ -382,7 +382,7 @@ there): write the auditor's decision findings to
 `verification/spec-audit-findings.json`, each `id` the auditor's `name`, and
 build the set with `finding-brief` for this node.
 
-**With question sets** (`spec-audit-findings`): this node's one request, with
+**With question sets** (`spec-audit-findings`): this node's first request, with
 the audit report and every fix written first.
 
 **Without question sets** (`spec-audit-findings`): nothing is asked; a finding
@@ -519,7 +519,7 @@ it — and say so in the node's summary ("User guide: on — asked for when the 
 started"). In a terminal run the seed is a default for the recommendation, not an
 answer.
 
-**With question sets** (`user-docs`): in this node's one request.
+**With question sets** (`user-docs`): in this node's first request.
 
 **Without question sets** (`user-docs`): the recommendation, by
 the same rule, recorded as `user_docs_enabled`.
@@ -552,15 +552,15 @@ to `verification/verification-findings.json`, each `id` the verifier's `name`,
 and build the set with `finding-brief` for this node. The gate after this node
 offers no revise, so a change the user picks is applied here.
 
-**With question sets** (`verification-findings`): this node's one request in its
+**With question sets** (`verification-findings`): this node's first request in its
 attempt, with the verification report and every fix so far written first.
 
 **Without question sets** (`verification-findings`): nothing is asked; an issue
 the policy does not class stays an `open` risk.
 
-**With question sets** (`verification-fix-loop`): the stopping question, asked
-only when it is the first request of this node's attempt, with the report and
-every fix written first; after the finding questions its default is taken.
+**With question sets** (`verification-fix-loop`): the stopping question, with the
+report and every fix written first — after the finding questions, as a follow-up
+round; once the attempt's rounds are spent its default is taken.
 
 **Without question sets** (`verification-fix-loop`): the loop runs as above and
 nothing is asked: every issue that needs a decision and every risky fix stays an
@@ -673,7 +673,7 @@ each such change in a line, with **"Apply them, then continue (Recommended)"**
 first, then **"Keep the guide as written"**. The `docs-approval` gate can only
 continue or stop, so this is where such a fix is taken.
 
-**With question sets** (`docs-fixes`): in this node's one request, with the
+**With question sets** (`docs-fixes`): in this node's first request, with the
 guide as written already on disk.
 
 **Without question sets** (`docs-fixes`): apply the suggested

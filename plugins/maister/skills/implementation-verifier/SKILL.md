@@ -66,8 +66,8 @@ or `inline`:
     `verification-fix-loop`;
   - `session` — ask in session (paged as the engine's in-node questions say), record the answers
     on the node summary as the node records any answer, then `runner-step --answered`;
-  - `suspend` — the node's one request of its attempt (`gate-brief --request --patch-file`), and
-    suspend. On the answer the run comes back here, and `runner-step` finds the answers itself;
+  - `suspend` — a request of the node's attempt, its first or a follow-up round (`runner-step`
+    asks only while a round is left; `gate-brief --request --patch-file`), and suspend. On the answer the run comes back here, and `runner-step` finds the answers itself;
   - `none` — nobody can be asked and the run's policy classes questions: send the set in the
     classing write as the node's prose says, then `runner-step --answered`. (When nobody can be
     asked and nothing classes, `runner-step` takes the defaults itself and never prints `ask`.)

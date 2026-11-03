@@ -338,6 +338,7 @@
           "gate-brief-questions-invalid",
           "gate-brief-questions-unsupported",
           "gate-brief-reask-not-revise",
+          "gate-brief-rounds-spent",
           "gate-brief-unknown-node",
           "gate-brief-value-missing",
           "gate-guard-false",
@@ -1004,6 +1005,10 @@
         "required": false,
         "type": "array"
       },
+      "round": {
+        "required": false,
+        "type": "integer"
+      },
       "triage": {
         "required": false,
         "type": "object"
@@ -1031,7 +1036,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.10",
+  "interface_version": "1.11",
   "mcp": {
     "servers": [],
     "tools": [
