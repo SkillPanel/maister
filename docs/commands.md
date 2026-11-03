@@ -236,7 +236,7 @@ Design output can feed directly into development: `/maister:development .maister
 
 Draws one new version of a set of UI mockups, on its own rather than as a step inside another workflow. Each call is one turn: it writes a new version, keeps every earlier one and never asks a question. Run it again for the next version. It binds the screens to the project's design language through a grounding pack (see `--ground`), by real token and component names, so what you see is what the codebase can actually build.
 
-Two formats. The default writes HTML pages and a gallery page per version, which you open as a file. Where there is no browser to look at them, the pages are still written, and the turn tells you which file to open by hand or to run again with `--format ascii`. ASCII shows layout and placement and nothing about style, and needs neither Node nor a browser.
+Two formats. The default writes HTML pages and a gallery page per version, and a turn in your terminal opens that gallery as a file in your default browser. A run under a cockpit or a dispatch opens nothing. Where the gallery cannot open, the pages are still written, and the turn tells you which file to open by hand or to run again with `--format ascii`. ASCII shows layout and placement and nothing about style, and needs neither Node nor a browser.
 
 | Flag | Description |
 |------|-------------|

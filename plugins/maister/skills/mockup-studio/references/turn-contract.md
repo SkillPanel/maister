@@ -38,6 +38,13 @@ slug was in the previous latest version but is not in this one is removed. No ot
 folder is touched, so pages a workflow's intake imported there stay. Sources never point into
 `versions/`.
 
+**Opening the gallery.** A publishing `finish` of an `html` version, once it has printed its result,
+opens `versions/vNNN/index.html` as a file in the default browser, unless the run's driver rules it
+out. The run's state is `orchestrator-state.yml` beside `--record`, else in the task path. No state
+file is no run, which opens; a driver absent or `terminal` opens; a cockpit, a dispatch, any other
+kind or a state that cannot be read opens nothing. `--preview` and ASCII never open. No file records
+it, and a failed open changes neither the result nor the exit code.
+
 **INDEX rows** (`finish --index`) keep the columns `| ID | Type | Source | Description |`:
 `screen:<slug>` and `component:<id>` rows whose Source is the flat page, or
 `<subdir>/ascii-mockups.md#<slug>` for ASCII; behaviour lines are appended to the description as

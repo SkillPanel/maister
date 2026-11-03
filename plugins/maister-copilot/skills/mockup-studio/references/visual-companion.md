@@ -3,8 +3,9 @@
 The companion is a small read-only viewer over one mockups folder. A turn starts it for its single
 look-and-fix pass, when its browser tool cannot open `file://` pages, and stops it before it returns.
 It renders nothing and takes no input: every page, gallery and manifest it serves was already
-written by `finish` (or `finish --preview`). A person reviews a version by opening its gallery as a
-file; nothing waits on the viewer.
+written by `finish` (or `finish --preview`). A person reviews a version in its gallery, a file:
+`finish` opens it for a person at the terminal, and its path is in the close for anyone else.
+Nothing waits on the viewer.
 
 ---
 

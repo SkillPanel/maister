@@ -21,9 +21,10 @@ import { unmetNeeds } from '../plugins/maister/skills/workflow-engine/scripts/li
 
 /**
  * No child of the suite opens a browser: the freeze and a resume check open the
- * run's dashboard unless this is set. Set on the suite's own environment, so a
- * test that spawns a child without `isolated` inherits it too; a test of the
- * opener lays its own environment over it.
+ * run's dashboard, and a published html mockup turn its gallery, unless this is
+ * set. Set on the suite's own environment, so a test that spawns a child without
+ * `isolated` inherits it too; a test of the opener lays its own environment over
+ * it, with `MAISTER_OPENER` naming a fake opener.
  */
 process.env.MAISTER_NO_OPEN = '1';
 
