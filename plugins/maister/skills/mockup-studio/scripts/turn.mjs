@@ -251,7 +251,7 @@ function plan(flags, where, subdir, index, version) {
       `${path.join(versionDir, 'ascii-mockups.md')} does not exist, and an ascii version is that document. Nothing was written; write it and run finish again.`);
   }
 
-  const previous = against === null ? { manifest: null, screens: [] } : readScreens(where.dir(against));
+  const previous = against === null ? { manifest: null, screens: [] } : readScreens(where.dir(against), format);
   const drop = (turnFile.drop ?? []).map((slug, at) => assertSlug(slug, `drop[${at}]`));
   (turnFile.scope ?? []).forEach((slug, at) => assertSlug(slug, `scope[${at}]`));
 

@@ -487,6 +487,19 @@ test('an html version built on must keep its .mockups.json; only an ascii versio
       assert.deepEqual(tree(started.json.version_dir), ['.turn.json']);
       assert.equal(fs.readFileSync(path.join(where.versions, 'index.json'), 'utf8'), indexBefore);
     });
+
+    await t.test(`a .mockups.json ${what} does not refuse an ascii turn, which carries nothing from it`, () => {
+      const where = project(t);
+      wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p>a</p>' }, { slug: 'b', title: 'B', html: '<p>b</p>' }] });
+      damage(path.join(where.versions, 'v001', '.mockups.json'));
+      const started = turn(where, 'begin');
+      fs.writeFileSync(path.join(started.json.version_dir, 'ascii-mockups.md'), '# Mockups\n\n## C {#c}\n');
+      writeTurn(started.json.version_dir, { format: 'ascii', screens: [{ slug: 'c', title: 'C' }] });
+      const finished = turn(where, 'finish', [`--version=${started.json.version}`]);
+      assert.equal(finished.code, 0, finished.stdout + finished.stderr);
+      assert.deepEqual(finished.json.screens, ['c']);
+      assert.deepEqual(readJson(path.join(where.versions, 'index.json')).versions.map(each => each.version), ['v001', started.json.version]);
+    });
   }
 
   await t.test('an ascii version with no .mockups.json still carries its screens over', () => {
