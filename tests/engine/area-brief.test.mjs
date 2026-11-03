@@ -664,8 +664,13 @@ test('area-brief --ask: the call alone, built from the plain picker — every al
   assert.deepEqual(decision.oneOf, plain.options.map(option => ({ const: option.id, title: option.label })));
   assert.equal(decision.oneOf.at(-1).const, 'more-details');
   assert.equal(decision.default, plain.options.find(option => option.recommended).id);
+  // The printed call is recorded beside the state for the host's hand-over;
+  // the write-up under --details leaves the record as it was.
+  const record = path.join(path.dirname(run.state), '.ask.json');
+  assert.equal(fs.readFileSync(record, 'utf8'), asked.stdout);
   const details = brief(run, ['--area=storage', '--ask', '--details']);
   assert.equal(details.stdout.trimEnd(), plain.more_details.trimEnd());
+  assert.equal(fs.readFileSync(record, 'utf8'), asked.stdout);
   // Control: --ask takes no --json, and --details needs --ask.
   assert.equal(brief(run, ['--area=storage', '--ask', '--json']).code, 2);
   assert.equal(brief(run, ['--area=storage', '--details']).code, 2);

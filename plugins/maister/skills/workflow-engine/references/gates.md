@@ -321,7 +321,10 @@ questions.
    and never reword, shorten or move the message. Read the whole output, never through `head`,
    `tail` or a script that picks fields out of it. A revise's note is asked after the revise is
    chosen (*Revising at a gate*), never as a field beside the choice. The message's last line
-   is the ask, so the ask stays on screen while the user decides.
+   is the ask, so the ask stays on screen while the user decides. The engine also keeps the call
+   it printed beside the run's state, and this host's hook hands it to the question tool in
+   place of the arguments you send, once and only while it is fresh; that is a safety net, not
+   a reason to send less — a question asked again without a new `--ask` is shown as you wrote it.
 
    > **SELF-CHECK before the `AskUserQuestion` call** (the gate SELF-CHECK): are the arguments
    > exactly the `--ask` output — every choice with its title, `(Recommended)` on one, More

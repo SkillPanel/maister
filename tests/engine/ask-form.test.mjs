@@ -255,3 +255,37 @@ test('ask --patch-file: a set that fails its check is refused and the file kept;
   assert.equal(driven.code, 1);
   assert.match(driven.stderr, /^gate-brief-questions-unsupported/);
 });
+
+// ---- the printed call, recorded for the host's hand-over
+// Every --ask that prints a call also leaves it beside the run's state as
+// .ask.json, byte for byte, for the Copilot variant's hand-over hook to put in
+// place of the call the session retyped. Text forms record nothing.
+
+const recordOf = run => path.join(run.dir, '.ask.json');
+
+test('ask: the gate\'s call, the note\'s call and a question set\'s call are each recorded as printed, the last one kept', t => {
+  const run = atSpecGate(t);
+  const gate = brief(run, 'specification-approval', '--ask');
+  assert.equal(gate.code, 0, gate.stderr);
+  assert.equal(fs.readFileSync(recordOf(run), 'utf8'), gate.stdout, 'the record is the printed call');
+  const note = brief(run, 'specification-approval', '--ask', '--note=revise-specification');
+  assert.equal(fs.readFileSync(recordOf(run), 'utf8'), note.stdout, 'a later call replaces the record');
+
+  const set = asking(t);
+  const file = path.join(set.dir, '.state-patch.json');
+  fs.writeFileSync(file, JSON.stringify(USER_GUIDE));
+  const asked = brief(set, 'verification-options', '--ask', `--patch-file=${file}`);
+  assert.equal(asked.code, 0, asked.stderr);
+  assert.equal(fs.readFileSync(recordOf(set), 'utf8'), asked.stdout);
+});
+
+test('ask: --details, --json and a refusal record nothing', t => {
+  const run = atSpecGate(t);
+  for (const flags of [['--ask', '--details'], ['--json', '--picker=plain'], ['--ask', '--note=stop-development']]) {
+    brief(run, 'specification-approval', ...flags);
+    assert.equal(fs.existsSync(recordOf(run)), false, flags.join(' '));
+  }
+  // Control: the call itself is recorded.
+  brief(run, 'specification-approval', '--ask');
+  assert.equal(fs.existsSync(recordOf(run)), true);
+});

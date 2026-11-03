@@ -35,7 +35,7 @@ cp -r "$CORE" "$OUT"
 #     SessionStart hook, so the compact-only reminder would speak at every start;
 #   - edition-check.mjs: the collision it looks for is between editions that
 #     share the plugin name, which this renamed variant never carries.
-# The two scripts that stay are switched to Copilot's output shape further down.
+# The scripts that stay are switched to Copilot's output shape further down.
 rm -rf "$OUT/types" "$OUT/.claude-plugin/types" "$OUT/tsconfig.json" \
   "$OUT/hooks/display.mjs" "$OUT/hooks/post-compact-reminder.mjs" "$OUT/hooks/edition-check.mjs"
 cp "$ROOT/platforms/copilot-cli/hooks.json" "$OUT/hooks/hooks.json"
