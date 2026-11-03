@@ -1,202 +1,58 @@
-# Visual Companion
+# Visual companion
 
-Documents the browser-based visual companion architecture used by the `mockup-studio` skill (the HTML mockup path). Provides high-fidelity visual feedback by rendering HTML/CSS mockups in a browser during a mockup session. `mockup-studio` is invoked both standalone and by the development workflow's `ui-mockups` node and the product-design workflow's `visual-prototyping` node, so this component is shared, not product-design-specific.
-
-The server lives at `${MAISTER_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs`.
-
-The plugin root is this plugin's own directory — the one holding
-`.claude-plugin/plugin.json`, two levels above the base directory the loader
-shows for the `mockup-studio` skill. Run the server by that absolute path, never
-through the variable: wherever a command here reads `${MAISTER_PLUGIN_ROOT}`,
-write the directory in its place, because a host that leaves the variable unset
-would start `node /skills/…`, which fails. A root holding a space goes in single
-quotes.
+The companion is a small read-only viewer over one mockups folder. A turn starts it for its single
+look-and-fix pass, when its browser tool cannot open `file://` pages, and stops it before it returns.
+It renders nothing and takes no input: every page, gallery and manifest it serves was already
+written by `finish` (or `finish --preview`). A person reviews a version by opening its gallery as a
+file; nothing waits on the viewer.
 
 ---
 
-## Purpose
+## When a turn needs it
 
-Terminal-based ASCII mockups are useful but limited. For UI-focused tasks, seeing actual rendered HTML/CSS in a browser gives qualitatively better feedback. The visual companion provides this without requiring any external tools, npm packages, or design software.
+Only in step 5 of the turn, and only when all of these hold:
 
-**Core idea**: mockup-studio generates HTML/CSS, sends it to a local server, the browser renders it, the user reviews and provides feedback in the terminal. The browser is read-only visual output -- all interaction stays in the terminal via ask_user.
+- the format is `html`;
+- the session has a browser tool (`<plugin root>/skills/orchestrator-framework/references/browser-tools.md`);
+- that tool cannot open the pages by `file://` path.
 
----
-
-## Architecture Overview
-
-```
-Orchestrator → POST /update → Node.js Server → SSE "refresh" → Browser (renders mockup)
-                                                                   ↓ user views
-                                                              Terminal (ask_user)
-```
-
-**Data flow is one-directional**: Orchestrator pushes content to server, server pushes to browser, user reviews in browser, feedback flows through terminal. The browser never sends data back to the orchestrator.
+Otherwise the turn opens the pages by path, or, with no browser tool, skips the look pass with its
+note. A viewer that cannot start never fails the turn: skip the look pass and say why in the notes.
 
 ---
 
-## Zero-Dependency Principle
+## Starting and stopping
 
-The server uses ONLY Node.js built-in modules: `http`, `fs`, `path`, `url`. No npm install required. No package.json needed.
+Both verbs take the folder that holds `versions/` — `<task_path>/<output_subdir>` — as `--root`:
 
-**SSE over WebSocket**: Server-Sent Events replace WebSocket for simplicity. SSE works with the native browser `EventSource` API, requires no client library, and handles reconnection automatically. One-directional push (server to browser) is all we need.
+- `node <plugin root>/skills/mockup-studio/server/index.mjs start --root=<folder>` prints
+  `{ok, port, url, root}` once the viewer listens;
+- `node <plugin root>/skills/mockup-studio/server/index.mjs stop --root=<folder>` ends it and prints
+  whether it stopped one. With nothing running, it stops nothing, which is not an error.
 
-**Why zero-dependency matters**: The visual companion starts inside a product-design workflow. Requiring `npm install` would add failure modes, slow down startup, and create version compatibility issues. Node.js built-in modules are sufficient for a local development server.
+The viewer binds `127.0.0.1` only, on the first free port of 3847–3850, records itself in
+`<folder>/.companion.pid`, and exits by itself after fifteen minutes without a request — so a turn
+that crashed leaves nothing running for long.
 
----
+**Open the version by its path**: `<url>/versions/vNNN/index.html` and
+`<url>/versions/vNNN/<slug>.html`. Never the viewer's `/`: it redirects to the gallery of `latest` in
+`versions/index.json`, which during a preview is still the previous version.
 
-## Communication Protocol
-
-| Endpoint | Method | Purpose | Request/Response |
-|---|---|---|---|
-| `/status` | GET | Health check | Response: `{"status":"ok","version":"1.0.0"}` |
-| `/` | GET | Current mockup | Response: HTML page with mockup wrapped in template |
-| `/events` | GET | SSE stream | Response: `text/event-stream`, sends `data: refresh\n\n` on update |
-| `/update` | POST | Push new mockup | Body: `{type, title, html, css, annotations}` |
-
-### POST /update Body Schema
-
-```json
-{
-  "type": "mockup",
-  "title": "Settings Page - Desktop",
-  "html": "<div class='settings'>...</div>",
-  "css": ".settings { padding: 1rem; }",
-  "annotations": [
-    {"selector": ".settings", "text": "Reuses existing card component"}
-  ]
-}
-```
-
-**Annotations**: Positioned tooltips overlaid on mockup elements. Togglable via the "Annotations" button in the UI header (on by default, preference persists via localStorage). Use for component reuse hints, integration points, and interaction hints — NOT for feature descriptions or requirements.
-
-Example annotations:
-- `{"selector": ".patient-card", "note": "Reuses existing <PatientCard> component"}`
-- `{"selector": ".save-btn", "note": "Triggers webhook notification"}`
-- `{"selector": ".drag-handle", "note": "Drag to reorder"}`
+What it serves: `GET` and `HEAD` only; `/status` reports `{status, root, port, pid}`; any other
+path is a file under the folder. A path that leaves the folder, holds a dot segment or names a
+dot-file gets 404, another method 405, and a request whose `Host` is not its own loopback address
+403 — so `.turn.json` and the scripts' other dot-files are never served, and a page on another site
+cannot read the folder through the browser.
 
 ---
 
-## Lifecycle
+## A viewer left behind
 
-### Startup
+`start` reads the pid file first. When it names a live viewer that reports the **same root**, that
+viewer is reused and its port printed; nothing new starts. Any other pid file — a dead process,
+a viewer of another folder, an unreadable file — is replaced. Two turns on two folders never share a
+viewer, and a different `output_subdir` is a different folder.
 
-1. Spawn server process: `node ${MAISTER_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs --task-path=${task_path} --output-subdir=${output_subdir} &`
-   - `--output-subdir` (relative to task path) controls where mockups are saved. Default `analysis/mockups` (product-design / standalone); development passes `analysis/design-context/mockups`.
-2. Port allocation: try 3847, fallback through 3848-3850
-3. Verify ready: poll `GET /status` until ok (timeout after 3 seconds)
-
-### Browser Opening
-
-1. **Primary**: the session's browser tool, picked by the preference order in `../../orchestrator-framework/references/browser-tools.md`, when its window is one the user sees (a headless browser shows them nothing)
-2. **Fallback 1**: `open` command (macOS) / `xdg-open` (Linux)
-3. **Fallback 2**: Log URL for manual opening, continue with terminal-only review
-
-The plugin ships no browser tool. A session without one is told so before the gallery opens (`SKILL.md` Step 3), and the gallery still works through the two fallbacks.
-
-### Teardown
-
-Kill server via `POST /shutdown` endpoint on:
-- Mockup-generation completion (when mockup-studio owns the server lifecycle for this run)
-- Workflow cancellation
-
-**PID file**: Server writes its PID to `{taskPath}/{output_subdir}/.visual-companion.pid` on startup. Cleaned up on shutdown, SIGTERM, and SIGINT. Enables reliable process identification.
-
-**Stale server detection**: mockup-studio checks `/status` before starting a new server. The response includes `taskPath` — if it belongs to a different task, the server is stale and gets shut down via `POST /shutdown` before starting a new one.
-
----
-
-## Graceful Degradation Matrix
-
-The visual companion is an enhancement, not a requirement. Every failure has a fallback.
-
-| Scenario | Detection | Fallback |
-|---|---|---|
-| Node.js not available | `which node` fails | ASCII mockups via ascii-mockup-generator agent |
-| Port 3847 in use | Server startup error (EADDRINUSE) | Try ports 3848-3850, then ASCII fallback |
-| No browser tool in the session | none of the tools in the browser tools reference is present | Say so (SKILL.md Step 3); `open`, else log the URL |
-| Browser fails to open | browser tool error + open command error | Log URL, continue with terminal-only review |
-| Server crashes mid-session | `GET /status` returns error or timeout | Restart server; if 2nd failure, ASCII fallback |
-| No issues | `GET /status` returns ok | Full visual companion experience |
-
-**Degradation principle**: Never block the design workflow because the visual companion failed. The core design conversation happens in the terminal. Visual rendering is additive value.
-
----
-
-## HTML Template Pattern
-
-The server wraps mockup content in a base template that provides:
-
-- **Viewport meta**: Responsive rendering matching common device widths
-- **CSS reset**: Minimal reset so mockup styles render predictably
-- **SSE client script**: `EventSource` connection to `/events` with auto-reconnect on disconnect
-- **Annotation overlay script**: Renders positioned tooltips from annotation data
-- **Placeholder state**: "Waiting for design mockup..." shown before first `POST /update`
-
-**Template is server-side, not orchestrator-side**: The orchestrator sends only the mockup `html` and `css`. The server wraps it in the template. This keeps the orchestrator focused on design content rather than boilerplate.
-
-**Auto-refresh behavior**: When the SSE stream receives a `refresh` event, the page reloads to fetch the updated mockup from `GET /`. No manual refresh needed.
-
----
-
-## Integration with mockup-studio (HTML path)
-
-The mockup-studio HTML path (SKILL.md Step 4a) follows this sequence when the visual companion is available:
-
-1. **Check availability**: `GET /status` to see if server is already running (stale-server check by `taskPath`)
-2. **Start server if needed**: Spawn Node.js process with `--task-path` + `--output-subdir`, verify ready
-3. **Open browser**: browser tool or open command or log URL
-4. **Generate mockup**: Create HTML/CSS from the `context` grounding and the discovered design resources
-5. **Push to server**: `POST /update` with mockup content
-6. **Present for review**: ask_user in terminal (user views mockup in browser) — for `iteration: full`
-7. **Iterative refinement**: Revise mockup, re-POST, re-review (follows refinement loop pattern)
-8. **Saved automatically**: each POST saves the rendered HTML to `{output_subdir}/{slug}.html`
-
-**When the visual companion is unavailable**: mockup-studio falls back to the `ascii-mockup-generator` agent for ASCII mockups (SKILL.md Step 4b). The refinement loop still applies -- only the rendering medium changes.
-
-### Mockup Generation Guidance
-
-mockup-studio generates mockup HTML/CSS based on:
-- The `context` grounding passed by the caller (spec/gap-analysis/design-decisions excerpts, screen list)
-- The discovered design resources (standards, tokens, components — see `design-resource-discovery.md`)
-- Existing codebase UI patterns
-
-**Fidelity target**: Mid-fidelity. Enough structure and styling to evaluate layout, hierarchy, and flow. Not pixel-perfect production CSS. Focus on communicating the design intent, not building the final UI.
-
-**What to generate** (user-facing wireframes/screens):
-- Dashboard views, settings pages, list/detail screens
-- Forms, modals, navigation bars, sidebars
-- Data tables, cards, search/filter interfaces
-- Empty states, error states, loading states
-- Responsive layouts (desktop and mobile variations)
-
-**What NOT to generate** (technical diagrams — these belong in analysis artifacts):
-- System architecture diagrams
-- Data flow charts, sequence diagrams
-- Entity relationship diagrams
-- Component dependency graphs
-
-**Multiple screens**: Complex designs need multiple screens. The visual companion maintains a gallery — each `POST /update` adds a screen. Give each a descriptive title (e.g., "Patient Dashboard", "Settings - Notifications", "Error State - Network Failure"). The user can browse all screens via the gallery at `GET /`.
-
-**Screen-to-screen navigation**: Add `data-screen="slug"` to interactive elements (links, buttons, cards) in mockup HTML. Clicking navigates to the target screen in the visual companion. The slug is the lowercase-hyphenated version of the screen title (e.g., "Settings Page" → `data-screen="settings-page"`). This creates an interactive prototype experience where the user can click through the flow.
-
----
-
-## Server State & Persistence
-
-The server maintains a screen gallery in memory and persists to disk:
-
-- **Mockups array**: All POSTed screens (ordered, accessible by slug ID)
-- **SSE clients**: Active EventSource connections for refresh notifications
-- **Version counter**: Incremented on each update
-- **Disk persistence**: Each POST automatically saves the rendered HTML to `{task_path}/{output_subdir}/{slug}.html` — pass `--task-path` (and optionally `--output-subdir`) when starting the server
-
-**Routes**:
-- `GET /` → Gallery index (grid of all screen cards)
-- `GET /screen/{id}` → Individual screen with prev/next navigation
-- `GET /latest` → Most recently POSTed screen (SSE refresh target)
-
-Screens are saved to disk immediately on POST — if the session drops, mockups survive in `{output_subdir}/`.
-
----
-
-This reference provides the visual companion architecture and integration patterns. The server implementation lives in `server/index.mjs` and `mockup-studio/SKILL.md` defines the generation flow that uses the visual companion.
+Refusals — `root-missing`, `ports-busy` and `folder-unwritable` — and what to do about each are in
+`turn-contract.md`. All three mean the same for the turn: open the pages by path if the tool can,
+else skip the look pass with a note.

@@ -887,6 +887,24 @@
       }
     ]
   },
+  "mockup-studio": {
+    "drivers": {
+      "cockpit": {
+        "gates": {},
+        "in_node": []
+      },
+      "dispatch": {
+        "gates": {},
+        "in_node": []
+      },
+      "terminal": {
+        "gates": {},
+        "in_node": []
+      }
+    },
+    "gates": [],
+    "in_node": []
+  },
   "performance": {
     "drivers": {
       "cockpit": {
@@ -1261,6 +1279,15 @@
             ],
             "transport": "gate-request"
           },
+          "mockup-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification-review",
+              "revise-mockups",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
           "problem-approval": {
             "kind": "gate",
             "options": [
@@ -1334,11 +1361,6 @@
           {
             "id": "depth-enrichment",
             "node": "feature-specification",
-            "transport": "question-set"
-          },
-          {
-            "id": "mockup-refinement",
-            "node": "visual-prototyping",
             "transport": "question-set"
           },
           {
@@ -1378,6 +1400,15 @@
             ],
             "transport": "gate-request"
           },
+          "mockup-approval": {
+            "kind": "gate",
+            "options": [
+              "continue-to-specification-review",
+              "revise-mockups",
+              "stop-design"
+            ],
+            "transport": "gate-request"
+          },
           "problem-approval": {
             "kind": "gate",
             "options": [
@@ -1451,11 +1482,6 @@
           {
             "id": "depth-enrichment",
             "node": "feature-specification",
-            "transport": "default"
-          },
-          {
-            "id": "mockup-refinement",
-            "node": "visual-prototyping",
             "transport": "default"
           },
           {
@@ -1494,6 +1520,15 @@
             ],
             "transport": "picker"
           },
+          "mockup-approval": {
+            "options": [
+              "continue-to-specification-review",
+              "revise-mockups",
+              "stop-design",
+              "more-details"
+            ],
+            "transport": "picker"
+          },
           "problem-approval": {
             "options": [
               "continue-to-idea-generation",
@@ -1567,11 +1602,6 @@
           {
             "id": "depth-enrichment",
             "node": "feature-specification",
-            "transport": "in-session"
-          },
-          {
-            "id": "mockup-refinement",
-            "node": "visual-prototyping",
             "transport": "in-session"
           },
           {
@@ -1613,6 +1643,14 @@
           "continue-to-specification",
           "explore-more-alternatives",
           "refine-direction",
+          "stop-design"
+        ]
+      },
+      {
+        "id": "mockup-approval",
+        "options": [
+          "continue-to-specification-review",
+          "revise-mockups",
           "stop-design"
         ]
       },
@@ -1669,10 +1707,6 @@
       {
         "id": "depth-enrichment",
         "node": "feature-specification"
-      },
-      {
-        "id": "mockup-refinement",
-        "node": "visual-prototyping"
       },
       {
         "id": "brief-approval",

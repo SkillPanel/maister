@@ -1,171 +1,253 @@
 ---
 name: maister:mockup-studio
-description: Generates UI mockups (rendered HTML/CSS via a browser visual companion, or terminal ASCII). Discovers and binds to the project's frontend/UI/UX resources (standards, design system, available design skills). Invoked standalone by users, or by the development and product-design orchestrators as their mockup-generation step.
+description: Draws one new version of a set of UI mockups per call — a turn — under a folder it is given, as HTML pages with a gallery or as terminal ASCII, bound to the project's design language through its grounding pack. Never asks a question, under any driver; run it again with the same folder for the next version, and every earlier version stays. Reachable as the `mockup-studio` workflow, from a workflow node (development's and product-design's mockup steps) or another skill (quick-design's sketches), and from the terminal with `--turn` and `--ground`.
 user-invocable: true
 ---
 
 # Mockup Studio
 
-The single, reusable engine for generating UI mockups in the maister plugin. It runs in the **main agent context** (not a subagent), so it can start a local visual-companion server (Bash), open a browser (with whatever browser tool the session has), and run interactive `AskUserQuestion` refinement gates.
+One call is one **turn**: it takes a note and a version to build on, writes exactly one new
+`versions/vNNN/` under `<task_path>/<output_subdir>/`, refreshes the flat latest view beside it,
+and returns. It asks nothing — not which format, not whether the screens are right. Whoever wants
+another round runs another turn; a caller's own gate is where a person approves or revises.
 
-Two ways it runs:
+The bookkeeping is code. The model writes one input file per turn, `vNNN/.turn.json` (and, for a
+prototype, `vNNN/prototype.html`); the scripts allocate the version, render the pages and the
+gallery, write every manifest and index, and refresh the flat view. Every shape a script writes is
+in `<plugin root>/skills/mockup-studio/references/turn-contract.md`.
 
-- **Invoked by a workflow node** (the development workflow's `ui-mockups` node, the product-design workflow's `visual-prototyping` node) via the Skill tool, with explicit parameters (see Input Parameters). The workflow owns its own gate; mockup-studio does the generation.
-- **Invoked standalone by a user** (`/maister:mockup-studio "<screen or feature>"`). It creates its own task directory and runs the full interactive flow.
-
-Whatever the caller, the work is the same: discover the project's design language → render mockups in the chosen format → persist them → (optionally) index them for downstream binding.
-
----
-
-## Core Principles
-
-1. **One engine, two formats** — `html` (visual companion server + browser) is the default; `ascii` (delegated to the `ascii-mockup-generator` subagent) is the no-Node/no-browser path. HTML auto-falls back to ASCII when Node.js is unavailable.
-2. **Bind to the real design language** — before generating, run design-resource discovery (`references/design-resource-discovery.md`). Discovered standards, tokens, and components are **binding inputs**, not suggestions.
-3. **Consistency over creativity** — mockups should look like the existing application (reuse real components, tokens, icons), not a generic theme.
-4. **Graceful degradation** — every step has a fallback; when nothing is discovered, generation proceeds exactly as it would without discovery.
+The skill runs in the main agent: it dispatches the ASCII agent, and its look pass drives whatever
+browser tool the session has.
 
 ---
 
-## Input Parameters
+## Which entry a call is
 
-When an orchestrator invokes this skill, it passes these. Standalone invocation derives them from the user's prompt + config (see Standalone Mode).
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `task_path` | Yes | Caller's task directory. Mockups, the discovery artifact, and (when requested) INDEX rows are written under it. |
-| `output_subdir` | No | Where rendered mockups land, relative to `task_path`. Default `analysis/mockups` (product-design). Development passes `analysis/design-context/mockups`. |
-| `format` | No | `html` (default) or `ascii`. Orchestrators pass `orchestrator.options.mockup_format`. Auto-falls back to `ascii` when Node.js is unavailable. |
-| `iteration` | No | `single` (generate once, return — caller's phase gate handles approve/revise) or `full` (multi-round interactive refinement loop). Default `full`. |
-| `emit_index_rows` | No | When `true`, append stable-ID rows to `<task_path>/analysis/design-context/INDEX.md` so downstream phases can attach `Visual References`. Default `false`. Development passes `true`. |
-| `context` | No | Grounding summary (spec/gap-analysis/design-decisions excerpts, screen list, `design_reference` path) so generated screens are specific and feature-relevant — not generic placeholders. |
-
-**Returns** (report back to the caller):
-```yaml
-mockup_files: []        # paths of written mockups (.html files, or the ascii-mockups.md)
-index_rows: []          # stable-ID rows appended to design-context/INDEX.md (empty if emit_index_rows false)
-format_used: html|ascii # the format actually used (may differ from requested if Node was unavailable)
-notes: ""               # fallback notes, e.g. "html requested, fell back to ascii (Node unavailable)"
-                        # or "full refinement requested, ran single (non-terminal driver)"
-```
-
----
-
-## Execution Workflow
-
-### Step 1 — Resolve inputs & set up
-
-- If invoked standalone with no `task_path`, run **Standalone Mode** setup first (below).
-- Ensure `<task_path>/<output_subdir>/` exists.
-- Capture the clock once with `date -u +"%Y-%m-%dT%H:%M:%SZ"` (Bash) for any timestamps written this turn.
-
-### Step 2 — Design-resource discovery (binding)
-
-**Read `references/design-resource-discovery.md` NOW** and run the 3-tier routine. Write `<task_path>/analysis/design-context/design-resources.md` (with a `## TL;DR`) and record the `design_resources` block (the routine specifies the schema). When nothing is found, write the one-line "none detected" artifact and continue unchanged.
-
-The discovered standards (read them), design-system tokens/components (reuse by exact name), and skill hints (best-effort consult) are **binding** for whichever generator runs next.
-
-### Step 3 — Format routing
-
-Determine the effective format:
-```
-node_ok = `node --version` succeeds
-if format == "html" AND node_ok   → HTML path (Step 4a)
-else                              → ASCII path (Step 4b)
-if format == "html" AND NOT node_ok → record in notes: "html requested, fell back to ascii (Node unavailable)"
-```
-
-**No browser tool.** On the HTML path, check whether the session can drive a browser (`../orchestrator-framework/references/browser-tools.md`, *Which tool*). When it cannot, the gallery still renders — it opens in the user's default browser, or its address is logged — so this changes how it is shown, not whether it is made. Say so plainly with that reference's no-browser warning, its tail naming both ways on: the gallery address to open by hand, or ASCII mockups in the terminal.
-
-- **Standalone, terminal driver**: ask it as one `AskUserQuestion` before Step 4, the warning as its context, with two choices: "HTML gallery in your default browser (Recommended)" — opened for the user, or its address logged when it cannot be — and "ASCII mockups in the terminal". The answer picks Step 4a or 4b.
-- **Invoked by a workflow node, or under a non-terminal driver**: ask nothing. Keep HTML and put the warning in the returned `notes`; the caller's revise is the route to ASCII.
-
-### Step 4a — HTML path (visual companion)
-
-Read `references/visual-companion.md` for the full protocol. Then:
-
-1. **Stale-server check**: `curl -s http://localhost:3847/status` (try 3847–3850). If it responds with a different `taskPath`, `POST /shutdown` it. If it matches the current task, reuse it.
-2. **Start the server** (Bash):
-   `node ${CLAUDE_PLUGIN_ROOT}/skills/mockup-studio/server/index.mjs --task-path=${task_path} --output-subdir=${output_subdir} &`
-   The plugin root is this plugin's own directory — the one holding `.claude-plugin/plugin.json`, two levels above the base directory the loader shows for this skill. Run the server by that absolute path, never through the variable: write the directory in place of `${CLAUDE_PLUGIN_ROOT}`, because a host that leaves the variable unset would start `node /skills/…`, which fails. A root holding a space goes in single quotes.
-   Wait ~1s, verify `curl -s http://localhost:${port}/status` returns ok (try 3847–3850).
-3. **Open browser** (best-effort, non-blocking): the session's browser tool, by the preference order in `../orchestrator-framework/references/browser-tools.md`, navigates to `http://localhost:${port}` when its window is one the user sees → fallback `open`/`xdg-open` → fallback log the URL.
-4. **Generate user-facing wireframes** — one screen per relevant view implied by `context`. Title each screen specifically (e.g. "Add New Allergy Form", not "Dashboard"). Bind to discovered tokens/components/CSS variables by their real names. Add `data-screen="slug"` to clickable elements for click-through navigation, and `annotations` for component-reuse / integration / interaction hints (NOT requirements). Generate USER-FACING UI only — never architecture/data-flow/ER diagrams.
-   When discovery found no design resources, choose a plain visual direction that fits the product. Do not use a cream or off-white background, italic accent words in headings, numbered "01/02/03" section labels, monospace labels, or pill-shaped buttons unless the context asks for them.
-5. **POST each screen**: `POST http://localhost:${port}/update` with `{type, title, html, css, annotations}`. Each POST auto-saves `<output_subdir>/{slug}.html`.
-
-### Step 4b — ASCII path
-
-**INVOKE** the `maister:ascii-mockup-generator` subagent (Task tool), with the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:ascii-mockup-generator --host=claude` prints just before — inside a workflow run add `--state=<task_path>/orchestrator-state.yml --node=<the node under way>` (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*). Pass: `task_path`, `output_subdir` target, the `context` grounding, the feature type, AND the discovered design resources (resolved standard file paths, design-system inventory, skill hints) so the agent binds to them. The agent writes ASCII to `analysis/design-context/ascii/ui-mockups.md` (or `<output_subdir>/ascii-mockups.md` for standalone/product-design) and can append INDEX rows itself.
-
-### Step 5 — Refinement loop
-
-- `iteration: single` — generate once and return. The calling orchestrator's phase gate offers approve/revise; on revise it re-invokes this skill.
-- `iteration: full` — enter an interactive loop:
-  each round is one `AskUserQuestion`, four options at most, its context in the question: "\<N\> screens at \<address\>. Use them?" — the address is the gallery URL for HTML, the file path for ASCII.
-  - "Use these screens (Recommended)" — ends the loop.
-  - "Change a screen" — a follow-up question offers generated changes, one line each and naming its screen ("Checkout: move the total above the pay button"), up to four; the user's own change is the Other answer.
-  - "Add a screen" — what to add is the follow-up answer.
-  - More details — lists every screen with what it shows, then asks the round again; nothing is recorded.
-
-  On a change, regenerate that screen only (re-POST updates it in place on disk and in the gallery for HTML; re-run the agent for ASCII). Track rounds and apply a soft cap (~5) — past it, the question says so and "Use these screens" stays recommended.
-
-**Default under a non-terminal driver** (`mockup-refinement`): approve as rendered -- `full` degrades to `single`. Generate the screens once and return; take no revision round.
-
-This skill has no run state of its own, so read `orchestrator.driver.kind` from the caller's `orchestrator-state.yml` under `task_path` (an absent file or an absent key means terminal, like everywhere else). Under `cockpit` or `dispatch` the loop above is unreachable whatever `iteration` says: nobody is in the session to approve a screen or ask for another one, and a loop with no answer does not converge, it hangs. **Say so in the returned `notes`**, the way the ASCII fallback says so -- the caller puts that on its step's summary, and a set of screens nobody refined otherwise reads like a set somebody approved.
-
-Of the two shipped callers, development's `ui-mockups` node always passes `single`, and product-design's `visual-prototyping` node passes `full` and relies on this rule under a driver. It is also the rule for a caller of your own, and for a standalone session that was dispatched rather than typed.
-
-### Step 6 — Persist & index
-
-- HTML mockups are saved on each POST. ASCII is saved by the subagent.
-- When `emit_index_rows` is true, append one row per screen/component to `<task_path>/analysis/design-context/INDEX.md` (create if missing), using the stable-ID format below. Source points at the per-screen `.html` (HTML) or the ASCII file anchor:
-
-```markdown
-| ID | Type | Source | Description |
-|----|------|--------|-------------|
-| screen:add-allergy-form | screen | analysis/design-context/mockups/add-allergy-form.html | Add New Allergy form modal |
-| component:severity-badge | component | analysis/design-context/mockups/add-allergy-form.html | Allergy severity pill (reuses Badge) |
-```
-
-### Step 7 — Teardown & return
-
-- **A `full` run degraded to `single` by the driver rule follows the `single` rules below** -- with one exception, named there: a *standalone* degraded run has no caller and therefore no gate, so it saves its files and shuts the server down rather than leaving a gallery up for a session nobody is in.
-- **Do NOT shut the server down when `iteration: single` (orchestrator mode).** In that mode the caller's *review gate fires after this skill returns* — the operator reviews the gallery at that gate, so the companion MUST stay running until the caller leaves the design stage. Shutting down here strands the reviewer with a dead `localhost` (the gallery survives on disk, but the live browsable gallery — the whole point — is gone). Leave it running and tell the caller the gallery URL; the orchestrator tears it down when it advances past the design/mockup phase (or on a "revise" it re-invokes this skill, which reuses the still-running server).
-- Only shut the server down when this skill genuinely owns the *entire* lifecycle end-to-end: **standalone `iteration: full`** after the user has approved and the interactive loop is complete, **or a standalone run the driver rule degraded to `single`**, which owns the lifecycle just as completely and has nobody to browse the gallery. Then `curl -s -X POST http://localhost:${port}/shutdown`.
-- On restart the server auto-restores previously-saved screens from the on-disk manifest (`<output_subdir>/.mockups.json`), so a companion that was stopped can be brought back with the full gallery intact by re-running the same start command — no re-POST needed.
-- Return the result block (Step "Returns" above) to the caller, including the live gallery URL so the caller can surface it at its review gate.
-
----
-
-## Standalone Mode
-
-When a user runs `/maister:mockup-studio "<screen or feature>"` (no `task_path` from an orchestrator):
-
-1. Capture the clock; create `.maister/tasks/mockups/YYYY-MM-DD-<short-name>/` with an `analysis/` subdir.
-2. Defaults: `output_subdir = analysis/mockups`, `iteration = full`, `emit_index_rows = false`, `format` from `.maister/config.yml` `mockup_format` (default `html`). A standalone session is normally terminal -- somebody typed the command -- but a dispatched one is not, and the `iteration` default is the one thing the driver rule changes about it (Step 5).
-3. Build `context` from the user's prompt (and any referenced files/standards).
-4. Run Steps 1–7. At the end, report the gallery URL and saved file paths.
-
-This gives users an ad-hoc mockup session without running a full development or product-design workflow.
-
----
-
-## Graceful Degradation
-
-| Scenario | Detection | Fallback |
+| The call carries | Entry | What happens |
 |---|---|---|
-| Node.js unavailable | `node --version` fails | ASCII via `ascii-mockup-generator`; note it in `notes` |
-| All ports 3847–3850 in use | server start fails on every port | ASCII fallback |
-| Browser won't open | no browser tool, or it fails, and `open` fails | Log the URL; continue (server still saves to disk) |
-| No design resources found | discovery `found_any: false` | Generate from codebase patterns only — unchanged behavior |
+| A node's `with:` values together with the `run-context` output | **Node mode** | One turn. It never hands off to the workflow engine and never reads flags, whatever the values hold. With no `task_path`, the turn writes under the task directory `run-context` names |
+| The same named values from another skill, outside an engine run, with `task_path` set | **Inline call** (quick-design) | Handled as node mode with no `run-context` and no `record`, so no run record is written. It never hands off. `task_path` is required: without it, say so and write nothing |
+| Flags or bare text, typed by a person | **Terminal entry** | *Terminal entries* below |
 
-Never block the caller because a mockup enhancement failed. The mockup files on disk are the deliverable; live preview is additive.
+Only a call made of flags or bare text is a terminal entry.
 
 ---
 
-## Local References
+## Turn inputs
 
-| File | When to Read | Purpose |
-|------|-------------|---------|
-| `references/design-resource-discovery.md` | Step 2 (before generating) | The 3-tier discovery routine, `design_resources` schema, binding rules |
-| `references/visual-companion.md` | Step 4a (HTML path) | Server protocol, lifecycle, communication, graceful degradation |
+Node mode takes these from the node's `with:` values and `run-context`; an inline call passes them
+by name; a terminal entry builds them from its flags.
+
+| Input | Meaning |
+|---|---|
+| `task_path` | The target root. Absent: the task directory `run-context` names. Required when there is no `run-context` |
+| `output_subdir` | Relative to `task_path`. Default `analysis/mockups` |
+| `note` | The person's words for this turn. On a caller's re-run, the revise note from `prior-context` |
+| `against` | The `vNNN` to build on. Absent: the latest, or none on a first turn |
+| `scope` | Comma-separated slugs to change or add; the rest carry over. Absent: decided from the note |
+| `fidelity` | `sketch` (default) or `prototype` |
+| `format` | `html` or `ascii`; *Format* below |
+| `brief` | Context for the screens — never pasted ticket text |
+| `grounding` | The pack directory, relative to the project root. Default `.maister/docs/design-context` |
+| `emit_index_rows` | Default `false`. When true, `finish` writes the screen and component rows to `<task_path>/analysis/design-context/INDEX.md` |
+| `record` | The path of a `turn-result.json` to write. Only the `mockup-studio` workflow's node passes it |
+
+Any other key a caller passes — `gap`, `scope_clarifications`, `design_index`, `feature_spec`,
+`design_context` — is read as context for the screens: what they must show and what they settle.
+**`iteration` is retired.** A caller still passing it gets the note "`iteration` is retired and was
+ignored: each call is one turn", and nothing else changes.
+
+### Format and fidelity
+
+The format is the first of: the `format` input (or `--format`); `mockup_format` in
+`.maister/config.yml`; `html`.
+
+A prototype is HTML: `fidelity: prototype` with the `ascii` format runs as `sketch`, and the notes
+say so. A prototype also needs Node, which the export runs on.
+
+**No browser tool is not degradation.** HTML is still written. The notes then carry the no-browser
+line from `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` (*When there is
+none*), with the step named as "the mockup look pass", and the hint to open
+`versions/vNNN/index.html` by hand or to run again with `--format ascii`.
+
+---
+
+## The turn
+
+The steps say what each one does; the references say how.
+
+1. **Resolve** the target root `<task_path>/<output_subdir>`, the format and the fidelity, and
+   capture the clock once (`date -u +"%Y-%m-%dT%H:%M:%SZ"`). Check that Node 20 or newer runs; when
+   it does not, the turn takes *The no-Node path* below instead of steps 2–6.
+2. **Ground.** Run `turn.mjs ground-status` on the `grounding` directory, with the project root as
+   `--root`.
+   - `missing`: build the pack, as `references/grounding-pack.md` says, and use it. The note is
+     "Built the grounding pack at `<path>`; commit it so later turns and machines reuse it."
+   - `stale`: use it as it is, record it stale, and add the note "The grounding pack is stale
+     (<reasons>); run /maister:mockup-studio --ground to refresh it." A turn never rebuilds an
+     existing pack.
+   - `fresh` (also with `schema-newer` alone): use it.
+   - Building failed, or `grounding-malformed`: draw from the codebase alone, with the degraded
+     code `grounding-unavailable` and a null digest; for a malformed pack, the note says to run
+     `--ground`.
+
+   Then read the pack and the standards by *The per-turn read* in `references/grounding-pack.md`,
+   and add one note line naming what the screens were bound to.
+3. **Begin.** `turn.mjs begin --task-path=<task_path> --subdir=<output_subdir>`, with
+   `--against=<against>` when one was given. It prints the new `version`, its `version_dir`, the
+   `against` it resolved and that version's `screens`. A refusal from `begin` is not degradation:
+   no version is written, and the turn ends with the refusal's message — in node mode the node
+   fails with it.
+4. **Draw the screens** into the version folder.
+   - Carry `against`'s screens forward unless the note or `scope` changes them: send only the
+     screens that change or are new. Remove a screen only by listing its slug in `drop`.
+   - A changed screen keeps its slug from `against`; a new one may leave its slug out and gets one
+     from its title. Slugs are lowercase words joined by single hyphens; `index` and `prototype`
+     are reserved.
+   - **sketch:** write `vNNN/.turn.json` with the file tool: the note, format and fidelity,
+     `against` exactly as `begin` printed it, `scope`, the grounding digest and staleness, the
+     screens, `drop`, any degraded codes and the notes. Its keys are in `references/turn-contract.md`.
+   - **prototype:** write `vNNN/prototype.html` by `references/prototype-page.md`, then run
+     `frames.mjs export --version-dir=<version_dir>`. On success, `.turn.json` carries no screens.
+     On a refusal, map it (`render-touches-dom` to the degraded code of that name, every other code
+     to `render-failed`), write sketch screens drawn from the same scenes into `.turn.json`, set
+     `fidelity: sketch`, delete any `.frames.json` left in the folder, and keep `prototype.html`.
+   - **ascii:** dispatch the `maister:ascii-mockup-generator` agent with the Task tool, with the
+     model and effort `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:ascii-mockup-generator --host=claude`
+     prints just before (inside a workflow run add `--state=<run's orchestrator-state.yml>
+     --node=<the node under way>`). Its `Output Target` is the absolute
+     `<version_dir>/ascii-mockups.md`; pass `against`'s `ascii-mockups.md` when `against` is an
+     ASCII version, the note, the scope, the context and what the pack bound. Write `.turn.json`
+     from what it returns: each screen marked changed, with its slug, title and description, and
+     every slug it left out in `drop`.
+   - Screens are **user-facing**: one per view the note and context imply, each titled for what it
+     shows ("Add allergy form", never "Dashboard"), clickable elements carrying
+     `data-screen="<slug>"`, annotations for component reuse and interaction hints — never
+     requirements, and never architecture, data-flow or entity diagrams. The pack's tokens are
+     used by their real names and its shell frames every screen. With no pack, pick a plain visual
+     direction that fits the product: no cream or off-white background, italic accent words in
+     headings, numbered "01/02/03" labels, monospace labels or pill buttons unless the context asks.
+   - A screen the note asked for that could not be drawn adds the degraded code `incomplete`, and
+     the notes name it.
+5. **Look and fix** — one pass, HTML only, and only when the session has a browser tool:
+   - run `turn.mjs finish --preview` with the same flags as step 6, minus `--index` and `--record`;
+   - look at `versions/vNNN/index.html` and each changed `versions/vNNN/<slug>.html`, opened by
+     path: `file://` when the tool allows it, otherwise that path under the per-turn viewer
+     (`references/visual-companion.md`). Never the viewer's `/`, which still leads to the previous
+     latest while this version is only a preview;
+   - fix what looks wrong in `.turn.json`, then preview once more at most.
+
+   The notes record what was looked at and what was fixed, or "no browser tool: pages not looked
+   at".
+6. **Finish.** `turn.mjs finish --task-path=<task_path> --subdir=<output_subdir> --version=<vNNN>`,
+   with `--index=analysis/design-context/INDEX.md` when `emit_index_rows` is true and
+   `--record=<record>` when `record` is set. It publishes the version, refreshes the flat view,
+   writes the rows and the record, and prints the turn result with a `values` block. A refusal is
+   recovered by its row in `references/turn-contract.md` and `finish` run again — except a
+   `folder-unwritable` that says the version is already published, which is never finished twice.
+7. **Stop the viewer** if step 5 started one, and return.
+
+### What a turn returns
+
+The object `finish` prints, minus `ok` and `values`: `version`, `against`, `screens` and `changed`
+(slug lists), `notes`, `degraded` when there is any, `format`, `fidelity`, `gallery` (the version's
+`index.html` relative to `task_path`, null for ASCII), `task_path` and `output_subdir`. A caller
+puts these facts in its own summary. In node mode with `record` set, the `values` block goes to the
+node unchanged for its completing write.
+
+### Degradation
+
+A turn that cannot do everything records why on the version and still finishes it; it never
+waits. The codes are a closed set:
+
+| Code | When | What the version holds |
+|---|---|---|
+| `no-node` | Node is unavailable, which happens only outside an engine run | `ascii-mockups.md`, with a hand-written manifest and index entry |
+| `render-touches-dom` | `frames.mjs` refused a DOM access | sketch pages from the same scenes; `prototype.html` kept; `fidelity: sketch` |
+| `render-failed` | any other `frames.mjs` refusal | as above |
+| `grounding-unavailable` | no usable pack, and building one failed | pages drawn from the codebase alone; a null grounding digest |
+| `incomplete` | not every screen the note asked for could be drawn | the screens that were drawn |
+
+### The no-Node path
+
+Reachable only from a terminal inline turn or an inline call: an engine run always has Node. The
+turn writes ASCII by hand, in the shapes `references/turn-contract.md` spells:
+
+- the version is one above the highest number among the `versions/` folders and the
+  `versions/index.json` entries; create its folder;
+- dispatch the ASCII agent to `versions/vNNN/ascii-mockups.md`, as in step 4;
+- write `vNNN/manifest.json` and append the `index.json` entry, setting `latest`;
+- copy `ascii-mockups.md` to the flat `<output_subdir>/ascii-mockups.md`;
+- add the degraded code `no-node` and the note "Node is unavailable: the version's bookkeeping was
+  written by hand and no script checked it".
+
+---
+
+## Terminal entries
+
+| Typed | What runs |
+|---|---|
+| `/maister:mockup-studio --turn "<note>"`, no target | Hands off to the workflow engine: invoke the `maister:workflow-engine` skill with the Skill tool, naming the workflow `builtin:mockup-studio`, with `note` and the flags below as its inputs (`--subdir` is `output_subdir`). The run gets its own task folder under `.maister/tasks/mockup-studio/`, and its node runs this skill in node mode. Relay the engine's start banner |
+| `--turn "<note>" --task=<dir>` | An inline turn on `<dir>/<--subdir, or analysis/mockups>/`, whether or not a version exists there (none means `v001`). No run state, no dashboard, no `turn-result.json`, no INDEX rows |
+| `--turn "<note>"` from inside a task directory whose `<subdir>/versions/index.json` exists | The same inline turn on that task directory |
+| `/maister:mockup-studio "<text>"` | Read as `--turn "<text>"` |
+| `/maister:mockup-studio --ground` | Builds or refreshes the grounding pack (`references/grounding-pack.md`), whatever its status, and touches no task folder. It closes with the digest, what was recorded, and the commit note |
+
+The flags are `--format`, `--fidelity`, `--scope`, `--against`, `--subdir` and `--task`. Any other
+flag is named as not taken, in one line, and the turn runs without it. A call with no note and no
+`--ground` draws nothing: say a note is needed and show the command.
+
+**The closing message** of a terminal turn names the version, the changed screens, the notes and
+the path to `versions/vNNN/index.html` (for ASCII, `ascii-mockups.md`). It ends with the exact next
+command, `/maister:mockup-studio --turn "<note>" --task=<folder>`, with `<folder>` the task folder
+relative to the project root and `--subdir=<output_subdir>` added when it is not
+`analysis/mockups` — because a bare second `--turn` from the project root starts a new run at
+`v001`. A workflow run ends the same way, from its node's prose.
+
+### Folder rules
+
+- A first terminal turn's folder is the engine's `.maister/tasks/mockup-studio/<YYYY-MM-DD-slug>/`,
+  the slug from the note.
+- The legacy `.maister/tasks/mockups/` is a folder run readers skip. Nothing new is written there.
+- The skill writes nothing outside the target folder, the INDEX file (`emit_index_rows`), the
+  grounding pack (when a turn builds it, or `--ground`) and, in node mode with `record` set,
+  `turn-result.json` in the run folder.
+
+### Turn N+1, and the record folder
+
+- A `mockup-studio` run's record folder is `.maister/tasks/mockup-studio/<YYYY-MM-DD-slug>/`. It
+  always holds `orchestrator-state.yml` and `turn-result.json`.
+- With `task_path` given, the turn writes under `<task_path>/<output_subdir>/` only, which is not
+  the record folder. With `task_path` absent, the target is `<record folder>/<output_subdir>/`.
+- **Turn N+1** is a fresh `mockup-studio` run with the same `task_path` and `output_subdir`, the new
+  `note`, and `against` set to the previous run's `values.version`, or to `latest` in
+  `versions/index.json`. There is no reopen verb.
+- One folder therefore holds one version list however many runs wrote it, and each run's
+  `values.version` and `values.against` bind that run to its version without reading the index.
+
+---
+
+## Running the scripts
+
+The scripts are `<plugin root>/skills/mockup-studio/scripts/turn.mjs` (`begin`, `finish`,
+`ground-status`, `ground-seal`), `<plugin root>/skills/mockup-studio/scripts/frames.mjs` (`export`)
+and `<plugin root>/skills/mockup-studio/server/index.mjs` (`start`, `stop`). The plugin root is
+this plugin's own directory — the one holding `.claude-plugin/plugin.json`, two levels above the
+base directory the loader shows for this skill. Run each script by that absolute path, never
+through an environment variable a host may leave unset; a path holding a space goes in single
+quotes.
+
+Each prints one JSON object. Exit 0 is success; exit 1 is a refusal, `{ok: false, code, message}`,
+whose message says what happened, what landed and what to do; exit 2 is a usage error. The scripts
+return codes only: every sentence a person reads in the notes is written by this skill.
+
+---
+
+## Local references
+
+| File | When to read | Purpose |
+|---|---|---|
+| `references/turn-contract.md` | Steps 3–6, the no-Node path, any refusal | The folder layout, `.turn.json`, every file's keys, one refusal table with recoveries |
+| `references/grounding-pack.md` | Step 2, `--ground` | What the pack holds, how it is built and sealed, the per-turn read |
+| `references/prototype-page.md` | Step 4, prototype fidelity | The prototype page contract and how its scenes become screens |
+| `references/visual-companion.md` | Step 5, when `file://` is not available | The per-turn read-only viewer: start, stop, reuse |

@@ -1025,7 +1025,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.8",
+  "interface_version": "1.9",
   "mcp": {
     "servers": [],
     "tools": [
@@ -1033,6 +1033,519 @@
       "mcp__github",
       "mcp__jira"
     ]
+  },
+  "mockup_studio": {
+    "degraded_reasons": [
+      "no-node",
+      "render-touches-dom",
+      "render-failed",
+      "grounding-unavailable",
+      "incomplete"
+    ],
+    "fidelities": [
+      "sketch",
+      "prototype"
+    ],
+    "formats": [
+      "html",
+      "ascii"
+    ],
+    "grounding": {
+      "keys": {
+        "built": {
+          "required": true,
+          "type": "string"
+        },
+        "digest": {
+          "required": true,
+          "type": "string"
+        },
+        "images": {
+          "items": {
+            "keys": {
+              "hash": {
+                "required": true,
+                "type": "string"
+              },
+              "path": {
+                "required": true,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "required": true,
+          "type": "array"
+        },
+        "schema_version": {
+          "required": true,
+          "type": "integer"
+        },
+        "sources": {
+          "items": {
+            "keys": {
+              "hash": {
+                "required": true,
+                "type": "string"
+              },
+              "kind": {
+                "required": true,
+                "type": "string",
+                "values": [
+                  "theme",
+                  "tokens",
+                  "lockfile",
+                  "shell",
+                  "i18n"
+                ]
+              },
+              "package": {
+                "required": false,
+                "type": "string"
+              },
+              "path": {
+                "required": true,
+                "type": "string"
+              },
+              "version": {
+                "required": false,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "required": true,
+          "type": "array"
+        }
+      },
+      "location": ".maister/docs/design-context/grounding.json",
+      "schema_version": 1
+    },
+    "inputs": {
+      "against": {
+        "input_type": "string",
+        "maps_to": "turn.against",
+        "required": false,
+        "type": "string|null"
+      },
+      "brief": {
+        "input_type": "string",
+        "maps_to": "brief",
+        "required": false,
+        "type": "string|null"
+      },
+      "fidelity": {
+        "default": "sketch",
+        "input_type": "string",
+        "maps_to": "fidelity",
+        "required": false,
+        "type": "string",
+        "values": [
+          "sketch",
+          "prototype"
+        ]
+      },
+      "format": {
+        "input_type": "string",
+        "maps_to": "format",
+        "required": false,
+        "type": "string|null",
+        "values": [
+          "html",
+          "ascii",
+          null
+        ]
+      },
+      "grounding": {
+        "default": ".maister/docs/design-context",
+        "input_type": "path",
+        "maps_to": "grounding",
+        "required": false,
+        "type": "string"
+      },
+      "note": {
+        "input_type": "string",
+        "maps_to": "turn.note",
+        "required": true,
+        "type": "string"
+      },
+      "output_subdir": {
+        "default": "analysis/mockups",
+        "input_type": "string",
+        "maps_to": "output_subdir",
+        "required": false,
+        "type": "string"
+      },
+      "scope": {
+        "input_type": "string",
+        "maps_to": "turn.scope",
+        "required": false,
+        "type": "string|null"
+      },
+      "task_path": {
+        "input_type": "path",
+        "maps_to": "task_path",
+        "required": false,
+        "type": "string|null"
+      }
+    },
+    "layout": {
+      "flat": {
+        "ascii": "ascii-mockups.md",
+        "mockups_json": ".mockups.json",
+        "pages": "<slug>.html"
+      },
+      "index_rows": "<task_path>/analysis/design-context/INDEX.md",
+      "note": "No per-turn design-context/design-resources.md is written: the manifest's grounding_digest and grounding_stale record what a turn grounded on, and the grounding pack holds the resolved values.",
+      "root": "<task_path>/<output_subdir>",
+      "slug": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "version_id": "^v\\d{3,}$",
+      "versions": {
+        "dir": "versions/<version>",
+        "files": {
+          "ascii": "versions/<version>/ascii-mockups.md",
+          "gallery": "versions/<version>/index.html",
+          "manifest": "versions/<version>/manifest.json",
+          "mockups_json": "versions/<version>/.mockups.json",
+          "pages": "versions/<version>/<slug>.html",
+          "prototype": "versions/<version>/prototype.html"
+        },
+        "index": "versions/index.json",
+        "lock": "versions/.lock",
+        "transient": [
+          "versions/<version>/.turn.json",
+          "versions/<version>/.frames.json"
+        ]
+      }
+    },
+    "manifest": {
+      "created": {
+        "required": true,
+        "type": "string"
+      },
+      "degraded": {
+        "items": {
+          "type": "string",
+          "values": [
+            "no-node",
+            "render-touches-dom",
+            "render-failed",
+            "grounding-unavailable",
+            "incomplete"
+          ]
+        },
+        "required": false,
+        "type": "array"
+      },
+      "fidelity": {
+        "required": true,
+        "type": "string",
+        "values": [
+          "sketch",
+          "prototype"
+        ]
+      },
+      "format": {
+        "required": true,
+        "type": "string",
+        "values": [
+          "html",
+          "ascii"
+        ]
+      },
+      "grounding_digest": {
+        "required": true,
+        "type": "string|null"
+      },
+      "grounding_stale": {
+        "required": true,
+        "type": "boolean"
+      },
+      "note": {
+        "required": true,
+        "type": "string"
+      },
+      "parent": {
+        "required": true,
+        "type": "string|null"
+      },
+      "prototype": {
+        "required": false,
+        "type": "string"
+      },
+      "screens": {
+        "items": {
+          "keys": {
+            "behaviour": {
+              "items": {
+                "type": "string"
+              },
+              "required": false,
+              "type": "array"
+            },
+            "changed": {
+              "required": true,
+              "type": "boolean"
+            },
+            "live": {
+              "required": false,
+              "type": "string"
+            },
+            "slug": {
+              "required": true,
+              "type": "string"
+            },
+            "title": {
+              "required": true,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "required": true,
+        "type": "array"
+      },
+      "version": {
+        "required": true,
+        "type": "string"
+      }
+    },
+    "mockups_json": {
+      "latestId": {
+        "required": true,
+        "type": "string"
+      },
+      "mockups": {
+        "items": {
+          "keys": {
+            "annotations": {
+              "required": true,
+              "type": "array"
+            },
+            "css": {
+              "required": true,
+              "type": "string"
+            },
+            "html": {
+              "required": true,
+              "type": "string"
+            },
+            "id": {
+              "required": true,
+              "type": "string"
+            },
+            "title": {
+              "required": true,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "required": true,
+        "type": "array"
+      }
+    },
+    "next_turn": {
+      "binds": [
+        "values.version",
+        "values.against"
+      ],
+      "fresh_run": true,
+      "inputs": {
+        "against": "the previous run's values.version, or latest in versions/index.json",
+        "note": "the new note",
+        "output_subdir": "the same as the previous turn",
+        "task_path": "the same as the previous turn"
+      },
+      "workflow": "mockup-studio"
+    },
+    "node": "turn",
+    "returns": {
+      "against": {
+        "required": true,
+        "type": "string|null"
+      },
+      "changed": {
+        "items": {
+          "type": "string"
+        },
+        "required": true,
+        "type": "array"
+      },
+      "degraded": {
+        "items": {
+          "type": "string",
+          "values": [
+            "no-node",
+            "render-touches-dom",
+            "render-failed",
+            "grounding-unavailable",
+            "incomplete"
+          ]
+        },
+        "required": false,
+        "type": "array"
+      },
+      "fidelity": {
+        "required": true,
+        "type": "string",
+        "values": [
+          "sketch",
+          "prototype"
+        ]
+      },
+      "format": {
+        "required": true,
+        "type": "string",
+        "values": [
+          "html",
+          "ascii"
+        ]
+      },
+      "gallery": {
+        "required": true,
+        "type": "string|null"
+      },
+      "notes": {
+        "items": {
+          "type": "string"
+        },
+        "required": true,
+        "type": "array"
+      },
+      "output_subdir": {
+        "required": true,
+        "type": "string"
+      },
+      "screens": {
+        "items": {
+          "type": "string"
+        },
+        "required": true,
+        "type": "array"
+      },
+      "task_path": {
+        "required": true,
+        "type": "string"
+      },
+      "version": {
+        "required": true,
+        "type": "string"
+      }
+    },
+    "run_record": {
+      "artifacts": {
+        "turn_result": {
+          "path": "turn-result.json",
+          "required": true,
+          "see": "turn_result",
+          "type": "string"
+        }
+      },
+      "values": {
+        "against": {
+          "required": true,
+          "type": "string|null",
+          "value_type": "id"
+        },
+        "changed": {
+          "required": true,
+          "type": "string",
+          "value_type": "id"
+        },
+        "degraded": {
+          "required": true,
+          "type": "boolean",
+          "value_type": "bool"
+        },
+        "fidelity": {
+          "required": true,
+          "type": "string",
+          "value_type": {
+            "enum": [
+              "sketch",
+              "prototype"
+            ]
+          },
+          "values": [
+            "sketch",
+            "prototype"
+          ]
+        },
+        "format": {
+          "required": true,
+          "type": "string",
+          "value_type": {
+            "enum": [
+              "html",
+              "ascii"
+            ]
+          },
+          "values": [
+            "html",
+            "ascii"
+          ]
+        },
+        "notes_count": {
+          "required": true,
+          "type": "string",
+          "value_type": "id"
+        },
+        "screens": {
+          "required": true,
+          "type": "string",
+          "value_type": "id"
+        },
+        "version": {
+          "required": true,
+          "type": "string",
+          "value_type": "id"
+        }
+      }
+    },
+    "versions_index": {
+      "bookmarked": {
+        "required": false,
+        "type": "string"
+      },
+      "latest": {
+        "required": true,
+        "type": "string|null"
+      },
+      "versions": {
+        "items": {
+          "keys": {
+            "changed": {
+              "items": {
+                "type": "string"
+              },
+              "required": true,
+              "type": "array"
+            },
+            "created": {
+              "required": true,
+              "type": "string"
+            },
+            "note": {
+              "required": true,
+              "type": "string"
+            },
+            "parent": {
+              "required": true,
+              "type": "string|null"
+            },
+            "version": {
+              "required": true,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "required": true,
+        "type": "array"
+      }
+    },
+    "workflow": "mockup-studio"
   },
   "skills": [
     "codebase-analyzer",
@@ -1139,5 +1652,13 @@
       "sets",
       "answered_in"
     ]
-  }
+  },
+  "workflows": [
+    "development",
+    "migration",
+    "mockup-studio",
+    "performance",
+    "product-design",
+    "research"
+  ]
 }

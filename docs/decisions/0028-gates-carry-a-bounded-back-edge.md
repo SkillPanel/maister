@@ -19,6 +19,8 @@ and start again. This record adds one bounded way back:
 ## ADR-0028: Gates carry a bounded back-edge {#adr-0028}
 
 ### Status
+Amended by ADR-0064: the mockup gate is no longer excluded from the gates that offer a revise; product-design's `mockup-approval` carries one.
+
 Accepted. It amends ADR-0016: a jump construct and a run-state attempt counter now exist, scoped to
 a gate's revise option. It narrows ADR-0014's "node prose carries its loops" so that a loop across
 nodes, closed by a gate, belongs to the graph. The built-in hashes move once, when their approval
@@ -122,8 +124,8 @@ re-runs. Each rerun target's prose carries a *When re-run after a revise* paragr
 to revise its artifacts in place rather than start over.
 
 **Scope of the built-ins.** Only gates that close a document-producing node with no review loop of
-their own get the option. The mockup gate is excluded, because its in-node loop keeps the studio
-warm between rounds. So are the verification gates, whose fix loop handles a request for changes.
+their own get the option. The mockup gate was excluded, because its in-node loop kept the studio
+warm between rounds (amended by ADR-0064, which removes that loop). So are the verification gates, whose fix loop handles a request for changes.
 
 **Why not the others:**
 - **Option 2** is option 1 with a worse name. `goto` names a mechanism, so an author reads it as

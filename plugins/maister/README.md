@@ -36,7 +36,7 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 | `/maister:quick-plan` | A plan with standards awareness before coding |
 | `/maister:quick-dev` | Implementing directly with standards applied |
 | `/maister:quick-bugfix` | TDD-driven bug fix: failing test, fix, verify |
-| `/maister:mockup-studio` | UI mockups bound to your project's design language |
+| `/maister:mockup-studio` | UI mockups bound to your project's design language, one version per turn; `--ground` builds the grounding pack |
 | `/maister:init` | Setting up Maister in a project |
 | `/maister:standards-update` | Adding or changing standards, or recording project knowledge (a decision, a fact about the system), from conversation context or the candidates a finished run left |
 | `/maister:standards-discover` | Re-scanning the project for standards |
@@ -48,7 +48,7 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 ## Requirements
 
 - **Node.js 20 or newer** is required. Every workflow runs on the workflow engine, which needs it; without Node.js, a workflow command stops before it creates a task folder and says why. The plugin's hooks run on it too.
-- **A browser tool is your choice.** The plugin ships none. The optional browser steps of the development workflow — browser checks and user documentation with screenshots, which you switch on when verification options are offered — and the HTML mockup gallery use whichever one your session has, in this order of preference: `playwright-cli`, a Playwright MCP server you configured, Claude in Chrome, or the built-in browser of the Claude desktop app. Without one, a workflow says so where it would offer a browser step and carries on: browser checks off, user documentation without screenshots, mockups as ASCII or a gallery address you open yourself.
+- **A browser tool is your choice.** The plugin ships none. The optional browser steps of the development workflow — browser checks and user documentation with screenshots, which you switch on when verification options are offered — and looking at the HTML mockups use whichever one your session has, in this order of preference: `playwright-cli`, a Playwright MCP server you configured, Claude in Chrome, or the built-in browser of the Claude desktop app. Without one, a workflow says so where it would offer a browser step and carries on: browser checks off, user documentation without screenshots, mockups as ASCII or a gallery file you open yourself.
 
 ## Hooks
 

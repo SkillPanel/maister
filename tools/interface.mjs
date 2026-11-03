@@ -98,6 +98,7 @@ export async function describe(root) {
   const shapes = await load('lib/interface-shapes.mjs');
   const state = await load('lib/state.mjs');
   const { SUBJECT_KINDS } = await load('lib/gate-subject.mjs');
+  const studio = await load('../../mockup-studio/scripts/lib/shapes.mjs');
   const { verbs, runners } = verbTable(fs.readFileSync(path.join(root, ENGINE, 'workflow.mjs'), 'utf8'));
   const refusals = refusalsByVerb(path.join(root, ENGINE), verbs, runners);
 
@@ -130,6 +131,27 @@ export async function describe(root) {
     commands: names(path.join(root, 'commands'), entry => entry.isFile() && entry.name.endsWith('.md'), name => name.slice(0, -3)),
     hooks: hooksOf(root),
     mcp: mcpOf(root),
+    mockup_studio: {
+      workflow: studio.WORKFLOW_NAME,
+      node: studio.TURN_NODE,
+      inputs: declared(studio.TURN_INPUTS),
+      returns: declared(studio.TURN_RESULT_KEYS),
+      run_record: { values: declared(studio.RUN_RECORD.values), artifacts: declared(studio.RUN_RECORD.artifacts) },
+      next_turn: studio.NEXT_TURN,
+      layout: studio.LAYOUT,
+      versions_index: declared(studio.VERSIONS_INDEX_KEYS),
+      manifest: declared(studio.MANIFEST_KEYS),
+      mockups_json: declared(studio.MOCKUPS_JSON_KEYS),
+      grounding: {
+        location: `${studio.TURN_INPUTS.grounding.default}/grounding.json`,
+        schema_version: studio.GROUNDING_SCHEMA_VERSION,
+        keys: declared(studio.GROUNDING_KEYS),
+      },
+      degraded_reasons: studio.DEGRADED_REASONS,
+      formats: studio.FORMATS,
+      fidelities: studio.FIDELITIES,
+    },
+    workflows: names(path.join(root, 'skills/workflow-engine/workflows'), entry => entry.isFile() && entry.name.endsWith('.yml'), name => name.slice(0, -4)),
   });
 }
 
@@ -143,6 +165,9 @@ function declaration(spec) {
   if (spec.required !== undefined) out.required = spec.required;
   if (spec.values) out.values = spec.values;
   if (spec.see) out.see = spec.see;
+  for (const key of ['default', 'maps_to', 'input_type', 'value_type', 'path']) {
+    if (spec[key] !== undefined) out[key] = spec[key];
+  }
   if (spec.keys) out.keys = declared(spec.keys);
   if (spec.items) out.items = declaration(spec.items);
   return out;

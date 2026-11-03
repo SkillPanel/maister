@@ -1,6 +1,6 @@
 # Workflow Details
 
-Maister ships five workflows, each with phases tailored to its needs, and runs workflows your project defines on the same engine. All workflows pause between phases for your review and input.
+Maister ships six workflows, each with phases tailored to its needs, and runs workflows your project defines on the same engine. All workflows pause between phases for your review and input.
 
 A run started from the cockpit, dispatched into another repository, or started by another run as
 a step of its own, has nobody sitting in the session — so it asks nothing there. The pauses
@@ -64,7 +64,7 @@ When run without arguments, the plugin extracts the task description from your c
 
 **Flags**: `--research=PATH`, `--context=PATH`, `--design=PATH`, `--architecture=PATH`, `--audit` / `--no-audit`, `--e2e` / `--no-e2e`, `--user-docs` / `--no-user-docs`, `--sequential`, `--publish`. `--user-docs` / `--no-user-docs` answers its question up front; without it, the run asks. The specification audit and the browser checks are decided at the checkpoint before each — *Continue to the specification audit* or *Continue to planning, skip the audit*, and *Continue to the browser checks* or *Continue without browser checks* — so `--audit` / `--no-audit` and `--e2e` / `--no-e2e` set which of the two is recommended; the checkpoint still asks. `--context=PATH` hands the run a context pack — a file or a directory — that the intake copies into `analysis/work-context/` as background for every phase; a path that cannot be read is reported and the run continues without it.
 
-**Browser steps.** The browser checks, the user guide's screenshots and the HTML mockup gallery use whichever browser tool your session has — `playwright-cli` first, then a Playwright MCP server you configured, Claude in Chrome, then the Claude desktop app's built-in browser. Maister ships none. In a session without one, the run says so where it would offer a browser step, names the tools that would add one, and recommends the browser-less way on: *Continue without browser checks*, the user guide off (or on, without screenshots), and the mockup gallery's address to open yourself or ASCII mockups. It never fails the run for it. Screenshots land in the run's `verification/screenshots/` and `documentation/screenshots/`.
+**Browser steps.** The browser checks, the user guide's screenshots and looking at the HTML mockups use whichever browser tool your session has — `playwright-cli` first, then a Playwright MCP server you configured, Claude in Chrome, then the Claude desktop app's built-in browser. Maister ships none. In a session without one, the run says so where it would offer a browser step, names the tools that would add one, and recommends the browser-less way on: *Continue without browser checks*, the user guide off (or on, without screenshots), and the mockup gallery, a file to open yourself, or ASCII mockups. It never fails the run for it. Screenshots land in the run's `verification/screenshots/` and `documentation/screenshots/`.
 
 **Publishing.** With `--publish` the plan checkpoint offers *Continue to the implementation — also pushes the branch and opens the pull request*. That one answer approves the plan and the publication: when the run finishes it commits what it changed on its own branch (never the default branch), pushes it and opens one pull request, or updates the one already open from that branch. Nothing is ever merged. Without the flag the plan checkpoint is the plain one, and publishing stays a next step the run names at the end. A run started by a workspace dispatch gets the same choice from its `publish` input.
 
@@ -386,13 +386,12 @@ the recommendations, and sending the run back names the ones you want instead.
 | 5 | Design alternatives generation (agent-driven, unbiased) | Always | — |
 | 6 | Converge on design direction (interactive) | Always | Approve the direction |
 | 7 | Feature specification, section-by-section (interactive) | Always (depth adapts) | — |
-| 8 | Visual prototyping (browser-based companion with ASCII fallback) | UI-focused designs | Approve the specification and prototypes |
+| 8 | Visual prototyping (one mockup turn: HTML pages, or ASCII) | UI-focused designs | Approve the screens |
 | 9 | Review & hand off product brief | Always | The brief's own approval; the workflow ends |
 
 The problem statement and the specification are always reviewed at a pause, even when the persona
 or prototyping phase after them is skipped. The problem, convergence and specification phases
-include iterative refinement loops — you can request revisions before moving on — and the mockup
-studio runs its own loop over the screens. Phase 5 uses an agent to generate alternatives without
+include iterative refinement loops — you can request revisions before moving on — and the screens are drawn one mockup turn at a time, with a pause after each where you can send them back with a note. Phase 5 uses an agent to generate alternatives without
 anchoring bias; when none of them fits, the direction pause can send the run back to generate more.
 
 The output is a structured product brief that can be passed directly to the development workflow:
@@ -417,6 +416,27 @@ The engine resumes by recomputing which nodes are ready from the frozen graph, s
 mid-graph entry point and no attempt counter: it declines `--from=PHASE` and `--reset-attempts`
 by name. A task directory started on the 2.x plugin is not resumed — see
 [Task directories from 2.x](#task-directories-from-2x).
+
+---
+
+## Mockup Studio
+
+The mockup studio draws one new version of a set of UI mockups and stops. It is a single node with no checkpoints: it asks nothing, so a run started from a cockpit or dispatched behaves the same as one in your terminal. Like every workflow, it needs Node.js 20 or newer. Only an inline `/maister:mockup-studio --turn` in the ASCII format, outside a workflow run, works without Node, and then its bookkeeping is written by hand and no script checks it. The ASCII format needs no browser.
+
+```
+/maister:run mockup-studio
+/maister:mockup-studio --turn "Draw the settings page"
+```
+
+| Input | Meaning |
+|---|---|
+| `note` (required) | What this version should show or change |
+| `task_path`, `output_subdir` | The folder the versions go under: `<task_path>/<output_subdir>/` (default `analysis/mockups`). Without a `task_path`, the run's own folder |
+| `against`, `scope` | The version to build on (default the latest) and the screens to change or add |
+| `fidelity`, `format` | `sketch` or `prototype`; `html` or `ascii` (default from `mockup_format` in `.maister/config.yml`) |
+| `brief`, `grounding` | Context for the screens, and the grounding pack folder (default `.maister/docs/design-context`) |
+
+A run writes its record to `.maister/tasks/mockup-studio/<YYYY-MM-DD-slug>/` and the mockups under `<task_path>/<output_subdir>/versions/vNNN/`, beside the earlier versions, which it never changes. Open `versions/vNNN/index.html` to see the version. For the next version, start another run with the same folder and `against` set to the previous run's version. Details: [the command](commands.md#maistermockup-studio-screen-or-feature).
 
 ---
 
@@ -529,7 +549,7 @@ it, and the gate asks you once more.
 | Research | research foundation, convergence, design | the research foundation; the solution convergence; the high-level design |
 | Performance | bottleneck analysis, specification, specification audit, plan | the bottleneck analysis; the specification; planning |
 | Migration | gap analysis, specification, plan | the gap analysis; the specification; planning |
-| Product design | characteristics, context, problem and personas, design direction (two options), specification and prototypes | the intake; the context synthesis; the problem exploration and the personas after it; the convergence alone, or the alternatives generation and the convergence; the specification and the prototypes after it |
+| Product design | characteristics, context, problem and personas, design direction (two options), specification, screens | the intake; the context synthesis; the problem exploration and the personas after it; the convergence alone, or the alternatives generation and the convergence; the specification and the screens after it; the screens alone |
 
 Verification and issue resolution offer no revise: their phases fix what they find through the
 automatic fix loop ([Answering a question](#answering-a-question)) before the gate asks. Product design's document phases loop too, but only when somebody is in the
@@ -755,6 +775,7 @@ All workflows create structured directories in `.maister/tasks/`:
 ├── research/              # Research
 ├── product-design/        # Product design
 ├── design/                # Quick design: decision.md, and mockups/ when made — no state or dashboard
+├── mockup-studio/         # Standalone mockup turns: state and turn-result.json, and the versions beside them
 └── <name>/                # A workflow your project defines, started by name
 ```
 
@@ -774,7 +795,7 @@ What sits beside them depends on the workflow:
 |----------|----------------|
 | **development** | `analysis/` (codebase analysis, gap analysis, `research-context/`, `design-context/`), `implementation/` (spec, plan, work log), `verification/`, `documentation/` |
 | **research** | `planning/` (brief, plan, sources), `analysis/` (`findings/`, synthesis), `outputs/` (report, decision log, `decision-areas.json`) |
-| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, `decision-areas.json`, feature spec, `mockups/`), `outputs/` (product brief, delivery scope) |
+| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, `decision-areas.json`, feature spec, `mockups/` with one folder per version under `mockups/versions/`), `outputs/` (product brief, delivery scope) |
 | **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
 | **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
 

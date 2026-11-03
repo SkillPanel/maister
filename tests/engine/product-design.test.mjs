@@ -421,6 +421,7 @@ test('specification-approval: with no screens to draw, the brief renders the spe
     node_summaries: { 'feature-specification': { summary: 'Five sections, from the sharing model to notifications.' } },
   });
   write(run, { nodes: { 'visual-prototyping': { status: 'skipped' } } });
+  write(run, { nodes: { 'mockup-approval': { status: 'skipped' } } });
   const picker = brief(run, 'specification-approval');
   assert.equal(picker.header, 'Spec');
   assert.match(picker.brief, /^Feature specification: Five sections, from the sharing model to notifications\.\n\nVisual prototyping: Skipped\.\n/);
@@ -429,7 +430,7 @@ test('specification-approval: with no screens to draw, the brief renders the spe
     'Re-runs Feature specification with your note, then asks this again.');
   const result = revise(run, 'specification-approval', 'revise-specification', 'Add a revocation section');
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /reset=feature-specification,visual-prototyping,specification-approval$/m);
+  assert.match(result.stdout, /reset=feature-specification,visual-prototyping,mockup-approval,specification-approval$/m);
 });
 
 test('specification-approval: a long specification never trims the prototypes and their gallery out of the brief', t => {
@@ -449,13 +450,15 @@ test('specification-approval: a long specification never trims the prototypes an
     nodes: { 'visual-prototyping': { status: 'completed' } },
     node_summaries: {
       'visual-prototyping': {
-        summary: `Gallery: http://localhost:3847 — open a screen from the grid. ${Array.from({ length: 20 }, (_, i) => `Screen ${i} shows the guest view.`).join(' ')}`,
+        summary: `v001 of analysis/mockups — open analysis/mockups/versions/v001/index.html. ${Array.from({ length: 20 }, (_, i) => `Screen ${i} shows the guest view.`).join(' ')}`,
       },
     },
   });
+  write(run, { nodes: { 'mockup-approval': { status: 'completed' } } });
   const picker = brief(run, 'specification-approval');
   assert.match(picker.brief, /^Feature specification: Section 0 specifies/);
-  assert.match(picker.brief, /^Visual prototyping: Gallery: http:\/\/localhost:3847 — open a screen from the grid\./m);
+  assert.match(picker.brief, /^Visual prototyping: v001 of analysis\/mockups — open analysis\/mockups\/versions\/v001\/index\.html\./m);
+  assert.doesNotMatch(picker.brief, /localhost/, 'a turn leaves no live address behind');
   assert.match(picker.brief, /^Decisions \(\+3 more in the dashboard\):\n- Decision 0 settles one scope question\.$/m);
   assert.match(picker.brief, /Next: Product brief and delivery scope/);
 });
@@ -475,9 +478,50 @@ test('specification-approval: the prototypes are offered for review beside the s
   // The studio drew its screens and the node registered none of them by name.
   for (const screen of ['share-dialog', 'guest-calendar']) onDisk(`analysis/mockups/${screen}.html`, '<p>screen</p>\n');
   write(run, { nodes: { 'visual-prototyping': { status: 'completed' } }, node_summaries: { 'visual-prototyping': { summary: 'Two screens.' } } });
+  write(run, { nodes: { 'mockup-approval': { status: 'completed' } } });
   const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=specification-approval', '--checkpoint']).stdout);
   assert.deepEqual(checkpoint.review.map(each => [each.path, each.label]),
     [['analysis/feature-spec.md', 'Feature spec'], ['analysis/mockups/', '2 files']]);
+});
+
+// ---------------------------------------------------------------------------
+// the screens gate
+// ---------------------------------------------------------------------------
+
+/** A fresh run walked to `mockup-approval`, its first version of the screens drawn. */
+function atMockupApproval(t) {
+  const run = atDirectionApproval(t, { summary: 'Link-based sharing.' });
+  write(run, { nodes: { 'direction-approval': { status: 'completed' } } });
+  write(run, {
+    nodes: { 'feature-specification': { status: 'completed' } },
+    node_summaries: { 'feature-specification': { summary: 'Five sections, from the sharing model to notifications.' } },
+  });
+  write(run, {
+    nodes: { 'visual-prototyping': { status: 'completed' } },
+    node_summaries: { 'visual-prototyping': { summary: 'v001 — share-dialog and guest-calendar drawn; open analysis/mockups/versions/v001/index.html.' } },
+  });
+  return run;
+}
+
+test('mockup-approval: the brief renders the turn that drew the screens, and a revise draws one more turn', t => {
+  const run = atMockupApproval(t);
+  const picker = brief(run, 'mockup-approval');
+  assert.equal(picker.ok, true);
+  assert.equal(picker.header, 'Screens');
+  assert.equal(picker.question, 'Approve the screens?');
+  assert.match(picker.brief, /^Visual prototyping: v001 — share-dialog and guest-calendar drawn; open analysis\/mockups\/versions\/v001\/index\.html\./m);
+  assert.deepEqual(picker.options.map(option => option.id), ['continue-to-specification-review', 'revise-mockups', 'stop-design', 'more-details']);
+  assert.deepEqual(picker.options.slice(0, 3).map(option => option.label),
+    ['Continue to the specification review (Recommended)', 'Revise the screens', 'Stop here']);
+  assert.equal(picker.options.find(option => option.id === 'revise-mockups').description,
+    'Re-runs Visual prototyping with your note, then asks this again.');
+
+  const result = revise(run, 'mockup-approval', 'revise-mockups', 'Make the share dialog a side panel');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^revised: mockup-approval reruns=visual-prototyping revision=1\/10 reset=visual-prototyping,mockup-approval$/m);
+  const nodes = readState(run).workflow.nodes;
+  for (const id of ['visual-prototyping', 'mockup-approval']) assert.equal(nodes[id].status, 'pending', id);
+  assert.equal(nodes['feature-specification'].status, 'completed', 'the specification stands');
 });
 
 // ---------------------------------------------------------------------------

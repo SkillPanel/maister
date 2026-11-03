@@ -23,7 +23,7 @@ Describe what you want to build, and the plugin handles the rest - from specific
 
 - [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.100+ with the `maister-copilot` variant — see [Maister on GitHub Copilot CLI](docs/copilot.md))
 - Node.js 20 or newer — required, with no fallback. Every workflow runs on the workflow engine, which needs it: without Node, a workflow command stops before it creates a task directory and says why. The plugin's hooks and HTML mockups need it too
-- Optional: a browser tool, for browser checks, user documentation with screenshots and the mockup gallery — `playwright-cli`, a Playwright MCP server, Claude in Chrome or the Claude desktop app's built-in browser. Maister ships none; without one, those steps are offered without the browser
+- Optional: a browser tool, for browser checks, user documentation with screenshots and looking at the mockup gallery (a file you can open yourself) — `playwright-cli`, a Playwright MCP server, Claude in Chrome or the Claude desktop app's built-in browser. Maister ships none; without one, those steps are offered without the browser
 
 ### Installation
 
@@ -131,8 +131,9 @@ You can always be explicit when you prefer - arguments and flags simply override
 | `/maister:performance` | Optimizing speed or resource usage |
 | `/maister:migration` | Changing technologies or patterns |
 | `/maister:product-design` | Product and feature design |
+| `/maister:mockup-studio` | One new version of a set of UI mockups |
 
-All five run on the workflow engine. A task started on the 2.x plugin is finished on 2.x — see [Staying on 2.x](#staying-on-2x).
+All six run on the workflow engine. A task started on the 2.x plugin is finished on 2.x — see [Staying on 2.x](#staying-on-2x).
 
 Whether a task is a bug fix is detected by the analysis, which then writes a failing test first. Or use `/maister:work` as a single entry point that routes to the right workflow.
 

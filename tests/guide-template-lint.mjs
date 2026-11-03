@@ -11,7 +11,7 @@
  * resolved graph and the merged `brief:` block, rather than left to review.
  *
  * Usage: `node tests/guide-template-lint.mjs [--definition=<yml> ...]`. With no
- * argument it checks the five built-in workflows. A definition other than a
+ * argument it checks the six built-in workflows. A definition other than a
  * built-in may carry `Embedded mode` as its only shared section.
  *
  * Output: one `FAIL: <file>:<line>: <node or header>: <what>` line per failure.
@@ -48,6 +48,7 @@ const BUILT_INS = {
   performance: [],
   'product-design': ['The context block', 'Depth', 'Embedded mode'],
   research: ['Embedded mode'],
+  'mockup-studio': [],
 };
 
 /** The only shared H2 any other definition may carry. */

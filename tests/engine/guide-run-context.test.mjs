@@ -9,7 +9,7 @@ import { ENGINE_DIR } from '../helpers.mjs';
 // delegate prompt carries the run context, so each closed "Context for …" list in
 // the five built-in guides ends on the fetched output at the point of use.
 
-const GUIDES = ['development', 'performance', 'migration', 'research', 'product-design'];
+const GUIDES = ['development', 'performance', 'migration', 'research', 'product-design', 'mockup-studio'];
 const WORKFLOWS = path.join(ENGINE_DIR, 'workflows');
 
 const guide = name => fs.readFileSync(path.join(WORKFLOWS, `${name}.md`), 'utf8').replace(/\r\n/g, '\n');

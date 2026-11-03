@@ -128,7 +128,8 @@ html_output: true
 
 # mockup_format — how UI mockups are rendered when a workflow generates them
 # (development's ui-mockups node, product-design's visual-prototyping node, or /maister:mockup-studio).
-#   html  (default): rendered HTML/CSS via the visual companion (browser preview, saved as .html).
+# A mockup turn reads it when no format is passed.
+#   html  (default): HTML pages and a version gallery page, written as .html files to open.
 #   ascii          : terminal ASCII mockups via the ascii-mockup-generator agent (no Node/browser needed).
 # Auto-falls back to ascii when Node.js is unavailable. Default: html.
 mockup_format: html
