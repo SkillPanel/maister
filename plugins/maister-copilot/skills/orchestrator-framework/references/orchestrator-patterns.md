@@ -384,7 +384,7 @@ Examples: "Fix login timeout bug" → `2025-12-17-fix-login-timeout`
 
 ### Resume
 
-Resume is the engine's (`workflow-engine/SKILL.md` § *Resume*). Its read-only `resume-check` verb refuses a directory whose state carries no `workflow:` block — one started on the 2.x plugin — and for a run it accepts opens the dashboard again, as the freeze does, and the run resumes from its frozen graph: the ready set is recomputed from the recorded node statuses. There is no phase table to search and no task item to restore.
+Resume is the engine's (`workflow-engine/SKILL.md` § *Resume*). Its `resume-check` verb, which writes nothing in the run, refuses a directory whose state carries no `workflow:` block — one started on the 2.x plugin — and for a run it accepts opens the dashboard again, as the freeze does, and the run resumes from its frozen graph: the ready set is recomputed from the recorded node statuses. There is no phase table to search and no task item to restore.
 
 ---
 

@@ -24,6 +24,7 @@ const LINE = 'Development · phase 5/12 · Specification · Add count() to the s
 const ENGINE = 'node "/plugin/skills/workflow-engine/scripts/workflow.mjs"'
 const WRITE = `${ENGINE} write-state --state=${RUN}/orchestrator-state.yml --patch-file=${PATCH}`
 const BRIEF = `${ENGINE} gate-brief --state=${RUN}/orchestrator-state.yml --node=specification-approval --json`
+const RESUME = `${ENGINE} resume-check --state=${RUN}/orchestrator-state.yml`
 const ASK = 'Specification complete. Ready to go on?'
 const GLANCE = [
   'Checkpoint 2/10 · Specification',
@@ -191,8 +192,8 @@ async function band($: any, surface: 'terminal' | 'desktop', props: Record<strin
   return { drawn, texts, links, colours }
 }
 
-/** Ask the gate's question and read what each surface draws around the dialog while it is open. */
-async function askAndDraw($: any, on: any, questions = QUESTIONS) {
+/** Ask the gate's question, after any calls `first` makes, and read what each surface draws around the dialog while it is open. */
+async function askAndDraw($: any, on: any, questions = QUESTIONS, first = async () => {}) {
   const drawn: Record<string, { texts: string[]; links: Array<{ href: unknown; text: string }>; rows: number } | undefined> = {}
   on('tool.call', { tool: 'AskUserQuestion' }, async () => {
     for (const surface of ['terminal', 'desktop'] as const) {
@@ -210,6 +211,7 @@ async function askAndDraw($: any, on: any, questions = QUESTIONS) {
     }
     return { result: { answers: {} } }
   })
+  await first()
   await $.tool.call({ tool: 'AskUserQuestion', questions })
   return drawn
 }
@@ -473,6 +475,26 @@ describe('run band', () => {
     expect(seen.status).toEqual([])
   })
 
+  test('a run another session last wrote draws from the resume check that points this session at it', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    const seen = beneath(on, { [STATUS]: statusDoc() }, { shells: [{ stdout: '{"ok":true}\n', files: { [POINTER]: pointer } }] })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    expect((await band($, 'terminal')).drawn).toMatchObject({ type: 'engine' })
+    await $.tool.call({ tool: 'Bash', command: RESUME })
+    const drawn = await band($, 'terminal')
+    expect(drawn.texts).toContain('Development')
+    expect(drawn.texts).toContain('phase 5 of 12 · Specification')
+    expect((await row($, 'terminal', seen.ids[0])).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  test('a refused resume check points at nothing, so nothing draws', async ($: any, on: any) => {
+    mock.clock(on, { now: Date.parse(LATER) })
+    beneath(on, { [STATUS]: statusDoc() }, { shells: [{ stdout: '{"ok":false}\n' }] })
+    await $.session.start({ cwd: ROOT, surface: 'terminal', isInteractive: true })
+    await $.tool.call({ tool: 'Bash', command: RESUME })
+    expect((await band($, 'terminal')).drawn).toMatchObject({ type: 'engine' })
+  })
+
   test('the status line stands in for it only where no surface draws the band', async ($: any, on: any) => {
     mock.clock(on, { now: Date.parse(LATER) })
     const drawn = beneath(on, { [POINTER]: pointer, [STATUS]: statusDoc() }, { surfaces: ['terminal', 'vscode'] })
@@ -510,6 +532,18 @@ describe('gate panel', () => {
       ] : [])
       expect(panel.rows).toBeLessThanOrEqual(12)
     }
+  })
+
+  test('a run resumed at its gate draws the panel before the gate is answered', async ($: any, on: any) => {
+    beneath(on, { [STATUS]: statusDoc() }, { shells: [
+      { stdout: '{"ok":true}\n', files: { [POINTER]: pointer } },
+      { stdout: '{}\n', files: { [NEXT]: nextDoc(ASK) } },
+    ] })
+    const drawn = await askAndDraw($, on, QUESTIONS, async () => {
+      await $.tool.call({ tool: 'Bash', command: RESUME })
+      await $.tool.call({ tool: 'Bash', command: BRIEF })
+    })
+    expect(drawn.terminal!.texts[0]).toBe('Checkpoint 2 of 10 · Specification · 1 decided · 1 open risk')
   })
 
   test('names how many fixes the run applied beside the decisions', async ($: any, on: any) => {

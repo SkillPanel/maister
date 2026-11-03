@@ -236,7 +236,7 @@ author at the section a problem falls under when the message alone leaves them g
 
 Run `resume-check --no-open --state=<run directory>/orchestrator-state.yml` — `--no-open`
 because the engine's own resume check opens the dashboard. It reads the state, writes
-nothing, and prints the frozen `workflow.name`, `overlays` and `profile` with the run's `title`
+nothing in the run, and prints the frozen `workflow.name`, `overlays` and `profile` with the run's `title`
 and `status`.
 
 - **Exit `1`** — a directory the engine does not resume, such as one started on the 2.x plugin.

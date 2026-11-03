@@ -37,11 +37,13 @@
  *   state write removes it: a write after a brief means its gate or its set
  *   was answered or sent back.
  * - `<project>/.maister/display/sessions/<session id>.json`, from every state
- *   write: the run this session wrote last. A reader knows its own session and
- *   nothing else, so this is how it finds the run. It is keyed by the session
- *   because the session is its caller: one fixed file for the project would be
- *   shared by two sessions running two workflows there, and each would draw the
- *   other's run. Without a session id — no host that sets one — none is written.
+ *   write and every accepted resume check: the run this session wrote or resumed
+ *   last, so a run resumed in a new session draws before its next write. A reader
+ *   knows its own session and nothing else, so this is how it finds the run. It is
+ *   keyed by the session because the session is its caller: one fixed file for the
+ *   project would be shared by two sessions running two workflows there, and each
+ *   would draw the other's run. Without a session id — no host that sets one —
+ *   none is written.
  *
  * Every write here is a projection of something that already landed, so a
  * failure is a warning and never a refusal, on the dashboard's terms: the state
@@ -177,11 +179,21 @@ export function publishRun({ runDir, root, doc, now, titles, dashboard, artifact
     const { lines, ...card } = banner;
     attempt(warnings, `${DISPLAY_DIR}/${BANNER}`, () => publish(dir, BANNER, { version: VERSION, frozen: now, lines, ...card }));
   }
-  if (typeof session === 'string' && SESSION_ID.test(session)) {
-    const file = `${session}.json`;
-    attempt(warnings, path.join(SESSIONS_DIR, file).split(path.sep).join('/'),
-      () => publish(path.join(root, SESSIONS_DIR), file, { version: VERSION, run_dir: runDir, updated: now }, path.dirname(path.join(root, SESSIONS_DIR))));
-  }
+  warnings.push(...publishPointer({ runDir, root, now, session }));
+  return warnings;
+}
+
+/**
+ * Point the session at the run it is driving: `root` the checkout whose
+ * `.maister/` holds the pointer. Nothing is written without a session id that
+ * can name a file. Returns the warnings, as `publishRun` does.
+ */
+export function publishPointer({ runDir, root, now, session = process.env[SESSION_ENV] }) {
+  const warnings = [];
+  if (typeof session !== 'string' || !SESSION_ID.test(session)) return warnings;
+  const file = `${session}.json`;
+  attempt(warnings, path.join(SESSIONS_DIR, file).split(path.sep).join('/'),
+    () => publish(path.join(root, SESSIONS_DIR), file, { version: VERSION, run_dir: runDir, updated: now }, path.dirname(path.join(root, SESSIONS_DIR))));
   return warnings;
 }
 

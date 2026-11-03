@@ -21,8 +21,11 @@
  * itself, and installs from Copilot's shell commands rather than Claude Code's
  * slash commands.
  *
- * It reads the state file and never writes: not the state, not the dashboard,
- * not anything else in the directory. Zero dependencies, `node:` builtins only,
+ * It reads the state file and writes nothing in the directory: not the state,
+ * not the dashboard, not anything else. Its one write is outside the run and only
+ * for a run it accepts: the session's pointer (`display-files.mjs`), so a screen
+ * beside a session that resumes a run draws it from here on. A pointer that
+ * cannot be written is a warning. Zero dependencies, `node:` builtins only,
  * Node >= 20.
  */
 
@@ -31,7 +34,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { childRootOf, dashboardUrl, legacyMirrorWarning, projectRootOf } from './state.mjs';
+import { stamp } from '../../../../lib/canonical.mjs';
 import { isSetAside } from '../../../../lib/run-dirs.mjs';
+import { publishPointer } from './display-files.mjs';
 import { openRevision } from './revise.mjs';
 
 /** The manifest name the Copilot CLI variant carries. */
@@ -85,7 +90,8 @@ function ownPluginName() {
  * A run whose context block still carries the retired phase-summary mirror
  * resumes all the same; the result then carries `warnings`, the one
  * `legacy-mirror-ignored` line (`legacyMirrorWarning`), which the verb prints
- * on stderr and keeps out of the JSON.
+ * on stderr and keeps out of the JSON. A session pointer that could not be
+ * written is a line there too.
  */
 export function resumeCheck({ state }) {
   const dir = path.dirname(path.resolve(state));
@@ -119,6 +125,12 @@ export function resumeCheck({ state }) {
   const task = isPlainObject(doc.task) ? doc.task : {};
   const revision = openRevision(doc);
   const mirror = legacyMirrorWarning(doc);
+  const root = runRoot(doc, dir);
+  const warnings = [
+    ...(mirror === null ? [] : [mirror]),
+    ...publishPointer({ runDir: dir, root, now: stamp() })
+      .map(({ file, code, message }) => `${file} was not written (${code}: ${message}); the resume check is unaffected`),
+  ];
   return {
     ok: true,
     workflow: {
@@ -129,12 +141,12 @@ export function resumeCheck({ state }) {
     title: typeof task.title === 'string' ? task.title : null,
     status: typeof task.status === 'string' ? task.status : null,
     task_path: dir,
-    root: runRoot(doc, dir),
+    root,
     dashboard: dashboardUrl(doc, dir),
     // Additive, and only while a gate's revise is open: a resume that finds it
     // not yet applied runs `gate-revise` before it walks the ready set.
     ...(revision ? { revision: { gate: revision.gate, option: revision.option, reruns: revision.reruns, revision: revision.revision, applied: revision.applied } } : {}),
-    ...(mirror === null ? {} : { warnings: [mirror] }),
+    ...(warnings.length ? { warnings } : {}),
   };
 }
 
