@@ -47,7 +47,7 @@ For complex bugs that grow beyond a quick fix, offers to switch to a full develo
 
 ### Step 2: Discover Standards
 
-Discover the project's standards as part of analysis and planning (Steps 3–4), relevant to the bug area — not as a bulk upfront read.
+Discover the project's standards as part of analysis and planning (Steps 3–4), relevant to the bug area — not as a bulk upfront read. The Standards Compliance Checklist reference, `<plugin root>/skills/orchestrator-framework/references/standards-compliance-checklist.md` (the plugin root two levels above this skill's base directory, as an absolute path), says where the standards come from, how the plan's checklist is written and how it is verified; read it before Step 4.
 
 - Read `.maister/docs/INDEX.md` to find which standards exist.
 - **Then read the specific standard files it points to that match the bug area** (e.g. API bug → api + error-handling standards; form bug → validation + frontend standards; query bug → database + backend standards). Reading INDEX.md alone is NOT sufficient — this is mandatory.
@@ -120,7 +120,7 @@ If no standards exist: "No Maister standards found. Consider running `/maister:i
 2. **"## Proposed Fix"** — what changes and why
 3. **"## Test Strategy"** — what the TDD red test will assert
 4. **"## Applicable Standards"** — standards read and key guidelines
-5. **"## Standards Compliance Checklist"** — checkboxes for applicable guidelines
+5. **"## Standards Compliance Checklist"** — checkboxes for applicable guidelines, written as the reference's *Writing the checklist* says
 
 If any section is missing, add it before calling ExitPlanMode.
 
@@ -175,7 +175,7 @@ If any section is missing, add it before calling ExitPlanMode.
 - **Tests**: Which tests were run and their results (including the TDD red→green transition)
 - **Commit suggestion**: Propose a commit message
 
-**Post-implementation standards check (mandatory):** after the test is green, go through the `## Standards Compliance Checklist` from the plan file and verify each item — mark pass/fail and report it in the summary. Address any failure before marking the task complete.
+**Post-implementation standards check (mandatory):** after the test is green, go through the `## Standards Compliance Checklist` from the plan file and verify each item as the reference's *Verifying the checklist* says — mark pass/fail and report it in the summary. Address any failure before marking the task complete.
 
 **Docs index (mandatory):** the fix never edits `.maister/docs/INDEX.md` or anything under `.maister/docs/standards/`; name every document it changed under `.maister/docs/` in the summary. A convention worth keeping is suggested in one line for `/maister:standards-update`, never written into a standards file here.
 
