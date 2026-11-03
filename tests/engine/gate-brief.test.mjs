@@ -1799,7 +1799,7 @@ test('picker: the driven form offers no More details', t => {
 // grants: what answering an option authorises, on every surface
 // ---------------------------------------------------------------------------
 
-const GRANTED = 'also pushes the branch and opens the pull request';
+const GRANTED = 'also pushes the branch and opens the pull request where one is owed';
 
 /** A run paused at a gate whose continue option grants the push and the pull request. */
 function atGrantingGate(t, grants = '[pr-create, push]') {
@@ -1856,6 +1856,16 @@ test('grants: the one-line summary names the option and what it grants', t => {
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, new RegExp(` · continue-past-analysis ${GRANTED} · Recommended: continue-past-analysis · `));
   assert.doesNotMatch(oneline(atApproval(t), 'approval').stdout, /also pushes/);
+});
+
+test('grants: the one-line summary follows the grants — the push alone promises no pull request', t => {
+  const pushOnly = oneline(atGrantingGate(t, '[push]'), 'approval');
+  assert.equal(pushOnly.code, 0, pushOnly.stderr);
+  assert.match(pushOnly.stdout, / · continue-past-analysis also pushes the branch · Recommended: /);
+  assert.doesNotMatch(pushOnly.stdout, /pull request/);
+  const both = gateForm(atGrantingGate(t), 'approval', '--request');
+  assert.match(both.context.summary, /continue-past-analysis also pushes the branch and opens the pull request where one is owed · /);
+  assert.doesNotMatch(both.context.summary, /opens the pull request ·/, 'never a pull request promised outright');
 });
 
 test('grants: the driven request carries them in its checkpoint only', t => {

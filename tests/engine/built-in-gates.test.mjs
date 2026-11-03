@@ -136,7 +136,7 @@ test('development: the publishing plan gate grants the push and the pull request
   assert.deepEqual(checkpoint.grants, { 'continue-to-implementation': ['push', 'pr-create'] });
   for (const profile of ['rich', 'plain']) {
     const options = gateForm(run, 'planning-approval-publish', '--json', `--picker=${profile}`).options;
-    const granting = options.filter(option => /pushes the branch and opens the pull request/.test(option.label));
+    const granting = options.filter(option => /pushes the branch and opens the pull request where one is owed/.test(option.label));
     assert.deepEqual(granting.map(option => option.id), ['continue-to-implementation'], profile);
   }
   const request = gateForm(run, 'planning-approval-publish', '--request');

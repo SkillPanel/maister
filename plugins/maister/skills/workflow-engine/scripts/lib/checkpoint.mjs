@@ -136,7 +136,7 @@ const DETAILS_DESCRIPTION = 'Shows the full brief, risks included, then asks thi
 /** What each grant an option declares does, in the words a label carries it in. */
 const GRANT_WORDS = {
   push: 'pushes the branch',
-  'pr-create': 'opens the pull request',
+  'pr-create': 'opens the pull request where one is owed',
   tag: 'creates and pushes the release tag',
   'tracker-write': 'writes to the issue tracker',
   'browser-remote': 'browses named remote hosts',
@@ -182,7 +182,9 @@ const QUESTION_SHARES = { title: 2, questions: 2 };
 
 /**
  * What answering an option grants beyond the run, in plain words — "also
- * pushes the branch and opens the pull request" — or '' when it grants nothing.
+ * pushes the branch and opens the pull request where one is owed" — or '' when
+ * it grants nothing. The pull request is opened only where the run owes one,
+ * which a grant cannot know, so the words never promise one outright.
  */
 export function grantsText(names) {
   const words = (Array.isArray(names) ? names : []).map(name => GRANT_WORDS[name] ?? name);

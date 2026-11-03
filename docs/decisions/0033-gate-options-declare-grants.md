@@ -47,7 +47,8 @@ one map, not a copy on each option, so there is one source.
 
 **Surfaces.**
 - Both pickers append the grant to the option's label in plain words: "— also pushes the branch
-  and opens the pull request". The rich picker shows no description once options carry
+  and opens the pull request where one is owed", since only the run knows whether one is
+  owed. The rich picker shows no description once options carry
   previews, so the label is the one place it is always seen.
 - `--oneline` gains one section per granting option.
 - `--request` leaves its top-level keys and its options' keys and labels as they were. The grant
