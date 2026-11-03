@@ -436,7 +436,7 @@ The mockup studio draws one new version of a set of UI mockups and stops. It is 
 | `fidelity`, `format` | `sketch` or `prototype`; `html` or `ascii` (default from `mockup_format` in `.maister/config.yml`) |
 | `brief`, `grounding` | Context for the screens, and the grounding pack folder (default `.maister/docs/design-context`) |
 
-A run writes its record to `.maister/tasks/mockup-studio/<YYYY-MM-DD-slug>/` and the mockups under `<task_path>/<output_subdir>/versions/vNNN/`, beside the earlier versions, which it never changes. Open `versions/vNNN/index.html` to see the version. For the next version, start another run with the same folder and `against` set to the previous run's version. Details: [the command](commands.md#maistermockup-studio-screen-or-feature).
+A run writes its record to `.maister/tasks/mockup-studio/<YYYY-MM-DD-slug>/` and the mockups under `<task_path>/<output_subdir>/versions/vNNN/`, beside the earlier versions, which it never changes. Open `versions/vNNN/index.html` to see the version. For the next version, run the command the turn closes with, `/maister:mockup-studio --turn "<note>" --task=<folder>`: on a mockup studio folder it starts another run with the same folder and `against` set to the latest version, and that run keeps its own record folder. Details: [the command](commands.md#maistermockup-studio-screen-or-feature).
 
 ---
 

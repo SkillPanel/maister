@@ -87,13 +87,18 @@ The steps say what each one does; the references say how.
    `--root`.
    - `missing`: build the pack, as `references/grounding-pack.md` says, and use it. The note is
      "Built the grounding pack at `<path>`; commit it so later turns and machines reuse it."
+     Every entry builds it — node mode, an inline call, a terminal turn — whatever the project
+     or the turn looks like: a project with little or no UI yet, a sketch, a small scope or a
+     throwaway comparison is no reason to skip the build. The pack then holds what the codebase
+     offers, however little.
    - `stale`: use it as it is, record it stale, and add the note "The grounding pack is stale
      (<reasons>); run /maister-copilot:mockup-studio --ground to refresh it." A turn never rebuilds an
      existing pack.
    - `fresh` (also with `schema-newer` alone): use it.
-   - Building failed, or `grounding-malformed`: draw from the codebase alone, with the degraded
-     code `grounding-unavailable` and a null digest; for a malformed pack, the note says to run
-     `--ground`.
+   - Building was tried and failed, or `grounding-malformed`: draw from the codebase alone, with
+     the degraded code `grounding-unavailable` and a null digest; for a malformed pack, the note
+     says to run `--ground`. A turn that did not try to build a missing pack never records
+     `grounding-unavailable`.
 
    Then read the pack and the standards by *The per-turn read* in `references/grounding-pack.md`,
    and add one note line naming what the screens were bound to.
@@ -139,7 +144,10 @@ The steps say what each one does; the references say how.
      path: `file://` when the tool allows it, otherwise that path under the per-turn viewer
      (`references/visual-companion.md`). Never the viewer's `/`, which still leads to the previous
      latest while this version is only a preview;
-   - fix what looks wrong in `.turn.json`, then preview once more at most.
+   - fix what looks wrong in `.turn.json`, then preview once more at most;
+   - keep the browser tool's own output out of the project, as
+     `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` says for the tool
+     in use (*Which tool*).
 
    The notes record what was looked at and what was fixed, or "no browser tool: pages not looked
    at".
@@ -169,7 +177,7 @@ waits. The codes are a closed set:
 | `no-node` | Node is unavailable, which happens only outside an engine run | `ascii-mockups.md`, with a hand-written manifest and index entry |
 | `render-touches-dom` | `frames.mjs` refused a DOM access | sketch pages from the same scenes; `prototype.html` kept; `fidelity: sketch` |
 | `render-failed` | any other `frames.mjs` refusal | as above |
-| `grounding-unavailable` | no usable pack, and building one failed | pages drawn from the codebase alone; a null grounding digest |
+| `grounding-unavailable` | no usable pack, and building one was tried and failed | pages drawn from the codebase alone; a null grounding digest |
 | `incomplete` | not every screen the note asked for could be drawn | the screens that were drawn |
 
 ### The no-Node path
@@ -192,8 +200,9 @@ turn writes ASCII by hand, in the shapes `references/turn-contract.md` spells:
 | Typed | What runs |
 |---|---|
 | `/maister-copilot:mockup-studio --turn "<note>"`, no target | Hands off to the workflow engine: invoke the `workflow-engine` skill with the Skill tool, naming the workflow `builtin:mockup-studio`, with `note` and the flags below as its inputs (`--subdir` is `output_subdir`). The run gets its own task folder under `.maister/tasks/mockup-studio/`, and its node runs this skill in node mode. Relay the engine's start banner |
-| `--turn "<note>" --task=<dir>` | An inline turn on `<dir>/<--subdir, or analysis/mockups>/`, whether or not a version exists there (none means `v001`). No run state, no dashboard, no `turn-result.json`, no INDEX rows |
-| `--turn "<note>"` from inside a task directory whose `<subdir>/versions/index.json` exists | The same inline turn on that task directory |
+| `--turn "<note>" --task=<dir>`, `<dir>` a `mockup-studio` record folder (under `.maister/tasks/mockup-studio/`) | **A recorded turn N+1**: hands off to the workflow engine as the first row does, with `task_path` set to `<dir>`, `output_subdir` to `--subdir` or `analysis/mockups`, the new `note`, and `against` set to `--against` when given, else to `latest` in `<dir>/<output_subdir>/versions/index.json` (left out when there is no index yet). The run writes its own record folder, state values and `turn-result.json`, exactly as a driver's turn N+1 (*Turn N+1, and the record folder*) |
+| `--turn "<note>" --task=<dir>`, `<dir>` any other workflow's task directory (development, product-design, quick-design's `design/`) | An inline turn on `<dir>/<--subdir, or analysis/mockups>/`, whether or not a version exists there (none means `v001`). No run state, no dashboard, no `turn-result.json`, no INDEX rows: the turn belongs to that workflow's own record |
+| `--turn "<note>"` from inside a task directory whose `<subdir>/versions/index.json` exists | The same as `--task=<that directory>`: a recorded turn N+1 for a `mockup-studio` record folder, an inline turn for any other |
 | `/maister-copilot:mockup-studio "<text>"` | Read as `--turn "<text>"` |
 | `/maister-copilot:mockup-studio --ground` | Builds or refreshes the grounding pack (`references/grounding-pack.md`), whatever its status, and touches no task folder. It closes with the digest, what was recorded, and the commit note |
 
@@ -206,7 +215,8 @@ the path to `versions/vNNN/index.html` (for ASCII, `ascii-mockups.md`). It ends 
 command, `/maister-copilot:mockup-studio --turn "<note>" --task=<folder>`, with `<folder>` the task folder
 relative to the project root and `--subdir=<output_subdir>` added when it is not
 `analysis/mockups` — because a bare second `--turn` from the project root starts a new run at
-`v001`. A workflow run ends the same way, from its node's prose.
+`v001`. When `<folder>` is a `mockup-studio` record folder, that command records the next turn
+as a run of its own. A workflow run ends the same way, from its node's prose.
 
 ### Folder rules
 
@@ -215,7 +225,8 @@ relative to the project root and `--subdir=<output_subdir>` added when it is not
 - The legacy `.maister/tasks/mockups/` is a folder run readers skip. Nothing new is written there.
 - The skill writes nothing outside the target folder, the INDEX file (`emit_index_rows`), the
   grounding pack (when a turn builds it, or `--ground`) and, in node mode with `record` set,
-  `turn-result.json` in the run folder.
+  `turn-result.json` in the run folder. A browser tool's snapshots and logs from the look pass go
+  to a scratch directory, never the project.
 
 ### Turn N+1, and the record folder
 
@@ -226,8 +237,15 @@ relative to the project root and `--subdir=<output_subdir>` added when it is not
 - **Turn N+1** is a fresh `mockup-studio` run with the same `task_path` and `output_subdir`, the new
   `note`, and `against` set to the previous run's `values.version`, or to `latest` in
   `versions/index.json`. There is no reopen verb.
+- **One record folder per turn.** Turn N+1's run gets a record folder of its own, holding its
+  `orchestrator-state.yml` and `turn-result.json` and no versions; its `task_path` names the
+  folder the versions live in — turn 1's record folder, when turn 1 had no `task_path`. Its
+  closing command names that same folder, so every later turn stays on one version list.
 - One folder therefore holds one version list however many runs wrote it, and each run's
   `values.version` and `values.against` bind that run to its version without reading the index.
+  A reader lists every turn on a folder from the record folders under
+  `.maister/tasks/mockup-studio/`: those whose recorded `task_path` input is that folder, plus the
+  folder itself when it is a record folder with no `task_path`, ordered by `values.version`.
 
 ---
 

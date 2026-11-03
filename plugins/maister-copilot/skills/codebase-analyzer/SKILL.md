@@ -103,6 +103,14 @@ If combining roles into one agent, also read `references/combined.md` for mergin
 **IMPORTANT**: Every Explore agent prompt MUST include this instruction:
 > IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
+**Paths in every Explore prompt are absolute.** A built-in explore agent carries none of this
+plugin's rules, so its prompt carries them: the project root as an absolute path; every file or
+folder the prompt names — a standards file from `.maister/docs/`, a hint, a task file — as an
+absolute path under that root, never relative; and the rule "Search, list and glob only under
+`<project root>` — never in a parent folder, the home folder or anywhere outside it." A relative
+path or a missing root lets the agent search the folder above the project, which can stop the
+run for a permission prompt.
+
 ### Step 4: Delegate Report Generation
 
 After all Explore agents complete, delegate to `codebase-analysis-reporter` subagent via Task tool, with the model and effort a fresh `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:codebase-analysis-reporter --host=copilot` prints (with the same `--state` and `--node` inside a run):

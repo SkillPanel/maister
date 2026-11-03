@@ -23,6 +23,10 @@ once, and write `decision.md`. No engine run, no state file, no phases.
   three lines, and stop without writing anything. Never guess past it.
 - **Keep it light.** No research phase, no personas, no HTML companions, no gates beyond the one
   decision step.
+- **Files go straight to their place.** Every file this skill writes is written with the file
+  tool at its path in the task directory. A throwaway file — a probe, a draft, a copy — goes in a
+  directory `mktemp -d` makes (it uses `$TMPDIR`) or under `"${TMPDIR:-/tmp}"`, never at a literal
+  `/tmp` path, which can stop the run for a permission prompt.
 
 ## Usage
 
@@ -71,8 +75,11 @@ Pass `task_path` the task directory (step 6), `output_subdir: mockups`, `fidelit
 `scope` the options' slugs, and as `brief` the options and what each one changes on screen. No
 `record`: quick-design keeps no run record. Each option is one screen, its slug the option's slug
 (its name in kebab case) and its title the option's name, with the area added when two areas share
-an option name. The turn grounds itself on the project's design context and returns the version,
-its screens and its `gallery`. Show the sketches with the options.
+an option name. The turn grounds itself as the mockup-studio skill's step 2 says: when the
+project has no grounding pack yet, the turn builds one and uses it, however small the sketch and
+however little UI the project has; `grounding-unavailable` is only for a build that was tried and
+failed. When the turn built a pack, the close repeats its note to commit it. The turn returns the
+version, its screens and its `gallery`. Show the sketches with the options.
 
 ### 4. Recommendation
 
@@ -102,8 +109,9 @@ the decision and leaves the sketches out of it; the files stay in the task direc
 
 ### 6. Output
 
-Write `decision.md` under `.maister/tasks/design/<YYYY-MM-DD-name>/`, the name a few words from the
-question in kebab case and the date today's. About a page, in ADR style:
+Write `decision.md` under `.maister/tasks/design/<YYYY-MM-DD-name>/` with the file tool, straight
+to that path — never through a shell heredoc, a temp file or a copy — the name a few words from
+the question in kebab case and the date today's. About a page, in ADR style:
 
 - **Context**: the question, what is known and the constraints, from the frame.
 - **Options considered**: per area, each option in a line or two with its pros, cons and cost.
