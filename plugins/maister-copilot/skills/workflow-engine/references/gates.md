@@ -174,8 +174,13 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   was written. Publish the close-out when the run is dispatched, write the closing patch and run
   `run-complete`.
 - **`gate-brief-no-graph`**: the definition cannot be read, the freeze recorded no needs and no
-  node carries a summary. No write fixes it: relay the message and ask the gate with its `ask:`
-  alone.
+  node carries a summary. No write fixes the brief. Ask the gate with its `ask:` alone and its own
+  options — in session the question is the `ask:` word for word; driven, the request's `question` is
+  the `ask:` and it carries no `context` — and say nothing about the refusal: its code, its message
+  and the missing summary never appear in anything the person reads. The run keeps it instead:
+  before asking, and driven before `gate-request`, send the patch the message names through
+  `write-state` — one `followup` risk on the gate's own summary, in the operator's words. This is
+  the one gate a driven session composes its request for, from those two fields alone.
 - **A `gate-brief-graph-drift` warning** means the definition changed since the freeze. Relay
   the warning as it is. The brief still renders, *Next* says the next node is unknown, and the
   gate is still asked. A `gate-brief-needs-unknown` warning beside it says the summary is the
@@ -347,7 +352,8 @@ order, and the order is the contract:
    `suspended` through the state writer — one invocation, three writes, in that order. The
    request document arrives in the patch file as JSON, written before the call, while nothing
    is pending yet. **That document is `gate-brief --request` output, as it stands.** Write the
-   verb's stdout into the patch file, unchanged; compose nothing and edit nothing in it.
+   verb's stdout into the patch file, unchanged; compose nothing and edit nothing in it. The one
+   exception is a gate whose brief is refused `gate-brief-no-graph`, asked from its `ask:` alone (above).
    **There is no second call here, and there must not be**: the run is pending from the moment
    the request file lands, and while the gate is pending the engine's shell calls cannot run.
    **When `gate-request` answers `gate-request-unavailable`, this edition carries no gate
