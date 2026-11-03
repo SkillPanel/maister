@@ -583,7 +583,28 @@ test('refusal: an unreadable definition and no summary anywhere names no write',
   assert.equal(result.stdout, '');
   assert.match(result.stderr, /^gate-brief-no-graph: /);
   assert.match(result.stderr, /no state write fixes this/);
-  assert.doesNotMatch(result.stderr, /node_summaries/);
+  assert.doesNotMatch(result.stderr, /report this message/);
+  assert.match(result.stderr, /ask the gate with its ask: alone/);
+  assert.match(result.stderr, /say nothing of this refusal to the person/);
+});
+
+test('refusal: no-graph names the followup risk that records it, and the writer takes it on the gate still to be asked', t => {
+  const run = atApproval(t, null);
+  loseDefinition(run);
+  forgetNeeds(run);
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 1);
+  const patch = JSON.parse(result.stderr.match(/(\{"node_summaries":.*\})$/m)[1]);
+  assert.deepEqual(Object.keys(patch.node_summaries), ['approval']);
+  const [risk] = patch.node_summaries.approval.risks;
+  assert.equal(risk.tag, 'followup');
+  assert.doesNotMatch(risk.risk, /gate-brief|no-graph|refus/, 'the recorded risk is in the operator\'s words, never the code');
+
+  writeState(run, patch);
+  const state = readState(run);
+  assert.deepEqual(state.node_summaries.approval.risks, [risk]);
+  assert.equal(state.workflow.nodes.approval.status, 'pending',
+    'recording the risk leaves the gate to be asked');
 });
 
 test('refusal: a drift warning is kept beside a no-summary refusal, the code first', t => {
