@@ -209,7 +209,10 @@ test('a page with no single classic scenes script, or no page, is refused; a usa
   await t.test('a folder it cannot write is folder-unwritable', { skip: process.platform === 'win32' || process.getuid?.() === 0 }, tt => {
     const dir = withFixture(tt, 'prototype.html');
     fs.chmodSync(dir, 0o555);
-    assertRefused(exportFrames(dir), 'folder-unwritable', dir);
+    const refused = exportFrames(dir);
+    assertRefused(refused, 'folder-unwritable', dir);
+    assert.match(refused.json.message, /Make the version folder writable and run export again\.$/);
+    assert.doesNotMatch(refused.json.message, /^[a-z-]+: /, 'the code is not repeated in the message');
   });
   await t.test('a relative or missing --version-dir is a usage error', () => {
     for (const args of [['export'], ['export', '--version-dir=relative/v001'], ['other']]) {

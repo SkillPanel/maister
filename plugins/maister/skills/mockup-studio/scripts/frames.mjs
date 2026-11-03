@@ -51,9 +51,8 @@
  *   render-timeout      the script or a render ran past the timeout
  *   render-not-string   a render returned something other than a string
  *   render-threw        any other throw
- *   folder-unwritable   `.frames.json` could not be written (the write
- *                       primitives' `mockup-unwritable` and
- *                       `mockup-temp-exists` are reported under it)
+ *   folder-unwritable   `.frames.json` could not be written (every write
+ *                       fault, the write primitives' included)
  * The skill maps `render-touches-dom` to the degraded reason of the same name
  * and every other refusal to `render-failed`; either way the turn falls back
  * to sketch screens drawn from the same scenes, keeps prototype.html and
@@ -73,8 +72,6 @@ import { RESERVED_SLUGS } from './lib/slugs.mjs';
 const EXIT = { OK: 0, REFUSED: 1, INTERNAL: 2 };
 const TIMEOUT_MS = 2000;
 const FRAMES_NAME = '.frames.json';
-const WRITE_CODES = { unwritable: 'mockup-unwritable', tempExists: 'mockup-temp-exists' };
-const FOLDED = new Set(Object.values(WRITE_CODES));
 const SLUG = new RegExp(SLUG_PATTERN);
 const DOM_GLOBALS = [
   'document', 'window', 'navigator', 'location', 'localStorage', 'sessionStorage', 'fetch', 'XMLHttpRequest',
@@ -332,7 +329,7 @@ function exportFrames(flags) {
   const found = departures(document, { type: 'object', keys: FRAMES_FILE }, FRAMES_NAME);
   if (found.length) throw new Error(`the frames this export built do not have the declared shape: ${found.join('; ')}`);
   const target = path.join(versionDir, FRAMES_NAME);
-  commit({ target, text: `${JSON.stringify(document, null, 2)}\n`, tmp: path.join(versionDir, `.${FRAMES_NAME}.tmp`), codes: WRITE_CODES });
+  commit({ target, text: `${JSON.stringify(document, null, 2)}\n`, tmp: path.join(versionDir, `.${FRAMES_NAME}.tmp`), codes: { unwritable: 'folder-unwritable', tempExists: 'folder-unwritable' } });
   return { ok: true, scenes: document.screens.length, frames: FRAMES_NAME };
 }
 
@@ -352,12 +349,12 @@ function main() {
     return EXIT.OK;
   } catch (error) {
     if (error instanceof Refusal) {
-      const folded = FOLDED.has(error.code);
+      const unwritable = error.code === 'folder-unwritable';
       const message = error.message.replace(/^[a-z-]+: /, '');
       process.stdout.write(`${JSON.stringify({
         ok: false,
-        code: folded ? 'folder-unwritable' : error.code,
-        message: folded ? `${message}. ${AFTERWARDS} Make the version folder writable and run export again.` : message,
+        code: error.code,
+        message: unwritable ? `${message}. ${AFTERWARDS} Make the version folder writable and run export again.` : message,
       }, null, 2)}\n`);
       return EXIT.REFUSED;
     }
