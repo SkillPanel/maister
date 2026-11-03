@@ -1,6 +1,6 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: product-design
-%% graph_hash: sha256:08bd2d76e6c1472b130e22ca7a2a8f5d10fb46fd2d380522edb9f5af669c9e00
+%% graph_hash: sha256:abeb2b1e0308b2be7c470112529e8532127f7a4e8613b8117a5c99f6e30cab72
 
 flowchart TD
   n_intake["Intake and design characteristics<br/>intake<br/>direct:intake"]
@@ -15,6 +15,7 @@ flowchart TD
   n_direction_approval{{"Approve design direction<br/>direction-approval<br/>gate<br/>Design direction ready for review. Continue to feature specification?<br/>continue-to-specification: continue, explore-more-alternatives: revise → idea-generation, refine-direction: revise → idea-convergence, stop-design: stop<br/>when: !${inputs.simple}"}}
   n_feature_specification["Feature specification<br/>feature-specification<br/>direct:feature-specification"]
   n_visual_prototyping{"Visual prototyping<br/>visual-prototyping<br/>skill:mockup-studio<br/>when: ${intake.values.prototyping_enabled}"}
+  n_mockup_approval{{"Approve the screens<br/>mockup-approval<br/>gate<br/>Screens drawn. Continue to the specification review?<br/>continue-to-specification-review: continue, revise-mockups: revise → visual-prototyping, stop-design: stop<br/>when: ${intake.values.prototyping_enabled}"}}
   n_specification_approval{{"Approve specification and prototypes<br/>specification-approval<br/>gate<br/>Feature specification complete. Continue to the product brief?<br/>continue-to-product-brief: continue, revise-specification: revise → feature-specification, stop-design: stop"}}
   n_review_handoff["Product brief and delivery scope<br/>review-handoff<br/>direct:review-handoff"]
   n_completion{"Completion<br/>completion<br/>direct:completion<br/>when: !${inputs.embedded}"}
@@ -30,9 +31,10 @@ flowchart TD
   n_idea_convergence --> n_direction_approval
   n_direction_approval --> n_feature_specification
   n_feature_specification --> n_visual_prototyping
+  n_visual_prototyping --> n_mockup_approval
   n_feature_specification --> n_specification_approval
-  n_visual_prototyping --> n_specification_approval
+  n_mockup_approval --> n_specification_approval
   n_specification_approval --> n_review_handoff
   n_review_handoff --> n_completion
-  class n_characteristics_approval,n_context_approval,n_problem_approval,n_direction_approval,n_specification_approval gate
-  class n_characteristics_approval,n_context_approval,n_persona_exploration,n_idea_generation,n_idea_convergence,n_direction_approval,n_visual_prototyping,n_completion conditional
+  class n_characteristics_approval,n_context_approval,n_problem_approval,n_direction_approval,n_mockup_approval,n_specification_approval gate
+  class n_characteristics_approval,n_context_approval,n_persona_exploration,n_idea_generation,n_idea_convergence,n_direction_approval,n_visual_prototyping,n_mockup_approval,n_completion conditional

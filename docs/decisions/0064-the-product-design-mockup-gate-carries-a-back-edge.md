@@ -20,7 +20,7 @@ With ADR-0063 the node draws one version and ends. Nothing inside it asks, so a 
 - **`specification-approval` now waits on `feature-specification` and `mockup-approval`.** A revise at the specification therefore re-runs the specification, the screens, the screens' gate and the specification gate, in that order, and the screens are redrawn against the revised specification.
 - **A re-run is one more turn** against the latest version, with the revise note as its note. The earlier versions stay in the folder.
 - **ADR-0028's rule is unchanged:** gates with a review loop of their own, such as the verification gates, still offer no revise. The only gate it excluded for a loop no longer has one.
-- **The hash moves once.** The new node and gate, the changed `needs` and the revise option are all part of the hashed graph, so the product-design hash moves, and the hashes the tests pin for the companion and brief baselines move with it. A run frozen before keeps its graph and resumes on it.
+- **The hash moves once.** The new gate, the changed `needs` and the revise option are all part of the hashed graph, so the product-design hash moves, and the hashes the tests pin for the companion and brief baselines move with it. A run frozen before keeps its graph and resumes on it.
 
 ### Consequences
 

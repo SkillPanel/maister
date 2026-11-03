@@ -126,13 +126,14 @@ when you are not sure which one you need. To choose yourself:
 | `performance` | Slow code: finds bottlenecks by reading the code (N+1 queries, missing indexes, quadratic loops, blocking I/O), then fixes them like a development run. |
 | `migration` | Moving to another library, platform or architecture pattern, step by step, with rollback planning and compatibility checks. |
 | `product-design` | A fuzzy idea: explores the problem and options with you, prototypes screens, and ends with a product brief. |
+| `mockup-studio` | One set of UI mockups: draws one new version of the screens you describe, beside the earlier versions, and stops. |
 | `quick-plan` | A bounded change: drafts a plan that follows your standards, asks you to approve it, then implements it. |
 | `quick-dev` | A small change you want made directly, with your standards applied and checked at the end. |
 | `quick-bugfix` | A bug with a clear symptom: reproduces it with a failing test first, then fixes it. |
 | `quick-design` | A small design question: lays out the options, recommends one, asks you once and writes a one-page decision record. |
 | `reviews-spec`, `reviews-code-risk`, `reviews-simplicity`, `reviews-spec-audit` | One review on its own: whether a change obeys its spec, what in it can break or leak where the project runs, complexity it does not need, and a specification audit. |
 
-The five workflows at the top are described in full, with their flags, in
+The six workflows at the top are described in full, with their flags, in
 [Workflow Details](workflows.md); every command is listed in [Commands](commands.md).
 
 ### Research and the web

@@ -131,8 +131,9 @@ You can always be explicit when you prefer - arguments and flags simply override
 | `/maister:performance` | Optimizing speed or resource usage |
 | `/maister:migration` | Changing technologies or patterns |
 | `/maister:product-design` | Product and feature design |
+| `/maister:mockup-studio` | One new version of a set of UI mockups |
 
-All five run on the workflow engine. A task started on the 2.x plugin is finished on 2.x — see [Staying on 2.x](#staying-on-2x).
+All six run on the workflow engine. A task started on the 2.x plugin is finished on 2.x — see [Staying on 2.x](#staying-on-2x).
 
 Whether a task is a bug fix is detected by the analysis, which then writes a failing test first. Or use `/maister:work` as a single entry point that routes to the right workflow.
 

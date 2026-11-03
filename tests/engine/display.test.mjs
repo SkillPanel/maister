@@ -286,7 +286,8 @@ for (const file of BUILTINS) {
     const definition = readDefinition(file);
     const { option_labels: labels, headers } = displayOf({ definition });
     const gates = Object.entries(definition.doc.nodes).filter(([, node]) => node.type === 'gate');
-    assert.ok(gates.length > 0);
+    // A workflow with no checkpoints, mockup-studio, has no gate to label.
+    assert.ok(gates.length > 0 || name === 'mockup-studio');
     for (const [id, node] of gates) {
       assert.ok(Object.hasOwn(headers, id), `${name}: ${id} has no header`);
       for (const option of Object.keys(node.options)) {

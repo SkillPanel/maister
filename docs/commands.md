@@ -213,7 +213,7 @@ is woken, while in the terminal the research runs in the same session and the pa
 
 ### `/maister:product-design [description | task-path]`
 
-Starts the interactive product/feature design workflow (ten phases and five checkpoints, of which `--simple` keeps the problem and specification checkpoints and skips the personas, the brainstorm and, unless the design turns on layout or presentation, the prototypes) or resumes an existing one. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Can be run without arguments — the plugin extracts the design brief from your conversation.
+Starts the interactive product/feature design workflow (ten phases and six checkpoints, of which `--simple` keeps the problem and specification checkpoints and skips the personas, the brainstorm and, unless the design turns on layout or presentation, the prototypes) or resumes an existing one. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Can be run without arguments — the plugin extracts the design brief from your conversation.
 
 | Flag | Description |
 |------|-------------|

@@ -63,13 +63,16 @@ Per decision area, two to four concrete options. Each says what changes, its pro
 rough cost (small, medium or large, with what drives it). Options are real alternatives a person
 could pick, never a strawman beside the favourite.
 
-**When mockups are on**, run the `mockup-studio` skill through the Skill tool once, for a
-minimal set: one small sketch per option, so the options can be compared side by side — not a
-design pass. Pass the task directory (step 6) as `task_path`, `output_subdir: mockups`,
-`iteration: single`, `emit_index_rows: false`, the format from `.maister/config.yml`'s
-`mockup_format` (default `html`), and as `context` the options and what each one changes on screen.
-The studio binds to the project's design system when there is one. Show the sketches with the
-options.
+**When mockups are on**, run the `mockup-studio` skill through the Skill tool once, for
+one sketch turn in this session — never through the workflow, and with no run context: one small
+screen per option, so the options can be compared side by side in one gallery — not a design pass.
+Pass `task_path` the task directory (step 6), `output_subdir: mockups`, `fidelity: sketch`,
+`emit_index_rows: false`, `format` from `.maister/config.yml`'s `mockup_format` (default `html`),
+`scope` the options' slugs, and as `brief` the options and what each one changes on screen. No
+`record`: quick-design keeps no run record. Each option is one screen, its slug the option's slug
+(its name in kebab case) and its title the option's name, with the area added when two areas share
+an option name. The turn grounds itself on the project's design context and returns the version,
+its screens and its `gallery`. Show the sketches with the options.
 
 ### 4. Recommendation
 
@@ -111,5 +114,8 @@ question in kebab case and the date today's. About a page, in ADR style:
 - **Proposed issues or slices**: a short list of the pieces of work the decision implies, each a
   line that could become an issue.
 
-The mockups sit beside it under `mockups/` when they were made and kept; `decision.md` links them.
+The mockups sit beside it under `mockups/` when they were made and kept. `decision.md` links the
+gallery the turn returned for HTML, or `mockups/ascii-mockups.md` for ASCII — never a version
+folder by name — and names each option's screen by the slug the turn returned, linking its flat
+page `mockups/<slug>.html` for HTML.
 Close with the path of `decision.md` and the decision in one line per area.

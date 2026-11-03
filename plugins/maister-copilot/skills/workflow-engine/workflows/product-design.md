@@ -15,9 +15,8 @@ The block is `design_context`, and this workflow writes no other context block.
 | `collected_urls`, `research_topics`, `user_files_list` | `intake` | what the operator supplied as extra context; empty lists when nothing was |
 | `research_reference` | `intake` | `{path, research_question}` of a research task named on invocation |
 | `project_context_summary` | `intake` | a few lines on what the project documentation says |
-| `refinement_iterations` | each looping node | rounds taken: `problem_statement`, `personas`, `specification_sections` (a map by section), `prototypes` |
-| `visual_companion` | `visual-prototyping` | `{available, port, pid, fallback_to_ascii}` as the mockup studio reported it |
-| `design_resources` | `visual-prototyping` | what the studio's design-resource discovery bound to |
+| `refinement_iterations` | each looping node | rounds taken: `problem_statement`, `personas`, `specification_sections` (a map by section) |
+| `design_resources` | `visual-prototyping` | the grounding digest and staleness of the turn that drew the screens, and what it bound to |
 
 The run's options live under `orchestrator.options`: `html_output`,
 `mockup_format` and `visual_enabled`, the last derived by `intake`.
@@ -47,7 +46,8 @@ risk.
 | `visual-prototyping`, unless the decision turns on layout or presentation | the intake judges that, says why, and records `prototyping_enabled` from it; the operator can override it in the intake's request |
 
 Two gates remain, `problem-approval` and `specification-approval`, beside the
-brief's own approval inside `review-handoff`.
+brief's own approval inside `review-handoff`; a third, `mockup-approval`, when
+the screens are drawn.
 
 ---
 
@@ -541,47 +541,39 @@ in a terminal run, and verify depth again for a complex design.
 
 ## `visual-prototyping`
 
-**Does.** Pass the studio:
+**Does.** One turn of the studio, with this node's `with:` values: it draws
+one new version of the screens under `analysis/mockups/` and asks nothing.
+Pass it:
 
-- the mockup format: `html` when `options.visual_enabled` is true, `ascii`
+- the format: `html` when `options.visual_enabled` is true, `ascii`
   otherwise;
-- the instruction to draw **user-facing wireframes of the feature's actual
-  screens**, as the specification describes them — never generic placeholders
-  or technical diagrams;
+- the note: on a first run, to draw **user-facing wireframes of the feature's
+  actual screens**, as the specification describes them — never generic
+  placeholders or technical diagrams; on a re-run after a revise at
+  `mockup-approval`, the revise note from `prior-context`; on a re-run after a
+  revise of the specification, "redraw the screens the revised specification
+  changes";
 - `analysis/design-decisions.md` **only when the state records
   `idea-convergence` completed** (in a simple run, *Depth*, the
   specification's Approach section carries the direction), and the personas'
   journeys from `analysis/personas.md` **only when the state records
   `persona-exploration` completed**.
 
-The refinement loop is the studio's own, inside this node. Leave the companion
-up: the screens are reviewed at `specification-approval`, and `review-handoff`
-shuts it down.
+The screens are reviewed at `mockup-approval`, right after this node.
 
-**Asks.**
+**Writes.** Record the turn's grounding digest and whether the pack was stale,
+from the version's manifest, and what the turn bound to, as
+`design_context.design_resources`.
 
-**With question sets**: the same — refining mockups needs the browser companion
-in session, so it is not carried as a question.
+**Summary.** The `headline` names the version, the changed screens and the
+gallery file ("v002 — the share dialog and the guest calendar changed; open
+analysis/mockups/versions/v002/index.html"). The gate question cannot carry the
+path, so the brief does; a trimmed brief keeps opening sentences. Each
+`degraded` reason the turn returned is an `open` risk. The node entry adds
+`mockup_references`, the flat pages of the version's screens.
 
-**Without question sets** (the studio's `mockup-refinement`): the studio
-degrades full iteration to a single pass on its own and says so in its notes.
-Put that note in this node's summary.
-
-**Writes.** Record the companion's status as `design_context.visual_companion`,
-what its discovery bound to as `design_context.design_resources`, and the
-rounds as `design_context.refinement_iterations.prototypes`.
-
-**Summary.** When the studio reports a live gallery address, put it verbatim
-in the `headline` with the screens drawn, and open `summary` with it and how to
-navigate — a trimmed brief keeps opening sentences. When the companion never
-came up, say so and name the saved files; never write an address never served.
-The node entry adds `mockup_references`, the studio's returned files.
-
-**Re-run.** Re-invoke the studio with the revised specification and regenerate
-only the screens the revision touches, reusing the server still running.
-
-**Budget.** Restart the companion on the second attempt; the studio's fallback
-to terminal mockups is a recorded note, not a retry.
+**Re-run.** One more turn against the latest version, with the note *Does*
+names. The earlier versions stay in the folder.
 
 ---
 
@@ -640,8 +632,6 @@ to terminal mockups is a recorded note, not a retry.
    The question lists the brief's points, a line per layer, before the ask.
    On a change, revise the brief and the scope, check them again and ask
    again.
-7. **Shut the mockup companion down** if `visual-prototyping` started one
-   (`POST /shutdown`).
 
 **Asks.**
 
