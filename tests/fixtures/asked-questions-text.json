@@ -2788,7 +2788,7 @@
           {
             "description": "Runs implementation next.",
             "id": "continue-to-implementation",
-            "label": "Continue to the implementation — also pushes the branch and opens the pull request (Recommended)"
+            "label": "Continue to the implementation — also pushes the branch and opens the pull request where one is owed (Recommended)"
           },
           {
             "description": "Re-runs Implementation planning with your note, then asks this again.",

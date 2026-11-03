@@ -950,7 +950,7 @@ test('each new grant is said in plain words, in the closed order', () => {
   assert.equal(grantsText(['tracker-write']), 'also writes to the issue tracker');
   assert.equal(grantsText(['browser-remote']), 'also browses named remote hosts');
   assert.equal(grantsText(['spend']), 'also spends budget starting and steering runs');
-  assert.equal(grantsText(GRANTS), 'also pushes the branch, opens the pull request, creates and pushes the release tag, '
+  assert.equal(grantsText(GRANTS), 'also pushes the branch, opens the pull request where one is owed, creates and pushes the release tag, '
     + 'writes to the issue tracker, browses named remote hosts and spends budget starting and steering runs');
   for (const name of GRANTS) assert.match(grantsText([name]), /^also [a-z][a-z ]+$/, name);
 });

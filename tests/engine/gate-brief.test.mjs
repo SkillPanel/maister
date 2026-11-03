@@ -583,7 +583,28 @@ test('refusal: an unreadable definition and no summary anywhere names no write',
   assert.equal(result.stdout, '');
   assert.match(result.stderr, /^gate-brief-no-graph: /);
   assert.match(result.stderr, /no state write fixes this/);
-  assert.doesNotMatch(result.stderr, /node_summaries/);
+  assert.doesNotMatch(result.stderr, /report this message/);
+  assert.match(result.stderr, /ask the gate with its ask: alone/);
+  assert.match(result.stderr, /say nothing of this refusal to the person/);
+});
+
+test('refusal: no-graph names the followup risk that records it, and the writer takes it on the gate still to be asked', t => {
+  const run = atApproval(t, null);
+  loseDefinition(run);
+  forgetNeeds(run);
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 1);
+  const patch = JSON.parse(result.stderr.match(/(\{"node_summaries":.*\})$/m)[1]);
+  assert.deepEqual(Object.keys(patch.node_summaries), ['approval']);
+  const [risk] = patch.node_summaries.approval.risks;
+  assert.equal(risk.tag, 'followup');
+  assert.doesNotMatch(risk.risk, /gate-brief|no-graph|refus/, 'the recorded risk is in the operator\'s words, never the code');
+
+  writeState(run, patch);
+  const state = readState(run);
+  assert.deepEqual(state.node_summaries.approval.risks, [risk]);
+  assert.equal(state.workflow.nodes.approval.status, 'pending',
+    'recording the risk leaves the gate to be asked');
 });
 
 test('refusal: a drift warning is kept beside a no-summary refusal, the code first', t => {
@@ -1778,7 +1799,7 @@ test('picker: the driven form offers no More details', t => {
 // grants: what answering an option authorises, on every surface
 // ---------------------------------------------------------------------------
 
-const GRANTED = 'also pushes the branch and opens the pull request';
+const GRANTED = 'also pushes the branch and opens the pull request where one is owed';
 
 /** A run paused at a gate whose continue option grants the push and the pull request. */
 function atGrantingGate(t, grants = '[pr-create, push]') {
@@ -1835,6 +1856,16 @@ test('grants: the one-line summary names the option and what it grants', t => {
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, new RegExp(` · continue-past-analysis ${GRANTED} · Recommended: continue-past-analysis · `));
   assert.doesNotMatch(oneline(atApproval(t), 'approval').stdout, /also pushes/);
+});
+
+test('grants: the one-line summary follows the grants — the push alone promises no pull request', t => {
+  const pushOnly = oneline(atGrantingGate(t, '[push]'), 'approval');
+  assert.equal(pushOnly.code, 0, pushOnly.stderr);
+  assert.match(pushOnly.stdout, / · continue-past-analysis also pushes the branch · Recommended: /);
+  assert.doesNotMatch(pushOnly.stdout, /pull request/);
+  const both = gateForm(atGrantingGate(t), 'approval', '--request');
+  assert.match(both.context.summary, /continue-past-analysis also pushes the branch and opens the pull request where one is owed · /);
+  assert.doesNotMatch(both.context.summary, /opens the pull request ·/, 'never a pull request promised outright');
 });
 
 test('grants: the driven request carries them in its checkpoint only', t => {
