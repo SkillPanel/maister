@@ -92,8 +92,9 @@ reported among a write's changed paths.
     rows with the label counted, and the review files as names with their `file://` URLs, the
     ones that do not fit counted as `more`.
   - Every state write removes the file, so a panel exists only between a brief and the answer.
-- **`<project>/.maister/display/sessions/<session id>.json`**, from every state write. It names the
-  run this session wrote last.
+- **`<project>/.maister/display/sessions/<session id>.json`**, from every state write and every
+  accepted `resume-check`. It names the run this session wrote or resumed last, so a run resumed in
+  a new session draws before its next write.
   - It is keyed by `CLAUDE_CODE_SESSION_ID`, which the module reads back as `$.session.id()`.
   - Its caller is the session, and a fixed file per project would be shared by two sessions
     driving two runs there. Without a session id, none is written.

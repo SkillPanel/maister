@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ROOT, freeze, legacyMirror, run as runScript, scratch, verb, write } from '../helpers.mjs';
+import { ROOT, freeze, legacyMirror, run as runScript, scratch, sibling, verb, write } from '../helpers.mjs';
 
 /** Run `resume-check` against a run and parse the JSON it always prints. */
 function resumeCheck(run) {
@@ -233,6 +233,101 @@ test('resume-check: a set-aside copy of an umbrella-root run is refused too', t 
   const run = umbrellaRun(t, 'r-0001.moved-42');
   freeze(run);
   assert.equal(resumeCheck(run).json.code, 'run-set-aside');
+});
+
+/** The check a session sends: its id in the environment. */
+function resumeAs(run, session) {
+  const result = verb(['resume-check', `--state=${run.state}`], undefined, { CLAUDE_CODE_SESSION_ID: session });
+  return { ...result, json: result.stdout ? JSON.parse(result.stdout) : null };
+}
+
+/** The session's pointer under the checkout, parsed, or null. */
+function pointerOf(root, session) {
+  const file = path.join(root, '.maister/display/sessions', `${session}.json`);
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
+}
+
+test('resume-check: a run it accepts points the session at it, as a state write does, and changes nothing in the run', t => {
+  const run = scratch(t);
+  freeze(run);
+  const before = snapshot(run.dir);
+  const result = resumeAs(run, 'session-new');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+  const written = pointerOf(run.root, 'session-new');
+  assert.deepEqual(Object.keys(written).sort(), ['run_dir', 'updated', 'version']);
+  assert.equal(written.version, 1);
+  assert.equal(written.run_dir, run.dir);
+  assert.match(written.updated, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+  assert.deepEqual(snapshot(run.dir), before, 'the pointer lives outside the run');
+  assert.equal(fs.readFileSync(path.join(run.root, '.maister/display/.gitignore'), 'utf8'), '*\n');
+
+  const wrote = verb(['write-state', `--state=${run.state}`], { nodes: { analysis: { status: 'completed' } } }, { CLAUDE_CODE_SESSION_ID: 'session-writer' });
+  assert.equal(wrote.code, 0, wrote.stderr);
+  const { updated: _resumed, ...resumed } = written;
+  const { updated: _wrote, ...writer } = pointerOf(run.root, 'session-writer');
+  assert.deepEqual(resumed, writer, 'one shape for both writers');
+});
+
+test('resume-check: a session id changes neither what it prints nor how it exits', t => {
+  const run = scratch(t);
+  freeze(run, { task: { title: 'Frozen run' } });
+  const plain = resumeCheck(run);
+  const named = resumeAs(run, 'session-new');
+  assert.equal(named.code, plain.code);
+  assert.equal(named.stdout, plain.stdout);
+  assert.equal(named.stderr, plain.stderr);
+});
+
+test('resume-check: a later resume in the same session moves its pointer to that run', t => {
+  const first = scratch(t);
+  freeze(first);
+  const second = sibling(first, { type: 'development', name: '2026-01-06-second' });
+  freeze(second);
+  resumeAs(first, 'session-new');
+  resumeAs(second, 'session-new');
+  assert.equal(pointerOf(first.root, 'session-new').run_dir, second.dir);
+});
+
+test('resume-check: with no session id, or one that cannot name a file, it writes no pointer', t => {
+  const run = scratch(t);
+  freeze(run);
+  assert.equal(resumeCheck(run).code, 0);
+  for (const session of ['../escape', '', '-leading']) {
+    const result = resumeAs(run, session);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stderr, '');
+  }
+  assert.equal(fs.existsSync(path.join(run.root, '.maister/display')), false);
+  assert.equal(fs.existsSync(path.join(run.root, '.maister/escape.json')), false);
+});
+
+test('resume-check: a refused directory gets no pointer', t => {
+  const run = scratch(t, { fixture: 'prose-2x' });
+  const result = resumeAs(run, 'session-new');
+  assert.equal(result.code, 1, result.stderr);
+  assert.equal(result.json.code, 'written-by-2x');
+  assert.equal(fs.existsSync(path.join(run.root, '.maister/display')), false);
+
+  const frozen = scratch(t, { name: '2026-01-06-frozen' });
+  freeze(frozen);
+  const copy = `${frozen.dir}.moved-42`;
+  fs.cpSync(frozen.dir, copy, { recursive: true });
+  const aside = resumeAs({ state: path.join(copy, 'orchestrator-state.yml') }, 'session-aside');
+  assert.equal(aside.json.code, 'run-set-aside');
+  assert.equal(pointerOf(frozen.root, 'session-aside'), null);
+});
+
+test('resume-check: a pointer that cannot be written is a warning naming it, and the check still accepts', t => {
+  const run = scratch(t);
+  freeze(run);
+  const plain = resumeCheck(run);
+  fs.mkdirSync(path.join(run.root, '.maister/display'), { recursive: true });
+  fs.writeFileSync(path.join(run.root, '.maister/display/sessions'), 'not a directory');
+  const result = resumeAs(run, 'session-new');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, plain.stdout, 'the JSON keeps its shape');
+  assert.match(result.stderr, /^warning: \.maister\/display\/sessions\/session-new\.json was not written \(display-unwritable: .*\); the resume check is unaffected$/m);
 });
 
 test('resume-check: a suffix that is not digits does not set a run aside', t => {
