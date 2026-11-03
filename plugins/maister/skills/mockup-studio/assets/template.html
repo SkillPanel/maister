@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{TITLE}} — Product Design</title>
+  <title>{{TITLE}}</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
     body {
@@ -21,8 +21,6 @@
       border-bottom: 1px solid #ddd;
     }
     header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
-    #status { font-size: 0.8rem; color: #4a4; font-weight: 500; }
-    #status.disconnected { color: #a44; }
 
     /* Screen navigation */
     .screen-nav {
@@ -47,62 +45,6 @@
     }
     .nav-screen:hover { background: #ddd; }
     .nav-screen.active { background: #333; color: #fff; }
-    .nav-prevnext {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 0.25rem;
-    }
-    .nav-arrow {
-      font-size: 0.8rem;
-      color: #0066cc;
-      text-decoration: none;
-    }
-    .nav-arrow:hover { text-decoration: underline; }
-
-    /* Gallery */
-    .gallery-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 1.5rem;
-      padding: 1rem 0;
-    }
-    .gallery-card {
-      display: block;
-      background: #fff;
-      border: 1px solid #e0e0e0;
-      border-radius: 6px;
-      overflow: hidden;
-      text-decoration: none;
-      color: inherit;
-      transition: box-shadow 0.2s, transform 0.15s;
-    }
-    .gallery-card:hover {
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      transform: translateY(-2px);
-    }
-    .gallery-card-title {
-      padding: 0.75rem 1rem;
-      font-weight: 600;
-      font-size: 0.9rem;
-      border-bottom: 1px solid #eee;
-      background: #fafafa;
-    }
-    .gallery-card-preview {
-      height: 230px;
-      overflow: hidden;
-      position: relative;
-      background: #0e0f11;
-    }
-    /* The screen renders in a private iframe at desktop width, scaled down to a
-       thumbnail. pointer-events off so the whole card stays a single click target. */
-    .gallery-frame {
-      width: 1280px;
-      height: 820px;
-      border: 0;
-      transform: scale(0.27);
-      transform-origin: top left;
-      pointer-events: none;
-    }
 
     /* Mockup content */
     main {
@@ -114,16 +56,6 @@
       border-radius: 4px;
       min-height: 300px;
       position: relative;
-    }
-    .placeholder {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 300px;
-      color: #999;
-      font-size: 1rem;
-      text-align: center;
-      line-height: 1.8;
     }
     .annotation-tooltip {
       position: absolute;
@@ -165,66 +97,21 @@
     }
     #annotation-toggle:hover { background: #e0e0e0; }
     #annotation-toggle.active { background: #333; color: #fff; border-color: #333; }
-    #gallery-link {
-      display: inline-block; margin-right: 0.5rem; padding: 0.35rem 0.75rem;
-      border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem;
-      color: #333; text-decoration: none; background: #f5f5f5;
-    }
-    #gallery-link:hover { background: #e0e0e0; }
   </style>
 </head>
 <body>
   <header>
     <h1>{{TITLE}}</h1>
     <div>
-      <a href="/" id="gallery-link" title="Back to the gallery of all screens">⊞ Gallery</a>
       <button id="annotation-toggle" class="active" title="Toggle annotation tooltips">Annotations</button>
-      <span id="status">Connected</span>
     </div>
   </header>
 
   {{NAV}}
 
-  <main id="mockup-container">
-    {{CONTENT}}
-  </main>
+  <main id="mockup-container">{{CONTENT}}</main>
 
   <script>
-    // SSE client for live refresh. It must NOT hijack the user's location — during a
-    // multi-screen batch that would repeatedly yank the browser to the newest screen and
-    // make it impossible to browse the gallery. On the gallery/latest we reload in place
-    // (so new cards appear live); on an individual screen we show a dismissible toast so a
-    // reader is never interrupted mid-review.
-    const statusEl = document.getElementById('status');
-    const evtSource = new EventSource('/events');
-    function showRefreshToast() {
-      if (document.getElementById('refresh-toast')) return;
-      const t = document.createElement('button');
-      t.id = 'refresh-toast';
-      t.textContent = '↻ Screens updated — click to refresh';
-      t.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;'
-        + 'background:#2563eb;color:#fff;border:0;border-radius:8px;padding:10px 16px;font:600 13px Inter,sans-serif;'
-        + 'cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.35)';
-      t.onclick = function(){ window.location.reload(); };
-      document.body.appendChild(t);
-    }
-    evtSource.onmessage = function(e) {
-      if (e.data !== 'refresh') return;
-      if (window.location.pathname === '/' || window.location.pathname === '/latest') {
-        window.location.reload();
-      } else {
-        showRefreshToast();
-      }
-    };
-    evtSource.onopen = function() {
-      statusEl.textContent = 'Connected';
-      statusEl.className = '';
-    };
-    evtSource.onerror = function() {
-      statusEl.textContent = 'Reconnecting...';
-      statusEl.className = 'disconnected';
-    };
-
     // Annotation overlay rendering
     const annotations = {{ANNOTATIONS}};
     function renderAnnotations() {
@@ -247,10 +134,12 @@
     }
     if (annotations.length > 0) requestAnimationFrame(renderAnnotations);
 
-    // Annotation toggle with localStorage persistence
+    // Annotation toggle, remembered where the browser allows it
     var toggleBtn = document.getElementById('annotation-toggle');
     var container = document.getElementById('mockup-container');
-    var annotationsVisible = localStorage.getItem('annotations-visible') !== 'false'; // default: true
+    // Storage may be unavailable for a page opened from disk; the toggle then lasts for the page only.
+    var annotationsVisible = true;
+    try { annotationsVisible = localStorage.getItem('annotations-visible') !== 'false'; } catch (e) {}
     function updateToggle() {
       if (annotationsVisible) {
         container.classList.remove('annotations-hidden');
@@ -263,17 +152,19 @@
     updateToggle();
     toggleBtn.addEventListener('click', function() {
       annotationsVisible = !annotationsVisible;
-      localStorage.setItem('annotations-visible', annotationsVisible);
+      try { localStorage.setItem('annotations-visible', annotationsVisible); } catch (e) {}
       updateToggle();
     });
 
-    // Screen-to-screen navigation: clicking elements with data-screen="slug" navigates to that screen
+    // Screen-to-screen navigation: an element with data-screen="<slug>" opens the sibling page,
+    // so a page resolves the same in its version folder and in the flat copy beside it.
     document.getElementById('mockup-container').addEventListener('click', function(e) {
       var target = e.target.closest('[data-screen]');
-      if (target) {
-        e.preventDefault();
-        window.location.href = '/screen/' + target.getAttribute('data-screen');
-      }
+      if (!target) return;
+      var slug = target.getAttribute('data-screen');
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) return;
+      e.preventDefault();
+      window.location.href = slug + '.html';
     });
   </script>
 </body>

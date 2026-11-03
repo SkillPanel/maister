@@ -10,7 +10,7 @@ import { ENGINE_DIR, ROOT } from '../helpers.mjs';
 // to write one asks for a write nothing reads, and a checklist requiring that
 // prose asks every new workflow to repeat it.
 
-const GUIDES = ['development', 'research', 'product-design', 'performance', 'migration'];
+const GUIDES = ['development', 'research', 'product-design', 'performance', 'migration', 'mockup-studio'];
 const CHECKLIST = path.join(ROOT, 'plugins/maister/skills/orchestrator-framework/references/orchestrator-creation-checklist.md');
 
 test('no workflow guide tells a node to write an icon hint', () => {

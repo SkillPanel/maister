@@ -254,6 +254,23 @@ test('docs-check: the older index shape — four-hash entries, full paths, closi
   assert.equal(result.report.entries, 2);
 });
 
+test('docs-check: a design-context grounding pack needs no entry; an unindexed sibling still fails', t => {
+  const result = check(project(t, { ...DOCS, 'design-context/tokens.md': '# Tokens\n\nColour and spacing tokens.\n', 'project/deploy.md': '# Deploy\n' }));
+  assert.equal(result.code, 1);
+  assert.equal(result.report.files, 3);
+  assert.deepEqual(result.report.failures, [
+    { code: 'unindexed-file', path: 'project/deploy.md', message: 'project/deploy.md has no entry in INDEX.md' },
+  ]);
+});
+
+test('docs-check: a docs folder holding only a design-context pack and no INDEX.md is ok', t => {
+  const result = check(project(t, { 'design-context/tokens.md': '# Tokens\n\nColour and spacing tokens.\n' }));
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.report.ok, true);
+  assert.equal(result.report.files, 0);
+  assert.deepEqual(result.report.failures, []);
+});
+
 test('docs-check: hidden directories and the index itself are not documents', t => {
   const result = check(project(t, { ...DOCS, '.drafts/wip.md': '# WIP\n', 'notes.txt': 'not markdown' }));
   assert.equal(result.code, 0, JSON.stringify(result.report));

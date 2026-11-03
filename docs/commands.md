@@ -234,23 +234,46 @@ Design output can feed directly into development: `/maister:development .maister
 
 ### `/maister:mockup-studio "<screen or feature>"`
 
-Generates UI mockups for one screen or feature, on its own rather than as a step inside
-another workflow. It finds the project's design language first — standards, design
-system, component library, whatever design skills are installed — and binds the mockups
-to it by real token and component names, so what you see is what the codebase can
-actually build.
+Draws one new version of a set of UI mockups, on its own rather than as a step inside another workflow. Each call is one turn: it writes a new version, keeps every earlier one and never asks a question. Run it again for the next version. It binds the screens to the project's design language through a grounding pack (see `--ground`), by real token and component names, so what you see is what the codebase can actually build.
 
-Two formats. The default renders HTML and CSS in a browser through a local visual
-companion, which is the one worth having for anything visual. Where there is no browser
-to open, it falls back to terminal ASCII, which shows layout and placement and nothing
-about style.
+Two formats. The default writes HTML pages and a gallery page per version, which you open as a file. Where there is no browser to look at them, the pages are still written, and the turn tells you which file to open by hand or to run again with `--format ascii`. ASCII shows layout and placement and nothing about style, and needs neither Node nor a browser.
 
-Between rounds it asks what to change and re-renders, so a screen converges in the
-session rather than in a handoff. The development and product-design workflows call the
-same command at their mockup step, so a mockup made here and one made inside a workflow
-are the same artifact.
+| Flag | Description |
+|------|-------------|
+| `--turn "<note>"` | Draw one version from the note. A bare `/maister:mockup-studio "<text>"` is read the same way |
+| `--ground` | Build or refresh the grounding pack, and touch no task folder |
+| `--task=<dir>` | Run the turn inline on `<dir>/<subdir>/`, writing no run record |
+| `--subdir=<rel>` | The folder under the task folder that holds the versions (default `analysis/mockups`) |
+| `--against=<vNNN>` | Build on that version instead of the latest |
+| `--scope=<slugs>` | Comma-separated screens to change or add; the rest carry over |
+| `--fidelity=<sketch\|prototype>` | `sketch` (default) draws static pages; `prototype` also writes a working `prototype.html` whose scenes become the version's screens |
+| `--format=<html\|ascii>` | Overrides `mockup_format` in `.maister/config.yml`; without either, `html` |
 
-**Task directory**: `.maister/tasks/mockups/`
+`--turn` with no `--task` starts the `mockup-studio` workflow, a single node with no checkpoints. Each run writes its own record folder, `.maister/tasks/mockup-studio/<YYYY-MM-DD-slug>/`, holding `orchestrator-state.yml` and `turn-result.json`, and puts the mockups under it, or under `<task_path>/<output_subdir>/` when a task path is given. The workflow also runs with `/maister:run mockup-studio`, taking the same inputs.
+
+**Layout** under `<task folder>/analysis/mockups/`:
+
+```
+versions/
+  index.json            # latest, and one entry per version, oldest first
+  v001/
+    manifest.json       # note, parent, screens and which changed
+    index.html          # the version's gallery: open this file
+    <screen>.html       # one page per screen
+    prototype.html      # prototype fidelity only
+<screen>.html           # the latest version's pages
+.mockups.json           # the latest version's screens
+```
+
+ASCII versions hold `ascii-mockups.md` instead of the pages, and the latest view is `ascii-mockups.md` beside `versions/`. Screens keep their slug from one version to the next. A version is never changed after it is written.
+
+**Grounding pack.** `--ground` reads the project's theme and token files, its app shell, its strings and a few reference pages, and writes them to `.maister/docs/design-context/`: resolved tokens, one still shell page, realistic copy, and a record of what it was built from. A turn uses the pack, builds it when it is missing, and when a source has changed since, uses it anyway and says the pack is stale; only `--ground` refreshes it. A pack a turn builds is written in place and not committed, so the turn's notes ask you to commit it, and a dispatched run in a worktree loses it unless someone does.
+
+**Turn N+1.** Run the next turn against the same folder. The turn's closing message ends with the exact command, `/maister:mockup-studio --turn "<note>" --task=<folder>`, with `--subdir=<subdir>` added when it is not the default. From the workflow, start a new `mockup-studio` run with the same `task_path` and `output_subdir`, the new note, and `against` set to the previous run's `version` (or `latest` in `versions/index.json`). One folder holds one list of versions however many runs wrote it. There is no command that reopens an earlier run; a bare second `--turn` from the project root, with no folder, starts a new run at v001.
+
+The development and product-design workflows draw their mockups with the same turn, one per round, so a mockup made here and one made inside a workflow are the same artifact.
+
+**Task directory**: `.maister/tasks/mockup-studio/` (a legacy `.maister/tasks/mockups/` is left alone and no longer written)
 
 ---
 

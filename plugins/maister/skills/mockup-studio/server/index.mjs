@@ -1,352 +1,445 @@
-import http from 'node:http';
+/**
+ * The mockup companion: a read-only viewer over one mockup folder, started for
+ * a turn's look pass and stopped when the turn ends.
+ *
+ *   node <path to this file> start --root=<task_path>/<subdir>
+ *   node <path to this file> stop --root=<task_path>/<subdir>
+ *
+ * Exec form, no shebang, zero dependencies, `node:` builtins only, Node >= 20.
+ *
+ * It renders nothing and writes nothing but its own pid file. The pages, the
+ * galleries and every manifest are written by the turn's scripts before the
+ * viewer opens them; the viewer only serves the files already under the root.
+ *
+ * `start` reuses a live server for the same root, or starts one in the
+ * background and returns once it listens. Before binding, a `.companion.pid`
+ * in the root is read: when it names a live process whose `/status` reports
+ * this same root, that server's port is printed and nothing starts. Any other
+ * pid file — a dead process, another root's server, an unreadable file — is
+ * replaced. A new server binds `127.0.0.1` only, on the first free port of
+ * 3847–3850, writes `<root>/.companion.pid` (`{pid, port, root}`) atomically,
+ * and exits by itself after 15 minutes without a request.
+ *
+ * `stop` reads the pid file, ends the process only when its `/status` reports
+ * this root, waits for it to exit and removes the file. A pid file naming
+ * anything else is removed and no process is touched. With no pid file there
+ * is nothing to stop, which is not an error.
+ *
+ * `serve` is the background half of `start` and is started by it, never by a
+ * caller.
+ *
+ * Routes, GET and HEAD only: `/status` → `{status: "ok", root, port, pid}`;
+ * `/` → a redirect to `versions/<latest>/index.html`, `latest` read from
+ * `versions/index.json`; any other path → the file at that path under the
+ * root. A path that leaves the root, holds a dot segment or names a dot-file
+ * gets 404, and so does a directory. Any other method gets 405. A request
+ * whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` gets 403, which
+ * keeps a page on another site from reading the folder through the browser.
+ *
+ * Output: one JSON line on stdout.
+ *   start → {ok: true, port, url, root}
+ *   stop  → {ok: true, root, stopped: true, pid, port} or {ok: true, root, stopped: false}
+ *
+ * Exit codes: 0 success, the JSON result on stdout; 1 refusal, `{ok: false,
+ * code, message}` on stdout and nothing started; 2 usage or an unexpected
+ * error, a message on stderr.
+ *
+ * Refusals owned: `root-missing` (the root is not a directory), `ports-busy`
+ * (3847–3850 are all taken), `folder-unwritable` (the pid file could not be
+ * written; the server that could not record itself has already exited).
+ */
+
 import fs from 'node:fs';
+import http from 'node:http';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { commit, Refusal } from '../../../lib/canonical.mjs';
 
-// Parse --task-path from CLI args
-const taskPathArg = process.argv.find(a => a.startsWith('--task-path='));
-const taskPath = taskPathArg ? taskPathArg.split('=')[1] : null;
+const EXIT = { OK: 0, REFUSED: 1, INTERNAL: 2 };
 
-// Parse --output-subdir (relative to task path). Default: analysis/mockups (product-design convention).
-// The development workflow passes analysis/design-context/mockups so HTML lands in design-context.
-const outputSubdirArg = process.argv.find(a => a.startsWith('--output-subdir='));
-const outputSubdir = outputSubdirArg
-  ? outputSubdirArg.split('=')[1].split('/').filter(Boolean)
-  : ['analysis', 'mockups'];
+const PORTS = [3847, 3848, 3849, 3850];
+const HOST = '127.0.0.1';
+const PID_FILE = '.companion.pid';
+const IDLE_MS = 15 * 60 * 1000;
+/** Read by this script only: a test sets it so the idle exit is not waited for. */
+const IDLE_ENV = 'MAISTER_COMPANION_IDLE_MS';
+const READY_MS = 10_000;
+const STATUS_MS = 1500;
+const STOP_MS = 5000;
 
-if (!taskPath) {
-  console.warn('[visual-companion] No --task-path provided. Mockups will NOT be saved to disk.');
+const WRITE_CODES = { unwritable: 'mockup-unwritable', tempExists: 'mockup-temp-exists' };
+
+const TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.htm': 'text/html; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+class UsageError extends Error {}
+
+function parseArgs(argv) {
+  const [verb, ...rest] = argv;
+  if (!['start', 'stop', 'serve'].includes(verb)) {
+    throw new UsageError(verb === undefined ? 'a verb is required: start or stop' : `unknown verb "${verb}": use start or stop`);
+  }
+  const flags = {};
+  for (const arg of rest) {
+    if (!arg.startsWith('--')) throw new UsageError(`unexpected argument "${arg}"`);
+    const eq = arg.indexOf('=');
+    const name = eq >= 0 ? arg.slice(2, eq) : arg.slice(2);
+    if (name !== 'root') throw new UsageError(`unknown flag --${name}`);
+    if (Object.hasOwn(flags, name)) throw new UsageError(`the flag --${name} was given more than once`);
+    const value = eq >= 0 ? arg.slice(eq + 1) : '';
+    if (value === '') throw new UsageError(`the flag --${name} needs a value: --${name}=<dir>`);
+    flags[name] = value;
+  }
+  if (!flags.root) throw new UsageError('--root=<dir> is required');
+  return { verb, root: flags.root };
 }
 
-// In-memory state: array of all mockups (screens)
-const mockups = [];
-let latestId = null;
-let version = 0;
-const sseClients = [];
-
-function slugify(title) {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    || 'untitled';
-}
-
-function escapeAttr(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-}
-
-// --- Manifest: raw screen payloads persisted alongside the rendered .html files.
-// Lets the gallery survive a server restart (in-memory state is otherwise empty on
-// startup even though the .html files exist on disk).
-function manifestPath() {
-  if (!taskPath) return null;
-  return path.join(taskPath, ...outputSubdir, '.mockups.json');
-}
-
-function saveManifest() {
-  const p = manifestPath();
-  if (!p) return;
+/** The root as one canonical absolute path, so `/status.root` compares byte for byte. */
+function canonicalRoot(raw) {
   try {
-    fs.mkdirSync(path.dirname(p), { recursive: true });
-    fs.writeFileSync(p, JSON.stringify({ latestId, mockups }, null, 2), 'utf-8');
-  } catch (err) {
-    console.warn(`[visual-companion] Could not write manifest: ${err.message}`);
+    const real = fs.realpathSync(path.resolve(raw));
+    if (fs.statSync(real).isDirectory()) return real;
+  } catch {
+    // falls through to the refusal
   }
+  throw new Refusal('root-missing',
+    `${raw} is not a directory, so there is nothing to serve. Nothing was started; run the turn's begin first, or pass the folder that holds versions/.`);
 }
 
-function loadManifest() {
-  const p = manifestPath();
-  if (!p || !fs.existsSync(p)) return;
+function readPidFile(root) {
   try {
-    const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    if (Array.isArray(data.mockups) && data.mockups.length) {
-      mockups.push(...data.mockups);
-      latestId = data.latestId || mockups[mockups.length - 1].id;
-      version = mockups.length;
-      console.log(`Restored ${mockups.length} screen(s) from disk.`);
-    }
+    const data = JSON.parse(fs.readFileSync(path.join(root, PID_FILE), 'utf8'));
+    if (Number.isInteger(data?.pid) && Number.isInteger(data?.port)) return data;
+  } catch {
+    // missing or unreadable: no server is recorded
+  }
+  return null;
+}
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
   } catch (err) {
-    console.warn(`[visual-companion] Could not read manifest: ${err.message}`);
+    return err.code === 'EPERM';
   }
 }
 
-// Save a rendered standalone HTML file to disk. Returns true if saved, false if skipped.
-function saveToDisk(mockup) {
-  if (!taskPath) {
-    console.warn(`[visual-companion] Skipping disk save for "${mockup.id}" — no task path configured.`);
-    return false;
-  }
-  const dir = path.join(taskPath, ...outputSubdir);
-  fs.mkdirSync(dir, { recursive: true });
-
-  const html = renderScreen(mockup);
-  const filePath = path.join(dir, `${mockup.id}.html`);
-  fs.writeFileSync(filePath, html, 'utf-8');
-  return true;
-}
-
-// Render a single screen page with navigation
-function renderScreen(mockup) {
-  const templatePath = path.join(__dirname, 'template.html');
-  let html = fs.readFileSync(templatePath, 'utf-8');
-
-  const title = mockup.title || 'Untitled';
-  const content = `<style>${mockup.css || ''}</style>\n<div id="mockup-content">${mockup.html || ''}</div>`;
-  const annotations = JSON.stringify(mockup.annotations || []);
-
-  // Build screen nav
-  const navItems = mockups.map(m =>
-    `<a href="/screen/${m.id}" class="nav-screen${m.id === mockup.id ? ' active' : ''}">${m.title}</a>`
-  ).join('');
-
-  const idx = mockups.indexOf(mockup);
-  const prev = idx > 0 ? mockups[idx - 1] : null;
-  const next = idx < mockups.length - 1 ? mockups[idx + 1] : null;
-  const prevLink = prev ? `<a href="/screen/${prev.id}" class="nav-arrow">&larr; ${prev.title}</a>` : '<span></span>';
-  const nextLink = next ? `<a href="/screen/${next.id}" class="nav-arrow">${next.title} &rarr;</a>` : '<span></span>';
-
-  const nav = mockups.length > 1
-    ? `<nav class="screen-nav"><div class="nav-screens">${navItems}</div><div class="nav-prevnext">${prevLink}${nextLink}</div></nav>`
-    : '';
-
-  html = html.replace('{{TITLE}}', title).replace('{{TITLE}}', title);
-  html = html.replace('{{NAV}}', nav);
-  html = html.replace('{{CONTENT}}', content);
-  html = html.replace('{{ANNOTATIONS}}', annotations);
-
-  return html;
-}
-
-// Render the gallery index page
-function renderGallery() {
-  const templatePath = path.join(__dirname, 'template.html');
-  let html = fs.readFileSync(templatePath, 'utf-8');
-
-  const title = `Design Gallery — ${mockups.length} screen${mockups.length !== 1 ? 's' : ''}`;
-
-  let content;
-  if (mockups.length === 0) {
-    content = '<div class="placeholder">Waiting for design mockups...<br>The orchestrator will send screens here.</div>';
-  } else {
-    // Each preview renders inside its own <iframe srcdoc> so per-screen CSS is fully
-    // isolated — screens reuse identical class names, so injecting their <style> into
-    // the shared gallery document (the old `<style scoped>`, which browsers no longer
-    // support) made every card collide. The iframe gives each card a private document.
-    const cards = mockups.map(m => {
-      const doc = `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#0e0f11}${m.css || ''}</style></head><body>${m.html || ''}</body></html>`;
-      return `
-      <a href="/screen/${m.id}" class="gallery-card">
-        <div class="gallery-card-title">${m.title}</div>
-        <div class="gallery-card-preview"><iframe class="gallery-frame" scrolling="no" sandbox="allow-same-origin" srcdoc="${escapeAttr(doc)}"></iframe></div>
-      </a>`;
-    }).join('');
-    content = `<div class="gallery-grid">${cards}</div>`;
-  }
-
-  html = html.replace('{{TITLE}}', title).replace('{{TITLE}}', title);
-  html = html.replace('{{NAV}}', '');
-  html = html.replace('{{CONTENT}}', content);
-  html = html.replace('{{ANNOTATIONS}}', '[]');
-
-  return html;
-}
-
-// Parse JSON body from request
-function parseBody(req) {
-  return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', chunk => { data += chunk; });
-    req.on('end', () => {
-      try { resolve(data ? JSON.parse(data) : {}); }
-      catch (err) { reject(new Error('Invalid JSON body')); }
+/** `/status` of whatever listens on `port`, or null. */
+function status(port) {
+  return new Promise(resolve => {
+    const req = http.get({ host: HOST, port, path: '/status', agent: false, headers: { host: `${HOST}:${port}` }, timeout: STATUS_MS }, res => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { body += chunk; });
+      res.on('end', () => {
+        try {
+          resolve(res.statusCode === 200 ? JSON.parse(body) : null);
+        } catch {
+          resolve(null);
+        }
+      });
     });
-    req.on('error', reject);
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => resolve(null));
   });
 }
 
-// Notify all SSE clients
-function notifyClients() {
-  for (let i = sseClients.length - 1; i >= 0; i--) {
-    try { sseClients[i].write('data: refresh\n\n'); }
-    catch { sseClients.splice(i, 1); }
+/** The server a pid file names, when it is live and serves exactly this root. */
+async function liveServer(root) {
+  const recorded = readPidFile(root);
+  if (!recorded || !alive(recorded.pid)) return null;
+  const answer = await status(recorded.port);
+  if (answer?.root !== root || answer?.pid !== recorded.pid) return null;
+  return recorded;
+}
+
+function urlOf(port) {
+  return `http://${HOST}:${port}/`;
+}
+
+async function start(rawRoot) {
+  const root = canonicalRoot(rawRoot);
+  const live = await liveServer(root);
+  if (live) return { ok: true, port: live.port, url: urlOf(live.port), root };
+
+  const script = fileURLToPath(import.meta.url);
+  const child = spawn(process.execPath, [script, 'serve', `--root=${root}`], {
+    detached: true,
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    windowsHide: true,
+  });
+
+  const outcome = await new Promise(resolve => {
+    const timer = setTimeout(() => resolve({ timeout: true }), READY_MS);
+    child.once('message', message => { clearTimeout(timer); resolve(message); });
+    child.once('exit', code => { clearTimeout(timer); resolve({ exited: code }); });
+    child.once('error', err => { clearTimeout(timer); resolve({ error: err.message }); });
+  });
+
+  if (outcome.ok) {
+    child.disconnect();
+    child.unref();
+    return { ok: true, port: outcome.port, url: urlOf(outcome.port), root };
   }
-}
-
-function jsonResponse(res, statusCode, body) {
-  const payload = JSON.stringify(body);
-  res.writeHead(statusCode, {
-    'Content-Type': 'application/json',
-    'Content-Length': Buffer.byteLength(payload),
-  });
-  res.end(payload);
-}
-
-function htmlResponse(res, html) {
-  res.writeHead(200, {
-    'Content-Type': 'text/html',
-    'Content-Length': Buffer.byteLength(html),
-  });
-  res.end(html);
-}
-
-// Main request handler
-async function handler(req, res) {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-
-  try {
-    // GET /status
-    if (req.method === 'GET' && url.pathname === '/status') {
-      jsonResponse(res, 200, { status: 'ok', version: '1.0.0', port: activePort, screens: mockups.length, taskPath: taskPath || null, persistence: !!taskPath });
-      return;
-    }
-
-    // POST /shutdown
-    if (req.method === 'POST' && url.pathname === '/shutdown') {
-      jsonResponse(res, 200, { status: 'shutting_down' });
-      cleanupPidFile();
-      setTimeout(() => process.exit(0), 100);
-      return;
-    }
-
-    // GET /events (SSE)
-    if (req.method === 'GET' && url.pathname === '/events') {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      });
-      res.write('data: connected\n\n');
-      sseClients.push(res);
-      req.on('close', () => {
-        const idx = sseClients.indexOf(res);
-        if (idx !== -1) sseClients.splice(idx, 1);
-      });
-      return;
-    }
-
-    // POST /update
-    if (req.method === 'POST' && url.pathname === '/update') {
-      const body = await parseBody(req);
-      const id = slugify(body.title || 'untitled');
-
-      const mockup = {
-        id,
-        type: body.type || 'mockup',
-        title: body.title || 'Untitled',
-        html: body.html || '',
-        css: body.css || '',
-        annotations: body.annotations || [],
-      };
-
-      // Update existing or add new
-      const existingIdx = mockups.findIndex(m => m.id === id);
-      if (existingIdx !== -1) {
-        mockups[existingIdx] = mockup;
-      } else {
-        mockups.push(mockup);
-      }
-
-      latestId = id;
-      version++;
-      const saved = saveToDisk(mockup);
-      saveManifest();
-      notifyClients();
-      jsonResponse(res, 200, { status: 'updated', version, id, screens: mockups.length, saved });
-      return;
-    }
-
-    // GET /screen/:id
-    const screenMatch = url.pathname.match(/^\/screen\/([a-z0-9-]+)$/);
-    if (req.method === 'GET' && screenMatch) {
-      const mockup = mockups.find(m => m.id === screenMatch[1]);
-      if (!mockup) {
-        jsonResponse(res, 404, { error: 'Screen not found' });
-        return;
-      }
-      htmlResponse(res, renderScreen(mockup));
-      return;
-    }
-
-    // GET /latest
-    if (req.method === 'GET' && url.pathname === '/latest') {
-      const mockup = mockups.find(m => m.id === latestId);
-      if (!mockup) {
-        htmlResponse(res, renderGallery());
-        return;
-      }
-      htmlResponse(res, renderScreen(mockup));
-      return;
-    }
-
-    // GET / (gallery)
-    if (req.method === 'GET' && url.pathname === '/') {
-      htmlResponse(res, renderGallery());
-      return;
-    }
-
-    jsonResponse(res, 404, { error: 'Not found' });
-  } catch (err) {
-    console.error('Request error:', err.message);
-    jsonResponse(res, 500, { error: err.message });
-  }
-}
-
-// PID file management
-function pidFilePath() {
-  if (!taskPath) return null;
-  return path.join(taskPath, ...outputSubdir, '.visual-companion.pid');
-}
-
-function writePidFile() {
-  const p = pidFilePath();
-  if (!p) return;
-  fs.mkdirSync(path.dirname(p), { recursive: true });
-  fs.writeFileSync(p, String(process.pid), 'utf-8');
-}
-
-function cleanupPidFile() {
-  const p = pidFilePath();
-  if (p) try { fs.unlinkSync(p); } catch {}
-}
-
-process.on('SIGTERM', () => { cleanupPidFile(); process.exit(0); });
-process.on('SIGINT', () => { cleanupPidFile(); process.exit(0); });
-
-// Port fallback logic
-let activePort = null;
-
-function tryPort(port) {
-  return new Promise((resolve, reject) => {
-    const server = http.createServer(handler);
-    server.listen(port, () => resolve(server));
-    server.on('error', reject);
-  });
-}
-
-async function start() {
-  loadManifest();
-  const ports = [3847, 3848, 3849, 3850];
-  for (const port of ports) {
+  if (outcome.timeout) {
     try {
-      await tryPort(port);
-      activePort = port;
-      console.log(`Visual companion server running at http://localhost:${port}`);
-      if (taskPath) console.log(`Saving mockups to: ${path.join(taskPath, ...outputSubdir)}`);
-      writePidFile();
-      return;
-    } catch (err) {
-      if (err.code === 'EADDRINUSE') {
-        console.error(`Port ${port} in use, trying next...`);
-        continue;
-      }
-      throw err;
+      child.kill('SIGKILL');
+    } catch {
+      // already gone
     }
+    throw new Error(`the companion did not report listening within ${READY_MS} ms and was ended`);
   }
-  console.error('All ports (3847-3850) in use. Cannot start server.');
-  process.exit(1);
+  if (outcome.code) throw new Refusal(outcome.code, outcome.message);
+  throw new Error(outcome.error ?? `the companion exited with code ${outcome.exited} before it listened`);
 }
 
-start();
+async function stop(rawRoot) {
+  let root;
+  try {
+    root = fs.realpathSync(path.resolve(rawRoot));
+  } catch {
+    return { ok: true, root: path.resolve(rawRoot), stopped: false };
+  }
+  const recorded = readPidFile(root);
+  const pidPath = path.join(root, PID_FILE);
+  const live = await liveServer(root);
+  if (!live) {
+    // A pid file that names no server of this root is stale: drop it, end nothing.
+    fs.rmSync(pidPath, { force: true });
+    return { ok: true, root, stopped: false };
+  }
+  try {
+    process.kill(live.pid, 'SIGTERM');
+  } catch {
+    // it exited between the check and the signal
+  }
+  const end = Date.now() + STOP_MS;
+  while (alive(live.pid) && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 50));
+  if (alive(live.pid)) {
+    try {
+      process.kill(live.pid, 'SIGKILL');
+    } catch {
+      // already gone
+    }
+  }
+  if (readPidFile(root)?.pid === recorded.pid) fs.rmSync(pidPath, { force: true });
+  return { ok: true, root, stopped: true, pid: live.pid, port: live.port };
+}
+
+/** The request path as root-relative segments, or null when it must not be served. */
+function segmentsOf(rawUrl) {
+  const pathname = rawUrl.split(/[?#]/, 1)[0];
+  if (!pathname.startsWith('/')) return null;
+  const segments = [];
+  for (const raw of pathname.split('/').slice(1)) {
+    let segment;
+    try {
+      segment = decodeURIComponent(raw);
+    } catch {
+      return null;
+    }
+    if (segment === '') continue;
+    if (segment.startsWith('.') || /[/\\\0]/.test(segment) || segment.includes(':')) return null;
+    segments.push(segment);
+  }
+  return segments;
+}
+
+function latestGallery(root) {
+  try {
+    const index = JSON.parse(fs.readFileSync(path.join(root, 'versions', 'index.json'), 'utf8'));
+    if (typeof index?.latest === 'string' && /^v\d{3,}$/.test(index.latest)) return `/versions/${index.latest}/index.html`;
+  } catch {
+    // no published version yet
+  }
+  return null;
+}
+
+/** The file a request names, proved to sit under the root after links are followed. */
+function fileUnder(root, segments) {
+  if (segments.length === 0) return null;
+  const candidate = path.join(root, ...segments);
+  try {
+    const real = fs.realpathSync(candidate);
+    if (!real.startsWith(root + path.sep)) return null;
+    if (path.relative(root, real).split(path.sep).some(part => part.startsWith('.'))) return null;
+    const stat = fs.statSync(real);
+    return stat.isFile() ? { file: real, size: stat.size } : null;
+  } catch {
+    return null;
+  }
+}
+
+function send(req, res, code, body, headers = {}) {
+  const payload = Buffer.from(body);
+  res.writeHead(code, {
+    'Content-Length': payload.length,
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    ...headers,
+  });
+  res.end(req.method === 'HEAD' ? undefined : payload);
+}
+
+function serve(rawRoot) {
+  const root = canonicalRoot(rawRoot);
+  const idleMs = Number.parseInt(process.env[IDLE_ENV] ?? '', 10) > 0 ? Number.parseInt(process.env[IDLE_ENV], 10) : IDLE_MS;
+  const report = message => {
+    if (process.connected) process.send(message, () => process.disconnect());
+  };
+  let port = null;
+  let idle = null;
+
+  const shutdown = () => {
+    if (readPidFile(root)?.pid === process.pid) fs.rmSync(path.join(root, PID_FILE), { force: true });
+    process.exit(0);
+  };
+  const touch = () => {
+    clearTimeout(idle);
+    idle = setTimeout(shutdown, idleMs);
+  };
+
+  const server = http.createServer((req, res) => {
+    touch();
+    const host = String(req.headers.host ?? '').toLowerCase();
+    if (host !== `${HOST}:${port}` && host !== `localhost:${port}`) {
+      send(req, res, 403, 'forbidden: this viewer answers only to 127.0.0.1 or localhost on its own port\n', { 'Content-Type': 'text/plain; charset=utf-8' });
+      return;
+    }
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      send(req, res, 405, 'method not allowed: the viewer is read-only\n', { 'Content-Type': 'text/plain; charset=utf-8', Allow: 'GET, HEAD' });
+      return;
+    }
+    const segments = segmentsOf(req.url ?? '');
+    if (segments === null) {
+      send(req, res, 404, 'not found\n', { 'Content-Type': 'text/plain; charset=utf-8' });
+      return;
+    }
+    const joined = segments.join('/');
+    if (joined === 'status') {
+      send(req, res, 200, JSON.stringify({ status: 'ok', root, port, pid: process.pid }), { 'Content-Type': 'application/json; charset=utf-8' });
+      return;
+    }
+    if (joined === '') {
+      const target = latestGallery(root);
+      if (target) send(req, res, 302, '', { Location: target });
+      else send(req, res, 404, 'no published version yet: versions/index.json names no latest\n', { 'Content-Type': 'text/plain; charset=utf-8' });
+      return;
+    }
+    const found = fileUnder(root, segments);
+    if (!found) {
+      send(req, res, 404, 'not found\n', { 'Content-Type': 'text/plain; charset=utf-8' });
+      return;
+    }
+    res.writeHead(200, {
+      'Content-Type': TYPES[path.extname(found.file).toLowerCase()] ?? 'application/octet-stream',
+      'Content-Length': found.size,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
+    fs.createReadStream(found.file).on('error', () => res.destroy()).pipe(res);
+  });
+
+  const listen = at => new Promise((resolve, reject) => {
+    const onError = err => { server.off('listening', onListening); reject(err); };
+    const onListening = () => { server.off('error', onError); resolve(); };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(at, HOST);
+  });
+
+  (async () => {
+    for (const at of PORTS) {
+      try {
+        await listen(at);
+        port = at;
+        break;
+      } catch (err) {
+        if (err.code !== 'EADDRINUSE') throw err;
+      }
+    }
+    if (port === null) {
+      report({ ok: false, code: 'ports-busy',
+        message: `ports ${PORTS[0]}–${PORTS[PORTS.length - 1]} are all in use, so no viewer started. Nothing was written; open the pages by path instead, or stop a companion left running by another turn with stop --root=<its folder>.` });
+      process.exitCode = EXIT.REFUSED;
+      return;
+    }
+    try {
+      commit({
+        target: path.join(root, PID_FILE),
+        tmp: path.join(root, `${PID_FILE}.tmp`),
+        text: `${JSON.stringify({ pid: process.pid, port, root })}\n`,
+        codes: WRITE_CODES,
+      });
+    } catch (err) {
+      server.close();
+      report({ ok: false, code: 'folder-unwritable',
+        message: `the viewer listened but could not record itself in ${path.join(root, PID_FILE)} (${err.message}), so it was ended. Nothing was left running; make the folder writable and run start again.` });
+      process.exitCode = EXIT.REFUSED;
+      return;
+    }
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+    touch();
+    report({ ok: true, port });
+  })().catch(err => {
+    report({ ok: false, error: err.message });
+    process.exit(EXIT.INTERNAL);
+  });
+}
+
+async function main() {
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (err) {
+    if (err instanceof UsageError) {
+      process.stderr.write(`usage: node index.mjs start|stop --root=<dir> — ${err.message}\n`);
+      process.exit(EXIT.INTERNAL);
+    }
+    throw err;
+  }
+  try {
+    if (args.verb === 'serve') {
+      serve(args.root);
+      return;
+    }
+    const result = args.verb === 'start' ? await start(args.root) : await stop(args.root);
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    process.exit(EXIT.OK);
+  } catch (err) {
+    if (err instanceof Refusal) {
+      const message = err.message.slice(err.code.length + 2);
+      process.stdout.write(`${JSON.stringify({ ok: false, code: err.code, message })}\n`);
+      process.exit(EXIT.REFUSED);
+    }
+    process.stderr.write(`the companion could not run: ${err.message}\n`);
+    process.exit(EXIT.INTERNAL);
+  }
+}
+
+main();

@@ -67,7 +67,7 @@ At every convergence point where a node produces a draft artifact:
 - `persona-exploration`: the persona cards
 - `idea-convergence`: each decision area (the overall direction is approved at `direction-approval`, which follows directly)
 - `feature-specification`: each specification section
-- `visual-prototyping`: the screens, inside the mockup studio's own loop
+- `visual-prototyping`: the screens, one mockup turn per round, approved at `mockup-approval`
 - `review-handoff`: the assembled brief
 
 ### Flow
@@ -100,7 +100,6 @@ design_context:
     problem_statement: 1
     personas: 0
     specification_sections: {user_stories: 2}
-    prototypes: 1
 ```
 
 Track per loop (and per section in `feature-specification`) to apply soft caps independently. A heavily-iterated persona definition should not consume the refinement budget for specification sections.

@@ -213,9 +213,10 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
 
 test('node-brief: every rule a step of a built-in can trigger reaches it — the four that must print whole wherever they apply', t => {
   const always = { agent: '`agent:` step', skill: '`skill:` step', workflow: '`workflow:` step' };
-  for (const name of ['development', 'migration', 'performance', 'product-design', 'research']) {
+  const required = { research: { question: 'A question' }, 'mockup-studio': { note: 'Draw the settings page' } };
+  for (const name of ['development', 'migration', 'mockup-studio', 'performance', 'product-design', 'research']) {
     const run = scratch(t, { type: name });
-    const graph = freeze(run, { definition: path.join(ENGINE_DIR, 'workflows', `${name}.yml`), inputs: name === 'research' ? { question: 'A question' } : { task_description: 'A task' }, orchestrator: { options: { html_output: true } } });
+    const graph = freeze(run, { definition: path.join(ENGINE_DIR, 'workflows', `${name}.yml`), inputs: required[name] ?? { task_description: 'A task' }, orchestrator: { options: { html_output: true } } });
     for (const node of graph.nodes.filter(each => each.type !== 'gate')) {
       const text = nodeBrief(run.state, node.id).stdout;
       const header = text.slice(0, text.indexOf('\n\n')).split('\n');

@@ -51,6 +51,8 @@ Every operation below takes its choices from the caller's prompt. When an operat
         └── test-writing.md
 ```
 
+`design-context/` at the top of `.maister/docs/` is the mockup studio's grounding pack, outside the index: its files need no INDEX entry and the docs check skips them.
+
 ## Standard File Conventions
 
 Standard files follow the structure `standards/[category]/[topic].md`:

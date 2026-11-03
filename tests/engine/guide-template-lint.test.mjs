@@ -13,7 +13,7 @@ import { ENGINE_DIR, FIXTURES, ROOT, run, scratch } from '../helpers.mjs';
 const LINT = path.join(ROOT, 'tests/guide-template-lint.mjs');
 const SAMPLES = path.join(FIXTURES, 'guide-template');
 const WORKFLOWS = path.join(ENGINE_DIR, 'workflows');
-const BUILT_INS = ['development', 'migration', 'performance', 'product-design', 'research'];
+const BUILT_INS = ['development', 'migration', 'mockup-studio', 'performance', 'product-design', 'research'];
 
 function lint(...definitions) {
   return run(LINT, definitions.map(file => `--definition=${file}`), undefined, {}, ROOT);
@@ -86,11 +86,13 @@ test('guide-template-lint: every failure is printed, never only the first, and i
   assert.match(usage.stderr, /usage: /);
 });
 
-test('guide-template-lint: the five built-in guides follow the template', async t => {
+test('guide-template-lint: the six built-in guides follow the template', async t => {
   for (const name of BUILT_INS) {
     const definition = path.join(WORKFLOWS, `${name}.yml`);
     await t.test(name, () => {
-      assert.match(fs.readFileSync(definition, 'utf8'), /^brief:/m, `${name}.yml carries no brief: block`);
+      // A definition with no `brief:` block, as mockup-studio has none, has no block to assert.
+      const source = fs.readFileSync(definition, 'utf8');
+      if (name !== 'mockup-studio') assert.match(source, /^brief:/m, `${name}.yml carries no brief: block`);
       const result = lint(definition);
       assert.deepEqual(lines(result.stdout, 'FAIL: '), []);
       assert.equal(result.code, 0, result.stderr);

@@ -14,6 +14,11 @@
  * exception is a file under `standards/`, whose size and `###` rule count are
  * measured against the size guidance.
  *
+ * The top-level `design-context/` folder is outside the index: it is the mockup
+ * studio's grounding pack, read by the studio rather than by a map reader. Its
+ * files are neither counted nor required to have an entry. A folder of the same
+ * name anywhere below the top level is an ordinary folder.
+ *
  * An entry is a heading (level 2 to 6, outside a code fence) whose text ends in
  * a backticked path in parentheses — `### Storage (\`standards/storage.md\`)` —
  * and its body is what follows up to the next heading or thematic break. The
@@ -46,6 +51,7 @@ const EXIT = { OK: 0, FAILED: 1, INTERNAL: 2 };
 const INDEX = 'INDEX.md';
 const DEFAULT_DOCS = path.join('.maister', 'docs');
 const STANDARDS = 'standards/';
+const GROUNDING_PACK = 'design-context';
 
 /** Size guidance, in characters of an entry's body with whitespace collapsed. */
 const ENTRY_GUIDE = 240;
@@ -108,6 +114,7 @@ function markdownFiles(dir) {
   const walk = rel => {
     for (const dirent of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
       if (dirent.name.startsWith('.')) continue;
+      if (rel === '' && dirent.name === GROUNDING_PACK && dirent.isDirectory()) continue;
       const child = rel === '' ? dirent.name : `${rel}/${dirent.name}`;
       if (dirent.isDirectory()) walk(child);
       else if (/\.md$/i.test(dirent.name) && isFile(path.join(dir, child))) found.push(child);

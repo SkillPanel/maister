@@ -33,7 +33,7 @@ import { gateAsk } from '../plugins/maister/skills/workflow-engine/scripts/lib/g
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WORKFLOWS = path.join(ROOT, 'plugins/maister/skills/workflow-engine/workflows');
-const BUILT_INS = ['development', 'migration', 'performance', 'product-design', 'research'];
+const BUILT_INS = ['development', 'migration', 'mockup-studio', 'performance', 'product-design', 'research'];
 
 /** Every pair of gates in `file` that ask the same question, as FAIL lines. */
 export function lintDefinition(file) {

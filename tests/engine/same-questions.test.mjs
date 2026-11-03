@@ -47,6 +47,7 @@ const BUILT_INS = {
   performance: { task_description: 'Speed up the report' },
   'product-design': { task_description: 'Design a notes app' },
   research: { question: 'Which store keeps notes safe?' },
+  'mockup-studio': { note: 'Draw the settings page' },
 };
 
 /**
@@ -67,6 +68,7 @@ const IN_NODE_COUNTS = {
   performance: 6,
   'product-design': 13,
   research: 5,
+  'mockup-studio': 0,
 };
 
 /** The built-in default policy's hash, which every run frozen under it records. */
@@ -412,7 +414,8 @@ test('every built-in asks the same questions, carried the same way, under each d
   const pinned = JSON.parse(fs.readFileSync(TEXT_SNAPSHOT, 'utf8'));
   assert.equal(Object.keys(pinned).length, Object.keys(BUILT_INS).length * Object.keys(DRIVERS).length);
   for (const [at, { gates, reached }] of Object.entries(pinned)) {
-    assert.ok(reached.length, `${at}: the walk reached no gate`);
+    // Empty exactly when the graph has no gate: mockup-studio has none.
+    assert.equal(reached.length === 0, Object.keys(gates).length === 0, `${at}: the walk reached ${reached.length} gates of ${Object.keys(gates).length}`);
     for (const id of reached) assert.ok(Object.hasOwn(gates, id), `${at}: the walk reached ${id}, which has no pinned text`);
   }
   assert.deepEqual(JSON.parse(texts), pinned);

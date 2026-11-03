@@ -1,0 +1,82 @@
+# The mockup-studio workflow, as a graph.
+#
+# One node and no gate: a run draws one new version of a set of UI mockups from
+# a note and asks nothing. The next version is a fresh run over the same folder
+# with the previous version named in `against`; the folder holds one version
+# list however many runs wrote it.
+#
+# `task_path` is a path input the engine records as given, so it may name the
+# task folder of another run; absent, the turn writes under this run's own
+# task directory. `format` has no default on purpose: the skill reads the
+# project's configured format when none is given, and a default here would
+# hide that step.
+#
+# The node is the run's last node, so nothing needs to read it inside the
+# graph: the workflow-level `outputs` are what a parent or a chain step reads.
+#
+# The node prose lives beside this file in `mockup-studio.md`; `node-brief`
+# prints a node's derived facts and then its section.
+name: mockup-studio
+version: 1
+description: "Draws one new version of a set of UI mockups from a note, under a folder it is given, and asks nothing; run it again with the same folder for the next version."
+inputs:
+  # The folder the turn writes under; absent, this run's own task directory.
+  task_path: {type: path, required: false}
+  output_subdir: {type: string, required: false, default: analysis/mockups}
+  note: {type: string, required: true}
+  # The version to build on; absent, the latest, or none on a first turn.
+  against: {type: string, required: false}
+  # Comma-separated screen slugs; absent, the turn decides from the note.
+  scope: {type: string, required: false}
+  # `sketch` or `prototype`.
+  fidelity: {type: string, required: false, default: sketch}
+  # No default: absent means the project's configured format, else html.
+  format: {type: string, required: false}
+  brief: {type: string, required: false}
+  grounding: {type: path, required: false, default: .maister/docs/design-context}
+
+outputs:
+  artifacts:
+    turn_result: turn.artifacts.turn_result
+  values:
+    version: turn.values.version
+    against: turn.values.against
+    screens: turn.values.screens
+    changed: turn.values.changed
+    degraded: turn.values.degraded
+    notes_count: turn.values.notes_count
+    format: turn.values.format
+    fidelity: turn.values.fidelity
+
+display:
+  icons:
+    turn: spec
+  titles:
+    turn: "Mockup turn"
+
+nodes:
+  turn:
+    uses: skill:mockup-studio
+    needs: []
+    with:
+      task_path: "${inputs.task_path}"
+      output_subdir: "${inputs.output_subdir}"
+      note: "${inputs.note}"
+      against: "${inputs.against}"
+      scope: "${inputs.scope}"
+      fidelity: "${inputs.fidelity}"
+      format: "${inputs.format}"
+      brief: "${inputs.brief}"
+      grounding: "${inputs.grounding}"
+    outputs:
+      artifacts:
+        turn_result: turn-result.json
+      values:
+        version: id
+        against: id
+        screens: id
+        changed: id
+        degraded: bool
+        notes_count: id
+        format: {enum: [html, ascii]}
+        fidelity: {enum: [sketch, prototype]}

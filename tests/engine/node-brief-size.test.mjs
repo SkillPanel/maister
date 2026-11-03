@@ -13,7 +13,7 @@ import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scr
 // prints nothing.
 
 const WORKFLOWS = path.join(ENGINE_DIR, 'workflows');
-const BUILT_INS = ['development', 'migration', 'performance', 'product-design', 'research'];
+const BUILT_INS = ['development', 'migration', 'mockup-studio', 'performance', 'product-design', 'research'];
 
 const words = text => text.split(/\s+/).filter(Boolean).length;
 

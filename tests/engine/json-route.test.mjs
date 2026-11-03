@@ -13,7 +13,7 @@ import { ENGINE_DIR } from '../helpers.mjs';
 // the JSON escape `\u0027`, which a tool call decodes into a bare quote.
 
 const SKILL = path.join(ENGINE_DIR, 'SKILL.md');
-const GUIDES = ['development', 'research', 'performance', 'migration', 'product-design']
+const GUIDES = ['development', 'research', 'performance', 'migration', 'product-design', 'mockup-studio']
   .map(name => path.join(ENGINE_DIR, 'workflows', `${name}.md`));
 const REFERENCES = fs.readdirSync(path.join(ENGINE_DIR, 'references'))
   .filter(name => name.endsWith('.md'))

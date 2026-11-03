@@ -11,7 +11,7 @@ import { ROOT, ENGINE_DIR, verb } from '../helpers.mjs';
 // cannot be told, is a node that re-drives until its budget is spent.
 
 const AGENTS = path.join(ROOT, 'plugins/maister/agents');
-const BUILT_INS = ['development', 'research', 'product-design', 'performance', 'migration'];
+const BUILT_INS = ['development', 'research', 'product-design', 'performance', 'migration', 'mockup-studio'];
 
 // Declared artifacts the node itself writes, not its agent.
 const NODE_WRITTEN = new Set(['development:gap-analysis:scope']);
