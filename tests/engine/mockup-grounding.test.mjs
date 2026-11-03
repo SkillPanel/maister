@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 
 import { ROOT, run } from '../helpers.mjs';
 import { GROUNDING_KEYS, GROUNDING_SCHEMA_VERSION } from '../../plugins/maister/skills/mockup-studio/scripts/lib/shapes.mjs';
-import { blobHash } from '../../plugins/maister/skills/mockup-studio/scripts/lib/grounding.mjs';
+import { blobHash, contentHash } from '../../plugins/maister/skills/mockup-studio/scripts/lib/grounding.mjs';
 
 // The grounding verbs, run as a child process the way the skill runs them:
 // the builder writes `<pack>/.sources.json`, `turn.mjs ground-seal` hashes
@@ -106,6 +106,34 @@ test('status is fresh after seal, and missing with no pack', t => {
   assert.equal(status.json.schema_version, 1);
   assert.equal(status.json.plugin_schema_version, GROUNDING_SCHEMA_VERSION);
   assert.deepEqual([status.json.reasons, status.json.changed, status.json.gone], [[], [], []]);
+});
+
+test('a text source rewritten with CRLF line endings, and a pack file likewise, leave the pack fresh with the same digest', t => {
+  const where = sealed(t);
+  const written = JSON.parse(fs.readFileSync(path.join(where.pack, 'grounding.json'), 'utf8'));
+  const theme = path.join(where.root, 'src', 'theme.css');
+  fs.writeFileSync(theme, fs.readFileSync(theme, 'utf8').replace(/\n/g, '\r\n'));
+  const tokens = path.join(where.pack, 'tokens.md');
+  fs.writeFileSync(tokens, fs.readFileSync(tokens, 'utf8').replace(/\n/g, '\r\n'));
+  const status = ground(where, 'ground-status').json;
+  assert.equal(status.status, 'fresh');
+  assert.deepEqual([status.reasons, status.changed, status.gone], [[], [], []]);
+  assert.equal(status.digest, written.digest);
+  assert.equal(contentHash(Buffer.from('a\r\nb\r\n', 'utf8')), blobHash(Buffer.from('a\nb\n', 'utf8')));
+});
+
+test('a binary source (a NUL byte) is hashed as it is, so a CRLF change in it makes the pack stale', t => {
+  const where = project(t);
+  const blob = path.join(where.root, 'src', 'font.bin');
+  fs.writeFileSync(blob, Buffer.from([0, 10, 65, 10]));
+  writeSources(where, { sources: [{ path: 'src/font.bin', kind: 'theme' }], images: [] });
+  assert.equal(ground(where, 'ground-seal').code, 0);
+  const written = JSON.parse(fs.readFileSync(path.join(where.pack, 'grounding.json'), 'utf8'));
+  assert.equal(written.sources[0].hash, blobHash(Buffer.from([0, 10, 65, 10])));
+  fs.writeFileSync(blob, Buffer.from([0, 13, 10, 65, 13, 10]));
+  const status = ground(where, 'ground-status').json;
+  assert.equal(status.status, 'stale');
+  assert.deepEqual(status.changed, ['src/font.bin']);
 });
 
 test('status is stale for a changed source, a gone source and an older schema; a newer schema is reported and the pack still used', t => {

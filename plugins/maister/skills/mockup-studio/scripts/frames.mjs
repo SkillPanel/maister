@@ -61,6 +61,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { types } from 'node:util';
 import vm from 'node:vm';
 
 import { Refusal, commit } from '../../../lib/canonical.mjs';
@@ -163,21 +164,81 @@ const NO_OP_CONSOLE = `globalThis.console = Object.freeze(Object.fromEntries(
   ['log', 'info', 'warn', 'error', 'debug', 'trace', 'dir', 'dirxml', 'table', 'group', 'groupCollapsed', 'groupEnd',
    'time', 'timeEnd', 'timeLog', 'assert', 'count', 'countReset', 'clear'].map(name => [name, () => {}])));`;
 
-/** What a throw out of the context means. The error comes from the context's realm, so `name` is read, never `instanceof`. */
-function thrown(err, where) {
-  if (err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') {
-    return new Refusal('render-timeout',
-      `${where} ran past the ${TIMEOUT_MS / 1000} s limit, as a loop that never ends or an async render that keeps running after an await would. ${AFTERWARDS} Make render return its markup synchronously.`);
-  }
-  let name;
-  let message;
+/**
+ * Every evaluation's options. `displayErrors: false` stops Node decorating a
+ * thrown value's stack on its way out of the context, which reads `stack` off
+ * that value in this process, so a thrown Proxy would run its trap here.
+ */
+const TIMED = { timeout: TIMEOUT_MS, displayErrors: false };
+
+/**
+ * A value the page made — a thrown value, or a render result that is not a
+ * string — may be a Proxy or carry getters, which would run in this process
+ * the moment a property is read, outside the timeout. So the host never reads
+ * one: it parks the value in a slot the context defines before the page runs
+ * (a non-configurable data property, so the page cannot turn it into an
+ * accessor) and reads it back through a timed script that answers with a
+ * primitive string. If the page has frozen the slot, the write throws here and
+ * the value is described as unreadable.
+ */
+const HELD = '__mockupHeld';
+const HOLD_SLOT = `Object.defineProperty(globalThis, '${HELD}', { value: undefined, writable: true, configurable: false });`;
+
+/** Run `reader` in the context over `value`; its answer when that is a string, else null. A timeout is rethrown. */
+function readHeld(context, value, reader) {
   try {
-    name = String(err?.name);
-    message = String(err?.message ?? err);
+    context[HELD] = value;
   } catch {
-    name = 'unknown';
-    message = 'an error that could not be read';
+    return null;
   }
+  try {
+    const answer = vm.runInContext(`(() => { const value = ${HELD}; ${HELD} = undefined; try { return (${reader})(value); } catch { return null; } })()`,
+      context, TIMED);
+    return typeof answer === 'string' ? answer : null;
+  } catch (err) {
+    if (isTimeout(err)) throw err;
+    return null;
+  } finally {
+    try { context[HELD] = undefined; } catch { /* the slot was frozen; nothing to clear */ }
+  }
+}
+
+/**
+ * Whether a throw is the host's own timeout error. Checked without running
+ * anything the page could define: a Proxy is never inspected, and `code` is
+ * read as an own data property of a native error, never through a getter.
+ */
+function isTimeout(err) {
+  if (err === null || typeof err !== 'object' || types.isProxy(err) || !types.isNativeError(err)) return false;
+  return Object.getOwnPropertyDescriptor(err, 'code')?.value === 'ERR_SCRIPT_EXECUTION_TIMEOUT';
+}
+
+/** The name and message of a thrown value, joined by a newline, read in the context. */
+const DESCRIBE_THROWN = `value => {
+  const name = String(value?.name);
+  const message = String(value?.message ?? value);
+  return typeof name === 'string' && typeof message === 'string' ? name + '\\n' + message : null;
+}`;
+
+/** What kind of value a render returned, read in the context. */
+const DESCRIBE_KIND = `value => value === null ? 'null'
+  : typeof value === 'object' && typeof value.then === 'function' ? 'a Promise' : 'a ' + typeof value`;
+
+function timeoutRefusal(where) {
+  return new Refusal('render-timeout',
+    `${where} ran past the ${TIMEOUT_MS / 1000} s limit, as a loop that never ends or an async render that keeps running after an await would. ${AFTERWARDS} Make render return its markup synchronously.`);
+}
+
+/** What a throw out of the context means. The error comes from the context's realm, so `name` is read, never `instanceof`. */
+function thrown(context, err, where) {
+  if (isTimeout(err)) return timeoutRefusal(where);
+  let described;
+  try {
+    described = readHeld(context, err, DESCRIBE_THROWN);
+  } catch {
+    return timeoutRefusal(where);
+  }
+  const [name, message] = described === null ? ['unknown', 'an error that could not be read'] : described.split(/\n([\s\S]*)/);
   const global = name === 'ReferenceError' ? /^(\S+) is not defined/.exec(message)?.[1] : undefined;
   if (global !== undefined && DOM_GLOBALS.includes(global)) {
     return new Refusal('render-touches-dom',
@@ -188,9 +249,9 @@ function thrown(err, where) {
 
 function evaluate(context, code, where) {
   try {
-    return vm.runInContext(code, context, { timeout: TIMEOUT_MS, filename: 'mockup-scenes' });
+    return vm.runInContext(code, context, { ...TIMED, filename: 'mockup-scenes' });
   } catch (err) {
-    throw thrown(err, where);
+    throw thrown(context, err, where);
   }
 }
 
@@ -207,9 +268,9 @@ function readScenes(context, file) {
   const invalid = what => new Refusal('scenes-invalid', `${file}'s mockup-scenes script ${what}. ${AFTERWARDS} Declare scenes as a non-empty list of {id, title, state, annotations?, behaviour?} with a distinct slug id each.`);
   let text;
   try {
-    text = vm.runInContext(SCENES_JSON, context, { timeout: TIMEOUT_MS });
+    text = vm.runInContext(SCENES_JSON, context, TIMED);
   } catch (err) {
-    if (err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT') throw thrown(err, 'reading scenes');
+    if (isTimeout(err)) throw timeoutRefusal('reading scenes');
     throw invalid('declares scenes that cannot be read as plain data');
   }
   if (text === 'undefined') throw invalid('declares no scenes');
@@ -234,10 +295,10 @@ function readScenes(context, file) {
 
 function frames(page, script) {
   const context = vm.createContext(Object.create(null), { microtaskMode: 'afterEvaluate' });
-  vm.runInContext(NO_OP_CONSOLE, context);
+  vm.runInContext(NO_OP_CONSOLE + HOLD_SLOT, context);
   evaluate(context, script.code, 'The mockup-scenes script');
   const scenes = readScenes(context, page.file);
-  const hasRender = vm.runInContext("typeof render === 'function'", context, { timeout: TIMEOUT_MS });
+  const hasRender = evaluate(context, "typeof render === 'function'", 'Looking up render');
   if (hasRender !== true) {
     throw new Refusal('render-threw', `${page.file}'s mockup-scenes script defines no render function. ${AFTERWARDS} Declare a pure render(state) that returns markup.`);
   }
@@ -245,7 +306,12 @@ function frames(page, script) {
     const where = `render for scene "${scene.id}"`;
     const html = evaluate(context, `render(scenes[${at}].state)`, where);
     if (typeof html !== 'string') {
-      const what = html !== null && typeof html === 'object' && typeof html.then === 'function' ? 'a Promise' : html === null ? 'null' : `a ${typeof html}`;
+      let what;
+      try {
+        what = readHeld(context, html, DESCRIBE_KIND) ?? 'a value that could not be read';
+      } catch {
+        throw timeoutRefusal(`reading what ${where} returned`);
+      }
       throw new Refusal('render-not-string', `${where} returned ${what}, not a string of markup. ${AFTERWARDS} Make render return its markup synchronously, as a string.`);
     }
     return { slug: scene.id, title: scene.title, html, css: script.css, annotations: scene.annotations ?? [], behaviour: scene.behaviour ?? [] };

@@ -117,6 +117,35 @@ test('an async render that loops after an await is refused and the process exits
   assert.deepEqual(fs.readdirSync(dir), ['prototype.html']);
 });
 
+test('a value the page made is never read outside the timeout: a looping Proxy or getter is refused, not hung', { timeout: 30_000 }, async t => {
+  const scene = "const scenes = [{ id: 'home', title: 'Home', state: {} }];\n";
+  const cases = {
+    'a render returning a Proxy whose every read loops': "function render() { return new Proxy({}, { get() { for (;;) {} } }); }",
+    'a render returning an object whose then getter loops': "function render() { return { get then() { for (;;) {} } }; }",
+    'a render throwing an object whose name and message getters loop':
+      "function render() { throw { get name() { for (;;) {} }, get message() { for (;;) {} } }; }",
+    'a render throwing a Proxy whose every read loops': "function render() { throw new Proxy({}, { get() { for (;;) {} } }); }",
+    'a top-level throw of a Proxy whose every read loops': "throw new Proxy({}, { get() { for (;;) {} } });",
+  };
+  for (const [what, body] of Object.entries(cases)) {
+    await t.test(what, tt => {
+      const dir = withScenes(tt, `${scene}${body}`);
+      const result = exportFrames(dir);
+      assert.equal(result.code, 1, result.stdout + result.stderr);
+      assert.ok(['render-timeout', 'render-threw', 'render-not-string'].includes(result.json?.code), result.stdout);
+      assert.ok(result.ms < PROMPT_MS, `took ${result.ms} ms`);
+      assert.deepEqual(fs.readdirSync(dir), ['prototype.html']);
+    });
+  }
+  await t.test('a thrown value whose getters throw a looping Proxy is still described', tt => {
+    const dir = withScenes(tt, `${scene}function render() { throw { get name() { throw new Proxy({}, { get() { for (;;) {} } }); } }; }`);
+    const result = exportFrames(dir);
+    assertRefused(result, 'render-threw', dir);
+    assert.match(result.json.message, /could not be read/);
+    assert.ok(result.ms < PROMPT_MS, `took ${result.ms} ms`);
+  });
+});
+
 test('a result that is not a string, a throw and invalid scenes are refused by name', async t => {
   await t.test('a number is render-not-string', tt => {
     const dir = withScenes(tt, "const scenes = [{ id: 'home', title: 'Home', state: {} }];\nfunction render() { return 42; }");

@@ -579,3 +579,44 @@ test('an unwritable versions folder is folded into folder-unwritable by finish, 
   assert.ok(fs.existsSync(path.join(started.json.version_dir, '.turn.json')), 'the input file is kept');
   assert.deepEqual(readJson(path.join(where.versions, 'index.json')).versions.map(each => each.version), ['v001']);
 });
+
+// A fresh temp beside a target is a live writer's, so the write is refused:
+// a portable way to make one write fail partway through a publish.
+const holdTemp = target => fs.writeFileSync(path.join(path.dirname(target), `.${path.basename(target)}.tmp`), '');
+
+test('a publish that fails at the index write says nothing was published, and finish recovers', t => {
+  const where = project(t);
+  wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p>a</p>' }] });
+  const started = turn(where, 'begin');
+  writeTurn(started.json.version_dir, { screens: [{ slug: 'b', title: 'B', html: '<p>b</p>' }] });
+  const index = path.join(where.versions, 'index.json');
+  holdTemp(index);
+  const refused = turn(where, 'finish', [`--version=${started.json.version}`]);
+  assert.equal(refused.code, 1, refused.stdout + refused.stderr);
+  assert.equal(refused.json.code, 'folder-unwritable');
+  assert.match(refused.json.message, /Already landed: the version's files/);
+  assert.match(refused.json.message, /nothing was published and the input file is kept/);
+  assert.match(refused.json.message, /run finish again/);
+  assert.doesNotMatch(refused.json.message, /is published|do not run finish/);
+  assert.ok(fs.existsSync(path.join(started.json.version_dir, '.turn.json')), 'the input file is kept');
+  assert.deepEqual(readJson(index).versions.map(each => each.version), ['v001']);
+
+  fs.rmSync(path.join(where.versions, '.index.json.tmp'));
+  const again = turn(where, 'finish', [`--version=${started.json.version}`]);
+  assert.equal(again.code, 0, again.stdout + again.stderr);
+  assert.deepEqual(readJson(index).versions.map(each => each.version), ['v001', started.json.version]);
+});
+
+test('a publish that fails after the index write says the version is published', t => {
+  const where = project(t);
+  wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p>a</p>' }] });
+  const started = turn(where, 'begin');
+  writeTurn(started.json.version_dir, { screens: [{ slug: 'b', title: 'B', html: '<p>b</p>' }] });
+  holdTemp(path.join(where.out, 'b.html'));
+  const refused = turn(where, 'finish', [`--version=${started.json.version}`]);
+  assert.equal(refused.code, 1, refused.stdout + refused.stderr);
+  assert.equal(refused.json.code, 'folder-unwritable');
+  assert.match(refused.json.message, /the index entry, with v002 as latest/);
+  assert.match(refused.json.message, /v002 is published, so do not run finish for it again/);
+  assert.deepEqual(readJson(path.join(where.versions, 'index.json')).versions.map(each => each.version), ['v001', 'v002']);
+});

@@ -3,7 +3,11 @@
  * records and `ground-status` compares.
  *
  * A hash is a git blob sha1, `sha1("blob <byteLength>\0" + bytes)`, computed
- * here so no git is needed. A `package-lock.json` source that names a package
+ * here so no git is needed. A source or pack file with no NUL byte is text: its
+ * CRLF line endings are hashed as LF, the way git stores text under
+ * `core.autocrlf`, so a pack sealed on one platform stays fresh on a checkout
+ * that converts line endings. A file with a NUL byte is hashed as it is. A
+ * `package-lock.json` source that names a package
  * hashes the line `<package>@<version>` instead of the file, so a lockfile
  * change for other packages does not stale the pack; any other lockfile is
  * hashed whole. The digest is the sha1 over the sorted UTF-8 lines
@@ -32,6 +36,15 @@ const sha1 = bytes => crypto.createHash('sha1').update(bytes).digest('hex');
 /** The git blob hash of `bytes`. */
 export function blobHash(bytes) {
   return sha1(Buffer.concat([Buffer.from(`blob ${bytes.byteLength}\0`, 'utf8'), bytes]));
+}
+
+/**
+ * The hash of a source or pack file: text (no NUL byte) with CRLF read as LF,
+ * binary as it is, so a line-ending conversion on checkout changes nothing.
+ */
+export function contentHash(bytes) {
+  if (bytes.includes(0)) return blobHash(bytes);
+  return blobHash(Buffer.from(bytes.toString('latin1').replace(/\r\n/g, '\n'), 'latin1'));
 }
 
 const slash = value => value.split(path.sep).join('/');
@@ -77,7 +90,7 @@ export function hashSource(root, source) {
     if (version === null) return null;
     return { hash: blobHash(Buffer.from(`${source.package}@${version}`, 'utf8')), version };
   }
-  return { hash: blobHash(bytes) };
+  return { hash: contentHash(bytes) };
 }
 
 /** Whether the lockfile entry hashes a package rather than the whole file. */
@@ -105,7 +118,7 @@ export function digestOf({ schema, sources, images, pack }) {
     ...sources.map(each => [each.path, `${each.hash} ${each.path}`]),
     ...images.map(each => [each.path, `${each.hash} ${each.path}`]),
     ...packFiles(pack).map(rel => {
-      const hash = blobHash(fs.readFileSync(path.join(pack, rel)));
+      const hash = contentHash(fs.readFileSync(path.join(pack, rel)));
       return [`pack:${rel}`, `${hash} pack:${rel}`];
     }),
   ].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, line]) => line);

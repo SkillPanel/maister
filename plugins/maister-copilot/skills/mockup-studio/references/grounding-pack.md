@@ -89,7 +89,10 @@ The digest and the source hashes are computed by code, never by the model.
    `.sources.json`. It prints the digest and the counts. A refusal keeps the input file; its
    recovery is in `turn-contract.md`.
 
-A hash is the file's git blob hash, so it matches what git records. A `package-lock.json` source
+A hash is the file's git blob hash, so it matches what git records. A text file (one with no NUL
+byte) is hashed with its CRLF line endings read as LF, as git stores text, so a checkout that
+converts line endings — Git for Windows does by default — leaves a pack sealed elsewhere fresh; a
+binary file is hashed as it is. A `package-lock.json` source
 hashes `<package>@<version>` instead of the whole file, so a lockfile change for other packages does
 not stale the pack. The pack's own files are in the digest too: a hand edit to `tokens.md` changes
 it.

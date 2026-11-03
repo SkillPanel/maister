@@ -403,6 +403,7 @@ function publish(flags, where, subdir, work) {
   }
 
   const landed = [];
+  let indexLanded = false;
   try {
     const index = readIndex(where.index);
     if (published(index, version)) throw versionPublished(version);
@@ -412,6 +413,7 @@ function publish(flags, where, subdir, work) {
 
     const entry = { version, created: work.created, note: work.manifest.note, parent: work.manifest.parent, changed: work.result.changed };
     put(where.index, json({ ...index, latest: version, versions: [...index.versions, entry] }));
+    indexLanded = true;
     landed.push(`the index entry, with ${version} as latest`);
 
     const before = previousSlugs(where, index.latest);
@@ -449,9 +451,13 @@ function publish(flags, where, subdir, work) {
     for (const input of work.inputs) consume(input);
   } catch (err) {
     if (err instanceof Refusal && FOLDED.has(err.code)) {
-      const what = landed.length
+      // The index entry is the publish: before it lands, files in the version
+      // folder are a draft finish rewrites, and the input is still there.
+      const what = indexLanded
         ? `Already landed: ${landed.join('; ')}. ${version} is published, so do not run finish for it again; fix the folder's permissions and start the next turn, which rewrites the flat view and the rows.`
-        : 'Nothing was published and the input file is kept; make the folder writable and run finish again.';
+        : landed.length
+          ? `Already landed: ${landed.join('; ')}. The index entry did not land, so nothing was published and the input file is kept; make the folder writable and run finish again.`
+          : 'Nothing was published and the input file is kept; make the folder writable and run finish again.';
       throw new Refusal('folder-unwritable', `${err.message.replace(/^[a-z-]+: /, '')}. ${what}`);
     }
     throw err;
