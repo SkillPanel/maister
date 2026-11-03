@@ -16,22 +16,25 @@ const of = driver => ({ orchestrator: { driver } });
 
 /** Each driver, whether it is a dispatched run, whether it carries question sets, and the `via` its answers say. */
 const FORMS = [
-  ['cockpit with a dispatch id', { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-0001', features: SETS }, true, false, 'dispatch'],
+  ['cockpit with a dispatch id', { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-0001', features: SETS }, true, true, 'dispatch'],
   ['legacy dispatch with its id', { kind: 'dispatch', cwd: '/work', dispatch_id: 'd-0001' }, true, false, 'dispatch'],
   ['legacy dispatch without an id', { kind: 'dispatch', cwd: '/work', features: SETS }, true, false, 'dispatch'],
   ['cockpit driving directly', { kind: 'cockpit', cwd: '/work', features: SETS }, false, true, 'cockpit'],
+  ['cockpit with a dispatch id, listing no features', { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-0001' }, true, false, 'dispatch'],
   ['cockpit with an empty dispatch id', { kind: 'cockpit', cwd: '/work', dispatch_id: ' ', features: SETS }, false, true, 'cockpit'],
   ['terminal', { kind: 'terminal' }, false, false, 'terminal'],
   ['terminal recording a dispatch id', { kind: 'terminal', dispatch_id: 'd-0001' }, false, false, 'terminal'],
 ];
 
-test('the reading rule: a cockpit carrying a dispatch id, or the legacy dispatch kind, is a dispatched run, never given question sets', () => {
+test('the reading rule: a cockpit carrying a dispatch id, or the legacy dispatch kind, is a dispatched run; question sets follow the cockpit\'s features, dispatched or not', () => {
   for (const [label, driver, dispatched, sets, via] of FORMS) {
     assert.equal(isDispatchedRun(of(driver)), dispatched, label);
     assert.equal(questionSets(of(driver)), sets, label);
     assert.equal(answerVia(of(driver)), via, label);
   }
-  assert.equal(canAsk(of(FORMS[0][1])), false, 'a dispatched cockpit run cannot ask an in-node question');
+  assert.equal(canAsk(of(FORMS[0][1])), true, 'a dispatched cockpit run listing question-sets asks an in-node question');
+  assert.equal(canAsk(of(FORMS[4][1])), false, 'a dispatched cockpit run listing no features cannot');
+  assert.equal(canAsk(of(FORMS[2][1])), false, 'nor can the legacy dispatch kind, whatever it lists');
   assert.equal(isDispatchedRun({}), false);
   assert.equal(answerVia({}), 'terminal');
 });

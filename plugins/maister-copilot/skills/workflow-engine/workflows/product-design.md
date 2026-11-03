@@ -137,9 +137,10 @@ recorded, and the brief names them.
 
 **Asks.**
 
-**With question sets** (`additional-context`): asked in this node's one
-request. A folder still empty after a Files answer is not asked about again,
-and the run goes on without files.
+**With question sets** (`additional-context`): asked in this node's first
+request. A folder still empty after a Files answer is asked about once more,
+as in session, in a follow-up round; once the attempt's rounds are spent the run
+goes on without files.
 
 **Without question sets** (`additional-context`): no additional context; the
 lists stay empty rather than half-gathered.
@@ -233,9 +234,10 @@ and the open questions of any research under `context/research-context/`.
 **Asks.** Each answer is recorded under its id with the topic after it.
 
 **With question sets** (`problem-questions`): the first page — the questions
-that stand on their own — goes in this node's one request. A question that
-waits on another's answer is not asked, and the draft is marked as a proposal
-where it rests on one.
+that stand on their own — goes in this node's first request. A question that
+waits on another's answer goes in a follow-up round once that answer is in; one
+still waiting when the attempt's rounds are spent is not asked, and the draft is
+marked as a proposal where it rests on one.
 
 **Without question sets** (`problem-questions`): no question is asked; the
 draft is derived from the design context, the description and the project
@@ -244,14 +246,16 @@ documentation alone, and marked in the document as a proposal.
 **With question sets** (`user-story`): each story that stands on its own is
 its own question in the first page's request, its draft, corrections and
 alternative written to `analysis/problem-statement.md` before the node
-suspends. A story that waits on another's answer is not asked, and is marked
-drafted.
+suspends. A story that waits on another's answer goes in a follow-up round
+once that answer is in; one still waiting when the attempt's rounds are spent is
+not asked, and is marked drafted.
 
 **Without question sets** (`user-story`): each story is taken as drafted,
 recorded `by: default` under its own id, and marked drafted.
 
-**With question sets** (`problem-refinement`): first-ask only: it goes in a
-request only as the first thing this node asks in its attempt.
+**With question sets** (`problem-refinement`): the first request of this node's
+attempt, or a follow-up round after one; once the attempt's rounds are spent,
+the default below is taken.
 
 **Without question sets** (`problem-refinement`): approve and continue, the
 count at zero. `problem-approval` is the operator's route back.
@@ -295,15 +299,18 @@ say so in the summary and let `persona-exploration` take it.
 it.
 
 **With question sets** (`persona-questions`): the first page goes in this
-node's one request; a question that waits on another's answer is not asked,
-and the cards it would shape are marked as drafted.
+node's first request; a question that waits on another's answer goes in a
+follow-up round once that answer is in, and one still waiting when the
+attempt's rounds are spent is not asked, the cards it would shape marked as
+drafted.
 
 **Without question sets** (`persona-questions`): no question is asked; the
 cards are drafted from the design context and the problem statement alone and
 marked as drafted rather than confirmed.
 
-**With question sets** (`persona-refinement`): first-ask only: it goes in a
-request only as the first thing this node asks in its attempt.
+**With question sets** (`persona-refinement`): the first request of this node's
+attempt, or a follow-up round after one; once the attempt's rounds are spent,
+the default below is taken.
 
 **Without question sets** (`persona-refinement`): approve and continue, the
 count at zero. `problem-approval` is where they change.
@@ -347,8 +354,9 @@ the ideas already discussed.
 
 **Asks.**
 
-**With question sets** (`brainstormer-retry`): first-ask only: it goes in a
-request only as the first thing this node asks in its attempt.
+**With question sets** (`brainstormer-retry`): the first request of this node's
+attempt, or a follow-up round after one; once the attempt's rounds are spent,
+the default below is taken.
 
 **Without question sets** (`brainstormer-retry`): neither. The node is recorded
 `failed`; inline alternatives are exactly the anchoring this node avoids, and a
@@ -381,7 +389,7 @@ direction across the areas, for `direction-approval`.
 **Asks.**
 
 **With question sets** (`convergence-decisions`): every decision area in this
-node's one request, one question per area, its `why` naming any other area its
+node's first request, one question per area, its `why` naming any other area its
 choice depends on. Before it suspends, `analysis/alternatives.md` and the
 drafted decision sheet in `analysis/design-decisions.md` are on disk. After the
 answers, record each as an operator decision and the chosen direction exactly as
@@ -507,7 +515,7 @@ Then present a short summary of the specification.
 `specification-sections-<section>`.
 
 **With question sets** (`specification-sections`): every section in this node's
-one request, one question per section, each drafted and written to
+first request, one question per section, each drafted and written to
 `analysis/feature-spec.md` before it suspends; a change asked for is applied
 after the answers without another round.
 
@@ -516,8 +524,8 @@ as drafted and appended in order, still written to the depth a developer could
 implement from; a section that cannot reach it without an answer says which
 answer it needs rather than being padded to look finished.
 
-**With question sets** (`depth-enrichment`): first-ask only: after the
-sections' request, the default below.
+**With question sets** (`depth-enrichment`): after the sections' request, as a
+follow-up round; once the attempt's rounds are spent, the default below.
 
 **Without question sets** (`depth-enrichment`): every enrichment
 is appended as drafted, marked as added by the depth check.
@@ -635,7 +643,7 @@ names. The earlier versions stay in the folder.
 
 **Asks.**
 
-**With question sets** (`brief-approval`): in this node's one request, the
+**With question sets** (`brief-approval`): in this node's first request, the
 brief already written to `outputs/product-brief.md`.
 
 **Without question sets** (`brief-approval`): approve the brief, and record

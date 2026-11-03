@@ -124,7 +124,7 @@ import { approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainP
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
-import { checkSet, questionCheckpoint, questionRequest, setForm } from './question-set.mjs';
+import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked, setForm } from './question-set.mjs';
 
 // The note question's call, for `gate-brief --ask --note`: the verb loads this module alone.
 export { noteForm } from './checkpoint.mjs';
@@ -511,7 +511,7 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   if (form !== 'ask' && !questionSets(doc)) {
     const driver = isPlainObject(doc.orchestrator?.driver) ? doc.orchestrator.driver : {};
     return refuse('gate-brief-questions-unsupported',
-      `this run's driver (${JSON.stringify(driver.kind ?? 'terminal')}) does not carry question sets: only a cockpit driver whose features list question-sets, in a run that is not dispatched, does. `
+      `this run's driver (${JSON.stringify(driver.kind ?? 'terminal')}) does not carry question sets: only a cockpit driver whose features list question-sets does. `
       + 'Nothing was written. Ask in session when no driver is set; under any other driver take the default the node prose names and record it as a by: default decision');
   }
   const runDir = path.dirname(path.resolve(state));
@@ -522,10 +522,20 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
       `--node=${node} is ${JSON.stringify(status)}, and only a running node asks a question inside itself, or a waiting node carrying dir: whose dispatch closed out partial. Nothing was written. `
       + 'Name the node that is asking; a node that has not started, or has ended, has nothing to ask');
   }
-  // What the classing write left to ask, when the run classes questions: the
-  // request carries those ids and no other, and none at all is nothing to ask.
   const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
   const own = Object.hasOwn(summaries, node) && isPlainObject(summaries[node]) ? summaries[node] : {};
+  // The round this request is: one past the rounds of this attempt already
+  // answered. A follow-up past the last round is refused, so the node takes
+  // each question's named default instead.
+  const attempt = attemptOf(entry);
+  const round = roundsAsked(own.decisions, attempt) + 1;
+  if (form !== 'ask' && round > ROUNDS_MAX) {
+    return refuse('gate-brief-rounds-spent',
+      `${node} has had ${ROUNDS_MAX} question sets answered in attempt ${attempt}, the first and ${ROUNDS_MAX - 1} follow-up rounds, and a node asks no more in one attempt. `
+      + 'Nothing was written and nothing is asked. Take the default each of these questions names in its Without question sets line, record it as a by: default decision, and carry on with the node');
+  }
+  // What the classing write left to ask, when the run classes questions: the
+  // request carries those ids and no other, and none at all is nothing to ask.
   const asking = Array.isArray(own.asking) ? own.asking.map(String) : null;
   if (asking !== null && asking.length === 0) {
     return refuse('gate-brief-nothing-to-ask',
@@ -584,7 +594,7 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
     panel = null;
   }
   if (form === 'checkpoint') return { ok: true, checkpoint, panel, errors: [], warnings };
-  return { ok: true, request: questionRequest(checkpoint), panel, errors: [], warnings };
+  return { ok: true, request: questionRequest(checkpoint, round), panel, errors: [], warnings };
 }
 
 /**

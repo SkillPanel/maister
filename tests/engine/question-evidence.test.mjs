@@ -104,7 +104,7 @@ test('evidence: an old-shape set is valid, and its request carries no evidence k
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
   const request = JSON.parse(result.stdout);
-  assert.deepEqual(Object.keys(request), ['node', 'kind', 'question', 'context', 'options', 'multi_select', 'questions']);
+  assert.deepEqual(Object.keys(request), ['node', 'kind', 'question', 'context', 'options', 'multi_select', 'questions', 'round']);
   for (const each of request.questions) assert.deepEqual(Object.keys(each), ['id', 'question', 'options', 'multi_select']);
 });
 

@@ -322,7 +322,12 @@ test('an answer from an earlier attempt is history, not this decision\'s answer'
 
 const COCKPIT = { kind: 'cockpit', cwd: '/work', session: 's-1', features: ['question-sets'] };
 
-test('under a cockpit with question sets the decision suspends, and the folded answers are used once', t => {
+// An answer as the writer folds it from a request: an operator's, with the
+// `via` the fold carries and, from a follow-up, its round.
+const folded = (id, label, round = 1) => ({ ...answer(id, label), via: 'cockpit', ...(round > 1 ? { round } : {}) });
+const decisionsOf = (run, cycle) => JSON.parse(fs.readFileSync(path.join(run.verification, `decisions-${cycle}.json`), 'utf8'));
+
+test('under a cockpit with question sets each decision suspends while a round is left, and a fourth takes the defaults', t => {
   const run = verifying(t, { orchestrator: { driver: COCKPIT } });
   cycleEntry(run, 1);
   placeFindings(run);
@@ -330,26 +335,67 @@ test('under a cockpit with question sets the decision suspends, and the folded a
   assert.equal(stepOf(run).asking, 'suspend');
 
   // The answer comes back to a fresh session: no --answered, the fold is on the summary.
-  write(run, { node_summaries: { [NODE]: { decisions: [answer('empty-upload', 'Guard the empty body'), answer('public-route', 'Accept the risk and list it')] } } });
+  const first = [folded('empty-upload', 'Guard the empty body'), folded('public-route', 'Accept the risk and list it')];
+  write(run, { node_summaries: { [NODE]: { decisions: first } } });
   assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 1, decisions_file: 'verification/decisions-1.json' } });
-  // Each answer keeps the credit the writer gave it (only the real fold credits the operator).
-  const credit = id => readState(run).node_summaries[NODE].decisions.find(item => item.question_id === qid(id)).by;
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(run.verification, 'decisions-1.json'), 'utf8')).answers, [
-    { id: 'empty-upload', answer: 'Guard the empty body', by: credit('empty-upload') },
-    { id: 'public-route', answer: 'Accept the risk and list it', by: credit('public-route') },
+  assert.deepEqual(decisionsOf(run, 1).answers, [
+    { id: 'empty-upload', answer: 'Guard the empty body', by: 'operator' },
+    { id: 'public-route', answer: 'Accept the risk and list it', by: 'operator' },
   ]);
+  assert.equal(decisionsOf(run, 1).rounds_seen, 1, 'the file records the rounds answered when it was written');
 
-  // A later decision in the same attempt cannot ask again: the defaults, and the stop at continue.
+  // A later decision of the attempt is a follow-up round: it suspends, and its answer is used.
+  cycleEntry(run, 2);
+  assert.equal(record(run, needs(2)).code, 0);
+  assert.equal(stepOf(run).asking, 'suspend', 'the first round\'s answers are not read as the second\'s');
+  const second = [folded('empty-upload', 'Guard the empty body', 2), folded('public-route', 'Accept the risk and list it', 2)];
+  write(run, { node_summaries: { [NODE]: { decisions: second } } });
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 2, decisions_file: 'verification/decisions-2.json' } });
+  assert.equal(decisionsOf(run, 2).rounds_seen, 2);
+  assert.ok(decisionsOf(run, 2).answers.every(item => item.by === 'operator'));
+
+  // The third round is the last.
   cycleEntry(run, 3);
-  assert.equal(record(run, needs(3, 'budget')).code, 0);
-  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 3, decisions_file: 'verification/decisions-3.json' } });
-  const later = JSON.parse(fs.readFileSync(path.join(run.verification, 'decisions-3.json'), 'utf8'));
+  assert.equal(record(run, needs(3)).code, 0);
+  assert.equal(stepOf(run).asking, 'suspend');
+  write(run, { node_summaries: { [NODE]: { decisions: [folded('empty-upload', 'Guard the empty body', 3), folded('public-route', 'Accept the risk and list it', 3)] } } });
+  assert.equal(stepOf(run).next, 'dispatch');
+  assert.equal(decisionsOf(run, 3).rounds_seen, 3);
+
+  // With the rounds spent, a fourth decision cannot ask: the defaults, and the stop at continue.
+  cycleEntry(run, 4);
+  assert.equal(record(run, needs(4, 'budget')).code, 0);
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 4, decisions_file: 'verification/decisions-4.json' } });
+  const later = decisionsOf(run, 4);
   assert.equal(later.stop, 'continue');
   assert.ok(later.answers.every(item => item.answer === null && item.by === 'default'));
+  assert.equal(later.rounds_seen, 3);
 });
 
-test('a dispatched run that classes nothing takes the defaults at once', t => {
-  const run = verifying(t, { orchestrator: { driver: { ...COCKPIT, dispatch_id: 'd-1' } } });
+test('a decisions file of the attempt written without rounds_seen spent its one request: a later decision takes the defaults', t => {
+  const run = verifying(t, { orchestrator: { driver: COCKPIT } });
+  cycleEntry(run, 1);
+  placeFindings(run);
+  fs.mkdirSync(run.verification, { recursive: true });
+  const attempt = Number(readState(run).workflow.nodes[NODE].attempt ?? 1);
+  fs.writeFileSync(path.join(run.verification, 'decisions-1.json'),
+    JSON.stringify({ node: NODE, attempt, cycle: 1, kind: 'findings', answers: [], stop: null }));
+  write(run, { node_summaries: { [NODE]: { decisions: [folded('empty-upload', 'Guard the empty body')] } } });
+  cycleEntry(run, 2);
+  assert.equal(record(run, needs(2)).code, 0);
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 2, decisions_file: 'verification/decisions-2.json' } });
+  assert.ok(decisionsOf(run, 2).answers.every(item => item.by === 'default'));
+});
+
+test('a dispatched run asks as a cockpit does when its driver lists question-sets, and takes the defaults at once when it does not', t => {
+  const asking = verifying(t, { orchestrator: { driver: { ...COCKPIT, dispatch_id: 'd-1' } } });
+  cycleEntry(asking, 1);
+  placeFindings(asking);
+  assert.equal(record(asking, needs(1)).code, 0);
+  assert.equal(stepOf(asking).asking, 'suspend');
+
+  const { features: _features, ...bare } = COCKPIT;
+  const run = verifying(t, { orchestrator: { driver: { ...bare, dispatch_id: 'd-1' } } });
   cycleEntry(run, 1);
   placeFindings(run);
   assert.equal(record(run, needs(1)).code, 0);

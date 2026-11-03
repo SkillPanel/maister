@@ -84,7 +84,8 @@
  *
  * A decision is answered into `<folder>/decisions-<cycle or pass>.json`, the
  * one file this verb writes: `{node, attempt, cycle | pass, kind, answers:
- * [{id, answer, by}], stop}` (`stop` verification's only). Each answer is the
+ * [{id, answer, by}], stop, rounds_seen}` (`stop` verification's only,
+ * `rounds_seen` only under a driver that carries question sets). Each answer is the
  * option label the person (or the policy) chose, read off the node summary's
  * decisions in this attempt — verification's under `<node>-findings-<id>`,
  * implementation's under each question's own id — an answer recorded by its
@@ -96,10 +97,14 @@
  *
  *   --answered    the node has recorded the answers it just took in session,
  *                 or the classing write's; the file is built from them
- *   suspended     under a driver that carries question sets a node asks once
- *                 per attempt, so answers folded into the attempt and no
- *                 decisions file of the attempt yet mean the one request came
- *                 back; a later decision in the attempt takes the defaults
+ *   suspended     under a driver that carries question sets a node sends at
+ *                 most `ROUNDS_MAX` requests in one attempt, and each file
+ *                 written there records `rounds_seen`, the rounds answered
+ *                 when it was written: a round answered since the newest file
+ *                 means the request came back; with none, the decision is
+ *                 asked while a round is left and takes the defaults once the
+ *                 rounds are spent. A file of the attempt without
+ *                 `rounds_seen` predates the rounds, and the defaults are taken
  *   nobody        a run that cannot ask and whose policy classes nothing takes
  *                 the defaults at once: every finding left open and
  *                 `continue`, every implementation question its default
@@ -123,7 +128,7 @@ import { COPILOT_REASON, attemptOf, frozenOnCopilot } from './state.mjs';
 import { questionSets, canAsk } from './driver.mjs';
 import { VERIFICATION, readJson, writeJson } from './review-brief.mjs';
 import { ACCEPT_OPTION } from './finding-brief.mjs';
-import { checkSet } from './question-set.mjs';
+import { ROUNDS_MAX, checkSet, roundsAsked } from './question-set.mjs';
 
 /** The loops a runner carries, each in its own folder of the run. */
 export const RUNNERS = ['verification', 'implementation'];
@@ -385,20 +390,44 @@ function implementationStep({ run, node, answered, warnings, ok }) {
 
 /**
  * Who answers a decision, the same for every runner: the answers the node just
- * recorded; under a driver that carries question sets, the attempt's one
- * request (a later decision takes the defaults); in session, the person; where
- * nobody can be asked, the policy's classing write, else the defaults at once.
+ * recorded; under a driver that carries question sets, a request of the
+ * attempt's rounds (once they are spent, the defaults); in session, the
+ * person; where nobody can be asked, the policy's classing write, else the
+ * defaults at once.
  */
 function decide({ run, node, dir, answered, collect, defaults, write, ask }) {
   const { doc, attempt } = run;
-  if (answered) return write(collect().body);
-  if (questionSets(doc)) {
-    if (attemptDecisions(dir, node, attempt).length) return write(defaults());
-    const collected = collect();
-    return collected.back ? write(collected.body) : ask('suspend');
+  if (!questionSets(doc)) {
+    if (answered) return write(collect().body);
+    if (canAsk(doc)) return ask('session');
+    return doc.orchestrator?.classes_questions === true ? ask('none') : write(defaults());
   }
-  if (canAsk(doc)) return ask('session');
-  return doc.orchestrator?.classes_questions === true ? ask('none') : write(defaults());
+  const summary = isPlainObject(doc.node_summaries?.[node]) ? doc.node_summaries[node] : {};
+  const rounds = roundsAsked(summary.decisions, attempt);
+  const stamped = body => write({ ...body, rounds_seen: rounds });
+  if (answered) return stamped(collect().body);
+  const seen = roundsSeen(dir, node, attempt);
+  if (seen === null) return stamped(defaults());
+  if (rounds > seen) {
+    const collected = collect();
+    if (collected.back) return stamped(collected.body);
+  }
+  return rounds >= ROUNDS_MAX ? stamped(defaults()) : ask('suspend');
+}
+
+/**
+ * The most rounds any decisions file of this attempt saw answered, 0 with no
+ * file, or null when a file of the attempt records no `rounds_seen`: written
+ * before a node could ask more than once, it spent the attempt's one request.
+ */
+function roundsSeen(dir, node, attempt) {
+  let seen = 0;
+  for (const name of attemptDecisions(dir, node, attempt)) {
+    const value = readJson(path.join(dir, name))?.rounds_seen;
+    if (!Number.isInteger(value) || value < 0) return null;
+    seen = Math.max(seen, value);
+  }
+  return seen;
 }
 
 /** Why a run keeps its loop in the main session, in one line. */

@@ -149,9 +149,13 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   revise options; the message lists them. Nothing is written. Correct it to the revise option the
   answer named.
 - **`gate-brief-questions-unsupported`**: a question set was sent, but the run's driver carries
-  none — only a cockpit whose features list `question-sets`, in a run that is not dispatched, does. Nothing is written. Do not
+  none — only a cockpit whose features list `question-sets` does, dispatched or not. Nothing is written. Do not
   suspend: in a terminal run ask the questions in session; under any other driver take the
   default the node's *Without question sets* line names and record it `by: default`.
+- **`gate-brief-rounds-spent`**: the node has had three question sets answered in this attempt —
+  its first request and two follow-up rounds (`references/in-node-questions.md` § *When a
+  question suspends*). Nothing is written and nothing is asked. Do not suspend: take the default
+  each question's *Without question sets* line names, record it `by: default`, and carry on.
 - **`gate-brief-not-askable`**: the question set names a gate, which is asked from its own
   brief, or a node that is not `running`, which has nothing to ask. Nothing is written. Name the
   node that is asking, or brief the gate without `--patch-file`. For `--node=held-approval` it

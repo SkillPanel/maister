@@ -67,7 +67,8 @@ alone, and **no
 Nor does W2 send `features`: the writer copies the parent's driver features into the child at the
 freeze, as it copies the autonomy ceiling, so a child of a cockpit that shows question sets asks
 its in-node questions too, and never gains a feature its parent lacks — nor `question-sets` from
-a dispatched parent, which never carried them (the engine skill, *Sub-runs*).
+a parent that does not carry them, such as the legacy `kind: dispatch`, whatever it lists (the
+engine skill, *Sub-runs*). A dispatched cockpit parent that lists it passes it on.
 
 Then, and only then:
 

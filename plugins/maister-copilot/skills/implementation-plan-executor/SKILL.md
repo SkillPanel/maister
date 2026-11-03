@@ -64,7 +64,8 @@ or `inline`:
     further pages in the same turn: each its `question`, its options' labels and descriptions,
     the recommended one marked "(Recommended)". Record each answer on the node summary as the node records any
     answer, under the question's `id`, then `runner-step --answered`;
-  - `suspend` — the node's one request of its attempt: the set in the patch file, `gate-brief
+  - `suspend` — a request of the node's attempt, its first or a follow-up round (`runner-step`
+    asks only while a round is left): the set in the patch file, `gate-brief
     --request --patch-file`, and suspend. On the answer the run comes back here, and
     `runner-step` finds the answers itself;
   - `none` — nobody can be asked and the run's policy classes questions: send the set in the

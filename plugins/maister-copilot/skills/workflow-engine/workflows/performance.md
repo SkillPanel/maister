@@ -55,7 +55,7 @@ When the answer is "Yes", say where the folder is and wait for the user to say
 the files are there before this node completes.
 
 **With question sets** (`clarifications`): asked through the cockpit, in this
-node's one request.
+node's first request.
 
 **Without question sets** (`clarifications`): none is asked, and
 the analysis's own answers stand. The file is written and
@@ -153,8 +153,8 @@ The page is one call of three properties, from `gate-brief --ask --patch-file`
 property's description, since the tool shows no option descriptions.
 
 **With question sets** (`optimization-priorities`): asked through the cockpit,
-in this node's one request; "Choose individually" would
-need a second ask, so it is not offered.
+in this node's first request; "Choose individually" would
+need a round per bottleneck, so it is not offered.
 
 **Without question sets** (`optimization-priorities`): the
 analyzer's own priorities stand — every P0 and P1 bottleneck it identified, with
@@ -200,7 +200,7 @@ finding's `id` the auditor's `name`, and build the set with `finding-brief` for
 this node.
 
 **With question sets** (`spec-audit-findings`): asked through the cockpit as
-this node's one request, with the audit report and every fix written first.
+this node's first request, with the audit report and every fix written first.
 
 **Without question sets** (`spec-audit-findings`): nothing is asked. A finding
 the policy does not class stays open as an `open` risk; a classed one takes the
@@ -312,17 +312,17 @@ for this node. The gate after this node offers no revise, so a change the user
 picks is taken here.
 
 **With question sets** (`verification-findings`): asked through the cockpit as
-this node's one request in its attempt, with the verification report and every
+this node's first request in its attempt, with the verification report and every
 fix so far written first.
 
 **Without question sets** (`verification-findings`): nothing is asked. An issue
 the policy does not class stays open as an `open` risk; a classed one takes the
 outcome the classing write gives it.
 
-**With question sets** (`verification-fix-loop`): asked through the cockpit only
-when it is the first thing this node asks in its attempt, with the verification
-report and every fix so far written first; after an earlier request in the same
-attempt — the finding questions — the default below is taken.
+**With question sets** (`verification-fix-loop`): asked through the cockpit, with
+the verification report and every fix so far written first — after the finding
+questions, as a follow-up round; once the attempt's rounds are spent, the
+default below is taken.
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same

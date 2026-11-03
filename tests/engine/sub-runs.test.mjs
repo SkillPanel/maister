@@ -103,13 +103,16 @@ test('features: a child never gains a feature its parent lacks', t => {
   assert.deepEqual(readState(claimed).orchestrator.driver, BARE_COCKPIT, 'no features key is left');
 });
 
-test('features: a dispatched parent passes on no question-sets, whatever it lists, under either form', t => {
-  for (const driver of [{ ...SHOWS_SETS, dispatch_id: 'd-0001' }, { kind: 'dispatch', cwd: '/work', features: ['question-sets'] }]) {
-    const parent = drivenParent(t, driver);
-    const { child, result } = childFreeze(parent, BARE_COCKPIT);
-    assert.equal(result.code, 0, result.stderr);
-    assert.deepEqual(readState(child).orchestrator.driver, BARE_COCKPIT, driver.kind);
-  }
+test('features: a dispatched cockpit parent passes question-sets on as a direct one does; the legacy dispatch kind passes none, whatever it lists', t => {
+  const dispatched = drivenParent(t, { ...SHOWS_SETS, dispatch_id: 'd-0001' });
+  const { child: asking, result: askingResult } = childFreeze(dispatched, BARE_COCKPIT);
+  assert.equal(askingResult.code, 0, askingResult.stderr);
+  assert.deepEqual(readState(asking).orchestrator.driver, { ...BARE_COCKPIT, features: ['question-sets'] });
+
+  const legacy = drivenParent(t, { kind: 'dispatch', cwd: '/work', features: ['question-sets'] });
+  const { child, result } = childFreeze(legacy, BARE_COCKPIT);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(readState(child).orchestrator.driver, BARE_COCKPIT);
 });
 
 test('features: a parent with none gives a child with none, and a terminal child is left as sent', t => {

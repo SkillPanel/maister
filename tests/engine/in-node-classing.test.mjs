@@ -42,8 +42,10 @@ const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
 const COCKPIT = { kind: 'cockpit', cwd: '/work', features: ['question-sets'] };
 const BARE_COCKPIT = { kind: 'cockpit', cwd: '/work' };
 const DISPATCH = { kind: 'dispatch', cwd: '/work' };
-/** A dispatched run as the seed records it: a cockpit carrying its dispatch id. A feature it lists is never honoured. */
-const DISPATCHED = { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-1', features: ['question-sets'] };
+/** A dispatched run as the seed records it: a cockpit carrying its dispatch id, and no features. */
+const DISPATCHED = { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-1' };
+/** A dispatched run whose driver lists question-sets: it asks as a cockpit driving directly does. */
+const DISPATCHED_ASKING = { ...DISPATCHED, features: ['question-sets'] };
 
 const TRIAGE_NOTE = /^note: ignored the triage sent on node_summaries\.scoping\.decisions; /m;
 
@@ -154,6 +156,16 @@ test('terminal: the writer settles what the ceiling allows, records it, and prin
   assert.equal(none.code, 0, none.stderr);
   assert.equal(askLine(none.stdout), 'ask: none');
   assert.deepEqual(summaryOf(settled).asking, []);
+});
+
+test('a dispatched cockpit run listing question-sets leaves to ask what a direct cockpit run does', t => {
+  for (const driver of [COCKPIT, DISPATCHED_ASKING]) {
+    const run = started(t, QUESTIONS.engine, { driver });
+    const result = classing(QUESTIONS.engine, run, ['quick-choice', 'asked-choice', 'signed-choice']);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(askLine(result.stdout), 'ask: asked-choice signed-choice', JSON.stringify(driver));
+    assert.deepEqual(summaryOf(run).asking, ['asked-choice', 'signed-choice']);
+  }
 });
 
 // ---------------------------------------------------------------------------

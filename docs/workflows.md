@@ -5,12 +5,13 @@ Maister ships six workflows, each with phases tailored to its needs, and runs wo
 A run started from the cockpit, dispatched into another repository, or started by another run as
 a step of its own, has nobody sitting in the session — so it asks nothing there. The pauses
 between phases still happen: each one suspends the run and waits for you to answer it from outside. The smaller questions a phase asks along the way
-reach you too when the run is driven from a cockpit that can show a set of questions: the phase
-gathers every question it has into one card, suspends once, and carries on with your answers,
-which are recorded as yours. A question that only comes up after that card is answered — another
-refinement round, a retry — cannot wait a second time in the same phase and takes its stated
-default. A run driven any other way, such as one dispatched into another repository, asks none of
-them: each one takes a stated default instead: a clarification goes unasked
+reach you too when the run is driven from a cockpit that can show a set of questions — directly,
+or dispatched into another repository: the phase gathers every question it has into one card,
+suspends, and carries on with your answers, which are recorded as yours. A question that only
+comes up after that card is answered — a follow-up, another refinement round, a retry — goes out
+as a follow-up card, up to two in one pass of the phase; past that it takes its stated default. A
+run driven by a cockpit that cannot show question sets asks none of them: each one takes a stated
+default instead: a clarification goes unasked
 and the analysis stands, an opt-in and a decision take what the phase recommends, a revise-or-accept
 loop accepts what it has, and a phase that has run out of recovery attempts fails rather than
 guessing. Every default a run takes is written onto that phase's summary, beside its decisions, so

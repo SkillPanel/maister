@@ -12,10 +12,12 @@
  * read the set the same way, so the rules live here once: what a valid set is,
  * what the checkpoint holds, and what an answer means.
  *
- * One request per node attempt. A node asks everything it has at once, so a set
- * is never capped here: the four-question limit belongs to the terminal picker,
- * which splits a long set across several calls in one turn, and never to the
- * request.
+ * Rounds. A node asks everything it can form at its first asking point in one
+ * request, and may send a follow-up set only for questions an answer raised:
+ * at most `ROUNDS_MAX` requests in one node attempt, each carrying its `round`
+ * (`roundsAsked` counts the ones answered). The questions in one set are never
+ * capped here: the four-question limit belongs to the terminal picker, which
+ * splits a long set across several calls in one turn, and never to the request.
  *
  * Pure: no I/O. Zero dependencies beyond the checkpoint, display, evidence and item helpers.
  */
@@ -24,7 +26,7 @@ import { flowLine, markedLabel, unmarked, unrecommended } from './checkpoint.mjs
 import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
 import { HEADER_MAX } from './display.mjs';
 import { evidenceKey } from './evidence.mjs';
-import { oneLine, provenanceOf } from './items.mjs';
+import { attemptNumber, decisionOf, oneLine, provenanceOf } from './items.mjs';
 
 /**
  * The keys a question may carry; any other is a typo the operator would never
@@ -59,6 +61,13 @@ const OPTIONS_MIN = 2;
 
 /** Between the labels of a multi-select answer, as a decision reads it. */
 const LABEL_JOIN = ', ';
+
+/**
+ * The question requests one node attempt may send: the first, which carries
+ * everything the node can form there, and two follow-up rounds for questions
+ * only an answer raised. A question past the last round takes its named default.
+ */
+export const ROUNDS_MAX = 3;
 
 const isMap = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isText = value => typeof value === 'string' && value.trim() !== '';
@@ -325,7 +334,7 @@ function requestOptions(question) {
  * Each question the request carries is one flow-safe line (`flowLine`); the
  * checkpoint keeps the node's own text.
  */
-export function questionRequest(checkpoint) {
+export function questionRequest(checkpoint, round = 1) {
   const [first] = checkpoint.questions;
   return {
     node: checkpoint.node,
@@ -342,7 +351,27 @@ export function questionRequest(checkpoint) {
       multi_select: question.multi_select,
       ...evidenceKey(question.evidence),
     })),
+    round,
   };
+}
+
+/**
+ * How many question requests of this node attempt have been answered: the
+ * highest `round` among the operator answers folded into `decisions` for
+ * `attempt`, an answer that carries none counting as the first round. Zero
+ * when none was answered. The highest, not a count, so a follow-up answering
+ * an id again still counts its round.
+ */
+export function roundsAsked(decisions, attempt = 1) {
+  if (!Array.isArray(decisions)) return 0;
+  let rounds = 0;
+  for (const item of decisions) {
+    if (!isMap(item) || typeof item.question_id !== 'string' || decisionOf(item)?.by !== 'operator') continue;
+    if ((attemptNumber(item) ?? 1) !== attempt) continue;
+    const round = Number(item.round);
+    rounds = Math.max(rounds, Number.isInteger(round) && round > 0 ? round : 1);
+  }
+  return rounds;
 }
 
 /** The one-line summary an older reader takes: the ask, then each question and its recommendation. */

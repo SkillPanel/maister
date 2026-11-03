@@ -11,8 +11,8 @@ them. They follow the same driver, and only the driver:
 | The run's driver | An in-node question is |
 |---|---|
 | absent, or `kind: terminal` | asked in session, exactly as the node's *Asks* part describes it |
-| `kind: cockpit` whose `features` list `question-sets`, in a run that is not dispatched | **suspended to the operator** as one question set (*When a question suspends*) |
-| any other — a dispatched run (engine skill, *A dispatched run is told by its `dispatch_id`*), or a cockpit without that feature | **never asked**; the node takes the default its *Without question sets* line names, and records that it did |
+| `kind: cockpit` whose `features` list `question-sets` — driving the run directly, or a dispatched run (engine skill, *A dispatched run is told by its `dispatch_id`*) | **suspended to the operator** as a question set (*When a question suspends*) |
+| any other — a cockpit without that feature, dispatched or not, or the legacy `kind: dispatch` | **never asked**; the node takes the default its *Without question sets* line names, and records that it did |
 
 `orchestrator.driver.features` is the driver's own list of what it carries, seeded by whatever
 started the run (a sub-run's freeze copies its parent's); the engine only reads it. Without
@@ -227,7 +227,7 @@ The plain profile offers every alternative as a label; the question carries each
 line and ends with the recommendation and its reason.
 -->
 
-**Under a driver with question sets**, every area goes in the node's one request. Run the verb
+**Under a driver with question sets**, every area goes in the node's first request. Run the verb
 with `--patch-file=<run>/.state-patch.json` in place of `--area` and `--json` — after a revise,
 `--area` repeated names the areas the note reopens — and it writes the question set to the patch
 file and prints its path. Then run `gate-brief --request
@@ -353,15 +353,22 @@ After the fold, one `write-state` records what the answer decided:
 
 Under a driver that carries question sets, a node asks what it would have asked in session —
 the clarifications, the opt-ins, the decisions, the bundles — and suspends on them instead of
-taking their defaults. Four rules hold:
+taking their defaults. These rules hold:
 
-- **One request per node attempt, carrying every question.** At its first asking point the node
-  gathers every question it can form there into one set, one entry per question, and suspends
-  once. A node cannot ask a second time in the same attempt, so a question that only exists
-  after an answer or a pass — a follow-up, another refinement round, a retry after a spent
-  budget, the fix loop's stopping point — takes its named default below.
-- **Write before asking.** Whatever the node needs after the answer — its analysis, its draft,
-  the candidates each option stands for — is on disk before it suspends: the answer may come
+- **Everything known goes in the first request.** At its first asking point the node gathers
+  every question it can form there into one set, one entry per question, and suspends once. A
+  question it could form there is never held back for a later round.
+- **A follow-up only for what an answer raised, at most two rounds.** When an answer raises a
+  question the node could not have formed before — a follow-up, another refinement round, a
+  retry after a spent budget, the fix loop's stopping point — the node may send one more set for
+  those questions alone, in the same attempt. An attempt sends at most three requests: the first
+  and two follow-up rounds. Each request carries its `round` (1, 2 or 3), and each answer folded
+  from a follow-up is stamped with its `round`, which is how the engine counts them.
+  Past the third, `gate-brief --request` refuses `gate-brief-rounds-spent`, writes nothing, and the
+  question takes its named default below, recorded `by: default`.
+- **Write before asking, every round.** Whatever the node needs after the answer — its analysis,
+  its draft, the candidates each option stands for, and the answers of the earlier rounds,
+  already recorded on its summary — is on disk before each round suspends: the answer may come
   back to a fresh session, which continues from the files.
 - **No cap.** A set holds as many questions as the node has. The four-to-a-page limit belongs to
   the terminal picker, which pages a long set in one turn; it is never written into a request.
@@ -390,16 +397,16 @@ How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch 
 does (`references/gates.md` § *Driver-suspended mode — the write order*). The answer is folded as *A question set
 answered* says, and the node carries on `running` with the answers recorded on its summary.
 A node a gate's revise re-ran asks again in its new attempt (`references/gates.md` § *Revising
-at a gate*); the writer keeps the earlier answers on the summary as history, each stamped with
-its `attempt` — the `question_id` is the question across attempts.
-Anywhere else — no feature, a dispatched run, or a set the verb refuses as unsupported — nothing is
-asked and the default is taken. Asking in session anyway is never right: nobody is there.
+at a gate*), its rounds counted afresh from 1; the writer keeps the earlier answers on the summary
+as history, each stamped with its `attempt` — the `question_id` is the question across attempts.
+Anywhere else — no feature, a set the verb refuses as unsupported, or a round past the third —
+nothing is asked and the default is taken. Asking in session anyway is never right: nobody is there.
 
 ## When nobody can be asked
 
 **Every in-node question names its default**, once, in the *Without question sets* line of its
 node's *Asks* part — taken under a driver without question sets, or for a question a node
-reaches after it has already asked. The families and what each
+reaches after its follow-up rounds are spent. The families and what each
 takes:
 
 | The question | What is taken when it cannot be asked |

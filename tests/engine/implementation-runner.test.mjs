@@ -276,18 +276,24 @@ test('an answer from an earlier attempt is history, not this decision\'s answer'
 
 const COCKPIT = { driver: { kind: 'cockpit', features: ['question-sets'] } };
 
-test('under a cockpit with question sets the decision suspends, and the folded answer is used once', t => {
+test('under a cockpit with question sets each decision suspends while a round is left, and a fourth takes the defaults', t => {
   const run = implementing(t, { orchestrator: COCKPIT });
   openLog(run);
   const questions = placeQuestions(run);
+  const fileOf = pass => JSON.parse(read(path.join(run.impl, `decisions-${pass}.json`)));
+  for (const round of [1, 2, 3]) {
+    assert.equal(record(run, needs(questions)).code, 0);
+    assert.equal(stepOf(run).asking, 'suspend', `round ${round} is asked`);
+    // The answer as the writer folds it from a request: an operator's, with its round from a follow-up.
+    write(run, { node_summaries: { [NODE]: { decisions: [answer('Retry the group', { via: 'cockpit', ...(round > 1 ? { round } : {}) })] } } });
+    assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { pass: round, decisions_file: `implementation/decisions-${round}.json` } });
+    assert.equal(fileOf(round).answers[0].by, 'operator');
+    assert.equal(fileOf(round).rounds_seen, round);
+  }
+  // A fourth decision of the attempt takes the defaults: the rounds are spent.
   assert.equal(record(run, needs(questions)).code, 0);
-  assert.equal(stepOf(run).asking, 'suspend');
-  write(run, { node_summaries: { [NODE]: { decisions: [answer('Retry the group', { by: 'operator' })] } } });
-  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { pass: 1, decisions_file: 'implementation/decisions-1.json' } });
-  // A later decision of the attempt takes the defaults: the one request is spent.
-  assert.equal(record(run, needs(questions)).code, 0);
-  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { pass: 2, decisions_file: 'implementation/decisions-2.json' } });
-  assert.equal(JSON.parse(read(path.join(run.impl, 'decisions-2.json'))).answers[0].by, 'default');
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { pass: 4, decisions_file: 'implementation/decisions-4.json' } });
+  assert.equal(fileOf(4).answers[0].by, 'default');
 });
 
 test('a run nobody can ask takes the defaults at once, or the classing write when it classes', t => {

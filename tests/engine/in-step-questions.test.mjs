@@ -81,7 +81,8 @@ test('request: a question set becomes one kind: question request, the committed 
   assert.equal(result.code, 0, result.stderr);
   const request = JSON.parse(result.stdout);
 
-  assert.deepEqual(Object.keys(request), ['node', 'kind', 'question', 'context', 'options', 'multi_select', 'questions']);
+  assert.deepEqual(Object.keys(request), ['node', 'kind', 'question', 'context', 'options', 'multi_select', 'questions', 'round']);
+  assert.equal(request.round, 1, 'the first request of an attempt is round 1');
   assert.equal(request.kind, 'question');
   assert.equal(request.question, request.questions[0].question, 'the top level repeats the first question');
   assert.deepEqual(request.options, request.questions[0].options);
@@ -256,9 +257,9 @@ test('provoked: gate-brief-questions-invalid names the question and the field', 
   for (const [set, reason] of cases) assert.match(refused(brief(run, set), 'gate-brief-questions-invalid').stderr, reason);
 });
 
-test('provoked: gate-brief-questions-unsupported without a cockpit that lists question-sets, or in a dispatched run', t => {
+test('provoked: gate-brief-questions-unsupported without a cockpit that lists question-sets, dispatched or not', t => {
   for (const driver of [null, { kind: 'terminal' }, { kind: 'cockpit', cwd: '/work' }, { kind: 'dispatch', cwd: '/work', features: ['question-sets'] },
-    { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-0001', features: ['question-sets'] }]) {
+    { kind: 'cockpit', cwd: '/work', dispatch_id: 'd-0001' }]) {
     const run = running(t, driver);
     assert.match(refused(brief(run, questionSet()), 'gate-brief-questions-unsupported').stderr, /by: default/);
   }
@@ -374,6 +375,97 @@ test('provoked: state-question-answer-invalid leaves the state file byte-identic
   const missing = verb(['write-state', `--state=${run.state}`], { node_summaries: { analysis: { answer } } });
   assert.match(missing.stderr, /^state-question-answer-invalid: .*does not exist/);
   assert.equal(fs.readFileSync(run.state, 'utf8'), before);
+});
+
+// ---------------------------------------------------------------------------
+// a dispatched run, and follow-up rounds
+// ---------------------------------------------------------------------------
+
+const DISPATCHED = { ...COCKPIT, dispatch_id: 'd-0001' };
+
+test('a dispatched run whose cockpit driver lists question-sets is given a request as a direct one is; without the feature it is refused', t => {
+  const asking = running(t, DISPATCHED);
+  const result = brief(asking, questionSet());
+  assert.equal(result.code, 0, result.stderr);
+  const request = JSON.parse(result.stdout);
+  assert.equal(request.kind, 'question');
+  assert.equal(request.round, 1);
+
+  const { features: _features, ...bare } = DISPATCHED;
+  refused(brief(running(t, bare), questionSet()), 'gate-brief-questions-unsupported');
+});
+
+/**
+ * Round `round` suspended and answered: the request file as the writer lands
+ * it — the fixture, carrying that round — then the answer block folded from
+ * the summary, as the resumed node sends it.
+ */
+function answerRound(run, round) {
+  fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, 'gates/analysis.request.yml'),
+    fs.readFileSync(REQUEST, 'utf8').replace(/^round: 1$/m, `round: ${round}`));
+  write(run, { node_summaries: { analysis: { answer: plain(read(ANSWER).answer) } } });
+}
+
+/** The follow-up set a node forms from an answer: questions it could not have asked before. */
+function followUp(round) {
+  return { questions: [{
+    id: `follow-up-${round}`, question: `Which of the matched tags should the export list first (round ${round})?`,
+    options: [{ id: 'first', label: 'The first matched', recommended: true }, { id: 'last', label: 'The last matched' }],
+  }] };
+}
+
+test('rounds: a step sends two follow-up sets in one attempt, each request carrying its round, and a fourth is refused gate-brief-rounds-spent', t => {
+  const run = running(t, DISPATCHED);
+  const sets = [questionSet(), followUp(2), followUp(3)];
+  for (const [index, set] of sets.entries()) {
+    const round = index + 1;
+    const result = brief(run, set);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).round, round);
+    // Rebuilt before it is answered, a request keeps its round.
+    assert.equal(JSON.parse(brief(run, set).stdout).round, round, 'a rebuilt request is the same round');
+    // Write before asking: the earlier rounds' answers are on disk before this round suspends.
+    const before = readState(run).node_summaries?.analysis?.decisions ?? [];
+    assert.equal(before.filter(item => item.by === 'operator').length, index === 0 ? 0 : 3,
+      'every earlier answer is in the state before the round is asked');
+    answerRound(run, round);
+  }
+
+  const decisions = readState(run).node_summaries.analysis.decisions;
+  assert.deepEqual(decisions.map(item => [item.question_id, item.round === undefined ? null : Number(item.round)]),
+    [['tag-filter', 3], ['tag-case', 3], ['csv-extras', 3]],
+    'a follow-up\'s answers carry their round; the fixture answers the same ids each round, so the last fold replaces the earlier');
+
+  const spent = refused(brief(run, followUp(4)), 'gate-brief-rounds-spent');
+  assert.match(spent.stderr, /Nothing was written/);
+  assert.match(spent.stderr, /by: default/);
+  // Asked in session, the set is the session's question tool: no request, no cap.
+  assert.equal(brief(run, followUp(4), '--ask').code, 0);
+});
+
+test('rounds: the first round\'s answers carry no round, the second\'s carry 2, and a closing write re-sending them keeps it', t => {
+  const run = running(t);
+  answerRound(run, 1);
+  assert.equal(readState(run).node_summaries.analysis.decisions.some(item => Object.hasOwn(item, 'round')), false);
+  answerRound(run, 2);
+  const held = plain(readState(run).node_summaries.analysis.decisions);
+  assert.ok(held.every(item => Number(item.round) === 2));
+  const resent = held.map(({ round: _round, ...item }) => item);
+  write(run, { node_summaries: { analysis: { decisions: resent } } });
+  assert.ok(readState(run).node_summaries.analysis.decisions.every(item => Number(item.round) === 2), 'the round survives a re-send');
+  assert.equal(JSON.parse(brief(run, followUp(3)).stdout).round, 3);
+});
+
+test('rounds: a new attempt starts again at round 1', t => {
+  const run = running(t);
+  for (const round of [1, 2, 3]) answerRound(run, round);
+  refused(brief(run, followUp(4)), 'gate-brief-rounds-spent');
+  const text = fs.readFileSync(run.state, 'utf8').replace(/^( {4}analysis: \{.*?status: running)/m, '$1, attempt: 2');
+  fs.writeFileSync(run.state, text);
+  const result = brief(run, questionSet());
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).round, 1);
 });
 
 // ---------------------------------------------------------------------------

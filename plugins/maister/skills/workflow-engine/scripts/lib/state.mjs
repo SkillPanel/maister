@@ -108,7 +108,7 @@ import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
-import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver } from './driver.mjs';
+import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
 import { atClose, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
@@ -3113,8 +3113,9 @@ function seedCeiling(orchestrator, policyNow, parentNow, writeWarnings) {
  * `driver.features`, narrowed to those the patch sends when it sends a list,
  * so a child never gains a feature its parent lacks. Without this a child
  * frozen under a cockpit that shows question sets would read as one that
- * cannot, and default every question its nodes ask. A dispatched parent passes
- * on no `question-sets`, which it never carried. An empty result leaves no
+ * cannot, and default every question its nodes ask. A parent that does not
+ * carry question sets (`questionSets`) — the legacy dispatch kind among them —
+ * passes on no `question-sets`, whatever it lists. An empty result leaves no
  * `features` key; an unreadable parent vouches for none and warns
  * `driver-features-parent-unread`. A terminal child, or a patch sending no
  * driver, is left as sent and never reads the parent. Returns the
@@ -3126,10 +3127,9 @@ function seedFeatures(orchestrator, parentNow, writeWarnings) {
   if (!isPlainObject(driver) || typeof driver.kind !== 'string' || driver.kind === 'terminal') return orchestrator;
   const recorded = parentNow();
   if (recorded === null) writeWarnings.push(`driver-features-parent-unread:${orchestrator.parent.run}`);
-  // A dispatched parent was never given question sets, whatever it lists, so its
-  // child — no dispatch id of its own — inherits none either.
+  // A parent that does not carry question sets, whatever it lists, passes none on.
   const inherited = recorded === null ? []
-    : driverFeatures({ orchestrator: recorded }).filter(each => each !== QUESTION_SETS || !isDispatchedRun({ orchestrator: recorded }));
+    : driverFeatures({ orchestrator: recorded }).filter(each => each !== QUESTION_SETS || questionSets({ orchestrator: recorded }));
   const sent = Array.isArray(driver.features) ? driverFeatures({ orchestrator }) : null;
   const features = sent === null ? inherited : inherited.filter(each => sent.includes(each));
   const { features: _sent, ...rest } = driver;
@@ -3301,7 +3301,7 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
       } else {
         via ??= answerVia(parseState(doc.text()));
         const prior = heldOf(key)?.decisions;
-        entry.decisions = stampAnswers(keepProvenance(prior, keepAttempts(prior, runSettled(entry.decisions, via, prior))), runDir, via);
+        entry.decisions = stampAnswers(keepRounds(prior, keepProvenance(prior, keepAttempts(prior, runSettled(entry.decisions, via, prior)))), runDir, via);
         const kept = classing !== null && classes() ? writerKept(prior, entry.decisions) : [];
         entry.decisions = [...earlierAnswers(prior, entry.decisions), ...kept, ...entry.decisions];
       }
@@ -3661,6 +3661,10 @@ function withoutGrants(item) {
  * attempt it was given in, and the new ones carry theirs, so what was first
  * answered is still in the run's state. A first attempt stamps nothing, and
  * records exactly what it always did.
+ *
+ * A follow-up request carries its `round` (2 or 3), and each answer folded
+ * from it is stamped with that round, which is how `gate-brief` counts the
+ * rounds an attempt has spent. The first round stamps nothing.
  */
 function foldQuestionAnswer(entry, node, runDir, held, attempt = 1, writeWarnings = []) {
   const file = runDir === null ? null : path.join(runDir, 'gates', `${node}${REQUEST_SUFFIX}`);
@@ -3675,8 +3679,13 @@ function foldQuestionAnswer(entry, node, runDir, held, attempt = 1, writeWarning
   }
   const questions = requestQuestions(request);
   if (questions === null) throw refuse(`${path.relative(runDir, file)} is not a question request carrying its questions`);
-  const folded = foldAnswer(questions, usableProvenance(entry.answer, node, path.relative(runDir, file), writeWarnings));
-  if (!folded.ok) throw refuse(folded.errors.join('; '));
+  const fold = foldAnswer(questions, usableProvenance(entry.answer, node, path.relative(runDir, file), writeWarnings));
+  if (!fold.ok) throw refuse(fold.errors.join('; '));
+  // A follow-up round's answers carry their round; the first round's carry none.
+  const round = Number(request.round);
+  const folded = Number.isInteger(round) && round > 1
+    ? { ...fold, decisions: fold.decisions.map(item => ({ ...item, round })) }
+    : fold;
   const { answer: _answer, ...rest } = entry;
   for (const item of folded.decisions) FOLDED_ANSWERS.add(item);
   const answered = new Set(folded.decisions.map(item => item.question_id));
@@ -4049,6 +4058,23 @@ function keepProvenance(prior, decisions) {
     const held = prior.find(other => isPlainObject(other) && other.question_id === item.question_id
       && !isEarlierAnswer(other, prior) && (attemptNumber(other) ?? 1) === (attemptNumber(item) ?? 1) && sameAnswer(other, item));
     return held ? withProvenance(item, held) : item;
+  });
+}
+
+/**
+ * `decisions` with each operator answer sent again without its `round` given
+ * the round the held answer to the same question carries, matched as
+ * `keepProvenance` matches it. A closing write re-sends the answers as the
+ * node remembers them; without this a follow-up's answers read as the first
+ * round's, and the rounds an attempt has spent read fewer than they were.
+ */
+function keepRounds(prior, decisions) {
+  if (!Array.isArray(prior)) return decisions;
+  return decisions.map(item => {
+    if (!isPlainObject(item) || Object.hasOwn(item, 'round') || typeof item.question_id !== 'string' || decisionOf(item)?.by !== 'operator') return item;
+    const held = prior.find(other => isPlainObject(other) && other.question_id === item.question_id && Object.hasOwn(other, 'round')
+      && !isEarlierAnswer(other, prior) && (attemptNumber(other) ?? 1) === (attemptNumber(item) ?? 1) && sameAnswer(other, item));
+    return held ? { ...item, round: held.round } : item;
   });
 }
 

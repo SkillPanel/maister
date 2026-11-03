@@ -34,8 +34,9 @@ worker runs for a dispatch of a chain: its `orchestrator.driver` is `{kind: cock
 dispatch_id}`, the form a dispatch seed records, or carries the legacy `kind: dispatch`, with or
 without a `dispatch_id` — a run recorded that way reads exactly as before. A dispatched run
 suspends on its gates like any cockpit run, owes its close-out to the outbox (*Ending a
-dispatched run*), is never given question sets whatever `features` it lists, and stamps an
-answer given in its session `via: dispatch`. A cockpit driver with no `dispatch_id` drives its
+dispatched run*), is given question sets when its cockpit driver lists `question-sets` — exactly
+as a run the cockpit drives directly — and keeps the named defaults when it does not, and stamps
+an answer given in its session `via: dispatch`. A cockpit driver with no `dispatch_id` drives its
 run directly. Every rule that says *a dispatched run* or *under dispatch* means this one.
 
 **Everything the user reads follows *Speaking to the user*** (below): your narration, every
@@ -562,7 +563,7 @@ here.
 | `workflow:` step | Starts a child run and waits for it (*Sub-runs*); its outcome is mapped, not judged (*Recording an outcome*). |
 | gate | Asked from `gate-brief` (`references/gates.md`); record the answer, end the run on a stop, revise through `gate-revise`. A false guard skips it with its stretch, unless that guard reads a step's value and the gate is no pure confirmation, or reads a step's value while a choice is held. A false guard on inputs or other gates' values alone always skips it, held choices or not: `gate-brief` and `gate-request` refuse it `gate-guard-false`. Sections hold exceptions only. |
 | every step | A throwaway file the step makes itself — a probe, a benchmark, a copy — goes in a directory `mktemp -d` makes (it uses `$TMPDIR`) or under `"${TMPDIR:-/tmp}"`, never a literal `/tmp` path: a fixed `/tmp` path can stop the run for a permission prompt. Before recording `completed`, check each declared artifact path. A missing one its `brief:` `absent` does not sanction is a failed self-check: re-drive the step, naming the path. Record a sanctioned absence under `absent` with its reason, and record every declared value. |
-| asks | With question sets, ask them all in one request per attempt; without them, record the Without default `by: default`. Record each in-session answer as one `by: operator` decision with its `question_id`, question, answer, recommended answer and `as_recommended` on the step's own `node_summaries` entry (`references/gates.md`). Once `classes_questions` is recorded, ask only the classing writer's `ask:` ids; held choices wait for the next checkpoint or `held-approval`. |
+| asks | With question sets, ask everything known at the first asking point in one request, and a follow-up set only for what an answer raised, at most two follow-up rounds per attempt (`gate-brief-rounds-spent` past them: take the named defaults); without them, record the Without default `by: default`. Record each in-session answer as one `by: operator` decision with its `question_id`, question, answer, recommended answer and `as_recommended` on the step's own `node_summaries` entry (`references/gates.md`). Once `classes_questions` is recorded, ask only the classing writer's `ask:` ids; held choices wait for the next checkpoint or `held-approval`. |
 | feeds a checkpoint | The closing summary keeps the summary contract: a one-sentence `headline` within 220 characters; the artifact's decisions and risks item for item, tagged; `recommends` with a one-line reason as `brief:` directs once its input is set, or naming the gate's revise when the node finds its work short of what was agreed (`references/gates.md`). |
 | named by a revise | Read the note from `prior-context`; revise the step's own artifacts in place; keep earlier answers unless the note reopens them; record the declared values again; say what changed and write the headline again. |
 | has a budget | The attempt count in `brief:` `budget` is a prose rule nothing enforces. When the last attempt fails, the budget-exhausted rows of *Recording an outcome* decide. |
@@ -746,8 +747,8 @@ The full contract is `references/sub-runs.md`. What the engine must hold in mind
 - **Five checks refuse before anything is created**: `subrun-path` runs the first three; perform
   the last two from `references/sub-runs.md` § *Before any write — the checks that refuse*.
 - **The child's freeze copies from the parent** the narrower autonomy ceiling and, under a driver
-  that is not the terminal, the driver's features — never `question-sets` from a dispatched
-  parent, which never carried them; a parent whose state cannot be read gives
+  that is not the terminal, the driver's features — never `question-sets` from a parent that
+  does not carry them, such as the legacy `kind: dispatch`; a parent whose state cannot be read gives
   neither, and the freeze warns `autonomy-ceiling-parent-unread:<run>` or
   `driver-features-parent-unread:<run>`.
 - **The child's directory comes from `subrun-path`, never worked out by hand**: the verb prints

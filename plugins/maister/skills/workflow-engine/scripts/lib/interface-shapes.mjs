@@ -84,6 +84,7 @@ export const GATE_REQUEST = {
   evidence: paths(false),
   questions: { type: 'array', required: false, items: { type: 'object', keys: REQUEST_QUESTION } },
   triage: { type: 'object', required: false },
+  round: { type: 'integer', required: false },
 };
 
 /** A gate's subject: the one output the gate asks to approve. Its kinds are `SUBJECT_KINDS`. */

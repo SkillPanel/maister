@@ -228,7 +228,7 @@ the brief, the writes, the merge, the verdict and the report — move into the m
 differences are three:
 
 - It asks where you would hand back a decision: framework § 6 steps 5–10, as the node's prose says
-  (in session, or one request under a driver), then carries on with the answers.
+  (in session, or a request under a driver), then carries on with the answers.
 - It writes no `runner-result.json` and no decisions file.
 - Standalone, with no state file, it writes no state at all, asks once which commit the work
   started from (`review-brief --task-path=<task path> --base=<commit>`), runs the same three
