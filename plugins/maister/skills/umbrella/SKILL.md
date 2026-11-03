@@ -425,6 +425,18 @@ branch, and a later node updates the pull request an earlier one opened rather
 than opening a second. `defaults.worktree: false` works in the member checkout
 itself instead.
 
+The `envelope` overrides may name both instead. `branch` replaces the rendered
+branch, and `worktree` replaces the derived tree — a dispatch that continues a
+branch an earlier one delivered sends both, because git refuses a second
+worktree on a branch an existing one holds. `worktree` is the existing tree's
+path inside the member, `.worktrees/<name>`, the name held to the rule member
+names follow and carrying no `..`; anything else — an absolute path, a second
+segment, a path outside `.worktrees/` — is refused `dispatch-worktree-invalid`.
+With `worktree` given the close-out contract carries `continues_branch: true`,
+and where a pull request is owed the seed tells the worker to update the one
+already open by pushing to the branch and never to run `gh pr create` again.
+Without the two fields the envelope is exactly what the paragraph above derives.
+
 Each member is a repository of its own, so it has to build and test from its own
 checkout. A worktree sits inside its member, which means a relative path from
 one member into another (`../api/src/types.ts`) does not resolve there. Such a
@@ -776,6 +788,7 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-permissions-override-unsupported` | The dispatch carries a `permissions` override. Permissions belong to the autonomy tier and to nothing else: each tier renders one fixed allow and deny list, and a per-dispatch override would hand a worker permissions its tier never granted. The field is refused rather than ignored, because a discarded security override leaves the caller believing it was applied. Drop `permissions` from the override document and dispatch the node at the tier whose permissions you mean. Nothing was written. |
 | `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. The same refusal answers a declared pull request on a member whose git host the manifest declares takes none (`pull_requests: false`): drop the declaration, or change the manifest once the host can take one. Nothing was written. |
 | `dispatch-no-git-host` | The node sets `publish: true` and owes a pull request, but no git host resolves for its member: the manifest's `git_host.kind` is unset and the member's checkout has no remote on a host. The worker could neither push for review nor open the pull request, and would find out only at its close-out. Set `git_host.kind` in the manifest, give the member a remote on its git host, or drop `publish` from the node's `with:` map. Nothing was written. |
+| `dispatch-worktree-invalid` | The dispatch override carries a `worktree` that is not `.worktrees/<name>` inside the member — an absolute path, a `..`, a second segment, a name a git branch segment could not be. It is refused rather than normalised, because a worker sent to a path outside the member writes where no dispatch should. Send the existing worktree's relative path, or leave the field out to derive one, and re-run. Nothing was written. |
 | `dispatch-siblings-invalid` | The dispatch override carries a `siblings` field that is not a list of `{member, branch, worktree}`, each a non-empty string. It is refused rather than trimmed, because a worker sent to half a path reads the wrong tree. Correct the list the caller builds from the outcome's recorded dispatches, or leave the field out, and re-run. Nothing was written. |
 | `dispatch-reference-unclosed` | The node's `with:` map reads `${<node>.artifacts.<key>}` from a node that dispatches into a member, and that dispatch has not finished: no envelope for it is published in the run's `dispatch/` directory, or its outbox holds no close-out. This holds for a dispatched `workflow:` node too, whose close-out is where its artifacts are listed. A worker dispatched now would be told to read a file nobody has written. Build this envelope once the earlier node has closed out. Nothing was written. |
 | `dispatch-reference-missing` | The earlier dispatch closed out, but the artifact the reference names is not on disk where it worked — its declared path under the member's path and the run's worktree — or the earlier node declares no such artifact. For a dispatched `workflow:` node the place is the path its newest close-out lists for the key, so the refusal also covers a close-out that lists no entry for the key (a worker that predates the list, or one that did not write the file) and an entry whose path is absolute or holds whitespace, `${…}` or a `..` segment. Re-dispatch the earlier node so it writes the file and lists it, or correct its declared path or the reference, and run `validate` again. Nothing was written. |

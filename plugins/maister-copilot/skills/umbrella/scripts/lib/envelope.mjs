@@ -82,7 +82,7 @@
  * `dispatch-autonomy-unknown`, `dispatch-workflow-not-driver-capable`,
  * `dispatch-run-unresolved`, `dispatch-permissions-override-unsupported`,
  * `dispatch-closeout-impossible`, `dispatch-no-git-host`, `dispatch-siblings-invalid`,
- * `dispatch-envelope-exists`, `dispatch-id-mismatch`, `dispatch-unwritable`,
+ * `dispatch-worktree-invalid`, `dispatch-envelope-exists`, `dispatch-id-mismatch`, `dispatch-unwritable`,
  * `dispatch-temp-exists`, `dispatch-reference-unclosed`,
  * `dispatch-reference-missing`, `dispatch-reference-unresolved`, and
  * `value-not-flow-safe` from the shared emitter.
@@ -346,7 +346,8 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const runId = runIdOf({ state, run });
 
   const inputs = inputsOf(defined, filled.references);
-  const worktree = worktreeOf({ manifest, runId, node, member });
+  const continued = worktreeOverrideOf(overrides);
+  const worktree = continued ?? worktreeOf({ manifest, runId, node, member });
   const session = mapOf(overrides.session);
   const statement = statementOf({ defined, overrides });
   const permissions = permissionsOf(autonomy);
@@ -390,6 +391,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
     closeout_contract: {
       pr_required: prRequired,
       ...(hostTakesPr ? {} : { host_takes_pr: false }),
+      ...(continued === null ? {} : { continues_branch: true }),
       grade: [...GRADES],
       ...(reported.length === 0 ? {} : { artifacts: reported }),
     },
@@ -1219,7 +1221,8 @@ function inputDefaultsOf({ state, run }) {
  * tree is safe only because `validate` refuses two nodes for one member that
  * `needs` does not order, so the tree never has two writers at once.
  * `defaults.worktree: false` opts a workspace out and the dispatch then works
- * in the member checkout itself.
+ * in the member checkout itself. A worktree named in the overrides replaces
+ * this derivation (`worktreeOverrideOf`).
  *
  * Exported, unlike its neighbours, because the refusal it raises is not
  * reachable through the envelope builder — the run id there is a resolved
@@ -1234,6 +1237,35 @@ export function worktreeOf({ manifest, runId, node, member }) {
   }
   return `.worktrees/${runId}-${member}`;
 }
+
+/**
+ * The worktree a caller names in the overrides, or null when it names none.
+ *
+ * A dispatch that continues a branch an earlier one delivered has to work in
+ * the worktree that already holds that branch: git refuses a second worktree on
+ * a branch one already has checked out. So a caller sending `branch` may send
+ * `worktree` beside it, and it is used as given — even where
+ * `defaults.worktree: false` would otherwise work in the member checkout,
+ * because the caller is naming a tree that exists.
+ *
+ * It has the shape every derived worktree has, `.worktrees/<name>`: relative to
+ * the member, one segment below `.worktrees/`, and the name held to the rule
+ * member names are, with no `..`. Anything else is refused rather than
+ * normalised, because a worker handed a path outside the member writes where
+ * no dispatch should.
+ */
+export function worktreeOverrideOf(overrides) {
+  const given = mapOf(overrides).worktree;
+  if (given === undefined || given === null) return null;
+  const name = typeof given === 'string' && given.startsWith(WORKTREE_PREFIX) ? given.slice(WORKTREE_PREFIX.length) : null;
+  if (name === null || !BRANCH_SAFE_MEMBER.test(name) || name.includes('..')) {
+    throw new Refusal('dispatch-worktree-invalid',
+      `the dispatch override's worktree ${typeof given === 'string' ? `"${given}"` : 'is not a string and'} is not ${WORKTREE_PREFIX}<name> with a name matching ${BRANCH_SAFE_MEMBER.source} and no "..". Send worktree as the relative path of the existing worktree inside the member, or leave the field out. Nothing was written.`);
+  }
+  return given;
+}
+
+const WORKTREE_PREFIX = '.worktrees/';
 
 /**
  * The branch, from the manifest's `branch_convention`. An absent convention
