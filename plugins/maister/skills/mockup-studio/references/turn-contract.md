@@ -132,7 +132,7 @@ report the failure. The write primitives' own codes are always reported as `fold
 |---|---|---|
 | `against-unknown` | `begin` | The `against` given is not in `versions/index.json`, and nothing was written. Begin again with a version the message lists, or with no `against` to build on the latest |
 | `version-exists` | `begin` | Another turn took that number first; nothing was written. Run `begin` again, which allocates the next free number |
-| `index-malformed` | `begin`, `finish` | `versions/index.json` cannot be read as the version list; nothing was written. Repair it, or restore it from version control, then run the same command again. Never delete it: it is the only list of what was published |
+| `index-malformed` | `begin`, `finish` | `versions/index.json` cannot be read as the version list — or, at `finish`, the manifest of the version built on, or that html version's `.mockups.json` (missing, unreadable, or lacking a screen), cannot be read; nothing was written. Repair the file the message names, or restore it from version control, then run the same command again; at `finish` you may instead build on another version. Never delete the index: it is the only list of what was published. Only an ascii version may lack `.mockups.json` |
 | `folder-unwritable` | `begin` | The `versions/` or version folder could not be created; nothing was written. Make the target folder writable and begin again |
 | `version-unknown` | `finish` | No such version folder: `begin` was not run, or a different id was passed. Run `begin` and finish the id it prints |
 | `version-published` | `finish` | That version is already in the index, so it was published before. Nothing was written; begin a new version for further changes |
@@ -149,7 +149,7 @@ report the failure. The write primitives' own codes are always reported as `fold
 | `grounding-malformed` | `ground-status` | `grounding.json` exists but cannot be used. Nothing was changed. A turn draws without the pack (`grounding-unavailable`) and its note says to run `--ground`, which rebuilds the pack whatever its state |
 | `prototype-missing` | `frames.mjs` | No `prototype.html` in the version folder. Write it, or fall back to sketch screens (`render-failed`) |
 | `script-missing` | `frames.mjs` | Not exactly one classic inline `<script id="mockup-scenes">` — none, two, a module or a `src`. Fix the page and export again, or fall back to sketch (`render-failed`) |
-| `scenes-invalid` | `frames.mjs` | `scenes` is not a non-empty list of maps with a distinct valid slug id and a title, or a scene's annotations or behaviour are not lists. Fix and export again, or fall back (`render-failed`) |
+| `scenes-invalid` | `frames.mjs` | `scenes` is not a non-empty list of maps with a distinct valid slug id and a title, an id is reserved (`index`, `prototype`), or a scene's annotations or behaviour are not lists. Fix the scenes script in `prototype.html` and export again, or fall back (`render-failed`) |
 | `render-touches-dom` | `frames.mjs` | `render` reads a browser global. Fall back to sketch screens with the degraded code `render-touches-dom`; the page's own runtime script is where DOM work belongs |
 | `render-timeout` | `frames.mjs` | The script or a `render` ran past two seconds — a loop, or an async render. Fall back (`render-failed`); `render` must return synchronously |
 | `render-not-string` | `frames.mjs` | A `render` returned something other than a string, a Promise included. Fall back (`render-failed`) |

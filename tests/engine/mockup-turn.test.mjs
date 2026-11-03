@@ -463,6 +463,49 @@ test('finish refuses a bad slug, a missing input file, a published version and a
   });
 });
 
+test('an html version built on must keep its .mockups.json; only an ascii version may lack one', async t => {
+  const damages = {
+    'missing': file => fs.rmSync(file),
+    'not JSON': file => fs.writeFileSync(file, '{not json'),
+    'lacking a screen': file => {
+      const mockups = readJson(file);
+      fs.writeFileSync(file, JSON.stringify({ ...mockups, mockups: mockups.mockups.filter(each => each.id !== 'b') }));
+    },
+  };
+  for (const [what, damage] of Object.entries(damages)) {
+    await t.test(`a .mockups.json ${what} is refused index-malformed, the input kept and nothing published`, () => {
+      const where = project(t);
+      wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p>a</p>' }, { slug: 'b', title: 'B', html: '<p>b</p>' }] });
+      damage(path.join(where.versions, 'v001', '.mockups.json'));
+      const indexBefore = fs.readFileSync(path.join(where.versions, 'index.json'), 'utf8');
+      const started = turn(where, 'begin');
+      writeTurn(started.json.version_dir, { screens: [{ slug: 'c', title: 'C', html: '<p>c</p>' }] });
+      const refused = turn(where, 'finish', [`--version=${started.json.version}`]);
+      assert.equal(refused.code, 1, refused.stdout + refused.stderr);
+      assert.deepEqual([refused.json.ok, refused.json.code], [false, 'index-malformed']);
+      assert.match(refused.json.message, /\.mockups\.json/);
+      assert.deepEqual(tree(started.json.version_dir), ['.turn.json']);
+      assert.equal(fs.readFileSync(path.join(where.versions, 'index.json'), 'utf8'), indexBefore);
+    });
+  }
+
+  await t.test('an ascii version with no .mockups.json still carries its screens over', () => {
+    const where = project(t);
+    const started = turn(where, 'begin');
+    fs.writeFileSync(path.join(started.json.version_dir, 'ascii-mockups.md'), '# Mockups\n\n## Home {#home}\n');
+    writeTurn(started.json.version_dir, { format: 'ascii', screens: [{ slug: 'home', title: 'Home' }] });
+    assert.equal(turn(where, 'finish', [`--version=${started.json.version}`]).code, 0);
+    fs.rmSync(path.join(where.versions, 'v001', '.mockups.json'));
+
+    const next = turn(where, 'begin');
+    fs.writeFileSync(path.join(next.json.version_dir, 'ascii-mockups.md'), '# Mockups\n\n## Home {#home}\n\n## List {#list}\n');
+    writeTurn(next.json.version_dir, { format: 'ascii', screens: [{ slug: 'list', title: 'List' }] });
+    const finished = turn(where, 'finish', [`--version=${next.json.version}`]);
+    assert.equal(finished.code, 0, finished.stdout + finished.stderr);
+    assert.deepEqual(finished.json.screens, ['home', 'list']);
+  });
+});
+
 // Gap tests added in the test review: cases the feature's other tests leave
 // to hand checks.
 

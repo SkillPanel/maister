@@ -421,7 +421,7 @@ by name. A task directory started on the 2.x plugin is not resumed — see
 
 ## Mockup Studio
 
-The mockup studio draws one new version of a set of UI mockups and stops. It is a single node with no checkpoints: it asks nothing, so a run started from a cockpit or dispatched behaves the same as one in your terminal. It needs Node.js 20 or newer for the HTML format; the ASCII format needs neither Node nor a browser.
+The mockup studio draws one new version of a set of UI mockups and stops. It is a single node with no checkpoints: it asks nothing, so a run started from a cockpit or dispatched behaves the same as one in your terminal. Like every workflow, it needs Node.js 20 or newer. Only an inline `/maister:mockup-studio --turn` in the ASCII format, outside a workflow run, works without Node, and then its bookkeeping is written by hand and no script checks it. The ASCII format needs no browser.
 
 ```
 /maister:run mockup-studio

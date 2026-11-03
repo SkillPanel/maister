@@ -39,8 +39,10 @@
  *   script-missing      not exactly one classic `<script id="mockup-scenes">`
  *                       with inline code (none, two, a module, a `src`)
  *   scenes-invalid      `scenes` is not a non-empty list, a scene is not a map
- *                       with a valid slug id and a title, two ids are equal, or
- *                       annotations or behaviour are not lists
+ *                       with a valid slug id and a title, an id is reserved
+ *                       (`index`, `prototype`: files every version keeps),
+ *                       two ids are equal, or annotations or behaviour are
+ *                       not lists
  *   render-touches-dom  a ReferenceError naming a DOM global (`document`,
  *                       `window`, `navigator`, `location`, `localStorage`,
  *                       `sessionStorage`, `fetch`, `XMLHttpRequest`,
@@ -66,6 +68,7 @@ import vm from 'node:vm';
 
 import { Refusal, commit } from '../../../lib/canonical.mjs';
 import { FRAMES_FILE, SLUG_PATTERN, departures } from './lib/shapes.mjs';
+import { RESERVED_SLUGS } from './lib/slugs.mjs';
 
 const EXIT = { OK: 0, REFUSED: 1, INTERNAL: 2 };
 const TIMEOUT_MS = 2000;
@@ -281,6 +284,9 @@ function readScenes(context, file) {
     if (scene === null) throw invalid(`has scene ${at + 1}, which is not a map`);
     if (typeof scene.id !== 'string' || !SLUG.test(scene.id)) {
       throw invalid(`has scene ${at + 1} with id ${JSON.stringify(scene.id ?? null)}, which is not a slug (lower-case letters and digits joined by single hyphens)`);
+    }
+    if (RESERVED_SLUGS.includes(scene.id)) {
+      throw invalid(`has scene ${at + 1} with id "${scene.id}", which is reserved: ${scene.id}.html is a file every version keeps (reserved ids: ${RESERVED_SLUGS.join(', ')}); rename that scene's id in this mockup-scenes script, the place the prototype's slugs come from`);
     }
     if (seen.has(scene.id)) throw invalid(`has two scenes with id "${scene.id}"`);
     seen.add(scene.id);

@@ -20,7 +20,9 @@ import { Refusal } from '../../../../lib/canonical.mjs';
 import { SLUG_PATTERN } from './shapes.mjs';
 
 const SLUG = new RegExp(SLUG_PATTERN);
-const RESERVED = new Set(['index', 'prototype']);
+/** Names every version keeps as a file of its own: the gallery and the working page. */
+export const RESERVED_SLUGS = Object.freeze(['index', 'prototype']);
+const RESERVED = new Set(RESERVED_SLUGS);
 const MAX = 48;
 
 export function isSlug(value) {

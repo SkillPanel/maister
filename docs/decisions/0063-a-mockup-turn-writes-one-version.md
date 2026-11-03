@@ -13,7 +13,7 @@ The mockup studio no longer holds a session open between rounds. One call is one
 ## ADR-0063 {#adr-0063}
 
 ### Status
-Accepted. It adds a built-in, `mockup-studio`, and moves the hash of no existing graph; ADR-0064 moves product-design's.
+Accepted. It adds a built-in, `mockup-studio`, and moves the development graph hash: its `ui-mockups` node renames two `with:` inputs, `iteration` to `fidelity` and `scope` to `scope_clarifications`. ADR-0064 moves product-design's.
 
 ### Context
 The studio ran a refinement loop inside the node that called it: it started a companion server, asked what to change, re-rendered and asked again until the person was content. That shape had three costs:

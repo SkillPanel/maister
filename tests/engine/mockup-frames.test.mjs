@@ -164,11 +164,18 @@ test('a result that is not a string, a throw and invalid scenes are refused by n
     'a bad slug': "const scenes = [{ id: 'Home Page', title: 'Home', state: {} }];",
     'a duplicate id': "const scenes = [{ id: 'home', title: 'Home', state: {} }, { id: 'home', title: 'Again', state: {} }];",
     'no scenes at all': 'const other = 1;',
+    'the reserved id index': "const scenes = [{ id: 'index', title: 'Gallery', state: {} }];",
+    'the reserved id prototype': "const scenes = [{ id: 'home', title: 'Home', state: {} }, { id: 'prototype', title: 'Working page', state: {} }];",
   };
   for (const [what, declaration] of Object.entries(invalid)) {
     await t.test(`${what} is scenes-invalid`, tt => {
       const dir = withScenes(tt, `${declaration}\nfunction render() { return '<p></p>'; }`);
-      assertRefused(exportFrames(dir), 'scenes-invalid', dir);
+      const result = exportFrames(dir);
+      assertRefused(result, 'scenes-invalid', dir);
+      if (what.startsWith('the reserved id')) {
+        assert.match(result.json.message, /is reserved/);
+        assert.match(result.json.message, /mockup-scenes script/, 'the message names the scenes script as the place to fix it');
+      }
     });
   }
 });

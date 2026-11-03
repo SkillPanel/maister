@@ -7,8 +7,9 @@
  * counts both, so a number is never handed out twice — an abandoned `begin`
  * leaves a gap rather than a folder the next turn would write into.
  *
- * Refusals owned: `index-malformed` (the index, or a published version's
- * manifest, cannot be read as its shape).
+ * Refusals owned: `index-malformed` (the index, a published version's
+ * manifest, or a published html version's `.mockups.json`, cannot be read as
+ * its shape).
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -113,19 +114,30 @@ export function readManifest(versionDir) {
 
 /**
  * A published version's screens with their content, for carry-over: its
- * `.mockups.json` joined with the manifest's behaviour lines. A version
- * written without `.mockups.json` (the hand-written ASCII path) gives its
- * manifest's screens with empty content.
+ * `.mockups.json` joined with the manifest's behaviour lines. Only an ascii
+ * version may lack `.mockups.json` (the hand-written ASCII path): it gives its
+ * manifest's screens with empty content. An html version whose `.mockups.json`
+ * is missing, unreadable or lacks one of its screens is refused
+ * `index-malformed`, so no screen is ever carried forward blank.
  */
 export function readScreens(versionDir) {
   const manifest = readManifest(versionDir);
+  const file = path.join(versionDir, '.mockups.json');
+  const unusable = why => new Refusal('index-malformed',
+    `${file} ${why}, and it holds the screen sources of a published html version this turn builds on. Nothing was written and the input file is kept; restore that file from version control, or build on another version (set against in .turn.json), and run finish again.`);
   let mockups = null;
   try {
-    mockups = readJsonFile(path.join(versionDir, '.mockups.json'));
-  } catch {
+    mockups = readJsonFile(file);
+  } catch (err) {
+    if (manifest.format !== 'ascii') throw unusable(`could not be read (${err.message})`);
     mockups = null;
   }
-  const content = new Map((Array.isArray(mockups?.mockups) ? mockups.mockups : []).map(each => [each.id, each]));
+  if (manifest.format !== 'ascii' && !Array.isArray(mockups?.mockups)) throw unusable('has no mockups list');
+  const content = new Map((Array.isArray(mockups?.mockups) ? mockups.mockups : []).map(each => [each?.id, each]));
+  if (manifest.format !== 'ascii') {
+    const lacking = manifest.screens.find(screen => !content.has(screen.slug));
+    if (lacking) throw unusable(`has no entry for the screen "${lacking.slug}" its manifest lists`);
+  }
   const screens = manifest.screens.map(screen => {
     const found = content.get(screen.slug) ?? {};
     const out = {
