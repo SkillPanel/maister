@@ -391,6 +391,14 @@ function publish(flags, where, subdir, work) {
       throw new Refusal('index-locked',
         `${where.lock} is held, so another turn is publishing into this folder. Nothing was written and the input file is kept; run finish again in a moment (a lock older than a minute is a crashed turn's leftover and is reclaimed).`);
     }
+    // The lock primitive maps its directory creation but lets the lock file's
+    // own open fail raw (a read-only versions folder gives EACCES), so every
+    // other fault taking the lock is a write fault here, never exit 2.
+    const reason = err instanceof Refusal ? err.message.replace(/^[a-z-]+: /, '') : err.message;
+    if ((err instanceof Refusal && FOLDED.has(err.code)) || (!(err instanceof Refusal) && typeof err.code === 'string')) {
+      throw new Refusal('folder-unwritable',
+        `${where.lock} could not be taken: ${reason}. Nothing was published and the input file is kept; make the folder writable and run finish again.`);
+    }
     throw err;
   }
 

@@ -462,3 +462,120 @@ test('finish refuses a bad slug, a missing input file, a published version and a
     assert.ok(refused.json.message.length > 40, refused.json.message);
   });
 });
+
+// Gap tests added in the test review: cases the feature's other tests leave
+// to hand checks.
+
+test('finish refuses index-locked under a held lock and keeps everything, and reclaims a lock older than a minute', t => {
+  const where = project(t);
+  wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p>a</p>' }] });
+  const started = turn(where, 'begin');
+  writeTurn(started.json.version_dir, { screens: [{ slug: 'b', title: 'B', html: '<p>b</p>' }] });
+  const lock = path.join(where.versions, '.lock');
+  fs.writeFileSync(lock, '');
+  const beforeIndex = fs.readFileSync(path.join(where.versions, 'index.json'), 'utf8');
+
+  const refused = turn(where, 'finish', [`--version=${started.json.version}`]);
+  assert.equal(refused.code, 1);
+  assert.deepEqual([refused.json.ok, refused.json.code], [false, 'index-locked']);
+  assert.equal(fs.readFileSync(path.join(where.versions, 'index.json'), 'utf8'), beforeIndex);
+  assert.deepEqual(tree(started.json.version_dir), ['.turn.json']);
+  assert.ok(fs.existsSync(lock), 'a lock the turn did not take is left alone');
+
+  const old = new Date(Date.now() - 5 * 60_000);
+  fs.utimesSync(lock, old, old);
+  const finished = turn(where, 'finish', [`--version=${started.json.version}`]);
+  assert.equal(finished.code, 0, finished.stdout + finished.stderr);
+  assert.equal(fs.existsSync(lock), false, 'the reclaimed lock is released');
+});
+
+test('a second finish of a published version is refused version-published and changes nothing', t => {
+  const where = project(t);
+  const done = wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p>a</p>' }] });
+  const before = tree(where.root);
+  const index = fs.readFileSync(path.join(where.versions, 'index.json'), 'utf8');
+  const again = turn(where, 'finish', [`--version=${done.version}`]);
+  assert.equal(again.code, 1);
+  assert.equal(again.json.code, 'version-published');
+  assert.deepEqual(tree(where.root), before);
+  assert.equal(fs.readFileSync(path.join(where.versions, 'index.json'), 'utf8'), index);
+});
+
+test('a version in another format holds only the screens sent, and a hand-set bookmarked key survives finish', t => {
+  const where = project(t);
+  wholeTurn(where, {
+    screens: [
+      { slug: 'a', title: 'A', html: '<p>a</p>' },
+      { slug: 'b', title: 'B', html: '<p>b</p>' },
+    ],
+  });
+  const indexFile = path.join(where.versions, 'index.json');
+  fs.writeFileSync(indexFile, JSON.stringify({ ...readJson(indexFile), bookmarked: 'v001' }, null, 2));
+
+  const started = turn(where, 'begin');
+  writeTurn(started.json.version_dir, { format: 'ascii', screens: [{ slug: 'c', title: 'C', html: '' }] });
+  fs.writeFileSync(path.join(started.json.version_dir, 'ascii-mockups.md'), '# C\n\n```\n+--+\n```\n');
+  const finished = turn(where, 'finish', [`--version=${started.json.version}`]);
+  assert.equal(finished.code, 0, finished.stdout + finished.stderr);
+  assert.deepEqual(finished.json.screens, ['c'], 'nothing is carried across formats');
+  assert.deepEqual(readJson(path.join(where.versions, 'v002', 'manifest.json')).screens.map(each => each.slug), ['c']);
+  const index = readJson(indexFile);
+  assert.equal(index.bookmarked, 'v001', 'kept as found');
+  assert.equal(index.latest, 'v002');
+});
+
+test('a prototype-fidelity finish reads .frames.json, links each screen to its scene and keeps the prototype page', t => {
+  const where = project(t);
+  const started = turn(where, 'begin');
+  const dir = started.json.version_dir;
+  fs.copyFileSync(path.join(ROOT, 'tests/fixtures/mockup-studio/prototype.html'), path.join(dir, 'prototype.html'));
+  const frames = run(path.join(ROOT, 'plugins/maister/skills/mockup-studio/scripts/frames.mjs'), ['export', `--version-dir=${dir}`]);
+  assert.equal(frames.code, 0, frames.stdout + frames.stderr);
+  writeTurn(dir, { fidelity: 'prototype' });
+
+  const finished = turn(where, 'finish', [`--version=${started.json.version}`]);
+  assert.equal(finished.code, 0, finished.stdout + finished.stderr);
+  assert.deepEqual(finished.json.screens, ['order-summary', 'empty-cart']);
+  assert.equal(finished.json.fidelity, 'prototype');
+  const manifest = readJson(path.join(dir, 'manifest.json'));
+  assert.equal(manifest.prototype, 'prototype.html');
+  assert.deepEqual(manifest.screens.map(each => each.live), ['prototype.html#order-summary', 'prototype.html#empty-cart']);
+  assert.ok(fs.existsSync(path.join(dir, 'prototype.html')));
+  assert.equal(fs.existsSync(path.join(dir, '.frames.json')), false, 'the frames file is consumed');
+  assert.equal(fs.existsSync(path.join(dir, '.turn.json')), false);
+});
+
+test('a prototype in the ascii format and a prototype with no frames file are refused before anything is written', t => {
+  const where = project(t);
+  const asciiProto = turn(where, 'begin');
+  writeTurn(asciiProto.json.version_dir, { fidelity: 'prototype', format: 'ascii' });
+  const refused = turn(where, 'finish', [`--version=${asciiProto.json.version}`]);
+  assert.equal(refused.code, 1);
+  assert.equal(refused.json.ok, false);
+  assert.deepEqual(tree(asciiProto.json.version_dir), ['.turn.json']);
+
+  const noFrames = turn(where, 'begin');
+  writeTurn(noFrames.json.version_dir, { fidelity: 'prototype' });
+  const missing = turn(where, 'finish', [`--version=${noFrames.json.version}`]);
+  assert.equal(missing.code, 1);
+  assert.equal(missing.json.code, 'turn-file-missing');
+  assert.deepEqual(tree(noFrames.json.version_dir), ['.turn.json']);
+  assert.equal(fs.existsSync(path.join(where.versions, 'index.json')), false);
+});
+
+test('an unwritable versions folder is folded into folder-unwritable by finish, with the input kept', t => {
+  if (process.platform === 'win32' || process.getuid?.() === 0) return t.skip('folder permissions are not enforced here');
+  const where = project(t);
+  wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p>a</p>' }] });
+  const started = turn(where, 'begin');
+  writeTurn(started.json.version_dir, { screens: [{ slug: 'b', title: 'B', html: '<p>b</p>' }] });
+  fs.chmodSync(where.versions, 0o555);
+  // A safety net for a failed assertion below; the scratch teardown may already have removed the folder.
+  t.after(() => fs.existsSync(where.versions) && fs.chmodSync(where.versions, 0o755));
+  const refused = turn(where, 'finish', [`--version=${started.json.version}`]);
+  fs.chmodSync(where.versions, 0o755);
+  assert.equal(refused.code, 1, refused.stdout + refused.stderr);
+  assert.equal(refused.json.code, 'folder-unwritable');
+  assert.ok(fs.existsSync(path.join(started.json.version_dir, '.turn.json')), 'the input file is kept');
+  assert.deepEqual(readJson(path.join(where.versions, 'index.json')).versions.map(each => each.version), ['v001']);
+});
