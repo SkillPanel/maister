@@ -16,7 +16,9 @@ const STATE = 'orchestrator-state.yml';
 
 function project(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-mockup-open-'));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // The detached opener may still be exiting with this folder as its working
+  // directory, which Windows refuses to remove until it has gone.
+  t.after(() => fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const task = path.join(root, '.maister', 'tasks', 'development', '2026-01-01-task');
   fs.mkdirSync(task, { recursive: true });
   return { root, task };
