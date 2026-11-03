@@ -228,7 +228,7 @@ done
 #    every skill the same rule.
 #    Source agents declare no tools: of their own; one that did would be
 #    silently overridden here, so the build refuses it instead.
-DIR_RULE='**Create a file'"'"'s directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` on a fresh project — run `mkdir -p` on that folder first.'
+DIR_RULE='**Create a file'"'"'s directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first.'
 find "$OUT/agents" -name "*.md" | sort | while read f; do
   if awk 'NR==1 && $0=="---"{fm=1; next} fm && $0=="---"{exit} fm && /^tools:/{found=1} END{exit !found}' "$f"; then
     echo "build: $f already declares tools:; the Copilot allowlist would override it" >&2

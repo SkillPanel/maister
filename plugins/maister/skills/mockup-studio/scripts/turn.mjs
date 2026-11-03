@@ -65,8 +65,7 @@
  *   ground-seal    sources-file-missing, sources-file-malformed, source-missing,
  *                  folder-unwritable
  *   ground-status  grounding-malformed
- * The write primitives' own codes, `mockup-unwritable` and
- * `mockup-temp-exists`, are reported as `folder-unwritable`.
+ * Every write fault, the write primitives' included, is `folder-unwritable`.
  */
 
 import fs from 'node:fs';
@@ -87,8 +86,6 @@ import { isVersion, layout, nextVersion, published, readIndex, readManifest, rea
 const EXIT = { OK: 0, REFUSED: 1, INTERNAL: 2 };
 const DEFAULT_SUBDIR = 'analysis/mockups';
 const TEMPLATE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'template.html');
-const WRITE_CODES = { unwritable: 'mockup-unwritable', tempExists: 'mockup-temp-exists' };
-const FOLDED = new Set(Object.values(WRITE_CODES));
 
 const VERBS = {
   begin: { values: ['task-path', 'subdir', 'against'], switches: [] },
@@ -148,7 +145,7 @@ function relativeInside(value, flag) {
 /** One file, written whole through a temp beside it. */
 function put(target, text) {
   const dir = path.dirname(target);
-  commit({ target, text, tmp: path.join(dir, `.${path.basename(target)}.tmp`), codes: WRITE_CODES });
+  commit({ target, text, tmp: path.join(dir, `.${path.basename(target)}.tmp`), codes: { unwritable: 'folder-unwritable', tempExists: 'folder-unwritable' } });
 }
 
 const json = value => `${JSON.stringify(value, null, 2)}\n`;
@@ -157,7 +154,7 @@ function unlinkIfPresent(file) {
   try {
     fs.unlinkSync(file);
   } catch (err) {
-    if (err.code !== 'ENOENT') throw new Refusal('mockup-unwritable', `${file} could not be removed: ${err.message}`);
+    if (err.code !== 'ENOENT') throw new Refusal('folder-unwritable', `${file} could not be removed: ${err.message}`);
   }
 }
 
@@ -251,7 +248,7 @@ function plan(flags, where, subdir, index, version) {
       `${path.join(versionDir, 'ascii-mockups.md')} does not exist, and an ascii version is that document. Nothing was written; write it and run finish again.`);
   }
 
-  const previous = against === null ? { manifest: null, screens: [] } : readScreens(where.dir(against));
+  const previous = against === null ? { manifest: null, screens: [] } : readScreens(where.dir(against), format);
   const drop = (turnFile.drop ?? []).map((slug, at) => assertSlug(slug, `drop[${at}]`));
   (turnFile.scope ?? []).forEach((slug, at) => assertSlug(slug, `scope[${at}]`));
 
@@ -385,7 +382,7 @@ function publish(flags, where, subdir, work) {
   const { version } = work.manifest;
   let release;
   try {
-    release = claimLock(where.lock, { code: 'index-locked', unwritable: 'mockup-unwritable' });
+    release = claimLock(where.lock, { code: 'index-locked', unwritable: 'folder-unwritable' });
   } catch (err) {
     if (err instanceof Refusal && err.code === 'index-locked') {
       throw new Refusal('index-locked',
@@ -395,7 +392,7 @@ function publish(flags, where, subdir, work) {
     // own open fail raw (a read-only versions folder gives EACCES), so every
     // other fault taking the lock is a write fault here, never exit 2.
     const reason = err instanceof Refusal ? err.message.replace(/^[a-z-]+: /, '') : err.message;
-    if ((err instanceof Refusal && FOLDED.has(err.code)) || (!(err instanceof Refusal) && typeof err.code === 'string')) {
+    if ((err instanceof Refusal && err.code === 'folder-unwritable') || (!(err instanceof Refusal) && typeof err.code === 'string')) {
       throw new Refusal('folder-unwritable',
         `${where.lock} could not be taken: ${reason}. Nothing was published and the input file is kept; make the folder writable and run finish again.`);
     }
@@ -432,7 +429,7 @@ function publish(flags, where, subdir, work) {
       try {
         existing = fs.readFileSync(file, 'utf8');
       } catch (err) {
-        if (err.code !== 'ENOENT') throw new Refusal('mockup-unwritable', `${file} could not be read: ${err.message}`);
+        if (err.code !== 'ENOENT') throw new Refusal('folder-unwritable', `${file} could not be read: ${err.message}`);
       }
       put(file, rewriteIndex(existing, {
         subdir,
@@ -450,7 +447,7 @@ function publish(flags, where, subdir, work) {
 
     for (const input of work.inputs) consume(input);
   } catch (err) {
-    if (err instanceof Refusal && FOLDED.has(err.code)) {
+    if (err instanceof Refusal && err.code === 'folder-unwritable') {
       // The index entry is the publish: before it lands, files in the version
       // folder are a draft finish rewrites, and the input is still there.
       const what = indexLanded
@@ -491,7 +488,7 @@ function finish(flags) {
     try {
       writeVersion(work, { preview: true });
     } catch (err) {
-      if (err instanceof Refusal && FOLDED.has(err.code)) {
+      if (err instanceof Refusal && err.code === 'folder-unwritable') {
         throw new Refusal('folder-unwritable', `${err.message.replace(/^[a-z-]+: /, '')}. Nothing was published and the input file is kept; make the folder writable and run finish again.`);
       }
       throw err;
@@ -579,7 +576,7 @@ function groundSeal(flags) {
   try {
     put(path.join(pack, GROUNDING_FILE), json(grounding));
   } catch (err) {
-    if (err instanceof Refusal && FOLDED.has(err.code)) {
+    if (err instanceof Refusal && err.code === 'folder-unwritable') {
       throw new Refusal('folder-unwritable', `${err.message.replace(/^[a-z-]+: /, '')}. Nothing was written and the input file is kept; make the pack folder writable and run ground-seal again.`);
     }
     throw err;
@@ -635,9 +632,8 @@ function main() {
     return EXIT.OK;
   } catch (error) {
     if (error instanceof Refusal) {
-      const code = FOLDED.has(error.code) ? 'folder-unwritable' : error.code;
       const message = error.message.replace(/^[a-z-]+: /, '');
-      process.stdout.write(json({ ok: false, code, message }));
+      process.stdout.write(json({ ok: false, code: error.code, message }));
       return EXIT.REFUSED;
     }
     if (error instanceof UsageError) {

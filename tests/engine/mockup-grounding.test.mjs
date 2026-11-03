@@ -179,6 +179,18 @@ test('a changed image leaves the pack fresh, and a version change of the recorde
   assert.deepEqual(status.changed, ['package-lock.json']);
 });
 
+test('a ground-seal whose write fails is folder-unwritable, with the input kept', t => {
+  const where = project(t);
+  writeSources(where);
+  fs.writeFileSync(path.join(where.pack, '.grounding.json.tmp'), '');
+  const refused = ground(where, 'ground-seal');
+  assert.equal(refused.code, 1, refused.stdout + refused.stderr);
+  assert.equal(refused.json.code, 'folder-unwritable');
+  assert.doesNotMatch(refused.json.message, /^[a-z-]+: /, 'the code is not repeated in the message');
+  assert.match(refused.json.message, /make the pack folder writable and run ground-seal again\.$/);
+  assert.ok(fs.existsSync(where.sourcesFile), 'the input file is kept');
+});
+
 test('ground-status refuses a malformed grounding.json, and ground-seal refuses a missing source', t => {
   const where = sealed(t);
   fs.writeFileSync(path.join(where.pack, 'grounding.json'), '{"schema_version": 1');

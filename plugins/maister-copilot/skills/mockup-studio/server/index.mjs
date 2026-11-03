@@ -69,8 +69,6 @@ const READY_MS = 10_000;
 const STATUS_MS = 1500;
 const STOP_MS = 5000;
 
-const WRITE_CODES = { unwritable: 'mockup-unwritable', tempExists: 'mockup-temp-exists' };
-
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.htm': 'text/html; charset=utf-8',
@@ -393,7 +391,7 @@ function serve(rawRoot) {
         target: path.join(root, PID_FILE),
         tmp: path.join(root, `${PID_FILE}.tmp`),
         text: `${JSON.stringify({ pid: process.pid, port, root })}\n`,
-        codes: WRITE_CODES,
+        codes: { unwritable: 'folder-unwritable', tempExists: 'folder-unwritable' },
       });
     } catch (err) {
       server.close();
