@@ -13,6 +13,8 @@
  * - `gate_request` and `checkpoint`: the declared shapes the builders are held
  *   to (`lib/interface-shapes.mjs`), and the subject kinds (`lib/gate-subject.mjs`);
  * - `state`: the writer's own vocabulary and schema version (`lib/state.mjs`);
+ * - `grammar.guard_operators`: the operators a `when` guard joins its
+ *   references with (`lib/graph.mjs`);
  * - `engine.verbs`: the verb table in `workflow.mjs`, each verb's flags as it
  *   declares them, and its refusals found by following the verb's handler
  *   through every function it can reach (`refusalsByVerb`);
@@ -97,6 +99,7 @@ export async function describe(root) {
   const load = relative => import(pathToFileURL(path.join(root, ENGINE, relative)).href);
   const shapes = await load('lib/interface-shapes.mjs');
   const state = await load('lib/state.mjs');
+  const graph = await load('lib/graph.mjs');
   const { SUBJECT_KINDS } = await load('lib/gate-subject.mjs');
   const studio = await load('../../mockup-studio/scripts/lib/shapes.mjs');
   const { verbs, runners } = verbTable(fs.readFileSync(path.join(root, ENGINE, 'workflow.mjs'), 'utf8'));
@@ -122,6 +125,9 @@ export async function describe(root) {
       clock_fields: state.CLOCK_FIELDS,
       pending_gate_keys: state.PENDING_KEYS,
       parent_keys: state.PARENT_KEYS,
+    },
+    grammar: {
+      guard_operators: graph.GUARD_OPERATORS,
     },
     engine: {
       verbs: Object.fromEntries(Object.entries(verbs).map(([verb, { flags }]) => [verb, { flags, refusals: refusals[verb] }])),

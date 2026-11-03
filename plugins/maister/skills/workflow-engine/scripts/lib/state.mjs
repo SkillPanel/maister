@@ -5000,7 +5000,9 @@ function scalarText(value) {
  * same value. Every operand must lead to one and the same answer: an input, a
  * value a child's step recorded, two answers, a child that cannot be read or no
  * longer proves against its definition — each leaves the field absent, and
- * none refuses the write. Returns whether it wrote.
+ * none refuses the write. The rule holds whatever `&&` or `||` joins the
+ * operands: every operand reading false makes a guard of either shape false.
+ * Returns whether it wrote.
  */
 function stampAnsweredIn(doc, typed, before, graphOf, runDir, changed) {
   const nodes = isPlainObject(typed.workflow) && isPlainObject(typed.workflow.nodes) ? typed.workflow.nodes : {};

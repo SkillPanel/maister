@@ -102,8 +102,9 @@ questions:
    (§ 11).
 5. **Optional stretches.** A phase that runs only sometimes is guarded by a `bool` — an input, a
    value an earlier node records, or a value the answer to the gate before it sets (§ 6, § 7). A
-   stretch either of two gates can switch on joins their values with `||`; there is no other
-   operator, so say so if the author describes an all-of condition, and turn it into one recorded `bool`.
+   stretch either of two gates can switch on joins their values with `||`; a stretch that needs
+   two values at once joins them with `&&`, which binds tighter. There are no parentheses, so a
+   condition that needs them is turned into one recorded `bool`.
 6. **Artifacts and values** each phase declares (§ 8.2): literal paths relative to the run's task
    directory; values as `bool`, `id` or `enum` rather than `string` where they are handles.
    **Which of those documents should also get an HTML page for people to read?** Offer each
@@ -292,7 +293,8 @@ Run `locate`, then `validate` — with errors, stop and point to `check` — the
   nodes that can run at the same time side by side, joins where a node needs several.
 - **Every guard in words,** next to its node — "runs only when gap analysis found a reproducible
   defect", "skipped when this run is a child of another", "runs when either gate chose the
-  design" — and every `on:` other than `success`
+  design", "runs when the push was chosen and the pull request was not" — and every `on:`
+  other than `success`
   ("runs only if a need failed", "runs however its needs ended").
 - **A gate the skip-guard rule asks** — one guarded by a value a non-gate node records that is
   more than a single plain continue — is drawn with its guard and "asked whatever its guard
