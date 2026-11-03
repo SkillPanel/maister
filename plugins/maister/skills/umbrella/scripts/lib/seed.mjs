@@ -474,6 +474,12 @@ function outboxLines(document, pluginRoot) {
  * commands in a followup carrying `needs: [permission]`, and then closes out in
  * the same turn: nothing answers a held command inside the dispatch at these
  * tiers, and a dispatch that ends with no close-out leaves its chain waiting.
+ *
+ * A dispatch that continues a branch an earlier one delivered — the envelope's
+ * `continues_branch`, set when the caller named the existing worktree — may find
+ * that branch's pull request already open. A pull request that is owed is then
+ * updated by pushing, never opened a second time, so the line renders only
+ * where one is owed and the host takes one.
  */
 function closeoutLines({ closeout, autonomy, permissions }) {
   const lines = [];
@@ -490,6 +496,9 @@ function closeoutLines({ closeout, autonomy, permissions }) {
     lines.push('No pull request is required - the chain dispatching you declared it, though your tier could open one. Do not open one anyway: say in the closeout what a reviewer has to open and merge.');
   } else {
     lines.push('No pull request is required - your tier denies opening one. Say in the closeout what a reviewer has to open and merge.');
+  }
+  if (closeout.continues_branch === true && closeout.pr_required === true && closeout.host_takes_pr !== false) {
+    lines.push('You continue a branch an earlier dispatch delivered. If it already has an open pull request, update that pull request by pushing to the branch, put its URL in the closeout message, and never run `gh pr create` again.');
   }
   if (autonomy !== RELAYED && !closeoutReachable({ autonomy, permissions })) {
     lines.push('Your tier denies `git push` and `gh pr create` unless a gate\'s answer granted them. If you end with commits on your branch that are not pushed - because the tier forbids the push, or a push or a pull request was refused - write a followup message naming each held command (`git push` of your branch, and `gh pr create` when a pull request is owed) and what is left to do, with `needs: [permission]` in its body beside that summary. Then publish the closeout in the same turn, `prs` empty and its summary saying the branch is unpublished.');

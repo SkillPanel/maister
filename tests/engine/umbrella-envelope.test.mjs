@@ -472,3 +472,70 @@ test('envelope: a malformed siblings list is refused dispatch-siblings-invalid a
     assert.equal(fs.existsSync(path.join(ws.root, '.maister/umbrella/runs/2026-01-05-chain/dispatch/dev.envelope.yml')), false);
   }
 });
+
+// A dispatch that continues a branch an earlier one delivered names the worktree
+// that already holds it, beside the branch: git refuses a second worktree on a
+// branch one holds. The override is held to the derived worktree's shape, and
+// marks the close-out contract so the seed updates the open pull request rather
+// than opening another.
+
+const CONTINUED = { branch: 'feature/2026-01-01-chain-alpha', worktree: '.worktrees/2026-01-01-chain-alpha' };
+const UPDATE_LINE = 'You continue a branch an earlier dispatch delivered. If it already has an open pull request, update that pull request by pushing to the branch, put its URL in the closeout message, and never run `gh pr create` again.';
+
+/** Every file under a directory, relative to it, sorted. */
+function filesUnder(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { recursive: true }).filter((each) => fs.statSync(path.join(dir, each)).isFile()).sort();
+}
+
+test('envelope: a worktree override is used with the branch override, marks the close-out, and the seed updates the open pull request', (t) => {
+  const ws = workspace(t);
+  gitHost(ws);
+  const report = published(dispatch(ws, publishChain(ws, ['publish: true']), CONTINUED));
+  assert.equal(report.envelope.target.worktree, CONTINUED.worktree);
+  assert.equal(report.envelope.branch, CONTINUED.branch);
+  assert.deepEqual(report.envelope.closeout_contract, { pr_required: true, continues_branch: true, grade: ['success', 'partial', 'failed'] });
+  const text = fs.readFileSync(report.path, 'utf8');
+  assert.match(text, /^target: \{member: alpha, path: repos\/alpha, worktree: \.worktrees\/2026-01-01-chain-alpha\}$/m);
+  assert.match(text, /^closeout_contract: \{pr_required: true, continues_branch: true, /m);
+  assert.equal(closeoutSection(report.envelope).filter((line) => line === UPDATE_LINE).length, 1);
+});
+
+test('envelope: a worktree override is used even where the workspace opts out of worktrees', (t) => {
+  for (const [overrides, expected] of [[{}, null], [CONTINUED, CONTINUED.worktree]]) {
+    const ws = workspace(t);
+    fs.writeFileSync(ws.manifest, fs.readFileSync(ws.manifest, 'utf8').replace(/^ {2}worktree: true$/m, '  worktree: false'));
+    assert.equal(published(dispatch(ws, publishChain(ws, []), overrides)).envelope.target.worktree, expected);
+  }
+});
+
+test('envelope: control — no worktree override derives the run and member worktree, with no new key or seed line', (t) => {
+  for (const overrides of [{}, { worktree: null }, { branch: CONTINUED.branch }]) {
+    const ws = workspace(t);
+    gitHost(ws);
+    const report = published(dispatch(ws, publishChain(ws, ['publish: true']), overrides));
+    assert.equal(report.envelope.target.worktree, '.worktrees/2026-01-05-chain-alpha');
+    assert.deepEqual(report.envelope.closeout_contract, { pr_required: true, grade: ['success', 'partial', 'failed'] });
+    assert.doesNotMatch(fs.readFileSync(report.path, 'utf8'), /continues_branch/);
+    assert.equal(closeoutSection(report.envelope).includes(UPDATE_LINE), false);
+  }
+});
+
+test('envelope: a worktree override not shaped .worktrees/<name> is refused dispatch-worktree-invalid, and nothing is written', (t) => {
+  const refused = [
+    '/abs/.worktrees/x', '../x', '.worktrees/../x', '.worktrees/a/b', '.worktrees/a..b', 'worktrees/x',
+    '.worktrees/', '.worktrees/-x', '.worktrees/.x', '.worktrees/a b', '.worktrees\\x', 'x', '', 42, true, ['.worktrees/x'],
+  ];
+  for (const worktree of refused) {
+    const ws = workspace(t);
+    const ledger = path.join(ws.root, '.maister/umbrella/ledger');
+    const before = filesUnder(ledger);
+    const result = dispatch(ws, publishChain(ws, []), { branch: CONTINUED.branch, worktree });
+    assert.equal(result.code, 1, `${JSON.stringify(worktree)}: ${result.stdout}${result.stderr}`);
+    const error = JSON.parse(result.stdout).errors[0];
+    assert.equal(error.code, 'dispatch-worktree-invalid', JSON.stringify(worktree));
+    assert.match(error.message, /Nothing was written\.$/);
+    assert.equal(fs.existsSync(path.join(ws.root, '.maister/umbrella/runs/2026-01-05-chain/dispatch/dev.envelope.yml')), false);
+    assert.deepEqual(filesUnder(ledger), before, `${JSON.stringify(worktree)} opened a ledger entry`);
+  }
+});

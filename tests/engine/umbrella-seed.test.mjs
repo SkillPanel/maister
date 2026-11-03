@@ -405,3 +405,34 @@ test('seed: a host that takes no pull request tells the worker at every tier to 
     assert.equal(closeout.filter(line => /No pull request is required|pull request is required before/.test(line)).length, 0, autonomy);
   }
 });
+
+// A worker continuing a delivered branch updates the pull request already open
+// on it rather than opening a second, and is told so only where a pull request
+// is owed and the host takes one.
+
+const CONTINUE_LINE = 'You continue a branch an earlier dispatch delivered. If it already has an open pull request, update that pull request by pushing to the branch, put its URL in the closeout message, and never run `gh pr create` again.';
+
+function continuedCloseout(autonomy, closeout_contract) {
+  const envelope = { ...ENVELOPE, autonomy, permissions: PERMISSIONS[autonomy], closeout_contract };
+  const lines = renderSeed(buildSeed(envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') })).split('\n');
+  assert.ok(lines.length <= SEED_LINE_CAP, `${autonomy}: the seed is ${lines.length} lines`);
+  return lines.slice(lines.indexOf('# closeout'), lines.indexOf('# siblings'));
+}
+
+test('seed: a continued branch with a pull request owed is told to update the open one, at every tier that owes it', () => {
+  for (const autonomy of ['attended', 'auto-medium', 'auto-high']) {
+    const closeout = continuedCloseout(autonomy, { pr_required: true, continues_branch: true });
+    assert.equal(closeout.filter((line) => line === CONTINUE_LINE).length, 1, autonomy);
+  }
+});
+
+test('seed: control — no continue line without the marker, without a pull request owed, or on a host that takes none', () => {
+  for (const contract of [
+    { pr_required: true },
+    { pr_required: false, continues_branch: true },
+    { pr_required: false, host_takes_pr: false, continues_branch: true },
+    { pr_required: true, host_takes_pr: false, continues_branch: true },
+  ]) {
+    assert.equal(continuedCloseout('auto-high', contract).includes(CONTINUE_LINE), false, JSON.stringify(contract));
+  }
+});
