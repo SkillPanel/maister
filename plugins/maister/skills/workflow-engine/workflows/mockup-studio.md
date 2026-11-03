@@ -18,7 +18,9 @@ that draws the next version:
 `/maister:mockup-studio --turn "<note>" --task=<folder>`, with `<folder>` the
 target root relative to the project root — `task_path`, or this run's record
 folder when `task_path` is absent — and `--subdir=<output_subdir>` added when
-`output_subdir` is not `analysis/mockups`.
+`output_subdir` is not `analysis/mockups`. On a `mockup-studio` record folder
+that command starts a new run with this folder as its `task_path`, so the next
+turn is recorded in a record folder of its own.
 
 No close-out while a choice is held: when the freeze recorded
 `orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its

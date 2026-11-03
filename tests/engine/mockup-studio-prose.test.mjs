@@ -78,3 +78,34 @@ test('the ASCII agent keeps its sentences and writes only its Output Target', ()
   assert.ok(!/^tools:/m.test(frontmatter), 'the agent declares no tools');
   assert.ok(!/^model: inherit/m.test(frontmatter), 'the agent names no inherited model');
 });
+
+test('a turn on a mockup-studio record folder is a recorded run; only other workflows\' folders run inline', () => {
+  const text = fs.readFileSync(SKILL, 'utf8');
+  const rows = text.split('\n').filter(line => line.startsWith('| `--turn "<note>" --task=<dir>`'));
+  assert.equal(rows.length, 2, 'the --task entry is split by the folder it names');
+  const recorded = rows.find(row => row.includes('.maister/tasks/mockup-studio/'));
+  assert.ok(recorded, 'one row names the mockup-studio record folders');
+  assert.match(recorded, /hands off to the workflow engine/);
+  assert.match(recorded, /`task_path` set to `<dir>`/);
+  assert.match(recorded, /`latest` in `<dir>\/<output_subdir>\/versions\/index\.json`/);
+  const inline = rows.find(row => row !== recorded);
+  assert.match(inline, /any other workflow's task directory/);
+  assert.match(inline, /An inline turn/);
+  assert.match(text, /\*\*One record folder per turn\.\*\*/);
+
+  const commands = fs.readFileSync(path.join(ROOT, 'docs/commands.md'), 'utf8');
+  assert.ok(!commands.includes('| `--task=<dir>` | Run the turn inline on `<dir>/<subdir>/`, writing no run record |'),
+    'the command docs no longer say every --task turn is inline');
+  assert.match(commands, /On a mockup studio folder \(under `\.maister\/tasks\/mockup-studio\/`\) the turn is a new recorded run/);
+});
+
+test('a missing grounding pack is always built; grounding-unavailable needs a failed build', () => {
+  const text = fs.readFileSync(SKILL, 'utf8');
+  assert.match(text, /Every entry builds it — node mode, an inline call, a terminal turn —/);
+  assert.match(text, /a project with little or no UI yet, a sketch, a small scope or a\s+throwaway comparison is no reason to skip the build/);
+  assert.match(text, /\| `grounding-unavailable` \| no usable pack, and building one was tried and failed \|/);
+  assert.match(text, /A turn that did not try to build a missing pack never records\s+`grounding-unavailable`/);
+  const quick = fs.readFileSync(path.join(PLUGIN, 'skills/quick-design/SKILL.md'), 'utf8');
+  assert.match(quick, /the turn builds one and uses it, however small the sketch and\s+however little UI the project has/);
+  assert.match(quick, /`grounding-unavailable` is only for a build that was tried and\s+failed/);
+});

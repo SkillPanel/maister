@@ -409,6 +409,7 @@ test('the runner records every wave through the engine and ends on runner-result
   assert.match(runner, /`wave-start --plan=/);
   assert.match(runner, /`group-done --plan=/);
   assert.match(runner, /dispatch-model --agent=maister:task-group-implementer\s+--tier=/);
+  assert.match(runner, /dispatch-model --agent=maister:test-suite-runner --host=claude --state=<state> --node=<node>`\s+prints just before the call/, 'the suite runner takes its model and effort from dispatch-model');
   assert.match(runner, /runner-result --state=<state> --node=<node>\s+--runner=implementation/);
   assert.match(runner, /\*\*Never roll back on your own\.\*\*/);
   assert.doesNotMatch(runner, /AskUserQuestion/, 'the runner never asks: a decision is its result');

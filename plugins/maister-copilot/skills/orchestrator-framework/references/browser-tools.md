@@ -26,7 +26,7 @@ through the shell is the one that does.
 
 | Tool | Present when | Notes |
 |---|---|---|
-| `playwright-cli` | `command -v playwright-cli` succeeds, or `npx --no-install playwright cli --help` runs | Shell calls with compact output. `open <url>`, `goto`, `click <ref>`, `fill <ref> <text>`, `press`, `snapshot`, `eval`, `resize`, `close`. `screenshot --filename=<path>` writes where it is told |
+| `playwright-cli` | `command -v playwright-cli` succeeds, or `npx --no-install playwright cli --help` runs | Shell calls with compact output. `open <url>`, `goto`, `click <ref>`, `fill <ref> <text>`, `press`, `snapshot`, `eval`, `resize`, `close`. `screenshot --filename=<path>` writes where it is told. Its own snapshots and logs go to a scratch directory, below |
 | A Playwright MCP server the user configured | tools named `…browser_navigate`, `…browser_snapshot`, `…browser_take_screenshot`, under whatever server name | The screenshot's `filename` lands in the server's own output folder; its result names the path |
 | Claude in Chrome | tools named `mcp__claude-in-chrome__*` | Load the ones needed in one search. Work in a new tab. `computer` with `screenshot` and `save_to_disk: true` returns the saved path. Acts in the user's own Chrome, with their sign-ins |
 | The built-in browser pane | tools named `…Claude_Browser__*` (Claude desktop app) | Its screenshot result names where the file was saved |
@@ -37,6 +37,15 @@ for a whole step, and say in the step's report which one it was.
 
 Browser steps that run one after another in a run share the tool and its browser: never drive
 it from two steps at once.
+
+**A browser step leaves nothing in the project but the files it was asked for.** `playwright-cli`
+otherwise writes its page snapshots and console logs into `.playwright-cli/` under the folder it
+runs from, which is the project root. So at the step's start make one directory with `mktemp -d`
+and set `PLAYWRIGHT_MCP_OUTPUT_DIR=<that directory>` on the `open` call (setting it on every call
+does no harm): the browser it starts keeps its own output there for the rest of the session.
+Screenshots still go by absolute path into the step's folder. Delete the directory when the step
+ends. A `.playwright-cli/` that turns up in the project anyway is named in the step's report and
+never committed with the step's work.
 
 ## Screenshots
 

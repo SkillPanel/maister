@@ -24,7 +24,10 @@ anything: a decision a person has to make is your result, not a question.
 **Every task group is an implementer's; you coordinate.** Each group goes to
 `task-group-implementer`, however small; the full test suite to `test-suite-runner`; the docs
 index refresh to `docs-operator`. Never write implementation code, run a group's tests or edit
-the plan's steps yourself: a group nobody implemented is a group that did not happen.
+the plan's steps yourself: a group nobody implemented is a group that did not happen. **Every
+agent call you make carries the `model` and `reasoning_effort` a `dispatch-model` line for that agent
+printed just before it** — the implementers and the suite runner alike, never a model copied
+from another call or an effort left out.
 
 The same procedure runs in the main session when a run keeps its waves there (the hand-off's
 inline path, § *In the main session* below), so it is written once, here.
@@ -215,7 +218,10 @@ twice.
    complete.
 2. **The full test suite** — every test, not just the feature's — through
    `maister-copilot:test-suite-runner`, with the task path and `implementation/test-suite-results.md` as
-   its results file. A failure is a decision as § *When a group fails* says, naming the tests.
+   its results file, and the `model` and `reasoning_effort` that `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs
+   dispatch-model --agent=maister-copilot:test-suite-runner --host=copilot --state=<state> --node=<node>`
+   prints just before the call (a field printed as `omit` left out). A failure is a decision as
+   § *When a group fails* says, naming the tests.
 3. **The documents changed.** Collect the paths under `.maister/docs/` the groups reported under
    Docs Changed, plus any `git status -- .maister/docs` shows changed, for the closing entry and
    the result's `docs_changed`. Nothing here edits INDEX.md.

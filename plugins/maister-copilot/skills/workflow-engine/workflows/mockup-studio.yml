@@ -3,7 +3,8 @@
 # One node and no gate: a run draws one new version of a set of UI mockups from
 # a note and asks nothing. The next version is a fresh run over the same folder
 # with the previous version named in `against`; the folder holds one version
-# list however many runs wrote it.
+# list however many runs wrote it. Each turn's run keeps its own record folder,
+# whose `task_path` names the folder the versions live in.
 #
 # `task_path` is a path input the engine records as given, so it may name the
 # task folder of another run; absent, the turn writes under this run's own
