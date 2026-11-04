@@ -441,6 +441,15 @@ and where a pull request is owed the seed tells the worker to update the one
 already open by pushing to the branch and never to run `gh pr create` again.
 Without the two fields the envelope is exactly what the paragraph above derives.
 
+The overrides may also name `driver_features`, a list of the driver features
+the worker records beside its cockpit kind; the one name it takes is
+`question-sets`, which lets the dispatched run suspend in-step questions to the
+operator. The envelope carries the list as `driver.features`, and the seed's
+driver line then reads `{kind: cockpit, cwd: …, dispatch_id: …, features:
+[question-sets]}`. Another name, a duplicate or a value that is not a list is
+refused `dispatch-driver-features-invalid`; an empty list or no field leaves the
+envelope and the seed as they were.
+
 Each member is a repository of its own, so it has to build and test from its own
 checkout. A worktree sits inside its member, which means a relative path from
 one member into another (`../api/src/types.ts`) does not resolve there. Such a
@@ -794,6 +803,7 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-no-git-host` | The node sets `publish: true` and owes a pull request, but no git host resolves for its member: the manifest's `git_host.kind` is unset and the member's checkout has no remote on a host. The worker could neither push for review nor open the pull request, and would find out only at its close-out. Set `git_host.kind` in the manifest, give the member a remote on its git host, or drop `publish` from the node's `with:` map. Nothing was written. |
 | `dispatch-worktree-invalid` | The dispatch override carries a `worktree` that is not `.worktrees/<name>` inside the member — an absolute path, a `..`, a second segment, a name a git branch segment could not be. It is refused rather than normalised, because a worker sent to a path outside the member writes where no dispatch should. Send the existing worktree's relative path, or leave the field out to derive one, and re-run. Nothing was written. |
 | `dispatch-siblings-invalid` | The dispatch override carries a `siblings` field that is not a list of `{member, branch, worktree}`, each a non-empty string. It is refused rather than trimmed, because a worker sent to half a path reads the wrong tree. Correct the list the caller builds from the outcome's recorded dispatches, or leave the field out, and re-run. Nothing was written. |
+| `dispatch-driver-features-invalid` | The dispatch override carries a `driver_features` field that is not a list of distinct known feature names — `question-sets` is the one there is. It is refused rather than dropped, because a host that asked for a feature and silently lost it waits on answers its worker never asks for. Send the list with known names once each, or leave the field out, and re-run. Nothing was written. |
 | `dispatch-reference-unclosed` | The node's `with:` map reads `${<node>.artifacts.<key>}` from a node that dispatches into a member, and that dispatch has not finished: no envelope for it is published in the run's `dispatch/` directory, or its outbox holds no close-out. This holds for a dispatched `workflow:` node too, whose close-out is where its artifacts are listed. A worker dispatched now would be told to read a file nobody has written. Build this envelope once the earlier node has closed out. Nothing was written. |
 | `dispatch-reference-missing` | The earlier dispatch closed out, but the artifact the reference names is not on disk where it worked — its declared path under the member's path and the run's worktree — or the earlier node declares no such artifact. For a dispatched `workflow:` node the place is the path its newest close-out lists for the key, so the refusal also covers a close-out that lists no entry for the key (a worker that predates the list, or one that did not write the file) and an entry whose path is absolute or holds whitespace, `${…}` or a `..` segment. Re-dispatch the earlier node so it writes the file and lists it, or correct its declared path or the reference, and run `validate` again. Nothing was written. |
 | `dispatch-reference-unresolved` | Any other reference in the node's `with:` map that finds nothing: a value the run never recorded for the node it names, a sub-run whose task path is not recorded yet, or a form the grammar does not admit. A reference is never dropped or handed on as text. Record the value through the workflow engine's `write-state` or let the earlier node finish, then build the envelope again. Nothing was written. |

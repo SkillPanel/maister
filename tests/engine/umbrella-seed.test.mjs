@@ -6,6 +6,8 @@ import path from 'node:path';
 import { ROOT } from '../helpers.mjs';
 import { buildSeed, renderSeed, SEED_LINE_CAP } from '../../plugins/maister/skills/umbrella/scripts/lib/seed.mjs';
 import { PERMISSIONS } from '../../plugins/maister/skills/umbrella/scripts/lib/envelope.mjs';
+import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
+import { questionSets } from '../../plugins/maister/skills/workflow-engine/scripts/lib/driver.mjs';
 
 // A dispatched worker suspends at a gate on a request it did not compose: the
 // seed names gate-brief --request as the request's only source, its output
@@ -63,7 +65,7 @@ test('seed: the worker records the cockpit kind with its dispatch id in the driv
   const driver = lines.filter(line => line.includes('orchestrator.driver: {'));
   assert.equal(driver.length, 1, 'one driver instruction');
   assert.match(driver[0], /\{kind: cockpit, cwd: <[^>]+>, dispatch_id: d-0001\}/);
-  assert.doesNotMatch(driver[0], /kind: dispatch|features/);
+  assert.doesNotMatch(driver[0], /kind: dispatch|features:/);
 });
 
 test('seed: an attended worker holding a push or a pull request reports it with needs: [permission], whether or not a pull request is required', () => {
@@ -434,5 +436,32 @@ test('seed: control — no continue line without the marker, without a pull requ
     { pr_required: true, host_takes_pr: false, continues_branch: true },
   ]) {
     assert.equal(continuedCloseout('auto-high', contract).includes(CONTINUE_LINE), false, JSON.stringify(contract));
+  }
+});
+
+// The driver the seed tells the worker to record, read back by the engine.
+function recordedDriver(envelope) {
+  const prompt = renderSeed(buildSeed(envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') }));
+  const line = prompt.split('\n').find(each => each.includes('orchestrator.driver: {'));
+  const block = /`orchestrator\.driver: (\{[^`]+\})`/.exec(line)[1].replace(/<[^>]+>/, '/work/members/app');
+  return parse(`orchestrator:\n  driver: ${block}\n`);
+}
+
+test('seed: an envelope carrying driver.features records them in the driver, and the engine reads question sets from it', () => {
+  const state = recordedDriver({ ...ENVELOPE, driver: { features: ['question-sets'] } });
+  assert.deepEqual({ ...state.orchestrator.driver }, { kind: 'cockpit', cwd: '/work/members/app', dispatch_id: 'd-0001', features: ['question-sets'] });
+  assert.equal(questionSets(state), true);
+});
+
+test('seed: control — without driver.features the recorded driver carries no question sets', () => {
+  const state = recordedDriver(ENVELOPE);
+  assert.equal(Object.hasOwn(state.orchestrator.driver, 'features'), false);
+  assert.equal(questionSets(state), false);
+});
+
+test('seed: a malformed driver.features is refused seed-envelope-invalid', () => {
+  for (const features of [['other'], ['question-sets', 'question-sets'], 'question-sets', undefined]) {
+    assert.throws(() => buildSeed({ ...ENVELOPE, driver: { features } }, { pluginRoot: path.join(ROOT, 'plugins/maister') }),
+      error => error.code === 'seed-envelope-invalid' && /driver\.features/.test(error.message), JSON.stringify(features));
   }
 });

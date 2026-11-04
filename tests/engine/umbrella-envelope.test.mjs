@@ -539,3 +539,55 @@ test('envelope: a worktree override not shaped .worktrees/<name> is refused disp
     assert.deepEqual(filesUnder(ledger), before, `${JSON.stringify(worktree)} opened a ledger entry`);
   }
 });
+
+// A dispatching host turns question sets on for its worker with the
+// driver_features override; the envelope carries it as driver.features, and
+// without it the published bytes are what they always were.
+
+test('envelope: a driver_features override is carried as driver.features and the seed records it in the driver', (t) => {
+  const ws = workspace(t);
+  const report = published(dispatch(ws, publishChain(ws, []), { driver_features: ['question-sets'] }));
+  assert.deepEqual(report.envelope.driver, { features: ['question-sets'] });
+  assert.match(fs.readFileSync(report.path, 'utf8'), /^driver: \{features: \[question-sets\]\}$/m);
+  const seeded = umbrella(['seed', `--envelope=${report.path}`]);
+  assert.equal(seeded.code, 0, seeded.stdout + seeded.stderr);
+  const line = JSON.parse(seeded.stdout).prompt.split('\n').find((each) => each.includes('orchestrator.driver: {'));
+  assert.match(line, new RegExp(`\\{kind: cockpit, cwd: <[^>]+>, dispatch_id: ${report.dispatch_id}, features: \\[question-sets\\]\\}`));
+});
+
+test('envelope: control — no driver_features, null or an empty list publish the same bytes and the same seed', (t) => {
+  const render = (overrides) => {
+    const ws = workspace(t);
+    const report = published(dispatch(ws, publishChain(ws, []), overrides));
+    const seeded = umbrella(['seed', `--envelope=${report.path}`]);
+    assert.equal(seeded.code, 0, seeded.stdout + seeded.stderr);
+    const prompt = JSON.parse(seeded.stdout).prompt.replaceAll(ws.root, '<root>');
+    const text = fs.readFileSync(report.path, 'utf8').replaceAll(ws.root, '<root>').replace(/umbrella_id: [^}]+/, 'umbrella_id: <id>');
+    return { text, prompt, envelope: report.envelope };
+  };
+  const plain = render({});
+  assert.equal(Object.hasOwn(plain.envelope, 'driver'), false);
+  assert.doesNotMatch(plain.text, /^driver:|features:/m);
+  assert.doesNotMatch(plain.prompt, /features:/);
+  for (const overrides of [{ driver_features: null }, { driver_features: [] }]) {
+    const other = render(overrides);
+    assert.equal(other.text, plain.text, JSON.stringify(overrides));
+    assert.equal(other.prompt, plain.prompt, JSON.stringify(overrides));
+  }
+});
+
+test('envelope: a driver_features override that is not a list of distinct known names is refused dispatch-driver-features-invalid, and nothing is written', (t) => {
+  const refused = [['question-sets', 'question-sets'], ['other'], [''], [42], [null], 'question-sets', { 'question-sets': true }, true, 7];
+  for (const driver_features of refused) {
+    const ws = workspace(t);
+    const ledger = path.join(ws.root, '.maister/umbrella/ledger');
+    const before = filesUnder(ledger);
+    const result = dispatch(ws, publishChain(ws, []), { driver_features });
+    assert.equal(result.code, 1, `${JSON.stringify(driver_features)}: ${result.stdout}${result.stderr}`);
+    const error = JSON.parse(result.stdout).errors[0];
+    assert.equal(error.code, 'dispatch-driver-features-invalid', JSON.stringify(driver_features));
+    assert.match(error.message, /Nothing was written\.$/);
+    assert.equal(fs.existsSync(path.join(ws.root, '.maister/umbrella/runs/2026-01-05-chain/dispatch/dev.envelope.yml')), false);
+    assert.deepEqual(filesUnder(ledger), before, `${JSON.stringify(driver_features)} opened a ledger entry`);
+  }
+});

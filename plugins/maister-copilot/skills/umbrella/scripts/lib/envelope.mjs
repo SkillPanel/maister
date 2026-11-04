@@ -82,6 +82,7 @@
  * `dispatch-autonomy-unknown`, `dispatch-workflow-not-driver-capable`,
  * `dispatch-run-unresolved`, `dispatch-permissions-override-unsupported`,
  * `dispatch-closeout-impossible`, `dispatch-no-git-host`, `dispatch-siblings-invalid`,
+ * `dispatch-driver-features-invalid`,
  * `dispatch-worktree-invalid`, `dispatch-envelope-exists`, `dispatch-id-mismatch`, `dispatch-unwritable`,
  * `dispatch-temp-exists`, `dispatch-reference-unclosed`,
  * `dispatch-reference-missing`, `dispatch-reference-unresolved`, and
@@ -355,6 +356,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const prRequired = closeoutPrOf({ node, member, defined, autonomy, permissions, overrides, hostTakesPr });
   assertGitHost({ node, member, defined, entry, manifest, root, prRequired });
   const siblings = siblingsOf(overrides, members);
+  const features = driverFeaturesOf(overrides);
   const reported = reportedKeysOf(defined);
 
   return {
@@ -396,6 +398,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
       ...(reported.length === 0 ? {} : { artifacts: reported }),
     },
     ...(siblings === null ? {} : { siblings }),
+    ...(features === null ? {} : { driver: { features } }),
   };
 }
 
@@ -465,6 +468,49 @@ export function siblingsProblem(listed) {
 
 /** The fields one sibling entry carries, in the order they are written. */
 const SIBLING_FIELDS = ['member', 'branch', 'worktree'];
+
+/**
+ * The driver features the worker records beside its cockpit kind, as the
+ * caller sends them under `driver_features`, or null. Only the dispatching host
+ * knows whether it can answer what a feature asks of it — a question set
+ * suspends to an operator — so the list is never derived here. It travels as
+ * `driver.features`, where the seed reads it into the driver the worker
+ * records; an absent or empty list leaves the envelope without the block. A
+ * name outside the known set, a duplicate or a list that is not one is refused
+ * rather than dropped, because a host that asked for a feature and silently
+ * lost it would wait on answers its worker never asks for.
+ */
+function driverFeaturesOf(overrides) {
+  const listed = mapOf(overrides).driver_features;
+  if (listed === undefined || listed === null) return null;
+  const problem = driverFeaturesProblem(listed);
+  if (problem !== null) {
+    throw new Refusal('dispatch-driver-features-invalid',
+      `the dispatch override's driver_features ${problem}. Send driver_features as a list of distinct names from ${DRIVER_FEATURES.join(', ')}, or leave the field out. Nothing was written.`);
+  }
+  return listed.length === 0 ? null : [...listed];
+}
+
+/**
+ * What is wrong with a driver features list, or null when nothing is. Shared
+ * with the seed, which may be pointed at any envelope on disk and judges the
+ * field the same way.
+ */
+export function driverFeaturesProblem(listed) {
+  if (!Array.isArray(listed)) return 'is not a list';
+  const seen = new Set();
+  for (const [index, name] of listed.entries()) {
+    if (typeof name !== 'string' || !DRIVER_FEATURES.includes(name)) {
+      return `entry ${index} (${JSON.stringify(name ?? null)}) is not a known feature`;
+    }
+    if (seen.has(name)) return `names ${name} twice`;
+    seen.add(name);
+  }
+  return null;
+}
+
+/** The driver features a dispatch may hand its worker. */
+export const DRIVER_FEATURES = Object.freeze(['question-sets']);
 
 /**
  * Whether the workflow a `dir:` node names can honour a driver, and — when it
@@ -1591,6 +1637,7 @@ function emit(document) {
     `ticket: ${scalar(document.ticket, 'ticket')}`,
     `closeout_contract: ${flow(document.closeout_contract, 'closeout_contract')}`,
     ...(document.siblings == null ? [] : [`siblings: ${flow(document.siblings, 'siblings')}`]),
+    ...(document.driver == null ? [] : [`driver: ${flow(document.driver, 'driver')}`]),
   ];
   return `${lines.join('\n')}\n`;
 }
