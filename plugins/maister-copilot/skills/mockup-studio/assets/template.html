@@ -12,7 +12,7 @@
       background: #f5f5f5;
       color: #222;
     }
-    header {
+    body > header {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -20,7 +20,7 @@
       background: #fff;
       border-bottom: 1px solid #ddd;
     }
-    header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+    body > header h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
 
     /* Screen navigation */
     .screen-nav {
@@ -46,8 +46,8 @@
     .nav-screen:hover { background: #ddd; }
     .nav-screen.active { background: #333; color: #fff; }
 
-    /* Mockup content */
-    main {
+    /* Mockup content: the viewer's container only, never a screen's own <main> */
+    #mockup-container {
       max-width: 1200px;
       margin: 1.5rem auto;
       padding: 1.5rem;

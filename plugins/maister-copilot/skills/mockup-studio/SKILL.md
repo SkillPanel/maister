@@ -136,7 +136,9 @@ The steps say what each one does; the references say how.
      shows ("Add allergy form", never "Dashboard"), clickable elements carrying
      `data-screen="<slug>"`, annotations for component reuse and interaction hints — never
      requirements, and never architecture, data-flow or entity diagrams. The pack's tokens are
-     used by their real names and its shell frames every screen. With no pack, pick a plain visual
+     used by their real names, and each screen's html carries the pack's shell around its content:
+     the renderer adds only the viewer's own title bar, screen tabs and container, never the
+     app's header or page width. With no pack, pick a plain visual
      direction that fits the product: no cream or off-white background, italic accent words in
      headings, numbered "01/02/03" labels, monospace labels or pill buttons unless the context asks.
    - A screen the note asked for that could not be drawn adds the degraded code `incomplete`, and
@@ -150,7 +152,9 @@ The steps say what each one does; the references say how.
      path: `file://` when the tool allows it, otherwise that path under the per-turn viewer
      (`references/visual-companion.md`). Never the viewer's `/`, which still leads to the previous
      latest while this version is only a preview;
-   - fix what looks wrong in `.turn.json`, then preview once more at most;
+   - fix what looks wrong in `.turn.json`, then preview once more at most. A fix keeps the app's
+     frame (its header, navigation and page width); a frame a screen drew twice loses only its
+     inner copy;
    - keep the browser tool's own output out of the project, as
      `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` says for the tool
      in use (*Which tool*).

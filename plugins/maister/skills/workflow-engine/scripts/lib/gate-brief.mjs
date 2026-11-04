@@ -124,6 +124,7 @@ import { approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainP
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
+import { areasProducer } from './decision-areas.mjs';
 import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked, setForm } from './question-set.mjs';
 
 // The note question's call, for `gate-brief --ask --note`: the verb loads this module alone.
@@ -281,7 +282,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   if (candidates.length) {
     // A gate asked while choices are held is briefed even when every node it
     // closes was skipped: the held choices are what it asks about.
-    closing = closingStretch(doc, recorded, candidates, stretch, current.display.titles, held.length > 0);
+    closing = closingStretch(doc, recorded, candidates, stretch, current.display.titles, held.length > 0, byId);
     if (!closing) {
       return refuse('gate-brief-no-summary',
         `no node this gate closes has recorded a summary (looked at: ${candidates.join(', ')}); `
@@ -2087,8 +2088,14 @@ export function closingCandidates(recorded, byId, gate) {
  * count of its own. With `skippedLeads` — a gate asked while choices are held
  * — a stretch whose direct nodes were all skipped is led by the first of them,
  * and its *Done* line reads `Skipped.`.
+ *
+ * With `byId`, the resolved graph's nodes, a direct node that ran and asked the
+ * decision areas of a node behind it speaks for what is still open: it writes
+ * its risks after the answers, so the producer's `open` risks, written before
+ * any answer, are not pooled. Its trade-offs, follow-ups, stops and settled
+ * items are.
  */
-function closingStretch(doc, recorded, direct, stretch, titles, skippedLeads = false) {
+function closingStretch(doc, recorded, direct, stretch, titles, skippedLeads = false, byId = null) {
   const sources = summarySources(doc);
   const order = Object.keys(recorded);
   const sorted = ids => [...ids].sort((a, b) => order.indexOf(a) - order.indexOf(b));
@@ -2097,7 +2104,10 @@ function closingStretch(doc, recorded, direct, stretch, titles, skippedLeads = f
   const closing = sorted(direct).map(id => summaryOf(sources, id) ?? skipped(id)).filter(Boolean);
   const lead = closing.find(entry => !entry.skipped) ?? (skippedLeads ? closing[0] : undefined);
   if (!lead) return null;
-  const entries = [...closing, ...sorted(stretch).map(id => summaryOf(sources, id)).filter(Boolean)];
+  const asked = new Set(closing.filter(entry => !entry.skipped).map(entry => areasProducer(byId?.get(entry.id))).filter(Boolean));
+  const answered = entry => (asked.has(entry.id)
+    ? { ...entry, risks: entry.risks.filter(item => riskOf(item)?.tag !== 'open') } : entry);
+  const entries = [...closing, ...sorted(stretch).map(id => summaryOf(sources, id)).filter(Boolean).map(answered)];
   if (entries.length === 1) return closingOf(lead);
   return {
     id: lead.id,

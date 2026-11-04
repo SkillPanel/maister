@@ -323,6 +323,24 @@ test('pages and the gallery escape titles and keep replacement patterns in conte
   assert.equal(mockups.mockups.find(each => each.id === 'odd').html, '<p>costs $& and $1 and $\'</p>');
 });
 
+// A screen carries the app's own frame. The viewer around it styles only its own title bar
+// and container, so the app's header and page width are never restyled into a second card.
+test('a page styles only the viewer\'s own header and container, never the screen\'s header or main', t => {
+  const where = project(t);
+  const html = '<header class="app-header"><h1>Todos</h1></header><main class="page"><section class="view">list</section></main>';
+  wholeTurn(where, { screens: [{ slug: 'list', title: 'List', html, css: '.app-header{background:#2e7d32}.page{max-width:640px}' }] });
+  const page = fs.readFileSync(path.join(where.versions, 'v001', 'list.html'), 'utf8');
+  const viewer = page.slice(0, page.indexOf('</style>'));
+  const selectors = [...viewer.matchAll(/^\s*([^{}@/*\n][^{}\n]*?)\s*\{/gm)].map(match => match[1].trim());
+  assert.ok(selectors.includes('body > header') && selectors.includes('#mockup-container'), selectors.join(' | '));
+  // An element selector for header or main is the viewer's own only when it is anchored on body.
+  const elementSelector = /(^|[\s>+~,])(header|main)\b(?![-\w])/;
+  for (const selector of selectors.filter(each => elementSelector.test(each))) {
+    assert.ok(selector.startsWith('body > header'), `"${selector}" reaches the screen's own elements`);
+  }
+  assert.ok(page.includes(`<div id="mockup-content">${html}</div>`), 'the screen\'s frame is kept whole');
+});
+
 test('the flat view is refreshed from the published version, dropping its removed pages and keeping imported ones', t => {
   const where = project(t);
   fs.mkdirSync(where.out, { recursive: true });

@@ -99,8 +99,11 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    any imported research: the problem in a sentence; who it is for; what exists
    today; the two to five decisions; what there is to draw; the recommended
    outcome and its reason from the signals — the task's length, the screens it
-   names, the decisions it implies, greenfield or not; what the person gets; how
-   many more times they will be asked; and what is left out. When the signals say
+   names, the decisions it implies, greenfield or not; what the person gets; what
+   they are still asked — one question for each decision area the brainstorm sets
+   out (without question sets, the areas are chosen at the direction checkpoint
+   instead), then the direction checkpoint and the brief checkpoint, never the
+   checkpoints alone; and what is left out. When the signals say
    one bounded question, it says so and recommends quick-design, recording
    `design_context.quick_design_question`. Record `design_context.scope_areas`,
    and the value `draws`: whether the design has anything a person sees. With
@@ -127,7 +130,7 @@ the summary's artifacts with `role: evidence`.
 
 **Summary.** A `headline` with the recommended outcome in plain words. `summary`
 is the scope proposal condensed: the problem, the users, what exists, the
-decisions, what is drawn and the questions still to come. `delegated` lists
+decisions, what is drawn and what is still asked, the area questions and the checkpoints. `delegated` lists
 `Explore` as the brief prints it. In `risks`, each assumption as `open`. The
 summary carries no `recommends`: that is `problem`'s.
 
@@ -170,8 +173,10 @@ The reason says whether screens will be drawn. When the intake recorded `draws`
 false, it says none are drawn on either outcome and that the design settles
 behaviour, rules and wording, the contract being left to development. When the scope recommends quick-design, the risk
 `{risk: "<the bounded question>: one bounded question", tag: stop}` makes the gate
-recommend `use-quick-design`. Each drafted story is an `open` risk with its
-correction as `change`. The artifacts are the problem statement (`role: primary`)
+recommend `use-quick-design`. The drafted stories are listed in `summary` under
+"Stories to confirm", one line each, and never in `risks`: a story is confirmed or
+corrected through `revise-problem`, not a risk. `risks` holds the stop and what
+could actually go wrong. The artifacts are the problem statement (`role: primary`)
 and the personas (`role: review`).
 
 **Re-run.** Revise from the note. When the scope changed, check every card and

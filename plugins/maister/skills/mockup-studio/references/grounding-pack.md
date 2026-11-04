@@ -118,7 +118,7 @@ only `--ground` replaces them.
 After `ground-status`, a turn reads:
 
 - **the pack** — `tokens.md` is binding: every colour, font, radius and shadow on a screen comes
-  from it, by name. `shell.html` frames every screen. `strings/` gives the copy;
+  from it, by name. `shell.html` frames every screen, drawn into each screen's own html. `strings/` gives the copy;
 - **the standards** `.maister/docs/INDEX.md` lists for frontend, UI and UX — paths under
   `standards/frontend/` or `standards/design/`, or headings about components, accessibility,
   responsive layout, CSS or themes. Their rules bind the screens as the pack does;

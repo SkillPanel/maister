@@ -62,6 +62,20 @@ import { clipHeader } from './question-set.mjs';
 /** The id every area's answer is recorded under, before the area's own id. */
 export const QUESTION_PREFIX = 'convergence-decisions-';
 
+/** The one reference a convergence node may name its areas by: the producer's declared artifact, whole. */
+const AREAS_REFERENCE = /^\$\{([a-z][a-z0-9-]*)\.artifacts\.decision_areas\}$/;
+
+/**
+ * The node whose decision areas `node` (a resolved graph node) asks from: the
+ * producer its `with: decision_areas` names as `${<producer>.artifacts.decision_areas}`,
+ * when the producer is one of its needs. Null for any other node.
+ */
+export function areasProducer(node) {
+  const match = typeof node?.with?.decision_areas === 'string' ? AREAS_REFERENCE.exec(node.with.decision_areas) : null;
+  if (!match || !Array.isArray(node.needs) || !node.needs.includes(match[1])) return null;
+  return match[1];
+}
+
 /** Why a file was refused: the reason before ` at <path>`. A closed set. */
 const FAULT = {
   notJson: 'not-json',
