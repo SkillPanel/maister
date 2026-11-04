@@ -28,9 +28,12 @@
  * the run declares, which is how a Write into the task folder is told to be one.
  *
  * A shell call draws as one quiet line only when the engine's own files prove
- * what it did: the status file moved on during a state write, or the panel
- * file changed during a gate brief. The command is matched against the
- * engine's verb as a guard against a compound command, never as the source of
+ * what it did: the status file moved on during a call of any engine verb, or,
+ * for a gate brief, which writes no status, the panel file holds what it
+ * briefed. No list of verbs is kept, so a verb added later collapses by the
+ * same proof, and a call that moved nothing draws as it always did. The command
+ * must be the engine's script alone: that is the guard against a compound
+ * command, whose other parts the files prove nothing about, never the source of
  * what is drawn. Only a clean call collapses — no error, no refusal, nothing
  * on stderr, not interrupted — and the decision is made once, when the call
  * returns, so a row redrawn later or replayed from an earlier session draws
@@ -71,8 +74,14 @@ const VERSION = 1;
 /** The surfaces that draw the band and the card; anywhere else the status line and the log stand in. */
 const DRAWN = new Set(['terminal', 'desktop']);
 
-/** The engine's verbs whose clean calls draw as one quiet line. */
-const QUIET = /workflow\.mjs["']?\s+(write-state|gate-revise|gate-brief)(?=\s|$)/;
+/** A call of the engine's script: the interpreter, the script, bare or quoted, and the verb. */
+const ENGINE_CALL = /^\s*(?:[^\s"']*[\\/])?node(?:\.exe)?\s+(?:"[^"]*[\\/]workflow\.mjs"|'[^']*[\\/]workflow\.mjs'|(?:[^\s"']*[\\/])?workflow\.mjs)\s+([a-z][a-z-]*)(?=\s|$)/;
+
+/** A quoted word or an escaped character: data, whatever it holds. */
+const SHELL_DATA = /\\[\s\S]|'[^']*'|"(?:[^"\\]|\\[\s\S])*"/g;
+
+/** What joins a second command to a call, or sends its stderr where this module cannot see it. */
+const SHELL_JOIN = /[;&|`>\n]|\$\(|<\(/;
 
 /** The name of the engine's patch file, beside the state file it patches. */
 const PATCH = /(^|[\\/])\.state-patch\.json$/;
@@ -234,11 +243,12 @@ async function snapshot($) {
 
 /**
  * After a shell call: the band's status, the card when the call was the
- * freeze, and the call's quiet line when the engine's files prove it was a
- * clean state write or gate brief.
+ * freeze, and the call's quiet line when the engine's files prove what a clean
+ * call of the engine alone did.
  */
 async function afterShell($, e, ran, before) {
-  const dir = await runOf($);
+  const pointer = await pointerOf($);
+  const dir = pointer?.run_dir;
   if (!dir) return;
   const status = await display($, dir, 'status.json');
   if (!status) return;
@@ -247,15 +257,17 @@ async function afterShell($, e, ran, before) {
   if (!drawn && typeof status.line === 'string') $.ui.status(status.line);
   if (e.agentId) return;
 
-  const same = before?.dir === dir;
-  const landed = !same || status.updated !== before.updated;
-  const verb = typeof e.command === 'string' ? e.command.match(QUIET)?.[1] ?? null : null;
+  // Under a pointer this call set, there is no earlier stamp to compare: a state
+  // write stamps the pointer and the status alike, a resume check the pointer alone.
+  const moved = before?.dir === dir ? status.updated !== before.updated : status.updated === pointer.updated;
+  const verb = engineVerb(e.command);
   const quiet = verb !== null && clean(ran);
   const id = e.tool_use_id;
 
-  if (landed && verb !== 'gate-brief') await consumePatches($);
+  // A gate brief reads the patch file for a question set and leaves it unlanded.
+  if (moved && verb !== 'gate-brief') await consumePatches($);
 
-  if (landed && verb === 'write-state') {
+  if (moved) {
     const start = await display($, dir, 'banner.json');
     if (start && start.frozen === status.updated) {
       if (drawn && typeof id === 'string') await remember($, id, { card: cardOf(start), quiet });
@@ -264,15 +276,20 @@ async function afterShell($, e, ran, before) {
     }
   }
   if (!quiet || typeof id !== 'string') return;
-  if (landed && (verb === 'write-state' || verb === 'gate-revise')) {
-    await say($, id, { line: savedLine(status) });
-    return;
-  }
   if (verb === 'gate-brief') {
     // A brief that wrote the panel already drawn says what was said: its line is the repeat `say` drops.
     const brief = await display($, dir, 'next.json');
     if (brief) await say($, id, { line: checkpointLine(brief) });
+    return;
   }
+  if (moved) await say($, id, { line: savedLine(status) });
+}
+
+/** The verb, when the command is the engine's script and nothing else; null otherwise. */
+function engineVerb(command) {
+  if (typeof command !== 'string') return null;
+  const verb = command.match(ENGINE_CALL)?.[1] ?? null;
+  return verb !== null && !SHELL_JOIN.test(command.replace(SHELL_DATA, '')) ? verb : null;
 }
 
 /**
@@ -415,12 +432,13 @@ async function tick($) {
 // the quiet lines
 // ---------------------------------------------------------------------------
 
-/** `· maister · saved · intake → done, …`, or the checkpoint the write opened; null when it changed no step. */
+/** `· maister · saved · intake → done, …`, `· maister · started · intake` for one step's start alone, or the checkpoint the write opened; null when it changed no step. */
 function savedLine(status) {
   const checkpoint = status.checkpoint;
   if (status.gate_open && checkpoint) return `· maister · checkpoint ${checkpoint.index} of ${checkpoint.total} · ${checkpoint.title}`;
   const saved = Array.isArray(status.saved) ? status.saved : [];
   if (!saved.length) return null;
+  if (saved.length === 1 && saved[0].status === 'running') return `· maister · started · ${lowered(saved[0].title)}`;
   return `· maister · saved · ${saved.map(each => `${lowered(each.title)} → ${STATUS_WORDS[each.status] ?? each.status}`).join(', ')}`;
 }
 
@@ -704,9 +722,14 @@ async function briefFor($, e) {
 
 /** The run directory this session is driving, from the pointer the engine keeps for it; null when none. */
 async function runOf($) {
+  return (await pointerOf($))?.run_dir ?? null;
+}
+
+/** The pointer the engine keeps for this session, naming a run; null when none. */
+async function pointerOf($) {
   const [root, id] = await Promise.all([$.session.root(), $.session.id()]);
   const pointer = await readJson($, `${root}/.maister/display/sessions/${id}.json`);
-  return typeof pointer?.run_dir === 'string' ? pointer.run_dir : null;
+  return typeof pointer?.run_dir === 'string' ? pointer : null;
 }
 
 /** One of the run's display files; null when it is not there or not one this module knows. */

@@ -279,6 +279,14 @@ describe('start card', () => {
     expect(JSON.stringify(drawn.drawn)).toContain('"engine"')
   })
 
+  test('draws under a compound freeze\'s row, which it does not replace', async ($: any, on: any) => {
+    const seen = beneath(on, {}, { shells: [freeze()] })
+    await $.tool.call({ tool: 'Bash', command: `cd ${ROOT} && ${WRITE}` })
+    const drawn = await row($, 'terminal', seen.ids[0])
+    expect(drawn.texts).toContain('Development run started')
+    expect(JSON.stringify(drawn.drawn)).toContain('"engine"')
+  })
+
   test('falls back to the banner\'s log lines, once, where no surface draws the card', async ($: any, on: any) => {
     const seen = beneath(on, {}, { surfaces: ['vscode'], shells: [freeze(), {}] })
     await $.tool.call({ tool: 'Bash', command: WRITE })
@@ -769,6 +777,74 @@ describe('quiet bookkeeping', () => {
     const seen = beneath(on, files(), { shells: [saved()] })
     await $.tool.call({ tool: 'Bash', command: 'make test' })
     expect((await row($, 'terminal', seen.ids[0])).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  const STARTED = `${ENGINE} node-brief --state=${RUN}/orchestrator-state.yml --node=specification`
+  const started = (fields: Record<string, unknown> = {}): Shell => ({
+    stdout: 'the step\'s brief\n',
+    files: { [STATUS]: statusDoc({ updated: '2026-10-07T16:40:00Z', saved: [{ node: 'specification', title: 'Specification', status: 'running' }], ...fields }) },
+  })
+
+  test('a step brief that recorded its start draws as one line naming the step, the result unchanged for the model', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [started()] })
+    const ran = await $.tool.call({ tool: 'Bash', command: STARTED })
+    expect(ran.result).toEqual((seen.results[0] as any).result)
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · started · specification', 'maister'])
+  })
+
+  test('a step brief that recorded no start, the step already running, draws in full', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [{ stdout: 'the step\'s brief\n' }] })
+    await $.tool.call({ tool: 'Bash', command: STARTED })
+    expect((await row($, 'terminal', seen.ids[0])).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  test('a refused step brief draws in full, and one that warned does too', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [
+      { ...started(), error: 'Exit code 1\nnode-brief-unknown-node' },
+      { ...started({ updated: '2026-10-07T16:41:00Z' }), stderr: 'node-brief-graph-drift: the definition now resolves to another graph' },
+    ] })
+    for (const _ of [1, 2]) await $.tool.call({ tool: 'Bash', command: STARTED })
+    for (const id of seen.ids) expect((await row($, 'terminal', id)).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  test('a verb this module has never named collapses by the same proof', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [saved()] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} some-future-verb --state=${RUN}/orchestrator-state.yml` })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · saved · intake → done, codebase analysis → running', 'maister'])
+  })
+
+  test('a verb that moved the status and no step draws nothing', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [saved({ saved: [] })] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} some-future-verb --state=${RUN}/orchestrator-state.yml` })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual([])
+  })
+
+  test('a read-only verb draws in full', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [{ stdout: '{"model":"opus"}\n' }] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} dispatch-model --agent=Explore --host=claude` })
+    expect((await row($, 'terminal', seen.ids[0])).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  test('a compound command that moved the run draws in full, whichever side the engine is on', async ($: any, on: any) => {
+    const commands = [`cd ${ROOT} && ${WRITE}`, `${WRITE} && echo done`, `${WRITE}; ls`, `${WRITE} | tail -1`, `${WRITE} 2>&1`, `${WRITE} 2>/dev/null`, `${WRITE}\nls`, `echo $(${WRITE})`]
+    const seen = beneath(on, files(), { shells: commands.map((_, index) => saved({ updated: `2026-10-07T16:4${index}:00Z` })) })
+    for (const command of commands) await $.tool.call({ tool: 'Bash', command })
+    for (const id of seen.ids) expect((await row($, 'terminal', id)).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  test('what a here-string carries is data: a separator inside its quotes joins nothing', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [saved()] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} write-state --state=${RUN}/orchestrator-state.yml <<< '{"summary":"a; b && c | d\\n"}'` })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · saved · intake → done, codebase analysis → running', 'maister'])
+  })
+
+  test('a write that points the session at another run collapses by the stamp they share', async ($: any, on: any) => {
+    const seen = beneath(on, { [POINTER]: json({ version: 1, run_dir: `${ROOT}/.maister/tasks/research/other`, updated: FROZEN }), [STATUS]: statusDoc() }, { shells: [{
+      stdout: 'workflow.nodes.intake\n',
+      files: { [POINTER]: json({ version: 1, run_dir: RUN, updated: '2026-10-07T16:40:00Z' }), [STATUS]: statusDoc({ updated: '2026-10-07T16:40:00Z', saved: [{ node: 'intake', title: 'Intake', status: 'completed' }] }) },
+    }] })
+    await $.tool.call({ tool: 'Bash', command: WRITE })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · saved · intake → done', 'maister'])
   })
 
   test('a row that errors after it was drawn quiet draws in full again', async ($: any, on: any) => {
