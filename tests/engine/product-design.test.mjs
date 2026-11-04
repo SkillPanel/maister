@@ -8,6 +8,7 @@ import { delegating, ENGINE_DIR, FIXTURES, freeze, readDashboard, readState, scr
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { parseDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 import { loadAreas } from '../../plugins/maister/skills/workflow-engine/scripts/lib/decision-areas.mjs';
+import { panelOf as panelOfCheckpoint } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The product-design workflow on the engine. A synthetic run — an invented
 // enhancement with a UI, whose specification is skipped and whose sketches and
@@ -553,6 +554,21 @@ test('guards: visual_areas false with draws true skips the sketches only', t => 
   answer(drawn, 'problem-approval', 'brief-with-screens');
   walk(drawn, { nodes: { alternatives: { status: 'completed', values: { visual_areas: true } } } });
   assertHeldBy(drawn, 'convergence', 'sketches');
+});
+
+test('brief-approval: with the screens skipped, the checkpoint marks them skipped and its panel is titled by the brief', t => {
+  const run = atBriefApproval(t, { draws: false });
+  const checkpoint = checkpointOf(run, 'brief-approval');
+  const screens = checkpoint.closed.find(each => each.node === 'screens');
+  assert.equal(screens.skipped, true);
+  assert.equal(checkpoint.closed.find(each => each.node === 'brief').skipped, undefined);
+  const panel = panelOfCheckpoint(checkpoint);
+  assert.match(panel.glance[0], / · Product brief and delivery scope$/);
+  assert.deepEqual(panel.parts[0], { key: 'title', label: `Checkpoint ${checkpoint.progress.checkpoint} of ${checkpoint.progress.checkpoints_max}`, text: 'Product brief and delivery scope' });
+
+  // With the screens drawn, nothing is marked skipped.
+  const drawn = checkpointOf(atBriefApproval(t, { draws: true }), 'brief-approval');
+  assert.ok(drawn.closed.every(each => each.skipped === undefined), JSON.stringify(drawn.closed));
 });
 
 // The intake records `draws` afresh, so a corrected scope decides the drawing from

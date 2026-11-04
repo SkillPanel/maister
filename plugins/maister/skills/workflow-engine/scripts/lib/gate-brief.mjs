@@ -1723,7 +1723,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     next,
     ...subjectKey(subjectOf({ ids, byId, runDir })),
     review,
-    closed: closing.entries.map(entry => ({ node: entry.id, title: title(entry.id), headline: entry.skipped ? null : entryHeadline(entry) || null, summary: entry.summary })),
+    closed: closing.entries.map(entry => ({ node: entry.id, title: title(entry.id), headline: entry.skipped ? null : entryHeadline(entry) || null, summary: entry.summary, ...(entry.skipped ? { skipped: true } : {}) })),
     fixes,
     ...(held.length ? { held } : {}),
     decisions,

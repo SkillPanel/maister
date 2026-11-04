@@ -881,7 +881,9 @@ test('panel: the brief writes the checkpoint at a glance, for the question it be
   assert.equal(panel.question, rich.question, 'the question the session asks, verbatim');
   assert.match(panel.glance[0], /^Checkpoint \d+\/\d+ · Specification$/);
   assert.match(panel.glance[1], /^The revised spec makes null mean "not given"/);
-  assert.equal(panel.glance[2], 'Decided: 3 · open risks: 2');
+  // Three decisions the run made and the user's own nine choices.
+  assert.equal(panel.glance[2], 'Decided: 12 · open risks: 2');
+  assert.match(rich.options[0].preview, /You made 9 choices/);
   assert.equal(panel.glance[3], 'Next: Specification audit');
   assert.match(panel.glance[4], /^Review: .*implementation\/spec\.md/);
   assertFits(panel.glance);
@@ -907,7 +909,7 @@ test('panel: the parts carry each label apart from its text, and each review fil
   assert.equal(`Checkpoint ${panel.checkpoint.index} of ${panel.checkpoint.total}`, byKey.title.label);
   assert.equal(byKey.headline.label, 'Done');
   assert.match(byKey.headline.text, /^The revised spec makes null mean "not given"/);
-  assert.deepEqual(byKey.counts, { key: 'counts', label: 'Decided', text: '3', risks: '2 open risks', open: 2, fixed: 0 });
+  assert.deepEqual(byKey.counts, { key: 'counts', label: 'Decided', text: '12', risks: '2 open risks', open: 2, fixed: 0 });
   assert.equal(panel.open_risks, 2);
   assert.deepEqual(byKey.next, { key: 'next', label: 'Next', text: 'Specification audit' });
   assert.equal(byKey.review.label, 'Review');
@@ -940,6 +942,29 @@ test('panel: the parts hold to the rows too, the review files that do not fit co
   assert.equal(review.files.length + review.more, 8);
   assert.ok(parts.find(part => part.key === 'headline').text.endsWith('…'));
   assert.deepEqual(parts.find(part => part.key === 'counts'), { key: 'counts', label: 'Decided', text: '0', risks: '1 open risk', open: 1, fixed: 0 });
+});
+
+test('panel: the user\'s own choices count as decided, as the preview counts them', () => {
+  const checkpoint = {
+    ask: 'Design direction ready. Continue?',
+    header: 'Direction',
+    headline: 'The direction is chosen across four areas.',
+    progress: { checkpoint: 2, checkpoints_max: 3 },
+    closed: [{ title: 'Converge on a direction' }],
+    next: { title: 'Final screens' },
+    review: [],
+    decisions: { run: [], audit: [], default: [], operator: { count: 4, not_recommended: [] } },
+    risks: {},
+    options: [{ id: 'continue', label: 'Continue', effect: 'continue', recommended: true, consequence: 'Goes on.' }],
+  };
+  const panel = panelOfCheckpoint(checkpoint);
+  assert.ok(panel.glance.includes('Decided: 4 · open risks: 0'), panel.glance.join('\n'));
+  assert.equal(panel.parts.find(part => part.key === 'counts').text, '4');
+  assert.match(richPicker(checkpoint).options[0].preview, /You made 4 choices, all as recommended\./);
+
+  // The run's own decisions add to them.
+  checkpoint.decisions.run = [{ node: 'convergence', decision: 'Order by priority' }];
+  assert.equal(panelOfCheckpoint(checkpoint).parts.find(part => part.key === 'counts').text, '5');
 });
 
 test('panel: a step title is cut only when its rows truly run out', () => {

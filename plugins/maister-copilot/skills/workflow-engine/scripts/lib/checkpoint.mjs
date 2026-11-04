@@ -308,6 +308,15 @@ function decided(checkpoint) {
 }
 
 /**
+ * How many decisions the panel counts: the run's, the audits' and the
+ * defaults', and the user's own choices, which the preview counts on a line of
+ * their own — so the panel never reads "0 decided" over "You made 4 choices".
+ */
+function decidedCount(checkpoint) {
+  return decided(checkpoint).length + (checkpoint.decisions?.operator?.count ?? 0);
+}
+
+/**
  * The heading over the decisions shown, naming every source among them: an
  * audit's findings under "Decided by the run" credited the run with what the
  * audit settled. "Decided by the run and the audit", "Taken by default", or
@@ -719,7 +728,9 @@ export function detailsPreview(text) {
  */
 export function panelOf(checkpoint) {
   const progress = checkpoint.progress ?? {};
-  const closing = checkpoint.closed?.[0]?.title ?? checkpoint.header;
+  // A skipped step closes nothing a person reads: the title is the first step that ran.
+  const closed = checkpoint.closed ?? [];
+  const closing = (closed.find(each => !each.skipped) ?? closed[0])?.title ?? checkpoint.header;
   const risks = checkpoint.risks ?? {};
   const open = (risks.stop?.length ?? 0) + (risks.open?.length ?? 0);
   const fixed = (checkpoint.fixes ?? []).length;
@@ -730,7 +741,7 @@ export function panelOf(checkpoint) {
     headline: checkpoint.headline ?? '',
     next: `Next: ${nextText(checkpoint.next)}`,
     review: review ? `Review: ${review}` : '',
-    counts: `${held ? `Held: ${held} · ` : ''}Decided: ${decided(checkpoint).length}${fixed ? ` · fixed: ${fixed}` : ''} · open risks: ${open}`,
+    counts: `${held ? `Held: ${held} · ` : ''}Decided: ${decidedCount(checkpoint)}${fixed ? ` · fixed: ${fixed}` : ''} · open risks: ${open}`,
   };
   const fitted = fittedLines(wanted, PANEL_SHARES);
   return {
@@ -821,7 +832,7 @@ function partsOf(checkpoint, { closing, open, fixed, held }) {
     headline: { label: 'Done', text: one(checkpoint.headline) },
     next: { label: 'Next', text: one(nextText(checkpoint.next)) },
     review: { label: 'Review', files: (checkpoint.review ?? []).map(each => ({ label: baseName(each.path), path: each.path })) },
-    counts: { label: 'Decided', text: String(decided(checkpoint).length), risks: open ? `${open} open ${open === 1 ? 'risk' : 'risks'}` : 'no open risks' },
+    counts: { label: 'Decided', text: String(decidedCount(checkpoint)), risks: open ? `${open} open ${open === 1 ? 'risk' : 'risks'}` : 'no open risks' },
   };
   const fitted = {};
   let left = PANEL_ROWS;

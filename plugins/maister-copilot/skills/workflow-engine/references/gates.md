@@ -220,7 +220,9 @@ the panel an editor extension draws above the question. With no form, the brief 
 from, as JSON: `{version, kind, node, header, ask, headline, progress, next, subject?, review,
 closed, fixes, held?, decisions, risks, recommended, evidence?, options, grants, approves, run,
 truncated}` — `subject` present only when the gate approves a known output, `held` only when a
-choice waits for approval, `decisions` grouped by who settled them,
+choice waits for approval, `closed` the steps the gate closes (`{node, title, headline,
+summary}`, with `skipped: true` on one a guard skipped, which never titles the panel),
+`decisions` grouped by who settled them,
 `risks` by tag, and each option carrying its `consequence` (a continue that sets gate values
 also its `sets` and `next`, a revise its `reruns`, `revision` and `suggestions`, a stop its
 `keeps` and `not_run`).
