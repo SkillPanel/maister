@@ -1,6 +1,6 @@
 # ADR-0064 — The product-design mockup gate carries a back-edge
 
-**Status**: Accepted · **Date**: 2026-11-03 · **Amends**: ADR-0028 (its exclusion of the mockup gate) · **Builds on**: ADR-0063 · **Sources**: `plugins/maister/skills/workflow-engine/workflows/product-design.yml` and `product-design.md`; `tests/engine/product-design.test.mjs`, `same-questions.test.mjs`, `html-companions.test.mjs`, `brief-block.test.mjs`
+**Status**: Superseded by ADR-0068 · **Date**: 2026-11-03 · **Amends**: ADR-0028 (its exclusion of the mockup gate) · **Builds on**: ADR-0063 · **Sources**: `plugins/maister/skills/workflow-engine/workflows/product-design.yml` and `product-design.md`; `tests/engine/product-design.test.mjs`, `same-questions.test.mjs`, `html-companions.test.mjs`, `brief-block.test.mjs`
 
 ## TL;DR
 ADR-0028 left the mockup gate out of the gates that may send a run back, because the studio's in-node loop kept it warm between rounds. A mockup turn has no loop, so the reason is gone. Product-design gains a `mockup-approval` gate after `visual-prototyping`, with a continue, a stop and `revise-mockups`, which re-runs `visual-prototyping`. The product-design graph hash moves.
@@ -8,6 +8,8 @@ ADR-0028 left the mockup gate out of the gates that may send a run back, because
 ## ADR-0064 {#adr-0064}
 
 ### Status
+Superseded by ADR-0068: product-design has no mockup gate any more; its final screens are approved with the brief, whose revise draws them again.
+
 Accepted. It amends ADR-0028's scope of the built-ins: the mockup gate is no longer excluded in product-design. The product-design definition's hash moves; frozen runs keep their own graph. Development's `mockup-approval` already offers a revise, and its definition changes only in its `ui-mockups` inputs.
 
 ### Context

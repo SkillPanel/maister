@@ -127,7 +127,7 @@ Wait for docs-operator to complete, then continue with Steps 2 and 3 and go on t
 html_output: true
 
 # mockup_format — how UI mockups are rendered when a workflow generates them
-# (development's ui-mockups node, product-design's visual-prototyping node, or /maister:mockup-studio).
+# (development's ui-mockups node, product-design's sketches and screens nodes, or /maister:mockup-studio).
 # A mockup turn reads it when no format is passed.
 #   html  (default): HTML pages and a version gallery page, written as .html files to open.
 #   ascii          : terminal ASCII mockups via the ascii-mockup-generator agent (no Node/browser needed).

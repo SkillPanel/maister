@@ -229,18 +229,32 @@ export function gateAnswer(decisions) {
 }
 
 /**
- * Whether a decision is an earlier attempt's answer to a question the node
- * asked again: it carries its own `attempt`, and `list` — the node's decisions
- * — holds an answer to the same `question_id` from a later one. Such an answer
- * is history, kept beside the current one and never counted as a choice. Read
- * off the list alone, so an answer a later attempt did not ask again stays
- * current.
+ * Whether a decision is an earlier answer to a question the node asked again:
+ * `list` — the node's decisions — holds another answer to the same
+ * `question_id` that either comes from a later attempt (the decision carrying
+ * its own `attempt`), or comes from the same attempt and a later round. An
+ * item with no `attempt` reads as attempt 1, and one with no `round` as round
+ * 1; a round never outranks an attempt. Such an answer is history, kept beside
+ * the current one and never counted as a choice. Read off the list alone, so an
+ * answer a later attempt or round did not ask again stays current.
  */
 export function isEarlierAnswer(item, list) {
+  if (!isMap(item) || typeof item.question_id !== 'string' || item.question_id === '') return false;
   const own = attemptNumber(item);
-  if (own === null || typeof item.question_id !== 'string' || item.question_id === '') return false;
-  return list.some(other => other !== item && isMap(other) && other.question_id === item.question_id
-    && (attemptNumber(other) ?? 0) > own);
+  const ownRound = roundNumber(item) ?? 1;
+  return list.some(other => {
+    if (other === item || !isMap(other) || other.question_id !== item.question_id) return false;
+    const attempt = attemptNumber(other) ?? 1;
+    if (own !== null && attempt > own) return true;
+    return attempt === (own ?? 1) && (roundNumber(other) ?? 1) > ownRound;
+  });
+}
+
+/** A decision's own `round` as a positive whole number — the reader hands it back as text — or null. */
+function roundNumber(item) {
+  if (!isMap(item) || !Object.hasOwn(item, 'round')) return null;
+  const value = Number(item.round);
+  return Number.isInteger(value) && value > 0 ? value : null;
 }
 
 /** A decision's own `attempt` as a positive whole number — the reader hands it back as text — or null. */

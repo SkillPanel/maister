@@ -1,12 +1,12 @@
 ---
 name: maister:product-design
-description: Interactive product/feature design orchestrator. Transforms fuzzy ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Adaptive phases detect design complexity and adjust depth.
+description: Turns a fuzzy product or feature idea into a brief to build from. It explores the project, proposes the scope, decides each choice with sketches, and writes a brief with the final screens for the development workflow. Use it to decide what to build before building it.
 user-invocable: true
 ---
 
-# Product Design Orchestrator
+# Product Design
 
-Interactive workflow for product and feature design — from a fuzzy idea to a development-ready product brief. Phases adapt to the detected design characteristics, and the brief feeds the development workflow.
+From a fuzzy idea to a brief to build from. The run explores the project, proposes the scope, decides each choice with sketches, and writes the brief, which feeds the development workflow.
 
 ## Entry Point
 
@@ -24,10 +24,9 @@ link and the first phase, composed from the lines the freeze prints first, the p
 printed. The terminal collapses that output, so the banner is not on screen until you write it;
 before the next call, check that you did (engine Step 4).
 
-- **The four flags are inputs of the definition**: `--research=PATH` is `research`,
-  `--no-visual` is `no_visual: true`, `--simple` is `simple: true`, the short
-  design depth, and `--full` is `full: true`, the full design whatever the
-  detected complexity. An invocation with no description takes it from the
+- **The one flag is an input of the definition**: `--research=PATH` is `research`, a finished
+  research task to start from. There is no flag for the specification outcome: it is chosen at the
+  first checkpoint. An invocation with no description takes it from the
   conversation, as the design brief the operator has been describing.
   Any other flag, apart from the two resume flags below, is not an input of this workflow: name
   it as not taken, in one line, and continue without it — never drop one in silence.

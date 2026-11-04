@@ -6,6 +6,7 @@ import path from 'node:path';
 import { FIXTURES, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { scanState } from '../../plugins/maister/lib/state-scan.mjs';
+import { isEarlierAnswer } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 import { checkSet } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-set.mjs';
 
 // A question a node asks inside itself suspends to the operator only under a
@@ -466,6 +467,76 @@ test('rounds: a new attempt starts again at round 1', t => {
   const result = brief(run, questionSet());
   assert.equal(result.code, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).round, 1);
+});
+
+/** Round 2 answered with the case question reworded, as a follow-up that words a question differently sends it. */
+function answerRewordedRound(run) {
+  fs.writeFileSync(path.join(run.dir, 'gates/analysis.request.yml'),
+    fs.readFileSync(REQUEST, 'utf8').replace(/^round: 1$/m, 'round: 2')
+      .replaceAll('Should tag matching ignore letter case?', 'Should a tag match regardless of letter case?'));
+  write(run, { node_summaries: { analysis: { answer: plain(read(ANSWER).answer) } } });
+}
+
+/** The approval checkpoint's operator count once the node has ended. */
+function operatorCount(run) {
+  write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Scoped.' } } });
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--checkpoint']);
+  assert.equal(result.code, 0, result.stderr);
+  return JSON.parse(result.stdout).decisions.operator.count;
+}
+
+test('rounds: a question reworded in a follow-up round keeps both answers, the first marked earlier, and the checkpoint counts it once', t => {
+  const run = running(t);
+  answerRound(run, 1);
+  answerRewordedRound(run);
+  const held = plain(readState(run).node_summaries.analysis.decisions);
+  const caseAnswers = held.filter(item => item.question_id === 'tag-case');
+  assert.deepEqual(caseAnswers.map(item => item.round === undefined ? null : Number(item.round)), [null, 2],
+    'both rounds\' answers are held, the second stamped round 2');
+  assert.deepEqual(readDashboard(run).phases.find(each => each.id === 'analysis').decisions
+    .filter(item => item.question_id === 'tag-case').map(item => item.earlier === true), [true, false]);
+  assert.equal(operatorCount(run), 3, 'the reworded question is counted once, as answered in the later round');
+});
+
+test('rounds: a node\'s own write recording a re-asked answer with round 2 beside the first reads the same way', t => {
+  const run = running(t);
+  const answer = (round, text) => ({ decision: text, question_id: 'tag-case', question: text, answer: text, by: 'operator',
+    ...(round === undefined ? {} : { round }) });
+  write(run, { node_summaries: { analysis: { decisions: [answer(undefined, 'Ignore case?'), answer(2, 'Match case exactly?')] } } });
+  const phase = readDashboard(run).phases.find(each => each.id === 'analysis');
+  assert.deepEqual(phase.decisions.map(item => item.earlier === true), [true, false]);
+  assert.equal(plain(readState(run).node_summaries.analysis.decisions).length, 2, 'the earlier answer stays as history');
+});
+
+// In session, where the node records its own answers: under a driver the writer credits a bare answer to the run.
+test('rounds: in session, a closing write sending both answers again, the round left off the later, keeps the first earlier and the later in effect', t => {
+  const run = running(t, null);
+  const answer = (text, extra = {}) => ({ decision: text, question_id: 'tag-case', question: text, answer: text, by: 'operator', ...extra });
+  write(run, { node_summaries: { analysis: { decisions: [answer('Check the tag table first'), answer('Ignore case', { round: 2 })] } } });
+  write(run, { node_summaries: { analysis: { decisions: [answer('Check the tag table first'), answer('Ignore case')] } } });
+  const held = plain(readState(run).node_summaries.analysis.decisions);
+  assert.deepEqual(held.map(item => [item.answer, item.round === undefined ? null : Number(item.round)]),
+    [['Check the tag table first', null], ['Ignore case', 2]]);
+  assert.ok(held.every(item => item.by === 'operator'), 'both are the operator\'s');
+  assert.deepEqual(readDashboard(run).phases.find(each => each.id === 'analysis').decisions.map(item => item.earlier === true), [true, false]);
+  assert.equal(operatorCount(run), 1, 'the later round\'s answer is the one counted');
+});
+
+test('rounds: a round never outranks an attempt', t => {
+  const run = running(t);
+  const answer = (attempt, round) => ({ decision: `a${attempt}r${round}`, question_id: 'q', question: `q${attempt}${round}`,
+    answer: `a${attempt}r${round}`, by: 'operator', attempt, round });
+  write(run, { node_summaries: { analysis: { decisions: [answer(1, 3), answer(2, 1)] } } });
+  const phase = readDashboard(run).phases.find(each => each.id === 'analysis');
+  assert.deepEqual(phase.decisions.map(item => item.earlier === true), [true, false],
+    'attempt 1 round 3 is earlier than attempt 2 round 1, which stays current');
+});
+
+test('rounds: isEarlierAnswer is false for a non-map item and for one with no question_id', () => {
+  const list = [{ question_id: 'q', round: 2 }, { question_id: 'q', round: 1 }];
+  assert.equal(isEarlierAnswer('text', list), false);
+  assert.equal(isEarlierAnswer(null, list), false);
+  assert.equal(isEarlierAnswer({ round: 1 }, [{ round: 2 }, { round: 1 }]), false);
 });
 
 // ---------------------------------------------------------------------------

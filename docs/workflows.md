@@ -149,7 +149,11 @@ Research artifacts are copied to `analysis/research-context/` and summaries pass
 
 A completed product design feeds development the same way: `--design=PATH` names its task directory
 (or its brief), and the brief and mockups are copied to `analysis/design-context/`, the mockups
-becoming binding visual references for the plan, the implementation and the browser checks.
+becoming binding visual references for the plan, the implementation and the browser checks. A
+quick design feeds it too: `--design=PATH` names its task directory (or its `decision.md`), and the
+decision is copied there with the pages of the options you chose, never the rejected ones. A decision
+whose mockups were skipped comes alone, and the specification and the plan still read it as the
+design intent.
 
 ```
 /maister:development "Build the API usage dashboard" --design=.maister/tasks/product-design/2026-03-10-api-dashboard
@@ -333,7 +337,7 @@ the 2.x plugin is not resumed — see [Task directories from 2.x](#task-director
 
 ## Product Design
 
-Interactive workflow for designing features and products before building them. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Phases adapt based on design characteristics (greenfield vs enhancement, simple vs complex, UI-focused vs backend).
+Interactive workflow for deciding what to build before building it. It explores the project, proposes the scope, decides each choice with sketches, and writes a product brief with its final screens for the development workflow.
 
 ```
 /maister:product-design
@@ -343,21 +347,15 @@ Interactive workflow for designing features and products before building them. T
 
 When run without arguments, the plugin extracts the design brief from your conversation.
 
-**Flags**: `--research=PATH`, `--no-visual`, `--simple`, `--full`
+**Flags**: `--research=PATH`
 
-`--simple` runs the short design: no characteristics or context checkpoint, no personas, no
-brainstorm of alternatives or direction checkpoint, and no prototypes unless the design turns on
-layout or presentation — the intake judges that, says why, and lets you override it in the same
-question that asks for additional context. The specification states the approach itself, and you approve the problem and the
-specification before the brief and its delivery scope.
-
-`--full` runs the full design whatever the description suggests: the design is treated as
-complex, so personas are drafted and every phase goes to its deepest. Without it the depth
-follows what the run detects, and a short description of a modest change gets no personas.
+The mockups follow `mockup_format` in `.maister/config.yml`: `html` by default, or `ascii` for
+terminal mockups that need no browser.
 
 For a single bounded design question, `/maister:quick-design` is lighter still: it runs in the
 session rather than on the engine, asks one question set and writes a one-page `decision.md` under
-`.maister/tasks/design/` (see [Commands](commands.md#maisterquick-design-design-question)).
+`.maister/tasks/design/` (see [Commands](commands.md#maisterquick-design-design-question)). When the
+exploration finds that one bounded question is all there is, the first checkpoint recommends it.
 
 ### How it runs
 
@@ -365,35 +363,56 @@ Product design runs on the workflow engine: the workflow ships as a definition �
 with declared dependencies and guards — which the engine freezes into the task's state and
 executes. Like the other engine workflows, it needs Node.js 20 or newer.
 
-It is the most interactive of the workflows. Its exploration questions and refinement loops are
-the work rather than overhead around it, so the phases ask a good deal between the gates. Driven
-from a cockpit that can show a set of questions, each phase sends you its questions as one card —
-the design direction too, every decision area at once, each with its alternatives, their pros and
-cons and a recommendation, and each carrying its full write-up, so an area can be decided without
+It starts by exploring on its own: small read-only agents read the docs and the screens the task
+touches, and only what they could not answer is asked — up to four questions, each with concrete
+answers and a "Not sure yet" that does not block. From then on a run asks one question per decision
+area and three checkpoints.
+
+Options differ in what a person sees and does, never in schema or API. An area whose options look
+different is sketched first, one small page per option, and its question names the pages and the
+gallery. Answer with an option, or in your own words: start with "Check" and what to look at, and
+the run checks it from the code or the docs and asks that area again; name an approach that is not
+listed, and it becomes the choice, drawn when the design draws anything.
+
+Driven from a cockpit that can show a set of questions, each step sends you its questions as one
+card — the design direction too, every decision area at once, each with its alternatives, their pros
+and cons and a recommendation, and each carrying its full write-up, so an area can be decided without
 opening the alternatives document. A run that cannot ask takes each question's stated default
-instead, and the documents it writes say they were drafted without review. Choosing a design direction is
-the one exception: such a run never picks one itself. It lays the alternatives out with a
-recommendation for each decision, and the direction pause is where you choose — continuing adopts
-the recommendations, and sending the run back names the ones you want instead.
+instead, and the documents it writes say they were drafted without review: a gap in the scope is
+written down as an assumption to check, and correcting the scope is how you answer it. Choosing a
+design direction is the one exception: such a run never picks one itself. It lays the alternatives
+out with a recommendation for each decision, and the direction pause is where you choose — continuing
+adopts the recommendations, and sending the run back names the ones you want instead.
 
 ### Phases
 
-| # | Phase | Activation | Pause after it |
-|---|-------|------------|----------------|
-| 1 | Intake: gather context & detect characteristics | Always | Confirm the characteristics |
-| 2 | Context synthesis (codebase analysis or mini-research) | Always (scope adapts) | Approve the context |
-| 3 | Problem space exploration (interactive, iterative) | Always (depth adapts) | — |
-| 4 | User & persona exploration | Greenfield or complex designs, or `--full` | Approve the problem and personas |
-| 5 | Design alternatives generation (agent-driven, unbiased) | Always | — |
-| 6 | Converge on design direction (interactive) | Always | Approve the direction |
-| 7 | Feature specification, section-by-section (interactive) | Always (depth adapts) | — |
-| 8 | Visual prototyping (one mockup turn: HTML pages, or ASCII) | UI-focused designs | Approve the screens |
-| 9 | Review & hand off product brief | Always | The brief's own approval; the workflow ends |
+| # | Step | Activation | Pause after it |
+|---|------|------------|----------------|
+| 1 | Explore and propose the scope | Always | — |
+| 2 | Problem and personas | Always | Approve the problem and choose the outcome |
+| 3 | Brainstorm alternatives (agent-driven, unbiased) | Always | — |
+| 4 | Sketch and converge on a direction | Sketches when the design has something a person sees and an area's options differ in it; the convergence always | Approve the direction |
+| 5 | Specify, draw the final screens and write the brief | The specification with the second outcome; the screens when the design has something a person sees; the brief always | Approve the brief and the screens |
+| 6 | Hand off to development | Always | The workflow ends |
 
-The problem statement and the specification are always reviewed at a pause, even when the persona
-or prototyping phase after them is skipped. The problem, convergence and specification phases
-include iterative refinement loops — you can request revisions before moving on — and the screens are drawn one mockup turn at a time, with a pause after each where you can send them back with a note. Phase 5 uses an agent to generate alternatives without
-anchoring bias; when none of them fits, the direction pause can send the run back to generate more.
+**The first checkpoint** shows the scope proposal, the problem and the personas, and asks which
+outcome the run should produce:
+
+- **A design brief with screens**, recommended unless the signals call for more: the brief says what
+  changes per screen.
+- **A brief with a feature specification**: for several interacting screens or rules, or a
+  development run to follow at once. The specification is written after the direction and carried in
+  full inside the brief.
+
+It also offers **Correct the scope** and **Revise the problem**, and **Use quick-design instead**,
+which ends the run and names the `/maister:quick-design` command to run next. All three checkpoints
+are always asked; a design with nothing to draw says so at the first one, and goes through without
+sketches or screens.
+
+Step 3 uses an agent to generate alternatives without anchoring bias. The final screens are drawn
+as one mockup turn after the direction, and they replace the sketches in the folder development
+reads; every version stays under `analysis/mockups/versions/`. The third checkpoint can send back the
+screens and the brief together, or the brief alone.
 
 The output is a structured product brief that can be passed directly to the development workflow:
 
@@ -550,11 +569,10 @@ it, and the gate asks you once more.
 | Research | research foundation, convergence, design | the research foundation; the solution convergence; the high-level design |
 | Performance | bottleneck analysis, specification, specification audit, plan | the bottleneck analysis; the specification; planning |
 | Migration | gap analysis, specification, plan | the gap analysis; the specification; planning |
-| Product design | characteristics, context, problem and personas, design direction (two options), specification, screens | the intake; the context synthesis; the problem exploration and the personas after it; the convergence alone, or the alternatives generation and the convergence; the specification and the screens after it; the screens alone |
+| Product design | problem (scope and problem), design direction, brief and screens | the intake and the problem after it, or the problem alone; the convergence; the specification when the run writes one, the screens and the brief, or the brief alone |
 
 Verification and issue resolution offer no revise: their phases fix what they find through the
-automatic fix loop ([Answering a question](#answering-a-question)) before the gate asks. Product design's document phases loop too, but only when somebody is in the
-session; a run driven from outside skips those loops, so its pauses are where the documents change.
+automatic fix loop ([Answering a question](#answering-a-question)) before the gate asks.
 
 - **The note is chosen, not typed.** After you pick revise, the gate offers up to four suggested
   changes drawn from what the phase left open — a reason to stop first, each with the change it
@@ -796,7 +814,7 @@ What sits beside them depends on the workflow:
 |----------|----------------|
 | **development** | `analysis/` (codebase analysis, gap analysis, `research-context/`, `design-context/`), `implementation/` (spec, plan, work log), `verification/`, `documentation/` |
 | **research** | `planning/` (brief, plan, sources), `analysis/` (`findings/`, synthesis), `outputs/` (report, decision log, `decision-areas.json`) |
-| **product-design** | `context/` (your input materials), `analysis/` (problem statement, personas, alternatives, `decision-areas.json`, feature spec, `mockups/` with one folder per version under `mockups/versions/`), `outputs/` (product brief, delivery scope) |
+| **product-design** | `context/research-context/` (when you name a research task), `analysis/` (`scope.md`, `explore/`, problem statement, personas, alternatives, `decision-areas.json`, design decisions, feature spec, `mockups/` with one folder per version under `mockups/versions/`), `outputs/` (product brief, delivery scope) |
 | **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
 | **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
 

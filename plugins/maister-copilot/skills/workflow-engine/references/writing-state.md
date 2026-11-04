@@ -58,7 +58,7 @@ able to write:
   and `attempt` (none is the first) — a question asked again replaces its own answer. That holds
   across a revise, so a node that re-runs records only what it settled this time; a question set
   a driver asks again in the node's new attempt keeps the earlier attempt's answers as history
-  (`references/in-node-questions.md` § *In-node questions*). **Under a `cockpit` or `dispatch`
+  (`references/in-node-questions.md` § *In-node questions*); within one attempt, a later round's answer to the same question is the one in effect and the earlier round's stays as history. **Under a `cockpit` or `dispatch`
   driver, a person answers only through a recorded answer**: an operator-shaped item the node
   sends with no name, `via` or `actor` is recorded `by: run`, unless the writer folded it from an
   answer block, already holds it as an answer, or it carries `on_behalf_of`. An answer given in a

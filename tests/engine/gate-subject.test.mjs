@@ -8,7 +8,7 @@ import { SUBJECT_KINDS, subjectOf } from '../../plugins/maister/skills/workflow-
 
 // A built-in step that declares delegates completes only with them listed;
 // every write here sends them as a session that dispatched them would.
-const write = (run, patch) => writeState(run, delegating(patch));
+const write = (run, patch) => writeState(run, delegating(patch, run));
 
 // A gate's checkpoint names the one output it asks the operator to approve,
 // `subject: {path, kind}`, read off the declared output keys of the nodes the
@@ -75,17 +75,17 @@ test('subject: the delivery scope comes before the brief it is approved with', t
   const graph = freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: 'Share calendars' } });
   const byId = new Map(graph.nodes.map(node => [node.id, node]));
   onDisk(run, 'outputs/product-brief.md');
-  assert.deepEqual(subjectOf({ ids: ['review-handoff'], byId, runDir: run.dir }), { path: 'outputs/product-brief.md', kind: 'brief' },
+  assert.deepEqual(subjectOf({ ids: ['brief'], byId, runDir: run.dir }), { path: 'outputs/product-brief.md', kind: 'brief' },
     'without the scope on disk, the brief');
   onDisk(run, 'outputs/delivery-scope.yml');
-  assert.deepEqual(subjectOf({ ids: ['review-handoff'], byId, runDir: run.dir }), { path: 'outputs/delivery-scope.yml', kind: 'delivery-scope' });
+  assert.deepEqual(subjectOf({ ids: ['brief'], byId, runDir: run.dir }), { path: 'outputs/delivery-scope.yml', kind: 'delivery-scope' });
 });
 
 test('subject: a specification comes before the prototypes beside it; a folder of screens reads as a folder', t => {
   const run = scratch(t);
   const graph = freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: 'Share calendars' } });
   const byId = new Map(graph.nodes.map(node => [node.id, node]));
-  const ids = ['feature-specification', 'visual-prototyping'];
+  const ids = ['specification', 'screens'];
   fs.mkdirSync(path.join(run.dir, 'analysis/mockups'), { recursive: true });
   fs.writeFileSync(path.join(run.dir, 'analysis/mockups/.mockups.json'), '{}');
   assert.equal(subjectOf({ ids, byId, runDir: run.dir }), null, 'a folder holding only a hidden file names nothing');

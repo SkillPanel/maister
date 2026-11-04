@@ -12,6 +12,8 @@ options are more than four names its stop in the question as also offered.
 ### Status
 Accepted. The research definition's hash moves; frozen runs keep their own graph.
 
+Amended by ADR-0068: when a gate's stop is recommended and its own options still outnumber the four slots, the previewing picker moves a revise into the question instead, the last revise first. A continue and the recommended option are never moved.
+
 ### Context
 ADR-0035 left the foundation gate without a stop because its four options filled the previewing
 picker, and finishing with the research was the way out. Users met it as the one approval gate with

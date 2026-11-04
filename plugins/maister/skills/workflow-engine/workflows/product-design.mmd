@@ -1,40 +1,33 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: product-design
-%% graph_hash: sha256:abeb2b1e0308b2be7c470112529e8532127f7a4e8613b8117a5c99f6e30cab72
+%% graph_hash: sha256:dcd41a6601fe2810194304cf2182a34cab7cacaa27b4c2c86b2b06afda75ee5b
 
 flowchart TD
-  n_intake["Intake and design characteristics<br/>intake<br/>direct:intake"]
-  n_characteristics_approval{{"Approve design characteristics<br/>characteristics-approval<br/>gate<br/>Design characteristics detected. Continue to context synthesis?<br/>continue-to-context-synthesis: continue, revise-characteristics: revise → intake, stop-design: stop<br/>when: !${inputs.simple}"}}
-  n_context_synthesis["Context synthesis<br/>context-synthesis<br/>direct:context-synthesis"]
-  n_context_approval{{"Approve design context<br/>context-approval<br/>gate<br/>Context synthesis complete. Continue to problem exploration?<br/>continue-to-problem-exploration: continue, revise-context: revise → context-synthesis, stop-design: stop<br/>when: !${inputs.simple}"}}
-  n_problem_exploration["Problem exploration<br/>problem-exploration<br/>direct:problem-exploration"]
-  n_persona_exploration{"User and persona exploration<br/>persona-exploration<br/>direct:persona-exploration<br/>when: ${intake.values.personas_enabled}"}
-  n_problem_approval{{"Approve problem and personas<br/>problem-approval<br/>gate<br/>Problem exploration complete. Continue?<br/>continue-to-idea-generation: continue, revise-problem: revise → problem-exploration, stop-design: stop"}}
-  n_idea_generation{"Idea generation<br/>idea-generation<br/>agent:solution-brainstormer<br/>when: !${inputs.simple}"}
-  n_idea_convergence{"Idea convergence<br/>idea-convergence<br/>direct:idea-convergence<br/>when: !${inputs.simple}"}
-  n_direction_approval{{"Approve design direction<br/>direction-approval<br/>gate<br/>Design direction ready for review. Continue to feature specification?<br/>continue-to-specification: continue, explore-more-alternatives: revise → idea-generation, refine-direction: revise → idea-convergence, stop-design: stop<br/>when: !${inputs.simple}"}}
-  n_feature_specification["Feature specification<br/>feature-specification<br/>direct:feature-specification"]
-  n_visual_prototyping{"Visual prototyping<br/>visual-prototyping<br/>skill:mockup-studio<br/>when: ${intake.values.prototyping_enabled}"}
-  n_mockup_approval{{"Approve the screens<br/>mockup-approval<br/>gate<br/>Screens drawn. Continue to the specification review?<br/>continue-to-specification-review: continue, revise-mockups: revise → visual-prototyping, stop-design: stop<br/>when: ${intake.values.prototyping_enabled}"}}
-  n_specification_approval{{"Approve specification and prototypes<br/>specification-approval<br/>gate<br/>Feature specification complete. Continue to the product brief?<br/>continue-to-product-brief: continue, revise-specification: revise → feature-specification, stop-design: stop"}}
-  n_review_handoff["Product brief and delivery scope<br/>review-handoff<br/>direct:review-handoff"]
+  n_intake["Explore and propose the scope<br/>intake<br/>direct:intake"]
+  n_problem["Problem and personas<br/>problem<br/>direct:problem"]
+  n_problem_approval{{"Approve the problem and choose the outcome<br/>problem-approval<br/>gate<br/>The scope proposal, the problem and the personas are ready. Which outcome should this run produce?<br/>brief-with-screens: continue, brief-with-spec: continue, correct-scope: revise → intake, revise-problem: revise → problem, use-quick-design: stop"}}
+  n_alternatives["Brainstorm alternatives<br/>alternatives<br/>agent:solution-brainstormer"]
+  n_sketches{"Sketches<br/>sketches<br/>skill:mockup-studio<br/>when: ${intake.values.draws} #38;#38; ${alternatives.values.visual_areas}"}
+  n_convergence["Converge on a direction<br/>convergence<br/>direct:convergence"]
+  n_direction_approval{{"Approve the design direction<br/>direction-approval<br/>gate<br/>Design direction ready. Continue?<br/>approve-direction: continue, revise-direction: revise → convergence, stop-design: stop"}}
+  n_specification{"Feature specification<br/>specification<br/>direct:specification<br/>when: ${inputs.specification} || ${problem-approval.values.with_spec}"}
+  n_screens{"Final screens<br/>screens<br/>skill:mockup-studio<br/>when: ${intake.values.draws}"}
+  n_brief["Product brief and delivery scope<br/>brief<br/>direct:brief"]
+  n_brief_approval{{"Approve the brief and the screens<br/>brief-approval<br/>gate<br/>The brief and the screens are ready. Continue?<br/>approve-brief: continue, change-brief: revise → brief, change-screens-and-brief: revise → specification, stop-design: stop"}}
   n_completion{"Completion<br/>completion<br/>direct:completion<br/>when: !${inputs.embedded}"}
-  n_intake --> n_characteristics_approval
-  n_characteristics_approval --> n_context_synthesis
-  n_context_synthesis --> n_context_approval
-  n_context_approval --> n_problem_exploration
-  n_problem_exploration --> n_persona_exploration
-  n_persona_exploration --> n_problem_approval
-  n_problem_exploration --> n_problem_approval
-  n_problem_approval --> n_idea_generation
-  n_idea_generation --> n_idea_convergence
-  n_idea_convergence --> n_direction_approval
-  n_direction_approval --> n_feature_specification
-  n_feature_specification --> n_visual_prototyping
-  n_visual_prototyping --> n_mockup_approval
-  n_feature_specification --> n_specification_approval
-  n_mockup_approval --> n_specification_approval
-  n_specification_approval --> n_review_handoff
-  n_review_handoff --> n_completion
-  class n_characteristics_approval,n_context_approval,n_problem_approval,n_direction_approval,n_mockup_approval,n_specification_approval gate
-  class n_characteristics_approval,n_context_approval,n_persona_exploration,n_idea_generation,n_idea_convergence,n_direction_approval,n_visual_prototyping,n_mockup_approval,n_completion conditional
+  n_intake --> n_problem
+  n_intake --> n_problem_approval
+  n_problem --> n_problem_approval
+  n_problem_approval --> n_alternatives
+  n_alternatives --> n_sketches
+  n_alternatives --> n_convergence
+  n_sketches --> n_convergence
+  n_convergence --> n_direction_approval
+  n_direction_approval --> n_specification
+  n_specification --> n_screens
+  n_screens --> n_brief
+  n_brief --> n_brief_approval
+  n_screens --> n_brief_approval
+  n_brief_approval --> n_completion
+  class n_problem_approval,n_direction_approval,n_brief_approval gate
+  class n_sketches,n_specification,n_screens,n_completion conditional

@@ -1,6 +1,6 @@
 # Interaction Patterns
 
-Guides interaction quality in the product-design workflow's interactive nodes. Defines two cognitive modes, the iterative refinement loop, and AskUserQuestion option design.
+Guides interaction quality in the product-design workflow's interactive nodes. Defines two cognitive modes, what the checkpoints offer, "Investigate first", and AskUserQuestion option design.
 
 ---
 
@@ -16,32 +16,32 @@ Product design is a conversation, not a form. The workflow alternates between ex
 
 ### Exploration Mode
 
-**When**: `problem-exploration` and `persona-exploration`
+**When**: the gap page of `intake`, once the explore has run
 
 **Purpose**: Understand the design space before proposing solutions. Discover constraints, motivations, and context that shape the design.
 
 **Principles**:
 - **Avoid anchoring bias**: Do not propose solutions during exploration. Premature solutions close off discovery.
-- **Pages of independent questions**: Up to four questions to a page, each standing on its own; a question whose framing depends on another's answer waits for the next page, which builds on the answers before it. Decision areas are never paged — they belong to convergence.
+- **One page of independent questions**: Up to four questions, each standing on its own, and only what the explore could not answer. A gap the page cannot hold, or whose framing depends on another's answer, is written into the scope as an assumption to check. Decision areas are never paged — they belong to convergence.
 - **One behaviour, one story**: Questions about one behaviour the feature must support — who may do it, where they start, what changes, who sees the result — are drafted into one journey-level story and asked as one question, never as separate tabs. A screen or a control appears in it only where the design context already names one, so the story records the journey without anchoring the layout. The workflow engine's `references/in-node-questions.md` states the rule.
-- **Context-aware questions**: Each question carries its own synthesis line — what the run already understands that bears on it, from the codebase analysis, the user-supplied context or earlier answers — and two or three answers generated from it. Generic questions waste the user's time.
+- **Context-aware questions**: Each question carries its own synthesis line — what the run already understands that bears on it, from the explore briefs, the user-supplied context or earlier answers — and two or three answers generated from it. Generic questions waste the user's time.
 - **Escape hatches**: Always allow the user to say "Not sure yet" without blocking progress, and to ask for More details — the full context written out, then the same question again.
 
 **Signal to user**: Announce exploration mode explicitly to set expectations.
-> "Let's explore who this feature is really for and what problem it solves..."
+> "The project answers most of this. Here is what it could not tell me..."
 
 **Anti-pattern**: Asking "What do you want?" when you have enough context to ask something specific. Exploration questions should demonstrate understanding of the domain.
 
 ### Convergence Mode
 
-**When**: `idea-convergence`, `feature-specification`, the review of the screens in `visual-prototyping`, and the brief's approval in `review-handoff`
+**When**: `convergence`, and the checkpoints `problem-approval`, `direction-approval` and `brief-approval`
 
 **Purpose**: Narrow down from explored possibilities to concrete decisions. Present drafts for reaction rather than asking open-ended questions.
 
 **Principles**:
 - **Propose-and-refine**: "Editing is cognitively easier than creating." Present concrete drafts for the user to react to rather than asking them to create from scratch.
 - **Structured drafts**: Present complete artifacts (not summaries or bullet points) so the user can evaluate the actual output.
-- **Aspect-specific feedback**: Guide refinement toward specific dimensions rather than asking "What would you change?"
+- **Aspect-specific feedback**: Guide a change toward specific dimensions rather than asking "What would you change?"
 
 **Signal to user**: Announce convergence mode to mark the narrative transition.
 > "Based on our exploration, here's what I think we've agreed on..."
@@ -56,53 +56,46 @@ Explicitly announce transitions between modes. This creates a narrative arc that
 
 ---
 
-## Iterative Refinement Loop Pattern
+## The Checkpoints
 
-A new maister pattern for convergence points where artifacts need user approval.
+A checkpoint is the engine's gate, and no node runs an approval loop of its own. The way back is the gate's revise, and the note it carries is the correction. A revised document comes back whole, never as a diff or a table of what changed.
 
-### When to Apply
+### Checkpoint 1: The Scope Options (`problem-approval`)
 
-At every convergence point where a node produces a draft artifact:
-- `problem-exploration`: the problem statement
-- `persona-exploration`: the persona cards
-- `idea-convergence`: each decision area (the overall direction is approved at `direction-approval`, which follows directly)
-- `feature-specification`: each specification section
-- `visual-prototyping`: the screens, one mockup turn per round, approved at `mockup-approval`
-- `review-handoff`: the assembled brief
+The person chooses what this run produces, or corrects what it is about. `problem`'s summary recommends from the signals: the task's length, the screens it names, the decisions it implies, greenfield or not.
 
-### Flow
+| Option | What it does | Recommended when |
+|---|---|---|
+| "A design brief with screens" | Goes on, with no specification | The signals do not call for the specification |
+| "A brief with a feature specification" | Goes on, and writes the design-level specification | Several interacting screens or rules, a development run to follow at once, or the `specification` input is true |
+| "Correct the scope" | Re-runs `intake` from the note | Not recommended; each assumption's `change` is offered as a suggestion |
+| "Revise the problem" | Re-runs `problem` from the note | Not recommended; each drafted story's `change` is offered as a suggestion |
+| "Use quick-design instead" | Ends the run, its next step the quick-design command | The scope found one bounded question; a risk tagged `stop` carries it |
 
-```
-Draft → AskUserQuestion carrying the draft (approve / change A / change B / More details)
-  → [revision] → complete revised draft → AskUserQuestion (same options)
-  → [after soft cap] → same options, approve's description naming the rounds taken
-```
+When the intake found nothing a person sees, the reason says no screens are drawn on either outcome. A picker that cannot list every option names the rest in the question, and they stay choosable: the engine decides which.
 
-**Standard options**: "Approve (Recommended)", "Change [aspect A]", "Change [aspect B]", More details — four slots, so a fourth change option moves More details to a typed "details". A rethink, or any change the options do not name, is the user's own words through the free-text answer.
+### Checkpoint 2: The Direction (`direction-approval`)
 
-**Soft cap**: after the iteration limit the options stay the same; approve's description says how many rounds were taken, and the user can still take one more.
+Closes the convergence. A revise re-asks only the areas its note reopens.
 
-### Key Rules
+### Checkpoint 3: The Whole-Brief Review (`brief-approval`)
 
-**Complete drafts always**: Every revision presents the COMPLETE updated artifact. Never present a diff, a summary of changes, or a table of what changed. The user should be able to evaluate the artifact on its own merits without referencing the previous version.
+The brief, the screens and the delivery scope are reviewed once, together, with no section-by-section ask before it. What the person wants changed is the note on the engine's revise: "Change the brief only", or "Change the screens and brief", which runs again from the specification. `brief`'s summary is the review's preview, a line per layer, and it recommends the brief-only revise when the scope misses an agreed point.
 
-**Soft cap, not hard limit**: `design_context.refinement_iterations` tracks the rounds each loop took, in the run's state. After reaching the soft cap (2 for simple tasks, 3 for standard/complex), the options shift to encourage approval. But the user can always choose "One more revision."
+---
 
-**A rethink**: When the user asks for one — an option where a node offers it, or their own words — it is a significant action. It signals that incremental changes will not fix the problem. Step back, re-examine assumptions, and present a substantially different draft -- not a minor variation of the previous one.
+## Investigate First
 
-**Exploring more alternatives is a gate option, not a loop option**: when none of the generated alternatives feels right, the answer is "Brainstorm new alternatives" at `direction-approval`, which re-runs the brainstorm and then the convergence. A loop inside `idea-convergence` cannot reach back to the node before it.
+A person who cannot choose an area yet need not guess. Every decision area in `convergence` offers this: they say what to look at, the node checks it from the code or the docs, adds one line to the area's record and asks the same area again. It answers from what is already there, so it is a check and not a research phase, and the rounds of one attempt bound it.
 
-### State Tracking
+<!-- rich-picker -->
+They type it in the question tool's free-text answer, starting with "Check", so it costs no option slot.
+<!-- /rich-picker -->
+<!-- plain-picker
+They take the option "Investigate first" and fill in its "What to check", or answer in their own words starting with "Check".
+-->
 
-```yaml
-design_context:
-  refinement_iterations:
-    problem_statement: 1
-    personas: 0
-    specification_sections: {user_stories: 2}
-```
-
-Track per loop (and per section in `feature-specification`) to apply soft caps independently. A heavily-iterated persona definition should not consume the refinement budget for specification sections.
+The workflow engine's `references/in-node-questions.md`, *Decision areas from the brainstorm*, states how the answer is read and recorded.
 
 ---
 
@@ -119,11 +112,11 @@ Structure: topical choices + escape hatches
 - "Not sure yet" (does not block progress), or More details where the question's context is long (the workflow engine's rule for it)
 - The user's own words are the question tool's free-text answer, not an option slot
 
-**Example** (`problem-exploration`):
+**Example** (`intake`):
 ```
-- "The main problem is [user frustration with X] (Recommended)"
-- "Actually, it's more about [business need Y]"
-- "Both are important, but prioritize [X]"
+- "[The screen the task names] and its [dialog] (Recommended)"
+- "Only the [dialog]; [the screen] stays as it is"
+- "Those two, and [the view the explore also found]"
 - "Not sure yet"
 ```
 
@@ -131,19 +124,13 @@ Structure: topical choices + escape hatches
 
 ### Convergence Mode Options
 
-Structure: approve + aspect-specific changes + structural options + escape hatch
+**In a decision area**, the options are the alternatives in rank order, strongest first, with the recommended one marked. `area-brief` renders them; composed from the markdown after a warning, they take the same form. Each is applied as it stands, and the node adds no "Approve" or "Change" of its own.
 
-**Pattern**:
-- "Approve (Recommended)" (always first; its description says what the draft settles)
-- "Change [aspect A]" / "Change [aspect B]" (specific refinement targets, each description naming the likeliest change)
-- More details last, or typed as "details" when a third change option or a structural one ("Add more detail", "Rethink it") takes the fourth slot
-- The draft itself rides in the approve option's preview where the tool shows previews, and as its points in the question where it does not
+**At a checkpoint**, the options are the definition's and the engine renders them. What a node shapes is what it writes: its `recommends`, and each `open` risk whose `change` names a likely correction, which the gate offers as a revise suggestion.
 
-**Aspect-specific "Change" options**: Anticipate the most likely refinement areas for the artifact type:
-- For a persona: "Change role", "Change goals", "Change pain points"
-- For a problem statement: "Change scope", "Change priority", "Change constraints"
-- For a spec section: "Change requirements", "Change acceptance criteria", "Change scope"
-- For a mockup: "Change layout", "Change content", "Change interactions"
+**Aspect-specific corrections**: Anticipate the likeliest ones for the artifact type:
+- For a problem statement: scope, priority, constraints
+- For a mockup: layout, content, interactions
 
 ### Universal Rules
 
@@ -153,7 +140,7 @@ Structure: approve + aspect-specific changes + structural options + escape hatch
 
 **Never present all decision areas in a single batch**: One area at a time with full context. Batch decisions produce shallow answers because users optimize for completion speed rather than quality.
 
-**Order matters**: Put the most likely action first. In convergence, that is usually "Approve" (most drafts are close enough). In exploration, lead with the option that advances the conversation most.
+**Order matters**: Put the most likely action first. In a decision area, that is the rank order. In exploration, lead with the option that advances the conversation most.
 
 ---
 
@@ -167,7 +154,7 @@ The questions are the design conversation, so each one carries its context in it
 > "The key constraint is that existing users should not need to re-learn navigation, so the design extends the current sidebar. Where should the new view sit?"
 
 **After receiving an answer**: Acknowledge and bridge to the next question or draft.
-> "That makes sense. The two-persona approach (admin vs. viewer) gives us clear boundaries for feature scoping. Let me draft the admin persona first since they have the more complex workflow."
+> "That makes sense. The share dialog stays as it is, so what is left to settle is where the guest link lives."
 
 ### Synthesis Over Repetition
 
@@ -185,17 +172,16 @@ Every transition between exploration and convergence gets an explicit label. Thi
 
 | Anti-Pattern | Why It Fails | Better Approach |
 |---|---|---|
-| Summary table of changes across iterations | User must mentally diff two versions | Present complete revised draft every time |
+| Summary table of changes across revisions | User must mentally diff two versions | Present complete revised draft every time |
 | Skipping mode labels | User is confused by sudden shift from questions to proposals | Always announce "Now let's converge..." |
-| Single-round approve-or-reject | No room for iterative refinement | Use the refinement loop with aspect-specific options |
 | "What do you want?" in convergence | Shifts cognitive burden to user when you have enough to propose | Use propose-and-refine: present a draft |
 | All decision areas in one batch | Produces shallow answers | One area at a time with full context |
-| Form-filling: questions without synthesis | Feels like a bureaucratic intake process | Each question carries its synthesis line; each page builds on the answers before it |
+| Form-filling: questions without synthesis | Feels like a bureaucratic intake process | Each question carries its synthesis line, from what the explore found |
 | Context only in a message above the question | The message may never reach the screen | Put it in the question, the options and the previews |
 | More than four options, or an option that only opens another question | Cannot render, or costs a round trip | Bundle, generate concrete answers, take the rest as typed text |
 | Proposing solutions during exploration | Anchors thinking, closes off discovery | Explore fully before proposing |
-| Generic questions ignoring context | Wastes user's time, signals lack of understanding | Reference codebase analysis and prior answers |
+| Generic questions ignoring context | Wastes user's time, signals lack of understanding | Reference what the explore found and prior answers |
 
 ---
 
-This reference provides interaction patterns and frameworks. The workflow's node prose, `skills/workflow-engine/workflows/product-design.md`, defines the node logic that applies these patterns, and what each question takes under a `cockpit` or `dispatch` driver, where none of them is asked.
+This reference provides interaction patterns and frameworks. The workflow's node prose, `<plugin root>/skills/workflow-engine/workflows/product-design.md`, defines the node logic that applies these patterns, and what each question takes under a `cockpit` or `dispatch` driver, with question sets and without.

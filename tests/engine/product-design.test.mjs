@@ -4,16 +4,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, lastLine, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { delegating, ENGINE_DIR, FIXTURES, freeze, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { parseDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
+import { loadAreas } from '../../plugins/maister/skills/workflow-engine/scripts/lib/decision-areas.mjs';
 
 // The product-design workflow on the engine. A synthetic run — an invented
-// enhancement with a UI and no personas — is replayed against the shipped
-// definition, and partial runs built here stand at each gate whose shape is
-// particular to this workflow: the unguarded gates that close a guarded node,
-// the direction gate's two ways back, and the convergence a driven run leaves
-// open for that gate to decide.
+// enhancement with a UI, whose specification is skipped and whose sketches and
+// final screens are drawn — is replayed against the shipped definition, and
+// short walks built here stand a fresh run at each of its three gates, for the
+// guards that steer the route and the ways back each gate offers.
 
 const PRODUCT_DESIGN = path.join(ENGINE_DIR, 'workflows/product-design.yml');
 const RUN_NAME = '2026-10-02-team-calendar-sharing';
@@ -41,17 +41,21 @@ function revise(run, node, option, note) {
 /**
  * The synthetic run the fixture records: frozen afresh against the shipped
  * definition, so the fixture does not stale when the definition's hash moves,
- * then the recorded outcomes, summaries and design context replayed in one
- * closing write. `absent` is laid over the recorded summaries by node id.
+ * with the options it recorded, then the recorded outcomes, summaries and design
+ * context replayed in one closing write. A gate's values are the writer's own,
+ * recorded from the option its summary names, so they are not sent. `absent` is
+ * laid over the recorded summaries by node id.
  */
 function replayRecorded(t, absent = null, { inputs = {}, unrun = [] } = {}) {
   const run = scratch(t, { fixture: 'team-calendar-sharing', type: 'product-design', name: RUN_NAME });
   const recorded = parse(fs.readFileSync(path.join(run.dir, 'recorded-state.yml'), 'utf8'));
-  freeze(run, { definition: PRODUCT_DESIGN, inputs: { ...recorded.orchestrator.options.inputs, ...inputs } });
+  const { inputs: recordedInputs, ...options } = recorded.orchestrator.options;
+  freeze(run, { definition: PRODUCT_DESIGN, orchestrator: { options }, inputs: { ...recordedInputs, ...inputs } });
   const nodes = {};
   for (const [id, entry] of Object.entries(recorded.workflow.nodes)) {
     if (unrun.includes(id)) continue;
-    nodes[id] = { status: entry.status, ...(entry.values ? { values: { ...entry.values } } : {}) };
+    const sent = entry.values && entry.kind !== 'gate' ? { values: { ...entry.values } } : {};
+    nodes[id] = { status: entry.status, ...sent };
   }
   const summaries = JSON.parse(JSON.stringify(recorded.node_summaries));
   for (const id of unrun) delete summaries[id];
@@ -65,57 +69,103 @@ function replayRecorded(t, absent = null, { inputs = {}, unrun = [] } = {}) {
     task: { status: recorded.task.status },
     nodes,
     context: JSON.parse(JSON.stringify(recorded.design_context)),
+    project_context: JSON.parse(JSON.stringify(recorded.project_context)),
     node_summaries: summaries,
   });
   return run;
 }
 
-/**
- * A fresh run of the shipped definition walked to `problem-approval`, with the
- * persona exploration run or skipped as `personas` says, and the prototypes
- * enabled as `prototyping` says.
- */
-function atProblemApproval(t, { personas, prototyping = true }) {
+/** A fresh run of the shipped definition, frozen with `inputs` beside the task, under `driver` when one is named. */
+function freshRun(t, inputs = {}, driver = null) {
   const run = scratch(t, { type: 'product-design', name: RUN_NAME });
-  freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: TASK } });
-  write(run, {
-    nodes: { intake: { status: 'completed', values: { personas_enabled: personas, prototyping_enabled: prototyping, complexity_level: 'standard' } } },
-    node_summaries: { intake: { summary: 'An enhancement with a UI.', absent: { research_context: 'no research task was named' } } },
-  });
-  write(run, { nodes: { 'characteristics-approval': { status: 'completed' } } });
-  write(run, {
-    nodes: { 'context-synthesis': { status: 'completed' } },
-    node_summaries: { 'context-synthesis': { summary: 'Calendars are private to the organisation today.' } },
-  });
-  write(run, { nodes: { 'context-approval': { status: 'completed' } } });
-  write(run, {
-    nodes: { 'problem-exploration': { status: 'completed' } },
-    node_summaries: {
-      'problem-exploration': {
-        summary: 'Teams cannot show availability to outside guests.',
-        decisions: ['External guests get no account'],
-        risks: ['open: assumes guests accept a link instead of a login'],
-      },
-    },
-  });
-  write(run, personas
-    ? {
-      nodes: { 'persona-exploration': { status: 'completed' } },
-      node_summaries: { 'persona-exploration': { summary: 'Two personas: the organiser and the outside guest.' } },
-    }
-    : { nodes: { 'persona-exploration': { status: 'skipped' } } });
+  freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: TASK, ...inputs }, orchestrator: driver ? { driver } : {} });
   return run;
 }
 
-/** A fresh run walked to `direction-approval`, its convergence left as `convergence` says. */
-function atDirectionApproval(t, convergence, { prototyping = true } = {}) {
-  const run = atProblemApproval(t, { personas: false, prototyping });
-  write(run, { nodes: { 'problem-approval': { status: 'completed' } } });
-  write(run, {
-    nodes: { 'idea-generation': { status: 'completed' } },
-    node_summaries: { 'idea-generation': { summary: 'Two decision areas, five alternatives.' } },
+/** One write of a walk, with the delegates a session that dispatched them would list. */
+function walk(run, patch) {
+  return write(run, delegating(patch, run));
+}
+
+/** A gate answered with `option`, as the session records an answer. */
+function answer(run, gate, option) {
+  return write(run, { nodes: { [gate]: { status: 'completed' } }, node_summaries: { [gate]: { decisions: [{ option }] } } });
+}
+
+/**
+ * A fresh run walked to `problem-approval`: the intake recorded `draws`, and the
+ * problem's summary is the default one with `problem` laid over it.
+ */
+function atProblemApproval(t, { draws = true, inputs = {}, problem = {}, driver = null } = {}) {
+  const run = freshRun(t, inputs, driver);
+  walk(run, {
+    nodes: { intake: { status: 'completed', values: { draws } } },
+    node_summaries: { intake: { summary: 'An enhancement with a UI.', absent: { research_context: 'no research task was named' } } },
   });
-  write(run, { nodes: { 'idea-convergence': { status: 'completed' } }, node_summaries: { 'idea-convergence': convergence } });
+  walk(run, {
+    nodes: { problem: { status: 'completed' } },
+    node_summaries: {
+      problem: {
+        summary: 'Teams cannot show availability to outside guests.',
+        decisions: ['External guests get no account'],
+        risks: ['open: assumes guests accept a link instead of a login'],
+        ...problem,
+      },
+    },
+  });
+  return run;
+}
+
+/**
+ * A fresh run walked to `direction-approval`: `outcome` answered at the first gate,
+ * the brainstorm recorded `visualAreas`, the sketches drawn when both bools allow
+ * them, and the convergence closed with the summary `convergence`.
+ */
+function atDirectionApproval(t, {
+  draws = true, inputs = {}, problem = {}, outcome = 'brief-with-screens', visualAreas = true, driver = null,
+  convergence = { summary: 'Link-based sharing.', decisions: ['access model: signed link'] },
+} = {}) {
+  const run = atProblemApproval(t, { draws, inputs, problem, driver });
+  answer(run, 'problem-approval', outcome);
+  walk(run, {
+    nodes: { alternatives: { status: 'completed', values: { visual_areas: visualAreas } } },
+    node_summaries: { alternatives: { summary: 'Two decision areas, five alternatives.' } },
+  });
+  if (draws && visualAreas) {
+    walk(run, {
+      nodes: { sketches: { status: 'completed' } },
+      node_summaries: { sketches: { summary: 'v001 of the sketches, one page per option.' } },
+    });
+  }
+  walk(run, { nodes: { convergence: { status: 'completed' } }, node_summaries: { convergence } });
+  return run;
+}
+
+/**
+ * A fresh run walked to `brief-approval`: the direction approved, the specification
+ * written when the outcome or the input asks for it, the final screens drawn when
+ * the intake said so, and the brief closed.
+ */
+function atBriefApproval(t, options = {}) {
+  const { draws = true, inputs = {}, outcome = 'brief-with-screens' } = options;
+  const run = atDirectionApproval(t, options);
+  answer(run, 'direction-approval', 'approve-direction');
+  if (outcome === 'brief-with-spec' || inputs.specification === true) {
+    walk(run, {
+      nodes: { specification: { status: 'completed' } },
+      node_summaries: { specification: { summary: 'Three screens, from the share dialog to the guest calendar.' } },
+    });
+  }
+  if (draws) {
+    walk(run, {
+      nodes: { screens: { status: 'completed' } },
+      node_summaries: { screens: { summary: 'v002 — the share dialog and the guest calendar; open analysis/mockups/versions/v002/index.html.' } },
+    });
+  }
+  walk(run, {
+    nodes: { brief: { status: 'completed' } },
+    node_summaries: { brief: { summary: 'The brief and the delivery scope, one member in scope.' } },
+  });
   return run;
 }
 
@@ -135,24 +185,31 @@ test('recorded run: an unsanctioned research context reads as the one missing ar
   assert.equal(result.stdout, 'missing-artifact: intake context/research-context\nRUN-COMPLETE\n');
 });
 
-test('recorded run: the skipped personas owe nothing, and the closing check does not look for them', t => {
+test('recorded run: the skipped specification owes no page, while a drawn step still owes its own', t => {
   const run = replayRecorded(t);
-  assert.equal(fs.existsSync(path.join(run.dir, 'analysis/personas.md')), false);
-  assert.equal(readState(run).workflow.nodes['persona-exploration'].status, 'skipped');
+  assert.equal(readState(run).workflow.nodes['problem-approval'].values.with_spec, false);
+  assert.equal(readState(run).workflow.nodes.specification.status, 'skipped');
+  for (const file of ['analysis/feature-spec.md', 'analysis/feature-spec.html']) {
+    assert.equal(fs.existsSync(path.join(run.dir, file)), false, file);
+  }
   assert.equal(complete(run).stdout, 'RUN-COMPLETE\n');
+  fs.rmSync(path.join(run.dir, 'analysis/alternatives.html'));
+  assert.equal(complete(run).stdout, 'missing-companion: alternatives analysis/alternatives.html\nRUN-COMPLETE\n');
 });
 
-test('recorded run: the dashboard projects a product-design run with its characteristics and icons', t => {
+test('recorded run: the dashboard projects a product-design run with its icons and no characteristics', t => {
   const data = readDashboard(replayRecorded(t));
   assert.equal(data.task.type, 'product-design');
-  assert.equal(data.characteristics.is_ui_focused, true);
-  assert.equal(data.characteristics.is_greenfield, false);
+  assert.deepEqual(data.characteristics, {});
   const phase = id => data.phases.find(entry => entry.id === id);
-  assert.equal(phase('idea-convergence').icon_hint, 'plan');
-  assert.equal(phase('visual-prototyping').icon_hint, 'spec');
-  assert.equal(phase('review-handoff').icon_hint, 'docs');
+  assert.equal(phase('intake').icon_hint, 'analysis');
+  assert.equal(phase('convergence').icon_hint, 'plan');
+  assert.equal(phase('specification').icon_hint, 'spec');
+  assert.equal(phase('screens').icon_hint, 'spec');
+  assert.equal(phase('brief').icon_hint, 'docs');
   assert.equal(phase('completion').icon_hint, 'done');
-  assert.equal(phase('persona-exploration').status, 'skipped');
+  assert.equal(phase('specification').status, 'skipped');
+  assert.equal(phase('sketches').status, 'completed');
 });
 
 test('recorded run: resume-check reads it as an engine run of product-design', t => {
@@ -168,7 +225,7 @@ test('recorded run: a missing delivery scope reads as the one missing artifact, 
   fs.rmSync(path.join(run.dir, 'outputs/delivery-scope.yml'));
   const result = complete(run);
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, 'missing-artifact: review-handoff outputs/delivery-scope.yml\nRUN-COMPLETE\n');
+  assert.equal(result.stdout, 'missing-artifact: brief outputs/delivery-scope.yml\nRUN-COMPLETE\n');
 });
 
 // ---------------------------------------------------------------------------
@@ -180,9 +237,9 @@ test('outputs: the brief, the delivery scope and the mockups are exposed under t
   assert.deepEqual(errors, []);
   assert.deepEqual(JSON.parse(JSON.stringify(doc.outputs)), {
     artifacts: {
-      brief: 'review-handoff.artifacts.brief',
-      delivery_scope: 'review-handoff.artifacts.delivery_scope',
-      mockups: 'visual-prototyping.artifacts.mockups',
+      brief: 'brief.artifacts.brief',
+      delivery_scope: 'brief.artifacts.delivery_scope',
+      mockups: 'screens.artifacts.mockups',
     },
   });
 });
@@ -281,314 +338,107 @@ test('delivery scope: the recorded scope carries every point the run agreed, inc
 });
 
 // ---------------------------------------------------------------------------
-// the gates that close a guarded node
+// the definition, and the run as a sub-run
 // ---------------------------------------------------------------------------
 
-test('problem-approval: with the personas skipped, the brief renders the problem statement and names the personas skipped', t => {
-  const picker = brief(atProblemApproval(t, { personas: false }), 'problem-approval');
-  assert.equal(picker.ok, true);
-  assert.equal(picker.header, 'Problem');
-  assert.match(picker.brief, /^Problem exploration: Teams cannot show availability to outside guests\.\n\nUser and persona exploration: Skipped\.\n/);
-  assert.match(picker.brief, /Next: Idea generation/);
-  assert.deepEqual(picker.options.map(option => option.id), ['continue-to-idea-generation', 'revise-problem', 'stop-design', 'more-details']);
-});
-
-test('problem-approval: with the personas drafted, the brief renders both summaries', t => {
-  const picker = brief(atProblemApproval(t, { personas: true }), 'problem-approval');
-  assert.match(picker.brief, /Problem exploration: Teams cannot show availability/);
-  assert.match(picker.brief, /User and persona exploration: Two personas/);
-});
-
-test('problem-approval: the revise names only the nodes that will run again', t => {
-  const named = personas => brief(atProblemApproval(t, { personas }), 'problem-approval')
-    .options.find(option => option.id === 'revise-problem').description;
-  assert.equal(named(false), 'Re-runs Problem exploration with your note, then asks this again.',
-    'personas skipped on a guard the re-run does not change are skipped again');
-  assert.equal(named(true), 'Re-runs Problem exploration and User and persona exploration with your note, then asks this again.');
-});
-
-test('problem-approval: revise suggestions are generated from what the stretch left open', t => {
-  const picker = brief(atProblemApproval(t, { personas: false }), 'problem-approval');
-  const revise = picker.options.find(option => option.id === 'revise-problem');
-  assert.deepEqual(revise.reruns.map(each => each.node), ['problem-exploration']);
-  assert.deepEqual(revise.suggestions.map(each => each.note), [
-    'Address this in the re-run: assumes guests accept a link instead of a login',
-  ], 'the open assumption only: the decision beside it names no alternative');
-  assert.ok(revise.suggestions.every(each => each.recommended === false), 'a suggestion is offered, never recommended');
-});
-
-test('problem-approval: a revise re-runs the problem statement and the personas behind it', t => {
-  const run = atProblemApproval(t, { personas: true });
-  const result = revise(run, 'problem-approval', 'revise-problem', 'Guests need a login after all');
-  assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^revised: problem-approval reruns=problem-exploration revision=1\/10 reset=problem-exploration,persona-exploration,problem-approval$/m);
-  const nodes = readState(run).workflow.nodes;
-  for (const id of ['problem-exploration', 'persona-exploration', 'problem-approval']) assert.equal(nodes[id].status, 'pending', id);
-  assert.equal(nodes['context-synthesis'].status, 'completed');
-});
-
-test('characteristics-approval: a correction re-runs the intake, which derives the guards afresh', t => {
-  const run = scratch(t, { type: 'product-design', name: RUN_NAME });
-  freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: TASK } });
-  write(run, {
-    nodes: { intake: { status: 'completed', values: { personas_enabled: false, prototyping_enabled: true, complexity_level: 'standard' } } },
-    node_summaries: { intake: { summary: 'An enhancement with a UI.' } },
-  });
-  const result = revise(run, 'characteristics-approval', 'revise-characteristics', 'This is a new product, not an enhancement');
-  assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^revised: characteristics-approval reruns=intake revision=1\/10 reset=intake,characteristics-approval$/m);
-});
-
-test('context-approval: a correction re-runs the context synthesis alone', t => {
-  const run = scratch(t, { type: 'product-design', name: RUN_NAME });
-  freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: TASK } });
-  write(run, {
-    nodes: { intake: { status: 'completed', values: { personas_enabled: false, prototyping_enabled: true, complexity_level: 'standard' } } },
-    node_summaries: { intake: { summary: 'An enhancement with a UI.' } },
-  });
-  write(run, { nodes: { 'characteristics-approval': { status: 'completed' }, 'context-synthesis': { status: 'completed' } } });
-  const result = revise(run, 'context-approval', 'revise-context', 'Guests already get invites by email');
-  assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^revised: context-approval reruns=context-synthesis revision=1\/10 reset=context-synthesis,context-approval$/m);
-  assert.equal(readState(run).workflow.nodes.intake.status, 'completed', 'the intake is not run again');
-});
-
-// ---------------------------------------------------------------------------
-// the direction gate
-// ---------------------------------------------------------------------------
-
-test('direction-approval: exploring more alternatives re-runs the brainstorm and the convergence', t => {
-  const run = atDirectionApproval(t, { summary: 'Link-based sharing.', decisions: ['access model: signed link'] });
-  const result = revise(run, 'direction-approval', 'explore-more-alternatives', 'None of these handles a shared mailbox');
-  assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /reruns=idea-generation revision=1\/10 reset=idea-generation,idea-convergence,direction-approval$/m);
-  assert.equal(readState(run).workflow.nodes['problem-approval'].status, 'completed', 'the earlier gate is not asked again');
-});
-
-test('direction-approval: refining the direction re-runs the convergence alone', t => {
-  const run = atDirectionApproval(t, { summary: 'Link-based sharing.', decisions: ['access model: signed link'] });
-  const result = revise(run, 'direction-approval', 'refine-direction', 'Show event titles to guests');
-  assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /reruns=idea-convergence revision=1\/10 reset=idea-convergence,direction-approval$/m);
-});
-
-test('direction-approval: a convergence left open under a driver offers each area as a concrete switch', t => {
-  const run = atDirectionApproval(t, {
-    summary: 'Direction proposed, not chosen: two areas await your choice at this gate.',
-    decisions: [
-      'access model: signed link recommended — adopted if you continue',
-      'detail shown: free and busy only recommended — adopted if you continue',
-    ],
-    risks: [
-      'open: access model — take guest accounts instead of the recommended signed link',
-      'open: detail shown — take event titles instead of the recommended free and busy only',
-    ],
-  });
-  const picker = brief(run, 'direction-approval');
-  assert.equal(picker.options[0].id, 'continue-to-specification', 'continuing — adopting the recommendations — is recommended');
-  const refine = picker.options.find(option => option.id === 'refine-direction');
-  assert.deepEqual(refine.suggestions.slice(0, 2).map(each => each.note), [
-    'Address this in the re-run: access model — take guest accounts instead of the recommended signed link',
-    'Address this in the re-run: detail shown — take event titles instead of the recommended free and busy only',
-  ]);
-  const oneline = brief(run, 'direction-approval', '--oneline');
-  assert.match(oneline, /revise: refine-direction reruns=idea-convergence revision=1\/10/);
-  assert.match(oneline, /revise: explore-more-alternatives reruns=idea-generation revision=1\/10/);
-  assert.match(oneline, /Recommended: continue-to-specification/);
-});
-
-test('direction-approval: its four options fill Claude Code\'s slots, so the question asks for "details" to be typed', t => {
-  const run = atDirectionApproval(t, { summary: 'Link-based sharing.', decisions: ['access model: signed link'] });
-  const rich = brief(run, 'direction-approval');
-  assert.deepEqual(rich.options.map(option => option.id),
-    ['continue-to-specification', 'explore-more-alternatives', 'refine-direction', 'stop-design']);
-  assert.equal(rich.details, 'typed');
-  assert.match(rich.question, / Type "details" for the full brief\.$/);
-  const plain = brief(run, 'direction-approval', '--picker=plain');
-  assert.equal(plain.details, 'option');
-  assert.equal(plain.options.at(-1).id, 'more-details');
-});
-
-// ---------------------------------------------------------------------------
-// the specification gate
-// ---------------------------------------------------------------------------
-
-test('specification-approval: with no screens to draw, the brief renders the specification and names the prototypes skipped', t => {
-  const run = atDirectionApproval(t, { summary: 'Link-based sharing.' }, { prototyping: false });
-  write(run, { nodes: { 'direction-approval': { status: 'completed' } } });
-  write(run, {
-    nodes: { 'feature-specification': { status: 'completed' } },
-    node_summaries: { 'feature-specification': { summary: 'Five sections, from the sharing model to notifications.' } },
-  });
-  write(run, { nodes: { 'visual-prototyping': { status: 'skipped' } } });
-  write(run, { nodes: { 'mockup-approval': { status: 'skipped' } } });
-  const picker = brief(run, 'specification-approval');
-  assert.equal(picker.header, 'Spec');
-  assert.match(picker.brief, /^Feature specification: Five sections, from the sharing model to notifications\.\n\nVisual prototyping: Skipped\.\n/);
-  assert.match(picker.brief, /Next: Product brief and delivery scope/);
-  assert.equal(picker.options.find(option => option.id === 'revise-specification').description,
-    'Re-runs Feature specification with your note, then asks this again.');
-  const result = revise(run, 'specification-approval', 'revise-specification', 'Add a revocation section');
-  assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /reset=feature-specification,visual-prototyping,mockup-approval,specification-approval$/m);
-});
-
-test('specification-approval: a long specification never trims the prototypes and their gallery out of the brief', t => {
-  const run = atDirectionApproval(t, { summary: 'Link-based sharing.' });
-  write(run, { nodes: { 'direction-approval': { status: 'completed' } } });
-  write(run, {
-    nodes: { 'feature-specification': { status: 'completed' } },
-    node_summaries: {
-      'feature-specification': {
-        summary: Array.from({ length: 40 }, (_, i) => `Section ${i} specifies one more part of sharing with guests.`).join(' '),
-        decisions: Array.from({ length: 6 }, (_, i) => `Decision ${i} settles one scope question. Its rationale runs on at length.`),
-        risks: Array.from({ length: 6 }, (_, i) => `open: question ${i} still needs an answer. The section says which.`),
-      },
-    },
-  });
-  write(run, {
-    nodes: { 'visual-prototyping': { status: 'completed' } },
-    node_summaries: {
-      'visual-prototyping': {
-        summary: `v001 of analysis/mockups — open analysis/mockups/versions/v001/index.html. ${Array.from({ length: 20 }, (_, i) => `Screen ${i} shows the guest view.`).join(' ')}`,
-      },
-    },
-  });
-  write(run, { nodes: { 'mockup-approval': { status: 'completed' } } });
-  const picker = brief(run, 'specification-approval');
-  assert.match(picker.brief, /^Feature specification: Section 0 specifies/);
-  assert.match(picker.brief, /^Visual prototyping: v001 of analysis\/mockups — open analysis\/mockups\/versions\/v001\/index\.html\./m);
-  assert.doesNotMatch(picker.brief, /localhost/, 'a turn leaves no live address behind');
-  assert.match(picker.brief, /^Decisions \(\+3 more in the dashboard\):\n- Decision 0 settles one scope question\.$/m);
-  assert.match(picker.brief, /Next: Product brief and delivery scope/);
-});
-
-test('specification-approval: the prototypes are offered for review beside the specification, by their folder', t => {
-  const run = atDirectionApproval(t, { summary: 'Link-based sharing.' });
-  write(run, { nodes: { 'direction-approval': { status: 'completed' } } });
-  const onDisk = (relative, text) => {
-    fs.mkdirSync(path.dirname(path.join(run.dir, relative)), { recursive: true });
-    fs.writeFileSync(path.join(run.dir, relative), text);
-  };
-  onDisk('analysis/feature-spec.md', '# Feature specification\n');
-  write(run, {
-    nodes: { 'feature-specification': { status: 'completed' } },
-    node_summaries: { 'feature-specification': { summary: 'Five sections.', artifacts: [{ path: 'analysis/feature-spec.md', label: 'Feature spec', role: 'primary' }] } },
-  });
-  // The studio drew its screens and the node registered none of them by name.
-  for (const screen of ['share-dialog', 'guest-calendar']) onDisk(`analysis/mockups/${screen}.html`, '<p>screen</p>\n');
-  write(run, { nodes: { 'visual-prototyping': { status: 'completed' } }, node_summaries: { 'visual-prototyping': { summary: 'Two screens.' } } });
-  write(run, { nodes: { 'mockup-approval': { status: 'completed' } } });
-  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=specification-approval', '--checkpoint']).stdout);
-  assert.deepEqual(checkpoint.review.map(each => [each.path, each.label]),
-    [['analysis/feature-spec.md', 'Feature spec'], ['analysis/mockups/', '2 files']]);
-});
-
-// ---------------------------------------------------------------------------
-// the screens gate
-// ---------------------------------------------------------------------------
-
-/** A fresh run walked to `mockup-approval`, its first version of the screens drawn. */
-function atMockupApproval(t) {
-  const run = atDirectionApproval(t, { summary: 'Link-based sharing.' });
-  write(run, { nodes: { 'direction-approval': { status: 'completed' } } });
-  write(run, {
-    nodes: { 'feature-specification': { status: 'completed' } },
-    node_summaries: { 'feature-specification': { summary: 'Five sections, from the sharing model to notifications.' } },
-  });
-  write(run, {
-    nodes: { 'visual-prototyping': { status: 'completed' } },
-    node_summaries: { 'visual-prototyping': { summary: 'v001 — share-dialog and guest-calendar drawn; open analysis/mockups/versions/v001/index.html.' } },
-  });
-  return run;
-}
-
-test('mockup-approval: the brief renders the turn that drew the screens, and a revise draws one more turn', t => {
-  const run = atMockupApproval(t);
-  const picker = brief(run, 'mockup-approval');
-  assert.equal(picker.ok, true);
-  assert.equal(picker.header, 'Screens');
-  assert.equal(picker.question, 'Approve the screens?');
-  assert.match(picker.brief, /^Visual prototyping: v001 — share-dialog and guest-calendar drawn; open analysis\/mockups\/versions\/v001\/index\.html\./m);
-  assert.deepEqual(picker.options.map(option => option.id), ['continue-to-specification-review', 'revise-mockups', 'stop-design', 'more-details']);
-  assert.deepEqual(picker.options.slice(0, 3).map(option => option.label),
-    ['Continue to the specification review (Recommended)', 'Revise the screens', 'Stop here']);
-  assert.equal(picker.options.find(option => option.id === 'revise-mockups').description,
-    'Re-runs Visual prototyping with your note, then asks this again.');
-
-  const result = revise(run, 'mockup-approval', 'revise-mockups', 'Make the share dialog a side panel');
-  assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^revised: mockup-approval reruns=visual-prototyping revision=1\/10 reset=visual-prototyping,mockup-approval$/m);
-  const nodes = readState(run).workflow.nodes;
-  for (const id of ['visual-prototyping', 'mockup-approval']) assert.equal(nodes[id].status, 'pending', id);
-  assert.equal(nodes['feature-specification'].status, 'completed', 'the specification stands');
-});
-
-// ---------------------------------------------------------------------------
-// as a sub-run, and at the simple depth
-// ---------------------------------------------------------------------------
-
-const DEPTH_SKIPS = ['characteristics-approval', 'context-approval', 'idea-generation', 'idea-convergence', 'direction-approval'];
-
-test('inputs: the depth and the embedded flag are optional bools that default to the full, standalone run', () => {
+test('inputs: the outcome and the embedded flag are optional bools that default false, and no depth or visual switch is left', () => {
   const { doc, errors } = parseDefinition(fs.readFileSync(PRODUCT_DESIGN, 'utf8'), PRODUCT_DESIGN);
   assert.deepEqual(errors, []);
-  assert.deepEqual({ ...doc.inputs.simple }, { type: 'bool', required: false, default: false });
+  assert.deepEqual({ ...doc.inputs.specification }, { type: 'bool', required: false, default: false });
   assert.deepEqual({ ...doc.inputs.embedded }, { type: 'bool', required: false, default: false });
+  assert.deepEqual(Object.keys(doc.inputs).sort(), ['embedded', 'research', 'specification', 'task_description']);
   assert.equal(doc.nodes.completion.when, '!${inputs.embedded}');
-  // The full depth guards nothing itself: the intake reads it and records the design complex.
-  assert.deepEqual({ ...doc.inputs.full }, { type: 'bool', required: false, default: false });
-  assert.equal(doc.nodes.intake.with.full, '${inputs.full}');
-  for (const [id, node] of Object.entries(doc.nodes)) assert.doesNotMatch(node.when ?? '', /inputs\.full/, id);
-  for (const id of DEPTH_SKIPS) assert.equal(doc.nodes[id].when, '!${inputs.simple}', id);
 });
 
-test('inputs: the shipped definition validates with no warning', () => {
+test('inputs: the shipped definition validates with no error, no warning and no impure skip guard', () => {
   const result = verb(['validate', `--definition=${PRODUCT_DESIGN}`]);
   const report = JSON.parse(result.stdout);
   assert.equal(result.code, 0);
+  assert.doesNotMatch(result.stdout, /skip-guard-not-pure/);
   assert.deepEqual(report.errors, []);
   assert.deepEqual(report.warnings, []);
 });
 
-test('decision areas: the idea generation declares the areas file and the convergence is handed it', () => {
+test('decision areas: the alternatives declare the areas file, and the convergence is handed it and the sketch folder', () => {
   const result = verb(['resolve', `--definition=${PRODUCT_DESIGN}`]);
   assert.equal(result.code, 0, result.stderr);
   const nodes = Object.fromEntries(JSON.parse(result.stdout).nodes.map(node => [node.id, node]));
-  const generation = nodes['idea-generation'];
-  assert.equal(generation.with.areas_output_path, 'analysis/decision-areas.json');
-  assert.equal(generation.outputs.artifacts.decision_areas, 'analysis/decision-areas.json');
-  assert.equal(nodes['idea-convergence'].with.decision_areas, '${idea-generation.artifacts.decision_areas}');
-  assert.equal(nodes['idea-convergence'].when, generation.when);
+  assert.equal(nodes.alternatives.with.areas_output_path, 'analysis/decision-areas.json');
+  assert.equal(nodes.alternatives.outputs.artifacts.decision_areas, 'analysis/decision-areas.json');
+  assert.equal(nodes.convergence.with.decision_areas, '${alternatives.artifacts.decision_areas}');
+  assert.equal(nodes.convergence.with.sketches, 'analysis/mockups');
+  assert.ok(nodes.convergence.needs.includes('alternatives'), 'area-brief finds the file only through a direct need');
+
+  // The recorded file is real: valid, marked, and fresh against the markdown it was stamped from.
+  const taskDir = path.join(FIXTURES, 'runs/team-calendar-sharing');
+  const file = path.join(taskDir, nodes.alternatives.outputs.artifacts.decision_areas);
+  const loaded = loadAreas({ file, taskDir, sources: [nodes.alternatives.outputs.artifacts.alternatives] });
+  assert.ok(loaded.areas, `the recorded areas file did not load: ${loaded.warning}`);
+  assert.deepEqual(loaded.areas.map(area => [area.id, area.visual]), [['access-model', false], ['detail-shown', true]]);
 });
 
-// A node may read a guarded node only when it carries the very same guard, so
-// the two always run or are skipped together.
+// Each guard reads a node its own needs closure holds, and each revise stretch stays
+// short and re-runnable. The closures are read off the definition; the stretches are
+// what the walks below see the writer reset.
+test('closures: every guarded read is behind its need, and each revise stretch is short and holds no sub-run', () => {
+  const { doc, errors } = parseDefinition(fs.readFileSync(PRODUCT_DESIGN, 'utf8'), PRODUCT_DESIGN);
+  assert.deepEqual(errors, []);
+  const closureOf = id => {
+    const held = new Set();
+    const visit = node => { for (const need of doc.nodes[node].needs) if (!held.has(need)) { held.add(need); visit(need); } };
+    visit(id);
+    return held;
+  };
+  const closures = {
+    sketches: ['alternatives', 'intake'],
+    specification: ['direction-approval', 'convergence', 'sketches', 'alternatives', 'problem-approval'],
+    screens: ['intake'],
+    'brief-approval': ['screens', 'specification'],
+  };
+  for (const [id, holds] of Object.entries(closures)) {
+    for (const need of holds) assert.ok(closureOf(id).has(need), `${id}'s closure holds ${need}`);
+  }
+
+  const stretches = {
+    'problem-approval': { 'correct-scope': ['intake', 'problem', 'problem-approval'], 'revise-problem': ['problem', 'problem-approval'] },
+    'direction-approval': { 'revise-direction': ['convergence', 'direction-approval'] },
+    'brief-approval': {
+      'change-screens-and-brief': ['specification', 'screens', 'brief', 'brief-approval'],
+      'change-brief': ['brief', 'brief-approval'],
+    },
+  };
+  for (const [gate, options] of Object.entries(stretches)) {
+    for (const [option, stretch] of Object.entries(options)) {
+      assert.equal(doc.nodes[gate].options[option].reruns, stretch[0], option);
+      assert.ok(stretch.length <= 10, option);
+      assert.ok(closureOf(gate).has(stretch[0]), `${option}: the target waits behind the gate`);
+      for (const id of stretch) assert.doesNotMatch(doc.nodes[id].uses ?? '', /^workflow:/, `${option}: ${id}`);
+      // Every node of the stretch waits on the target and the gate waits on it, so nothing else belongs in it.
+      for (const id of Object.keys(doc.nodes)) {
+        const between = id === stretch[0] || id === gate || (closureOf(id).has(stretch[0]) && closureOf(gate).has(id));
+        assert.equal(stretch.includes(id), between, `${option}: ${id}`);
+      }
+    }
+  }
+});
+
+// A skipped node wrote nothing, so nothing it writes is interpolated into a node
+// that still runs: a reader looks on disk, and only when the state records it completed.
 test('guards: no node that may still run interpolates anything from a node a guard may skip', () => {
   const { doc } = parseDefinition(fs.readFileSync(PRODUCT_DESIGN, 'utf8'), PRODUCT_DESIGN);
   for (const [id, node] of Object.entries(doc.nodes)) {
     const refs = [...JSON.stringify(node.with ?? {}).matchAll(/\$\{([a-z0-9-]+)\./g)].map(match => match[1]);
     for (const ref of refs.filter(ref => ref !== 'inputs')) {
       const guard = doc.nodes[ref].when;
-      assert.ok(!guard || guard === node.when, `${id} interpolates ${ref}, which ${guard} may skip`);
+      assert.ok(!guard, `${id} interpolates ${ref}, which ${guard} may skip`);
     }
   }
 });
 
-test('outputs: a parent runs product design embedded and at the simple depth, binding the brief and the scope with no warning', t => {
+test('outputs: a parent runs product design embedded and asks for the specification, binding the brief and the scope with no warning', t => {
   const result = chainBinding(t,
     { brief: 'outputs/product-brief.md', delivery_scope: 'outputs/delivery-scope.yml' },
-    { embedded: 'true', simple: 'true' });
-  const report = JSON.parse(result.stdout);
-  assert.equal(result.code, 0);
-  assert.deepEqual(report.errors, []);
-  assert.deepEqual(report.warnings, []);
-});
-
-test('outputs: a parent asks product design for the full design, binding the brief and the scope with no warning', t => {
-  const result = chainBinding(t,
-    { brief: 'outputs/product-brief.md', delivery_scope: 'outputs/delivery-scope.yml' },
-    { embedded: 'true', full: 'true' });
+    { embedded: 'true', specification: 'true' });
   const report = JSON.parse(result.stdout);
   assert.equal(result.code, 0);
   assert.deepEqual(report.errors, []);
@@ -609,74 +459,382 @@ test('embedded: a standalone run that never reached completion is refused as unf
   assert.match(result.stderr, /completion/);
 });
 
-/**
- * A run frozen at depth `simple` with its intake recorded, the personas and
- * the prototypes switched off.
- */
-function simpleIntake(t, simple) {
-  const run = scratch(t, { fixture: 'team-calendar-sharing', type: 'product-design', name: RUN_NAME });
-  freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: TASK, simple } });
-  write(run, {
-    nodes: { intake: { status: 'completed', values: { personas_enabled: false, prototyping_enabled: false, complexity_level: 'simple' } } },
-    node_summaries: { intake: { summary: 'A simple enhancement.', absent: { research_context: 'no research task was named' } } },
-  });
+// ---------------------------------------------------------------------------
+// the guards that steer the route
+// ---------------------------------------------------------------------------
+
+/** The status the run records for `node`. */
+function statusOf(run, node) {
+  return readState(run).workflow.nodes[node].status;
+}
+
+/** Completing `node` is refused and writes nothing, because `need` is still on the path the run takes. */
+function assertHeldBy(run, node, need) {
+  const before = fs.readFileSync(run.state, 'utf8');
+  const refused = verb(['write-state', `--state=${run.state}`], { nodes: { [node]: { status: 'completed' } } });
+  assert.equal(refused.code, 1, refused.stdout);
+  assert.match(refused.stderr, /state-node-needs-unmet/);
+  assert.match(refused.stderr, new RegExp(`${need} is on the path`));
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before);
+}
+
+/** The run waiting right after `direction-approval` was answered, the next step not yet run. */
+function pastDirection(t, options) {
+  const run = atDirectionApproval(t, options);
+  answer(run, 'direction-approval', 'approve-direction');
   return run;
 }
 
-/**
- * A run walked along the simple path only, never writing the nodes the depth
- * skips, the personas or the prototypes: the writer records each one skipped
- * as the walk completes the node that needs it, its guard false.
- */
-function simplePath(t, simple) {
-  const run = simpleIntake(t, simple);
-  for (const id of ['context-synthesis', 'problem-exploration', 'problem-approval', 'feature-specification',
-    'specification-approval', 'review-handoff', 'completion']) {
-    write(run, { nodes: { [id]: { status: 'completed' } } });
-  }
-  write(run, { task: { status: 'completed' } });
-  return run;
-}
+test('guards: with_spec, the specification outcome runs the specification and the screens outcome records it skipped', t => {
+  const withSpec = pastDirection(t, { outcome: 'brief-with-spec' });
+  assert.equal(readState(withSpec).workflow.nodes['problem-approval'].values.with_spec, true);
+  assertHeldBy(withSpec, 'screens', 'specification');
+  const written = atBriefApproval(t, { outcome: 'brief-with-spec' });
+  assert.equal(statusOf(written, 'specification'), 'completed');
+  assert.equal(statusOf(written, 'screens'), 'completed');
 
-test('simple: the depth keeps the skipped gates and the idea stretch off the path', t => {
-  const run = simplePath(t, true);
-  const nodes = readState(run).workflow.nodes;
-  for (const id of [...DEPTH_SKIPS, 'persona-exploration', 'visual-prototyping']) {
-    assert.equal(nodes[id].status, 'skipped', id);
-    assert.ok(nodes[id].completed, `${id} is stamped like any skip`);
+  const withoutSpec = atBriefApproval(t, { outcome: 'brief-with-screens' });
+  assert.equal(readState(withoutSpec).workflow.nodes['problem-approval'].values.with_spec, false);
+  assert.equal(statusOf(withoutSpec, 'specification'), 'skipped');
+  assert.equal(statusOf(withoutSpec, 'screens'), 'completed');
+});
+
+test('guards: the specification input runs the specification after the screens outcome, and the problem\'s brief recommends the other way on', t => {
+  const inputs = { specification: true };
+  const asked = pastDirection(t, { inputs, outcome: 'brief-with-screens' });
+  assert.equal(readState(asked).workflow.nodes['problem-approval'].values.with_spec, false);
+  assertHeldBy(asked, 'screens', 'specification');
+  assert.equal(statusOf(atBriefApproval(t, { inputs, outcome: 'brief-with-screens' }), 'specification'), 'completed');
+
+  const problemBrief = run => {
+    const result = verb(['node-brief', `--state=${run.state}`, '--node=problem']);
+    assert.equal(result.code, 0, result.stderr);
+    return result.stdout.split('\n');
+  };
+  assert.ok(problemBrief(freshRun(t, inputs)).includes('recommends: specification = true → brief-with-spec'));
+  assert.ok(problemBrief(freshRun(t)).includes('recommends: specification = false — the section decides'));
+});
+
+test('guards: draws false skips the sketches and the screens, and the run completes with the brief and the scope and no mockups', t => {
+  const run = atBriefApproval(t, { draws: false });
+  assert.equal(statusOf(run, 'sketches'), 'skipped');
+  assert.equal(statusOf(run, 'screens'), 'skipped');
+  assert.equal(statusOf(run, 'brief'), 'completed');
+  answer(run, 'brief-approval', 'approve-brief');
+  walk(run, { task: { status: 'completed' }, nodes: { completion: { status: 'completed' } }, node_summaries: { completion: { summary: 'The brief is ready for the development workflow.' } } });
+
+  // What the completed nodes declared, and the companions they owe; nothing the skipped nodes would have drawn.
+  for (const file of [
+    'analysis/scope.md', 'analysis/explore/project.md', 'analysis/problem-statement.md', 'analysis/personas.md',
+    'analysis/alternatives.md', 'analysis/alternatives.html', 'analysis/decision-areas.json',
+    'analysis/design-decisions.md', 'analysis/design-decisions.html',
+    'outputs/product-brief.md', 'outputs/product-brief.html', 'outputs/delivery-scope.yml',
+  ]) {
+    const at = path.join(run.dir, file);
+    fs.mkdirSync(path.dirname(at), { recursive: true });
+    fs.writeFileSync(at, 'written\n');
   }
   const result = complete(run);
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(lastLine(result.stdout), 'RUN-COMPLETE');
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  assert.equal(fs.existsSync(path.join(run.dir, 'analysis/mockups')), false);
+
+  // The same run with the drawing on cannot reach the brief without its screens.
+  assertHeldBy(pastDirection(t, { draws: true }), 'brief', 'screens');
 });
 
-test('simple: the same walk at full depth leaves the characteristics gate owed', t => {
-  const run = simpleIntake(t, false);
-  // The gate is on the path: the writer refuses the step behind it rather than record it skipped.
-  const before = fs.readFileSync(run.state, 'utf8');
-  const past = verb(['write-state', `--state=${run.state}`], { nodes: { 'context-synthesis': { status: 'completed' } } });
-  assert.equal(past.code, 1, past.stdout);
-  assert.match(past.stderr, /^state-node-needs-unmet: .*context-synthesis needs characteristics-approval/);
-  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+test('guards: visual_areas false with draws true skips the sketches only', t => {
+  const run = atBriefApproval(t, { draws: true, visualAreas: false });
+  assert.equal(statusOf(run, 'sketches'), 'skipped');
+  assert.equal(statusOf(run, 'screens'), 'completed');
 
-  write(run, { task: { status: 'completed' } });
-  const result = complete(run);
-  assert.equal(result.stdout, 'RUN-FAILED: run-nodes-unfinished\n');
-  assert.match(result.stderr, /not finished: characteristics-approval \(pending\)/);
+  // Both bools true hold the convergence for the sketches.
+  const drawn = atProblemApproval(t);
+  answer(drawn, 'problem-approval', 'brief-with-screens');
+  walk(drawn, { nodes: { alternatives: { status: 'completed', values: { visual_areas: true } } } });
+  assertHeldBy(drawn, 'convergence', 'sketches');
 });
 
-test('simple: the problem gate goes straight to the specification and names what the depth skips', t => {
-  const run = scratch(t, { type: 'product-design', name: RUN_NAME });
-  freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: TASK, simple: true } });
-  write(run, {
-    nodes: { intake: { status: 'completed', values: { personas_enabled: false, prototyping_enabled: false, complexity_level: 'simple' } } },
-    node_summaries: { intake: { summary: 'A simple enhancement.', absent: { research_context: 'no research task was named' } } },
+// The intake records `draws` afresh, so a corrected scope decides the drawing from
+// then on, either way, whatever the first intake said.
+test('guards: correct-scope records draws afresh, switching the sketches and the screens off or on', t => {
+  const rescoped = (first, then) => {
+    const run = atProblemApproval(t, { draws: first });
+    const result = revise(run, 'problem-approval', 'correct-scope', first ? 'Nothing a person sees' : 'It has a screen after all');
+    assert.equal(result.code, 0, result.stderr);
+    walk(run, { nodes: { intake: { status: 'completed', values: { draws: then } } }, node_summaries: { intake: { summary: 'The scope, corrected.', absent: { research_context: 'no research task was named' } } } });
+    walk(run, { nodes: { problem: { status: 'completed' } }, node_summaries: { problem: { summary: 'The problem, again.' } } });
+    answer(run, 'problem-approval', 'brief-with-screens');
+    walk(run, { nodes: { alternatives: { status: 'completed', values: { visual_areas: true } } }, node_summaries: { alternatives: { summary: 'Two decision areas.' } } });
+    return run;
+  };
+
+  const off = rescoped(true, false);
+  walk(off, { nodes: { convergence: { status: 'completed' } }, node_summaries: { convergence: { summary: 'Link-based sharing.' } } });
+  assert.equal(statusOf(off, 'sketches'), 'skipped');
+  answer(off, 'direction-approval', 'approve-direction');
+  walk(off, { nodes: { brief: { status: 'completed' } }, node_summaries: { brief: { summary: 'The brief.' } } });
+  assert.equal(statusOf(off, 'screens'), 'skipped');
+
+  assertHeldBy(rescoped(false, true), 'convergence', 'sketches');
+});
+
+// ---------------------------------------------------------------------------
+// the three gates
+// ---------------------------------------------------------------------------
+
+/** What `gate-brief` decides about a gate, before a picker shapes it. */
+function checkpointOf(run, node) {
+  const result = verb(['gate-brief', `--state=${run.state}`, `--node=${node}`, '--checkpoint']);
+  assert.equal(result.code, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+/** A gate's options as `{id: label}`, so a comparison pins no order the spec does not state. */
+function labelsOf(run, node) {
+  return Object.fromEntries(checkpointOf(run, node).options.map(option => [option.id, option.label]));
+}
+
+const REVISED = (node, reruns, reset) => new RegExp(`^revised: ${node} reruns=${reruns} revision=1/10 reset=${reset.join(',')}$`, 'm');
+
+test('problem-approval: five options with their labels and header, each continue\'s walk named, and the stop named in the rich question', t => {
+  const run = atProblemApproval(t, { problem: { recommends: { option: 'brief-with-screens', reason: 'One screen, nothing to specify.' } } });
+  assert.deepEqual(labelsOf(run, 'problem-approval'), {
+    'brief-with-screens': 'A design brief with screens',
+    'brief-with-spec': 'A brief with a feature specification',
+    'correct-scope': 'Correct the scope',
+    'revise-problem': 'Revise the problem',
+    'use-quick-design': 'Use quick-design instead',
   });
-  write(run, { nodes: { 'characteristics-approval': { status: 'skipped' } } });
-  write(run, { nodes: { 'context-synthesis': { status: 'completed' } }, node_summaries: { 'context-synthesis': { summary: 'Calendars are private today.' } } });
-  write(run, { nodes: { 'context-approval': { status: 'skipped' } } });
-  write(run, { nodes: { 'problem-exploration': { status: 'completed' } }, node_summaries: { 'problem-exploration': { summary: 'Guests cannot see availability.' } } });
-  write(run, { nodes: { 'persona-exploration': { status: 'skipped' } } });
-  const picker = brief(run, 'problem-approval');
-  assert.match(picker.brief, /^Next: Feature specification \(skipping Idea generation and Idea convergence\)$/m);
+
+  // Both outcomes lead to the brainstorm; the specification comes after the direction.
+  const rich = brief(run, 'problem-approval', '--picker=rich');
+  assert.equal(rich.header, 'Scope');
+  assert.match(rich.brief, /^Next \(a design brief with screens\): Brainstorm alternatives$/m);
+  assert.match(rich.brief, /^Next \(a brief with a feature specification\): Brainstorm alternatives$/m);
+  assert.match(brief(run, 'problem-approval', '--oneline'), /Next \(brief-with-screens\): Brainstorm alternatives · Next \(brief-with-spec\): Brainstorm alternatives/);
+
+  // The problem's own `recommends` marks its option, against the most-steps default.
+  const marked = rich.options.filter(option => option.label.endsWith('(Recommended)')).map(option => option.id);
+  assert.deepEqual(marked, ['brief-with-screens']);
+  assert.equal(rich.options.find(option => option.id === 'brief-with-screens').label, 'A design brief with screens (Recommended)');
+
+  // Five are one more than the rich picker lists: the stop moves to the question.
+  assert.deepEqual(rich.options.map(option => option.id).sort(), ['brief-with-screens', 'brief-with-spec', 'correct-scope', 'revise-problem']);
+  assert.ok(rich.question.startsWith('The scope proposal, the problem and the personas are ready. Which outcome should this run produce?'), rich.question);
+  assert.ok(rich.question.endsWith('Also offered, not listed: Use quick-design instead (use-quick-design); name one to choose it.'), rich.question);
+});
+
+test('problem-approval: a stop risk recommends quick-design, so the rich picker lists it and names "Revise the problem"; the plain picker lists all five', t => {
+  const run = atProblemApproval(t, { problem: { risks: [{ risk: 'How the share card behaves: one bounded question', tag: 'stop' }] } });
+  const rich = brief(run, 'problem-approval', '--picker=rich');
+  assert.deepEqual(rich.options.map(option => option.id).sort(), ['brief-with-screens', 'brief-with-spec', 'correct-scope', 'use-quick-design']);
+  assert.equal(rich.options.find(option => option.id === 'use-quick-design').label, 'Use quick-design instead (Recommended)');
+  assert.ok(rich.question.endsWith('Also offered, not listed: Revise the problem (revise-problem); name one to choose it.'), rich.question);
+
+  const plain = brief(run, 'problem-approval', '--picker=plain');
+  const ids = plain.options.map(option => option.id);
+  assert.equal(ids.at(-1), 'more-details');
+  assert.deepEqual(ids.slice(0, -1).sort(), ['brief-with-screens', 'brief-with-spec', 'correct-scope', 'revise-problem', 'use-quick-design']);
+  assert.doesNotMatch(plain.question, /Also offered/);
+});
+
+test('problem-approval: a stop ends the run, every unexecuted node stopped', t => {
+  const run = atProblemApproval(t);
+  const unexecuted = ['alternatives', 'sketches', 'convergence', 'direction-approval', 'specification', 'screens', 'brief', 'brief-approval', 'completion'];
+  const stopped = write(run, {
+    task: { status: 'stopped' },
+    nodes: Object.fromEntries([['problem-approval', { status: 'completed' }], ...unexecuted.map(id => [id, { status: 'stopped' }])]),
+    node_summaries: { 'problem-approval': { decisions: [{ option: 'use-quick-design' }] } },
+  });
+  assert.equal(stopped.code, 0, stopped.stderr);
+  for (const id of unexecuted) assert.equal(statusOf(run, id), 'stopped', id);
+  const close = complete(run);
+  assert.equal(close.code, 0, close.stderr);
+  assert.ok(close.stdout.endsWith('run stopped: problem-approval - use-quick-design\nRUN-COMPLETE\n'), close.stdout);
+});
+
+test('direction-approval and brief-approval: a stop ends the run, every unexecuted node stopped', t => {
+  const close = (run, gate, unexecuted) => {
+    const stopped = write(run, {
+      task: { status: 'stopped' },
+      nodes: Object.fromEntries([[gate, { status: 'completed' }], ...unexecuted.map(id => [id, { status: 'stopped' }])]),
+      node_summaries: { [gate]: { decisions: [{ option: 'stop-design' }] } },
+    });
+    assert.equal(stopped.code, 0, stopped.stderr);
+    for (const id of unexecuted) assert.equal(statusOf(run, id), 'stopped', id);
+    const result = complete(run);
+    assert.equal(result.code, 0, result.stderr);
+    assert.ok(result.stdout.endsWith(`run stopped: ${gate} - stop-design\nRUN-COMPLETE\n`), result.stdout);
+  };
+  close(atDirectionApproval(t), 'direction-approval', ['specification', 'screens', 'brief', 'brief-approval', 'completion']);
+  close(atBriefApproval(t), 'brief-approval', ['completion']);
+});
+
+test('problem-approval: correct-scope re-runs the intake, the problem and the gate, and revise-problem the problem and the gate', t => {
+  const scope = atProblemApproval(t);
+  const corrected = revise(scope, 'problem-approval', 'correct-scope', 'Guests are outside the organisation only');
+  assert.equal(corrected.code, 0, corrected.stderr);
+  assert.match(corrected.stdout, REVISED('problem-approval', 'intake', ['intake', 'problem', 'problem-approval']));
+  for (const id of ['intake', 'problem', 'problem-approval']) assert.equal(statusOf(scope, id), 'pending', id);
+
+  const problem = atProblemApproval(t);
+  const revised = revise(problem, 'problem-approval', 'revise-problem', 'Name the guest persona');
+  assert.equal(revised.code, 0, revised.stderr);
+  assert.match(revised.stdout, REVISED('problem-approval', 'problem', ['problem', 'problem-approval']));
+  assert.equal(statusOf(problem, 'intake'), 'completed', 'the intake is not run again');
+  assert.equal(statusOf(problem, 'problem'), 'pending');
+});
+
+test('direction-approval: its labels and header, the continue named from the walk, and revise-direction re-runs the convergence alone', t => {
+  const run = atDirectionApproval(t);
+  assert.equal(brief(run, 'direction-approval', '--picker=rich').header, 'Direction');
+  assert.deepEqual(labelsOf(run, 'direction-approval'), {
+    'approve-direction': 'Continue to final screens',
+    'revise-direction': 'Revise the direction',
+    'stop-design': 'Stop here',
+  });
+  // The same definition label, completed from where the outcome chosen earlier leads.
+  assert.equal(labelsOf(atDirectionApproval(t, { outcome: 'brief-with-spec' }), 'direction-approval')['approve-direction'], 'Continue to feature specification');
+
+  const result = revise(run, 'direction-approval', 'revise-direction', 'Show event titles to guests');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, REVISED('direction-approval', 'convergence', ['convergence', 'direction-approval']));
+  assert.equal(statusOf(run, 'convergence'), 'pending');
+  for (const id of ['problem-approval', 'alternatives', 'sketches']) assert.equal(statusOf(run, id), 'completed', `${id} is not run again`);
+});
+
+// A driver without question sets leaves the choice to this gate, and what it is handed is
+// the request. The summary is the one the convergence's section has it write.
+test('direction-approval: a convergence left open under a driver offers each area as a concrete switch', t => {
+  const run = atDirectionApproval(t, {
+    driver: { kind: 'cockpit', cwd: '/work' },
+    convergence: {
+      summary: 'Direction proposed, not chosen: two areas await your choice at this gate.',
+      decisions: [
+        { decision: 'access model: signed link recommended — adopted if you continue', by: 'run' },
+        { decision: 'detail shown: free and busy only recommended — adopted if you continue', by: 'run' },
+      ],
+      risks: [
+        { risk: 'access model: signed link is adopted if you continue', tag: 'open', change: 'take guest accounts instead' },
+        { risk: 'detail shown: free and busy only is adopted if you continue', tag: 'open', change: 'take event titles instead' },
+      ],
+    },
+  });
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=direction-approval', '--request']);
+  assert.equal(result.code, 0, result.stderr);
+  const request = JSON.parse(result.stdout);
+  assert.equal(request.options[0].id, 'approve-direction', 'continuing — adopting the recommendations — is recommended');
+  assert.equal(request.options[0].recommended, true);
+  assert.deepEqual(request.options.find(option => option.id === 'revise-direction').suggestions.map(each => each.note), [
+    'access model: signed link is adopted if you continue — take guest accounts instead',
+    'detail shown: free and busy only is adopted if you continue — take event titles instead',
+  ]);
+  assert.deepEqual(request.context.checkpoint.decisions.run.map(each => each.decision), [
+    'access model: signed link recommended — adopted if you continue',
+    'detail shown: free and busy only recommended — adopted if you continue',
+  ], 'the recommendations stay the run\'s until the gate is answered');
+  const oneline = brief(run, 'direction-approval', '--oneline');
+  assert.match(oneline, /revise: revise-direction reruns=convergence revision=1\/10/);
+  assert.match(oneline, /Recommended: approve-direction/);
+});
+
+test('brief-approval: change-screens-and-brief resets a skipped specification and skips it again, and re-runs a written one with the rest', t => {
+  const stretch = ['specification', 'screens', 'brief', 'brief-approval'];
+  const closeBehind = run => {
+    walk(run, { nodes: { screens: { status: 'completed' } }, node_summaries: { screens: { summary: 'v003 of the final screens.' } } });
+    walk(run, { nodes: { brief: { status: 'completed' } }, node_summaries: { brief: { summary: 'The brief, rewritten.' } } });
+  };
+
+  // Skipped: the stretch is reset whole, and the false guard skips it again on the way.
+  const skipped = atBriefApproval(t);
+  const screensOnly = brief(skipped, 'brief-approval', '--picker=rich').options.find(option => option.id === 'change-screens-and-brief');
+  assert.match(screensOnly.description, /^Re-runs Final screens and Product brief and delivery scope with your note/);
+  const reset = revise(skipped, 'brief-approval', 'change-screens-and-brief', 'Add the guest view');
+  assert.equal(reset.code, 0, reset.stderr);
+  assert.match(reset.stdout, REVISED('brief-approval', 'specification', stretch));
+  for (const id of stretch) assert.equal(statusOf(skipped, id), 'pending', id);
+  closeBehind(skipped);
+  assert.equal(statusOf(skipped, 'specification'), 'skipped', 'its guard still reads false');
+  assert.equal(statusOf(skipped, 'screens'), 'completed');
+  assert.equal(statusOf(skipped, 'brief'), 'completed');
+
+  // Written: the guard reads true, so the screens wait for the specification again.
+  const written = atBriefApproval(t, { outcome: 'brief-with-spec' });
+  const allThree = brief(written, 'brief-approval', '--picker=rich').options.find(option => option.id === 'change-screens-and-brief');
+  assert.match(allThree.description, /^Re-runs Feature specification, Final screens and Product brief and delivery scope with your note/);
+  const again = revise(written, 'brief-approval', 'change-screens-and-brief', 'Add the guest view');
+  assert.equal(again.code, 0, again.stderr);
+  assert.match(again.stdout, REVISED('brief-approval', 'specification', stretch));
+  assertHeldBy(written, 'screens', 'specification');
+  walk(written, { nodes: { specification: { status: 'completed' } }, node_summaries: { specification: { summary: 'The guest view added.' } } });
+  closeBehind(written);
+  for (const id of ['specification', 'screens', 'brief']) assert.equal(statusOf(written, id), 'completed', id);
+});
+
+test('brief-approval: its labels and header, the review naming the brief and the mockups folder, and change-brief re-runs the brief alone', t => {
+  const run = atBriefApproval(t);
+  for (const file of ['outputs/product-brief.md', 'analysis/mockups/index.html']) {
+    fs.mkdirSync(path.dirname(path.join(run.dir, file)), { recursive: true });
+    fs.writeFileSync(path.join(run.dir, file), 'written\n');
+  }
+  assert.deepEqual(labelsOf(run, 'brief-approval'), {
+    'approve-brief': 'Approve the brief',
+    'change-screens-and-brief': 'Change the screens and brief',
+    'change-brief': 'Change the brief only',
+    'stop-design': 'Stop here',
+  });
+  const rich = brief(run, 'brief-approval', '--picker=rich');
+  assert.equal(rich.header, 'Brief');
+  const review = rich.brief.split('\n').find(line => line.startsWith('Review:'));
+  assert.ok(review, rich.brief);
+  assert.match(review, /outputs\/product-brief\.md/);
+  assert.match(review, /analysis\/mockups\//);
+
+  const result = revise(run, 'brief-approval', 'change-brief', 'Tighten the scope section');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, REVISED('brief-approval', 'brief', ['brief', 'brief-approval']));
+  assert.equal(statusOf(run, 'brief'), 'pending');
+  assert.equal(statusOf(run, 'screens'), 'completed', 'the screens are not drawn again');
+});
+
+// ---------------------------------------------------------------------------
+// the intake's delegate, and the flags beside the inputs
+// ---------------------------------------------------------------------------
+
+test('delegates: completing the intake without Explore listed is refused and writes nothing', t => {
+  const closing = delegated => ({
+    nodes: { intake: { status: 'completed', values: { draws: true } } },
+    node_summaries: { intake: { summary: 'An enhancement with a UI.', absent: { research_context: 'no research task was named' }, ...delegated } },
+  });
+  const run = freshRun(t);
+  const before = fs.readFileSync(run.state, 'utf8');
+  for (const delegated of [{}, { delegated: [] }, { delegated: ['general-purpose'] }]) {
+    const refused = verb(['write-state', `--state=${run.state}`], closing(delegated));
+    assert.equal(refused.code, 1, refused.stdout);
+    assert.match(refused.stderr, /state-delegates-unrecorded/);
+    assert.match(refused.stderr, /Explore/);
+    assert.equal(fs.readFileSync(run.state, 'utf8'), before);
+  }
+  const landed = verb(['write-state', `--state=${run.state}`], closing({ delegated: ['Explore'] }));
+  assert.equal(landed.code, 0, landed.stderr);
+  assert.equal(statusOf(run, 'intake'), 'completed');
+});
+
+test('parity: every flag the skill maps names a declared input, and every input an operator sets has a flag', () => {
+  const skill = fs.readFileSync(path.join(ENGINE_DIR, '../product-design/SKILL.md'), 'utf8');
+  const bullets = skill.split(/^- /m).filter(bullet => bullet.includes('input of the definition'));
+  assert.equal(bullets.length, 1, 'the flags bullet');
+  const mapped = new Map([...bullets[0].matchAll(/`--([a-z-]+)(?:=[A-Z]+)?` is `([a-z_]+)`/g)].map(match => [match[1], match[2]]));
+  assert.ok(mapped.size > 0, 'the flags bullet maps no flag');
+  assert.deepEqual([...bullets[0].matchAll(/--([a-z-]+)/g)].map(match => match[1]), [...mapped.keys()], 'a flag the bullet names and does not map');
+
+  const { doc, errors } = parseDefinition(fs.readFileSync(PRODUCT_DESIGN, 'utf8'), PRODUCT_DESIGN);
+  assert.deepEqual(errors, []);
+  for (const [flag, input] of mapped) assert.ok(Object.hasOwn(doc.inputs, input), `--${flag} names ${input}, which is not an input`);
+  const flagged = new Set(mapped.values());
+  for (const input of Object.keys(doc.inputs)) {
+    if (['task_description', 'embedded', 'specification'].includes(input)) continue;
+    assert.ok(flagged.has(input), `the input ${input} has no flag`);
+  }
 });

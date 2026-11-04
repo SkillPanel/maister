@@ -1,0 +1,53 @@
+{
+  "headline": "Team calendars can only be shared inside the organisation today, so a team working with outside guests sends free/busy by hand, and nothing says who has seen what once it has left.",
+  "summary": "Sharing stops at the organisation's edge, because guests have no identity the permission service can check. Two teams already export free/busy to outside tools by hand, and support has asked who viewed a shared calendar. Success is a guest who sees a team's free time with no account and no export. Who this is for: Nadia, a team lead who books outside partners, and Tom, a guest who only needs to know when to call. A design brief with screens is recommended: one dialog and one guest page.",
+  "recommends": {
+    "option": "brief-with-screens",
+    "reason": "One dialog and one guest page, with no development run to follow at once."
+  },
+  "decisions": [
+    {
+      "decision": "Guests get a signed link, never an account of their own",
+      "by": "run",
+      "rationale": "The invite flow already signs links. Accounts would need a second identity store."
+    },
+    {
+      "decision": "Free/busy is what a guest sees; event details stay out of this design",
+      "by": "run"
+    },
+    {
+      "decision": "A share can be revoked by the calendar owner and by an organisation admin",
+      "by": "run"
+    },
+    {
+      "decision": "The persona cards draw on the support team's own descriptions of who asks for this",
+      "by": "run"
+    },
+    {
+      "decision": "Offline access on the phone stays out of scope for now",
+      "by": "run"
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Drafted story: a team lead shares a whole team calendar with one guest link, which assumes a grant the permission service has no row for today and may need a new kind of grant",
+      "tag": "open",
+      "change": "scope the story to single-member calendars"
+    },
+    {
+      "risk": "Drafted story: a guest removed from a project stops seeing its schedule at once, while the mobile client keeps a week of calendars and may show it until the next sync runs",
+      "tag": "open",
+      "change": "say a revoke is enforced on the next sync"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "analysis/problem-statement.md",
+      "role": "primary"
+    },
+    {
+      "path": "analysis/personas.md",
+      "role": "review"
+    }
+  ]
+}

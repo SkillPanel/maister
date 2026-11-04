@@ -1,74 +1,66 @@
 # The product-design workflow, as a graph.
 #
-# Ten nodes named for what they do and six named for what they approve, in
-# one linear chain. Gates serialize the run, so a wider fan-in would buy
-# nothing.
+# Six steps and three gates, in twelve nodes: explore and propose the scope
+# (`intake`); the problem and the personas (`problem`), closed by
+# `problem-approval`; the brainstorm (`alternatives`); sketch and converge
+# (`sketches`, `convergence`), closed by `direction-approval`; specify, draw the
+# final screens and write the brief (`specification`, `screens`, `brief`), closed
+# by `brief-approval`; and `completion`. Gates serialize the run, so a wider
+# fan-in would buy nothing.
 #
-# Two nodes are guarded on the design: the persona exploration runs only for a
-# greenfield or complex design, and the visual prototypes only for a UI-focused
-# one. Both guards are declared bools the intake node derives from the design
-# characteristics, because only a declared bool may guard and a guard reads one
-# reference, never an expression over two.
+# Four bools steer the route:
+# - The `specification` input: a parent or a driver asks for the specification
+#   outcome up front. It guards `specification`, joined by `||` to the next one.
+# - `with_spec`: what `problem-approval`'s two ways on set. It guards
+#   `specification`.
+# - `draws`: the intake records whether the design has anything a person sees. It
+#   guards `screens` and, joined by `&&` to the next one, `sketches`.
+# - `visual_areas`: the brainstorm records whether any decision area is marked
+#   visual. It guards `sketches`.
 #
-# Five more are guarded on the `simple` input, the run's depth: the
-# characteristics and context gates, and the brainstorm, the convergence and
-# the direction gate after them. A simple design keeps the problem and
-# specification gates and nothing else between them, and the specification
-# states the approach itself. The depth is a bool because an input is a string,
-# a bool or a path, and only a bool can guard. Under it the intake also turns
-# the personas off and the prototypes off unless the decision turns on layout or
-# presentation, a judgment the operator can override in the intake's own
-# request, so those two guards need no second reference. The `full` input goes
-# the other way without a guard of its own: the intake records the design
-# complex, which turns the personas on through the guard they already have.
+# `completion` is guarded on `embedded` as well: it exists only to tell an
+# operator the run is over, and a parent has its own ending.
 #
-# `completion` is guarded on `embedded`: it exists only to tell an operator the
-# run is over, and a parent has its own ending. The brief and the delivery
-# scope a parent reads are written by `review-handoff`, which runs on every path,
-# so the exposed outputs stay on it.
+# Guards sit on task nodes only, and all three gates are always asked. Each gate
+# closes a document written on every path: the problem, the decisions, the brief.
+# Two of the four bools are the run's own findings, which nobody chose, so a gate
+# guarded by one would be asked anyway unless it only confirmed; and
+# `problem-approval` decides the route, so it could not be skipped.
 #
-# Nothing a guarded node writes is interpolated into a node that still runs.
-# The decision record, the alternatives, the personas and the mockups are read
-# from disk, and only when the state records their node completed.
+# Nothing a guarded node writes is interpolated into a node that still runs, since
+# a skipped node wrote nothing. `convergence` names the sketch folder as a literal,
+# and the outputs of `sketches`, `specification` and `screens` are read from disk,
+# and only when the state records their node completed.
 #
-# The gate after the personas is deliberately unguarded, unlike the closing
-# gate of a guarded stretch in the other built-ins: `problem-approval` closes
-# the problem statement and, when they were drafted, the personas. A guarded
-# gate would let the problem statement pass unreviewed whenever the personas
-# were skipped. It needs both nodes of its stretch, because the gate brief
-# renders the summary of a node the gate needs and a skipped node writes none.
-#
-# The prototypes have a gate of their own, `mockup-approval`, guarded like the
-# node it closes, as in development: a design with no screens has nothing to
-# approve. `specification-approval` stays unguarded and needs the specification
-# and that gate, so it still closes the specification whatever the screens did,
-# and its brief, reading through the gate, still renders the prototypes'
-# summary when they were drawn.
+# `problem-approval` needs `intake` as well as `problem`, because the gate brief
+# renders the summary of a node the gate needs and the scope proposal is the
+# intake's. `brief-approval` needs `screens` beside `brief` for the same reason.
+# `convergence` needs `alternatives` directly, beside `sketches`, because
+# `area-brief` finds the areas file only through a direct need; a skipped
+# `sketches` still satisfies its need.
 #
 # No node carries `on:`. Under the default, a `needs` entry is satisfied by a
 # completed or a skipped predecessor but never by a stopped one, which is what
 # makes each gate's stop option actually end the run: nothing after it is ever
 # ready.
 #
-# The way back is a revise option, and every gate carries one. The problem,
-# direction and specification gates send a document back with the operator's
-# note. The direction gate carries two — re-asking chosen areas re-runs the
-# convergence, and brainstorming new alternatives re-runs the brainstorm before
-# it. The prototypes' gate carries one too: the studio draws one version per
-# turn and asks nothing, so a round of changes to the screens is one more turn,
-# and the gate's revise is the one place a person can ask for it, in a terminal
-# run and under a driver alike. A revise of the specification re-runs the
-# specification, the prototypes and their gate in order, so the screens are
-# redrawn against the revised specification before it is asked again.
+# The way back is a revise option, and every gate carries one; no node runs an
+# approval loop of its own. A gate is the one checkpoint that reaches the operator
+# in a terminal run and under a driver alike, and the revise note is the
+# correction. `correct-scope` re-runs the intake, which records `draws` afresh, so
+# a corrected scope switches the drawing on or off.
 #
-# The characteristics and context gates carry a revise too, and their nodes ask
-# no confirmation of their own. A gate is the one checkpoint that reaches the
-# operator in a terminal run and under a driver alike, where an in-node question
-# is defaulted; the revise note is the correction, so the engine's revise
-# machinery replaces two hand-written correction loops. Revising the intake
-# derives the two guards again, which is how a corrected characteristic switches
-# the personas or the prototypes on or off. Without these options a misdetected
-# characteristic could be corrected only by stopping the run.
+# `brief-approval`'s `change-screens-and-brief` revises from `specification` on
+# every path, including one where that node is skipped: the revise resets the
+# stretch, the ready set skips `specification` again when its guard still reads
+# false, and `screens` and `brief` run again behind it. One target serves both
+# routes, so a specification that was written can never be left behind the screens
+# drawn from it.
+#
+# The exposed outputs sit on `brief` and `screens`, because those write what a
+# parent reads: the brief with its delivery scope, and the final screens. `sketches`
+# draws into the same folder, but only for the convergence to ask from, and the
+# final screens replace its pages in the folder's flat view.
 #
 # Target names are bare on purpose. Resolution is rooted at the plugin root and
 # the provider prefix is applied at invocation, so this one file is correct
@@ -82,25 +74,15 @@
 # engine never consults.
 name: product-design
 version: 1
-description: "Turns a fuzzy product or feature idea into a development-ready product brief: it gathers context, explores the problem and its users, brainstorms alternatives, converges on a direction, specifies the feature section by section, prototypes the screens and assembles the brief. Use it to decide what to build before building it; the brief feeds the development workflow."
+description: "Turns a fuzzy product or feature idea into a brief to build from: it explores the project, proposes the scope, decides each choice with sketches, and writes a brief with the final screens for the development workflow. Use it to decide what to build before building it."
 inputs:
   task_description: {type: string, required: true}
   # The path of a completed research task whose findings inform the design.
   research: {type: path, required: false}
-  # Mockups in the terminal rather than through the browser companion. The
-  # project's mockup format setting does the same for every run; this is the
-  # per-run override.
-  no_visual: {type: bool, required: false, default: false}
-  # The design depth. False is the full workflow; true is the shortest run that
-  # still yields a brief and a delivery scope to approve: no characteristics or
-  # context gate, no personas, no brainstorm or direction gate, and no
-  # prototypes unless the decision turns on layout or presentation.
-  simple: {type: bool, required: false, default: false}
-  # The full design, whatever the detected complexity: the intake records the
-  # design complex, so the personas are drafted and every stretch goes to its
-  # complex depth. False leaves the depth to the detection. `simple` wins when
-  # both are true, because its guards have already taken the stretches out.
-  full: {type: bool, required: false, default: false}
+  # A parent or a driver sets this to ask for the specification outcome up front:
+  # the feature specification is written whichever way on is chosen. The first
+  # gate is still asked.
+  specification: {type: bool, required: false, default: false}
   # "This run is a sub-run of another run." The engine supplies it at the child
   # freeze; an operator never types it. Its only effect here is the guard on
   # `completion`, which a parent has no use for.
@@ -108,15 +90,15 @@ inputs:
 
 # What a parent or a chain step may bind. Every entry names an output some node already
 # declares, so a key that stops resolving fails validation rather than a run.
-# `mockups` belongs to a node a guard may skip: when no screens were drawn the
-# entry is simply absent, and the reader's missing-artifact rule decides what
-# follows. The brief and the delivery scope are written on every path,
-# embedded or not and at either depth, because `review-handoff` always runs.
+# `mockups` belongs to a node a guard may skip: when the intake recorded `draws`
+# false the entry is simply absent, and the reader's missing-artifact rule decides
+# what follows. The brief and the delivery scope are written on every path that
+# reaches `brief`.
 outputs:
   artifacts:
-    brief: review-handoff.artifacts.brief
-    delivery_scope: review-handoff.artifacts.delivery_scope
-    mockups: visual-prototyping.artifacts.mockups
+    brief: brief.artifacts.brief
+    delivery_scope: brief.artifacts.delivery_scope
+    mockups: screens.artifacts.mockups
 
 # What the dashboard draws beside each node. Definition data rather than graph
 # data: the block sits outside `nodes:` and outside the hashed envelope, so
@@ -128,112 +110,95 @@ outputs:
 # closes it read as one pair.
 display:
   icons:
-    intake:                   analysis
-    characteristics-approval: analysis
-    context-synthesis:        analysis
-    context-approval:         analysis
-    problem-exploration:      analysis
-    persona-exploration:      analysis
-    problem-approval:         analysis
-    idea-generation:          plan
-    idea-convergence:         plan
-    direction-approval:       plan
-    feature-specification:    spec
-    visual-prototyping:       spec
-    mockup-approval:          spec
-    specification-approval:   spec
-    review-handoff:           docs
-    completion:               done
+    intake:             analysis
+    problem:            analysis
+    problem-approval:   analysis
+    alternatives:       plan
+    sketches:           plan
+    convergence:        plan
+    direction-approval: plan
+    specification:      spec
+    screens:            spec
+    brief:              docs
+    brief-approval:     docs
+    completion:         done
   titles:
-    intake:                   "Intake and design characteristics"
-    characteristics-approval: "Approve design characteristics"
-    context-synthesis:        "Context synthesis"
-    context-approval:         "Approve design context"
-    problem-exploration:      "Problem exploration"
-    persona-exploration:      "User and persona exploration"
-    problem-approval:         "Approve problem and personas"
-    idea-generation:          "Idea generation"
-    idea-convergence:         "Idea convergence"
-    direction-approval:       "Approve design direction"
-    feature-specification:    "Feature specification"
-    visual-prototyping:       "Visual prototyping"
-    mockup-approval:          "Approve the screens"
-    specification-approval:   "Approve specification and prototypes"
-    review-handoff:           "Product brief and delivery scope"
-    completion:               "Completion"
+    intake:             "Explore and propose the scope"
+    problem:            "Problem and personas"
+    problem-approval:   "Approve the problem and choose the outcome"
+    alternatives:       "Brainstorm alternatives"
+    sketches:           "Sketches"
+    convergence:        "Converge on a direction"
+    direction-approval: "Approve the design direction"
+    specification:      "Feature specification"
+    screens:            "Final screens"
+    brief:              "Product brief and delivery scope"
+    brief-approval:     "Approve the brief and the screens"
+    completion:         "Completion"
   option_labels:
-    characteristics-approval:
-      continue-to-context-synthesis: "Continue to the context synthesis"
-      revise-characteristics: "Correct the characteristics"
-      stop-design: "Stop here"
-    context-approval:
-      continue-to-problem-exploration: "Continue to the problem exploration"
-      revise-context: "Correct or add to the context"
-      stop-design: "Stop here"
-    # A continue label reading "Continue" alone is completed from the walk:
-    # a simple depth skips idea generation, so the gate brief names the step
-    # that runs.
     problem-approval:
-      continue-to-idea-generation: "Continue"
-      revise-problem: "Revise the problem or personas"
-      stop-design: "Stop here"
+      brief-with-screens: "A design brief with screens"
+      brief-with-spec: "A brief with a feature specification"
+      correct-scope: "Correct the scope"
+      revise-problem: "Revise the problem"
+      use-quick-design: "Use quick-design instead"
+    # A continue label reading "Continue" alone is completed from the walk: the
+    # guards decide whether the specification, the screens or the brief comes
+    # next, so the gate brief names the step that runs.
     direction-approval:
-      continue-to-specification: "Continue to the feature specification"
-      refine-direction: "Re-ask chosen areas"
-      explore-more-alternatives: "Brainstorm new alternatives"
+      approve-direction: "Continue"
+      revise-direction: "Revise the direction"
       stop-design: "Stop here"
-    mockup-approval:
-      continue-to-specification-review: "Continue to the specification review"
-      revise-mockups: "Revise the screens"
-      stop-design: "Stop here"
-    specification-approval:
-      continue-to-product-brief: "Continue to the product brief"
-      revise-specification: "Revise the specification"
+    brief-approval:
+      approve-brief: "Approve the brief"
+      change-screens-and-brief: "Change the screens and brief"
+      change-brief: "Change the brief only"
       stop-design: "Stop here"
   headers:
-    characteristics-approval: "Scope"
-    context-approval:         "Context"
-    problem-approval:         "Problem"
-    direction-approval:       "Direction"
-    mockup-approval:          "Screens"
-    specification-approval:   "Spec"
+    problem-approval:   "Scope"
+    direction-approval: "Direction"
+    brief-approval:     "Brief"
 
 # The markdown artifacts that owe an HTML companion beside them, per node.
 # Read beside the graph, not part of it: the block moves no graph hash.
 html_companions:
-  idea-generation: [alternatives]
-  idea-convergence: [decisions]
-  feature-specification: [spec]
-  review-handoff: [brief]
+  alternatives: [alternatives]
+  convergence: [decisions]
+  specification: [spec]
+  brief: [brief]
 
-# What each node's brief prints beside its prose: a file it may leave unwritten
-# and its recovery budget. Read beside the graph, not part of it: the block
-# moves no graph hash. No node's flag recommends a continue option, so no entry
-# carries `recommends`.
+# What each node's brief prints beside its prose: a file it may leave unwritten,
+# its recovery budget, the agents it always dispatches and the continue an input
+# recommends. Read beside the graph, not part of it: the block moves no graph hash.
+# `problem` is the one node that recommends. With the `specification` input true
+# its flag recommends `brief-with-spec`; with it false the brief prints "the section
+# decides", and the section's summary always names the option. Left to itself the
+# engine would recommend the continue that turns on the most steps, which is the
+# specification whatever the signals say.
 brief:
   intake:
     absent:
       research_context: "No research task was named."
     budget: 1
-  context-synthesis:
-    absent:
-      codebase_analysis: "A greenfield design has no codebase to analyse."
-    budget: 2
-  problem-exploration:
+    delegates: [Explore]
+  problem:
     budget: 1
-  persona-exploration:
-    budget: 1
-  idea-generation:
+    recommends:
+      specification:
+        "true": brief-with-spec
+  alternatives:
     absent:
       decision_areas: "The brainstormer returned no areas file; the convergence asks from the markdown."
     budget: 2
-  idea-convergence:
-    budget: 1
-  feature-specification:
-    budget: 1
-  visual-prototyping:
+  sketches:
     budget: 2
-  review-handoff:
+  convergence:
+    budget: 1
+  specification:
+    budget: 1
+  screens:
+    budget: 2
+  brief:
     budget: 1
 
 nodes:
@@ -243,188 +208,150 @@ nodes:
     with:
       task_description: "${inputs.task_description}"
       research: "${inputs.research}"
-      no_visual: "${inputs.no_visual}"
-      simple: "${inputs.simple}"
-      full: "${inputs.full}"
     outputs:
       artifacts:
         # Written only when the invocation named a research task; the absence
         # is sanctioned in `brief:` under `absent`.
         research_context: context/research-context
+        scope: analysis/scope.md
+        explore: analysis/explore
       values:
-        # Derived from the design characteristics: greenfield or complex for
-        # the first, UI-focused for the second. A revise at the
-        # characteristics gate derives them again. A simple run records the
-        # first false, the second true only when the decision turns on layout
-        # or presentation, and the complexity `simple`; a full run records the first
-        # true and the complexity `complex`.
-        personas_enabled: bool
-        prototyping_enabled: bool
-        complexity_level: {enum: [simple, standard, complex]}
+        # Whether the design has anything a person sees. Recorded afresh when
+        # `correct-scope` re-runs the intake.
+        draws: bool
 
-  characteristics-approval:
-    type: gate
+  problem:
+    uses: direct:problem
     needs: [intake]
-    when: "!${inputs.simple}"
-    ask: "Design characteristics detected. Continue to context synthesis?"
-    options:
-      continue-to-context-synthesis: continue
-      revise-characteristics: {effect: revise, reruns: intake}
-      stop-design: stop
-
-  context-synthesis:
-    uses: direct:context-synthesis
-    needs: [characteristics-approval]
     with:
       task_description: "${inputs.task_description}"
-      complexity_level: "${intake.values.complexity_level}"
-    outputs:
-      artifacts:
-        design_context: analysis/design-context.md
-        # Written only for an enhancement; the absence is sanctioned in
-        # `brief:` under `absent`.
-        codebase_analysis: analysis/codebase-analysis.md
-
-  context-approval:
-    type: gate
-    needs: [context-synthesis]
-    when: "!${inputs.simple}"
-    ask: "Context synthesis complete. Continue to problem exploration?"
-    options:
-      continue-to-problem-exploration: continue
-      revise-context: {effect: revise, reruns: context-synthesis}
-      stop-design: stop
-
-  problem-exploration:
-    uses: direct:problem-exploration
-    needs: [context-approval]
-    with:
-      task_description: "${inputs.task_description}"
-      design_context: "${context-synthesis.artifacts.design_context}"
-      complexity_level: "${intake.values.complexity_level}"
+      specification: "${inputs.specification}"
+      scope: "${intake.artifacts.scope}"
+      explore: "${intake.artifacts.explore}"
     outputs:
       artifacts:
         problem_statement: analysis/problem-statement.md
-
-  persona-exploration:
-    uses: direct:persona-exploration
-    needs: [problem-exploration]
-    when: "${intake.values.personas_enabled}"
-    with:
-      design_context: "${context-synthesis.artifacts.design_context}"
-      problem_statement: "${problem-exploration.artifacts.problem_statement}"
-      complexity_level: "${intake.values.complexity_level}"
-    outputs:
-      artifacts:
         personas: analysis/personas.md
 
   problem-approval:
     type: gate
-    needs: [problem-exploration, persona-exploration]
-    ask: "Problem exploration complete. Continue?"
+    needs: [intake, problem]
+    ask: "The scope proposal, the problem and the personas are ready. Which outcome should this run produce?"
     options:
-      continue-to-idea-generation: continue
-      revise-problem: {effect: revise, reruns: problem-exploration}
-      stop-design: stop
+      brief-with-screens: {effect: continue, sets: {with_spec: false}}
+      brief-with-spec: {effect: continue, sets: {with_spec: true}}
+      correct-scope: {effect: revise, reruns: intake}
+      revise-problem: {effect: revise, reruns: problem}
+      use-quick-design: stop
 
-  idea-generation:
+  alternatives:
     uses: agent:solution-brainstormer
     needs: [problem-approval]
-    when: "!${inputs.simple}"
     with:
       output_path: analysis/alternatives.md
       areas_output_path: analysis/decision-areas.json
       task_description: "${inputs.task_description}"
-      design_context: "${context-synthesis.artifacts.design_context}"
-      problem_statement: "${problem-exploration.artifacts.problem_statement}"
-      complexity_level: "${intake.values.complexity_level}"
+      scope: "${intake.artifacts.scope}"
+      explore: "${intake.artifacts.explore}"
+      problem_statement: "${problem.artifacts.problem_statement}"
+      personas: "${problem.artifacts.personas}"
+      visual_marks: true
     outputs:
       artifacts:
         alternatives: analysis/alternatives.md
         decision_areas: analysis/decision-areas.json
+      values:
+        # Whether any decision area is marked visual.
+        visual_areas: bool
 
-  idea-convergence:
-    uses: direct:idea-convergence
-    needs: [idea-generation]
-    when: "!${inputs.simple}"
+  sketches:
+    uses: skill:mockup-studio
+    needs: [alternatives]
+    when: "${intake.values.draws} && ${alternatives.values.visual_areas}"
     with:
-      alternatives: "${idea-generation.artifacts.alternatives}"
-      decision_areas: "${idea-generation.artifacts.decision_areas}"
-      problem_statement: "${problem-exploration.artifacts.problem_statement}"
+      output_subdir: analysis/mockups
+      fidelity: sketch
+      decision_areas: "${alternatives.artifacts.decision_areas}"
+      alternatives: "${alternatives.artifacts.alternatives}"
+      personas: "${problem.artifacts.personas}"
+    outputs:
+      artifacts:
+        mockups: analysis/mockups
+
+  convergence:
+    uses: direct:convergence
+    needs: [alternatives, sketches]
+    with:
+      alternatives: "${alternatives.artifacts.alternatives}"
+      decision_areas: "${alternatives.artifacts.decision_areas}"
+      problem_statement: "${problem.artifacts.problem_statement}"
+      # A literal: `sketches` is guarded, so its output is never interpolated.
+      sketches: analysis/mockups
     outputs:
       artifacts:
         decisions: analysis/design-decisions.md
 
   direction-approval:
     type: gate
-    needs: [idea-convergence]
-    when: "!${inputs.simple}"
-    ask: "Design direction ready for review. Continue to feature specification?"
+    needs: [convergence]
+    ask: "Design direction ready. Continue?"
     options:
-      continue-to-specification: continue
-      refine-direction: {effect: revise, reruns: idea-convergence}
-      explore-more-alternatives: {effect: revise, reruns: idea-generation}
+      approve-direction: continue
+      revise-direction: {effect: revise, reruns: convergence}
       stop-design: stop
 
-  feature-specification:
-    uses: direct:feature-specification
+  specification:
+    uses: direct:specification
     needs: [direction-approval]
+    when: "${inputs.specification} || ${problem-approval.values.with_spec}"
     with:
-      problem_statement: "${problem-exploration.artifacts.problem_statement}"
-      design_context: "${context-synthesis.artifacts.design_context}"
-      complexity_level: "${intake.values.complexity_level}"
+      problem_statement: "${problem.artifacts.problem_statement}"
+      personas: "${problem.artifacts.personas}"
+      decisions: "${convergence.artifacts.decisions}"
     outputs:
       artifacts:
         spec: analysis/feature-spec.md
 
-  visual-prototyping:
+  screens:
     uses: skill:mockup-studio
-    needs: [feature-specification]
-    when: "${intake.values.prototyping_enabled}"
+    needs: [specification]
+    when: "${intake.values.draws}"
     with:
       output_subdir: analysis/mockups
       fidelity: sketch
-      feature_spec: "${feature-specification.artifacts.spec}"
-      design_context: "${context-synthesis.artifacts.design_context}"
+      decisions: "${convergence.artifacts.decisions}"
+      problem_statement: "${problem.artifacts.problem_statement}"
+      personas: "${problem.artifacts.personas}"
     outputs:
       artifacts:
         mockups: analysis/mockups
 
-  mockup-approval:
-    type: gate
-    needs: [visual-prototyping]
-    when: "${intake.values.prototyping_enabled}"
-    ask: "Screens drawn. Continue to the specification review?"
-    options:
-      continue-to-specification-review: continue
-      revise-mockups: {effect: revise, reruns: visual-prototyping}
-      stop-design: stop
-
-  specification-approval:
-    type: gate
-    needs: [feature-specification, mockup-approval]
-    ask: "Feature specification complete. Continue to the product brief?"
-    options:
-      continue-to-product-brief: continue
-      revise-specification: {effect: revise, reruns: feature-specification}
-      stop-design: stop
-
-  review-handoff:
-    uses: direct:review-handoff
-    needs: [specification-approval]
+  brief:
+    uses: direct:brief
+    needs: [screens]
     with:
       task_description: "${inputs.task_description}"
-      design_context: "${context-synthesis.artifacts.design_context}"
-      problem_statement: "${problem-exploration.artifacts.problem_statement}"
-      feature_spec: "${feature-specification.artifacts.spec}"
-      complexity_level: "${intake.values.complexity_level}"
+      scope: "${intake.artifacts.scope}"
+      problem_statement: "${problem.artifacts.problem_statement}"
+      personas: "${problem.artifacts.personas}"
+      decisions: "${convergence.artifacts.decisions}"
     outputs:
       artifacts:
         brief: outputs/product-brief.md
         # Written on every path: one member for a single repository.
         delivery_scope: outputs/delivery-scope.yml
 
+  brief-approval:
+    type: gate
+    needs: [screens, brief]
+    ask: "The brief and the screens are ready. Continue?"
+    options:
+      approve-brief: continue
+      change-screens-and-brief: {effect: revise, reruns: specification}
+      change-brief: {effect: revise, reruns: brief}
+      stop-design: stop
+
   completion:
     uses: direct:completion
-    needs: [review-handoff]
+    needs: [brief-approval]
     when: "!${inputs.embedded}"

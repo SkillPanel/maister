@@ -44,7 +44,7 @@ Every companion opens with a breadcrumb bar linking the task's report suite. Pat
 </nav>
 ```
 
-Adjust the `../` prefixes to the companion's location (`implementation/` vs `verification/`). The suite is workflow-specific — for **research** companions (all in `outputs/`, siblings): `← Dashboard · Report · Exploration · Design · Decision Log · md twin ↗`. For **product-design** companions (in `analysis/` and `outputs/`): `← Dashboard · Problem · Personas · Design Decisions · Feature Spec · Product Brief · md twin ↗` (the orchestrator supplies the exact sibling set that exists). Link only reports that exist or are standard for the workflow. Mark the current report as plain text (no link). **All `.md` links open in a new tab** (`target="_blank" rel="noopener"`) — everywhere in the report, not just the breadcrumb. HTML-to-HTML navigation stays in-tab.
+Adjust the `../` prefixes to the companion's location (`implementation/` vs `verification/`). The suite is workflow-specific — for **research** companions (all in `outputs/`, siblings): `← Dashboard · Report · Exploration · Design · Decision Log · md twin ↗`. For **product-design** companions (in `analysis/` and `outputs/`): `← Dashboard · Scope · Problem · Personas · Alternatives · Design Decisions · Feature Spec · Product Brief · md twin ↗` (the orchestrator supplies the exact sibling set that exists). Link only reports that exist or are standard for the workflow. Mark the current report as plain text (no link). **All `.md` links open in a new tab** (`target="_blank" rel="noopener"`) — everywhere in the report, not just the breadcrumb. HTML-to-HTML navigation stays in-tab.
 
 ```css
 .crumbs { display:flex; gap:14px; font-size:13px; margin-bottom:18px; flex-wrap:wrap; }

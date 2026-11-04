@@ -27,7 +27,7 @@ it, and the ASCII agent only writes its document.
 | The call carries | Entry | What happens |
 |---|---|---|
 | A node's `with:` values together with the `run-context` output | **Node mode** | One turn. It never hands off to the workflow engine and never reads flags, whatever the values hold. With no `task_path`, the turn writes under the task directory `run-context` names |
-| The same named values from another skill, outside an engine run, with `task_path` set | **Inline call** (quick-design) | Handled as node mode with no `run-context` and no `record`, so no run record is written. It never hands off. `task_path` is required: without it, say so and write nothing |
+| The same named values from another skill, or from a running workflow node's own prose, with `task_path` set | **Inline call** (quick-design, product-design's convergence) | Handled as node mode with no `run-context` and no `record`, so no run record is written. It never hands off. `task_path` is required: without it, say so and write nothing |
 | Flags or bare text, typed by a person | **Terminal entry** | *Terminal entries* below |
 
 Only a call made of flags or bare text is a terminal entry.

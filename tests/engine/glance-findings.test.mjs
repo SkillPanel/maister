@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, delegating, freeze, scratch, verb, write } from '../helpers.mjs';
 import {
   FOCUS_BUDGET, FOCUS_LINES, PREVIEW_BUDGET, plainPicker, richPicker,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
@@ -11,31 +11,42 @@ import {
 // The continue option's preview — the glance — shows what the closed step
 // found (its summary, as *Found*) beside *Done*, and every risk, fix, held
 // choice and decision whole: a long one gives way to a count instead of being
-// cut mid-word. These tests pin that on a real product design's context
-// checkpoint, and on built checkpoints at the edges of the budgets.
+// cut mid-word. These tests pin that on a real product design's problem
+// checkpoint, and on built checkpoints at the edges of the budgets. That gate
+// closes the intake and the problem, and the intake leads: *Done* and *Found*
+// are the scope proposal, the risks and decisions those of the whole stretch.
 
 const PRODUCT_DESIGN = path.join(ENGINE_DIR, 'workflows/product-design.yml');
 
-/** A context synthesis as a product design records it: a long headline, a full summary, two open risks, five decisions. */
-const CONTEXT_SYNTHESIS = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'gates/context-synthesis.summary.json'), 'utf8'));
+/** An intake as a product design records it: the recommended outcome as a long headline, the scope proposal as a full summary. */
+const INTAKE = {
+  headline: 'A design brief with screens fits this: one dialog for sharing a team calendar and one page for the guest who opens the link, built on the invite flow the product already has.',
+  summary: 'Team calendars are shared per member, inside the organisation only, and guests have no identity of their own. The people affected are team leads who book outside partners and the guests they invite. An invite already carries a signed link that expires with the event. The sharing dialog and a guest page are drawn; the permission service changes behind them. Still to come: the problem and personas, then the choices for each decision area.',
+  artifacts: [
+    { path: 'analysis/scope.md', role: 'primary' },
+    { path: 'analysis/explore/screens.md', role: 'evidence' },
+  ],
+};
 
-/** A product design run at its context checkpoint, the context synthesis closed with `summary`. */
-function atContextGate(t, summary) {
+/** A problem step as a product design records it: the recommended outcome, two open risks, five decisions. */
+const PROBLEM = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'gates/problem.summary.json'), 'utf8'));
+
+/** A product design run at its problem checkpoint, the intake closed with `intake` and the problem with `PROBLEM`. */
+function atProblemGate(t, intake) {
   const run = scratch(t, { type: 'product-design', name: '2026-10-21-team-calendar-sharing' });
   freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: 'Share team calendars with outside guests' } });
-  write(run, {
-    nodes: { intake: { status: 'completed', values: { personas_enabled: false, prototyping_enabled: true, complexity_level: 'standard' } } },
-    node_summaries: { intake: { summary: 'An enhancement with a UI.' } },
-  });
-  write(run, { nodes: { 'characteristics-approval': { status: 'completed' } } });
-  fs.mkdirSync(path.join(run.dir, 'analysis'), { recursive: true });
-  for (const file of ['design-context.md', 'codebase-analysis.md']) fs.writeFileSync(path.join(run.dir, 'analysis', file), '# written\n');
-  write(run, { nodes: { 'context-synthesis': { status: 'completed' } }, node_summaries: { 'context-synthesis': summary } });
+  fs.mkdirSync(path.join(run.dir, 'analysis/explore'), { recursive: true });
+  for (const file of ['scope.md', 'explore/screens.md', 'problem-statement.md', 'personas.md']) fs.writeFileSync(path.join(run.dir, 'analysis', file), '# written\n');
+  write(run, delegating({
+    nodes: { intake: { status: 'completed', values: { draws: true } } },
+    node_summaries: { intake },
+  }, run));
+  write(run, { nodes: { problem: { status: 'completed' } }, node_summaries: { problem: PROBLEM } });
   return run;
 }
 
 function pickerOf(run, profile) {
-  const result = verb(['gate-brief', `--state=${run.state}`, '--node=context-approval', '--json', `--picker=${profile}`]);
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=problem-approval', '--json', `--picker=${profile}`]);
   assert.equal(result.code, 0, result.stderr);
   return JSON.parse(result.stdout);
 }
@@ -45,38 +56,49 @@ function bullets(lines) {
   return lines.filter(line => line.startsWith('- ')).map(line => line.slice(2).replace(/ — [a-z][a-z ]*$/, ''));
 }
 
-test('context checkpoint: the glance shows the findings, both risks and three decisions whole', t => {
-  const preview = pickerOf(atContextGate(t, CONTEXT_SYNTHESIS), 'rich').options[0].preview;
-  const { headline, summary, risks, decisions } = CONTEXT_SYNTHESIS;
+test('problem checkpoint: the glance shows the findings, both risks and three decisions whole', t => {
+  const preview = pickerOf(atProblemGate(t, INTAKE), 'rich').options[0].preview;
+  const { headline, summary } = INTAKE;
+  const { risks, decisions } = PROBLEM;
   assert.equal(preview, [
     `Done: ${headline}`,
     `Found: ${summary}`,
-    'Next: Problem exploration',
-    'Review: analysis/design-context.md, analysis/codebase-analysis.md',
+    'Next: Brainstorm alternatives',
+    'Review: analysis/scope.md, analysis/problem-statement.md, analysis/personas.md',
     'Open risks:',
     ...risks.map(risk => `- ${risk.risk}`),
     '',
     'Decided by the run (+2 more under More details):',
-    ...decisions.slice(0, 3).map(each => `- ${each.decision} — context synthesis`),
+    ...decisions.slice(0, 3).map(each => `- ${each.decision} — problem and personas`),
   ].join('\n'));
   const lines = preview.split('\n');
   assert.ok(lines.length <= FOCUS_LINES && preview.length <= FOCUS_BUDGET, `${lines.length} lines, ${preview.length} characters`);
   assert.doesNotMatch(preview, /…/, 'nothing is cut');
 });
 
-test('context checkpoint: the plain question carries Found and the same whole items', t => {
-  const question = pickerOf(atContextGate(t, CONTEXT_SYNTHESIS), 'plain').question.split('\n');
-  assert.equal(question[1], `Found: ${CONTEXT_SYNTHESIS.summary}`);
-  for (const risk of CONTEXT_SYNTHESIS.risks) assert.ok(question.includes(`- ${risk.risk}`), question.join('\n'));
+test('problem checkpoint: the problem closes beside the intake that leads', t => {
+  const run = atProblemGate(t, INTAKE);
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=problem-approval', '--checkpoint']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).closed.map(({ node, headline }) => ({ node, headline })), [
+    { node: 'intake', headline: INTAKE.headline },
+    { node: 'problem', headline: PROBLEM.headline },
+  ]);
+});
+
+test('problem checkpoint: the plain question carries Found and the same whole items', t => {
+  const question = pickerOf(atProblemGate(t, INTAKE), 'plain').question.split('\n');
+  assert.equal(question[1], `Found: ${INTAKE.summary}`);
+  for (const risk of PROBLEM.risks) assert.ok(question.includes(`- ${risk.risk}`), question.join('\n'));
   assert.doesNotMatch(question.join('\n'), /…/);
 });
 
-test('context checkpoint: no Found when Done was drawn from the summary', t => {
-  const { headline, ...rest } = CONTEXT_SYNTHESIS;
+test('problem checkpoint: no Found when Done was drawn from the summary', t => {
+  const { headline, ...rest } = INTAKE;
   for (const profile of ['rich', 'plain']) {
-    const picker = pickerOf(atContextGate(t, rest), profile);
+    const picker = pickerOf(atProblemGate(t, rest), profile);
     const glance = profile === 'rich' ? picker.options[0].preview : picker.question;
-    assert.match(glance, /^Done: Sharing is per calendar and per member, enforced by the permission service on every read\.$/m);
+    assert.match(glance, /^Done: Team calendars are shared per member, inside the organisation only, and guests have no identity of their own\.$/m);
     assert.doesNotMatch(glance, /^Found:/m, glance);
   }
 });
@@ -88,24 +110,24 @@ test('context checkpoint: no Found when Done was drawn from the summary', t => {
 const words = (stem, count) => `${Array.from({ length: count }, (_, index) => `${stem}${index}`).join(' ')}.`;
 
 /** A gate checkpoint whose closed step has its own headline beside `summary`. */
-function checkpointOf({ headline = 'The context is ready.', summary, risks = [], fixes = [], decisions = [], held = [] }) {
+function checkpointOf({ headline = 'The problem is ready.', summary, risks = [], fixes = [], decisions = [], held = [] }) {
   return {
     kind: 'gate',
-    node: 'context-approval',
-    ask: 'Approve design context?',
-    header: 'Context',
+    node: 'problem-approval',
+    ask: 'Which outcome should this run produce?',
+    header: 'Scope',
     headline,
     progress: { checkpoint: 2, checkpoints_max: 5 },
-    next: { node: 'problem-exploration', title: 'Problem exploration', end: false, skipped: [] },
-    review: [{ path: 'analysis/design-context.md', label: 'Design context', html: null, role: 'primary' }],
-    closed: [{ node: 'context-synthesis', title: 'Context synthesis', headline, summary }],
+    next: { node: 'alternatives', title: 'Brainstorm alternatives', end: false, skipped: [] },
+    review: [{ path: 'analysis/problem-statement.md', label: 'Problem statement', html: null, role: 'primary' }],
+    closed: [{ node: 'problem', title: 'Problem and personas', headline, summary }],
     fixes,
     ...(held.length ? { held } : {}),
-    decisions: { run: decisions.map(decision => ({ node: 'context-synthesis', decision })), audit: [], default: [], operator: { count: 0, not_recommended: [] } },
+    decisions: { run: decisions.map(decision => ({ node: 'problem', decision })), audit: [], default: [], operator: { count: 0, not_recommended: [] } },
     risks: { open: risks.map(risk => ({ risk })) },
     options: [
       { id: 'continue', label: 'Continue', effect: 'continue', recommended: true, consequence: 'Goes on.' },
-      { id: 'revise', label: 'Revise the context', effect: 'revise', recommended: false, consequence: 'Re-runs it.', reruns: [{ node: 'context-synthesis', title: 'Context synthesis' }], suggestions: [] },
+      { id: 'revise', label: 'Revise the problem', effect: 'revise', recommended: false, consequence: 'Re-runs it.', reruns: [{ node: 'problem', title: 'Problem and personas' }], suggestions: [] },
       { id: 'stop', label: 'Stop', effect: 'stop', recommended: false, consequence: 'Ends the run here.' },
     ],
   };
@@ -116,7 +138,7 @@ test('glance: no risk, fix, held choice or decision is cut mid-word at any lengt
     const risks = Array.from({ length: 3 }, (_, index) => words(`risk${index}-`, size));
     const decisions = Array.from({ length: 5 }, (_, index) => words(`decision${index}-`, size));
     const fixes = Array.from({ length: 3 }, (_, index) => ({ finding: words(`finding${index}-`, size), change: 'changed' }));
-    const held = [{ node: 'context-synthesis', question_id: 'scope', question: words('question-', 12), decision: words('choice-', 12) }];
+    const held = [{ node: 'problem', question_id: 'scope', question: words('question-', 12), decision: words('choice-', 12) }];
     const checkpoint = checkpointOf({ summary: words('summary-', 40), risks, fixes, decisions, held });
     for (const lines of [richPicker(checkpoint).options[0].preview.split('\n'), plainPicker(checkpoint).question.split('\n')]) {
       const whole = new Set([...risks, ...decisions, ...fixes.map(fix => `${fix.finding.replace(/\.$/, '')} → ${fix.change}`), `${held[0].question}: ${held[0].decision}`]);
@@ -135,7 +157,7 @@ test('glance: Done, Found and Next are never cut, the risks giving way instead',
   const lines = richPicker(checkpoint).options[0].preview.split('\n');
   assert.equal(lines[0], `Done: ${headline}`);
   assert.equal(lines[1], `Found: ${summary}`);
-  assert.equal(lines[2], 'Next: Problem exploration');
+  assert.equal(lines[2], 'Next: Brainstorm alternatives');
   assert.ok(lines.join('\n').length <= FOCUS_BUDGET, lines.join('\n'));
 });
 
@@ -162,7 +184,7 @@ test('glance: a summary too long for any preview is cut at a sentence end, point
   const found = lines.find(line => line.startsWith('Found: '));
   assert.match(found, /guest\. \(The rest is under More details\.\)$/, found);
   assert.ok(summary.startsWith(found.slice('Found: '.length, -' (The rest is under More details.)'.length)));
-  assert.ok(lines.includes('Next: Problem exploration'));
+  assert.ok(lines.includes('Next: Brainstorm alternatives'));
   assert.equal(lines[0], `Done: ${words('headline-', 20)}`, 'Done stays whole while Found alone can give way');
   // The plain question has no preview to fit, so it carries the summary whole.
   assert.ok(plainPicker(checkpoint).question.includes(`Found: ${summary}`));

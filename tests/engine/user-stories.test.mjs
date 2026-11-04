@@ -18,10 +18,9 @@ import { foldAnswer, requestQuestions } from '../../plugins/maister/skills/workf
 
 const WORKFLOWS_DIR = path.join(ENGINE_DIR, 'workflows');
 
-/** The node that gathers requirements in each workflow, and another question it asks. */
+/** The node that asks requirements as stories, per workflow that has one, and another question it asks. */
 const ASKERS = [
   { workflow: 'development', node: 'specification', sibling: 'specification-requirements' },
-  { workflow: 'product-design', node: 'problem-exploration', sibling: 'problem-questions' },
 ];
 
 const STORY_ID = 'user-story';

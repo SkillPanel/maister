@@ -54,5 +54,5 @@ Before considering a workflow complete, verify ALL items:
 ## Reference
 
 - **`orchestrator-patterns.md`** — Execution rules, schemas, and patterns
-- **Existing workflows** — development, performance, migration, research and product-design are definitions under `workflow-engine/workflows/`; product-design is the one whose gates close a guarded node and whose convergence is left for a gate under a driver
+- **Existing workflows** — development, performance, migration, research and product-design are definitions under `workflow-engine/workflows/`; product-design is the example of a gate whose continues decide the route (`sets`) and whose convergence is left for a gate under a driver
 - **Library consumers** — `implementation-plan-executor` and `implementation-verifier` read and write the same state and artifacts without being orchestrators

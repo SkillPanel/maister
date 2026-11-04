@@ -41,8 +41,9 @@ alternatives in the same order and the same recommendations, so the two never di
 | `areas[].question` | The area's question, one line, in the task's words |
 | `areas[].why` | Why the decision matters, text |
 | `areas[].depends_on` | Optional. Area ids, each listed **earlier** in `areas`, no duplicates, never the area's own id |
+| `areas[].visual` | Optional bool: the area's alternatives differ in what a person sees; a product-design convergence names their sketches |
 | `areas[].alternatives` | At least 2, in the brainstormer's rank order, strongest first |
-| `alternatives[].id` | A slug, unique in its area; `other` and `more-details` are reserved |
+| `alternatives[].id` | A slug, unique in its area; `other`, `more-details` and `investigate-first` are reserved |
 | `alternatives[].title` | One line |
 | `alternatives[].description` | Text, two to three sentences (guidance, not checked) |
 | `alternatives[].pros` / `cons` | Non-empty lists of text, strongest first |
@@ -93,7 +94,7 @@ is refused whole: no area is ever rendered from it. The reasons are a closed set
 | `bad-id` | An area or alternative id is not a slug |
 | `duplicate` | An id repeats where it must be unique, or `depends_on` names an area twice |
 | `too-few` | An area has fewer than two alternatives |
-| `reserved-id` | An alternative is named `other` or `more-details` |
+| `reserved-id` | An alternative is named `other`, `more-details` or `investigate-first` |
 | `unknown-alternative` | `recommendation.alternative` names no alternative of its area |
 | `unknown-area` | `depends_on` names an area id the file does not hold |
 | `depends-order` | `depends_on` names the area itself or an area listed after it |
@@ -161,6 +162,25 @@ line; then each alternative in rank order — its title in bold, followed by `(R
 recommended one, its description, then `Pros:` and `Cons:` as lists. It ends with `Recommended:`
 followed by `<title> — <reason>` when the area has a recommendation. The write-up is never
 clipped, and it is the same text in the terminal and in a cockpit request.
+
+**The sketch lines** — only when the convergence node's `with:` names `sketches`, a mockup folder
+relative to the task directory. Every path is printed relative to the repository, so it opens as
+shown:
+
+- `Sketches:` on a `visual` area, followed by each alternative that has a sketch, in picker order,
+  as `<title> — <path>`, the separator ` · ` between them. The path is
+  `<folder>/<area id>-<alternative id>.html`, or `<folder>/ascii-mockups.md#<area id>-<alternative id>`
+  when that document holds the anchor `<a id="<area id>-<alternative id>"></a>`;
+- `Gallery:` on an area with that line, followed by `<folder>/versions/<latest>/index.html`, with
+  `latest` from `versions/index.json`, when that page exists;
+- `Investigate first:` on every area, followed by this fixed text:
+  answer in your own words starting with “Check” and what to look at; it is checked from the code or the docs, then this is asked again.
+
+In the `rich` profile the lines end the question and no option changes. In the plain profile they
+come before `Recommended:`, the option `Investigate first` (id `investigate-first`) goes before
+More details, and the form the `--ask` call carries gains an optional text property titled
+`What to check`. The write-up closes with them as a block of its own. Each entry of a cockpit's
+question set ends its `why` with them and writes `allow_other` true; its options do not change.
 
 **Question ids.** Each area is asked and recorded as `convergence-decisions-<area id>`, in every
 mode, so a re-ask after a revise lands on the same id.

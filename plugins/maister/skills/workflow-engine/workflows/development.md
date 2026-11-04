@@ -25,19 +25,44 @@ and the context ingests the rest of the run reads from.
    **informs** every later node and skips none of them, so a source the verb
    skips becomes an `open` risk naming each skipped file and the source path
    the later nodes read it at, and the node goes on.
-5. **Ingest design context from three sources** and unify them under
+5. **Ingest design context from four sources** and unify them under
    `analysis/design-context/`: a product-design task path, named in the
    description or supplied through the design input, whose brief is imported
    as `brief.md` and whose mockups under `mockups/` — its flat latest view
    only (`analysis/mockups/*.html`, `analysis/mockups/.mockups.json` and
-   `analysis/mockups/ascii-mockups.md`), never its `versions/` folder; inline
-   mockup paths and design-tool links in the task description, the files
-   imported under `mockups/` and the links recorded; and legacy locations from
-   a resumed run, imported the same way. Skip silently when no source exists. Every file
-   comes in through `import` — mockups are often binary, which only the verb
+   `analysis/mockups/ascii-mockups.md`), never its `versions/` folder; a
+   quick-design task path, `.maister/tasks/design/<YYYY-MM-DD-name>/`, named in
+   the description or supplied through the design input, imported as the
+   paragraph after this one says; inline mockup paths and design-tool links in
+   the task description, the files imported under `mockups/` and the links
+   recorded; and legacy locations from a resumed run, imported the same way.
+   Skip silently when no source exists. Every file comes in through `import` —
+   mockups are often binary, which only the verb
    carries intact. The mockups are **binding**, so a mockup the verb skips
    fails the node, its summary naming each skipped file and the verb's
    reason: a run that silently lost a screen would build the wrong one.
+
+   **A quick-design task** keeps no state, so its `decision.md` says what
+   comes in:
+
+   - **The chosen option per area** is in its **Decision** section.
+   - **Its slug** comes from the link `decision.md` gives that option's screen,
+     anywhere in the file (for ASCII, the slug it names). Otherwise it is the
+     option's name in kebab case, with the area added when two areas share an
+     option name.
+   - **There are no mockups** when the **Decision** section's mockup line,
+     override included, ends with them skipped or never made: "Skip the
+     mockups", or "no" without "Show me mockups first". "Skip the mockups"
+     leaves files on disk, so the line decides, not the folder.
+
+   Import `decision.md` as `analysis/design-context/decision.md`. When there
+   are mockups, only the flat pages of the chosen options are imported under
+   `mockups/` — `mockups/<slug>.html` for each chosen slug — never `versions/`,
+   never `.mockups.json`; for ASCII, `mockups/ascii-mockups.md`. Rejected
+   options' pages are never imported. In ASCII one file holds every option, so
+   their screens come with it, unindexed and not binding. A chosen slug with no
+   page on disk is said in one line in the node summary; a page on disk that the
+   verb skips fails the node, by the same binding rule.
 
    **A mockup is a picture of the thing, never the thing itself.** An ingested
    mockup is a *binding* input to the implementation, so decide per matched
@@ -46,7 +71,7 @@ and the context ingests the rest of the run reads from.
    | The matched path | Treat it as |
    |---|---|
    | outside the project working tree — a scratch directory, a downloads folder, an absolute path elsewhere | a mockup: import it |
-   | inside the project, under a design location — `design/`, `designs/`, `mockups/`, a product-design task directory, or an existing `analysis/design-context/` | a mockup: import it |
+   | inside the project, under a design location — `design/`, `designs/`, `mockups/`, a product-design task directory, a quick-design task directory, or an existing `analysis/design-context/` | a mockup: import it |
    | inside the project and tracked as source — `git ls-files --error-unmatch <path>` exits `0` and it is not under a design location | the **subject** of the work: do not import it, do not give it an index row, and do not let it set `design_reference` |
 
    The extension alone never decides: *"fix the column order in
@@ -56,9 +81,11 @@ and the context ingests the rest of the run reads from.
 
    **The design input** names a product-design task directory, or the brief
    inside one (`outputs/product-brief.md`), whose task directory is two levels
-   up. It is a design source by declaration, so the table does not judge it.
-   When it resolves to no product-design task — nothing there, or no brief — say
-   so in one line in the node summary and continue without it.
+   up; or a quick-design task directory, or the `decision.md` inside one, whose
+   task directory is one level up. It is a design source by declaration, so the
+   table does not judge it. When it resolves to neither kind of task — nothing
+   there, or neither a brief nor a decision — say so in one line in the node
+   summary and continue without it.
 6. **Ingest the architecture** when the architecture input names one: a
    high-level design document, or a research task directory whose
    `outputs/high-level-design.md` is that document. Import it into
@@ -70,14 +97,18 @@ and the context ingests the rest of the run reads from.
    file, say so in one line in the node summary and continue without it; when
    the verb skips a file that exists, record an `open` risk naming it and its
    source path, which the specification and the plan then read instead.
-7. **Generate the design index** when any design source was ingested — one row
-   per screen or component with a stable id, its source mockup and a one-line
-   description.
+7. **Generate the design index** when a mockup page was imported or a
+   design-tool link recorded — one row per screen or component with a stable id,
+   its source mockup and a one-line description. For a quick-design task the
+   rows are only for the imported slugs (for ASCII, the chosen anchors). There
+   is no index when no page was imported and no link recorded: a decision or a
+   brief alone has no screens to index.
    Downstream nodes reference screens by those ids and by nothing else.
 8. **Record `task_context.design_reference`** whenever a design ingest happened
-   — which of the three sources supplied it, the product-design task path when
-   that was the source, how many mockups were copied, whether a brief came with
-   them, and the index path. It stays unset when no source existed.
+   — which of the four sources supplied it, the product-design or quick-design
+   task path when that was the source, how many pages were copied, whether a
+   brief or a decision came with them, and the index path when there is an
+   index. It stays unset when no source existed.
 9. **Ingest a context pack** when the context input names one — a file or a
    directory handed over by whatever started the run. Import it under
    `analysis/work-context/` as it is, and record `task_context.work_reference`
@@ -280,9 +311,10 @@ then observes is one topic, drafted into one story by engine
 `references/in-node-questions.md` (*One topic is one drafted story*) from the
 analysis, the scope answers and the design context, under id
 `user-story-<topic>`. A story the design brief already carries
-(`analysis/design-context/brief.md`) is not asked again. A story whose framing
-depends on another's answer waits for the next page. A refactor, or a defect
-fix the failing test already pins, has no stories.
+(`analysis/design-context/brief.md`), or a behaviour the quick-design decision
+already settles (`analysis/design-context/decision.md`), is not asked again. A
+story whose framing depends on another's answer waits for the next page. A
+refactor, or a defect fix the failing test already pins, has no stories.
 
 *Part B, the assumptions tab.* Frame the specification questions as
 confirmable assumptions, the count adapted to how much the invocation already
@@ -612,11 +644,15 @@ output.
 
 With the mockup directory the agent also writes the structural visual-fidelity
 comparison `verification/visual-fidelity.md`, which is informational and never
-decides whether this node succeeded. Decide whether design context exists on
-disk: the mockup reference resolves to its declared path even when the mockup
-stretch was skipped. When it does not exist, pass no mockup directory. Pass
-the command it brings screenshots into the run with, as `import_command`: the
-engine's `import` verb with this run's `--state` and
+decides whether this node succeeded. Decide by the design index, not the
+folder: the mockup reference resolves to its declared path even when the mockup
+stretch was skipped, and the folder can hold only a decision or a brief. A
+mockup turn and an intake that imported a page or recorded a link both write
+the index. When `analysis/design-context/INDEX.md` does not exist, pass no
+mockup directory.
+
+Pass the command it brings screenshots into the run with, as `import_command`:
+the engine's `import` verb with this run's `--state` and
 `--to=verification/screenshots`, written out whole with the plugin root as an
 absolute path, so the delegate adds one `--from` per screenshot and never
 copies through the shell. Pass the browser tools reference as `browser_tools`,

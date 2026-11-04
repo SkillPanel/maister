@@ -7,3 +7,4 @@
 *.jsonl text eol=lf
 *.log  text eol=lf
 tests/fixtures/decision-areas/**/*.md text eol=lf
+tests/fixtures/runs/team-calendar-sharing/analysis/alternatives.md text eol=lf
