@@ -198,7 +198,10 @@ What a gate asks is built by the engine, never written by hand. The engine reads
 **The checkpoint covers the whole stretch the gate closes**: every node the gate needs and every
 other node back to the previous gate that recorded a summary, an overlay's included, their
 decisions and risks pooled and tagged with the node that recorded them. A `stop` risk from any
-of them makes the stop option the recommended one. A summary further back never stands in for
+of them makes the stop option the recommended one. One exception: when a node the gate needs
+asked the decision areas of a node behind it, that node's `open` risks are left out. They were
+written before any answer, and the asking node's own risks, written after the answers, say what
+is still open. A summary further back never stands in for
 the closing node's own, and neither does a skipped node: without one, the brief is refused
 `gate-brief-no-summary` — unless a held choice is why the gate is asked (engine § *The ready set*), when
 its *Done* reads `Skipped.` and the held choices lead.

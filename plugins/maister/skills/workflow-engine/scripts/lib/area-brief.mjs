@@ -90,13 +90,10 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { reread } from './gate-brief.mjs';
 import { formOf as pickerForm } from './checkpoint.mjs';
 import {
-  CHECK_TITLE, INVESTIGATE_FIRST_ID, QUESTION_PREFIX, WARNING, addedLines, areaDetails, areaEntry, areaPicker, loadAreas, ordered, relativePath,
+  CHECK_TITLE, INVESTIGATE_FIRST_ID, QUESTION_PREFIX, WARNING, addedLines, areasProducer, areaDetails, areaEntry, areaPicker, loadAreas, ordered, relativePath,
 } from './decision-areas.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
 import { projectRootOf } from './state.mjs';
-
-/** The one reference a convergence node may name its areas by: the producer's declared artifact, whole. */
-const REFERENCE = /^\$\{([a-z][a-z0-9-]*)\.artifacts\.decision_areas\}$/;
 
 /** The question id both convergence nodes declare; each area's own id is it plus `-<area id>`. */
 const DECLARED_ID = QUESTION_PREFIX.replace(/-$/, '');
@@ -196,11 +193,8 @@ function locate(doc, workflow, recorded, node, runDir) {
   const { graph } = reread(doc, workflow, runDir);
   const byId = new Map((graph?.nodes ?? []).map(entry => [entry.id, entry]));
   const asking = byId.get(node);
-  const reference = asking?.with?.decision_areas;
-  const match = typeof reference === 'string' ? REFERENCE.exec(reference) : null;
-  if (!match) return { warning: NOT_DECLARED };
-  const producer = match[1];
-  if (!Array.isArray(asking.needs) || !asking.needs.includes(producer)) return { warning: NOT_DECLARED };
+  const producer = areasProducer(asking);
+  if (!producer) return { warning: NOT_DECLARED };
   const artifacts = byId.get(producer)?.outputs?.artifacts;
   const declared = artifacts?.decision_areas;
   if (typeof declared !== 'string' || declared === '' || path.isAbsolute(declared) || declared.split(/[\\/]/).includes('..')) {

@@ -125,17 +125,18 @@ function atProblemApproval(t, { draws = true, inputs = {}, problem = {}, driver 
 function atDirectionApproval(t, {
   draws = true, inputs = {}, problem = {}, outcome = 'brief-with-screens', visualAreas = true, driver = null,
   convergence = { summary: 'Link-based sharing.', decisions: ['access model: signed link'] },
+  alternatives = {}, sketches = {},
 } = {}) {
   const run = atProblemApproval(t, { draws, inputs, problem, driver });
   answer(run, 'problem-approval', outcome);
   walk(run, {
     nodes: { alternatives: { status: 'completed', values: { visual_areas: visualAreas } } },
-    node_summaries: { alternatives: { summary: 'Two decision areas, five alternatives.' } },
+    node_summaries: { alternatives: { summary: 'Two decision areas, five alternatives.', ...alternatives } },
   });
   if (draws && visualAreas) {
     walk(run, {
       nodes: { sketches: { status: 'completed' } },
-      node_summaries: { sketches: { summary: 'v001 of the sketches, one page per option.' } },
+      node_summaries: { sketches: { summary: 'v001 of the sketches, one page per option.', ...sketches } },
     });
   }
   walk(run, { nodes: { convergence: { status: 'completed' } }, node_summaries: { convergence } });
@@ -718,6 +719,33 @@ test('direction-approval: its labels and header, the continue named from the wal
   assert.match(result.stdout, REVISED('direction-approval', 'convergence', ['convergence', 'direction-approval']));
   assert.equal(statusOf(run, 'convergence'), 'pending');
   for (const id of ['problem-approval', 'alternatives', 'sketches']) assert.equal(statusOf(run, id), 'completed', `${id} is not run again`);
+});
+
+// The brainstorm writes its risks before any answer; the convergence writes its own
+// after them. A risk an answer settled must not reach the direction gate from the brainstorm.
+test('direction-approval: the brainstorm\'s open risks give way to the convergence that asked its areas, while the sketches\' still show', t => {
+  const settled = 'The open count and empty-state wording is not its own decision area: it follows the filter';
+  const run = atDirectionApproval(t, {
+    alternatives: { risks: [{ risk: settled, tag: 'open', change: 'make it its own area' }, { risk: 'Colour alone never marks a level', tag: 'tradeoff' }] },
+    convergence: {
+      summary: 'A text badge on every row, and a dropdown filter on the tab row whose count and empty state name it.',
+      decisions: [{ decision: 'filter control: dropdown on the tab row', by: 'operator', as_recommended: true }],
+      risks: [{ risk: 'A capitalised level such as High is refused', tag: 'tradeoff' }],
+    },
+  });
+  const checkpoint = checkpointOf(run, 'direction-approval');
+  assert.deepEqual(checkpoint.risks.open, [], 'no open risk is carried from the brainstorm');
+  assert.deepEqual(checkpoint.risks.tradeoff.map(each => each.risk), ['A capitalised level such as High is refused', 'Colour alone never marks a level']);
+  const plain = verb(['gate-brief', `--state=${run.state}`, '--node=direction-approval']).stdout;
+  assert.doesNotMatch(plain, /empty-state wording/);
+  assert.doesNotMatch(plain, /Open risks/);
+
+  // The sketches are behind the gate too, but asked no areas: their open risk stays.
+  const drawn = atDirectionApproval(t, {
+    alternatives: { risks: [{ risk: settled, tag: 'open' }] },
+    sketches: { risks: [{ risk: 'grounding-unavailable: drawn from the codebase alone', tag: 'open' }] },
+  });
+  assert.deepEqual(checkpointOf(drawn, 'direction-approval').risks.open.map(each => each.risk), ['grounding-unavailable: drawn from the codebase alone']);
 });
 
 // A driver without question sets leaves the choice to this gate, and what it is handed is
