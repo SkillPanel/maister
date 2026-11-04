@@ -335,10 +335,32 @@ test('a page styles only the viewer\'s own header and container, never the scree
   assert.ok(selectors.includes('body > header') && selectors.includes('#mockup-container'), selectors.join(' | '));
   // An element selector for header or main is the viewer's own only when it is anchored on body.
   const elementSelector = /(^|[\s>+~,])(header|main)\b(?![-\w])/;
-  for (const selector of selectors.filter(each => elementSelector.test(each))) {
+  // A `:has()` only asks whether the screen holds one; it styles neither.
+  for (const selector of selectors.filter(each => elementSelector.test(each.replace(/:has\([^)]*\)/g, '')))) {
     assert.ok(selector.startsWith('body > header'), `"${selector}" reaches the screen's own elements`);
   }
   assert.ok(page.includes(`<div id="mockup-content">${html}</div>`), 'the screen\'s frame is kept whole');
+
+  // The container draws nothing around the screen, so its full-width header and its page background are the app's.
+  // Each is stated, not left out: the container is a <main>, so a screen's own main rule would reach it, and an id outranks that.
+  const container = viewer.match(/^\s*#mockup-container\s*\{([^}]*)\}/m)[1];
+  const declared = Object.fromEntries(container.split(';').map(each => each.split(':').map(part => part.trim())).filter(([key]) => key));
+  assert.deepEqual(
+    { 'max-width': declared['max-width'], width: declared.width, margin: declared.margin, padding: declared.padding, background: declared.background, border: declared.border },
+    { 'max-width': 'none', width: 'auto', margin: '0', padding: '0', background: 'none', border: '0' },
+  );
+  assert.match(page, /<main id="mockup-container">/, 'the verifier\'s anchor stays');
+  // Only a fragment with no frame of its own keeps off the page's edge.
+  assert.match(viewer, /#mockup-content:not\(:has\(header, main\)\)\s*\{\s*padding:/);
+  assert.match(page, /<body>\s*<header>\s*<h1>List<\/h1>/, 'the title bar stays');
+});
+
+test('the screen tabs stay beside a screen that fills the page', t => {
+  const where = project(t);
+  wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p>a bare fragment</p>' }, { slug: 'b', title: 'B', html: '<main>b</main>' }] });
+  const page = fs.readFileSync(path.join(where.versions, 'v001', 'a.html'), 'utf8');
+  assert.match(page, /<nav class="screen-nav">[\s\S]*href="b\.html"[\s\S]*<main id="mockup-container">/);
+  assert.ok(page.includes('<div id="mockup-content"><p>a bare fragment</p></div>'));
 });
 
 test('the flat view is refreshed from the published version, dropping its removed pages and keeping imported ones', t => {
