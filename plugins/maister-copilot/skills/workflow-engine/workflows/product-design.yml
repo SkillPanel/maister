@@ -137,7 +137,7 @@ display:
     completion:         "Completion"
   option_labels:
     problem-approval:
-      brief-with-screens: "A design brief with screens"
+      brief-with-screens: "A design brief"
       brief-with-spec: "A brief with a feature specification"
       correct-scope: "Correct the scope"
       revise-problem: "Revise the problem"

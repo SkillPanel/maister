@@ -6301,7 +6301,7 @@
               "consequence": "Skips feature specification; runs brainstorm alternatives next.",
               "effect": "continue",
               "id": "brief-with-screens",
-              "label": "A design brief with screens",
+              "label": "A design brief",
               "next": {
                 "end": false,
                 "node": "alternatives",
@@ -6415,7 +6415,7 @@
             "description": "Skips feature specification; runs brainstorm alternatives next.",
             "effect": "continue",
             "id": "brief-with-screens",
-            "label": "A design brief with screens"
+            "label": "A design brief"
           },
           {
             "description": "Re-runs Explore and propose the scope and Problem and personas with your note, then asks this again.",
@@ -6792,7 +6792,7 @@
               "consequence": "Skips feature specification; runs brainstorm alternatives next.",
               "effect": "continue",
               "id": "brief-with-screens",
-              "label": "A design brief with screens",
+              "label": "A design brief",
               "next": {
                 "end": false,
                 "node": "alternatives",
@@ -6906,7 +6906,7 @@
             "description": "Skips feature specification; runs brainstorm alternatives next.",
             "effect": "continue",
             "id": "brief-with-screens",
-            "label": "A design brief with screens"
+            "label": "A design brief"
           },
           {
             "description": "Re-runs Explore and propose the scope and Problem and personas with your note, then asks this again.",
@@ -7005,7 +7005,7 @@
           {
             "description": "Skips feature specification; runs brainstorm alternatives next.",
             "id": "brief-with-screens",
-            "label": "A design brief with screens"
+            "label": "A design brief"
           },
           {
             "description": "Re-runs Explore and propose the scope and Problem and personas with your note, then asks this again.",

@@ -368,7 +368,10 @@ touches, and only what they could not answer is asked — up to four questions, 
 answers and a "Not sure yet" that does not block. From then on a run asks one question per decision
 area and three checkpoints.
 
-Options differ in what a person sees and does, never in schema or API. An area whose options look
+Options differ in what a person sees and does, never in schema or API. With nothing on screen, as
+in a project whose only surface is an API, the design settles behaviour, rules and wording (what a
+client can do, what is refused and what the message says), and development's specification chooses
+the contract. An area whose options look
 different is sketched first, one small page per option, and its question names the pages and the
 gallery. Answer with an option, or in your own words: start with "Check" and what to look at, and
 the run checks it from the code or the docs and asks that area again; name an approach that is not
@@ -398,8 +401,8 @@ adopts the recommendations, and sending the run back names the ones you want ins
 **The first checkpoint** shows the scope proposal, the problem and the personas, and asks which
 outcome the run should produce:
 
-- **A design brief with screens**, recommended unless the signals call for more: the brief says what
-  changes per screen.
+- **A design brief**, recommended unless the signals call for more: the brief says what changes per
+  screen, with the screens drawn when the design has anything to see.
 - **A brief with a feature specification**: for several interacting screens or rules, or a
   development run to follow at once. The specification is written after the direction and carried in
   full inside the brief.

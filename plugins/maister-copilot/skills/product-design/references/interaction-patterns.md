@@ -25,6 +25,7 @@ Product design is a conversation, not a form. The workflow alternates between ex
 - **One page of independent questions**: Up to four questions, each standing on its own, and only what the explore could not answer. A gap the page cannot hold, or whose framing depends on another's answer, is written into the scope as an assumption to check. Decision areas are never paged — they belong to convergence.
 - **One behaviour, one story**: Questions about one behaviour the feature must support — who may do it, where they start, what changes, who sees the result — are drafted into one journey-level story and asked as one question, never as separate tabs. A screen or a control appears in it only where the design context already names one, so the story records the journey without anchoring the layout. The workflow engine's `references/in-node-questions.md` states the rule.
 - **Context-aware questions**: Each question carries its own synthesis line — what the run already understands that bears on it, from the explore briefs, the user-supplied context or earlier answers — and two or three answers generated from it. Generic questions waste the user's time.
+- **Nothing on screen**: when the project has no screens, the design is the behaviour — what a client can do, what is refused and in what words, what order things come in. Never offer an API, a response or an endpoint as the thing to design; the contract is development's specification's.
 - **Escape hatches**: Always allow the user to say "Not sure yet" without blocking progress, and to ask for More details — the full context written out, then the same question again.
 
 **Signal to user**: Announce exploration mode explicitly to set expectations.
@@ -66,13 +67,13 @@ The person chooses what this run produces, or corrects what it is about. `proble
 
 | Option | What it does | Recommended when |
 |---|---|---|
-| "A design brief with screens" | Goes on, with no specification | The signals do not call for the specification |
+| "A design brief" | Goes on, with no specification; screens are drawn when there is anything to see | The signals do not call for the specification |
 | "A brief with a feature specification" | Goes on, and writes the design-level specification | Several interacting screens or rules, a development run to follow at once, or the `specification` input is true |
 | "Correct the scope" | Re-runs `intake` from the note | Not recommended; each assumption's `change` is offered as a suggestion |
 | "Revise the problem" | Re-runs `problem` from the note | Not recommended; each drafted story's `change` is offered as a suggestion |
 | "Use quick-design instead" | Ends the run, its next step the quick-design command | The scope found one bounded question; a risk tagged `stop` carries it |
 
-When the intake found nothing a person sees, the reason says no screens are drawn on either outcome. A picker that cannot list every option names the rest in the question, and they stay choosable: the engine decides which.
+The reason says whether screens are drawn. When the intake found nothing a person sees, it says none are drawn on either outcome, and that the design settles behaviour, rules and wording. A picker that cannot list every option names the rest in the question, and they stay choosable: the engine decides which.
 
 ### Checkpoint 2: The Direction (`direction-approval`)
 

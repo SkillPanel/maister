@@ -40,7 +40,9 @@ ADR-0066 lets a step send follow-up rounds under a driver. Those three make a sh
   (`alternatives`); sketch and converge (`sketches`, `convergence`), closed by `direction-approval`;
   specify, draw the final screens and write the brief (`specification`, `screens`, `brief`), closed
   by `brief-approval`; and `completion`. Options differ in what a person sees and does, never in
-  schema or API. The definition keeps its name, its `research`, `task_description` and `embedded`
+  schema or API. With nothing on screen the rule holds: the design settles behaviour, rules and
+  wording, and representation (fields, endpoints, status codes) stays with development's
+  specification. The definition keeps its name, its `research`, `task_description` and `embedded`
   inputs and its three exposed outputs, whose paths do not move. The depth and format flags are gone;
   `mockup_format` in `.maister/config.yml` chooses the format.
 - **Four bools and their guards.** `with_spec`, set by the first gate's two continues, and the
@@ -51,7 +53,7 @@ ADR-0066 lets a step send follow-up rounds under a driver. Those three make a sh
   closes a document written on every path.
 - **The scope is in the first gate's continues.** The intake proposes the scope in
   `analysis/scope.md` and records `draws`; `problem-approval` needs both `intake` and `problem`, so its
-  brief renders the proposal beside the problem. It offers "A design brief with screens", "A brief
+  brief renders the proposal beside the problem. It offers "A design brief", "A brief
   with a feature specification", "Correct the scope", "Revise the problem" and "Use quick-design
   instead". `problem` always writes what it recommends, because the engine's own fallback would
   recommend the continue that turns on the most steps. A corrected scope re-runs the intake, which

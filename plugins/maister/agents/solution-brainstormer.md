@@ -134,7 +134,7 @@ Always group by decision area. For each area:
 - Order the areas so that an area comes after every area it depends on
 
 **For product design**:
-- **Depth**: options differ in what the person sees and does, never in schema or API
+- **Depth**: options differ in what the person sees and does, never in schema or API. With nothing on screen they differ in behaviour, rules and wording: "a wrong value is refused, and the message names the allowed values" is an option; "a boolean `pinned` or a `pinnedAt` time" is a shape, left to development's specification
 - **The areas come from the scope**: two to five. One only when the scope names one, and then say so in `warnings`
 - **`visual_marks`**: mark `visual: true` on each area whose alternatives differ in what a person sees; an area they do not differ in carries no `visual` key
 

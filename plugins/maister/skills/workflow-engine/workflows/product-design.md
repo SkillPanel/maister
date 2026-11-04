@@ -55,11 +55,14 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    skips becomes `{risk: "research not imported: <each skipped file and its reason>", tag: open, change: "read it at <source path>"}`,
    and the design goes on, citing the research at its source path. Never ask
    anybody to copy it in.
-3. **Explore silently.** Fan out two or three read-only agents in one message,
-   through the Task tool with `subagent_type="Explore"`, each with the model and
-   effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=Explore --host=claude --state=<task path>/orchestrator-state.yml --node=intake`
-   prints once before the launch. A built-in agent carries none of this plugin's
-   rules, so each prompt carries them:
+3. **Explore silently.** Just before the launch, run
+   `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=Explore --host=claude --state=<task path>/orchestrator-state.yml --node=intake`
+   once. Then fan out two or three read-only agents in one message, through the
+   Task tool with `subagent_type="Explore"`, and copy the two values the line
+   prints into every call's `model` and `effort` fields, leaving out only a field
+   printed as `omit` (`orchestrator-patterns.md` § 1, *Model and Effort on Every
+   Agent Call*). A built-in agent carries none of this plugin's rules, so each
+   prompt carries them:
    - the project root as an absolute path, and every file it names as an
      absolute path under that root;
    - the rule "Search, list and glob only under `<project root>` — never in a
@@ -89,7 +92,9 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    block. For an existing product: which screens, which users, what exists
    elsewhere. For greenfield: who uses it, what they do today, what should be
    different. Never a blank form, and never "what do you want?". A "Not sure yet"
-   is written as an assumption to check, as the *Without* line below does.
+   is written as an assumption to check, as the *Without* line below does. When
+   nothing in the project is on screen, never offer an API, a response or an
+   endpoint as the thing to design: the design is the behaviour.
 5. **Write `analysis/scope.md`** in plain words, from the replies, the answers and
    any imported research: the problem in a sentence; who it is for; what exists
    today; the two to five decisions; what there is to draw; the recommended
@@ -98,7 +103,13 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    many more times they will be asked; and what is left out. When the signals say
    one bounded question, it says so and recommends quick-design, recording
    `design_context.quick_design_question`. Record `design_context.scope_areas`,
-   and the value `draws`: whether the design has anything a person sees.
+   and the value `draws`: whether the design has anything a person sees. With
+   `draws` false, the scope says what the design covers: **behaviour, rules and
+   wording** — what a client can do and when, what is refused and what the message
+   says, what order things come in — while the contract (field names and types,
+   endpoints, status codes, response shapes) is left to development's
+   specification. Every later step reads this scope, so the decisions are written
+   that way here.
 
 **Asks.** Each answer is recorded under its id with the topic after it.
 
@@ -122,7 +133,8 @@ summary carries no `recommends`: that is `problem`'s.
 
 **Re-run.** After `correct-scope`. Do not create the task or import again. Keep
 the explore briefs, and dispatch one `Explore` agent on what the note corrects,
-its brief added beside them: a declared delegate is dispatched on every attempt.
+its brief added beside them, with the `model` and `effort` of a fresh
+`dispatch-model` line as in step 3: a declared delegate is dispatched on every attempt.
 Apply the note to `analysis/scope.md`, and record `draws` afresh. A risk the note
 settles is written `tag: resolved`.
 
@@ -154,8 +166,9 @@ recommended. Always write `recommends: {option, reason}`:
 - `brief-with-spec` when the `specification` input is true, its reason saying the
   specification is written either way.
 
-When the intake recorded `draws` false, the reason says no screens will be drawn
-on either outcome. When the scope recommends quick-design, the risk
+The reason says whether screens will be drawn. When the intake recorded `draws`
+false, it says none are drawn on either outcome and that the design settles
+behaviour, rules and wording, the contract being left to development. When the scope recommends quick-design, the risk
 `{risk: "<the bounded question>: one bounded question", tag: stop}` makes the gate
 recommend `use-quick-design`. Each drafted story is an `open` risk with its
 correction as `change`. The artifacts are the problem statement (`role: primary`)
@@ -185,7 +198,8 @@ conversation are not anchored on its first idea. Hand the brainstormer:
 - the scope, whose two to five decisions are its areas;
 - the explore briefs, the problem statement and the personas;
 - the depth sentence: "options differ in what the person sees and does, never in
-  schema or API";
+  schema or API; with nothing on screen, they differ in behaviour, rules and
+  wording";
 - `visual_marks`, so it marks each area whose alternatives differ in what a person
   sees;
 - the instruction to read its inputs in full and to group the alternatives by
@@ -264,7 +278,9 @@ of the version's screens.
 
 **Does.** Read the convergence mode of
 `<plugin root>/skills/product-design/references/interaction-patterns.md` first if
-this session has not. Ask one area per call through `area-brief`, as engine
+this session has not. Each decision is recorded as what a person sees and does, or,
+with nothing on screen, as behaviour, a rule or a message's words — never as a field,
+an endpoint or a status code. Ask one area per call through `area-brief`, as engine
 `references/in-node-questions.md` § *Decision areas from the brainstorm* says. With
 this node's `with: sketches`, each question carries the sketch lines (each option's
 page and the gallery, for a visual area) and the "Investigate first" line; how each
@@ -362,7 +378,9 @@ flat sketch page, since no final screen keeps a sketch's slug.
 direction across the areas in `summary`, and the trade-offs it accepts in
 `risks`, each `tag: tradeoff`. Without question sets: the items above, and a
 `headline` and `summary` saying the direction is proposed and how many areas
-await a choice. The node entry adds `selected_approach`,
+await a choice. Risks are written after the answers: one the person's choice
+settled is not carried (a recommendation they took is no longer "not yet chosen"),
+and each open question is one risk, worded once. The node entry adds `selected_approach`,
 `trade_offs_accepted` and `decision_areas` — each element `area`,
 `alternatives_count`, `recommended` and `chosen_approach`. Every area is in
 `decision_areas`; a dropped area is a defect to resolve before completing.
@@ -403,7 +421,8 @@ whole. A story the direction changes is restated as changed, and is an `open` ri
 
 Entities with fields and types, endpoints and their shapes, migrations and component
 names are always out of its scope: the development workflow's specification creator
-owns those.
+owns those. With nothing on screen, each step is a behaviour: who may do it, what
+is refused and in what words, what order results come in.
 
 **Summary.** The `headline` gives the count of screens or steps. `decisions` are the
 scope boundaries, each `{decision, by: run}`, never restating the earlier direction;
@@ -472,7 +491,8 @@ adopted once `direction-approval` continued.
      `analysis/mockups/versions/index.json`) and their annotations in
      `analysis/mockups/.mockups.json` for HTML, or
      `analysis/mockups/ascii-mockups.md` for ASCII; when `screens` was skipped, per
-     step or flow from the decisions alone;
+     step or flow from the decisions alone, as behaviour, rules and wording, never
+     fields, endpoints, verbs, status codes or response nesting;
    - **Mockup references**, only when the state records `screens` completed: links to
      the flat pages under `analysis/mockups/` and the gallery, or the ASCII inline;
    - **Delivery scope**, always: each member in scope as one plain sentence — the
@@ -510,7 +530,9 @@ the scope carries and each one still missing. When the state records `screens` s
 with `change-screens-and-brief` rewriting the specification first when one was written.
 `recommends` the `change-brief` revise when the check found a point missing, the reason
 naming it. A point still missing at approval stays an `open` risk, so a parent's scope
-gate sees it. The node entry adds `brief_layers`.
+gate sees it. A risk carried from an earlier step keeps that step's words, so it
+is listed once, and a risk a later step or answer settled is not carried. The node
+entry adds `brief_layers`.
 
 **Re-run.** Apply the note, check the scope again and rewrite the page.
 

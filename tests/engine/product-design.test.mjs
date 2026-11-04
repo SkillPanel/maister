@@ -616,7 +616,7 @@ const REVISED = (node, reruns, reset) => new RegExp(`^revised: ${node} reruns=${
 test('problem-approval: five options with their labels and header, each continue\'s walk named, and the stop named in the rich question', t => {
   const run = atProblemApproval(t, { problem: { recommends: { option: 'brief-with-screens', reason: 'One screen, nothing to specify.' } } });
   assert.deepEqual(labelsOf(run, 'problem-approval'), {
-    'brief-with-screens': 'A design brief with screens',
+    'brief-with-screens': 'A design brief',
     'brief-with-spec': 'A brief with a feature specification',
     'correct-scope': 'Correct the scope',
     'revise-problem': 'Revise the problem',
@@ -626,14 +626,14 @@ test('problem-approval: five options with their labels and header, each continue
   // Both outcomes lead to the brainstorm; the specification comes after the direction.
   const rich = brief(run, 'problem-approval', '--picker=rich');
   assert.equal(rich.header, 'Scope');
-  assert.match(rich.brief, /^Next \(a design brief with screens\): Brainstorm alternatives$/m);
+  assert.match(rich.brief, /^Next \(a design brief\): Brainstorm alternatives$/m);
   assert.match(rich.brief, /^Next \(a brief with a feature specification\): Brainstorm alternatives$/m);
   assert.match(brief(run, 'problem-approval', '--oneline'), /Next \(brief-with-screens\): Brainstorm alternatives · Next \(brief-with-spec\): Brainstorm alternatives/);
 
   // The problem's own `recommends` marks its option, against the most-steps default.
   const marked = rich.options.filter(option => option.label.endsWith('(Recommended)')).map(option => option.id);
   assert.deepEqual(marked, ['brief-with-screens']);
-  assert.equal(rich.options.find(option => option.id === 'brief-with-screens').label, 'A design brief with screens (Recommended)');
+  assert.equal(rich.options.find(option => option.id === 'brief-with-screens').label, 'A design brief (Recommended)');
 
   // Five are one more than the rich picker lists: the stop moves to the question.
   assert.deepEqual(rich.options.map(option => option.id).sort(), ['brief-with-screens', 'brief-with-spec', 'correct-scope', 'revise-problem']);
