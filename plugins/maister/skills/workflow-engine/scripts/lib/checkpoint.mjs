@@ -74,6 +74,9 @@ const FIXED_CAP = 3;
 /** The heading over the choices the run made that wait for the user's approval. */
 const HELD_HEADING = 'Held for your approval';
 
+/** The heading over what a closed step drafted for the person to confirm. */
+export const STORIES_HEADING = 'Stories to confirm';
+
 /** The heading over the fixes, which the run applied without asking and decided nothing by. */
 const FIXED_HEADING = 'Fixed by the run';
 
@@ -373,6 +376,13 @@ function heldLine(item) {
 }
 
 /**
+ * What the closed steps drafted for the person to confirm, in their order.
+ */
+function storiesOf(checkpoint) {
+  return (checkpoint.closed ?? []).flatMap(each => each.stories ?? []);
+}
+
+/**
  * The *Found* text: the summary of the closed step the *Done* sentence came
  * from — the one whose headline it is, as `gate-brief` picked it — on one
  * line. '' when no closed step's headline is the *Done* sentence, or when that
@@ -445,6 +455,9 @@ function openRisks(checkpoint) {
  * and *Next* are never cut for `budget`; only when what is left still runs
  * past `cap` — the most a preview may hold — is *Found* cut at a sentence end,
  * then *Done*, each closed by a pointer to More details. *Next* is never cut.
+ * The stories to confirm, listed after the held choices, are what going on
+ * confirms, so they outlast all of that: only stories that still run past `cap`
+ * give way from the end, down to one and a count.
  */
 function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUDGET, cap = Infinity, markdown = false, ways = waysOf(checkpoint), approving = false }) {
   const items = decided(checkpoint);
@@ -457,7 +470,8 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
   const review = reviewText(checkpoint.review, companion);
   const choices = choicesLine(checkpoint);
   const found = foundOf(checkpoint);
-  const view = { held: held.length, fixes: Math.min(fixes.length, FIXED_CAP), shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), done: Infinity, found: Infinity };
+  const stories = storiesOf(checkpoint);
+  const view = { held: held.length, stories: stories.length, fixes: Math.min(fixes.length, FIXED_CAP), shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), done: Infinity, found: Infinity };
   const draw = () => {
     const out = [];
     if (checkpoint.headline) out.push(`Done: ${sentencesWithin(checkpoint.headline, view.done)}`);
@@ -471,6 +485,11 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
       const what = doing ? ` — continuing ${doing}` : '';
       out.push(`${HELD_HEADING}${rest > 0 ? ` (+${rest} more under More details)` : ''}${what}:`);
       out.push(...held.slice(0, view.held).map(heldLine));
+    }
+    if (stories.length) {
+      const rest = stories.length - view.stories;
+      out.push(`${STORIES_HEADING}${rest > 0 ? ` (+${rest} more under More details)` : ''}:`);
+      out.push(...stories.slice(0, view.stories).map(story => `- ${story}`));
     }
     if (view.risks > 0) {
       const rest = risks.length - view.risks;
@@ -534,6 +553,10 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
   }
   if (size() > cap && checkpoint.headline) {
     view.done = Math.max(0, checkpoint.headline.length - (size() - cap));
+    out = draw();
+  }
+  while (size() > cap && view.stories > 1) {
+    view.stories--;
     out = draw();
   }
   return out;
@@ -648,7 +671,8 @@ function noteQuestion(option, profile) {
 
 /**
  * The full brief, risks included: the *Done* sentence; the choices held for
- * the user's approval, each with its class and why; each closed node's
+ * the user's approval, each with its class and why; the stories to confirm,
+ * ahead of the summaries so the preview's cut never reaches them; each closed node's
  * summary under its title; every fix the run applied; every decision with who
  * settled it; the user's choices; risks grouped as Open (a stop first),
  * Trade-offs accepted and Follow-ups; every file to review with what it
@@ -663,6 +687,8 @@ export function moreDetails(checkpoint) {
   if (held.length) {
     blocks.push([`**${HELD_HEADING}**`, ...held.map(item => `- ${item.question ? `${item.question}: ` : ''}${item.decision}${item.class ? ` (${item.class})` : ''}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
   }
+  const stories = storiesOf(checkpoint);
+  if (stories.length) blocks.push([`**${STORIES_HEADING}**`, ...stories.map(story => `- ${story}`)].join('\n'));
   for (const closed of checkpoint.closed ?? []) blocks.push(`**${closed.title}**\n${closed.summary}`);
   const fixes = checkpoint.fixes ?? [];
   if (fixes.length) blocks.push([`**${FIXED_HEADING}**`, ...fixes.map(fix => `- ${fixText(fix)}`)].join('\n'));

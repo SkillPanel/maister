@@ -46,17 +46,24 @@
     .nav-screen:hover { background: #ddd; }
     .nav-screen.active { background: #333; color: #fff; }
 
-    /* Mockup content: the viewer's container only, never a screen's own <main> */
+    /* Mockup content: the viewer's container only, never a screen's own <main>.
+       It draws nothing around a screen, so the screen fills the page at the app's own width and background.
+       Each value is stated because the container is a <main> too: a screen's own main rule would else reach it. */
     #mockup-container {
-      max-width: 1200px;
-      margin: 1.5rem auto;
-      padding: 1.5rem;
-      background: #fff;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
+      display: block;
+      width: auto;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      background: none;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
       min-height: 300px;
       position: relative;
     }
+    /* A bare fragment has no frame of its own: only it keeps off the page's edge. */
+    #mockup-content:not(:has(header, main)) { padding: 1.5rem; }
     .annotation-tooltip {
       position: absolute;
       background: rgba(0, 0, 0, 0.75);

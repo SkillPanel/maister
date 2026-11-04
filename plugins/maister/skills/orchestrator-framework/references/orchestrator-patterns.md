@@ -348,6 +348,7 @@ node_summaries:
     decisions: []        # [{decision, by, rationale?}] — by: run | audit | default | operator
     fixes_applied: []    # [{finding, change}] — what the phase fixed without asking
     risks: []            # [{risk, tag, change?}] — tag: open | tradeoff | followup | stop | resolved
+    stories: []          # one-line strings — what the node drafted for the person to confirm; a gate lists each
     artifacts: []        # [{path, label, html}] — paths relative to task root; html is the
                          #   optional companion report (§ 9), null when absent
 ```

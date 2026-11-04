@@ -120,7 +120,7 @@ import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, guardTerms, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
 import { SUITE_RUNS, attemptOf, childRootOf, definitionPathOf, htmlOutput, isStalePage, projectRootOf } from './state.mjs';
-import { approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
+import { STORIES_HEADING, approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
@@ -1724,7 +1724,7 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
     next,
     ...subjectKey(subjectOf({ ids, byId, runDir })),
     review,
-    closed: closing.entries.map(entry => ({ node: entry.id, title: title(entry.id), headline: entry.skipped ? null : entryHeadline(entry) || null, summary: entry.summary, ...(entry.skipped ? { skipped: true } : {}) })),
+    closed: closing.entries.map(entry => ({ node: entry.id, title: title(entry.id), headline: entry.skipped ? null : entryHeadline(entry) || null, summary: entry.summary, ...(entry.stories?.length ? { stories: entry.stories } : {}), ...(entry.skipped ? { skipped: true } : {}) })),
     fixes,
     ...(held.length ? { held } : {}),
     decisions,
@@ -2116,6 +2116,7 @@ function closingStretch(doc, recorded, direct, stretch, titles, skippedLeads = f
     fixes: distinct(entries.flatMap(entry => entry.fixes), fixKey),
     decisions: distinct(entries.flatMap(entry => entry.decisions)),
     risks: distinct(entries.flatMap(entry => entry.risks)),
+    stories: distinct(entries.flatMap(entry => entry.stories ?? [])),
   };
 }
 
@@ -2159,8 +2160,8 @@ function closingNode(doc, candidates) {
 
 /** One node's summary as the renderer draws it: a single section, untitled. */
 function closingOf(entry) {
-  const { id, summary, fixes, decisions, risks } = entry;
-  return { id, entries: [entry], sections: [{ title: null, text: summary }], fixes, decisions, risks };
+  const { id, summary, fixes, decisions, risks, stories } = entry;
+  return { id, entries: [entry], sections: [{ title: null, text: summary }], fixes, decisions, risks, stories };
 }
 
 /** What a fix compares by when two nodes recorded it: the text a reader sees. */
@@ -2170,8 +2171,8 @@ function fixKey(item) {
 }
 
 /**
- * One node's `{id, summary, fixes, decisions, risks}`, or null when it carries no
- * summary. `fixes` is its `fixes_applied`: what it changed without asking, which
+ * One node's `{id, summary, fixes, decisions, risks, stories}`, or null when it carries no
+ * summary. `stories` is what it drafted for the person to confirm at the gate. `fixes` is its `fixes_applied`: what it changed without asking, which
  * the brief lists apart from what it decided.
  *
  * Each field is picked on its own from the first source carrying it filled — the
@@ -2183,7 +2184,7 @@ function fixKey(item) {
 function summaryOf(sources, id) {
   const entries = sources.flatMap(source => source(id));
   const picked = {};
-  for (const field of ['summary', 'headline', 'fixes_applied', 'decisions', 'risks']) {
+  for (const field of ['summary', 'headline', 'fixes_applied', 'decisions', 'risks', 'stories']) {
     const entry = entries.find(candidate => filled(candidate[field]));
     if (entry) picked[field] = entry[field];
   }
@@ -2198,6 +2199,7 @@ function summaryOf(sources, id) {
     fixes: list(picked.fixes_applied),
     decisions: decisions.filter(item => !isEarlierAnswer(item, decisions)),
     risks: list(picked.risks),
+    stories: list(picked.stories),
   };
 }
 
@@ -2982,6 +2984,10 @@ const READABLE = {
  * is the last list trimmed: once the decisions, the fixes and the risks are
  * gone, it drops from the end down to one item, and its pointer stays. A held
  * choice is never listed again among the decisions.
+ *
+ * `stories` — what the person confirms by going on — follow the held choices,
+ * outside the form's list cap, and drop from the end down to one just before
+ * them, their pointer staying too.
  */
 function fit(closing, form, tail, where, held = []) {
   const sections = closing.sections.map(({ title, text }) => ({ title, text: text.trim() }));
@@ -2989,6 +2995,7 @@ function fit(closing, form, tail, where, held = []) {
   const fixes = (closing.fixes ?? []).map(form.fix).filter(text => text !== '');
   const decisions = closing.decisions.filter(item => !isHeld(item)).map(form.decision).filter(text => text !== '');
   const holds = held.map(form.held).filter(text => text !== '');
+  const stories = closing.stories ?? [];
   const rendered = raw => raw.map(form.risk).filter(text => text !== '');
   let risks = rendered(closing.risks);
   // A risk that decides the recommendation has to stay in view: it moves first,
@@ -3001,6 +3008,7 @@ function fit(closing, form, tail, where, held = []) {
     summary: summary.length,
     item: Infinity,
     held: holds.length,
+    stories: stories.length,
     fixes: Math.min(fixes.length, form.cap),
     decisions: Math.min(decisions.length, form.cap),
     risks: Math.min(risks.length, form.cap),
@@ -3014,6 +3022,7 @@ function fit(closing, form, tail, where, held = []) {
   const draw = () => form.render({
     summary: drawSummary(sections, view.summary, form.cut, where),
     held: list(holds, view.held, true),
+    stories: list(stories, view.stories, true),
     fixes: list(fixes, view.fixes),
     decisions: list(decisions, view.decisions),
     risks: list(risks, view.risks),
@@ -3036,6 +3045,7 @@ function fit(closing, form, tail, where, held = []) {
     () => view.decisions > 0 && view.decisions--,
     () => view.fixes > 0 && view.fixes--,
     () => view.risks > 0 && view.risks--,
+    () => view.stories > 1 && view.stories--,
     () => view.held > 1 && view.held--,
   ];
   for (const drop of drops) {
@@ -3089,17 +3099,18 @@ function shares(lengths, room) {
 }
 
 /**
- * The plain form: the summary, then the choices held for approval, what the run fixed, the decisions and the
+ * The plain form: the summary, then the choices held for approval, the stories to confirm, what the run fixed, the decisions and the
  * risks — a heading carrying any pointer to the rest, and one item to a line
  * under it — then `Next:`.
  */
-function renderPlain({ summary, held, fixes, decisions, risks, tail }) {
+function renderPlain({ summary, held, stories, fixes, decisions, risks, tail }) {
   const out = [summary];
   const list = (label, { kept, rest }) => {
     if (!kept.length && !rest) return;
     out.push(`${label}${rest ? ` ${rest}` : ''}${kept.length ? ':' : ''}`, ...kept.map(text => `- ${text}`));
   };
   list('Held for your approval', held);
+  list(STORIES_HEADING, stories);
   list('Fixed by the run', fixes);
   list('Decisions', decisions);
   list('Risks', risks);
@@ -3114,10 +3125,11 @@ function renderPlain({ summary, held, fixes, decisions, risks, tail }) {
  * or a double quote in a flow scalar, so every line break folds to a space and
  * every `"` becomes `'`.
  */
-function renderOneline({ summary, held, fixes, decisions, risks, tail }) {
+function renderOneline({ summary, held, stories, fixes, decisions, risks, tail }) {
   const all = ({ kept, rest }) => (rest ? [...kept, rest] : kept);
   const sections = [summary];
   if (all(held).length) sections.push(`Held: ${all(held).join('; ')}`);
+  if (all(stories).length) sections.push(`${STORIES_HEADING}: ${all(stories).join('; ')}`);
   if (all(risks).length) sections.push(`Risks: ${all(risks).join('; ')}`);
   if (all(fixes).length) sections.push(`Fixed by the run: ${all(fixes).join('; ')}`);
   if (all(decisions).length) sections.push(`Decisions: ${all(decisions).join('; ')}`);
