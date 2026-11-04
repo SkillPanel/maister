@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import { ENGINE_DIR, FIXTURES, delegating, freeze, scratch, verb, write } from '../helpers.mjs';
 import {
-  FOCUS_BUDGET, FOCUS_LINES, PREVIEW_BUDGET, plainPicker, richPicker,
+  FOCUS_BUDGET, FOCUS_LINES, PREVIEW_BUDGET, detailsPreview, moreDetails, plainPicker, richPicker,
 } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The continue option's preview — the glance — shows what the closed step
@@ -32,7 +32,7 @@ const INTAKE = {
 const PROBLEM = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'gates/problem.summary.json'), 'utf8'));
 
 /** A product design run at its problem checkpoint, the intake closed with `intake` and the problem with `PROBLEM`. */
-function atProblemGate(t, intake) {
+function atProblemGate(t, intake, problem = PROBLEM) {
   const run = scratch(t, { type: 'product-design', name: '2026-10-21-team-calendar-sharing' });
   freeze(run, { definition: PRODUCT_DESIGN, inputs: { task_description: 'Share team calendars with outside guests' } });
   fs.mkdirSync(path.join(run.dir, 'analysis/explore'), { recursive: true });
@@ -41,7 +41,7 @@ function atProblemGate(t, intake) {
     nodes: { intake: { status: 'completed', values: { draws: true } } },
     node_summaries: { intake },
   }, run));
-  write(run, { nodes: { problem: { status: 'completed' } }, node_summaries: { problem: PROBLEM } });
+  write(run, { nodes: { problem: { status: 'completed' } }, node_summaries: { problem } });
   return run;
 }
 
@@ -100,6 +100,87 @@ test('problem checkpoint: no Found when Done was drawn from the summary', t => {
     const glance = profile === 'rich' ? picker.options[0].preview : picker.question;
     assert.match(glance, /^Done: Team calendars are shared per member, inside the organisation only, and guests have no identity of their own\.$/m);
     assert.doesNotMatch(glance, /^Found:/m, glance);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// the stories the problem drafted, which going on confirms
+// ---------------------------------------------------------------------------
+
+const STORIES = [
+  'user-story-share-calendar: a team lead shares a calendar with a guest from its settings',
+  'user-story-open-link: a guest opens the link and sees free time, with no account',
+  'user-story-revoke-share: a calendar owner ends a share, and the link stops working',
+];
+
+/** Every form of checkpoint 1: what each surface reads, by name. */
+function formsOf(run) {
+  const text = (...flags) => {
+    const result = verb(['gate-brief', `--state=${run.state}`, '--node=problem-approval', ...flags]);
+    assert.equal(result.code, 0, result.stderr);
+    return result.stdout;
+  };
+  return {
+    preview: pickerOf(run, 'rich').options[0].preview,
+    question: pickerOf(run, 'plain').question,
+    full: text(),
+    details: detailsPreview(moreDetails(JSON.parse(text('--checkpoint')))),
+    oneline: text('--oneline'),
+  };
+}
+
+test('problem checkpoint: each drafted story shows on a line of its own in the preview, the question and both full briefs, and on the driven line', t => {
+  const forms = formsOf(atProblemGate(t, INTAKE, { ...PROBLEM, stories: STORIES }));
+  for (const name of ['preview', 'question', 'full', 'details']) {
+    const lines = forms[name].split('\n');
+    assert.ok(lines.some(line => /^(\*\*)?Stories to confirm(\*\*|:)?$/.test(line)), `${name}: the heading\n${forms[name]}`);
+    for (const story of STORIES) assert.ok(lines.includes(`- ${story}`), `${name}: ${story}\n${forms[name]}`);
+  }
+  for (const story of STORIES) assert.ok(forms.oneline.includes(story), forms.oneline);
+  assert.ok(forms.oneline.includes('Stories to confirm: '), forms.oneline);
+});
+
+test('problem checkpoint: the stories sit ahead of the risks and count as neither a risk nor a decision', t => {
+  const run = atProblemGate(t, INTAKE, { ...PROBLEM, stories: STORIES });
+  const lines = pickerOf(run, 'rich').options[0].preview.split('\n');
+  assert.ok(lines.indexOf('Stories to confirm:') < lines.indexOf('Open risks:'), lines.join('\n'));
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=problem-approval', '--checkpoint']).stdout);
+  assert.equal(checkpoint.risks.open.length, PROBLEM.risks.length);
+  assert.equal(checkpoint.decisions.run.length, PROBLEM.decisions.length);
+});
+
+test('problem checkpoint: long summaries are cut before any story is, in both full briefs', t => {
+  const long = stem => Array.from({ length: 40 }, (_, index) => `${stem} finding ${index} holds for every calendar the team shares with a guest.`).join(' ');
+  const run = atProblemGate(t, { ...INTAKE, summary: long('Scope') }, { ...PROBLEM, summary: long('Problem'), stories: STORIES });
+  const { full, details, preview } = formsOf(run);
+  assert.match(full, /more in /, 'the plain brief did trim');
+  assert.match(details, /Choose this to see the rest\.$/, 'the preview of More details did cut');
+  for (const form of [full, details, preview]) for (const story of STORIES) assert.ok(form.split('\n').includes(`- ${story}`), form);
+});
+
+test('problem checkpoint: only stories past the preview\'s limit give way, whole, to a count and never to none', () => {
+  const stories = Array.from({ length: 16 }, (_, index) => `user-story-${index}: ${words(`story${index}-`, 20)}`);
+  const closed = { node: 'problem', title: 'Problem and personas', headline: 'The problem is ready.', summary: 'A summary.', stories };
+  const preview = richPicker({ ...checkpointOf({ summary: 'A summary.', risks: [words('risk-', 20)] }), closed: [closed] }).options[0].preview;
+  assert.match(preview, /^Stories to confirm \(\+\d+ more under More details\):$/m);
+  assert.ok(bullets(preview.split('\n')).includes(stories[0]), preview);
+  assert.ok(preview.length <= PREVIEW_BUDGET, `${preview.length}`);
+  for (const line of preview.split('\n').filter(each => each.startsWith('- user-story'))) assert.ok(stories.includes(line.slice(2)), `cut: ${line}`);
+});
+
+test('a checkpoint with no stories names none', t => {
+  const forms = formsOf(atProblemGate(t, INTAKE));
+  for (const form of Object.values(forms)) assert.doesNotMatch(form, /Stories to confirm/);
+});
+
+test('the writer refuses a story that is not one line of text, and writes nothing', t => {
+  const run = atProblemGate(t, INTAKE);
+  for (const stories of ['one story', ['two\nlines'], [''], [{ story: 'a map' }]]) {
+    const before = fs.readFileSync(run.state, 'utf8');
+    const result = verb(['write-state', `--state=${run.state}`], JSON.stringify({ node_summaries: { problem: { stories } } }));
+    assert.notEqual(result.code, 0, JSON.stringify(stories));
+    assert.match(result.stderr + result.stdout, /state-summary-item-invalid/);
+    assert.equal(fs.readFileSync(run.state, 'utf8'), before);
   }
 });
 

@@ -71,6 +71,9 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   every one is written for the user, by engine § *Speaking to the user*. What the gate adds:
   - **`headline`**, at most 220 characters, opens the checkpoint as *Done*; without it, *Done*
     is the summary's first sentence.
+  - **`stories`**, a list of one-line strings, is what the node drafted for the person to
+    confirm by going on. Every surface lists them under "Stories to confirm", ahead of the
+    risks, whichever closed node wrote them. A node with none leaves it out.
   - **Nothing earlier is restated.** Before writing `decisions` and `risks`, read what
     `prior-context` prints and leave out each decision or risk an earlier node already holds,
     including an artifact's own Key Decisions that carry an earlier choice forward. A node that
@@ -209,7 +212,7 @@ its *Done* reads `Skipped.` and the held choices lead.
 **What the checkpoint shows is the verb's to compose.** The one-line ask (`<what finished> Ready
 to go on?`, about the work approved, never where the run goes), the glance each continue
 previews — *Done*, *Found* (the closed step's `summary`, left out when *Done* was drawn from
-it), *Next*, *Review*, open risks, fixes, decisions and the user's own choices, every item whole
+it), *Next*, *Review*, stories to confirm, open risks, fixes, decisions and the user's own choices, every item whole
 and those that do not fit counted toward More details —
 the revise and stop previews, More details, and the held choices, which lead every surface
 whenever one waits, are all selected, ordered and trimmed by `gate-brief`. Relay them as they

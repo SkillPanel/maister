@@ -173,8 +173,9 @@ The reason says whether screens will be drawn. When the intake recorded `draws`
 false, it says none are drawn on either outcome and that the design settles
 behaviour, rules and wording, the contract being left to development. When the scope recommends quick-design, the risk
 `{risk: "<the bounded question>: one bounded question", tag: stop}` makes the gate
-recommend `use-quick-design`. The drafted stories are listed in `summary` under
-"Stories to confirm", one line each, and never in `risks`: a story is confirmed or
+recommend `use-quick-design`. The drafted stories go in `stories`, one string a story
+on one line, which the checkpoint lists under "Stories to confirm"; never in `summary`,
+where they would be said twice, and never in `risks`: a story is confirmed or
 corrected through `revise-problem`, not a risk. `risks` holds the stop and what
 could actually go wrong. The artifacts are the problem statement (`role: primary`)
 and the personas (`role: review`).

@@ -3456,6 +3456,15 @@ function assertItems(at, entry) {
       }
     });
   }
+  if (Object.hasOwn(entry, 'stories') && entry.stories !== null) {
+    // What the node drafted for the person to confirm at the gate, a line each:
+    // the gate lists every one, so a story spanning lines would break its list.
+    const stories = entry.stories;
+    if (!Array.isArray(stories)) refuse('stories', stories, 'a list of one-line stories');
+    stories.forEach((story, index) => {
+      if (typeof story !== 'string' || story.trim() === '' || /[\r\n]/.test(story)) refuse(`stories[${index}]`, story, 'one story on one line');
+    });
+  }
   if (Object.hasOwn(entry, 'fixes_applied') && entry.fixes_applied !== null) {
     // What the node changed without asking, which the gate lists apart from
     // its decisions: a fix naming neither what was wrong nor what changed
