@@ -104,6 +104,37 @@ function typeAllowed(value, type) {
   })[each]);
 }
 
+test('begin reports the shell browser tool the look pass can use, from PATH alone', t => {
+  const windows = process.platform === 'win32';
+  // PATH replaced whole, under every spelling the parent carries, so nothing else on it answers.
+  const pathEnv = dir => Object.fromEntries([...Object.keys(process.env).filter(key => key.toUpperCase() === 'PATH'), 'PATH'].map(key => [key, dir]));
+  const begin = (where, dir) => {
+    const result = run(TURN, ['begin', `--task-path=${where.task}`], undefined, pathEnv(dir), where.root);
+    assert.equal(result.code, 0, result.stdout + result.stderr);
+    return JSON.parse(result.stdout);
+  };
+
+  const withTool = project(t);
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-fake-browser-'));
+  t.after(() => fs.rmSync(bin, { recursive: true, force: true }));
+  const fake = path.join(bin, windows ? 'playwright-cli.cmd' : 'playwright-cli');
+  fs.writeFileSync(fake, windows ? '@exit /b 0\r\n' : '#!/bin/sh\nexit 0\n');
+  fs.chmodSync(fake, 0o755);
+  assert.equal(begin(withTool, bin).shell_browser, 'playwright-cli');
+
+  // An empty PATH: no playwright-cli, and no npx to run the second probe with.
+  const without = project(t);
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-no-browser-'));
+  t.after(() => fs.rmSync(empty, { recursive: true, force: true }));
+  assert.equal(begin(without, empty).shell_browser, null);
+
+  // A file of that name that is not executable is not a tool.
+  if (!windows) {
+    fs.chmodSync(fake, 0o644);
+    assert.equal(begin(project(t), bin).shell_browser, null);
+  }
+});
+
 test('begin allocates one version above the highest, defaults against to latest and refuses what it cannot allocate', async t => {
   const where = project(t);
 

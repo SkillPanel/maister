@@ -106,7 +106,8 @@ The steps say what each one does; the references say how.
    and add one note line naming what the screens were bound to.
 3. **Begin.** `turn.mjs begin --task-path=<task_path> --subdir=<output_subdir>`, with
    `--against=<against>` when one was given. It prints the new `version`, its `version_dir`, the
-   `against` it resolved and that version's `screens`. A refusal from `begin` is not degradation:
+   `against` it resolved, that version's `screens`, and `shell_browser`: the shell browser tool on
+   this machine, found by the probes of `browser-tools.md`, or null. A refusal from `begin` is not degradation:
    no version is written, and the turn ends with the refusal's message — in node mode the node
    fails with it.
 4. **Draw the screens** into the version folder.
@@ -140,7 +141,10 @@ The steps say what each one does; the references say how.
      headings, numbered "01/02/03" labels, monospace labels or pill buttons unless the context asks.
    - A screen the note asked for that could not be drawn adds the degraded code `incomplete`, and
      the notes name it.
-5. **Look and fix** — one pass, HTML only, and only when the session has a browser tool:
+5. **Look and fix** — one pass, HTML only, and only when the session has a browser tool. A
+   `shell_browser` that `begin` printed is one, used through the shell, whatever the session's
+   tool list shows; when it is null, the session's own browser tools decide. Without Node, run the
+   two probes of `browser-tools.md` by hand first:
    - run `turn.mjs finish --preview` with the same flags as step 6, minus `--index` and `--record`;
    - look at `versions/vNNN/index.html` and each changed `versions/vNNN/<slug>.html`, opened by
      path: `file://` when the tool allows it, otherwise that path under the per-turn viewer
@@ -152,7 +156,7 @@ The steps say what each one does; the references say how.
      in use (*Which tool*).
 
    The notes record what was looked at and what was fixed, or "no browser tool: pages not looked
-   at".
+   at" — only when `shell_browser` is null and the session has no browser tool of its own.
 6. **Finish.** `turn.mjs finish --task-path=<task_path> --subdir=<output_subdir> --version=<vNNN>`,
    with `--index=analysis/design-context/INDEX.md` when `emit_index_rows` is true and
    `--record=<record>` when `record` is set. It publishes the version, refreshes the flat view,
