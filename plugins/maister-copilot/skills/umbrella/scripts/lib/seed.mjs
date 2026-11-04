@@ -66,7 +66,7 @@ import { fileURLToPath } from 'node:url';
 
 import { Refusal } from './canonical.mjs';
 import { readDefinition } from './definition.mjs';
-import { closeoutReachable, pathLike, siblingsProblem } from './envelope.mjs';
+import { closeoutReachable, driverFeaturesProblem, pathLike, siblingsProblem } from './envelope.mjs';
 import { ASK_LEVELS, bareWorkflowName, TARGET_NAME } from '../../../workflow-engine/scripts/lib/umbrella-facade.mjs';
 
 /** The format version a seed descriptor declares. */
@@ -346,9 +346,14 @@ function taskLines({ document, workflow, pluginRoot }) {
   // to the engine — its close-out owed to the outbox. It also
   // tells apart dispatches into one member, which share its worktree: two runs
   // in one checkout differ by the dispatch each records, and by nothing else in
-  // their state. No `features` are seeded here: a run is given question sets only
-  // when whatever starts its worker records `question-sets` in its driver.
-  lines.push(`You run as a dispatched run under the cockpit driver: record \`orchestrator.driver: {kind: cockpit, cwd: <the directory named above, absolute>, dispatch_id: ${oneLine(document.dispatch_id)}}\` in your run state, and nothing else in it - the cwd is required beside the kind, and a block carrying only the kind is an invalid state; the dispatch id is what makes your run a dispatched one and tells it apart from another dispatch working in the same checkout. At every gate suspend the run through the gate-request verb alone, never by hand-writing the request file, the gate index or the pending marker; on resume, apply the operator's answer exactly as the driver-suspended resume in ${gatesReference(pluginRoot)} says. The only source of the request is the engine's gate-brief verb:`);
+  // their state. The driver's `features` are the ones the envelope's
+  // `driver.features` carries, which the dispatching host sends as the
+  // `driver_features` override; an envelope without the block seeds none, and
+  // the sentence is then the one it always was. A run is given question sets
+  // only when its driver lists `question-sets`.
+  const features = Array.isArray(mapOf(document.driver).features) ? document.driver.features : [];
+  const featureField = features.length === 0 ? '' : `, features: [${features.join(', ')}]`;
+  lines.push(`You run as a dispatched run under the cockpit driver: record \`orchestrator.driver: {kind: cockpit, cwd: <the directory named above, absolute>, dispatch_id: ${oneLine(document.dispatch_id)}${featureField}}\` in your run state, and nothing else in it - the cwd is required beside the kind, and a block carrying only the kind is an invalid state; the dispatch id is what makes your run a dispatched one and tells it apart from another dispatch working in the same checkout. At every gate suspend the run through the gate-request verb alone, never by hand-writing the request file, the gate index or the pending marker; on resume, apply the operator's answer exactly as the driver-suspended resume in ${gatesReference(pluginRoot)} says. The only source of the request is the engine's gate-brief verb:`);
   lines.push(`  node ${workflowScript(pluginRoot)} gate-brief --state=<your own orchestrator-state.yml> --node=<the gate's node id> --request`);
   lines.push('Write what it prints, unchanged, with your file tool to `.state-patch.json` beside that state file - never composed or edited by you, never through a heredoc or a pipe. Then make one call to the gate-request verb:');
   lines.push(`  node ${workflowScript(pluginRoot)} gate-request --state=<your own orchestrator-state.yml> --patch-file=<the .state-patch.json beside it>`);
@@ -660,6 +665,10 @@ function assertEnvelope(envelope) {
   if (document.siblings !== undefined && document.siblings !== null) {
     const problem = siblingsProblem(document.siblings);
     if (problem !== null) missing.push(`siblings ${problem}`);
+  }
+  if (document.driver !== undefined && document.driver !== null) {
+    const problem = driverFeaturesProblem(mapOf(document.driver).features);
+    if (problem !== null) missing.push(`driver.features ${problem}`);
   }
 
   if (missing.length) {

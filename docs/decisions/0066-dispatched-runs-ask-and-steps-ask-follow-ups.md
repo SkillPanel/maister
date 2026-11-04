@@ -66,6 +66,8 @@ stopping point never reached a person after the finding questions.
 ### Consequences
 - A host that does not seed `question-sets` into a dispatched worker's driver is unaffected: its
   runs keep the defaults, so the engine can ship ahead of the host.
+- A dispatching host turns the feature on by sending the umbrella `envelope` override
+  `driver_features: [question-sets]`; the worker's seed then records it in its driver.
 - A driver that renders a question request may show its `round`; one that ignores the key loses
   nothing.
 - Node prose names "the first request" where it said "the node's one request", and a question
