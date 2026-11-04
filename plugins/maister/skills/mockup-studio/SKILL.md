@@ -145,9 +145,10 @@ The steps say what each one does; the references say how.
    two probes of `browser-tools.md` by hand first:
    - run `turn.mjs finish --preview` with the same flags as step 6, minus `--index` and `--record`;
    - look at `versions/vNNN/index.html` and each changed `versions/vNNN/<slug>.html`, opened by
-     path: `file://` when the tool allows it, otherwise that path under the per-turn viewer
-     (`references/visual-companion.md`). Never the viewer's `/`, which still leads to the previous
-     latest while this version is only a preview;
+     path under the per-turn viewer (`references/visual-companion.md`) when the tool is
+     `shell_browser`, which refuses `file://`, so start the viewer before its first call; another
+     tool opens them by `file://` when it allows it, and otherwise under the viewer too. Never the
+     viewer's `/`, which still leads to the previous latest while this version is only a preview;
    - fix what looks wrong in `.turn.json`, then preview once more at most. A fix keeps the app's
      frame (its header, navigation and page width); a frame a screen drew twice loses only its
      inner copy;
