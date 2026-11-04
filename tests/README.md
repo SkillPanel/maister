@@ -41,13 +41,14 @@ umbrella's, plus 20,000 seeded random values parsed in process.
   `run-complete.test.mjs` freezes the shipped `development.yml` afresh and replays the recorded
   outcomes and summaries onto it, with and without the absences its nodes sanction.
   `team-calendar-sharing/` is a synthetic product-design run of the same shape — an invented
-  enhancement with a UI, so its personas are skipped and its screens drawn — which
-  `product-design.test.mjs` replays onto the shipped `product-design.yml` beside partial runs it
-  walks to each of that workflow's gates. It carries no phase-summary mirror: each step's values sit
+  enhancement with a UI, whose specification is skipped and whose sketches and final screens are
+  drawn — which `product-design.test.mjs` replays onto the shipped `product-design.yml` beside partial
+  runs it walks to each of that workflow's gates. It carries no phase-summary mirror: each step's values sit
   on its `node_summaries` entry. Its `outputs/delivery-scope.yml` is kept whole: it is the
   single-repository scope, read beside `fixtures/delivery-scope/workspace.yml`, a workspace's.
-  Its `analysis/decision-areas.json` is a 0-byte placeholder like its siblings: the brainstorm
-  declares it, so the replay needs it present to end on `RUN-COMPLETE`, and nothing reads its bytes.
+  Its `analysis/decision-areas.json` is stamped with the SHA-256 of `analysis/alternatives.md`, so an
+  edit to that file re-stamps it. Its `analysis/mockups/` holds the final screens' flat pages, empty,
+  and `versions/index.json`, without the version folders.
 - `fixtures/gates/` — answered request documents a test copies over the pending one. `question-set.request.yml`
   is a `kind: question` request as `gate-brief --request` builds it from a three-question set (a
   single choice, one with nothing recommended, a multi-select), with the fields the request writer

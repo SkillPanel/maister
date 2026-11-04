@@ -42,7 +42,7 @@ The Task prompt MUST include:
 - Earlier phases: the passage pasted unedited from `prior-context` (specification, gap analysis, codebase analysis, design)
 - `research_context`: Research findings path (if research-informed development)
 - `architecture_context`: High-level design path, `analysis/architecture-context/` (if the run was handed an architecture)
-- `design_reference`: Design context pointer (if mockups present) — `analysis/design-context/INDEX.md` enumerates screens/components with stable IDs; `design-context/brief.md` holds product-design intent (when handed off from product-design task)
+- `design_reference`: Design context pointer (if a design came in) — `analysis/design-context/INDEX.md` enumerates screens/components with stable IDs (if mockups present); `design-context/brief.md` holds product-design intent (when handed off from product-design task); `design-context/decision.md` holds the chosen options and why (when handed off from a quick-design task)
 - Migration-specific: `migration_type`, `current_system`, `target_system` (if migration)
 
 **Required File** (must exist on disk):
@@ -50,6 +50,7 @@ The Task prompt MUST include:
 
 **Conditional File** (read when present):
 - `{task_path}/analysis/design-context/INDEX.md` — when present, mockups are binding; produce coverage matrix and attach `Visual References` to UI task groups (see Phase 2.5 below)
+- `{task_path}/analysis/design-context/decision.md` — a quick-design decision, read as design intent beside `brief.md`, with or without `INDEX.md` (see Phase 1.5 below). It binds no mockup by itself: the coverage matrix follows `INDEX.md` alone
 - `{task_path}/analysis/architecture-context/high-level-design.md` and `decision-log.md` beside it — when present, the interfaces, contracts and decisions they name are constraints on this repository's part: plan groups that build the contracts this repository provides or consumes as stated, never redesign them, and report a step that cannot follow them as an open risk rather than planning around it
 
 ---
@@ -69,14 +70,15 @@ Read `implementation/spec.md` and extract:
 
 ### Phase 1.5: Read Design Context (Conditional)
 
+**Read the design intent** first, each when present and whether or not an index exists: `design-context/brief.md`, the product-design intent (Layer 0 + Layer 3 of the brief), and `design-context/decision.md`, the quick-design decision, which holds the choices no screen shows and comes with no index when its mockups were skipped.
+
 If `{task_path}/analysis/design-context/INDEX.md` exists:
 
 1. **Read the INDEX**: enumerate every screen/component (stable IDs like `screen:login`, `component:user-card`).
 2. **Read mockups it references** (skim — full reading happens at implementation time): note which screens/components each mockup covers.
-3. **Read `design-context/brief.md`** if present — this is the product-design intent (Layer 0 + Layer 3 of the brief).
-4. **Track the design surface** — every screen/component in INDEX.md MUST be covered by ≥1 task group in the plan you produce.
+3. **Track the design surface** — every screen/component in INDEX.md MUST be covered by ≥1 task group in the plan you produce.
 
-If no `design-context/` exists, skip this phase and the visual-references and coverage-matrix steps below — non-UI tasks remain unchanged.
+Without `INDEX.md`, skip the visual-references and coverage-matrix steps below: there are no screens to cover. If no `design-context/` exists, skip this phase too — non-UI tasks remain unchanged.
 
 ---
 
@@ -128,7 +130,7 @@ Common patterns:
 **Files to Modify:** [comma-separated paths from repo root, or "None" for review-only groups]
 **Tier:** [light|standard|deep] — [reason, one clause]
 **Serves:** [the spec's Core Requirement ids this group delivers, or "None" for review-only groups]
-**Visual References:** [REQUIRED when design-context exists AND group touches UI; OMIT entire section otherwise]
+**Visual References:** [REQUIRED when `design-context/INDEX.md` exists AND group touches UI; OMIT entire section otherwise]
 - mockup: analysis/design-context/mockups/[file]
   element: [screen-id or component-id from INDEX.md, e.g. screen:login]
   locator: [region of the mockup this group implements, e.g. "main form, lines 40-120"]
@@ -355,8 +357,8 @@ Before completing, verify:
 - Tier declared for every group, with its reason
 - Reusable components referenced
 - Standards section included
-- **When design-context exists**: every UI task group has `Visual References` with all four sub-fields populated; `implementation/visual-coverage.md` covers 100% of INDEX.md (or documents uncovered items with justification)
-- **When design-context does NOT exist**: no `Visual References` sections, no `visual-coverage.md` (graceful degradation)
+- **When `design-context/INDEX.md` exists**: every UI task group has `Visual References` with all four sub-fields populated; `implementation/visual-coverage.md` covers 100% of INDEX.md (or documents uncovered items with justification)
+- **When it does NOT exist**: no `Visual References` sections, no `visual-coverage.md` (graceful degradation)
 
 ---
 

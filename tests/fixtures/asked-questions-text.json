@@ -5960,16 +5960,28 @@
   },
   "product-design/cockpit": {
     "gates": {
-      "characteristics-approval": {
+      "brief-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Approve design characteristics?",
+          "ask": "Approve the brief and the screens?",
           "closed": [
             {
               "headline": "Done.",
-              "node": "intake",
+              "node": "screens",
               "summary": "Done.",
-              "title": "Intake and design characteristics"
+              "title": "Final screens"
+            },
+            {
+              "headline": "Done.",
+              "node": "brief",
+              "summary": "Done.",
+              "title": "Product brief and delivery scope"
+            },
+            {
+              "headline": "Done.",
+              "node": "specification",
+              "summary": "Done.",
+              "title": "Feature specification"
             }
           ],
           "decisions": {
@@ -5983,34 +5995,52 @@
           },
           "fixes": [],
           "grants": {},
-          "header": "Scope",
+          "header": "Brief",
           "headline": "Done.",
           "kind": "gate",
           "next": {
             "end": false,
-            "node": "context-synthesis",
+            "node": "completion",
             "skipped": [],
-            "title": "Context synthesis"
+            "title": "Completion"
           },
-          "node": "characteristics-approval",
+          "node": "brief-approval",
           "options": [
             {
-              "consequence": "Runs context synthesis next.",
+              "consequence": "Runs completion next.",
               "effect": "continue",
-              "id": "continue-to-context-synthesis",
-              "label": "Continue to the context synthesis",
+              "id": "approve-brief",
+              "label": "Approve the brief",
               "recommended": true
             },
             {
-              "consequence": "Re-runs Intake and design characteristics with your note, then asks this again.",
+              "consequence": "Re-runs Product brief and delivery scope with your note, then asks this again.",
               "effect": "revise",
-              "id": "revise-characteristics",
-              "label": "Correct the characteristics",
+              "id": "change-brief",
+              "label": "Change the brief only",
               "recommended": false,
               "reruns": [
                 {
-                  "node": "intake",
-                  "title": "Intake and design characteristics"
+                  "node": "brief",
+                  "title": "Product brief and delivery scope"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Re-runs Product brief and delivery scope with your note, then asks this again.",
+              "effect": "revise",
+              "id": "change-screens-and-brief",
+              "label": "Change the screens and brief",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "brief",
+                  "title": "Product brief and delivery scope"
                 }
               ],
               "revision": {
@@ -6026,21 +6056,21 @@
               "keeps": [],
               "label": "Stop here",
               "not_run": {
-                "next": "Context synthesis",
-                "remaining": 9
+                "next": "Completion",
+                "remaining": 1
               },
               "recommended": false
             }
           ],
           "progress": {
-            "checkpoint": 1,
-            "checkpoints_max": 6,
-            "node": 2,
-            "nodes_total": 16
+            "checkpoint": 3,
+            "checkpoints_max": 3,
+            "node": 11,
+            "nodes_total": 12
           },
           "recommended": {
-            "option": "continue-to-context-synthesis",
-            "reason": "nothing open blocks context synthesis"
+            "option": "approve-brief",
+            "reason": "nothing open blocks completion"
           },
           "review": [],
           "risks": {
@@ -6055,17 +6085,25 @@
         },
         "options": [
           {
-            "description": "Runs context synthesis next.",
+            "description": "Runs completion next.",
             "effect": "continue",
-            "id": "continue-to-context-synthesis",
-            "label": "Continue to the context synthesis",
+            "id": "approve-brief",
+            "label": "Approve the brief",
             "recommended": true
           },
           {
-            "description": "Re-runs Intake and design characteristics with your note, then asks this again.",
+            "description": "Re-runs Product brief and delivery scope with your note, then asks this again.",
             "effect": "revise",
-            "id": "revise-characteristics",
-            "label": "Correct the characteristics",
+            "id": "change-brief",
+            "label": "Change the brief only",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Re-runs Product brief and delivery scope with your note, then asks this again.",
+            "effect": "revise",
+            "id": "change-screens-and-brief",
+            "label": "Change the screens and brief",
             "note": true,
             "suggestions": []
           },
@@ -6076,142 +6114,30 @@
             "label": "Stop here"
           }
         ],
-        "question": "Approve design characteristics?"
-      },
-      "context-approval": {
-        "checkpoint": {
-          "approves": [],
-          "ask": "Approve design context?",
-          "closed": [
-            {
-              "headline": "Done.",
-              "node": "context-synthesis",
-              "summary": "Done.",
-              "title": "Context synthesis"
-            }
-          ],
-          "decisions": {
-            "audit": [],
-            "default": [],
-            "operator": {
-              "count": 0,
-              "not_recommended": []
-            },
-            "run": []
-          },
-          "fixes": [],
-          "grants": {},
-          "header": "Context",
-          "headline": "Done.",
-          "kind": "gate",
-          "next": {
-            "end": false,
-            "node": "problem-exploration",
-            "skipped": [],
-            "title": "Problem exploration"
-          },
-          "node": "context-approval",
-          "options": [
-            {
-              "consequence": "Runs problem exploration next.",
-              "effect": "continue",
-              "id": "continue-to-problem-exploration",
-              "label": "Continue to the problem exploration",
-              "recommended": true
-            },
-            {
-              "consequence": "Re-runs Context synthesis with your note, then asks this again.",
-              "effect": "revise",
-              "id": "revise-context",
-              "label": "Correct or add to the context",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "context-synthesis",
-                  "title": "Context synthesis"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Ends the run here.",
-              "effect": "stop",
-              "id": "stop-design",
-              "keeps": [],
-              "label": "Stop here",
-              "not_run": {
-                "next": "Problem exploration",
-                "remaining": 8
-              },
-              "recommended": false
-            }
-          ],
-          "progress": {
-            "checkpoint": 2,
-            "checkpoints_max": 6,
-            "node": 4,
-            "nodes_total": 16
-          },
-          "recommended": {
-            "option": "continue-to-problem-exploration",
-            "reason": "nothing open blocks problem exploration"
-          },
-          "review": [],
-          "risks": {
-            "followup": [],
-            "open": [],
-            "resolved": [],
-            "stop": [],
-            "tradeoff": []
-          },
-          "truncated": false,
-          "version": 1
-        },
-        "options": [
-          {
-            "description": "Runs problem exploration next.",
-            "effect": "continue",
-            "id": "continue-to-problem-exploration",
-            "label": "Continue to the problem exploration",
-            "recommended": true
-          },
-          {
-            "description": "Re-runs Context synthesis with your note, then asks this again.",
-            "effect": "revise",
-            "id": "revise-context",
-            "label": "Correct or add to the context",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Ends the run here.",
-            "effect": "stop",
-            "id": "stop-design",
-            "label": "Stop here"
-          }
-        ],
-        "question": "Approve design context?"
+        "question": "Approve the brief and the screens?"
       },
       "direction-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Approve design direction?",
+          "ask": "Approve the design direction?",
           "closed": [
             {
               "headline": "Done.",
-              "node": "idea-convergence",
+              "node": "convergence",
               "summary": "Done.",
-              "title": "Idea convergence"
+              "title": "Converge on a direction"
             },
             {
               "headline": "Done.",
-              "node": "idea-generation",
+              "node": "alternatives",
               "summary": "Done.",
-              "title": "Idea generation"
+              "title": "Brainstorm alternatives"
+            },
+            {
+              "headline": "Done.",
+              "node": "sketches",
+              "summary": "Done.",
+              "title": "Sketches"
             }
           ],
           "decisions": {
@@ -6230,431 +6156,40 @@
           "kind": "gate",
           "next": {
             "end": false,
-            "node": "feature-specification",
-            "skipped": [],
-            "title": "Feature specification"
+            "node": "brief",
+            "skipped": [
+              {
+                "node": "specification",
+                "reason": null,
+                "title": "Feature specification"
+              },
+              {
+                "node": "screens",
+                "reason": null,
+                "title": "Final screens"
+              }
+            ],
+            "title": "Product brief and delivery scope"
           },
           "node": "direction-approval",
           "options": [
             {
-              "consequence": "Runs feature specification next.",
-              "effect": "continue",
-              "id": "continue-to-specification",
-              "label": "Continue to the feature specification",
-              "recommended": true
-            },
-            {
-              "consequence": "Re-runs Idea generation and Idea convergence with your note, then asks this again.",
-              "effect": "revise",
-              "id": "explore-more-alternatives",
-              "label": "Brainstorm new alternatives",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "idea-generation",
-                  "title": "Idea generation"
-                },
-                {
-                  "node": "idea-convergence",
-                  "title": "Idea convergence"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Re-runs Idea convergence with your note, then asks this again.",
-              "effect": "revise",
-              "id": "refine-direction",
-              "label": "Re-ask chosen areas",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "idea-convergence",
-                  "title": "Idea convergence"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Ends the run here.",
-              "effect": "stop",
-              "id": "stop-design",
-              "keeps": [],
-              "label": "Stop here",
-              "not_run": {
-                "next": "Feature specification",
-                "remaining": 4
-              },
-              "recommended": false
-            }
-          ],
-          "progress": {
-            "checkpoint": 4,
-            "checkpoints_max": 6,
-            "node": 10,
-            "nodes_total": 16
-          },
-          "recommended": {
-            "option": "continue-to-specification",
-            "reason": "nothing open blocks feature specification"
-          },
-          "review": [],
-          "risks": {
-            "followup": [],
-            "open": [],
-            "resolved": [],
-            "stop": [],
-            "tradeoff": []
-          },
-          "truncated": false,
-          "version": 1
-        },
-        "options": [
-          {
-            "description": "Runs feature specification next.",
-            "effect": "continue",
-            "id": "continue-to-specification",
-            "label": "Continue to the feature specification",
-            "recommended": true
-          },
-          {
-            "description": "Re-runs Idea generation and Idea convergence with your note, then asks this again.",
-            "effect": "revise",
-            "id": "explore-more-alternatives",
-            "label": "Brainstorm new alternatives",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Re-runs Idea convergence with your note, then asks this again.",
-            "effect": "revise",
-            "id": "refine-direction",
-            "label": "Re-ask chosen areas",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Ends the run here.",
-            "effect": "stop",
-            "id": "stop-design",
-            "label": "Stop here"
-          }
-        ],
-        "question": "Approve design direction?"
-      },
-      "mockup-approval": {
-        "checkpoint": {
-          "approves": [],
-          "ask": "Approve the screens?",
-          "closed": [
-            {
-              "headline": "Done.",
-              "node": "visual-prototyping",
-              "summary": "Done.",
-              "title": "Visual prototyping"
-            },
-            {
-              "headline": "Done.",
-              "node": "feature-specification",
-              "summary": "Done.",
-              "title": "Feature specification"
-            }
-          ],
-          "decisions": {
-            "audit": [],
-            "default": [],
-            "operator": {
-              "count": 0,
-              "not_recommended": []
-            },
-            "run": []
-          },
-          "fixes": [],
-          "grants": {},
-          "header": "Screens",
-          "headline": "Done.",
-          "kind": "gate",
-          "next": {
-            "end": false,
-            "node": "specification-approval",
-            "skipped": [],
-            "title": "Approve specification and prototypes"
-          },
-          "node": "mockup-approval",
-          "options": [
-            {
-              "consequence": "Runs approve specification and prototypes next.",
-              "effect": "continue",
-              "id": "continue-to-specification-review",
-              "label": "Continue to the specification review",
-              "recommended": true
-            },
-            {
-              "consequence": "Re-runs Visual prototyping with your note, then asks this again.",
-              "effect": "revise",
-              "id": "revise-mockups",
-              "label": "Revise the screens",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "visual-prototyping",
-                  "title": "Visual prototyping"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Ends the run here.",
-              "effect": "stop",
-              "id": "stop-design",
-              "keeps": [],
-              "label": "Stop here",
-              "not_run": {
-                "next": "Approve specification and prototypes",
-                "remaining": 2
-              },
-              "recommended": false
-            }
-          ],
-          "progress": {
-            "checkpoint": 5,
-            "checkpoints_max": 6,
-            "node": 13,
-            "nodes_total": 16
-          },
-          "recommended": {
-            "option": "continue-to-specification-review",
-            "reason": "nothing open blocks approve specification and prototypes"
-          },
-          "review": [],
-          "risks": {
-            "followup": [],
-            "open": [],
-            "resolved": [],
-            "stop": [],
-            "tradeoff": []
-          },
-          "truncated": false,
-          "version": 1
-        },
-        "options": [
-          {
-            "description": "Runs approve specification and prototypes next.",
-            "effect": "continue",
-            "id": "continue-to-specification-review",
-            "label": "Continue to the specification review",
-            "recommended": true
-          },
-          {
-            "description": "Re-runs Visual prototyping with your note, then asks this again.",
-            "effect": "revise",
-            "id": "revise-mockups",
-            "label": "Revise the screens",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Ends the run here.",
-            "effect": "stop",
-            "id": "stop-design",
-            "label": "Stop here"
-          }
-        ],
-        "question": "Approve the screens?"
-      },
-      "problem-approval": {
-        "checkpoint": {
-          "approves": [],
-          "ask": "Approve problem and personas?",
-          "closed": [
-            {
-              "headline": "Done.",
-              "node": "problem-exploration",
-              "summary": "Done.",
-              "title": "Problem exploration"
-            },
-            {
-              "headline": "Done.",
-              "node": "persona-exploration",
-              "summary": "Done.",
-              "title": "User and persona exploration"
-            }
-          ],
-          "decisions": {
-            "audit": [],
-            "default": [],
-            "operator": {
-              "count": 0,
-              "not_recommended": []
-            },
-            "run": []
-          },
-          "fixes": [],
-          "grants": {},
-          "header": "Problem",
-          "headline": "Done.",
-          "kind": "gate",
-          "next": {
-            "end": false,
-            "node": "idea-generation",
-            "skipped": [],
-            "title": "Idea generation"
-          },
-          "node": "problem-approval",
-          "options": [
-            {
-              "consequence": "Runs idea generation next.",
-              "effect": "continue",
-              "id": "continue-to-idea-generation",
-              "label": "Continue to idea generation",
-              "recommended": true
-            },
-            {
-              "consequence": "Re-runs Problem exploration with your note, then asks this again.",
-              "effect": "revise",
-              "id": "revise-problem",
-              "label": "Revise the problem or personas",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "problem-exploration",
-                  "title": "Problem exploration"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Ends the run here.",
-              "effect": "stop",
-              "id": "stop-design",
-              "keeps": [],
-              "label": "Stop here",
-              "not_run": {
-                "next": "Idea generation",
-                "remaining": 6
-              },
-              "recommended": false
-            }
-          ],
-          "progress": {
-            "checkpoint": 3,
-            "checkpoints_max": 6,
-            "node": 7,
-            "nodes_total": 16
-          },
-          "recommended": {
-            "option": "continue-to-idea-generation",
-            "reason": "nothing open blocks idea generation"
-          },
-          "review": [],
-          "risks": {
-            "followup": [],
-            "open": [],
-            "resolved": [],
-            "stop": [],
-            "tradeoff": []
-          },
-          "truncated": false,
-          "version": 1
-        },
-        "options": [
-          {
-            "description": "Runs idea generation next.",
-            "effect": "continue",
-            "id": "continue-to-idea-generation",
-            "label": "Continue to idea generation",
-            "recommended": true
-          },
-          {
-            "description": "Re-runs Problem exploration with your note, then asks this again.",
-            "effect": "revise",
-            "id": "revise-problem",
-            "label": "Revise the problem or personas",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Ends the run here.",
-            "effect": "stop",
-            "id": "stop-design",
-            "label": "Stop here"
-          }
-        ],
-        "question": "Approve problem and personas?"
-      },
-      "specification-approval": {
-        "checkpoint": {
-          "approves": [],
-          "ask": "Approve specification and prototypes?",
-          "closed": [
-            {
-              "headline": "Done.",
-              "node": "feature-specification",
-              "summary": "Done.",
-              "title": "Feature specification"
-            },
-            {
-              "headline": "Done.",
-              "node": "visual-prototyping",
-              "summary": "Done.",
-              "title": "Visual prototyping"
-            }
-          ],
-          "decisions": {
-            "audit": [],
-            "default": [],
-            "operator": {
-              "count": 0,
-              "not_recommended": []
-            },
-            "run": []
-          },
-          "fixes": [],
-          "grants": {},
-          "header": "Spec",
-          "headline": "Done.",
-          "kind": "gate",
-          "next": {
-            "end": false,
-            "node": "review-handoff",
-            "skipped": [],
-            "title": "Product brief and delivery scope"
-          },
-          "node": "specification-approval",
-          "options": [
-            {
               "consequence": "Runs product brief and delivery scope next.",
               "effect": "continue",
-              "id": "continue-to-product-brief",
-              "label": "Continue to the product brief",
+              "id": "approve-direction",
+              "label": "Continue to product brief and delivery scope",
               "recommended": true
             },
             {
-              "consequence": "Re-runs Feature specification with your note, then asks this again.",
+              "consequence": "Re-runs Converge on a direction with your note, then asks this again.",
               "effect": "revise",
-              "id": "revise-specification",
-              "label": "Revise the specification",
+              "id": "revise-direction",
+              "label": "Revise the direction",
               "recommended": false,
               "reruns": [
                 {
-                  "node": "feature-specification",
-                  "title": "Feature specification"
+                  "node": "convergence",
+                  "title": "Converge on a direction"
                 }
               ],
               "revision": {
@@ -6677,13 +6212,13 @@
             }
           ],
           "progress": {
-            "checkpoint": 6,
-            "checkpoints_max": 6,
-            "node": 14,
-            "nodes_total": 16
+            "checkpoint": 2,
+            "checkpoints_max": 3,
+            "node": 7,
+            "nodes_total": 12
           },
           "recommended": {
-            "option": "continue-to-product-brief",
+            "option": "approve-direction",
             "reason": "nothing open blocks product brief and delivery scope"
           },
           "review": [],
@@ -6701,15 +6236,15 @@
           {
             "description": "Runs product brief and delivery scope next.",
             "effect": "continue",
-            "id": "continue-to-product-brief",
-            "label": "Continue to the product brief",
+            "id": "approve-direction",
+            "label": "Continue to product brief and delivery scope",
             "recommended": true
           },
           {
-            "description": "Re-runs Feature specification with your note, then asks this again.",
+            "description": "Re-runs Converge on a direction with your note, then asks this again.",
             "effect": "revise",
-            "id": "revise-specification",
-            "label": "Revise the specification",
+            "id": "revise-direction",
+            "label": "Revise the direction",
             "note": true,
             "suggestions": []
           },
@@ -6720,29 +6255,224 @@
             "label": "Stop here"
           }
         ],
-        "question": "Approve specification and prototypes?"
+        "question": "Approve the design direction?"
+      },
+      "problem-approval": {
+        "checkpoint": {
+          "approves": [],
+          "ask": "The scope proposal, the problem and the personas are ready. Which outcome should this run produce?",
+          "closed": [
+            {
+              "headline": "Done.",
+              "node": "intake",
+              "summary": "Done.",
+              "title": "Explore and propose the scope"
+            },
+            {
+              "headline": "Done.",
+              "node": "problem",
+              "summary": "Done.",
+              "title": "Problem and personas"
+            }
+          ],
+          "decisions": {
+            "audit": [],
+            "default": [],
+            "operator": {
+              "count": 0,
+              "not_recommended": []
+            },
+            "run": []
+          },
+          "fixes": [],
+          "grants": {},
+          "header": "Scope",
+          "headline": "Done.",
+          "kind": "gate",
+          "next": {
+            "end": false,
+            "node": "alternatives",
+            "skipped": [],
+            "title": "Brainstorm alternatives"
+          },
+          "node": "problem-approval",
+          "options": [
+            {
+              "consequence": "Skips feature specification; runs brainstorm alternatives next.",
+              "effect": "continue",
+              "id": "brief-with-screens",
+              "label": "A design brief with screens",
+              "next": {
+                "end": false,
+                "node": "alternatives",
+                "skipped": [],
+                "title": "Brainstorm alternatives"
+              },
+              "recommended": false,
+              "sets": {
+                "with_spec": false
+              }
+            },
+            {
+              "consequence": "Runs brainstorm alternatives next.",
+              "effect": "continue",
+              "id": "brief-with-spec",
+              "label": "A brief with a feature specification",
+              "next": {
+                "end": false,
+                "node": "alternatives",
+                "skipped": [],
+                "title": "Brainstorm alternatives"
+              },
+              "recommended": true,
+              "sets": {
+                "with_spec": true
+              }
+            },
+            {
+              "consequence": "Re-runs Explore and propose the scope and Problem and personas with your note, then asks this again.",
+              "effect": "revise",
+              "id": "correct-scope",
+              "label": "Correct the scope",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "intake",
+                  "title": "Explore and propose the scope"
+                },
+                {
+                  "node": "problem",
+                  "title": "Problem and personas"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Re-runs Problem and personas with your note, then asks this again.",
+              "effect": "revise",
+              "id": "revise-problem",
+              "label": "Revise the problem",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "problem",
+                  "title": "Problem and personas"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Ends the run here.",
+              "effect": "stop",
+              "id": "use-quick-design",
+              "keeps": [],
+              "label": "Use quick-design instead",
+              "not_run": {
+                "next": "Brainstorm alternatives",
+                "remaining": 7
+              },
+              "recommended": false
+            }
+          ],
+          "progress": {
+            "checkpoint": 1,
+            "checkpoints_max": 3,
+            "node": 3,
+            "nodes_total": 12
+          },
+          "recommended": {
+            "option": "brief-with-spec",
+            "reason": "nothing open blocks brainstorm alternatives"
+          },
+          "review": [],
+          "risks": {
+            "followup": [],
+            "open": [],
+            "resolved": [],
+            "stop": [],
+            "tradeoff": []
+          },
+          "truncated": false,
+          "version": 1
+        },
+        "options": [
+          {
+            "description": "Runs brainstorm alternatives next.",
+            "effect": "continue",
+            "id": "brief-with-spec",
+            "label": "A brief with a feature specification",
+            "recommended": true
+          },
+          {
+            "description": "Skips feature specification; runs brainstorm alternatives next.",
+            "effect": "continue",
+            "id": "brief-with-screens",
+            "label": "A design brief with screens"
+          },
+          {
+            "description": "Re-runs Explore and propose the scope and Problem and personas with your note, then asks this again.",
+            "effect": "revise",
+            "id": "correct-scope",
+            "label": "Correct the scope",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Re-runs Problem and personas with your note, then asks this again.",
+            "effect": "revise",
+            "id": "revise-problem",
+            "label": "Revise the problem",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Ends the run here.",
+            "effect": "stop",
+            "id": "use-quick-design",
+            "label": "Use quick-design instead"
+          }
+        ],
+        "question": "The scope proposal, the problem and the personas are ready. Which outcome should this run produce?"
       }
     },
     "reached": [
-      "characteristics-approval",
-      "context-approval",
       "problem-approval",
       "direction-approval",
-      "specification-approval"
+      "brief-approval"
     ]
   },
   "product-design/dispatch": {
     "gates": {
-      "characteristics-approval": {
+      "brief-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Approve design characteristics?",
+          "ask": "Approve the brief and the screens?",
           "closed": [
             {
               "headline": "Done.",
-              "node": "intake",
+              "node": "screens",
               "summary": "Done.",
-              "title": "Intake and design characteristics"
+              "title": "Final screens"
+            },
+            {
+              "headline": "Done.",
+              "node": "brief",
+              "summary": "Done.",
+              "title": "Product brief and delivery scope"
+            },
+            {
+              "headline": "Done.",
+              "node": "specification",
+              "summary": "Done.",
+              "title": "Feature specification"
             }
           ],
           "decisions": {
@@ -6756,34 +6486,52 @@
           },
           "fixes": [],
           "grants": {},
-          "header": "Scope",
+          "header": "Brief",
           "headline": "Done.",
           "kind": "gate",
           "next": {
             "end": false,
-            "node": "context-synthesis",
+            "node": "completion",
             "skipped": [],
-            "title": "Context synthesis"
+            "title": "Completion"
           },
-          "node": "characteristics-approval",
+          "node": "brief-approval",
           "options": [
             {
-              "consequence": "Runs context synthesis next.",
+              "consequence": "Runs completion next.",
               "effect": "continue",
-              "id": "continue-to-context-synthesis",
-              "label": "Continue to the context synthesis",
+              "id": "approve-brief",
+              "label": "Approve the brief",
               "recommended": true
             },
             {
-              "consequence": "Re-runs Intake and design characteristics with your note, then asks this again.",
+              "consequence": "Re-runs Product brief and delivery scope with your note, then asks this again.",
               "effect": "revise",
-              "id": "revise-characteristics",
-              "label": "Correct the characteristics",
+              "id": "change-brief",
+              "label": "Change the brief only",
               "recommended": false,
               "reruns": [
                 {
-                  "node": "intake",
-                  "title": "Intake and design characteristics"
+                  "node": "brief",
+                  "title": "Product brief and delivery scope"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Re-runs Product brief and delivery scope with your note, then asks this again.",
+              "effect": "revise",
+              "id": "change-screens-and-brief",
+              "label": "Change the screens and brief",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "brief",
+                  "title": "Product brief and delivery scope"
                 }
               ],
               "revision": {
@@ -6799,21 +6547,21 @@
               "keeps": [],
               "label": "Stop here",
               "not_run": {
-                "next": "Context synthesis",
-                "remaining": 9
+                "next": "Completion",
+                "remaining": 1
               },
               "recommended": false
             }
           ],
           "progress": {
-            "checkpoint": 1,
-            "checkpoints_max": 6,
-            "node": 2,
-            "nodes_total": 16
+            "checkpoint": 3,
+            "checkpoints_max": 3,
+            "node": 11,
+            "nodes_total": 12
           },
           "recommended": {
-            "option": "continue-to-context-synthesis",
-            "reason": "nothing open blocks context synthesis"
+            "option": "approve-brief",
+            "reason": "nothing open blocks completion"
           },
           "review": [],
           "risks": {
@@ -6828,17 +6576,25 @@
         },
         "options": [
           {
-            "description": "Runs context synthesis next.",
+            "description": "Runs completion next.",
             "effect": "continue",
-            "id": "continue-to-context-synthesis",
-            "label": "Continue to the context synthesis",
+            "id": "approve-brief",
+            "label": "Approve the brief",
             "recommended": true
           },
           {
-            "description": "Re-runs Intake and design characteristics with your note, then asks this again.",
+            "description": "Re-runs Product brief and delivery scope with your note, then asks this again.",
             "effect": "revise",
-            "id": "revise-characteristics",
-            "label": "Correct the characteristics",
+            "id": "change-brief",
+            "label": "Change the brief only",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Re-runs Product brief and delivery scope with your note, then asks this again.",
+            "effect": "revise",
+            "id": "change-screens-and-brief",
+            "label": "Change the screens and brief",
             "note": true,
             "suggestions": []
           },
@@ -6849,142 +6605,30 @@
             "label": "Stop here"
           }
         ],
-        "question": "Approve design characteristics?"
-      },
-      "context-approval": {
-        "checkpoint": {
-          "approves": [],
-          "ask": "Approve design context?",
-          "closed": [
-            {
-              "headline": "Done.",
-              "node": "context-synthesis",
-              "summary": "Done.",
-              "title": "Context synthesis"
-            }
-          ],
-          "decisions": {
-            "audit": [],
-            "default": [],
-            "operator": {
-              "count": 0,
-              "not_recommended": []
-            },
-            "run": []
-          },
-          "fixes": [],
-          "grants": {},
-          "header": "Context",
-          "headline": "Done.",
-          "kind": "gate",
-          "next": {
-            "end": false,
-            "node": "problem-exploration",
-            "skipped": [],
-            "title": "Problem exploration"
-          },
-          "node": "context-approval",
-          "options": [
-            {
-              "consequence": "Runs problem exploration next.",
-              "effect": "continue",
-              "id": "continue-to-problem-exploration",
-              "label": "Continue to the problem exploration",
-              "recommended": true
-            },
-            {
-              "consequence": "Re-runs Context synthesis with your note, then asks this again.",
-              "effect": "revise",
-              "id": "revise-context",
-              "label": "Correct or add to the context",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "context-synthesis",
-                  "title": "Context synthesis"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Ends the run here.",
-              "effect": "stop",
-              "id": "stop-design",
-              "keeps": [],
-              "label": "Stop here",
-              "not_run": {
-                "next": "Problem exploration",
-                "remaining": 8
-              },
-              "recommended": false
-            }
-          ],
-          "progress": {
-            "checkpoint": 2,
-            "checkpoints_max": 6,
-            "node": 4,
-            "nodes_total": 16
-          },
-          "recommended": {
-            "option": "continue-to-problem-exploration",
-            "reason": "nothing open blocks problem exploration"
-          },
-          "review": [],
-          "risks": {
-            "followup": [],
-            "open": [],
-            "resolved": [],
-            "stop": [],
-            "tradeoff": []
-          },
-          "truncated": false,
-          "version": 1
-        },
-        "options": [
-          {
-            "description": "Runs problem exploration next.",
-            "effect": "continue",
-            "id": "continue-to-problem-exploration",
-            "label": "Continue to the problem exploration",
-            "recommended": true
-          },
-          {
-            "description": "Re-runs Context synthesis with your note, then asks this again.",
-            "effect": "revise",
-            "id": "revise-context",
-            "label": "Correct or add to the context",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Ends the run here.",
-            "effect": "stop",
-            "id": "stop-design",
-            "label": "Stop here"
-          }
-        ],
-        "question": "Approve design context?"
+        "question": "Approve the brief and the screens?"
       },
       "direction-approval": {
         "checkpoint": {
           "approves": [],
-          "ask": "Approve design direction?",
+          "ask": "Approve the design direction?",
           "closed": [
             {
               "headline": "Done.",
-              "node": "idea-convergence",
+              "node": "convergence",
               "summary": "Done.",
-              "title": "Idea convergence"
+              "title": "Converge on a direction"
             },
             {
               "headline": "Done.",
-              "node": "idea-generation",
+              "node": "alternatives",
               "summary": "Done.",
-              "title": "Idea generation"
+              "title": "Brainstorm alternatives"
+            },
+            {
+              "headline": "Done.",
+              "node": "sketches",
+              "summary": "Done.",
+              "title": "Sketches"
             }
           ],
           "decisions": {
@@ -7003,431 +6647,40 @@
           "kind": "gate",
           "next": {
             "end": false,
-            "node": "feature-specification",
-            "skipped": [],
-            "title": "Feature specification"
+            "node": "brief",
+            "skipped": [
+              {
+                "node": "specification",
+                "reason": null,
+                "title": "Feature specification"
+              },
+              {
+                "node": "screens",
+                "reason": null,
+                "title": "Final screens"
+              }
+            ],
+            "title": "Product brief and delivery scope"
           },
           "node": "direction-approval",
           "options": [
             {
-              "consequence": "Runs feature specification next.",
-              "effect": "continue",
-              "id": "continue-to-specification",
-              "label": "Continue to the feature specification",
-              "recommended": true
-            },
-            {
-              "consequence": "Re-runs Idea generation and Idea convergence with your note, then asks this again.",
-              "effect": "revise",
-              "id": "explore-more-alternatives",
-              "label": "Brainstorm new alternatives",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "idea-generation",
-                  "title": "Idea generation"
-                },
-                {
-                  "node": "idea-convergence",
-                  "title": "Idea convergence"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Re-runs Idea convergence with your note, then asks this again.",
-              "effect": "revise",
-              "id": "refine-direction",
-              "label": "Re-ask chosen areas",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "idea-convergence",
-                  "title": "Idea convergence"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Ends the run here.",
-              "effect": "stop",
-              "id": "stop-design",
-              "keeps": [],
-              "label": "Stop here",
-              "not_run": {
-                "next": "Feature specification",
-                "remaining": 4
-              },
-              "recommended": false
-            }
-          ],
-          "progress": {
-            "checkpoint": 4,
-            "checkpoints_max": 6,
-            "node": 10,
-            "nodes_total": 16
-          },
-          "recommended": {
-            "option": "continue-to-specification",
-            "reason": "nothing open blocks feature specification"
-          },
-          "review": [],
-          "risks": {
-            "followup": [],
-            "open": [],
-            "resolved": [],
-            "stop": [],
-            "tradeoff": []
-          },
-          "truncated": false,
-          "version": 1
-        },
-        "options": [
-          {
-            "description": "Runs feature specification next.",
-            "effect": "continue",
-            "id": "continue-to-specification",
-            "label": "Continue to the feature specification",
-            "recommended": true
-          },
-          {
-            "description": "Re-runs Idea generation and Idea convergence with your note, then asks this again.",
-            "effect": "revise",
-            "id": "explore-more-alternatives",
-            "label": "Brainstorm new alternatives",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Re-runs Idea convergence with your note, then asks this again.",
-            "effect": "revise",
-            "id": "refine-direction",
-            "label": "Re-ask chosen areas",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Ends the run here.",
-            "effect": "stop",
-            "id": "stop-design",
-            "label": "Stop here"
-          }
-        ],
-        "question": "Approve design direction?"
-      },
-      "mockup-approval": {
-        "checkpoint": {
-          "approves": [],
-          "ask": "Approve the screens?",
-          "closed": [
-            {
-              "headline": "Done.",
-              "node": "visual-prototyping",
-              "summary": "Done.",
-              "title": "Visual prototyping"
-            },
-            {
-              "headline": "Done.",
-              "node": "feature-specification",
-              "summary": "Done.",
-              "title": "Feature specification"
-            }
-          ],
-          "decisions": {
-            "audit": [],
-            "default": [],
-            "operator": {
-              "count": 0,
-              "not_recommended": []
-            },
-            "run": []
-          },
-          "fixes": [],
-          "grants": {},
-          "header": "Screens",
-          "headline": "Done.",
-          "kind": "gate",
-          "next": {
-            "end": false,
-            "node": "specification-approval",
-            "skipped": [],
-            "title": "Approve specification and prototypes"
-          },
-          "node": "mockup-approval",
-          "options": [
-            {
-              "consequence": "Runs approve specification and prototypes next.",
-              "effect": "continue",
-              "id": "continue-to-specification-review",
-              "label": "Continue to the specification review",
-              "recommended": true
-            },
-            {
-              "consequence": "Re-runs Visual prototyping with your note, then asks this again.",
-              "effect": "revise",
-              "id": "revise-mockups",
-              "label": "Revise the screens",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "visual-prototyping",
-                  "title": "Visual prototyping"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Ends the run here.",
-              "effect": "stop",
-              "id": "stop-design",
-              "keeps": [],
-              "label": "Stop here",
-              "not_run": {
-                "next": "Approve specification and prototypes",
-                "remaining": 2
-              },
-              "recommended": false
-            }
-          ],
-          "progress": {
-            "checkpoint": 5,
-            "checkpoints_max": 6,
-            "node": 13,
-            "nodes_total": 16
-          },
-          "recommended": {
-            "option": "continue-to-specification-review",
-            "reason": "nothing open blocks approve specification and prototypes"
-          },
-          "review": [],
-          "risks": {
-            "followup": [],
-            "open": [],
-            "resolved": [],
-            "stop": [],
-            "tradeoff": []
-          },
-          "truncated": false,
-          "version": 1
-        },
-        "options": [
-          {
-            "description": "Runs approve specification and prototypes next.",
-            "effect": "continue",
-            "id": "continue-to-specification-review",
-            "label": "Continue to the specification review",
-            "recommended": true
-          },
-          {
-            "description": "Re-runs Visual prototyping with your note, then asks this again.",
-            "effect": "revise",
-            "id": "revise-mockups",
-            "label": "Revise the screens",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Ends the run here.",
-            "effect": "stop",
-            "id": "stop-design",
-            "label": "Stop here"
-          }
-        ],
-        "question": "Approve the screens?"
-      },
-      "problem-approval": {
-        "checkpoint": {
-          "approves": [],
-          "ask": "Approve problem and personas?",
-          "closed": [
-            {
-              "headline": "Done.",
-              "node": "problem-exploration",
-              "summary": "Done.",
-              "title": "Problem exploration"
-            },
-            {
-              "headline": "Done.",
-              "node": "persona-exploration",
-              "summary": "Done.",
-              "title": "User and persona exploration"
-            }
-          ],
-          "decisions": {
-            "audit": [],
-            "default": [],
-            "operator": {
-              "count": 0,
-              "not_recommended": []
-            },
-            "run": []
-          },
-          "fixes": [],
-          "grants": {},
-          "header": "Problem",
-          "headline": "Done.",
-          "kind": "gate",
-          "next": {
-            "end": false,
-            "node": "idea-generation",
-            "skipped": [],
-            "title": "Idea generation"
-          },
-          "node": "problem-approval",
-          "options": [
-            {
-              "consequence": "Runs idea generation next.",
-              "effect": "continue",
-              "id": "continue-to-idea-generation",
-              "label": "Continue to idea generation",
-              "recommended": true
-            },
-            {
-              "consequence": "Re-runs Problem exploration with your note, then asks this again.",
-              "effect": "revise",
-              "id": "revise-problem",
-              "label": "Revise the problem or personas",
-              "recommended": false,
-              "reruns": [
-                {
-                  "node": "problem-exploration",
-                  "title": "Problem exploration"
-                }
-              ],
-              "revision": {
-                "max": 10,
-                "n": 1
-              },
-              "suggestions": []
-            },
-            {
-              "consequence": "Ends the run here.",
-              "effect": "stop",
-              "id": "stop-design",
-              "keeps": [],
-              "label": "Stop here",
-              "not_run": {
-                "next": "Idea generation",
-                "remaining": 6
-              },
-              "recommended": false
-            }
-          ],
-          "progress": {
-            "checkpoint": 3,
-            "checkpoints_max": 6,
-            "node": 7,
-            "nodes_total": 16
-          },
-          "recommended": {
-            "option": "continue-to-idea-generation",
-            "reason": "nothing open blocks idea generation"
-          },
-          "review": [],
-          "risks": {
-            "followup": [],
-            "open": [],
-            "resolved": [],
-            "stop": [],
-            "tradeoff": []
-          },
-          "truncated": false,
-          "version": 1
-        },
-        "options": [
-          {
-            "description": "Runs idea generation next.",
-            "effect": "continue",
-            "id": "continue-to-idea-generation",
-            "label": "Continue to idea generation",
-            "recommended": true
-          },
-          {
-            "description": "Re-runs Problem exploration with your note, then asks this again.",
-            "effect": "revise",
-            "id": "revise-problem",
-            "label": "Revise the problem or personas",
-            "note": true,
-            "suggestions": []
-          },
-          {
-            "description": "Ends the run here.",
-            "effect": "stop",
-            "id": "stop-design",
-            "label": "Stop here"
-          }
-        ],
-        "question": "Approve problem and personas?"
-      },
-      "specification-approval": {
-        "checkpoint": {
-          "approves": [],
-          "ask": "Approve specification and prototypes?",
-          "closed": [
-            {
-              "headline": "Done.",
-              "node": "feature-specification",
-              "summary": "Done.",
-              "title": "Feature specification"
-            },
-            {
-              "headline": "Done.",
-              "node": "visual-prototyping",
-              "summary": "Done.",
-              "title": "Visual prototyping"
-            }
-          ],
-          "decisions": {
-            "audit": [],
-            "default": [],
-            "operator": {
-              "count": 0,
-              "not_recommended": []
-            },
-            "run": []
-          },
-          "fixes": [],
-          "grants": {},
-          "header": "Spec",
-          "headline": "Done.",
-          "kind": "gate",
-          "next": {
-            "end": false,
-            "node": "review-handoff",
-            "skipped": [],
-            "title": "Product brief and delivery scope"
-          },
-          "node": "specification-approval",
-          "options": [
-            {
               "consequence": "Runs product brief and delivery scope next.",
               "effect": "continue",
-              "id": "continue-to-product-brief",
-              "label": "Continue to the product brief",
+              "id": "approve-direction",
+              "label": "Continue to product brief and delivery scope",
               "recommended": true
             },
             {
-              "consequence": "Re-runs Feature specification with your note, then asks this again.",
+              "consequence": "Re-runs Converge on a direction with your note, then asks this again.",
               "effect": "revise",
-              "id": "revise-specification",
-              "label": "Revise the specification",
+              "id": "revise-direction",
+              "label": "Revise the direction",
               "recommended": false,
               "reruns": [
                 {
-                  "node": "feature-specification",
-                  "title": "Feature specification"
+                  "node": "convergence",
+                  "title": "Converge on a direction"
                 }
               ],
               "revision": {
@@ -7450,13 +6703,13 @@
             }
           ],
           "progress": {
-            "checkpoint": 6,
-            "checkpoints_max": 6,
-            "node": 14,
-            "nodes_total": 16
+            "checkpoint": 2,
+            "checkpoints_max": 3,
+            "node": 7,
+            "nodes_total": 12
           },
           "recommended": {
-            "option": "continue-to-product-brief",
+            "option": "approve-direction",
             "reason": "nothing open blocks product brief and delivery scope"
           },
           "review": [],
@@ -7474,15 +6727,15 @@
           {
             "description": "Runs product brief and delivery scope next.",
             "effect": "continue",
-            "id": "continue-to-product-brief",
-            "label": "Continue to the product brief",
+            "id": "approve-direction",
+            "label": "Continue to product brief and delivery scope",
             "recommended": true
           },
           {
-            "description": "Re-runs Feature specification with your note, then asks this again.",
+            "description": "Re-runs Converge on a direction with your note, then asks this again.",
             "effect": "revise",
-            "id": "revise-specification",
-            "label": "Revise the specification",
+            "id": "revise-direction",
+            "label": "Revise the direction",
             "note": true,
             "suggestions": []
           },
@@ -7493,109 +6746,240 @@
             "label": "Stop here"
           }
         ],
-        "question": "Approve specification and prototypes?"
+        "question": "Approve the design direction?"
+      },
+      "problem-approval": {
+        "checkpoint": {
+          "approves": [],
+          "ask": "The scope proposal, the problem and the personas are ready. Which outcome should this run produce?",
+          "closed": [
+            {
+              "headline": "Done.",
+              "node": "intake",
+              "summary": "Done.",
+              "title": "Explore and propose the scope"
+            },
+            {
+              "headline": "Done.",
+              "node": "problem",
+              "summary": "Done.",
+              "title": "Problem and personas"
+            }
+          ],
+          "decisions": {
+            "audit": [],
+            "default": [],
+            "operator": {
+              "count": 0,
+              "not_recommended": []
+            },
+            "run": []
+          },
+          "fixes": [],
+          "grants": {},
+          "header": "Scope",
+          "headline": "Done.",
+          "kind": "gate",
+          "next": {
+            "end": false,
+            "node": "alternatives",
+            "skipped": [],
+            "title": "Brainstorm alternatives"
+          },
+          "node": "problem-approval",
+          "options": [
+            {
+              "consequence": "Skips feature specification; runs brainstorm alternatives next.",
+              "effect": "continue",
+              "id": "brief-with-screens",
+              "label": "A design brief with screens",
+              "next": {
+                "end": false,
+                "node": "alternatives",
+                "skipped": [],
+                "title": "Brainstorm alternatives"
+              },
+              "recommended": false,
+              "sets": {
+                "with_spec": false
+              }
+            },
+            {
+              "consequence": "Runs brainstorm alternatives next.",
+              "effect": "continue",
+              "id": "brief-with-spec",
+              "label": "A brief with a feature specification",
+              "next": {
+                "end": false,
+                "node": "alternatives",
+                "skipped": [],
+                "title": "Brainstorm alternatives"
+              },
+              "recommended": true,
+              "sets": {
+                "with_spec": true
+              }
+            },
+            {
+              "consequence": "Re-runs Explore and propose the scope and Problem and personas with your note, then asks this again.",
+              "effect": "revise",
+              "id": "correct-scope",
+              "label": "Correct the scope",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "intake",
+                  "title": "Explore and propose the scope"
+                },
+                {
+                  "node": "problem",
+                  "title": "Problem and personas"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Re-runs Problem and personas with your note, then asks this again.",
+              "effect": "revise",
+              "id": "revise-problem",
+              "label": "Revise the problem",
+              "recommended": false,
+              "reruns": [
+                {
+                  "node": "problem",
+                  "title": "Problem and personas"
+                }
+              ],
+              "revision": {
+                "max": 10,
+                "n": 1
+              },
+              "suggestions": []
+            },
+            {
+              "consequence": "Ends the run here.",
+              "effect": "stop",
+              "id": "use-quick-design",
+              "keeps": [],
+              "label": "Use quick-design instead",
+              "not_run": {
+                "next": "Brainstorm alternatives",
+                "remaining": 7
+              },
+              "recommended": false
+            }
+          ],
+          "progress": {
+            "checkpoint": 1,
+            "checkpoints_max": 3,
+            "node": 3,
+            "nodes_total": 12
+          },
+          "recommended": {
+            "option": "brief-with-spec",
+            "reason": "nothing open blocks brainstorm alternatives"
+          },
+          "review": [],
+          "risks": {
+            "followup": [],
+            "open": [],
+            "resolved": [],
+            "stop": [],
+            "tradeoff": []
+          },
+          "truncated": false,
+          "version": 1
+        },
+        "options": [
+          {
+            "description": "Runs brainstorm alternatives next.",
+            "effect": "continue",
+            "id": "brief-with-spec",
+            "label": "A brief with a feature specification",
+            "recommended": true
+          },
+          {
+            "description": "Skips feature specification; runs brainstorm alternatives next.",
+            "effect": "continue",
+            "id": "brief-with-screens",
+            "label": "A design brief with screens"
+          },
+          {
+            "description": "Re-runs Explore and propose the scope and Problem and personas with your note, then asks this again.",
+            "effect": "revise",
+            "id": "correct-scope",
+            "label": "Correct the scope",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Re-runs Problem and personas with your note, then asks this again.",
+            "effect": "revise",
+            "id": "revise-problem",
+            "label": "Revise the problem",
+            "note": true,
+            "suggestions": []
+          },
+          {
+            "description": "Ends the run here.",
+            "effect": "stop",
+            "id": "use-quick-design",
+            "label": "Use quick-design instead"
+          }
+        ],
+        "question": "The scope proposal, the problem and the personas are ready. Which outcome should this run produce?"
       }
     },
     "reached": [
-      "characteristics-approval",
-      "context-approval",
       "problem-approval",
       "direction-approval",
-      "specification-approval"
+      "brief-approval"
     ]
   },
   "product-design/terminal": {
     "gates": {
-      "characteristics-approval": {
-        "header": "Scope",
+      "brief-approval": {
+        "header": "Brief",
         "options": [
           {
-            "description": "Runs context synthesis next.",
-            "id": "continue-to-context-synthesis",
-            "label": "Continue to the context synthesis (Recommended)"
+            "description": "Runs completion next.",
+            "id": "approve-brief",
+            "label": "Approve the brief (Recommended)"
           },
           {
-            "description": "Re-runs Intake and design characteristics with your note, then asks this again.",
-            "id": "revise-characteristics",
-            "label": "Correct the characteristics"
+            "description": "Re-runs Product brief and delivery scope with your note, then asks this again.",
+            "id": "change-brief",
+            "label": "Change the brief only"
+          },
+          {
+            "description": "Re-runs Product brief and delivery scope with your note, then asks this again.",
+            "id": "change-screens-and-brief",
+            "label": "Change the screens and brief"
           },
           {
             "description": "Ends the run here.",
             "id": "stop-design",
             "label": "Stop here"
-          },
-          {
-            "description": "Shows the full brief, risks included, then asks this again. Nothing is recorded.",
-            "id": "more-details",
-            "label": "More details"
           }
         ],
-        "question": "Approve design characteristics?"
-      },
-      "context-approval": {
-        "header": "Context",
-        "options": [
-          {
-            "description": "Runs problem exploration next.",
-            "id": "continue-to-problem-exploration",
-            "label": "Continue to the problem exploration (Recommended)"
-          },
-          {
-            "description": "Re-runs Context synthesis with your note, then asks this again.",
-            "id": "revise-context",
-            "label": "Correct or add to the context"
-          },
-          {
-            "description": "Ends the run here.",
-            "id": "stop-design",
-            "label": "Stop here"
-          },
-          {
-            "description": "Shows the full brief, risks included, then asks this again. Nothing is recorded.",
-            "id": "more-details",
-            "label": "More details"
-          }
-        ],
-        "question": "Approve design context?"
+        "question": "Approve the brief and the screens? Type \"details\" for the full brief."
       },
       "direction-approval": {
         "header": "Direction",
         "options": [
           {
-            "description": "Runs feature specification next.",
-            "id": "continue-to-specification",
-            "label": "Continue to the feature specification (Recommended)"
+            "description": "Runs product brief and delivery scope next.",
+            "id": "approve-direction",
+            "label": "Continue to product brief and delivery scope (Recommended)"
           },
           {
-            "description": "Re-runs Idea generation and Idea convergence with your note, then asks this again.",
-            "id": "explore-more-alternatives",
-            "label": "Brainstorm new alternatives"
-          },
-          {
-            "description": "Re-runs Idea convergence with your note, then asks this again.",
-            "id": "refine-direction",
-            "label": "Re-ask chosen areas"
-          },
-          {
-            "description": "Ends the run here.",
-            "id": "stop-design",
-            "label": "Stop here"
-          }
-        ],
-        "question": "Approve design direction? Type \"details\" for the full brief."
-      },
-      "mockup-approval": {
-        "header": "Screens",
-        "options": [
-          {
-            "description": "Runs approve specification and prototypes next.",
-            "id": "continue-to-specification-review",
-            "label": "Continue to the specification review (Recommended)"
-          },
-          {
-            "description": "Re-runs Visual prototyping with your note, then asks this again.",
-            "id": "revise-mockups",
-            "label": "Revise the screens"
+            "description": "Re-runs Converge on a direction with your note, then asks this again.",
+            "id": "revise-direction",
+            "label": "Revise the direction"
           },
           {
             "description": "Ends the run here.",
@@ -7608,67 +6992,39 @@
             "label": "More details"
           }
         ],
-        "question": "Approve the screens?"
+        "question": "Approve the design direction?"
       },
       "problem-approval": {
-        "header": "Problem",
+        "header": "Scope",
         "options": [
           {
-            "description": "Runs idea generation next.",
-            "id": "continue-to-idea-generation",
-            "label": "Continue to idea generation (Recommended)"
+            "description": "Runs brainstorm alternatives next.",
+            "id": "brief-with-spec",
+            "label": "A brief with a feature specification (Recommended)"
           },
           {
-            "description": "Re-runs Problem exploration with your note, then asks this again.",
+            "description": "Skips feature specification; runs brainstorm alternatives next.",
+            "id": "brief-with-screens",
+            "label": "A design brief with screens"
+          },
+          {
+            "description": "Re-runs Explore and propose the scope and Problem and personas with your note, then asks this again.",
+            "id": "correct-scope",
+            "label": "Correct the scope"
+          },
+          {
+            "description": "Re-runs Problem and personas with your note, then asks this again.",
             "id": "revise-problem",
-            "label": "Revise the problem or personas"
-          },
-          {
-            "description": "Ends the run here.",
-            "id": "stop-design",
-            "label": "Stop here"
-          },
-          {
-            "description": "Shows the full brief, risks included, then asks this again. Nothing is recorded.",
-            "id": "more-details",
-            "label": "More details"
+            "label": "Revise the problem"
           }
         ],
-        "question": "Approve problem and personas?"
-      },
-      "specification-approval": {
-        "header": "Spec",
-        "options": [
-          {
-            "description": "Runs product brief and delivery scope next.",
-            "id": "continue-to-product-brief",
-            "label": "Continue to the product brief (Recommended)"
-          },
-          {
-            "description": "Re-runs Feature specification with your note, then asks this again.",
-            "id": "revise-specification",
-            "label": "Revise the specification"
-          },
-          {
-            "description": "Ends the run here.",
-            "id": "stop-design",
-            "label": "Stop here"
-          },
-          {
-            "description": "Shows the full brief, risks included, then asks this again. Nothing is recorded.",
-            "id": "more-details",
-            "label": "More details"
-          }
-        ],
-        "question": "Approve specification and prototypes?"
+        "question": "The scope proposal, the problem and the personas are ready. Which outcome should this run produce? Type \"details\" for the full brief. Also offered, not listed: Use quick-design instead (use-quick-design); name one to choose it."
       }
     },
     "reached": [
-      "characteristics-approval",
-      "context-approval",
       "problem-approval",
       "direction-approval",
-      "specification-approval"
+      "brief-approval"
     ]
   },
   "research/cockpit": {

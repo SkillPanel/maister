@@ -1251,20 +1251,12 @@
     "drivers": {
       "cockpit": {
         "gates": {
-          "characteristics-approval": {
+          "brief-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-context-synthesis",
-              "revise-characteristics",
-              "stop-design"
-            ],
-            "transport": "gate-request"
-          },
-          "context-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-problem-exploration",
-              "revise-context",
+              "approve-brief",
+              "change-brief",
+              "change-screens-and-brief",
               "stop-design"
             ],
             "transport": "gate-request"
@@ -1272,18 +1264,8 @@
           "direction-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-specification",
-              "explore-more-alternatives",
-              "refine-direction",
-              "stop-design"
-            ],
-            "transport": "gate-request"
-          },
-          "mockup-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-specification-review",
-              "revise-mockups",
+              "approve-direction",
+              "revise-direction",
               "stop-design"
             ],
             "transport": "gate-request"
@@ -1291,101 +1273,41 @@
           "problem-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-idea-generation",
+              "brief-with-spec",
+              "brief-with-screens",
+              "correct-scope",
               "revise-problem",
-              "stop-design"
-            ],
-            "transport": "gate-request"
-          },
-          "specification-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-product-brief",
-              "revise-specification",
-              "stop-design"
+              "use-quick-design"
             ],
             "transport": "gate-request"
           }
         },
         "in_node": [
           {
-            "id": "additional-context",
+            "id": "scope-questions",
             "node": "intake",
-            "transport": "question-set"
-          },
-          {
-            "id": "mockups",
-            "node": "intake",
-            "transport": "question-set"
-          },
-          {
-            "id": "problem-questions",
-            "node": "problem-exploration",
-            "transport": "question-set"
-          },
-          {
-            "id": "user-story",
-            "node": "problem-exploration",
-            "transport": "question-set"
-          },
-          {
-            "id": "problem-refinement",
-            "node": "problem-exploration",
-            "transport": "question-set"
-          },
-          {
-            "id": "persona-questions",
-            "node": "persona-exploration",
-            "transport": "question-set"
-          },
-          {
-            "id": "persona-refinement",
-            "node": "persona-exploration",
             "transport": "question-set"
           },
           {
             "id": "brainstormer-retry",
-            "node": "idea-generation",
+            "node": "alternatives",
             "transport": "question-set"
           },
           {
             "id": "convergence-decisions",
-            "node": "idea-convergence",
-            "transport": "question-set"
-          },
-          {
-            "id": "specification-sections",
-            "node": "feature-specification",
-            "transport": "question-set"
-          },
-          {
-            "id": "depth-enrichment",
-            "node": "feature-specification",
-            "transport": "question-set"
-          },
-          {
-            "id": "brief-approval",
-            "node": "review-handoff",
+            "node": "convergence",
             "transport": "question-set"
           }
         ]
       },
       "dispatch": {
         "gates": {
-          "characteristics-approval": {
+          "brief-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-context-synthesis",
-              "revise-characteristics",
-              "stop-design"
-            ],
-            "transport": "gate-request"
-          },
-          "context-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-problem-exploration",
-              "revise-context",
+              "approve-brief",
+              "change-brief",
+              "change-screens-and-brief",
               "stop-design"
             ],
             "transport": "gate-request"
@@ -1393,18 +1315,8 @@
           "direction-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-specification",
-              "explore-more-alternatives",
-              "refine-direction",
-              "stop-design"
-            ],
-            "transport": "gate-request"
-          },
-          "mockup-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-specification-review",
-              "revise-mockups",
+              "approve-direction",
+              "revise-direction",
               "stop-design"
             ],
             "transport": "gate-request"
@@ -1412,118 +1324,48 @@
           "problem-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-idea-generation",
+              "brief-with-spec",
+              "brief-with-screens",
+              "correct-scope",
               "revise-problem",
-              "stop-design"
-            ],
-            "transport": "gate-request"
-          },
-          "specification-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-product-brief",
-              "revise-specification",
-              "stop-design"
+              "use-quick-design"
             ],
             "transport": "gate-request"
           }
         },
         "in_node": [
           {
-            "id": "additional-context",
+            "id": "scope-questions",
             "node": "intake",
-            "transport": "default"
-          },
-          {
-            "id": "mockups",
-            "node": "intake",
-            "transport": "default"
-          },
-          {
-            "id": "problem-questions",
-            "node": "problem-exploration",
-            "transport": "default"
-          },
-          {
-            "id": "user-story",
-            "node": "problem-exploration",
-            "transport": "default"
-          },
-          {
-            "id": "problem-refinement",
-            "node": "problem-exploration",
-            "transport": "default"
-          },
-          {
-            "id": "persona-questions",
-            "node": "persona-exploration",
-            "transport": "default"
-          },
-          {
-            "id": "persona-refinement",
-            "node": "persona-exploration",
             "transport": "default"
           },
           {
             "id": "brainstormer-retry",
-            "node": "idea-generation",
+            "node": "alternatives",
             "transport": "default"
           },
           {
             "id": "convergence-decisions",
-            "node": "idea-convergence",
-            "transport": "default"
-          },
-          {
-            "id": "specification-sections",
-            "node": "feature-specification",
-            "transport": "default"
-          },
-          {
-            "id": "depth-enrichment",
-            "node": "feature-specification",
-            "transport": "default"
-          },
-          {
-            "id": "brief-approval",
-            "node": "review-handoff",
+            "node": "convergence",
             "transport": "default"
           }
         ]
       },
       "terminal": {
         "gates": {
-          "characteristics-approval": {
+          "brief-approval": {
             "options": [
-              "continue-to-context-synthesis",
-              "revise-characteristics",
-              "stop-design",
-              "more-details"
-            ],
-            "transport": "picker"
-          },
-          "context-approval": {
-            "options": [
-              "continue-to-problem-exploration",
-              "revise-context",
-              "stop-design",
-              "more-details"
+              "approve-brief",
+              "change-brief",
+              "change-screens-and-brief",
+              "stop-design"
             ],
             "transport": "picker"
           },
           "direction-approval": {
             "options": [
-              "continue-to-specification",
-              "explore-more-alternatives",
-              "refine-direction",
-              "stop-design"
-            ],
-            "transport": "picker"
-          },
-          "mockup-approval": {
-            "options": [
-              "continue-to-specification-review",
-              "revise-mockups",
+              "approve-direction",
+              "revise-direction",
               "stop-design",
               "more-details"
             ],
@@ -1531,82 +1373,28 @@
           },
           "problem-approval": {
             "options": [
-              "continue-to-idea-generation",
-              "revise-problem",
-              "stop-design",
-              "more-details"
-            ],
-            "transport": "picker"
-          },
-          "specification-approval": {
-            "options": [
-              "continue-to-product-brief",
-              "revise-specification",
-              "stop-design",
-              "more-details"
+              "brief-with-spec",
+              "brief-with-screens",
+              "correct-scope",
+              "revise-problem"
             ],
             "transport": "picker"
           }
         },
         "in_node": [
           {
-            "id": "additional-context",
+            "id": "scope-questions",
             "node": "intake",
-            "transport": "in-session"
-          },
-          {
-            "id": "mockups",
-            "node": "intake",
-            "transport": "in-session"
-          },
-          {
-            "id": "problem-questions",
-            "node": "problem-exploration",
-            "transport": "in-session"
-          },
-          {
-            "id": "user-story",
-            "node": "problem-exploration",
-            "transport": "in-session"
-          },
-          {
-            "id": "problem-refinement",
-            "node": "problem-exploration",
-            "transport": "in-session"
-          },
-          {
-            "id": "persona-questions",
-            "node": "persona-exploration",
-            "transport": "in-session"
-          },
-          {
-            "id": "persona-refinement",
-            "node": "persona-exploration",
             "transport": "in-session"
           },
           {
             "id": "brainstormer-retry",
-            "node": "idea-generation",
+            "node": "alternatives",
             "transport": "in-session"
           },
           {
             "id": "convergence-decisions",
-            "node": "idea-convergence",
-            "transport": "in-session"
-          },
-          {
-            "id": "specification-sections",
-            "node": "feature-specification",
-            "transport": "in-session"
-          },
-          {
-            "id": "depth-enrichment",
-            "node": "feature-specification",
-            "transport": "in-session"
-          },
-          {
-            "id": "brief-approval",
-            "node": "review-handoff",
+            "node": "convergence",
             "transport": "in-session"
           }
         ]
@@ -1614,103 +1402,45 @@
     },
     "gates": [
       {
-        "id": "characteristics-approval",
-        "options": [
-          "continue-to-context-synthesis",
-          "revise-characteristics",
-          "stop-design"
-        ]
-      },
-      {
-        "id": "context-approval",
-        "options": [
-          "continue-to-problem-exploration",
-          "revise-context",
-          "stop-design"
-        ]
-      },
-      {
         "id": "problem-approval",
         "options": [
-          "continue-to-idea-generation",
+          "brief-with-screens",
+          "brief-with-spec",
+          "correct-scope",
           "revise-problem",
-          "stop-design"
+          "use-quick-design"
         ]
       },
       {
         "id": "direction-approval",
         "options": [
-          "continue-to-specification",
-          "explore-more-alternatives",
-          "refine-direction",
+          "approve-direction",
+          "revise-direction",
           "stop-design"
         ]
       },
       {
-        "id": "mockup-approval",
+        "id": "brief-approval",
         "options": [
-          "continue-to-specification-review",
-          "revise-mockups",
-          "stop-design"
-        ]
-      },
-      {
-        "id": "specification-approval",
-        "options": [
-          "continue-to-product-brief",
-          "revise-specification",
+          "approve-brief",
+          "change-brief",
+          "change-screens-and-brief",
           "stop-design"
         ]
       }
     ],
     "in_node": [
       {
-        "id": "additional-context",
+        "id": "scope-questions",
         "node": "intake"
-      },
-      {
-        "id": "mockups",
-        "node": "intake"
-      },
-      {
-        "id": "problem-questions",
-        "node": "problem-exploration"
-      },
-      {
-        "id": "user-story",
-        "node": "problem-exploration"
-      },
-      {
-        "id": "problem-refinement",
-        "node": "problem-exploration"
-      },
-      {
-        "id": "persona-questions",
-        "node": "persona-exploration"
-      },
-      {
-        "id": "persona-refinement",
-        "node": "persona-exploration"
       },
       {
         "id": "brainstormer-retry",
-        "node": "idea-generation"
+        "node": "alternatives"
       },
       {
         "id": "convergence-decisions",
-        "node": "idea-convergence"
-      },
-      {
-        "id": "specification-sections",
-        "node": "feature-specification"
-      },
-      {
-        "id": "depth-enrichment",
-        "node": "feature-specification"
-      },
-      {
-        "id": "brief-approval",
-        "node": "review-handoff"
+        "node": "convergence"
       }
     ]
   },

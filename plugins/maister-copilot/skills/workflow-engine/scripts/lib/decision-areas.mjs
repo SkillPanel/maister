@@ -17,7 +17,7 @@
  *
  *     version   the bare number 1
  *     source    {path, sha256}: the markdown, task-relative, and its bytes' SHA-256
- *     areas     [{id, area, question, why, depends_on?, recommendation, alternatives}]
+ *     areas     [{id, area, question, why, depends_on?, visual?, recommendation, alternatives}]
  *               alternatives: [{id, title, description, pros, cons, key_pro, key_con}]
  *               recommendation: {alternative, reason} or null
  *
@@ -42,6 +42,11 @@
  * are listed once, in `FIXED_LABELS` below, and documented under *What the
  * verb adds* in the reference, which a test holds the list against. Each area
  * is asked and recorded as `convergence-decisions-<area id>`.
+ *
+ * The opt-in lines. Every renderer takes one more argument, `added`: the lines
+ * `addedLines` builds for an area when the asking node's `with:` names a mockup
+ * folder. The caller finds what is on disk and hands them over, so nothing here
+ * reads a page; with no lines passed, each renderer returns what it always did.
  *
  * Pure apart from the reads in `loadAreas`: no stdio, no writes, and warnings
  * are returned, never printed. `node:` builtins and engine libs only, Node >= 20.
@@ -102,6 +107,14 @@ const PREVIEW_CONS = '**Cons**';
 const WHY_RECOMMENDED = '**Why recommended**:';
 const PROS_LABEL = 'Pros:';
 const CONS_LABEL = 'Cons:';
+const SKETCHES_LABEL = 'Sketches:';
+const GALLERY_LABEL = 'Gallery:';
+const INVESTIGATE_LINE_LABEL = 'Investigate first:';
+const INVESTIGATE_LINE = 'answer in your own words starting with “Check” and what to look at; it is checked from the code or the docs, then this is asked again.';
+const INVESTIGATE_FIRST_LABEL = 'Investigate first';
+
+/** The title of the optional form property an investigation's text comes back in. */
+export const CHECK_TITLE = 'What to check';
 
 /**
  * Every fixed label and separator the renderers add, as the shape reference
@@ -112,6 +125,7 @@ export const FIXED_LABELS = [
   WHY_LABEL, DEPENDS_LABEL, PRO_LABEL, CON_LABEL, RECOMMENDED_LABEL, RECOMMENDED_MARK.trim(),
   MORE_DETAILS_LABEL, MORE_DETAILS_DESCRIPTION, ALSO_CONSIDERED, PREVIEW_PROS, PREVIEW_CONS,
   WHY_RECOMMENDED, PROS_LABEL, CONS_LABEL, DETAILS_CUT, AREA_SEPARATOR, DASH, DOT,
+  SKETCHES_LABEL, GALLERY_LABEL, INVESTIGATE_LINE_LABEL, INVESTIGATE_LINE, INVESTIGATE_FIRST_LABEL, CHECK_TITLE,
 ];
 
 /** The most alternatives the `rich` profile offers; the rest are named in the question. */
@@ -119,12 +133,14 @@ const RICH_CAP = 3;
 
 const SLUG = /^[a-z][a-z0-9-]*$/;
 const DIGEST = /^[0-9a-f]{64}$/;
-const RESERVED = new Set(['other', MORE_DETAILS_ID]);
+/** The id a plain picker adds for "investigate first"; an alternative may not take it. */
+export const INVESTIGATE_FIRST_ID = 'investigate-first';
+const RESERVED = new Set(['other', MORE_DETAILS_ID, INVESTIGATE_FIRST_ID]);
 const ABSENT = new Set(['ENOENT', 'ENOTDIR']);
 
 const ROOT_KEYS = { required: ['version', 'source', 'areas'], optional: [] };
 const SOURCE_KEYS = { required: ['path', 'sha256'], optional: [] };
-const AREA_KEYS = { required: ['id', 'area', 'question', 'why', 'recommendation', 'alternatives'], optional: ['depends_on'] };
+const AREA_KEYS = { required: ['id', 'area', 'question', 'why', 'recommendation', 'alternatives'], optional: ['depends_on', 'visual'] };
 const ALTERNATIVE_KEYS = { required: ['id', 'title', 'description', 'pros', 'cons', 'key_pro', 'key_con'], optional: [] };
 const RECOMMENDATION_KEYS = { required: ['alternative', 'reason'], optional: [] };
 
@@ -241,6 +257,7 @@ function checkArea(area, at, ids) {
       named.add(id);
     });
   }
+  if (has(area, 'visual') && typeof area.visual !== 'boolean') throw new Fault(FAULT.wrongType, `${at}.visual`);
   list(area.alternatives, `${at}.alternatives`);
   if (area.alternatives.length < 2) throw new Fault(FAULT.tooFew, `${at}.alternatives`);
   const alternatives = new Set();
@@ -285,7 +302,7 @@ function crossCheck(doc) {
 }
 
 /** A task-relative, `/`-separated path: not absolute, no `..`, no backslash, no empty segment. */
-function relativePath(value) {
+export function relativePath(value) {
   if (value.includes('\\') || value.startsWith('/') || /^[A-Za-z]:/.test(value)) return false;
   return value.split('/').every(segment => segment !== '' && segment !== '..');
 }
@@ -349,7 +366,7 @@ function recommendedOf(area) {
 }
 
 /** The alternatives in picker order: the recommended first, then the rest in rank order. */
-function ordered(area) {
+export function ordered(area) {
   const recommended = recommendedOf(area);
   if (!recommended) return [...area.alternatives];
   return [recommended, ...area.alternatives.filter(alternative => alternative !== recommended)];
@@ -371,6 +388,19 @@ function dependsLine(area, areas) {
 /** An alternative's short line: `Pro: <key_pro> · Con: <key_con>`. */
 function proCon(alternative) {
   return `${PRO_LABEL} ${alternative.key_pro}${DOT}${CON_LABEL} ${alternative.key_con}`;
+}
+
+/**
+ * The lines the opt-in adds to an area's forms: `pages` the `{title, path}` of
+ * each sketch found, in picker order, `gallery` the gallery's path or null. Every
+ * area has the "Investigate first" line; the other two follow what was found.
+ */
+export function addedLines({ pages = [], gallery = null } = {}) {
+  const lines = [];
+  if (pages.length) lines.push(`${SKETCHES_LABEL} ${pages.map(page => `${page.title}${DASH}${page.path}`).join(DOT)}`);
+  if (gallery !== null) lines.push(`${GALLERY_LABEL} ${gallery}`);
+  lines.push(`${INVESTIGATE_LINE_LABEL} ${INVESTIGATE_LINE}`);
+  return lines;
 }
 
 /** The question every form opens with: the ask, why it matters, what it depends on, each alternative. */
@@ -399,11 +429,14 @@ function preview(alternative, reason) {
  * picker showing previews) or the plain one (labels only). Same field shape as
  * `gate-brief --json`: `{ok, picker, question, header, options, details,
  * more_details, question_id, errors, warnings}`. `more_details` is the
- * write-up, unclipped and with its markdown, in both profiles.
+ * write-up, unclipped and with its markdown, in both profiles. `added`, the
+ * opt-in's lines, joins the question: last in the `rich` profile, where an
+ * investigation takes the tool's own free-text answer and no slot, and before
+ * the recommendation in the plain one, which also offers it as an option.
  */
-export function areaPicker(area, areas, profile = 'rich') {
+export function areaPicker(area, areas, profile = 'rich', added = null) {
   const recommended = recommendedOf(area);
-  const more_details = areaDetails(area, areas);
+  const more_details = areaDetails(area, areas, added);
   const lines = questionLines(area, areas);
   const all = ordered(area);
   const isRecommended = alternative => alternative === recommended;
@@ -411,6 +444,7 @@ export function areaPicker(area, areas, profile = 'rich') {
   let header;
   let options;
   if (profile === 'plain') {
+    if (added) lines.push(...added);
     if (recommended) lines.push(`${RECOMMENDED_LABEL} ${recommended.title}${DASH}${closed(area.recommendation.reason)}`);
     question = unmarked(lines.join('\n'));
     header = unmarked(area.area);
@@ -419,11 +453,13 @@ export function areaPicker(area, areas, profile = 'rich') {
       label: unmarked(markedLabel(alternative.title, isRecommended(alternative))),
       recommended: isRecommended(alternative),
     }));
+    if (added) options.push({ id: INVESTIGATE_FIRST_ID, label: INVESTIGATE_FIRST_LABEL, recommended: false });
     options.push({ id: MORE_DETAILS_ID, label: MORE_DETAILS_LABEL, recommended: false, details: true });
   } else {
     const shown = all.slice(0, RICH_CAP);
     const left = all.slice(RICH_CAP);
     if (left.length) lines.push(`${ALSO_CONSIDERED} ${closed(left.map(alternative => alternative.title).join(', '))}`);
+    if (added) lines.push(...added);
     question = lines.join('\n');
     header = clipHeader(area.area);
     options = shown.map(alternative => {
@@ -463,9 +499,10 @@ export function areaPicker(area, areas, profile = 'rich') {
  * The area's full write-up — what More details shows and what a driven
  * question carries as `details`. Markdown, blocks apart by a blank line, never
  * clipped: the area, its question, why and dependencies; each alternative in
- * rank order with its description, pros and cons; then the recommendation.
+ * rank order with its description, pros and cons; then the recommendation, and
+ * last the opt-in's lines as a block of their own when `added` holds them.
  */
-export function areaDetails(area, areas) {
+export function areaDetails(area, areas, added = null) {
   const recommended = recommendedOf(area);
   const head = [`**${area.area}**`, area.question, `${WHY_LABEL} ${area.why}`];
   const depends = dependsLine(area, areas);
@@ -479,6 +516,7 @@ export function areaDetails(area, areas) {
     ].join('\n\n'));
   }
   if (recommended) blocks.push(`${RECOMMENDED_LABEL} ${recommended.title}${DASH}${area.recommendation.reason}`);
+  if (added) blocks.push(added.join('\n'));
   return blocks.join('\n\n');
 }
 
@@ -486,19 +524,23 @@ export function areaDetails(area, areas) {
  * The area as one entry of a driven question set: every alternative (no cap,
  * no More details), the recommended first and marked, with the descriptions
  * the `rich` profile shows. No `default` — the set check fills it from the
- * recommendation — and no `triage`, which the verb adds from the policy.
+ * recommendation — and no `triage`, which the verb adds from the policy. With
+ * `added`, the opt-in's lines end `why` and the write-up, and `allow_other` is
+ * written out, since an investigation comes back as the operator's own words.
  */
-export function areaEntry(area, areas) {
+export function areaEntry(area, areas, added = null) {
   const recommended = recommendedOf(area);
   const depends = dependsLine(area, areas);
+  const why = depends ? `${area.why} ${depends}` : area.why;
   return {
     id: `${QUESTION_PREFIX}${area.id}`,
     header: clipHeader(area.area),
     question: `${area.area}${AREA_SEPARATOR}${area.question}`,
-    why: depends ? `${area.why} ${depends}` : area.why,
+    why: added ? [why, ...added].join('\n') : why,
+    ...(added ? { allow_other: true } : {}),
     options: ordered(area).map(alternative => (alternative === recommended
       ? { id: alternative.id, label: alternative.title, description: area.recommendation.reason, recommended: true }
       : { id: alternative.id, label: alternative.title, description: proCon(alternative) })),
-    details: areaDetails(area, areas),
+    details: areaDetails(area, areas, added),
   };
 }

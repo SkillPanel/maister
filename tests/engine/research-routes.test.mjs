@@ -97,6 +97,21 @@ test('research routes: the foundation gate offers the three ways on, its revise 
   assert.doesNotMatch(plain.question, /Also offered/);
 });
 
+test('research routes: a recommended stop leaves the rich picker four options, the revise named in the question', t => {
+  const run = atFoundation(t, { summary: { risks: [{ risk: 'The store loses writes under load', tag: 'stop', change: null }] } });
+  const picker = pickerOf(run, 'foundation-approval');
+  assert.deepEqual(picker.options.map(option => option.id), ['stop-research', 'continue-to-brainstorming', 'continue-to-design', 'finish-with-research']);
+  assert.match(picker.options.find(option => option.id === 'stop-research').label, /\(Recommended\)$/);
+  assert.ok(picker.question.endsWith('Also offered, not listed: Revise the research (revise-research); name one to choose it.'), picker.question);
+});
+
+test('research routes: the plain picker under a recommended stop lists all five, More details last', t => {
+  const run = atFoundation(t, { summary: { risks: [{ risk: 'The store loses writes under load', tag: 'stop', change: null }] } });
+  const plain = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=foundation-approval', '--json', '--picker=plain']).stdout);
+  assert.deepEqual(plain.options.map(option => option.id), ['stop-research', 'continue-to-brainstorming', 'continue-to-design', 'finish-with-research', 'revise-research', 'more-details']);
+  assert.doesNotMatch(plain.question, /Also offered/);
+});
+
 test('research routes: a stop at the foundation gate ends the run, every unexecuted node stopped', t => {
   const run = atFoundation(t);
   const stopped = write(run, {

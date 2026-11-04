@@ -85,6 +85,7 @@ The Task prompt MUST include:
 4. **Check for visual assets** (single source — `analysis/design-context/`):
    - If `analysis/design-context/INDEX.md` exists: read it to enumerate screens/components, then read each mockup file (HTML, .png, .jpg, .jpeg, .gif, .svg, .pdf, .ascii.md) for design requirements
    - If `analysis/design-context/brief.md` exists (handed off from a product-design task): read it for product intent (Layer 0 + Layer 3 mockup references)
+   - If `analysis/design-context/decision.md` exists (handed off from a quick-design task): read it as design intent beside `brief.md` — the option chosen per area and why. It holds with or without an `INDEX.md`, and it carries the decisions no screen shows
    - If no `design-context/` exists, skip visual asset processing
 
 ### Phase 2: Reusability Search
@@ -138,8 +139,8 @@ Create `implementation/spec.md` using this template:
 [User-facing capabilities to implement — numbered list, each naming the story it serves by id where one does]
 
 ## Visual Design
-[If `analysis/design-context/` exists: reference each screen/component from INDEX.md by stable ID, list mockup paths, summarize key UI elements per screen, note fidelity level, layout guidelines. State: "Mockups in `analysis/design-context/` are binding inputs — implementation-planner will attach `Visual References` to UI task groups."]
-[If no `design-context/`: omit section entirely]
+[If `analysis/design-context/INDEX.md` exists: reference each screen/component from INDEX.md by stable ID, list mockup paths, summarize key UI elements per screen, note fidelity level, layout guidelines. State: "Mockups in `analysis/design-context/` are binding inputs — implementation-planner will attach `Visual References` to UI task groups."]
+[If no `INDEX.md`: omit section entirely]
 
 ## Reusable Components
 
@@ -188,7 +189,7 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 
 ### Phase 4: Coverage
 
-Before returning, make sure every answer in requirements.md is reflected in the spec, every story id in its User stories section is in User Stories under that id and served by at least one core requirement, every numbered functional requirement in requirements.md is covered in spec.md under its number, and — when `analysis/design-context/` exists — every screen/component in its INDEX.md is referenced by ID with the binding-inputs sentence. Fix gaps in spec.md directly. A story or requirement the spec cannot cover goes into `warnings` with its id and the reason, never silently.
+Before returning, make sure every answer in requirements.md is reflected in the spec, every story id in its User stories section is in User Stories under that id and served by at least one core requirement, every numbered functional requirement in requirements.md is covered in spec.md under its number, and — when `analysis/design-context/INDEX.md` exists — every screen/component in it is referenced by ID with the binding-inputs sentence. Fix gaps in spec.md directly. A story or requirement the spec cannot cover goes into `warnings` with its id and the reason, never silently.
 
 ---
 

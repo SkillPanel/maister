@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "source": {"path": "analysis/alternatives.md", "sha256": "6a7e2b8d98632ab3bdbb3e1d5de26a48e18bd8005614b2b3d0397115294be56b"},
+  "areas": [
+    {
+      "id": "access-model",
+      "area": "Access model",
+      "question": "How do guests reach a shared calendar?",
+      "why": "It decides whether a guest needs an account.",
+      "depends_on": [],
+      "visual": false,
+      "recommendation": {"alternative": "signed-link", "reason": "No account, and each link can be revoked"},
+      "alternatives": [
+        {"id": "signed-link", "title": "Signed link", "description": "A link signed for one calendar and one guest, sent with the existing invitation email.", "pros": ["No account needed", "Revocable per link"], "cons": ["A forwarded link reaches whoever receives it"], "key_pro": "No account needed", "key_con": "A forwarded link travels"},
+        {"id": "guest-account", "title": "Guest account", "description": "A light account for each guest.", "pros": ["Revocable per person"], "cons": ["Sign-up friction"], "key_pro": "Revocable per person", "key_con": "Sign-up friction"},
+        {"id": "org-allow-list", "title": "Organisation allow-list", "description": "Guests are listed by email domain.", "pros": ["Nothing to send"], "cons": ["Too coarse for one client"], "key_pro": "Nothing to send", "key_con": "Too coarse for one client"}
+      ]
+    },
+    {
+      "id": "detail-shown",
+      "area": "Detail shown",
+      "question": "What can a guest see of each event?",
+      "why": "It decides what leaks to a guest.",
+      "depends_on": [],
+      "visual": true,
+      "recommendation": {"alternative": "free-and-busy", "reason": "Nothing private leaks"},
+      "alternatives": [
+        {"id": "free-and-busy", "title": "Free and busy only", "description": "Blocks of busy time with no titles.", "pros": ["Nothing private leaks"], "cons": ["A guest cannot tell which meeting could move"], "key_pro": "Nothing private leaks", "key_con": "No sense of what could move"},
+        {"id": "event-titles", "title": "Event titles", "description": "Blocks with their titles.", "pros": ["More useful to a guest"], "cons": ["Exposes other clients' names"], "key_pro": "More useful to a guest", "key_con": "Exposes other clients' names"}
+      ]
+    }
+  ]
+}

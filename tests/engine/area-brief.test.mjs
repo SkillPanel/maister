@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import {
-  ENGINE, ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, maskRoot, delegating, prerequisites, reach, run as runScript, scratch, scratchPlugin, verb, write,
+  ENGINE, ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, maskRoot, delegating, prerequisites, reach, readState, run as runScript, scratch, scratchPlugin, verb, write,
 } from '../helpers.mjs';
 import {
   FIXED_LABELS, areaDetails, areaEntry, areaPicker, loadAreas,
@@ -115,6 +115,37 @@ test('area-brief: a document that is not an object, or a list where an area belo
   doc.areas[1] = [];
   fs.writeFileSync(file, JSON.stringify(doc));
   assert.deepEqual(loadAreas({ file, taskDir: dir }), { warning: 'decision-areas-invalid:decision-areas.json:wrong-type at areas.1' });
+});
+
+test('area-brief: an area may carry a visual bool, true or false, and loads', () => {
+  const dir = scratchTask();
+  const file = path.join(dir, 'decision-areas.json');
+  for (const visual of [true, false]) {
+    const doc = JSON.parse(fs.readFileSync(fixture('valid.json'), 'utf8'));
+    doc.areas[0].visual = visual;
+    fs.writeFileSync(file, JSON.stringify(doc, null, 2));
+    assert.ok(loadAreas({ file, taskDir: dir }).areas, `visual: ${visual} did not load`);
+  }
+});
+
+test('area-brief: a non-bool visual is refused wrong-type at areas.<n>.visual', () => {
+  const dir = scratchTask();
+  const file = path.join(dir, 'decision-areas.json');
+  for (const visual of ['yes', 1, null]) {
+    const doc = JSON.parse(fs.readFileSync(fixture('valid.json'), 'utf8'));
+    doc.areas[1].visual = visual;
+    fs.writeFileSync(file, JSON.stringify(doc, null, 2));
+    assert.deepEqual(loadAreas({ file, taskDir: dir }), { warning: 'decision-areas-invalid:decision-areas.json:wrong-type at areas.1.visual' }, String(visual));
+  }
+});
+
+test('area-brief: investigate-first is a reserved alternative id, refused reserved-id', () => {
+  const dir = scratchTask();
+  const file = path.join(dir, 'decision-areas.json');
+  const doc = JSON.parse(fs.readFileSync(fixture('valid.json'), 'utf8'));
+  doc.areas[2].alternatives[2].id = 'investigate-first';
+  fs.writeFileSync(file, JSON.stringify(doc, null, 2));
+  assert.deepEqual(loadAreas({ file, taskDir: dir }), { warning: 'decision-areas-invalid:decision-areas.json:reserved-id at areas.2.alternatives.2.id' });
 });
 
 // ---------------------------------------------------------------------------
@@ -377,8 +408,8 @@ const WORKFLOWS = {
   'product-design': {
     definition: path.join(ENGINE_DIR, 'workflows/product-design.yml'),
     inputs: { task_description: 'Share a calendar with guests.' },
-    producer: 'idea-generation',
-    node: 'idea-convergence',
+    producer: 'alternatives',
+    node: 'convergence',
     declared: 'analysis/decision-areas.json',
     markdown: 'analysis/alternatives.md',
   },
@@ -687,13 +718,13 @@ const AREA_TRIAGE = { version: 1, class: 'consult', family: 'direction' };
  * convergence node, the valid fixture at the declared path. Every later verb
  * runs through `engine`.
  */
-function drivenRun(t, { engine = ENGINE, frozenBy = engine } = {}) {
-  const spec = WORKFLOWS.research;
-  const run = scratch(t, { type: 'research', name: '2026-10-10-research-driven' });
+function drivenRun(t, { engine = ENGINE, frozenBy = engine, spec = WORKFLOWS.research } = {}) {
+  const type = path.basename(spec.definition, '.yml');
+  const run = scratch(t, { type, name: `2026-10-10-${type}-driven` });
   const { patch } = freezePatch({ definition: spec.definition, inputs: spec.inputs, orchestrator: { driver: DRIVER } });
   passed(frozenBy, ['write-state', `--state=${run.state}`], patch);
   const ahead = Object.fromEntries(prerequisites(run, [spec.producer]).map(id => [id, { status: 'completed' }]));
-  passed(engine, ['write-state', `--state=${run.state}`], delegating({ nodes: ahead }));
+  passed(engine, ['write-state', `--state=${run.state}`], delegating({ nodes: ahead }, run));
   passed(engine, ['write-state', `--state=${run.state}`], { nodes: { [spec.producer]: { status: 'completed' }, [spec.node]: { status: 'running' } } });
   placeAreas(run, spec);
   return { ...run, ...spec, engine, patch: path.join(run.dir, '.state-patch.json') };
@@ -864,4 +895,465 @@ test('area-brief --patch-file never writes through a link planted at its temp pa
   assert.equal(fs.readFileSync(target, 'utf8'), 'untouched');
   assert.equal(written(run).questions.length, 3);
   assert.equal(fs.existsSync(tmp), false);
+});
+
+// ---------------------------------------------------------------------------
+// the sketches opt-in: a node whose `with:` names a mockup folder carries each
+// area's sketch lines and "Investigate first". The shipped research definition
+// does not name one, so these freeze a scratch copy of it that does.
+// ---------------------------------------------------------------------------
+
+const MOCKUPS = 'analysis/mockups';
+const INVESTIGATE = 'Investigate first: answer in your own words starting with “Check” and what to look at; it is checked from the code or the docs, then this is asked again.';
+
+/** A scratch copy of research's definition, its prose beside it, whose convergence node's `with:` names `sketches`. */
+function optInDefinition(t, sketches = MOCKUPS) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'area-brief-opt-in-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const { definition } = WORKFLOWS.research;
+  const text = fs.readFileSync(definition, 'utf8');
+  const edited = text.replace(/^ {6}decision_areas: "\$\{solution-generation\.artifacts\.decision_areas\}"\n/m,
+    line => `${line}      sketches: ${JSON.stringify(sketches)}\n`);
+  assert.notEqual(edited, text, 'the copy names sketches');
+  const file = path.join(dir, 'research.yml');
+  fs.writeFileSync(file, edited);
+  fs.copyFileSync(definition.replace(/\.yml$/, '.md'), path.join(dir, 'research.md'));
+  return file;
+}
+
+/** The run's areas file rewritten with `visual` areas marked and `edit` applied: a stamped copy, never the fixture. */
+function markAreas(run, visual, edit) {
+  const file = path.join(run.dir, run.declared);
+  const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+  for (const area of doc.areas) if (visual.includes(area.id)) area.visual = true;
+  edit?.(doc);
+  fs.writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+}
+
+/** A research run at its convergence node, frozen from the opt-in copy, with `visual` areas marked. */
+function sketchRun(t, { sketches = MOCKUPS, visual = ['storage'], edit } = {}) {
+  const spec = { ...WORKFLOWS.research, definition: optInDefinition(t, sketches) };
+  const run = { ...scratch(t, { type: 'research', name: '2026-10-10-research-sketches' }), ...spec };
+  freeze(run, { definition: spec.definition, inputs: spec.inputs });
+  reach(run, { nodes: { [spec.producer]: { status: 'completed' }, [spec.node]: { status: 'running' } } });
+  placeAreas(run, spec);
+  markAreas(run, visual, edit);
+  return run;
+}
+
+/** Where a file of the mockup folder opens from: the repository-relative path the lines must print. */
+function shownPath(run, name) {
+  return path.relative(run.root, path.join(run.dir, MOCKUPS, name)).split(path.sep).join('/');
+}
+
+/** The pages named, in the mockup folder, as `<area id>-<alternative id>.html`. */
+function drawPages(run, ...slugs) {
+  const dir = path.join(run.dir, MOCKUPS);
+  fs.mkdirSync(dir, { recursive: true });
+  for (const slug of slugs) fs.writeFileSync(path.join(dir, `${slug}.html`), '<!doctype html>\n');
+}
+
+/** `versions/index.json` naming `latest`, with the version's gallery page unless `page` is false. */
+function drawGallery(run, { latest = 'v002', page = true } = {}) {
+  const dir = path.join(run.dir, MOCKUPS, 'versions');
+  fs.mkdirSync(path.join(dir, latest), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({ latest, versions: [] }));
+  if (page) fs.writeFileSync(path.join(dir, latest, 'index.html'), '<!doctype html>\n');
+}
+
+const STORAGE_PAGES = ['storage-same-db', 'storage-hosted-api', 'storage-own-service', 'storage-document-store'];
+
+function pickerOf(run, area, profile = 'rich') {
+  const result = brief(run, [`--area=${area}`, '--json', `--picker=${profile}`]);
+  assert.equal(result.code, 0, result.stderr);
+  return { picker: JSON.parse(result.stdout), stderr: result.stderr };
+}
+
+test('sketches: a visual area names each alternative\'s page in picker order, and the gallery, on every surface', t => {
+  const run = sketchRun(t);
+  drawPages(run, ...STORAGE_PAGES);
+  drawGallery(run);
+  const all = areas();
+  const added = [
+    `Sketches: Same database — ${shownPath(run, 'storage-same-db.html')}`
+      + ` · Hosted calendar API — ${shownPath(run, 'storage-hosted-api.html')}`
+      + ` · Own service — ${shownPath(run, 'storage-own-service.html')}`
+      + ` · Document store — ${shownPath(run, 'storage-document-store.html')}`,
+    `Gallery: ${shownPath(run, 'versions/v002/index.html')}`,
+    INVESTIGATE,
+  ];
+  assert.ok(!added[0].includes(run.root), 'the paths are repository-relative');
+
+  // Rich: after the alternatives and "Also considered"; the options as they were, three and More details.
+  const plainForm = areaPicker(all[0], all, 'plain');
+  const richForm = areaPicker(all[0], all, 'rich');
+  const { picker: rich, stderr } = pickerOf(run, 'storage');
+  assert.equal(stderr, '');
+  assert.deepEqual(rich.warnings, []);
+  assert.equal(rich.question, [richForm.question, ...added].join('\n'));
+  assert.deepEqual(rich.options.map(option => option.id), richForm.options.map(option => option.id));
+  assert.deepEqual(rich.options.slice(0, -1), richForm.options.slice(0, -1));
+
+  // Plain: before the recommendation, which stays last.
+  const { picker: plain } = pickerOf(run, 'storage', 'plain');
+  const opening = plainForm.question.split('\n');
+  const last = opening.pop();
+  assert.equal(plain.question, [...opening, ...added, last].join('\n'));
+  assert.match(last, /^Recommended: /);
+
+  // The write-up closes with the same lines, in both profiles and from the verb.
+  const closing = added.join('\n');
+  assert.equal(rich.more_details, `${areaDetails(all[0], all)}\n\n${closing}`);
+  assert.equal(plain.more_details, rich.more_details);
+  assert.equal(rich.options.at(-1).preview.endsWith(closing), true, 'the More details preview is the write-up');
+  const writeUp = brief(run, ['--area=storage']);
+  assert.equal(writeUp.code, 0, writeUp.stderr);
+  assert.equal(briefOf(writeUp.stdout), `${rich.more_details}\n`);
+  const details = brief(run, ['--area=storage', '--ask', '--details']);
+  assert.equal(details.stdout.trimEnd(), rich.more_details);
+});
+
+test('sketches: two visual areas offering one alternative id each name their own page', t => {
+  const run = sketchRun(t, {
+    visual: ['storage', 'access'],
+    edit: doc => { doc.areas[1].alternatives[0].id = 'same-db'; doc.areas[1].alternatives[0].title = 'Shared link'; },
+  });
+  drawPages(run, 'storage-same-db', 'access-same-db');
+  const storage = pickerOf(run, 'storage').picker.question.split('\n');
+  const access = pickerOf(run, 'access').picker.question.split('\n');
+  assert.ok(storage.includes(`Sketches: Same database — ${shownPath(run, 'storage-same-db.html')}`), storage.join('\n'));
+  assert.ok(access.includes(`Sketches: Shared link — ${shownPath(run, 'access-same-db.html')}`), access.join('\n'));
+});
+
+test('sketches: an area not marked visual gains Investigate first only, whatever the folder holds', t => {
+  const run = sketchRun(t, { visual: ['storage'] });
+  drawPages(run, 'access-signed-link', ...STORAGE_PAGES);
+  drawGallery(run);
+  const all = areas();
+  const { picker, stderr } = pickerOf(run, 'access');
+  assert.equal(stderr, '', 'a non-visual area has no page to miss');
+  assert.equal(picker.question, `${areaPicker(all[1], all, 'rich').question}\n${INVESTIGATE}`);
+  assert.equal(picker.more_details, `${areaDetails(all[1], all)}\n\n${INVESTIGATE}`);
+});
+
+test('sketches: a missing page drops that alternative alone; no page at all warns once and the area still renders', t => {
+  const run = sketchRun(t);
+  drawPages(run, 'storage-hosted-api', 'storage-document-store');
+  const partial = pickerOf(run, 'storage');
+  assert.equal(partial.stderr, '', 'one page missing names the others, with no warning');
+  assert.ok(partial.picker.question.split('\n').includes(
+    `Sketches: Hosted calendar API — ${shownPath(run, 'storage-hosted-api.html')} · Document store — ${shownPath(run, 'storage-document-store.html')}`));
+
+  // The folder absent, then present with nothing of this area's.
+  const warning = `area-sketches-missing:${MOCKUPS}:storage`;
+  const all = areas();
+  for (const setup of [() => {}, other => { drawPages(other, 'access-signed-link'); drawGallery(other); }]) {
+    const empty = sketchRun(t);
+    setup(empty);
+    const { picker, stderr } = pickerOf(empty, 'storage');
+    assert.equal(stderr, `warning: ${warning}\n`);
+    assert.deepEqual(picker.warnings, [warning]);
+    assert.equal(picker.fallback, undefined, 'the question is still rendered from the file, never a fallback');
+    assert.equal(picker.question, `${areaPicker(all[0], all, 'rich').question}\n${INVESTIGATE}`, 'no sketch line');
+    const writeUp = brief(empty, ['--area=storage']);
+    assert.equal(writeUp.stderr, `warning: ${warning}\n`);
+    assert.ok(briefOf(writeUp.stdout).trimEnd().endsWith(INVESTIGATE));
+    const ask = brief(empty, ['--area=storage', '--ask']);
+    assert.equal(ask.stderr, `warning: ${warning}\n`);
+    assert.equal(JSON.parse(ask.stdout).message.includes(INVESTIGATE), true);
+  }
+
+  // A gallery whose page is not on disk, or an index that cannot be read, names no gallery and warns nothing.
+  const noPage = sketchRun(t);
+  drawPages(noPage, 'storage-same-db');
+  drawGallery(noPage, { page: false });
+  assert.doesNotMatch(pickerOf(noPage, 'storage').picker.question, /Gallery:/);
+  const badIndex = sketchRun(t);
+  drawPages(badIndex, 'storage-same-db');
+  fs.mkdirSync(path.join(badIndex.dir, MOCKUPS, 'versions'), { recursive: true });
+  fs.writeFileSync(path.join(badIndex.dir, MOCKUPS, 'versions/index.json'), '{');
+  const unread = pickerOf(badIndex, 'storage');
+  assert.doesNotMatch(unread.picker.question, /Gallery:/);
+  assert.equal(unread.stderr, '');
+});
+
+test('sketches: a value that is no literal task-relative path warns invalid, with no sketch lines and Investigate first still shown', t => {
+  const invalid = ['../mockups', '/abs/mockups', 'analysis/../mockups', 'analysis\\mockups', '${solution-generation.artifacts.exploration}'];
+  for (const sketches of invalid) {
+    const run = sketchRun(t, { sketches });
+    drawPages(run, ...STORAGE_PAGES);
+    drawGallery(run);
+    const warning = `area-sketches-invalid:${sketches}`;
+    const { picker, stderr } = pickerOf(run, 'storage');
+    assert.equal(stderr, `warning: ${warning}\n`, sketches);
+    assert.deepEqual(picker.warnings, [warning], sketches);
+    assert.doesNotMatch(picker.question, /Sketches:|Gallery:/, sketches);
+    assert.ok(picker.question.endsWith(INVESTIGATE), sketches);
+    assert.ok(picker.more_details.endsWith(INVESTIGATE), sketches);
+    const plain = pickerOf(run, 'storage', 'plain').picker;
+    assert.ok(plain.options.some(option => option.id === 'investigate-first'), sketches);
+    assert.equal(brief(run, ['--area=storage']).stderr, `warning: ${warning}\n`, sketches);
+    const patch = path.join(run.dir, '.state-patch.json');
+    assert.equal(brief(run, [`--patch-file=${patch}`]).stderr, `warning: ${warning}\n`, `${sketches}: once for the whole set`);
+    for (const question of JSON.parse(fs.readFileSync(patch, 'utf8')).questions) {
+      assert.ok(question.why.endsWith(`\n${INVESTIGATE}`), `${sketches}: ${question.id}`);
+      assert.doesNotMatch(question.why, /Sketches:|Gallery:/, `${sketches}: ${question.id}`);
+    }
+  }
+});
+
+test('sketches: an ASCII folder names each alternative by the flat document\'s anchor, and has no gallery', t => {
+  const run = sketchRun(t);
+  const dir = path.join(run.dir, MOCKUPS);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'ascii-mockups.md'), [
+    '# Mockups', '', '<a id="storage-own-service"></a>', '### Own service', '',
+    '<a id="storage-same-db"></a>', '### Same database', '', 'storage-hosted-api is named here, with no anchor of its own.',
+  ].join('\n'));
+  const { picker, stderr } = pickerOf(run, 'storage');
+  assert.equal(stderr, '');
+  const flat = shownPath(run, 'ascii-mockups.md');
+  assert.ok(picker.question.split('\n').includes(
+    `Sketches: Same database — ${flat}#storage-same-db · Own service — ${flat}#storage-own-service`), picker.question);
+  assert.doesNotMatch(picker.question, /Gallery:/);
+
+  const none = sketchRun(t);
+  fs.mkdirSync(path.join(none.dir, MOCKUPS), { recursive: true });
+  fs.writeFileSync(path.join(none.dir, MOCKUPS, 'ascii-mockups.md'), '<a id="access-signed-link"></a>\n');
+  assert.equal(pickerOf(none, 'storage').stderr, `warning: area-sketches-missing:${MOCKUPS}:storage\n`);
+});
+
+test('sketches: the plain picker offers investigate-first before More details and --ask gains the optional check property; rich takes no slot', t => {
+  const run = sketchRun(t);
+  drawPages(run, 'storage-same-db');
+  const { picker: plain } = pickerOf(run, 'storage', 'plain');
+  assert.deepEqual(plain.options.map(option => option.id),
+    ['same-db', 'hosted-api', 'own-service', 'document-store', 'investigate-first', 'more-details']);
+  assert.deepEqual(plain.options.at(-2), { id: 'investigate-first', label: 'Investigate first', recommended: false });
+
+  const asked = brief(run, ['--area=storage', '--ask']);
+  assert.equal(asked.code, 0, asked.stderr);
+  const call = JSON.parse(asked.stdout);
+  assert.deepEqual(Object.keys(call), ['message', 'requestedSchema']);
+  assert.equal(call.message, plain.question);
+  const { properties, required } = call.requestedSchema;
+  assert.deepEqual(Object.keys(properties), ['decision', 'check']);
+  assert.deepEqual(properties.check, { type: 'string', title: 'What to check' });
+  assert.deepEqual(required, ['decision'], 'the choice alone is required');
+  assert.deepEqual(properties.decision.oneOf.at(-2), { const: 'investigate-first', title: 'Investigate first' });
+  assert.equal(properties.decision.default, 'same-db');
+
+  const { picker: rich } = pickerOf(run, 'storage');
+  assert.deepEqual(rich.options.map(option => option.id), ['same-db', 'hosted-api', 'own-service', 'more-details']);
+
+  // Without the key the call is what it was: one property, no check, no option.
+  const before = atConvergence(t);
+  const form = JSON.parse(brief(before, ['--area=storage', '--ask']).stdout);
+  assert.deepEqual(Object.keys(form.requestedSchema.properties), ['decision']);
+  assert.ok(!form.requestedSchema.properties.decision.oneOf.some(option => option.const === 'investigate-first'));
+  assert.doesNotMatch(form.message, /Investigate first/);
+});
+
+test('sketches: the set form ends each why with the lines and writes allow_other, and gate-brief --request takes it', t => {
+  const spec = { ...WORKFLOWS.research, definition: optInDefinition(t) };
+  const run = drivenRun(t, { spec });
+  markAreas(run, ['storage', 'sharing-screen']);
+  drawPages(run, 'storage-same-db', 'storage-own-service');
+  drawGallery(run);
+  const set = setOf(run);
+  assert.equal(set.code, 0, set.stderr);
+  assert.equal(set.stderr, `warning: area-sketches-missing:${MOCKUPS}:sharing-screen\n`, 'one warning, for the visual area with no page');
+
+  const all = areas();
+  const storageLines = [
+    `Sketches: Same database — ${shownPath(run, 'storage-same-db.html')} · Own service — ${shownPath(run, 'storage-own-service.html')}`,
+    `Gallery: ${shownPath(run, 'versions/v002/index.html')}`,
+    INVESTIGATE,
+  ];
+  const expected = {
+    storage: storageLines,
+    access: [INVESTIGATE],
+    'sharing-screen': [INVESTIGATE],
+  };
+  const { questions } = written(run);
+  for (const [i, question] of questions.entries()) {
+    const area = all[i];
+    const entry = areaEntry(area, all);
+    const lines = expected[area.id];
+    assert.equal(question.why, [entry.why, ...lines].join('\n'), area.id);
+    assert.equal(question.allow_other, true, area.id);
+    assert.deepEqual(question.options, entry.options, `${area.id}: the options as they were`);
+    assert.equal(question.details, `${entry.details}\n\n${lines.join('\n')}`, area.id);
+  }
+
+  const asked = passed(run.engine, ['gate-brief', `--state=${run.state}`, `--node=${run.node}`, '--request', `--patch-file=${run.patch}`]);
+  const request = JSON.parse(asked.stdout);
+  assert.equal(request.kind, 'question');
+  const checkpoint = request.context.checkpoint.questions;
+  assert.equal(checkpoint.length, all.length);
+  for (const [i, question] of checkpoint.entries()) {
+    const lines = expected[all[i].id];
+    assert.ok(question.why.endsWith(lines.join('\n')), all[i].id);
+    assert.equal(question.allow_other, true, all[i].id);
+    assert.ok(question.details.endsWith(lines.join('\n')), all[i].id);
+  }
+});
+
+test('sketches: the opt-in renders add only the fixed labels and the paths read from disk', t => {
+  const run = sketchRun(t, { visual: ['storage', 'sharing-screen'] });
+  drawPages(run, ...STORAGE_PAGES);
+  drawGallery(run);
+  const all = areas();
+  const words = new Set();
+  const collect = value => {
+    if (typeof value === 'string') { words.add(value); words.add(value.replace(/`/g, '')); }
+    else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+  };
+  collect(all);
+  const paths = [
+    ...STORAGE_PAGES.map(slug => shownPath(run, `${slug}.html`)),
+    shownPath(run, 'versions/v002/index.html'),
+  ];
+  const pieces = [...words, ...FIXED_LABELS, ...paths].sort((a, b) => b.length - a.length);
+  const bare = text => {
+    let rest = text;
+    for (const piece of pieces) rest = rest.split(piece).join('');
+    return rest;
+  };
+  for (const area of all) {
+    for (const profile of ['rich', 'plain']) {
+      const { picker } = pickerOf(run, area.id, profile);
+      const shown = [picker.question, picker.more_details, ...picker.options.flatMap(option => [option.label, option.description ?? '', option.preview ?? ''])];
+      for (const text of shown) assert.match(bare(text), /^[\s*\-.,…]*$/, `${area.id} ${profile}: ${JSON.stringify(bare(text))} is the module's own wording`);
+    }
+  }
+  const driven = drivenRun(t, { spec: { ...WORKFLOWS.research, definition: optInDefinition(t) } });
+  markAreas(driven, ['storage']);
+  setOf(driven);
+  for (const question of written(driven).questions) {
+    for (const text of [question.why, question.details]) assert.match(bare(text), /^[\s*\-.,…]*$/, `${question.id}: ${JSON.stringify(bare(text))}`);
+  }
+});
+
+test('sketches: the shipped product design\'s convergence names the folder it draws into, and warns when nothing was drawn', t => {
+  const run = atConvergence(t, { workflow: 'product-design' });
+  markAreas(run, ['storage']);
+  const missing = pickerOf(run, 'storage');
+  assert.equal(missing.stderr, `warning: area-sketches-missing:${MOCKUPS}:storage\n`, 'what a run that drew nothing relays');
+  assert.ok(missing.picker.question.endsWith(INVESTIGATE));
+
+  drawPages(run, 'storage-same-db');
+  drawGallery(run);
+  const { picker, stderr } = pickerOf(run, 'storage');
+  assert.equal(stderr, '');
+  assert.equal(picker.question, [
+    areaPicker(areas()[0], areas(), 'rich').question,
+    `Sketches: Same database — ${shownPath(run, 'storage-same-db.html')}`,
+    `Gallery: ${shownPath(run, 'versions/v002/index.html')}`,
+    INVESTIGATE,
+  ].join('\n'));
+});
+
+/**
+ * `request` answered as a driver does: the request file as the writer lands it,
+ * then the answer block folded from the summary, as the resumed node sends it.
+ */
+function answerRequest(run, request, answers) {
+  fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
+  const lines = Object.entries({ ...request, answer: null }).map(([key, value]) => `${key}: ${JSON.stringify(value)}`);
+  fs.writeFileSync(path.join(run.dir, `gates/${run.node}.request.yml`), `${lines.join('\n')}\n`);
+  passed(run.engine, ['write-state', `--state=${run.state}`], {
+    node_summaries: { [run.node]: { answer: { answers, answered_by: 'dana', at: '2026-01-05T09:12:00Z', via: 'cockpit' } } },
+  });
+}
+
+test('sketches: under a driver a "Check" answer is held under its area\'s id, the follow-up round supersedes it, and one still checking when the rounds are spent is counted as given', t => {
+  const run = drivenRun(t, { spec: WORKFLOWS['product-design'] });
+  markAreas(run, ['storage']);
+  drawPages(run, 'storage-same-db');
+  // The route as a run records it, for the direction gate this closes on.
+  passed(run.engine, ['write-state', `--state=${run.state}`], {
+    nodes: {
+      intake: { status: 'completed', values: { draws: true } },
+      'problem-approval': { status: 'completed' },
+      alternatives: { status: 'completed', values: { visual_areas: true } },
+      sketches: { status: 'completed' },
+    },
+    node_summaries: { 'problem-approval': { decisions: [{ option: 'brief-with-screens' }] } },
+  });
+  const requestOf = flags => {
+    const set = setOf(run, flags);
+    assert.equal(set.code, 0, set.stderr);
+    return JSON.parse(passed(run.engine, ['gate-brief', `--state=${run.state}`, `--node=${run.node}`, '--request', `--patch-file=${run.patch}`]).stdout);
+  };
+  const answersBy = id => readState(run).node_summaries[run.node].decisions.filter(item => item.question_id === id);
+  const storage = 'convergence-decisions-storage';
+  const access = 'convergence-decisions-access';
+  const screen = 'convergence-decisions-sharing-screen';
+
+  const first = requestOf([]);
+  assert.equal(first.round, 1);
+  const questions = first.context.checkpoint.questions;
+  assert.deepEqual(questions.map(question => question.id), [storage, access, screen]);
+  assert.ok(questions.every(question => question.allow_other === true));
+  const worded = { [storage]: 'Check the calendars table first', [access]: 'Check how long a link lives' };
+  answerRequest(run, first, { [storage]: { other: worded[storage] }, [access]: { other: worded[access] }, [screen]: 'settings-page' });
+  for (const id of [storage, access]) {
+    const [check, ...rest] = answersBy(id);
+    assert.deepEqual(rest, [], id);
+    assert.equal(check.answer, worded[id], 'recorded as given');
+    assert.equal(check.by, 'operator');
+    assert.notEqual(check.as_recommended, true);
+    assert.equal(Object.hasOwn(check, 'round'), false, 'the first round stamps none');
+  }
+
+  // Asked again in one follow-up round, the same ids in the same words, so the fold replaces each.
+  const second = requestOf(['--area=storage', '--area=access']);
+  assert.equal(second.round, 2);
+  const again = second.context.checkpoint.questions;
+  assert.deepEqual(again.map(question => question.id), [storage, access]);
+  assert.deepEqual(again.map(question => question.question), questions.slice(0, 2).map(question => question.question));
+  answerRequest(run, second, { [storage]: 'hosted-api', [access]: { other: 'Check who may revoke a link' } });
+  const [chosen, ...stale] = answersBy(storage);
+  assert.deepEqual(stale, [], 'the investigation is superseded, its finding left to the area\'s record');
+  assert.equal(chosen.answer, 'Hosted calendar API');
+  assert.equal(chosen.round, 2);
+  assert.deepEqual(answersBy(screen).map(item => item.answer), ['Settings page'], 'an area not asked again keeps its answer');
+
+  // Still checking: the last round, then nothing more is asked and the last answer stands.
+  const third = requestOf(['--area=access']);
+  assert.equal(third.round, 3);
+  answerRequest(run, third, { [access]: { other: 'Check the audit log' } });
+  const spent = passed(run.engine, ['area-brief', `--state=${run.state}`, `--node=${run.node}`, `--patch-file=${run.patch}`, '--area=access']);
+  assert.equal(spent.stderr, '');
+  const refused = runScript(run.engine, ['gate-brief', `--state=${run.state}`, `--node=${run.node}`, '--request', `--patch-file=${run.patch}`]);
+  assert.equal(refused.code, 1);
+  assert.match(refused.stderr, /^gate-brief-rounds-spent: /);
+
+  passed(run.engine, ['write-state', `--state=${run.state}`], {
+    nodes: { [run.node]: { status: 'completed' } },
+    node_summaries: { [run.node]: {
+      summary: 'Two areas chosen; one left open on its last check.',
+      risks: [{ risk: 'access: undecided after three checks', tag: 'open', change: 'choose the signed link' }],
+      decision_areas: [{ area: 'access', recommended: 'signed-link' }],
+    } },
+  });
+  assert.deepEqual(answersBy(access).map(item => [item.answer, item.round]), [['Check the audit log', 3]]);
+  const gate = JSON.parse(passed(run.engine, ['gate-brief', `--state=${run.state}`, '--node=direction-approval', '--checkpoint']).stdout);
+  assert.equal(gate.decisions.operator.count, 3, 'one answer per area, the last check among them');
+});
+
+test('sketches: a run whose convergence names none keeps every form byte-identical to the renderers without the opt-in', t => {
+  const run = atConvergence(t);
+  markAreas(run, ['storage']);
+  drawPages(run, ...STORAGE_PAGES);
+  drawGallery(run);
+  const all = areas();
+  const { picker, stderr } = pickerOf(run, 'storage');
+  assert.equal(stderr, '', 'a visual mark with no opt-in warns nothing');
+  assert.equal(picker.question, areaPicker(all[0], all, 'rich').question);
+  assert.equal(picker.more_details, areaDetails(all[0], all));
+  const plain = pickerOf(run, 'storage', 'plain').picker;
+  assert.deepEqual(plain.options, areaPicker(all[0], all, 'plain').options);
+  assert.equal(Object.hasOwn(areaEntry(all[0], all), 'allow_other'), false);
 });

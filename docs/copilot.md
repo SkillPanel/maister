@@ -125,7 +125,7 @@ when you are not sure which one you need. To choose yourself:
 | `research` | A question to answer before building: gathers evidence from the codebase and the pages it can fetch, and writes a report with a recommendation. See [Research and the web](#research-and-the-web). |
 | `performance` | Slow code: finds bottlenecks by reading the code (N+1 queries, missing indexes, quadratic loops, blocking I/O), then fixes them like a development run. |
 | `migration` | Moving to another library, platform or architecture pattern, step by step, with rollback planning and compatibility checks. |
-| `product-design` | A fuzzy idea: explores the problem and options with you, prototypes screens, and ends with a product brief. |
+| `product-design` | A fuzzy idea: explores the project, proposes the scope, decides with sketches and ends with a product brief and its screens. |
 | `mockup-studio` | One set of UI mockups: draws one new version of the screens you describe, beside the earlier versions, and stops. |
 | `quick-plan` | A bounded change: drafts a plan that follows your standards, asks you to approve it, then implements it. |
 | `quick-dev` | A small change you want made directly, with your standards applied and checked at the end. |

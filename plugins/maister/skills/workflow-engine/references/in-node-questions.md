@@ -236,6 +236,49 @@ tool, write the printed request over it byte for byte, every question's `details
 and suspend with `gate-request` (*When a question suspends*). A `policy-hash-mismatch` warning
 means no area carries `triage`; the request still goes.
 
+**When the node's `with:` names `sketches`**, a mockup folder relative to the task directory, the
+verb adds to each area the lines `references/decision-areas.md` lists under *The sketch lines*: a
+`visual` area's sketch pages and the gallery, and on every area "Investigate first". Without the
+key nothing changes.
+<!-- rich-picker -->
+The lines end `question`, and the options stay as they are: an investigation is typed in the tool's
+own free-text answer.
+<!-- /rich-picker -->
+<!-- plain-picker
+The lines come before the message's recommendation, the form offers `investigate-first` before More
+details, and its optional `check` property, "What to check", takes what to look at.
+-->
+The write-up closes with the same lines. With `--patch-file` each entry's `why` ends with them and
+`allow_other` is written true, so an investigation comes back as `{other: "Check …"}`.
+
+Read each answer this way:
+
+- **An alternative's id or title** is the choice.
+- **Own words starting with "Check"** are an investigation. Record them under the area's question
+  id as given, check it from the code or the docs, add one line to the area's record, then ask the
+  same area again under the same question id, in a follow-up round. In session the write sends
+  both answers, the re-asked one with the next `round` (2, then 3). Under a driver the areas a
+  check was asked for go in one follow-up request, `--area` repeated. The later round's answer is
+  the one in effect (*When a question suspends*). Once the rounds are spent the area stays open for
+  the next gate, with the finding in its risk.
+- **Own words naming an approach not in the list** are an option asked for midway: confirm it in
+  one line, and the node's prose says what follows.
+<!-- plain-picker
+The answer `investigate-first`, or an alternative with `check` text beside it, is an investigation
+too, so that alternative is not yet the choice; `investigate-first` with no `check` text is asked
+once what to check. An option asked for midway comes through the list's Other (type your answer).
+`check` text naming an approach, not something to look at, is read as one too, confirmed in one
+line as above.
+-->
+
+Two warnings go with `sketches`. Neither is a fallback: the question is still printed, so pass it on
+unchanged, and relay the warning in the node's summary.
+
+| Warning | What it means |
+|---|---|
+| `area-sketches-missing:<folder>:<area id>` | A `visual` area has no sketch for any alternative, or the folder is absent. The area shows no sketch line; this is expected when the run drew nothing |
+| `area-sketches-invalid:<value>` | `sketches` is not a literal, task-relative path: no `${`, not absolute, no `..`, `/`-separated. No area shows a sketch line; "Investigate first" still shows |
+
 **When the file cannot be used**, the verb prints one warning on stderr, exits `0` and gives
 nothing to ask from — under `--json`, `{ok: true, fallback: true}`; under `--ask`, no output;
 with `--patch-file`, no file:
@@ -363,7 +406,10 @@ taking their defaults. These rules hold:
   retry after a spent budget, the fix loop's stopping point — the node may send one more set for
   those questions alone, in the same attempt. An attempt sends at most three requests: the first
   and two follow-up rounds. Each request carries its `round` (1, 2 or 3), and each answer folded
-  from a follow-up is stamped with its `round`, which is how the engine counts them.
+  from a follow-up is stamped with its `round`, which is how the engine counts them. Within one
+  attempt, a later round's answer to the same question is the one in effect: the earlier round's
+  stays as history and is never counted as a choice, even when the follow-up words the question
+  differently.
   Past the third, `gate-brief --request` refuses `gate-brief-rounds-spent`, writes nothing, and the
   question takes its named default below, recorded `by: default`.
 - **Write before asking, every round.** Whatever the node needs after the answer — its analysis,

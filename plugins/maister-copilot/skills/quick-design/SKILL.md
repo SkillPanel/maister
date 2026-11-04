@@ -19,8 +19,8 @@ once, and write `decision.md`. No engine run, no state file, no phases.
   becomes an "unknown, to check" line in the decision. Do not stop to ask about it.
 - **Say when it's too small.** When the question needs research first (evidence you cannot read
   from the codebase or the docs) or has more than three independent decision areas, recommend
-  `/maister-copilot:product-design` (or `/maister-copilot:research` when the gap is evidence), say why in two or
-  three lines, and stop without writing anything. Never guess past it.
+  `/maister-copilot:product-design`, which will propose the scope (or `/maister-copilot:research` when the gap is
+  evidence), say why in two or three lines, and stop without writing anything. Never guess past it.
 - **Keep it light.** No research phase, no personas, no HTML companions, no gates beyond the one
   decision step.
 - **Files go straight to their place.** Every file this skill writes is written with the file

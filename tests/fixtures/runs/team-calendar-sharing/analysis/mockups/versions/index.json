@@ -1,0 +1,7 @@
+{
+  "latest": "v002",
+  "versions": [
+    {"version": "v001", "created": "2026-10-02T09:44:20Z", "note": "Sketches of the visual area", "parent": null, "changed": ["who-this-is-for", "detail-shown-free-and-busy", "detail-shown-event-titles"]},
+    {"version": "v002", "created": "2026-10-02T10:36:40Z", "note": "The final screens", "parent": "v001", "changed": ["share-dialog", "guest-calendar", "propose-a-time"]}
+  ]
+}

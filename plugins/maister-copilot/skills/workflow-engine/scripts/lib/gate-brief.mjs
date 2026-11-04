@@ -824,14 +824,20 @@ const RICH_SLOTS = 4;
  * first; the revises offered for held choices fill the room left, nearest the
  * end, the recommended one always among them, and the question names the rest,
  * reached by typing. A gate whose own options are more than the slots — ways
- * on, a revise and a stop — names its stop the same way, unless the stop is
- * recommended: every way on and every revise stays a listed option.
+ * on, a revise and a stop — names the excess the same way: its unrecommended
+ * stops first, then, while the options still outnumber the slots, its
+ * unrecommended revises, the last revise first. A continue and the recommended
+ * option are never moved, so a recommended stop leaves a revise in the question.
  */
 function richHeldPicker(checkpoint, options) {
   const own = id => isPlainObject(options) && Object.hasOwn(options, id);
   const mine = checkpoint.options.filter(option => own(option.id));
   const excess = mine.length - RICH_SLOTS;
   const spare = excess > 0 ? mine.filter(option => option.effect === 'stop' && !option.recommended).slice(-excess) : [];
+  if (excess > spare.length) {
+    const revises = mine.filter(option => option.effect === 'revise' && !option.recommended);
+    spare.push(...revises.reverse().slice(0, excess - spare.length));
+  }
   const held = checkpoint.options.filter(option => !own(option.id));
   const room = Math.max(0, RICH_SLOTS - (mine.length - spare.length));
   if (held.length <= room && !spare.length) return richPicker(checkpoint);

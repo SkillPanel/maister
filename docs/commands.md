@@ -123,7 +123,7 @@ Starts the unified development workflow (14 adaptive phases) or resumes an exist
 | `--user-docs` / `--no-user-docs` | Generate or skip user documentation without being asked (asked if omitted) |
 | `--research=PATH` | Start development informed by a completed research task |
 | `--context=PATH` | Hand the run a context pack — a file or a directory inside the project, relative to the project root — copied into the task's `analysis/work-context/` as background for every phase; a path that cannot be read, or that leads outside the project, is reported and the run continues without it |
-| `--design=PATH` | Start development from a completed product-design task: its brief and mockups become the design context |
+| `--design=PATH` | Start development from a completed product-design task, or from a quick-design task or its `decision.md`: the brief or the decision, and the mockups of what was chosen, become the design context |
 | `--architecture=PATH` | Build within a high-level design — a design document, or a research task that wrote one: its interfaces, contracts and decisions constrain the specification and the plan |
 | `--sequential` | Run task groups one at a time instead of in parallel waves |
 | `--publish` | Approving the plan also publishes: when the run finishes it pushes its branch and opens a pull request, or updates the one already open from that branch |
@@ -213,20 +213,17 @@ is woken, while in the terminal the research runs in the same session and the pa
 
 ### `/maister:product-design [description | task-path]`
 
-Starts the interactive product/feature design workflow (ten phases and six checkpoints, of which `--simple` keeps the problem and specification checkpoints and skips the personas, the brainstorm and, unless the design turns on layout or presentation, the prototypes) or resumes an existing one. Transforms ideas into structured product briefs through collaborative exploration, iterative refinement, and visual prototyping. Can be run without arguments — the plugin extracts the design brief from your conversation.
+Starts the interactive product/feature design workflow (six steps and three checkpoints) or resumes an existing one. Explores the project, proposes the scope, decides each choice with sketches, and writes a product brief with its final screens. The first checkpoint chooses the outcome — a design brief with screens, or a brief with a feature specification — or stops in favour of `/maister:quick-design` when one bounded question is all there is. Can be run without arguments — the plugin extracts the design brief from your conversation.
 
 | Flag | Description |
 |------|-------------|
 | `--research=PATH` | Start design informed by a completed research task |
-| `--no-visual` | Skip browser-based visual companion (use ASCII mockups only) |
-| `--simple` | Short design: two checkpoints (problem, specification), no personas, no brainstorm of alternatives, prototypes only when the design turns on layout or presentation (you can override that when asked for additional context) |
-| `--full` | Full design whatever the detected complexity: personas drafted and every phase at its deepest |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
 
 **Neither resume flag applies to product design.** Product design runs on the workflow engine, and the engine resumes by recomputing which nodes are ready from the graph frozen into the task's state: there is no mid-graph entry point to jump to, and no attempt counter held in state to reset. A run on the engine declines both by name rather than accepting one it would ignore. Resume a design by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
 
-A run driven from outside the session — from the cockpit, or dispatched — asks none of the questions inside the phases and takes each one's stated default, and its documents say they were drafted without review. It never chooses a design direction itself: the direction pause lists each decision with its recommendation, and that is where you choose.
+A run driven from outside the session — from the cockpit, or dispatched — sends the questions inside the phases to the operator when its driver supports question sets. Otherwise it takes each one's stated default, and its documents say they were drafted without review. It never chooses a design direction itself: the direction pause lists each decision with its recommendation, and that is where you choose.
 
 Design output can feed directly into development: `/maister:development .maister/tasks/product-design/...`, or `--design=PATH` beside a description of your own. The brief ends with the delivery scope — the repositories in scope, in order — also written as `outputs/delivery-scope.yml`.
 
@@ -667,4 +664,4 @@ Settles one small design question in the session: frames it (what is known, the 
 
 Writes `decision.md` under `.maister/tasks/design/YYYY-MM-DD-name/`: about a page in ADR style (context, options considered, decision and reason, consequences, unknowns, proposed issues or slices), with the mockups beside it when they were made.
 
-**When to use**: A bounded design question with at most three decision areas. When it needs research or has more, the skill recommends `/maister:product-design` or `/maister:research` instead and says why.
+**When to use**: A bounded design question with at most three decision areas. When it needs research or has more, the skill recommends `/maister:product-design`, which will propose the scope, or `/maister:research` instead and says why.

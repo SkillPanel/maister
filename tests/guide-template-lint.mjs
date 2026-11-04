@@ -46,7 +46,7 @@ const BUILT_INS = {
   development: [],
   migration: [],
   performance: [],
-  'product-design': ['The context block', 'Depth', 'Embedded mode'],
+  'product-design': ['The context block', 'Embedded mode'],
   research: ['Embedded mode'],
   'mockup-studio': [],
 };

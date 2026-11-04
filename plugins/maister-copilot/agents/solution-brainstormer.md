@@ -65,7 +65,7 @@ The markdown is what a person reads; the decision areas file is what the converg
 
 ## Input Requirements
 
-The Task prompt MUST include:
+The Task prompt MUST include (product design passes its inputs below in place of the two research paths):
 
 | Input | Source | Purpose |
 |-------|--------|---------|
@@ -81,6 +81,16 @@ Optional, and exact when given:
 |-------|---------|---------|
 | `output_path` | `outputs/solution-exploration.md` | Where the exploration markdown goes (product design passes `analysis/alternatives.md`) |
 | `areas_output_path` | `decision-areas.json` beside `output_path` | Where the decision areas file goes |
+| `visual_marks` | absent | True: mark the areas whose alternatives differ in what a person sees, and return `visual_areas`. Absent: write no `visual` key and return no `visual_areas` |
+
+Product design's inputs, in place of the research paths:
+
+| Input | Purpose |
+|-------|---------|
+| `scope` | `analysis/scope.md`: its decisions are the decision areas |
+| `explore` | `analysis/explore/`: the explore briefs; read each one |
+| `problem_statement` | `analysis/problem-statement.md` |
+| `personas` | `analysis/personas.md` |
 
 **Accumulated Context** (Pattern 7):
 - `research_type`: technical, requirements, literature, mixed
@@ -101,7 +111,7 @@ Optional, and exact when given:
 5. **Identify the decision areas** - where multiple viable approaches exist based on evidence; one area when the problem holds one decision
 6. **Generate HMW questions internally** - transform research findings into opportunity statements (not user-validated, used to structure your own exploration)
 
-For product design, the evidence is the design context, the problem statement and, when named, the personas, rather than a research synthesis; the phases below apply unchanged.
+For product design, the evidence is the scope, the explore briefs, the problem statement and the personas, rather than a research synthesis; the phases below apply unchanged, under the three rules at the end of Phase 2.
 
 ### Phase 2: Generate Alternatives
 
@@ -125,6 +135,11 @@ Always group by decision area. For each area:
 - If research points to a single clear solution: still generate 2-3 alternatives to validate the obvious choice against reasonable alternatives
 - If two candidate areas cannot be decided independently, merge them into one area rather than linking every alternative across both
 - Order the areas so that an area comes after every area it depends on
+
+**For product design**:
+- **Depth**: options differ in what the person sees and does, never in schema or API
+- **The areas come from the scope**: two to five. One only when the scope names one, and then say so in `warnings`
+- **`visual_marks`**: mark `visual: true` on each area whose alternatives differ in what a person sees; an area they do not differ in carries no `visual` key
 
 ### Phase 3: Trade-Off Analysis
 
@@ -183,7 +198,8 @@ Only after the markdown is final:
    - `source` names the markdown by its path relative to the task directory, with the hash from step 1
    - `version` is the bare number `1`
    - one entry per decision area, in the markdown's order, each with a slug id, its name, its question, why it matters, any dependencies on earlier areas, its alternatives in rank order (at least two), and its recommendation — the alternative's id and a one-line reason, or `null` for an area left open
-   - each alternative carries a slug id unique in its area (never `other` or `more-details`), its title, description, pros, cons, key pro and key con, as the markdown states them; names, questions, titles, key pros, key cons and reasons are one line each
+   - each alternative carries a slug id unique in its area (never `other`, `more-details` or `investigate-first`), its title, description, pros, cons, key pro and key con, as the markdown states them; names, questions, titles, key pros, key cons and reasons are one line each
+   - `visual: true` only as Phase 2 says, when `visual_marks` was passed; without it no area carries the key
    - "Best when", evidence links and anything else the reference does not list stay in the markdown only: the file carries exactly the keys the reference names, and one extra key makes the whole file unusable
 3. **Plain text only** — every string is plain text. Inline code in backticks is fine; no bold and no list markers, because the engine adds its own emphasis and lists when it renders an area.
 4. **Check it against the markdown** — the same areas, the same alternatives in the same order, the same recommendations. A difference here means one of the two is wrong; fix it before returning.
@@ -259,6 +275,7 @@ status: "success" | "partial" | "failed"
 headline: "[...]"   # one sentence, at most 220 characters: the areas explored and what is recommended; the node summary's headline
 exploration_path: "outputs/solution-exploration.md"
 areas_path: "outputs/decision-areas.json" | null   # null when the file was not written; reason in warnings
+visual_areas: true | false   # only when `visual_marks` was passed: whether any area is marked visual
 companion: "written" | "disabled" | "failed" | "not-requested"
 html_path: "outputs/solution-exploration.html"  # null unless companion is written
 
@@ -299,6 +316,7 @@ warnings: ["any non-critical observations, including why the decision areas file
 - ALWAYS write the file's strings as plain text: inline code allowed, no bold, no list markers
 - NEVER recommend an alternative that narrows a stated requirement or acceptance criterion
 - NEVER write a decision areas file with a guessed hash; return `areas_path: null` with the reason instead
+- NEVER write a `visual` key or return `visual_areas` unless `visual_marks` was passed
 - NEVER expand problem scope beyond the research question
 - NEVER ask user questions - work from the research evidence
 - NEVER include implementation-level details (that's for specification-creator)
@@ -307,17 +325,17 @@ warnings: ["any non-critical observations, including why the decision areas file
 
 ## Integration
 
-**Invoked by**: the research workflow's `solution-generation` node, and the product-design workflow's `idea-generation` node
+**Invoked by**: the research workflow's `solution-generation` node, and the product-design workflow's `alternatives` node
 
 **Prerequisites**:
 - From research: `analysis/synthesis.md` and `outputs/research-report.md` exist (`research-foundation` output)
-- From product design: `analysis/design-context.md` and `analysis/problem-statement.md` exist, and `analysis/personas.md` when the caller names it; the evidence is that context rather than a research synthesis, and the caller passes `output_path: analysis/alternatives.md` and `areas_output_path: analysis/decision-areas.json`
+- From product design: `analysis/scope.md`, the briefs under `analysis/explore/`, `analysis/problem-statement.md` and `analysis/personas.md` exist; the evidence is those rather than a research synthesis, and the caller passes `output_path: analysis/alternatives.md` and `areas_output_path: analysis/decision-areas.json`
 
 **Input**: Task path, research artifacts, accumulated context (no user preferences — alternatives are generated purely from evidence)
 
 **Output**: `outputs/solution-exploration.md`, or the caller's `output_path` when it names one (product design's is `analysis/alternatives.md`); the decision areas file at `areas_output_path` (research's is `outputs/decision-areas.json`, product design's `analysis/decision-areas.json`); + structured result
 
-**Next Phase**: Orchestrator asks the user to decide each area for convergence (research's `solution-convergence` node, product design's `idea-convergence` node), from the decision areas file when it is present and fresh, from the markdown otherwise; research then feeds the chosen approach into solution-designer (the `high-level-design` node)
+**Next Phase**: Orchestrator asks the user to decide each area for convergence (research's `solution-convergence` node, product design's `convergence` node), from the decision areas file when it is present and fresh, from the markdown otherwise; research then feeds the chosen approach into solution-designer (the `high-level-design` node)
 
 ---
 
@@ -350,7 +368,7 @@ Use these when deciding how to cut the problem into areas:
 | A choice has one evidently right answer and no live rival | Not an area — state it as a Key Decision instead |
 | A choice belongs to a later phase (implementation detail) | Not an area — leave it to specification |
 
-**How many areas**: as many as the problem genuinely holds, usually one to five. More than five usually means some are implementation details or belong together; fewer areas, each well argued, serve the user better than many thin ones.
+**How many areas**: as many as the problem genuinely holds, usually one to five (product design's cap is in Phase 2). More than five usually means some are implementation details or belong together; fewer areas, each well argued, serve the user better than many thin ones.
 
 **Naming**: the area name is what the user sees as the heading of a question — short, a noun phrase ("Storage", "Sharing model"). The question is a full sentence in the task's own words ("Where do shared calendars live?"). The reason a decision matters names its consequence, not its existence ("It fixes what a later migration costs", not "This is an important decision").
 

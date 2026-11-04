@@ -49,6 +49,26 @@
  * `decision-areas-unwritable:<task-relative patch path>:<error code>` and
  * leaves no temp behind, with the same exit 0 and nothing on stdout.
  *
+ * The sketches opt-in. When the asking node's `with:` names `sketches`, every
+ * form carries what `addedLines` builds: for a `visual` area the page of each
+ * alternative found in that folder and the latest version's gallery, and for
+ * every area the "Investigate first" line. Without the key no form changes by a
+ * byte. The folder is read here; the renderers are only handed the lines. Two
+ * warnings go with it, neither of them a fallback —
+ * the question is still rendered from the file, and the node relays the warning
+ * in its summary:
+ *
+ *     area-sketches-invalid:<value>            the value is not a literal,
+ *                                              task-relative path: no `${`, not
+ *                                              absolute, no `..`, `/`-separated.
+ *                                              No sketch lines follow; "Investigate
+ *                                              first" is still added
+ *     area-sketches-missing:<folder>:<area id> a visual area has no page for any
+ *                                              alternative, the folder absent
+ *                                              included: it shows no sketch line,
+ *                                              which is expected when nothing was
+ *                                              drawn
+ *
  * The refusals, none of them fixed by a state write; each says nothing was
  * written. The invocation is wrong: `area-brief-unknown-node` (no node of the
  * run, or a gate) and `area-brief-not-running` (only a running node asks). The
@@ -68,11 +88,12 @@ import path from 'node:path';
 import { Refusal, openTemp } from '../../../../lib/canonical.mjs';
 import { parse, isPlainObject } from './state-read.mjs';
 import { reread } from './gate-brief.mjs';
-import { QUESTION_PREFIX, WARNING, areaDetails, areaEntry, areaPicker, loadAreas } from './decision-areas.mjs';
+import { formOf as pickerForm } from './checkpoint.mjs';
+import {
+  CHECK_TITLE, INVESTIGATE_FIRST_ID, QUESTION_PREFIX, WARNING, addedLines, areaDetails, areaEntry, areaPicker, loadAreas, ordered, relativePath,
+} from './decision-areas.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
-
-// The question tool's call for an area, for `area-brief --ask`: the verb loads this module alone.
-export { formOf } from './checkpoint.mjs';
+import { projectRootOf } from './state.mjs';
 
 /** The one reference a convergence node may name its areas by: the producer's declared artifact, whole. */
 const REFERENCE = /^\$\{([a-z][a-z0-9-]*)\.artifacts\.decision_areas\}$/;
@@ -89,6 +110,25 @@ const TEMP_CODES = { unwritable: 'decision-areas-unwritable', tempExists: 'decis
 
 /** Every miss before a path is known. */
 const NOT_DECLARED = `${WARNING.missing}:not-declared`;
+
+/** A version's folder, as the mockup turn names it; `latest` is read from a file, so it is checked before it joins a path. */
+const VERSION = /^v\d+$/;
+
+/**
+ * The question tool's call for an area, for `area-brief --ask`: the verb loads
+ * this module alone. A picker offering "Investigate first" also takes what to
+ * check, in an optional text property, so only the choice stays required. The
+ * gate pickers' forms are `checkpoint.mjs`'s own and never gain it.
+ */
+export function formOf(picker) {
+  const form = pickerForm(picker);
+  if (!picker.options.some(option => option.id === INVESTIGATE_FIRST_ID)) return form;
+  const { requestedSchema } = form;
+  return {
+    ...form,
+    requestedSchema: { ...requestedSchema, properties: { ...requestedSchema.properties, check: { type: 'string', title: CHECK_TITLE } } },
+  };
+}
 
 /**
  * One area of the run's decision areas in the form asked for: `form` is
@@ -133,17 +173,24 @@ export function areaBrief({ state, node, areas: ids = [], form, picker = 'rich',
       + 'Nothing was written. Take the area ids from that file');
   }
 
-  if (form === 'set') return driven({ doc, workflow, node, all, ids, runDir, patchFile, sources: located.sources });
-  const area = all.find(candidate => candidate.id === ids[0]);
-  if (form === 'picker') return areaPicker(area, all, picker);
-  return { ok: true, text: areaDetails(area, all), errors: [], warnings: [] };
+  const asked = form === 'set'
+    ? (ids.length ? all.filter(area => ids.includes(area.id)) : all)
+    : all.filter(area => area.id === ids[0]);
+  const { lines, warnings } = sketched(located.sketches, asked, runDir);
+  if (form === 'set') return driven({ doc, workflow, node, all, asked, lines, sketchWarnings: warnings, runDir, patchFile, sources: located.sources });
+  const [area] = asked;
+  const added = lines.get(area.id) ?? null;
+  if (form === 'picker') return { ...areaPicker(area, all, picker, added), warnings };
+  return { ok: true, text: areaDetails(area, all, added), errors: [], warnings };
 }
 
 /**
- * Where the asking node's decision areas are: `{file, relative, sources}` —
- * `sources` the producer's other declared artifacts, the markdown the file
- * must be stamped from — or `{warning}` for the fallback. Read off the re-resolved definition, since the
- * frozen state carries no `with:` and no declared artifacts.
+ * Where the asking node's decision areas are: `{file, relative, sources,
+ * sketches}` — `sources` the producer's other declared artifacts, the markdown
+ * the file must be stamped from, `sketches` the node's `with: sketches` as
+ * written, undefined without the key — or `{warning}` for the fallback. Read off
+ * the re-resolved definition, since the frozen state carries no `with:` and no
+ * declared artifacts.
  */
 function locate(doc, workflow, recorded, node, runDir) {
   const { graph } = reread(doc, workflow, runDir);
@@ -165,7 +212,80 @@ function locate(doc, workflow, recorded, node, runDir) {
   const sources = Object.entries(artifacts)
     .filter(([key, value]) => key !== 'decision_areas' && typeof value === 'string')
     .map(([, value]) => value.split(/[\\/]/).join('/'));
-  return { file: path.join(runDir, ...relative.split('/')), relative, sources };
+  return { file: path.join(runDir, ...relative.split('/')), relative, sources, sketches: asking.with.sketches };
+}
+
+/**
+ * The opt-in for the areas being asked: `lines`, each area id's added lines,
+ * and the `warnings` that go with them. Without the key `lines` is empty, which
+ * the renderers read as no opt-in.
+ */
+function sketched(sketches, asked, runDir) {
+  const lines = new Map();
+  const warnings = [];
+  if (sketches === undefined) return { lines, warnings };
+  const literal = typeof sketches === 'string' && sketches !== '' && !sketches.includes('${') && relativePath(sketches);
+  if (!literal) warnings.push(`area-sketches-invalid:${sketches}`);
+  const folder = literal ? sketchFolder(sketches, runDir) : null;
+  for (const area of asked) {
+    const pages = folder && area.visual === true ? folder.pagesOf(area) : [];
+    if (folder && area.visual === true && !pages.length) warnings.push(`area-sketches-missing:${sketches}:${area.id}`);
+    lines.set(area.id, addedLines({ pages, gallery: pages.length ? folder.gallery : null }));
+  }
+  return { lines, warnings };
+}
+
+/**
+ * What a mockup folder holds, each path as it opens from the repository root:
+ * `pagesOf(area)` the `{title, path}` of each alternative's sketch, in picker
+ * order — its HTML page, else its anchor in the flat ASCII document — and
+ * `gallery` the latest version's gallery page, or null. Anything that cannot be
+ * read counts as not there.
+ */
+function sketchFolder(sketches, runDir) {
+  const dir = path.join(runDir, ...sketches.split('/'));
+  const root = projectRootOf(runDir);
+  const shown = file => path.relative(root, file).split(path.sep).join('/');
+  const flat = path.join(dir, 'ascii-mockups.md');
+  const ascii = readOr(flat, '');
+  return {
+    gallery: galleryOf(dir, shown),
+    pagesOf: area => ordered(area).flatMap(alternative => {
+      const slug = `${area.id}-${alternative.id}`;
+      const page = path.join(dir, `${slug}.html`);
+      if (isFile(page)) return [{ title: alternative.title, path: shown(page) }];
+      return ascii.includes(`<a id="${slug}"></a>`) ? [{ title: alternative.title, path: `${shown(flat)}#${slug}` }] : [];
+    }),
+  };
+}
+
+/** The gallery of the version `versions/index.json` calls latest, only when that page exists. */
+function galleryOf(dir, shown) {
+  let latest;
+  try {
+    ({ latest } = JSON.parse(readOr(path.join(dir, 'versions', 'index.json'), 'null')) ?? {});
+  } catch {
+    return null;
+  }
+  if (typeof latest !== 'string' || !VERSION.test(latest)) return null;
+  const page = path.join(dir, 'versions', latest, 'index.html');
+  return isFile(page) ? shown(page) : null;
+}
+
+function readOr(file, otherwise) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch {
+    return otherwise;
+  }
+}
+
+function isFile(file) {
+  try {
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -184,15 +304,14 @@ function locate(doc, workflow, recorded, node, runDir) {
  * it created and is a fallback, `decision-areas-unwritable`, never a throw:
  * the node composes the areas as it does when the file cannot be used.
  */
-function driven({ doc, workflow, node, all, ids, runDir, patchFile, sources = [] }) {
-  const chosen = ids.length ? all.filter(area => ids.includes(area.id)) : all;
+function driven({ doc, workflow, node, all, asked, lines, sketchWarnings, runDir, patchFile, sources = [] }) {
   // An area with a recommendation names the brainstorm it was argued in as its
   // evidence; the request checks each path against the disk.
-  const questions = chosen.map(area => {
-    const entry = areaEntry(area, all);
+  const questions = asked.map(area => {
+    const entry = areaEntry(area, all, lines.get(area.id) ?? null);
     return entry.options.some(option => option.recommended) && sources.length ? { ...entry, evidence: sources } : entry;
   });
-  const warnings = classify(doc, workflow, node, questions);
+  const warnings = [...sketchWarnings, ...classify(doc, workflow, node, questions)];
   const file = patchFile ?? path.join(runDir, '.state-patch.json');
   const tmp = `${file}.tmp`;
   let fd = null;

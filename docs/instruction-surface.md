@@ -67,6 +67,11 @@ engine `SKILL.md` grows from 54,593 B to 60,082 B with the table and the `node-b
 run loads changes more than the sum: a step reads its `node-brief` output — a derived header, the
 convention rows that apply and its own section — rather than its whole guide.
 
+**And since, 2026-11-03.** `product-design` is rewritten to six steps and three checkpoints:
+`product-design.yml` 19,095 B → 14,839 B, `product-design.md` 37,511 B → 29,152 B and its generated
+diagram 4,199 B → 2,537 B. The reference that detected a design's characteristics, 6,831 B, is
+deleted, so it leaves the References row.
+
 ## The session-start footprint: what a session pays before any work
 
 Measured 2026-09-11 and not re-taken: deleting a reference body changes nothing here, because a

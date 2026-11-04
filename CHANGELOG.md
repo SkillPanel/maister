@@ -103,10 +103,19 @@ workspace with work in flight.
   same whatever its case and whether or not the answer carries the "(Recommended)" label — and the
   dashboard shows each decision with who settled it.
 - **Product design on the engine.** `/maister:product-design` runs as a definition like the others,
-  with five pauses: after the intake, the context, the problem and personas, the design direction,
-  and the specification and prototypes. A run driven from outside the session never chooses a
-  design direction itself: it lays out the alternatives with a recommendation for each decision, and
-  the direction pause is where you choose.
+  in six steps and three pauses. It explores the project and proposes the scope, so the first pause
+  shows the scope, the problem and the personas, and asks for the outcome: a design brief with
+  screens, a brief with a feature specification, or `/maister:quick-design` instead when one bounded
+  question is all there is. Each decision area is asked with sketches of its options beside it, and
+  you can have something checked before you answer. The second pause approves the direction, and the
+  third the brief and the final screens together. A design with nothing to draw goes through without
+  sketches or screens. A run driven from outside the session never chooses a design direction itself:
+  it lays out the alternatives with a recommendation for each decision, and the direction pause is
+  where you choose.
+- **Quick-design decisions feed development.** `/maister:development` takes a quick-design task or
+  its `decision.md`, by `--design=PATH` or named in the description. The decision becomes the design
+  intent for the specification and the plan, and the pages of the options you chose become binding
+  mockups; the rejected options' pages are left behind.
 - **HTML pages declared, not remembered.** Every delegate gets the run's context from the engine
   (`run-context`), and a definition declares which steps owe an HTML page beside their markdown
   (`html_companions`). A missing page is reported when its step completes, and again at the end
@@ -160,6 +169,8 @@ workspace with work in flight.
   browser tool your session has — `playwright-cli` first, then a Playwright MCP server you
   configured, Claude in Chrome or the Claude desktop app's built-in browser — and a session with
   none is told so where a browser step would be offered, and carries on without it.
+- **`--no-visual`.** `/maister:product-design` no longer takes it. Set `mockup_format: ascii` in
+  `.maister/config.yml` for mockups drawn as text.
 
 ### Breaking changes
 
@@ -230,6 +241,13 @@ block's `phase_summaries` no longer reach its later steps; the copy stays in the
 resuming the run or assembling a step's prompt prints one `legacy-mirror-ignored` warning
 counting what it holds. *If a project workflow or overlay carries `summary_keys`*, remove it;
 `/maister:run --check` warns `brief-retired-key` until you do.
+
+*If you ran the 3.0.0 betas, finish a product-design run started on an earlier beta on that
+version.* Most of its steps are gone from the definition, and a step's instructions are read from
+the definition as installed, not frozen with the run. After the upgrade such a run resumes without
+a warning, but assembling a step's prompt warns `node-brief-graph-drift`, and a step the definition
+no longer carries also warns `node-brief-node-gone` and prints `section: unknown` where its
+instructions would be.
 
 *To stay on 2.x*, install the 2.x maintenance line instead. It receives fixes only — no new
 features — for six months after 3.0.0 is released:

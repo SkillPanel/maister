@@ -1,11 +1,11 @@
 orchestrator:
-  completed_phases: [intake, characteristics-approval, context-synthesis, context-approval, problem-exploration, problem-approval, idea-generation, idea-convergence, direction-approval, feature-specification, visual-prototyping, mockup-approval, specification-approval, review-handoff, completion]
+  completed_phases: [intake, problem, problem-approval, alternatives, sketches, convergence, direction-approval, screens, brief, brief-approval, completion]
   failed_phases: []
   task_ids: {}
   task_path: .maister/tasks/product-design/2026-10-02-team-calendar-sharing
   created: "2026-10-02T09:00:12Z"
-  options: {html_output: true, mockup_format: html, visual_enabled: true, inputs: {task_description: "Let team members share their calendar with guests outside the organisation, read-only or with a propose-a-time option"}}
-  updated: "2026-10-02T11:43:20Z"
+  options: {html_output: true, mockup_format: html, inputs: {task_description: "Let team members share their calendar with guests outside the organisation, read-only or with a propose-a-time option"}}
+  updated: "2026-10-02T11:12:20Z"
   started_phase: completion
 
 task:
@@ -17,118 +17,132 @@ workflow:
   source: plugins/maister/skills/workflow-engine/workflows/product-design.yml
   overlays: []
   profile: null
-  graph_hash: "sha256:19e80a443bf3d46c362633d8181d098f5612e1a3939ec0099a9ed68307161dc5"
+  graph_hash: "sha256:dcd41a6601fe2810194304cf2182a34cab7cacaa27b4c2c86b2b06afda75ee5b"
   grammar_version: 1
   name: product-design
   nodes:
-    intake: {kind: task, status: completed, started: "2026-10-02T09:00:20Z", completed: "2026-10-02T09:06:41Z", needs: [], values: {personas_enabled: false, prototyping_enabled: true, complexity_level: standard}}
-    characteristics-approval: {kind: gate, status: completed, completed: "2026-10-02T09:08:02Z", needs: [intake]}
-    context-synthesis: {kind: task, status: completed, started: "2026-10-02T09:08:02Z", completed: "2026-10-02T09:19:37Z", needs: [characteristics-approval]}
-    context-approval: {kind: gate, status: completed, completed: "2026-10-02T09:21:10Z", needs: [context-synthesis]}
-    problem-exploration: {kind: task, status: completed, started: "2026-10-02T09:21:10Z", completed: "2026-10-02T09:40:28Z", needs: [context-approval]}
-    persona-exploration: {kind: task, status: skipped, completed: "2026-10-02T09:40:28Z", needs: [problem-exploration]}
-    problem-approval: {kind: gate, status: completed, completed: "2026-10-02T09:42:15Z", needs: [problem-exploration, persona-exploration]}
-    idea-generation: {kind: task, status: completed, started: "2026-10-02T09:42:15Z", completed: "2026-10-02T09:49:03Z", needs: [problem-approval]}
-    idea-convergence: {kind: task, status: completed, started: "2026-10-02T09:49:03Z", completed: "2026-10-02T10:07:44Z", needs: [idea-generation]}
-    direction-approval: {kind: gate, status: completed, completed: "2026-10-02T10:09:30Z", needs: [idea-convergence]}
-    feature-specification: {kind: task, status: completed, started: "2026-10-02T10:09:30Z", completed: "2026-10-02T10:58:12Z", needs: [direction-approval]}
-    visual-prototyping: {kind: task, status: completed, started: "2026-10-02T10:58:12Z", completed: "2026-10-02T11:21:40Z", needs: [feature-specification]}
-    mockup-approval: {kind: gate, status: completed, completed: "2026-10-02T11:22:30Z", needs: [visual-prototyping]}
-    specification-approval: {kind: gate, status: completed, completed: "2026-10-02T11:24:05Z", needs: [feature-specification, mockup-approval]}
-    review-handoff: {kind: task, status: completed, started: "2026-10-02T11:24:05Z", completed: "2026-10-02T11:42:55Z", needs: [specification-approval]}
-    completion: {kind: task, status: completed, started: "2026-10-02T11:42:55Z", completed: "2026-10-02T11:43:20Z", needs: [review-handoff]}
+    intake: {kind: direct, status: completed, started: "2026-10-02T09:00:20Z", completed: "2026-10-02T09:11:41Z", needs: [], values: {draws: true}}
+    problem: {kind: direct, status: completed, started: "2026-10-02T09:11:41Z", completed: "2026-10-02T09:24:28Z", needs: [intake]}
+    problem-approval: {kind: gate, status: completed, completed: "2026-10-02T09:26:15Z", needs: [intake, problem], reruns: {correct-scope: intake, revise-problem: problem}, sets: {brief-with-screens: {with_spec: false}, brief-with-spec: {with_spec: true}}, values: {with_spec: false}}
+    alternatives: {kind: agent, status: completed, started: "2026-10-02T09:26:15Z", completed: "2026-10-02T09:33:03Z", needs: [problem-approval], values: {visual_areas: true}}
+    sketches: {kind: skill, status: completed, started: "2026-10-02T09:33:03Z", completed: "2026-10-02T09:44:50Z", needs: [alternatives]}
+    convergence: {kind: direct, status: completed, started: "2026-10-02T09:44:50Z", completed: "2026-10-02T10:07:44Z", needs: [alternatives, sketches]}
+    direction-approval: {kind: gate, status: completed, completed: "2026-10-02T10:09:30Z", needs: [convergence], reruns: {revise-direction: convergence}}
+    specification: {kind: direct, status: skipped, completed: "2026-10-02T10:09:30Z", needs: [direction-approval]}
+    screens: {kind: skill, status: completed, started: "2026-10-02T10:09:30Z", completed: "2026-10-02T10:37:12Z", needs: [specification]}
+    brief: {kind: direct, status: completed, started: "2026-10-02T10:37:12Z", completed: "2026-10-02T11:03:55Z", needs: [screens]}
+    brief-approval: {kind: gate, status: completed, completed: "2026-10-02T11:11:05Z", needs: [brief, screens], reruns: {change-brief: brief, change-screens-and-brief: specification}}
+    completion: {kind: direct, status: completed, started: "2026-10-02T11:11:05Z", completed: "2026-10-02T11:12:20Z", needs: [brief-approval]}
+
+project_context:
+  project_doc_paths:
+    - .maister/tasks/product-design/2026-10-02-team-calendar-sharing/analysis/explore/product.md
+    - .maister/tasks/product-design/2026-10-02-team-calendar-sharing/analysis/explore/screens.md
 
 design_context:
-  design_characteristics: {is_greenfield: false, is_enhancement: true, is_ui_focused: true, is_backend: false, is_complex: false, is_simple: false}
-  complexity_level: standard
-  collected_urls: []
-  research_topics: []
-  user_files_list: []
-  project_context_summary: "A team scheduling app; calendars are private to the organisation today."
-  refinement_iterations: {problem_statement: 1, personas: 0, direction: 0, specification_sections: {sharing-model: 1}}
+  project_context_summary: "A team scheduling app; calendars are private to the organisation today, and invitations already reach external addresses by email."
+  greenfield: false
+  scope_areas:
+    - "Access model: how a guest reaches a shared calendar"
+    - "Detail shown: what a guest can see of each event"
+  design_resources:
+    - {node: sketches, version: v001, grounding_digest: "sha256:4f1c9a7e", grounding_stale: false, bound_to: "the app's dialog and calendar grid"}
+    - {node: screens, version: v002, grounding_digest: "sha256:4f1c9a7e", grounding_stale: false, bound_to: "the app's dialog and calendar grid"}
+  midway_options: []
 
 node_summaries:
   intake:
-    summary: "An enhancement of standard complexity with a UI: no personas will be drafted, and the sharing screens will be prototyped."
-    decisions: []
-    risks: []
-    absent: {research_context: "no research task was named"}
-    status: completed
-  characteristics-approval:
-    summary: Operator confirmed the design characteristics.
-    decisions:
-      - {option: continue-to-context-synthesis, answered_by: operator, at: "2026-10-02T09:08:00Z"}
-    status: completed
-  context-synthesis:
-    summary: "Calendars are scoped to the organisation; invitations already reach external addresses by email."
-    sources_count: 3
+    headline: "A design brief with screens is the recommended outcome."
+    summary: "Team members want to show availability to outside guests. Two decisions: how a guest gets in, and what a guest sees. The share dialog and the guest calendar are to be drawn. Two more checkpoints follow this one."
+    delegated: [Explore]
     decisions: [reuse the existing invitation email for the share link]
-    risks: ["open: the audit log records internal viewers only"]
+    risks:
+      - {risk: "Assumes the audit log can record a guest's visit", tag: open, change: "keep the audit log to internal viewers"}
+    absent: {research_context: "no research task was named"}
+    artifacts:
+      - {path: analysis/scope.md, label: Scope proposal, role: primary}
+      - {path: analysis/explore/product.md, label: Explore brief on the product, role: evidence}
+      - {path: analysis/explore/screens.md, label: Explore brief on the screens, role: evidence}
     status: completed
-  context-approval:
-    summary: Operator approved the design context.
-    decisions:
-      - {option: continue-to-problem-exploration, answered_by: operator, at: "2026-10-02T09:21:08Z"}
-    status: completed
-  problem-exploration:
-    summary: "Team members cannot share availability with external guests without exposing event details; two constraints and one success criterion."
+  problem:
+    headline: "Team members cannot share availability with external guests without exposing event details."
+    summary: "Who this is for: Olga the organiser and Gus the guest. Two constraints, one success criterion and two user stories. The outcome recommended is a design brief with screens."
     problem_statement: "Team members cannot share availability with external guests without exposing event details."
     constraints: [no guest accounts, revocable at any time]
     success_criteria: [a guest sees free and busy times within one click of the link]
     decisions: [external guests get no account]
-    risks: [assumes guests accept a link instead of a login]
+    risks:
+      - {risk: "user-story-share-with-guest is drafted", tag: open, change: "correct the sharing story"}
+      - {risk: "user-story-see-availability is drafted", tag: open, change: "correct the guest's story"}
+    recommends: {option: brief-with-screens, reason: "Three screens and one rule; no development run follows at once."}
+    artifacts:
+      - {path: analysis/problem-statement.md, label: Problem statement, role: primary}
+      - {path: analysis/personas.md, label: Persona cards, role: review}
     status: completed
-  persona-exploration:
-    summary: "Skipped: an enhancement of standard complexity drafts no personas."
-    status: skipped
   problem-approval:
-    summary: Operator approved the problem statement.
+    summary: Operator chose a design brief with screens.
     decisions:
-      - {option: continue-to-idea-generation, answered_by: operator, at: "2026-10-02T09:42:12Z"}
+      - {option: brief-with-screens, answered_by: operator, at: "2026-10-02T09:26:12Z"}
     status: completed
-  idea-generation:
-    summary: Two decision areas, five alternatives.
-    decisions: ["access model: signed link recommended", "detail shown: free and busy only recommended"]
+  alternatives:
+    summary: "Two decision areas, one of them visual, five alternatives. Access model: signed link recommended. Detail shown: free and busy only recommended."
+    alternatives_count: 5
+    decisions: []
+    risks: []
+    artifacts:
+      - {path: analysis/alternatives.md, label: Alternatives, role: primary}
+      - {path: analysis/decision-areas.json, label: Decision areas, role: evidence}
+    status: completed
+  sketches:
+    headline: "v001 of the sketches, one page per option; open analysis/mockups/versions/v001/index.html."
+    summary: "Three sketches: who this is for, and the two ways of showing an event to a guest."
+    mockup_references: [analysis/mockups/who-this-is-for.html, analysis/mockups/detail-shown-free-and-busy.html, analysis/mockups/detail-shown-event-titles.html]
+    decisions: []
     risks: []
     status: completed
-  idea-convergence:
+  convergence:
+    headline: "Link-based sharing, free and busy only."
     summary: "Link-based sharing with free and busy only, and propose-a-time as an opt-in."
     selected_approach: link-sharing
+    trade_offs_accepted: [a forwarded link reaches whoever it is forwarded to]
     decision_areas:
       - {area: access model, alternatives_count: 3, recommended: signed link, chosen_approach: signed link}
       - {area: detail shown, alternatives_count: 2, recommended: free and busy only, chosen_approach: free and busy only}
-    decisions: ["access model: signed link", "detail shown: free and busy only"]
-    risks: [a forwarded link reaches whoever it is forwarded to]
+    decisions: ["access model: signed link", "detail shown: free and busy only", links expire after 30 days unless renewed]
+    risks:
+      - {risk: "A forwarded link reaches whoever it is forwarded to", tag: tradeoff, change: null}
+    artifacts:
+      - {path: analysis/design-decisions.md, label: Design decisions, role: primary}
     status: completed
   direction-approval:
     summary: Operator approved the design direction.
     decisions:
-      - {option: continue-to-specification, answered_by: operator, at: "2026-10-02T10:09:28Z"}
+      - {option: approve-direction, answered_by: operator, at: "2026-10-02T10:09:28Z"}
     status: completed
-  feature-specification:
-    summary: "Five sections: sharing model, guest view, propose-a-time, revocation and notifications."
-    decisions: [links expire after 30 days unless renewed]
-    risks: ["open: time-zone display for guests without a profile"]
-    status: completed
-  visual-prototyping:
-    summary: "Three screens drawn: the share dialog, the guest calendar and the propose-a-time form."
+  specification:
+    summary: "Skipped: the outcome chosen was a design brief with screens."
+    status: skipped
+  screens:
+    headline: "v002 — the share dialog, the guest calendar and the propose-a-time form; open analysis/mockups/versions/v002/index.html."
+    summary: "Three final screens drawn from the design decisions, and the sketches dropped from the flat view."
+    mockup_references: [analysis/mockups/share-dialog.html, analysis/mockups/guest-calendar.html, analysis/mockups/propose-a-time.html]
     decisions: []
     risks: []
     status: completed
-  mockup-approval:
-    summary: Operator approved the screens.
-    decisions:
-      - {option: continue-to-specification-review, answered_by: operator, at: "2026-10-02T11:22:28Z"}
-    status: completed
-  specification-approval:
-    summary: Operator approved the specification.
-    decisions:
-      - {option: continue-to-product-brief, answered_by: operator, at: "2026-10-02T11:24:01Z"}
-    status: completed
-  review-handoff:
-    summary: Product brief assembled and approved; ready for development.
+  brief:
+    headline: "Team calendar sharing with external guests, ready for development."
+    summary: "Core, persona cards, design decisions, what changes per screen, mockup references and the delivery scope. One member in scope, `team-calendar`, and none left out; the scope carries all seven agreed points."
+    brief_layers: [core, persona cards, design decisions, what changes per screen, mockup references, delivery scope, references]
     decisions: []
     risks: []
+    artifacts:
+      - {path: outputs/product-brief.md, label: Product brief, role: primary}
+      - {path: outputs/delivery-scope.yml, label: Delivery scope, role: review}
+    status: completed
+  brief-approval:
+    summary: Operator approved the brief and the screens.
+    decisions:
+      - {option: approve-brief, answered_by: operator, at: "2026-10-02T11:11:01Z"}
     status: completed
   completion:
     summary: Team calendar sharing designed; the brief is at outputs/product-brief.md.

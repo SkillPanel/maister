@@ -233,7 +233,7 @@ const BASELINE_HASHES = {
   research: 'sha256:c80fd34e066ab8c1fe74513e84bcfe6f5403f5d62714a2538da0d0d4d22a5988',
   performance: 'sha256:183605fc3986554aedd5cf5b92ce001ef65302858909b2984d96d0b8fbbcce62',
   migration: 'sha256:04f475d1cb380017e6a30a1038448b5af8fb5ecb874ce98b5e67ed5d4ebc1546',
-  'product-design': 'sha256:abeb2b1e0308b2be7c470112529e8532127f7a4e8613b8117a5c99f6e30cab72',
+  'product-design': 'sha256:dcd41a6601fe2810194304cf2182a34cab7cacaa27b4c2c86b2b06afda75ee5b',
 };
 
 test('each built-in\'s hash stays at the baseline, with and without a brief: block', () => {

@@ -257,18 +257,31 @@ export const DECLARED_DELEGATES = {
 };
 
 /**
+ * The delegates of a node id several built-ins share and only one declares, by
+ * the frozen workflow name and then the node id: `intake` exists in four
+ * built-ins, and only product design's dispatches.
+ */
+const WORKFLOW_DELEGATES = {
+  'product-design': { intake: ['Explore'] },
+};
+
+/**
  * `patch` with `delegated` added to the summary of each node it completes that
  * declares delegates, as a session that dispatched them would send it. For a
  * test that walks a built-in workflow past such a step and is about something
- * else.
+ * else. `run`, when given, adds the delegates its frozen workflow declares on a
+ * node id `DECLARED_DELEGATES` does not name.
  */
-export function delegating(patch) {
+export function delegating(patch, run = null) {
   const nodes = patch && typeof patch.nodes === 'object' ? patch.nodes : {};
   const summaries = { ...(patch.node_summaries ?? {}) };
+  const own = run === null ? {} : WORKFLOW_DELEGATES[readState(run).workflow?.name] ?? {};
   let added = false;
   for (const [id, entry] of Object.entries(nodes)) {
-    if (entry?.status !== 'completed' || !Object.hasOwn(DECLARED_DELEGATES, id)) continue;
-    summaries[id] = { ...(summaries[id] ?? {}), delegated: DECLARED_DELEGATES[id] };
+    if (entry?.status !== 'completed') continue;
+    const declared = Object.hasOwn(own, id) ? own[id] : Object.hasOwn(DECLARED_DELEGATES, id) ? DECLARED_DELEGATES[id] : null;
+    if (declared === null) continue;
+    summaries[id] = { ...(summaries[id] ?? {}), delegated: declared };
     added = true;
   }
   return added ? { ...patch, node_summaries: summaries } : patch;
@@ -303,7 +316,7 @@ export function prerequisites(run, ids) {
  */
 export function walkTo(run, ids, { except = [] } = {}) {
   const ahead = prerequisites(run, ids).filter(id => !except.includes(id));
-  if (ahead.length) write(run, delegating({ nodes: Object.fromEntries(ahead.map(id => [id, { status: 'completed' }])) }));
+  if (ahead.length) write(run, delegating({ nodes: Object.fromEntries(ahead.map(id => [id, { status: 'completed' }])) }, run));
   return ahead;
 }
 

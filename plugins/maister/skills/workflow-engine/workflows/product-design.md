@@ -10,44 +10,16 @@ The block is `design_context`, and this workflow writes no other context block.
 
 | Key | Written by | Holds |
 |---|---|---|
-| `design_characteristics` | `intake` | the six characteristics as detected, or as corrected through a revise at `characteristics-approval` — `is_greenfield`, `is_enhancement`, `is_ui_focused`, `is_backend`, `is_complex`, `is_simple` |
-| `complexity_level` | `intake` | `simple`, `standard` or `complex` |
-| `collected_urls`, `research_topics`, `user_files_list` | `intake` | what the operator supplied as extra context; empty lists when nothing was |
 | `research_reference` | `intake` | `{path, research_question}` of a research task named on invocation |
-| `project_context_summary` | `intake` | a few lines on what the project documentation says |
-| `refinement_iterations` | each looping node | rounds taken: `problem_statement`, `personas`, `specification_sections` (a map by section) |
-| `design_resources` | `visual-prototyping` | the grounding digest and staleness of the turn that drew the screens, and what it bound to |
+| `project_context_summary` | `intake` | a few lines on what the explore found |
+| `greenfield` | `intake` | true when the explore found no docs, screens or code |
+| `scope_areas` | `intake` | the two to five decisions the scope names, one line each |
+| `quick_design_question` | `intake` | the bounded question, only when the scope recommends quick-design |
+| `design_resources` | `sketches`, `screens` | per turn: the version it drew, the grounding digest, its staleness and what it bound to |
+| `midway_options` | `convergence` | options drawn midway: `{area, slug, version}` |
 
-The run's options live under `orchestrator.options`: `html_output`,
-`mockup_format` and `visual_enabled`, the last derived by `intake`.
-
----
-
-## Depth
-
-The `simple` input is the run's depth. False, the default, is the whole
-workflow. True is the shortest run that still ends in a brief and a delivery
-scope an operator can approve: the detected complexity says how deep each
-document goes, the depth says which stretches run, and when the input is true it
-wins.
-
-The `full` input is the other end: every stretch runs and the intake records the
-design `complex`, so the personas are drafted and each node asks and writes at
-its complex depth, whatever the detection reads. Both inputs true contradict
-each other, and `simple` wins; the intake names the contradiction as an `open`
-risk.
-
-| Skipped in a simple run | Why it can go |
-|---|---|
-| `characteristics-approval` | the characteristics it corrects only switch the personas and prototypes, which the depth already turns off |
-| `context-approval` | a correction to the context shows up as one to the problem statement built on it, which `problem-approval` revises |
-| `persona-exploration` | the intake records `personas_enabled` false |
-| `idea-generation`, `idea-convergence`, `direction-approval` | the specification states the approach itself, and its gate approves it |
-| `visual-prototyping`, unless the decision turns on layout or presentation | the intake judges that, says why, and records `prototyping_enabled` from it; the operator can override it in the intake's request |
-
-Two gates remain, `problem-approval` and `specification-approval`, beside the
-brief's own approval inside `review-handoff`; a third, `mockup-approval`, when
-the screens are drawn.
+The run's options live under `orchestrator.options`: `html_output` and
+`mockup_format`.
 
 ---
 
@@ -56,9 +28,8 @@ the screens are drawn.
 **This workflow is child-capable** (engine `references/sub-runs.md`). The
 `embedded` input means *this run is a sub-run of another run*; the engine
 supplies it at the child freeze and no command exposes it. A parent may pass
-`simple` or `full` in the same `with:` to choose the depth: a parent asked for
-the full design passes `full: true`, because `simple: false` alone leaves the
-depth to the detection.
+`specification: true` in the same `with:` to ask for the specification outcome;
+its first gate is still asked.
 
 Its only effect is the guard on `completion`, which is skipped for a child;
 everything else runs unchanged, gates and in-node questions included.
@@ -74,16 +45,9 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
 
 **Does.**
 
-1. **Initialize** as the framework's *Initialization Steps* say.
-   Set `options.mockup_format`
-   (default `html`) and `options.visual_enabled`: false when `no_visual` is
-   true or the format is `ascii`. Write `context/README.md`, inviting the
-   operator to drop relevant files there.
-2. **Read the project documentation** the docs index lists, if one exists.
-   Record the paths as `project_context.project_doc_paths` (top level, beside
-   the orchestrator and context blocks) and a few lines on them as
-   `design_context.project_context_summary`.
-3. **Import research** the `research` input names: its report, synthesis and
+1. **Initialize** as the framework's *Initialization Steps* say. Set
+   `options.mockup_format` from `.maister/config.yml`, default `html`.
+2. **Import research** the `research` input names: its report, synthesis and
    solution exploration, where they exist, brought under
    `context/research-context/` in one `import` call (engine § *The invocation
    contract*), never a shell copy. Record `design_context.research_reference`
@@ -91,275 +55,151 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    skips becomes `{risk: "research not imported: <each skipped file and its reason>", tag: open, change: "read it at <source path>"}`,
    and the design goes on, citing the research at its source path. Never ask
    anybody to copy it in.
-4. **Detect the characteristics** and the complexity as
-   `${CLAUDE_PLUGIN_ROOT}/skills/product-design/references/characteristic-detection.md`
-   says; read it first. Record the six flags as
-   `design_context.design_characteristics` (*The context block*). **When
-   `simple` is true the depth wins** (*Depth*): record `simple`, and when the
-   signals said more, add
-   `{risk: "detected as <level>; the simple depth was requested", tag: open, change: "run the full design"}`.
-   **When `full` is true**, record `complex` and say so in the summary. When
-   both are true, `simple` wins, and `risks` carries
-   `{risk: "both the simple and the full depth were requested; the simple design ran", tag: open, change: "run again with only the full depth"}`.
-5. **Ask for additional context**: *"Any additional context for this
-   design?"*, a multi-select — *"No additional context (Recommended)"*, going
-   on from the description, the docs and any research; *"Files"*, naming
-   `<task path>/context/` and asking for the files there before answering;
-   *"Links"* and *"Topics to research"*, typed one per line in the free-text
-   answer. Nothing ticked is the recommended answer. Catalog `context/` into
-   `design_context.user_files_list`; sort what was typed into
-   `collected_urls` and `research_topics`. When Files was chosen and the
-   folder is still empty, ask once more, naming the folder: *"Go on without
-   files (Recommended)"* or *"I have added the files; read the folder again"*.
-   *Files* and the read-again option each say a person put files in the
-   folder, so both are marked `person_act` and neither is ever recommended
-   (`references/in-node-questions.md` § *An option only a person can take*).
-   **A simple run asks a second question in the same request**, the mockup
-   override: *"Draw mockups of the screens?"*, with *"Draw the screens"* and
-   *"No screens"*, the intake's mockup judgment (step 6, made with the
-   detection in step 4) recommended and its reason
-   in that option's description. The answer decides `prototyping_enabled`.
-<!-- plain-picker
-   Under this picker the four options are one property of type array, none of them the default, and
-   the links and topics a text property beside it; a simple run's mockup override is an enum
-   property of its two options, the judgment its default.
--->
-6. **Record the three values** in the patch that marks the node `completed`,
-   since they guard later nodes: `personas_enabled` (greenfield or complex),
-   `prototyping_enabled` (UI-focused) and `complexity_level`. A simple run
-   records `personas_enabled` false, and judges `prototyping_enabled` by
-   whether the decision turns on how something looks or is laid out — placing,
-   grouping or showing information on a screen, comparing layouts, a new screen
-   or card — rather than on behaviour, data, policy or wording only; the
-   override in step 5 has the last word. A full run records
-   `personas_enabled` true.
+3. **Explore silently.** Fan out two or three read-only agents in one message,
+   through the Task tool with `subagent_type="Explore"`, each with the model and
+   effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=Explore --host=claude --state=<task path>/orchestrator-state.yml --node=intake`
+   prints once before the launch. A built-in agent carries none of this plugin's
+   rules, so each prompt carries them:
+   - the project root as an absolute path, and every file it names as an
+     absolute path under that root;
+   - the rule "Search, list and glob only under `<project root>` — never in a
+     parent folder, the home folder or anywhere outside it.";
+   - the instruction to create, write or modify no file and to answer as text;
+   - one question, and a reply limit of a few hundred words with file paths,
+     never a report.
 
-A simple run skips `characteristics-approval`; the characteristics are still
-recorded, and the brief names them.
+   The questions, one to an agent:
+   - `product`: the product and its docs, from `.maister/docs/INDEX.md` and the
+     user docs it names;
+   - `screens`: the screens and code the task's nouns match, and what each shows
+     or does today;
+   - `tracker`, only when the task names an issue: the issue with its comments.
 
-**Asks.**
-
-**With question sets** (`additional-context`): asked in this node's first
-request. A folder still empty after a Files answer is asked about once more,
-as in session, in a follow-up round; once the attempt's rounds are spent the run
-goes on without files.
-
-**Without question sets** (`additional-context`): no additional context; the
-lists stay empty rather than half-gathered.
-
-**With question sets** (`mockups`): a simple run only, in the same request as
-the additional context, the mockup judgment its recommended option.
-
-**Without question sets** (`mockups`): the mockup judgment stands, and
-`prototyping_enabled` is recorded from it.
-
-**Summary.** A `headline` naming the kind of design, its complexity and which
-optional parts will run. In `summary`, each characteristic that holds with its
-one-line rationale; a simple run adds the mockup choice and its reason, e.g.
-*"Mockups: yes — the options differ in card layout"*, naming an override. In `risks`, each characteristic detected on thin evidence
-as `{risk, tag: open, change}`, its `change` the correction, so the gate's
-revise offers it.
-
-**Re-run.** The note is the correction. Do not create the task directory or
-state, or import the docs or research, again. Apply the note, keeping the
-exclusive pairs consistent, and derive the complexity again; a thin-evidence
-risk it settles is written `tag: resolved`. Say which optional parts now run.
-
-**Budget.** In a terminal run, a description too thin to classify is clarified
-with one question offering two or three readings, the closest first and
-recommended. A driven run classifies at the higher complexity and names that in
-`risks`.
-
----
-
-## `context-synthesis`
-
-**Does.**
-
-1. **For an enhancement**, run the `maister:codebase-analyzer` skill through
-   the Skill tool with this task's path; it writes
-   `analysis/codebase-analysis.md`. Continue here when it returns.
-2. **Read every file** in `context/` and **fetch every link** in
-   `design_context.collected_urls`.
-3. **Research each topic** in `design_context.research_topics` through a
-   `maister:information-gatherer` agent per topic, launched in parallel through
-   the Task tool with the topic and its scope, plus the `run-context` output,
-   each with the model and effort `node
-   ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model
-   --agent=maister:information-gatherer --host=claude
-   --state=<task path>/orchestrator-state.yml --node=context-synthesis` prints once
-   before the launch (`orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
-4. **Write `analysis/design-context.md`**, synthesising every source — the
-   docs, the codebase summary, each file's and link's takeaways, the research —
-   with the connections between them and what they imply for the design.
-
-**Summary.** A `headline` giving the finding that most shapes the design and
-how many sources fed it. In `summary`, the two or three key findings. In
-`decisions`, the implications for the design, each `{decision, by: run}`. In
-`risks`, what the synthesis left open — an unsettled choice, an inferred
-constraint, a thin source, a source that would not load, an unsettled topic —
-each `{risk, tag: open, change}`. The node entry adds `sources_count`.
-
-**Re-run.** Read a file or fetch a link the note adds, research a topic it
-adds or reopens, and run the codebase analysis again only when the note is
-about the codebase.
-
-**Budget.** The second attempt re-invokes the codebase analyzer or the
-information gatherer with adjusted context.
-
----
-
-## `problem-exploration`
-
-**Does.** Read
-`${CLAUDE_PLUGIN_ROOT}/skills/product-design/references/interaction-patterns.md`
-first — the modes, the question design and the refinement loop. Read
-`analysis/design-context.md` in full, then the `open` risks in `prior-context`
-and the open questions of any research under `context/research-context/`.
-
-1. **Explore** in pages of context-aware questions, as many as
-   `characteristic-detection.md` sets for the complexity, folding each page's
-   answers in before the next. Questions about one behaviour are one drafted
-   story (engine `references/in-node-questions.md`), id `user-story-<topic>`,
-   asked in the same pages.
-2. **Converge** on the complete draft: the problem statement, the key
-   constraints and the success criteria.
-3. **Refine** — ask *"Use this problem statement?"*, the question giving the
-   statement in a sentence or two. Options: *"Approve (Recommended)"*, its
-   description saying what the draft settles; *"Change the scope"* and *"Change
-   constraints or success criteria"*, each naming the likeliest change, from the
-   weakest assumption; and **More details** last.
-<!-- rich-picker -->
-   The approve option's preview holds the draft: the problem statement, the
-   constraints and the success criteria.
-<!-- /rich-picker -->
-<!-- plain-picker
-   The question lists the constraints and the success criteria, one line each, after the statement.
--->
-   On a change, revise and ask again, counting rounds in
-   `design_context.refinement_iterations.problem_statement` against the soft cap.
+   Write each reply to `analysis/explore/<topic>.md`. Record
+   `project_context.project_doc_paths` (top level, beside the orchestrator and
+   context blocks) as those briefs, repository-relative, followed by the doc
+   pages the first one matched, and record `design_context.greenfield` and
+   `design_context.project_context_summary`. There is no whole-repository scan,
+   and no flag for one.
+4. **Fill the gaps, one page at most.** Read the exploration mode of
+   `<plugin root>/skills/product-design/references/interaction-patterns.md` for
+   its question design. Ask only where the explore could not
+   answer what the design needs: up to four questions in one call, each generated
+   from what was found, with concrete answers and a "Not sure yet" that does not
+   block. For an existing product: which screens, which users, what exists
+   elsewhere. For greenfield: who uses it, what they do today, what should be
+   different. Never a blank form, and never "what do you want?". A "Not sure yet"
+   is written as an assumption to check, as the *Without* line below does.
+5. **Write `analysis/scope.md`** in plain words, from the replies, the answers and
+   any imported research: the problem in a sentence; who it is for; what exists
+   today; the two to five decisions; what there is to draw; the recommended
+   outcome and its reason from the signals — the task's length, the screens it
+   names, the decisions it implies, greenfield or not; what the person gets; how
+   many more times they will be asked; and what is left out. When the signals say
+   one bounded question, it says so and recommends quick-design, recording
+   `design_context.quick_design_question`. Record `design_context.scope_areas`,
+   and the value `draws`: whether the design has anything a person sees.
 
 **Asks.** Each answer is recorded under its id with the topic after it.
 
-**With question sets** (`problem-questions`): the first page — the questions
-that stand on their own — goes in this node's first request. A question that
-waits on another's answer goes in a follow-up round once that answer is in; one
-still waiting when the attempt's rounds are spent is not asked, and the draft is
-marked as a proposal where it rests on one.
+**With question sets** (`scope-questions`): every gap question in this node's
+first request. A follow-up round only for a question an answer raised, at most
+two rounds.
 
-**Without question sets** (`problem-questions`): no question is asked; the
-draft is derived from the design context, the description and the project
-documentation alone, and marked in the document as a proposal.
+**Without question sets** (`scope-questions`): nothing is asked. Each gap is
+written into `analysis/scope.md` as an assumption to check, and recorded as an
+`open` risk whose `change` is the answer that settles it, so `correct-scope`
+offers it.
 
-**With question sets** (`user-story`): each story that stands on its own is
-its own question in the first page's request, its draft, corrections and
-alternative written to `analysis/problem-statement.md` before the node
-suspends. A story that waits on another's answer goes in a follow-up round
-once that answer is in; one still waiting when the attempt's rounds are spent is
-not asked, and is marked drafted.
+**Writes.** `analysis/scope.md` and `analysis/explore/`. The explore briefs go on
+the summary's artifacts with `role: evidence`.
 
-**Without question sets** (`user-story`): each story is taken as drafted,
-recorded `by: default` under its own id, and marked drafted.
+**Summary.** A `headline` with the recommended outcome in plain words. `summary`
+is the scope proposal condensed: the problem, the users, what exists, the
+decisions, what is drawn and the questions still to come. `delegated` lists
+`Explore` as the brief prints it. In `risks`, each assumption as `open`. The
+summary carries no `recommends`: that is `problem`'s.
 
-**With question sets** (`problem-refinement`): the first request of this node's
-attempt, or a follow-up round after one; once the attempt's rounds are spent,
-the default below is taken.
+**Re-run.** After `correct-scope`. Do not create the task or import again. Keep
+the explore briefs, and dispatch one `Explore` agent on what the note corrects,
+its brief added beside them: a declared delegate is dispatched on every attempt.
+Apply the note to `analysis/scope.md`, and record `draws` afresh. A risk the note
+settles is written `tag: resolved`.
 
-**Without question sets** (`problem-refinement`): approve and continue, the
-count at zero. `problem-approval` is the operator's route back.
-
-**Writes.** `analysis/problem-statement.md`: the approved problem statement,
-constraints, success criteria, the user stories under **User stories**, each by
-its id with how it was settled, and the key assumptions behind them.
-
-**Summary.** A `headline` giving the problem in one sentence. In `summary`, the
-statement and the number of constraints and success criteria. In `decisions`,
-the scope choices settled, each `{decision, by: run}`. In `risks`, the
-assumptions the statement rests on, each `{risk, tag: open, change}` — a story
-taken as drafted is one, its `change` the correction listed for it; a need left
-out on purpose is `tag: tradeoff`. The node entry adds `problem_statement`,
-`constraints` and `success_criteria`.
-
-**Re-run.** A note about the personas alone leaves this document unchanged —
-say so in the summary and let `persona-exploration` take it.
-
-**Budget.** Re-phrase a question the operator's answer left unclear.
+**Budget.** A failed `Explore` agent is dispatched once more with a narrower
+question; after that, its gap becomes a question or an assumption.
 
 ---
 
-## `persona-exploration`
+## `problem`
 
-**Does.**
+**Does.** Write `analysis/problem-statement.md` from the scope, the explore briefs
+and the answers: the problem, the users and what exists; the constraints, from the
+standards read and the decisions taken; the success criteria; the user stories,
+each journey-level, id `user-story-<topic>`, marked drafted (engine
+`references/in-node-questions.md`, *One topic is one drafted story*); and what is
+out of scope.
 
-1. **Explore** the user types — goals, pain points, how they discover the
-   feature — in pages of independent questions.
-2. **Converge** on one to three persona cards, by complexity: name, role, goals,
-   pain points and the key journey.
-3. **Refine** — ask *"Use these personas?"*, naming each persona and role in a
-   line. Options: *"Approve (Recommended)"*, saying what the set covers;
-   *"Change a persona"*, *"Add a persona"* and *"Remove a persona"*, each naming
-   the persona and the likeliest change. The question ends with
-   `Type "details" for the full cards.`
-<!-- rich-picker -->
-   The approve option's preview holds the cards, each with its goals, pain
-   points and key journey.
-<!-- /rich-picker -->
-   On a change, revise and ask again, counting rounds in
-   `design_context.refinement_iterations.personas` against the soft cap.
+Then write two or three persona cards to `analysis/personas.md`, each with a name,
+a role, what they do today, what they want from this and what would make them
+stop. For an existing product, draw them from the docs' own user descriptions; for
+greenfield, from the answers, each card labelled "Assumption to check".
 
-**Asks.** Each answer is recorded under its id with the persona or topic after
-it.
+**Summary.** A `headline` with the problem in a sentence. `summary` covers the
+statement, the personas by name under "Who this is for", and the outcome
+recommended. Always write `recommends: {option, reason}`:
 
-**With question sets** (`persona-questions`): the first page goes in this
-node's first request; a question that waits on another's answer goes in a
-follow-up round once that answer is in, and one still waiting when the
-attempt's rounds are spent is not asked, the cards it would shape marked as
-drafted.
+- `brief-with-screens`, unless the signals call for the specification: several
+  interacting screens or rules, or a development run to follow at once;
+- `brief-with-spec` when the `specification` input is true, its reason saying the
+  specification is written either way.
 
-**Without question sets** (`persona-questions`): no question is asked; the
-cards are drafted from the design context and the problem statement alone and
-marked as drafted rather than confirmed.
+When the intake recorded `draws` false, the reason says no screens will be drawn
+on either outcome. When the scope recommends quick-design, the risk
+`{risk: "<the bounded question>: one bounded question", tag: stop}` makes the gate
+recommend `use-quick-design`. Each drafted story is an `open` risk with its
+correction as `change`. The artifacts are the problem statement (`role: primary`)
+and the personas (`role: review`).
 
-**With question sets** (`persona-refinement`): the first request of this node's
-attempt, or a follow-up round after one; once the attempt's rounds are spent,
-the default below is taken.
+**Re-run.** Revise from the note. When the scope changed, check every card and
+story still fits.
 
-**Without question sets** (`persona-refinement`): approve and continue, the
-count at zero. `problem-approval` is where they change.
-
-**Writes.** `analysis/personas.md`: each persona card and its user journey,
-with any insight about how users discover the feature.
-
-**Summary.** A `headline` covering the problem and the personas, since
-`problem-approval` closes both. In `summary`, each persona's name and role. In
-`decisions`, what set them apart, each `{decision, by: run}`. In `risks`, a
-user type left out on purpose, `tag: tradeoff`, or one left unsettled,
-`tag: open` with the `change` that would add it. The node entry adds
-`personas` and `user_journeys`.
-
-**Re-run.** When the problem statement changed, check every card still fits
-it.
-
-**Budget.** Re-present the personas with adjusted framing.
+**Budget.** Re-draft from the explore briefs once.
 
 ---
 
-## `idea-generation`
+## `problem-approval`
+
+**Exception.** Its stop, "Use quick-design instead", ends the run with the engine's
+wrap-up, and the **Next** line is
+`/maister:quick-design "<the question from design_context.quick_design_question, else the task>"`,
+in place of the development command.
+
+---
+
+## `alternatives`
 
 **Does.** **Deliberately non-interactive**: alternatives generated outside the
-conversation are not anchored on its first idea. Also hand the brainstormer:
+conversation are not anchored on its first idea. Hand the brainstormer:
 
-- the design characteristics from state;
-- `analysis/personas.md` **only when the state records `persona-exploration`
-  completed**;
+- the scope, whose two to five decisions are its areas;
+- the explore briefs, the problem statement and the personas;
+- the depth sentence: "options differ in what the person sees and does, never in
+  schema or API";
+- `visual_marks`, so it marks each area whose alternatives differ in what a person
+  sees;
 - the instruction to read its inputs in full and to group the alternatives by
   decision area, with a recommendation for each;
 - the absolute path of
-  `${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/references/decision-areas.md`,
-  the areas file's shape — it cannot expand the variable itself.
+  `<plugin root>/skills/workflow-engine/references/decision-areas.md`, the areas
+  file's shape, with the plugin root written out, since the agent cannot expand a
+  variable.
+
+Record `visual_areas` from the agent's return. When the return carries none, it is
+true exactly when the areas file marks any area `visual: true`.
 
 A return without alternatives in `analysis/alternatives.md` is re-invoked with
-corrected context. After a second failure, ask *"Idea generation failed twice:
+corrected context. After a second failure, ask *"The brainstorm failed twice:
 <cause>. Try again?"* — *"Try once more (Recommended)"*, saying why it may work
 now, or *"Draft the alternatives here"*, warning that they would be anchored on
 the ideas already discussed.
@@ -379,9 +219,9 @@ reason in the agent's warnings) is never re-driven for. A written one goes on
 the summary's artifacts with `role: evidence`.
 
 **Summary.** The number of decision areas (from the areas file when there is
-one) and of alternatives, and each area's recommendation, in `summary` and
-**never in `decisions`**: a recommendation is not a decision. The node entry
-adds `alternatives_count`.
+one), of visual areas and of alternatives, and each area's recommendation, in
+`summary` and **never in `decisions`**: a recommendation is not a decision. The
+node entry adds `alternatives_count`.
 
 **Re-run.** Hand the brainstormer the note and the existing
 `analysis/alternatives.md` to revise in place with fresh alternatives, listing
@@ -389,14 +229,89 @@ the ones already explored as considered.
 
 ---
 
-## `idea-convergence`
+## `sketches`
 
-**Does.** Read the interaction-patterns reference first if this session has
-not, then ask the decision areas as engine `references/in-node-questions.md` §
-*Decision areas from the brainstorm* says. On a `decision-areas-*` warning,
-compose every area from `analysis/alternatives.md`, recording each answer as
+**Does.** One turn of the studio into `analysis/mockups/`, asking nothing. The
+format comes from `options.mockup_format`, with the studio's own ASCII fallback.
+Pass it:
+
+- `scope`: the slugs of every option of every area marked visual, plus
+  `who-this-is-for`. Every sketch slug is `<area id>-<option id>`, in this node
+  and in a midway draw alike, because `area-brief` finds a sketch by that name and
+  `screens` drops it by that name;
+- `brief`: one small screen per such option, and a first screen, "Who this is
+  for", from the persona cards; the other areas stay text;
+- `note`: on a re-run, the revise note from `prior-context`.
+
+The turn's version is the sketch version, `v001` on a fresh folder.
+
+**Writes.** Add the turn to `design_context.design_resources` from the version's
+manifest.
+
+**Summary.** The `headline` names the version and the gallery path, or the ASCII
+document ("v001 of the sketches, one page per option; open
+analysis/mockups/versions/v001/index.html"). Each `degraded` reason the turn
+returned is an `open` risk. The node entry adds `mockup_references`, the flat pages
+of the version's screens.
+
+**Re-run.** One more turn against the folder's latest version.
+
+**Budget.** Retry the turn once.
+
+---
+
+## `convergence`
+
+**Does.** Read the convergence mode of
+`<plugin root>/skills/product-design/references/interaction-patterns.md` first if
+this session has not. Ask one area per call through `area-brief`, as engine
+`references/in-node-questions.md` § *Decision areas from the brainstorm* says. With
+this node's `with: sketches`, each question carries the sketch lines (each option's
+page and the gallery, for a visual area) and the "Investigate first" line; how each
+picker carries them, and the warnings to relay in the summary, are in that section.
+
+Read each answer one of three ways, in session and under a driver:
+
+- **An alternative's id or title** is the choice.
+- **Own words starting with "Check"** are an investigation, recorded under the
+  area's question id as given. Check it from the code or the docs, add one line to
+  the area's record in `analysis/design-decisions.md`, then ask the same area again
+  **under the same question id, in a follow-up round**. In session, the write sends
+  both answers, the re-asked one with the next `round` (2, then 3), as a follow-up's
+  fold would stamp it. Under a driver the follow-up request carries the round and is
+  worded the same, so the fold replaces the Check answer and the line in the area's
+  record is what stays. The later round's answer is the one in effect.
+- **Own words naming an approach not in the list** are an option asked for midway.
+  In session, confirm it in one line before anything is drawn, which also catches an
+  answer that meant a check. Under a driver the node spends no follow-up round on a
+  confirmation: it takes it as the choice and says so in its summary. Either way it is
+  recorded as the chosen approach outside the file's list, and:
+  - **when the intake recorded `draws` true**, whatever the area's mark, draw it as
+    one inline call of the `maister:mockup-studio` skill through the Skill tool, on
+    the same folder: `task_path` the run's directory, `output_subdir: analysis/mockups`,
+    no `record`, `note` the approach in the person's own words, `scope` its slug,
+    `<area id>-<the approach's name in kebab case>`. Record `{area, slug, version}` in
+    `design_context.midway_options`;
+  - **only when `draws` is false** is it recorded as text and not drawn: nothing else
+    would drop the page from the flat view, and development imports that view as
+    binding.
+
+<!-- rich-picker -->
+An investigation and an option asked for midway both come through the question
+tool's own free-text answer, which takes no option slot.
+<!-- /rich-picker -->
+<!-- plain-picker
+The answer `investigate-first`, or an alternative with `check` text beside it, is an
+investigation too, so that alternative is not yet the choice; `investigate-first` with
+no `check` text is asked once what to check. An option asked for midway comes through
+the list's Other (type your answer). `check` text naming an approach, not something to
+look at, is read as one too, confirmed in one line as above.
+-->
+
+On a `decision-areas-*` warning, compose every area from
+`analysis/alternatives.md`, recording each answer as
 `convergence-decisions-<the area's name as a slug>`. Then summarise the chosen
-direction across the areas, for `direction-approval`.
+direction across the areas, naming the sketches, for `direction-approval`.
 
 **Asks.**
 
@@ -406,7 +321,13 @@ choice depends on. Before it suspends, `analysis/alternatives.md` and the
 drafted decision sheet in `analysis/design-decisions.md` are on disk. After the
 answers, record each as an operator decision and the chosen direction exactly as
 a terminal run does. Two chosen alternatives that conflict are an `open` risk
-whose `change` names the switch that resolves it.
+whose `change` names the switch that resolves it. The areas a check was asked for
+are asked again in one follow-up round, under the same question ids (`area-brief
+--patch-file` with `--area` repeated), and the later round's answer supersedes the
+investigation. Once the rounds are spent, the area stays open for
+`direction-approval` with the finding in its risk: its last Check answer stays
+recorded as given and is counted, and the area's `open` risk, with `decision_areas`
+holding its `chosen_approach` unset, is what says it is undecided.
 
 **Without question sets** (`convergence-decisions`): **not defaulted — the
 decision is left for `direction-approval`**, because everything after it is
@@ -431,7 +352,11 @@ built on it. This node does every part of the convergence except the choice:
 **Writes.** `analysis/design-decisions.md`: the chosen approach and its
 rationale, the key decision per area, the trade-offs accepted, and the
 alternatives considered in brief, pointing at `analysis/alternatives.md` for
-the detail.
+the detail. Each chosen sketch — on a decision sheet, each recommended one — is
+named by its version page, `analysis/mockups/versions/<version>/<slug>.html`, or
+`analysis/mockups/versions/<version>/ascii-mockups.md#<slug>` for ASCII, the
+version from `design_resources` or `midway_options`: the final screens remove every
+flat sketch page, since no final screen keeps a sketch's slug.
 
 **Summary.** With a choice made: a `headline` naming the direction, the
 direction across the areas in `summary`, and the trade-offs it accepts in
@@ -442,249 +367,152 @@ await a choice. The node entry adds `selected_approach`,
 `alternatives_count`, `recommended` and `chosen_approach`. Every area is in
 `decision_areas`; a dropped area is a defect to resolve before completing.
 
-**Re-run.** After `refine-direction`: with a choice made, re-ask only the areas
+**Re-run.** After `revise-direction`: with a choice made, re-ask only the areas
 the note reopens and keep the other choices; without question sets, take the
 alternative the note names for each area it names, recorded as
 `{decision: "<area>: <alternative> — chosen at the direction gate", by: operator}`
-with who answered, and leave the rest open. After `explore-more-alternatives`
-the alternatives are new: work every area afresh, keeping a choice only for an
-area that survives unchanged.
+with who answered, and leave the rest open. An approach the note names outside the
+list is read as an option asked for midway.
 
-**Budget.** Re-read the alternatives and re-present the decision areas.
+**Budget.** Re-read the alternatives and re-ask the areas.
 
 ---
 
 ## `direction-approval`
 
 **Exception.** Its continue option means more under a driver. When
-`idea-convergence` left the areas open, continuing is the operator adopting
+`convergence` left the areas open, continuing is the operator adopting
 every recommendation on the decision sheet; the gate's recorded answer, with who
 gave it, is that choice. Nothing is written back into the sheet.
 
 ---
 
-## `feature-specification`
+## `specification`
 
-**Does.** Authored here, section by section with the operator — never drafted
-whole for one approval, never delegated to the specification creator.
+**Does.** Inline, with no agent and no question. Read
+`analysis/design-decisions.md` first; for a decision sheet with areas left open, a
+continue recorded at `direction-approval` means every recommendation was adopted,
+and the specification says so, naming who answered.
 
-Read the direction first. When the state records `idea-convergence` completed,
-read `analysis/design-decisions.md`; for a decision sheet with areas left open,
-a continue recorded at `direction-approval` means every recommendation was
-adopted, and the Key Decisions say so, naming who answered.
+Write `analysis/feature-spec.md` at design level, per screen or step: what it
+shows; its states and their words; who may act; each data rule in one line; the
+stories it serves, by id; and what it keeps or changes of what exists.
 
-A simple run (*Depth*) has no decision record: the first section is
-**Approach** — the direction in a paragraph, and the one or two alternatives
-passed over, a line each with why. Its choices go in `decisions` as
-`{decision, by: run}`; one made on thin evidence is an `open` risk with the
-other way as its `change`.
+The user stories from `analysis/problem-statement.md` open it, each by its id and
+whole. A story the direction changes is restated as changed, and is an `open` risk.
 
-Write the user stories from `analysis/problem-statement.md` first, under **User
-stories**, each by its id and whole; they are not asked again. Each section
-names the stories it serves. A story the direction changes is restated as
-changed; it, and any story no section serves, is an `open` risk, never a drop.
+Entities with fields and types, endpoints and their shapes, migrations and component
+names are always out of its scope: the development workflow's specification creator
+owns those.
 
-Scale the sections to the complexity, as `characteristic-detection.md` §
-*Adaptive Depth Scaling* sets.
+**Summary.** The `headline` gives the count of screens or steps. `decisions` are the
+scope boundaries, each `{decision, by: run}`, never restating the earlier direction;
+`risks` are the open answers, each `tag: open`.
 
-> **Section depth principle**: each section holds enough that a developer could
-> implement that aspect without asking a clarifying question — "If I had only
-> this section and the codebase, could I write the code?" In a complex design, a
-> section about data lists every entity with its fields and types; one about an
-> interface every endpoint or method with its input and output shapes; one about
-> a workflow every state and transition with its guards and side effects; one
-> about an integration the connection points, the data flow and the error
-> handling.
+**Re-run.** Revise what the note reaches.
 
-For each section:
-
-1. Draft it at the depth above. A section never quietly drops a criterion the
-   description states; one it leaves to another section names that section, and
-   one the direction left out is an `open` risk.
-2. Ask *"Approve the <section> section?"*, saying in a line what it settles.
-   Options: *"Approve (Recommended)"*, saying why it is implementation-ready;
-   *"Add more detail"*, *"Change its scope"* and *"Rethink it"*, each naming the
-   likeliest change. The question ends with
-   `Type "details" for the full section.`
-<!-- rich-picker -->
-   The approve option's preview holds the section as its points — every entity,
-   interface, state or rule it settles, a line each — within 1,800 characters.
-<!-- /rich-picker -->
-<!-- plain-picker
-   The question lists the section's points, a line each, before the ask.
--->
-   On a change, revise and ask again, counting rounds per section in
-   `design_context.refinement_iterations.specification_sections`.
-3. **On approval, append the section to `analysis/feature-spec.md` at once** —
-   the file, not the conversation, is the source of truth.
-
-**Depth verification**, for a complex design, runs even though each section was
-approved: approval confirms direction, the check makes it implementation-ready.
-Re-read the whole file against the depth principle, draft an enrichment for
-each thin section, and ask once: *"Add these N enrichments to the
-specification?"*, a line per enrichment — the section and what it adds.
-Options: *"Accept all N enrichments (Recommended)"*; *"Choose which to add"*,
-opening a multi-select of them, each labelled `(Recommended)`; *"Keep the
-sections as approved"*; and **More details**.
-
-Then present a short summary of the specification.
-
-**Asks.** Each section's answer is its own decision, `question_id`
-`specification-sections-<section>`.
-
-**With question sets** (`specification-sections`): every section in this node's
-first request, one question per section, each drafted and written to
-`analysis/feature-spec.md` before it suspends; a change asked for is applied
-after the answers without another round.
-
-**Without question sets** (`specification-sections`): every section is approved
-as drafted and appended in order, still written to the depth a developer could
-implement from; a section that cannot reach it without an answer says which
-answer it needs rather than being padded to look finished.
-
-**With question sets** (`depth-enrichment`): after the sections' request, as a
-follow-up round; once the attempt's rounds are spent, the default below.
-
-**Without question sets** (`depth-enrichment`): every enrichment
-is appended as drafted, marked as added by the depth check.
-
-**Writes.** When nobody could be asked, `analysis/feature-spec.md` says its
-sections are drafts no operator refined in session.
-
-**Summary.** A `headline` saying what the feature does and how many sections
-specify it. In `summary`, the sections by name and the feature in two
-sentences. In `decisions`, the scope boundaries and key "how" decisions, each
-`{decision, by: run}`, never restating the earlier direction. In `risks`, every
-answer a section still needs, `tag: open`; a scope boundary drawn on purpose,
-`tag: tradeoff`. The node entry adds `spec_sections` and `sections_count`.
-
-**Re-run.** Revise the sections the note reaches through the per-section loop
-in a terminal run, and verify depth again for a complex design.
-
-**Budget.** Re-draft a section with a different approach.
+**Budget.** Re-draft once.
 
 ---
 
-## `visual-prototyping`
+## `screens`
 
-**Does.** One turn of the studio, with this node's `with:` values: it draws
-one new version of the screens under `analysis/mockups/` and asks nothing.
-Pass it:
+**Does.** One turn of the studio on `analysis/mockups/`, built on the folder's latest
+version: read `latest` from `analysis/mockups/versions/index.json` and pass it as
+`against`, since the convergence may have added turns; with no index yet, this turn
+is the first. The format comes from `options.mockup_format`.
 
-- the format: `html` when `options.visual_enabled` is true, `ascii`
-  otherwise;
-- the note: on a first run, to draw **user-facing wireframes of the feature's
-  actual screens**, as the specification describes them — never generic
-  placeholders or technical diagrams; on a re-run after a revise at
-  `mockup-approval`, the revise note from `prior-context`; on a re-run after a
-  revise of the specification, "redraw the screens the revised specification
-  changes";
-- `analysis/design-decisions.md` **only when the state records
-  `idea-convergence` completed** (in a simple run, *Depth*, the
-  specification's Approach section carries the direction), and the personas'
-  journeys from `analysis/personas.md` **only when the state records
-  `persona-exploration` completed**.
+It draws the final screens from `analysis/design-decisions.md`, the problem statement
+and the personas, and from `analysis/feature-spec.md` **only when the state records
+`specification` completed**. A decision sheet with areas left open reads as every
+recommendation adopted once `direction-approval` continued.
 
-The screens are reviewed at `mockup-approval`, right after this node.
+Its note lists the final screens, each by a slug of its own (a screen name, free and
+never prefixed), and tells the turn to `drop` every slug of `against` that is not a
+final screen: the sketches and midway options (`<area id>-<option id>`), chosen or
+not, and `who-this-is-for`. The flat view is then the final screens alone.
 
-**Writes.** Record the turn's grounding digest and whether the pack was stale,
-from the version's manifest, and what the turn bound to, as
-`design_context.design_resources`.
+**Writes.** Add the turn to `design_context.design_resources` from the version's
+manifest.
 
-**Summary.** The `headline` names the version, the changed screens and the
-gallery file ("v002 — the share dialog and the guest calendar changed; open
-analysis/mockups/versions/v002/index.html"). The gate question cannot carry the
-path, so the brief does; a trimmed brief keeps opening sentences. Each
-`degraded` reason the turn returned is an `open` risk. The node entry adds
+**Summary.** The `headline` names the version, the screens and the gallery file
+("v003 — the share dialog and the guest calendar; open
+analysis/mockups/versions/v003/index.html"), since the gate question cannot carry the
+path. Each `degraded` reason the turn returned is an `open` risk. The node entry adds
 `mockup_references`, the flat pages of the version's screens.
 
-**Re-run.** One more turn against the latest version, with the note *Does*
-names. The earlier versions stay in the folder.
+**Re-run.** One more turn on the latest version, with the note. The earlier versions
+stay in the folder.
+
+**Budget.** Retry the turn once.
 
 ---
 
-## `review-handoff`
+## `brief`
 
 **Does.** Runs on every path, because a parent reads what it writes
-(*Embedded mode*).
+(*Embedded mode*). A decision sheet with areas left open reads as every recommendation
+adopted once `direction-approval` continued.
 
-1. **For a complex design, check the specification once more**: each section
-   answers what to build and how. A gap is named in the brief's Open Questions
-   / Risks and in `risks`; it does not send the run back.
-2. **Assemble the layered brief** from the documents on disk, pointing at them
-   rather than repeating them:
-   - **Core brief**, always: the problem statement, the target users, the
-     feature overview, the constraints, the success criteria and the acceptance
-     criteria, condensed; and the user stories from the specification, each by
-     its id and whole — never condensed;
-   - **Persona cards**, when the state records `persona-exploration` completed;
-   - **Design decisions**, a summary per decision area, pointing at the decision
-     record and the alternatives, when the state records `idea-convergence`
-     completed; in a simple run (*Depth*), the specification's Approach
-     section condensed;
-   - **Mockup references**, when the state records `visual-prototyping`
-     completed — links to the files under `analysis/mockups/`, and terminal
-     mockups inline;
-   - **Delivery scope**, always: each member in scope as one plain sentence —
-     the member, what changes there, and what it waits for — in order, then each
-     member left out with its reason, then each agreed exclusion. Approving the
-     brief approves the scope;
+1. **Assemble the layered `outputs/product-brief.md`** from the documents on disk,
+   pointing at them rather than repeating them:
+   - **Core**, always: the problem, the users, the constraints, the success and
+     acceptance criteria, condensed; and the user stories, each by its id and whole —
+     never condensed;
+   - **Persona cards**;
+   - **Design decisions** per area, pointing at the decision record and the
+     alternatives, and naming each chosen sketch by its version page,
+     `analysis/mockups/versions/<version>/<slug>.html`, or
+     `analysis/mockups/versions/<version>/ascii-mockups.md#<slug>` for ASCII, the
+     version from `design_resources` or `midway_options`;
+   - **What changes, per screen**: when the state records `specification` completed,
+     `analysis/feature-spec.md` carried in full instead. Otherwise this node writes it,
+     from the decisions and the final screens: their titles and behaviour lines in
+     `analysis/mockups/versions/<latest>/manifest.json` (`<latest>` from
+     `analysis/mockups/versions/index.json`) and their annotations in
+     `analysis/mockups/.mockups.json` for HTML, or
+     `analysis/mockups/ascii-mockups.md` for ASCII; when `screens` was skipped, per
+     step or flow from the decisions alone;
+   - **Mockup references**, only when the state records `screens` completed: links to
+     the flat pages under `analysis/mockups/` and the gallery, or the ASCII inline;
+   - **Delivery scope**, always: each member in scope as one plain sentence — the
+     member, what changes there, and what it waits for — in order, then each member
+     left out with its reason, then each agreed exclusion. Approving the brief approves
+     the scope;
    - **References**: every analysis document the run produced.
-3. **List the agreed points** before writing the scope. An agreed point is
-   anything this run settled about what is built or left out: each decision the
-   earlier summaries record, whoever made it; each in-scope and out-of-scope
-   item the specification and the design decisions state; each open item a
-   later step settled, in the form it was settled; and each user story. Every
-   inclusion lands in the statement of the member it changes; every exclusion
-   is stated as left out, in the scope layer and in the statement of the
-   member it would have changed. A point deliberately not carried is named in
-   the scope layer with why.
-4. **Write `outputs/product-brief.md` and `outputs/delivery-scope.yml`**, the
-   scope as the umbrella skill's `references/delivery-scope.md` shapes it. A
-   member is in scope when the specification changes something it owns. Draw
-   every statement from the agreed points, the specification and the design
-   decisions, never from a guess about code nobody read.
-5. **Check the scope against the agreed points** — every one carried, or named
-   as left out with why. Each point missing is an `open` risk naming it, with
-   the `change` that would carry it. A scope that drops one, or states no
-   exclusion after a run that agreed some, is not ready to approve.
-6. **Approve** — ask *"Approve the product brief?"*, naming its layers in a
-   line. Options: *"Approve"*, described *"the brief only restates approved
-   sections"*; *"Revise a section"* and *"Add missing information"*, each
-   naming the likeliest section or gap; and **More details** last. Approve is
-   recommended only when the check found nothing missing; otherwise *"Add
-   missing information"* is, described by the points missing, and its
-   suggested answer carries them. The person still decides.
-<!-- rich-picker -->
-   The approve option's preview holds the brief as its points, a line per
-   layer and per key decision, within the preview's limit.
-<!-- /rich-picker -->
-<!-- plain-picker
-   The question lists the brief's points, a line per layer, before the ask.
--->
-   On a change, revise the brief and the scope, check them again and ask
-   again.
+2. **List the agreed points** before writing the scope. An agreed point is anything
+   this run settled about what is built or left out: each decision the earlier
+   summaries record, whoever made it; each in-scope and out-of-scope item the scope, the
+   specification and the design decisions state; each open item a later step settled,
+   in the form it was settled; and each user story. Every inclusion lands in the
+   statement of the member it changes; every exclusion is stated as left out, in the
+   scope layer and in the statement of the member it would have changed. A point
+   deliberately not carried is named in the scope layer with why.
+3. **Write `outputs/delivery-scope.yml`** as
+   `<plugin root>/skills/umbrella/references/delivery-scope.md` shapes it. A member is
+   in scope when the design changes something it owns. Draw every statement from the
+   agreed points and the documents on disk, never from a guess about code nobody read.
+4. **Check the scope against the agreed points** — every one carried, or named as left
+   out with why. Each point missing is an `open` risk naming it, with the `change` that
+   would carry it. A scope that drops one, or states no exclusion after a run that
+   agreed some, is not ready to approve.
+5. **Write the HTML page `outputs/product-brief.html` before this node completes**,
+   through the companion writer when `html_output` is on; `brief-approval` reviews it.
 
-**Asks.**
+**Writes.** `outputs/delivery-scope.yml` carries its fixed shape and no artifact summary
+block.
 
-**With question sets** (`brief-approval`): in this node's first request, the
-brief already written to `outputs/product-brief.md`.
+**Summary.** The `headline` names what was designed. `summary` is the gate's preview, a
+line per layer: it gives the delivery scope in a sentence — *"two members in scope,
+`api` before `web`; `mobile` left out"* — and the check's result, how many agreed points
+the scope carries and each one still missing. When the state records `screens` skipped,
+`summary` also says no screens were drawn, so both revises read as rewriting the brief,
+with `change-screens-and-brief` rewriting the specification first when one was written.
+`recommends` the `change-brief` revise when the check found a point missing, the reason
+naming it. A point still missing at approval stays an `open` risk, so a parent's scope
+gate sees it. The node entry adds `brief_layers`.
 
-**Without question sets** (`brief-approval`): approve the brief, and record
-in its Open Questions / Risks that it was assembled without in-session
-review, naming every section no operator confirmed in session and every agreed
-point the check found missing — the brief is what a development run is built
-from.
-
-**Writes.** `outputs/delivery-scope.yml` carries its fixed shape and no
-artifact summary block. The brief's HTML page is written once, after approval.
-
-**Summary.** The `headline` names what was designed; the `summary` gives the
-delivery scope in a sentence — *"two members in scope, `api` before `web`;
-`mobile` left out"* — and the check's result: how many agreed points the scope
-carries, and each one still missing. A point still missing at approval stays an
-`open` risk, so a parent's scope gate sees it. The node entry adds
-`brief_layers`.
+**Re-run.** Apply the note, check the scope again and rewrite the page.
 
 **Budget.** Re-assemble the brief and the scope from the documents on disk.
 
@@ -708,7 +536,8 @@ To start development based on this design, clear context first or start a new se
 /maister:development [task-path]
 ```
 
-A run a gate's stop option ended closes the same way.
+A run a gate's stop option ended closes the same way, except `use-quick-design`, whose
+**Next** is the `/maister:quick-design` line `problem-approval` names.
 
 No close-out while a choice is held: when the freeze recorded
 `orchestrator.classes_questions`, this node runs

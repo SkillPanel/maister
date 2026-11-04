@@ -10,7 +10,7 @@ import { inNodeQuestions } from '../../plugins/maister/skills/workflow-engine/sc
 
 // A built-in step that declares delegates completes only with them listed;
 // every write here sends them as a session that dispatched them would.
-const write = (run, patch) => writeState(run, delegating(patch));
+const write = (run, patch) => writeState(run, delegating(patch, run));
 
 // What every built-in asks, and how each question reaches a person under each
 // driver, pinned against a snapshot taken from the engine before the autonomy
@@ -66,7 +66,7 @@ const IN_NODE_COUNTS = {
   development: 10,
   migration: 4,
   performance: 6,
-  'product-design': 12,
+  'product-design': 3,
   research: 5,
   'mockup-studio': 0,
 };
@@ -373,10 +373,12 @@ test('the in-node question parser finds every id each node-prose file names', ()
   }
 });
 
-test('the product-design visual-prototyping node names no in-node question: a turn asks nothing, its gate does', () => {
+test('the product-design sketches and screens nodes name no in-node question: a turn asks nothing, the next step and the gates do', () => {
   const prose = proseOf('product-design');
-  assert.ok(prose.includes('## `visual-prototyping`'), 'the visual-prototyping section is where the snapshot expects it');
-  assert.deepEqual(inNodeQuestions(prose).filter(each => each.node === 'visual-prototyping'), []);
+  for (const node of ['sketches', 'screens']) {
+    assert.ok(prose.includes(`## \`${node}\``), `the ${node} section is where the snapshot expects it`);
+    assert.deepEqual(inNodeQuestions(prose).filter(each => each.node === node), []);
+  }
   assert.ok(!prose.includes('mockup-refinement'), 'the retired in-node loop is named nowhere');
 });
 
