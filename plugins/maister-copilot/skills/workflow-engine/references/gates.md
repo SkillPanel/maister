@@ -467,9 +467,9 @@ an immediate re-validation through the writer.
    `{}` as the patch file's body (engine § *The invocation contract*), described as
    re-validating the recorded answer. It is not a no-op: the writer reads
    back the file the editor tools wrote, self-checks it and re-publishes it, recording what the
-   answer implies — the gate's values, the provenance keys copied from the request's answer
-   block, and under a classifying policy the triage and settlement items — and regenerating
-   `gates/index.yml`. None of that is drift.
+   answer implies — a person's answer its `by: operator` and label, the gate's values, the
+   provenance keys copied from the request's answer block, and under a classifying policy the
+   triage and settlement items — and regenerating `gates/index.yml`. None of that is drift.
 6. A refusal at step 5 is `RUN-FAILED: <code>`, reported verbatim, and the run stops there:
    the operator repairs the directory or starts a new task. **Never repair the state file to get
    past it** — editing further with the same tools compounds the drift.
