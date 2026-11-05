@@ -207,6 +207,8 @@ test('a driven answer\'s re-validation — the empty patch that closes its index
   assert.deepEqual(rest, []);
   assert.deepEqual(answered.triage, GATE_TRIAGE);
   assert.equal(answered.on_behalf_of, 'lee', 'the request file\'s provenance is copied first');
+  assert.equal(answered.by, 'operator', 'the answer is folded on the write that judges it');
+  assert.equal(answered.decision, 'Continue to the specification audit');
   assert.deepEqual(settled, {
     decision: 'audit_enabled: true',
     by: 'operator',

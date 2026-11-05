@@ -1332,7 +1332,8 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null) {
   let typed = null;
   const typedNow = () => (typed ??= typedOf(doc));
   // The gates this write judges, read once for the two passes that care.
-  const { judged, fresh } = judgedGates(answering, typedNow, runDir, answeredBefore);
+  const { judged, fresh, closing } = judgedGates(answering, typedNow, runDir, answeredBefore);
+  if (foldDrivenAnswers(doc, typedNow(), closing, runDir, changed)) typed = null;
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
   if (runDir !== null && stampAnsweredIn(doc, typedNow(), out.before, graphOf, runDir, changed)) typed = null;
@@ -4632,6 +4633,48 @@ function copyDrivenProvenance(doc, typed, runDir, changed, judged, writeWarnings
 }
 
 /**
+ * A driven answer's summary was written with editor tools, so `foldAnswers`,
+ * which runs on a patch's decisions, never saw it. On the write that closes a
+ * gate's index row (`closingRows`) the same fold runs over that gate's
+ * decisions: each that reads as a person's answer gains the `decision` and the
+ * `by` it lacks, and one the run, an audit or a default settled stays as it is.
+ * The label is the one the person read, from the request's options. A closed
+ * row does not close again, so no later write folds, and an answer held from
+ * before this fold is left as it stands. Returns whether it wrote.
+ */
+function foldDrivenAnswers(doc, typed, closing, runDir, changed) {
+  if (closing.length === 0) return false;
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  const recorded = recordedNodes(doc);
+  let display = null;
+  let wrote = false;
+  for (const id of closing) {
+    if (!isGateSummary(recorded, id) || !Object.hasOwn(summaries, id) || !isPlainObject(summaries[id]) || !Array.isArray(summaries[id].decisions)) continue;
+    display ??= displayOfRun(typed, runDir);
+    const held = gateHeldRevises(typed, id).map(each => each.id);
+    const asked = requestLabels(runDir, id);
+    const decisions = summaries[id].decisions;
+    const folded = decisions.map(item => (decisionOf(item)?.by === 'operator' ? foldAnswers([item], id, display, held, asked)[0] : item));
+    if (sameValue(folded, decisions)) continue;
+    doc.set(['node_summaries', id], block(id, { ...summaries[id], decisions: folded }, 2));
+    if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+    wrote = true;
+  }
+  return wrote;
+}
+
+/** The labels a gate's request file showed its options under: option id → label. Empty when it cannot be read. */
+function requestLabels(runDir, id) {
+  let options;
+  try {
+    options = parseState(fs.readFileSync(path.join(runDir, 'gates', `${id}${REQUEST_SUFFIX}`), 'utf8')).options;
+  } catch {
+    return new Map();
+  }
+  return new Map((Array.isArray(options) ? options : []).filter(isPlainObject).map(option => [option.id, option.label]));
+}
+
+/**
  * Does a request file's answer block hold the gate's answer: the same option
  * and, where both name a person, the same `answered_by`? A block left from an
  * earlier answer with the same option by someone else is not this answer, and
@@ -4764,7 +4807,7 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
  */
 function judgedGates(answering, typedNow, runDir, answeredBefore = new Map()) {
   let closing = runDir === null ? [] : closingRows(runDir);
-  if (answering.length === 0 && closing.length === 0) return { judged: new Set(), fresh: new Set() };
+  if (answering.length === 0 && closing.length === 0) return { judged: new Set(), fresh: new Set(), closing: [] };
   if (closing.length > 0 && !settledState(typedNow())) closing = [];
   const summaries = isPlainObject(typedNow().node_summaries) ? typedNow().node_summaries : {};
   const newly = answering.filter(id => {
@@ -4780,7 +4823,7 @@ function judgedGates(answering, typedNow, runDir, answeredBefore = new Map()) {
     if (before.status !== undefined && before.status !== 'completed') return true;
     return before.option !== now.option;
   });
-  return { judged: new Set([...answering, ...closing]), fresh: new Set([...newly, ...closing]) };
+  return { judged: new Set([...answering, ...closing]), fresh: new Set([...newly, ...closing]), closing };
 }
 
 /** The ids of the summaries a patch sends that record an answer (`recordsAnswer`). */

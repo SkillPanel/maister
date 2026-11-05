@@ -1299,6 +1299,8 @@ test('held-approval: its answer is folded, held to its options, stamped and judg
   const [given, approved, ...more] = decisionsAt(driven, HELD_APPROVAL_ID);
   assert.deepEqual(more, []);
   assert.equal(given.option, 'continue');
+  assert.equal(given.by, 'operator', 'the hand-written answer is folded by the write that closes its row');
+  assert.equal(typeof given.decision, 'string');
   assert.equal(approved.answered_by, 'dana');
   assert.equal(approved.on_behalf_of, 'lee');
   assert.deepEqual(outstandingHeld(readState(driven)), []);
