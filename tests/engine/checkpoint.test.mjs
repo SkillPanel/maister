@@ -62,6 +62,15 @@ function onDisk(run, relative) {
   fs.writeFileSync(file, '# written\n');
 }
 
+/** A run at the workspace root, where a chain's own run lives: `.maister/umbrella/runs/<id>`. */
+function umbrellaRun(t) {
+  const { root } = scratch(t);
+  const relative = '.maister/umbrella/runs/019260a2-1122';
+  const dir = path.join(root, relative);
+  fs.mkdirSync(dir, { recursive: true });
+  return { root, dir, path: relative, name: '019260a2-1122', state: path.join(dir, 'orchestrator-state.yml') };
+}
+
 /** Every node before `gate` completed, then `patch` on top. */
 function walkTo(t, run, definition, gate, overlays, inputs, patch) {
   const graph = freeze(run, { definition, overlays, inputs });
@@ -273,6 +282,37 @@ test('checkpoint: options carry what choosing each does, revise and stop with th
   assert.deepEqual(stop.keeps, ['implementation/spec.md', 'analysis/requirements.md']);
   assert.equal(stop.not_run.next, 'Specification audit');
   assert.ok(stop.not_run.remaining > 1);
+});
+
+test('checkpoint: a kept file adopted from a sub-run is named from the project root in the preview, and keeps its spelling in the field and the request', t => {
+  const report = 'outputs/report.md';
+  const homes = [
+    { run: scratch(t), kept: `../../research/2026-01-05-sample-research/${report}` },
+    { run: umbrellaRun(t), kept: `../../../tasks/research/2026-01-05-sample-research/${report}` },
+  ];
+  for (const { run, kept } of homes) {
+    const file = path.join(run.root, '.maister/tasks/research/2026-01-05-sample-research', report);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, '# written\n');
+    onDisk(run, 'implementation/spec.md');
+    walkTo(t, run, DEVELOPMENT, 'specification-approval', [], { task_description: 'Tag the notes' }, {
+      nodes: { 'ui-mockups': { status: 'skipped' }, 'mockup-approval': { status: 'skipped' } },
+      node_summaries: { specification: { status: 'completed', summary: 'The spec is written.', artifacts: ['implementation/spec.md'] } },
+    });
+    // The writer spells an adopted file this way only when it adopts a child's
+    // ending (custom-workflow.test.mjs): every other write naming one is refused.
+    fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8').replace('implementation/spec.md', kept));
+
+    const stopOf = options => options.find(option => option.effect === 'stop' || option.id === 'stop-development');
+    assert.deepEqual(stopOf(checkpointOf(run, 'specification-approval').options).keeps, [kept], 'the field stays relative to the run');
+    const request = JSON.parse(gateBrief(run, 'specification-approval', '--request').stdout);
+    assert.deepEqual(stopOf(request.context.checkpoint.options).keeps, [kept], 'the driven request carries the field as it stands');
+
+    const preview = stopOf(pickerOf(run, 'specification-approval', 'rich').options).preview;
+    assert.ok(preview.includes(`Kept: .maister/tasks/research/2026-01-05-sample-research/${report}`), preview);
+    assert.ok(!preview.includes('../'), preview);
+    assert.ok(!JSON.stringify(pickerOf(run, 'specification-approval', 'plain').options).includes('Kept:'), 'a labels-only picker shows no kept files');
+  }
 });
 
 test('checkpoint: a stop risk, typed or written the old way, recommends stopping with its reason', t => {
@@ -587,7 +627,7 @@ test('rich: the specification gate renders as designed — a one-line ask, the g
     ],
   });
   assert.ok(revise.preview.split('\n').length <= 8);
-  assert.match(stop.preview, /^Ends the run here\.\nKept: implementation\/spec\.md, analysis\/requirements\.md and the dashboard\.\nNot run: specification audit and \d+ later phases\.\nStart a new run from these files to pick up later\.$/);
+  assert.match(stop.preview, /^Ends the run here\.\nKept: \.maister\/tasks\/development\/2026-01-05-sample\/implementation\/spec\.md, \.maister\/tasks\/development\/2026-01-05-sample\/analysis\/requirements\.md and the dashboard\.\nNot run: specification audit and \d+ later phases\.\nStart a new run from these files to pick up later\.$/);
   assert.ok(stop.preview.split('\n').length <= 7);
   assert.match(rich.more_details, /\*\*Open\*\*\n- A null element inside the filter array still throws → Treat a null element/);
   assert.match(rich.more_details, /\*\*Trade-offs accepted\*\*\n- Two breaking changes ship under 1\.0\.0/);

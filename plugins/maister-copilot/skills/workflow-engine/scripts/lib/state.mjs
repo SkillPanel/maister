@@ -108,6 +108,7 @@ import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { lowered } from './checkpoint.mjs';
+import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
 import { atClose, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
@@ -1066,18 +1067,8 @@ function located(name, root) {
   return hit ? hit.base : null;
 }
 
-/**
- * The project root, derived from the run directory and from nothing else.
- *
- * `<root>/.maister/tasks/<type>/<date-name>` is four levels down, and the run
- * directory is the only thing this write knows for certain. `locateWorkflow`'s own
- * default root is `CLAUDE_PROJECT_DIR` or the process cwd, neither of which is a
- * property of the run being written — a dispatched worker started elsewhere would
- * resolve another project's workflows.
- */
-export function projectRootOf(runDir) {
-  return path.resolve(runDir, '..', '..', '..', '..');
-}
+// The project root, derived from the run directory alone (`run-dirs.mjs`).
+export { projectRootOf };
 
 function isFile(file) {
   try {
