@@ -477,6 +477,13 @@ an immediate re-validation through the writer.
    the operator repairs the directory or starts a new task. **Never repair the state file to get
    past it** — editing further with the same tools compounds the drift.
 
+**A write denied on this path.** A host may carry a hook that denies a session's writes to a run
+waiting on a gate, because another session is driving that run. Whether it does depends on the run,
+and a hook cannot read the prompt, so a stamped line is denied just as a person's is. When a hook
+denies a write while you record an answer, nothing was recorded. Stop, tell the person so and what
+the denial says to do, and try no other way. What the denial names wins over the fixed words in this
+section.
+
 **A question set answered.** A `GATE-ANSWER` for a node that asked a question set is folded
 the same way, with three differences, because the node has not finished — it asked from inside
 its work:
@@ -510,8 +517,9 @@ running node is never in the ready set, so do not take the ready set first:
 
 **A first line from a person.** Someone opens a session in the run's checkout, or resumes one, and
 says "carry on", or names the run with a command. No line is stamped, yet the answer may already be
-on disk, so both kinds of session do the same thing. This holds for a run whose driver is `cockpit`
-or `dispatch`; any other run resumes as `SKILL.md` § *Resume* says.
+on disk, so both kinds of session follow the same steps, and a write denied on the way stops as *A
+write denied on this path* says. This holds for a run whose driver is `cockpit` or `dispatch`; any
+other run resumes as `SKILL.md` § *Resume* says.
 
 The run is the one the session was told. When it was told none, it is the one under
 `.maister/tasks/*/*/` or `.maister/umbrella/runs/*/` whose state has a `gate_pending` that is not
@@ -541,7 +549,8 @@ longer being asked.
   the node stays suspended.
 
 Use these words as they stand. They are all the session can truthfully say about what to do next:
-never tell a person to re-send anything, and never name a step this reference does not.
+never tell a person to re-send anything, and never name a step this reference does not, except what
+a denial names.
 
 ## Choosing a stop option
 
