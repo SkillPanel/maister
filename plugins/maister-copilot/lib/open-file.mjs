@@ -10,6 +10,10 @@
  * caller never waits on the browser; the only thing awaited is whether the
  * process started. A failure is returned as a reason, never thrown.
  *
+ * The opener runs from the root of the file's drive, not the caller's folder: it
+ * can outlive the caller, and Windows will not remove or rename a folder that a
+ * live process has as its working directory.
+ *
  * Opting out: `MAISTER_NO_OPEN` set to anything but empty or `0` in the
  * environment, which the test suites and smoke runs set so no window ever opens
  * from them. `MAISTER_OPENER` is a seam for those tests only: a JSON array naming
@@ -20,6 +24,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import path from 'node:path';
 
 /** The environment variable that turns opening off everywhere. */
 export const NO_OPEN_ENV = 'MAISTER_NO_OPEN';
@@ -53,16 +58,17 @@ export function optedOut(env = process.env) {
  * the reason it could not start. Never rejects.
  */
 export function openFile(file, { env = process.env, platform = process.platform } = {}) {
+  const absolute = path.resolve(file);
   let line;
   try {
-    line = env[OPENER_ENV] ? seamCommand(env[OPENER_ENV], file) : openerCommand(file, platform);
+    line = env[OPENER_ENV] ? seamCommand(env[OPENER_ENV], absolute) : openerCommand(absolute, platform);
   } catch (err) {
     return Promise.resolve(reasonOf(err));
   }
   return new Promise(resolve => {
     let child;
     try {
-      child = spawn(line.command, line.args, { ...line.options, detached: true, stdio: 'ignore', windowsHide: true });
+      child = spawn(line.command, line.args, { ...line.options, cwd: path.parse(absolute).root, detached: true, stdio: 'ignore', windowsHide: true });
     } catch (err) {
       resolve(reasonOf(err));
       return;

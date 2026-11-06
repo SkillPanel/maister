@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { ROOT, run } from '../helpers.mjs';
-import { openerCommand } from '../../plugins/maister/lib/open-file.mjs';
+import { openerCommand, openFile } from '../../plugins/maister/lib/open-file.mjs';
 
 // A published html turn opens its gallery for a person at the terminal. Every
 // opener here is a fake run through the test seam, so no test starts a browser.
@@ -16,9 +16,18 @@ const STATE = 'orchestrator-state.yml';
 
 function project(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-mockup-open-'));
-  // The detached opener may still be exiting with this folder as its working
-  // directory, which Windows refuses to remove until it has gone.
-  t.after(() => fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  t.after(() => {
+    try {
+      fs.rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    } catch (err) {
+      // No process of ours holds this folder: the opener runs outside it, which
+      // the working-directory test below pins on every platform. What Windows can
+      // still report busy is something a test cannot name or wait for, and a
+      // leftover temporary folder decides nothing the assertions checked.
+      if (err.code !== 'EBUSY') throw err;
+      t.diagnostic(`left behind, still busy: ${root}`);
+    }
+  });
   const task = path.join(root, '.maister', 'tasks', 'development', '2026-01-01-task');
   fs.mkdirSync(task, { recursive: true });
   return { root, task };
@@ -195,6 +204,22 @@ test('open-gallery: a failing opener leaves the result and exit code as they wer
     assert.equal(finished.stderr, baseline.stderr);
     assert.deepEqual(shape(finished), shape(baseline));
   }
+});
+
+test('open-gallery: the opener runs from the drive root, never the caller\'s folder, and gets an absolute path', async t => {
+  const where = project(t);
+  const script = path.join(where.root, 'opener.mjs');
+  const log = path.join(where.root, 'opened.log');
+  fs.writeFileSync(script, "import fs from 'node:fs';\nfs.appendFileSync(process.argv[2], `${JSON.stringify({ cwd: process.cwd(), file: process.argv[3] })}\\n`);\n");
+  const reason = await openFile('page.html', { env: { MAISTER_OPENER: JSON.stringify([process.execPath, script, log]) } });
+  assert.equal(reason, null);
+
+  const deadline = Date.now() + 10000;
+  const written = () => fs.existsSync(log) && fs.readFileSync(log, 'utf8').includes('\n');
+  while (!written() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+  const { cwd, file } = JSON.parse(fs.readFileSync(log, 'utf8'));
+  assert.equal(file, path.resolve('page.html'));
+  assert.equal(cwd, path.parse(file).root);
 });
 
 test('open-gallery: Windows opens through cmd with start\'s empty title', () => {
