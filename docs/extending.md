@@ -244,6 +244,15 @@ for and when to use it — or, without one, from the paragraph under the `# Titl
 `workflow-undescribed` when a workflow says neither, and `/maister:run --list` shows what
 `/maister:work` will see.
 
+**Saying that it changes code.** A workflow that changes the project's code says so with
+`changes_code: true` in its definition; without the line it reads as `false`. This tells whoever
+reads the definition what the workflow does. It changes nothing about a run, and the validator
+checks only that it is true or false, so `/maister:workflow-author check` is what flags a workflow
+that implements a change and doesn't say so. An overlay or a profile that adds code-changing work
+to a built-in may write `changes_code: true`, and none may write `false`: to say a workflow no
+longer changes code, eject it. The built-ins that carry it are `development`, `migration` and
+`performance`.
+
 **Where a chain runs.** A definition whose nodes carry `dir:` — its own, or one an overlay or a
 profile adds — dispatches work into member repositories, which makes it a chain. A chain is started from the cockpit's Start-a-chain form and
 driven there, and `/maister:run` refuses it. Everything else on this page runs in a single project
