@@ -21,21 +21,27 @@
  * itself, and installs from Copilot's shell commands rather than Claude Code's
  * slash commands.
  *
+ * A run waiting on a gate is also told what is on disk for that gate, because a
+ * session given no stamped line may have nothing else to go on: its tools may
+ * not list `gates/`, and nothing else names the file an answer sits in. Which
+ * answer file can be used is judged here, once, so no prose re-derives it. With
+ * no state named, `findWaiting` finds the runs waiting under the project root.
+ *
  * It reads the state file and writes nothing in the directory: not the state,
  * not the dashboard, not anything else. Its one write is outside the run and only
  * for a run it accepts: the session's pointer (`display-files.mjs`), so a screen
  * beside a session that resumes a run draws it from here on. A pointer that
- * cannot be written is a warning. Zero dependencies, `node:` builtins only,
- * Node >= 20.
+ * cannot be written is a warning. Finding runs writes nothing at all, that
+ * pointer included. Zero dependencies, `node:` builtins only, Node >= 20.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
-import { childRootOf, dashboardUrl, legacyMirrorWarning, projectRootOf } from './state.mjs';
+import { TIMESTAMP, childRootOf, dashboardUrl, legacyMirrorWarning, projectRootOf } from './state.mjs';
 import { stamp } from '../../../../lib/canonical.mjs';
-import { isSetAside } from '../../../../lib/run-dirs.mjs';
+import { isSetAside, runFolders } from '../../../../lib/run-dirs.mjs';
 import { publishPointer } from './display-files.mjs';
 import { openRevision } from './revise.mjs';
 
@@ -80,12 +86,13 @@ function ownPluginName() {
 /**
  * Judge the run whose state file is `state`.
  *
- * Returns `{ok: true, workflow: {name, overlays, profile}, title, status, task_path,
- * root, dashboard, revision?}` for a run the engine froze — `root` the run's
- * checkout, derived from where the state file is (`runRoot`) — `revision` only while a
- * gate's revise is open (`openRevision`) — `dashboard` the `file://` link a
- * resume shows the operator once, or null when the run has none — or
- * `{ok: false, code, message}` for one it does not resume.
+ * Returns `{ok: true, workflow: {name, overlays, profile}, title, status, driver_kind,
+ * task_path, root, dashboard, revision?, gate?}` for a run the engine froze — `root`
+ * the run's checkout, derived from where the state file is (`runRoot`) — `driver_kind`
+ * the kind its driver records, or null — `revision` only while a gate's revise is open
+ * (`openRevision`) — `gate` only while a gate is pending (`waitingGate`) — `dashboard`
+ * the `file://` link a resume shows the operator once, or null when the run has none —
+ * or `{ok: false, code, message}` for one it does not resume.
  *
  * A run whose context block still carries the retired phase-summary mirror
  * resumes all the same; the result then carries `warnings`, the one
@@ -126,6 +133,7 @@ export function resumeCheck({ state }) {
   const revision = openRevision(doc);
   const mirror = legacyMirrorWarning(doc);
   const root = runRoot(doc, dir);
+  const gate = waitingGate(doc, dir);
   const warnings = [
     ...(mirror === null ? [] : [mirror]),
     ...publishPointer({ runDir: dir, root, now: stamp() })
@@ -140,14 +148,137 @@ export function resumeCheck({ state }) {
     },
     title: typeof task.title === 'string' ? task.title : null,
     status: typeof task.status === 'string' ? task.status : null,
+    driver_kind: driverKindOf(doc),
     task_path: dir,
     root,
     dashboard: dashboardUrl(doc, dir),
     // Additive, and only while a gate's revise is open: a resume that finds it
     // not yet applied runs `gate-revise` before it walks the ready set.
     ...(revision ? { revision: { gate: revision.gate, option: revision.option, reruns: revision.reruns, revision: revision.revision, applied: revision.applied } } : {}),
+    ...(gate ? { gate } : {}),
     ...(warnings.length ? { warnings } : {}),
   };
+}
+
+/**
+ * The runs under the project root `root` waiting on a gate, for a session that
+ * was told no run. Always `{ok: true, root, waiting, unreadable?}`: none, one and
+ * several are each an answer, not a refusal. Each entry of `waiting` carries the
+ * whole `gate`, so one run found needs no second call. A state with no `workflow:`
+ * block is no run of this engine and is left unparsed; one that cannot be read may
+ * be waiting, so it is named under `unreadable` rather than taken as not waiting.
+ *
+ * Writes nothing: no pointer, because no run was chosen.
+ */
+export function findWaiting({ root }) {
+  const waiting = [];
+  const unreadable = [];
+  for (const dir of runFolders(root)) {
+    const state = path.join(dir, 'orchestrator-state.yml');
+    try {
+      const raw = fs.readFileSync(state, 'utf8');
+      if (!/^workflow:/m.test(raw)) continue;
+      const doc = parse(raw);
+      const gate = waitingGate(doc, dir);
+      if (!gate) continue;
+      const task = isPlainObject(doc.task) ? doc.task : {};
+      waiting.push({
+        task_path: dir,
+        state,
+        title: typeof task.title === 'string' ? task.title : null,
+        status: typeof task.status === 'string' ? task.status : null,
+        driver_kind: driverKindOf(doc),
+        gate,
+      });
+    } catch (err) {
+      if (err.code !== 'ENOENT') unreadable.push({ task_path: dir, message: `${state} cannot be read: ${err.message}` });
+    }
+  }
+  return { ok: true, root: path.resolve(root), waiting, ...(unreadable.length ? { unreadable } : {}) };
+}
+
+/** The kind of driver a run records, or null. */
+function driverKindOf(doc) {
+  const driver = isPlainObject(doc.orchestrator) ? doc.orchestrator.driver : null;
+  return isPlainObject(driver) && typeof driver.kind === 'string' && driver.kind !== '' ? driver.kind : null;
+}
+
+/**
+ * What is on disk for the gate a run waits on, or null when it waits on none:
+ * `{node, request, asked_at, answer_state, answer_files}`. `answer_state` is the verdict a
+ * session chooses its words from: `none` with no answer file, `one` or `several`
+ * by how many are usable, `unusable` with files of which none is. Files stay on
+ * disk after a revise asks the gate again, so a usable file beside an earlier
+ * round's still reads `one`.
+ */
+function waitingGate(doc, dir) {
+  const pending = isPlainObject(doc.orchestrator) ? doc.orchestrator.gate_pending : null;
+  if (!isPlainObject(pending) || typeof pending.node !== 'string') return null;
+  const { node } = pending;
+  const gates = path.join(dir, 'gates');
+  const request = `${node}.request.yml`;
+  const askedAt = askedAtOf(path.join(gates, request));
+  const files = answerFileNames(gates, node).map(file => judgeAnswerFile(gates, file, askedAt));
+  const usable = files.filter(each => each.usable).length;
+  return {
+    node,
+    request: `gates/${request}`,
+    asked_at: askedAt,
+    answer_state: files.length === 0 ? 'none' : usable === 0 ? 'unusable' : usable === 1 ? 'one' : 'several',
+    answer_files: files,
+  };
+}
+
+/** The request's `asked_at`, or null when the request cannot be read or holds no valid one. */
+function askedAtOf(file) {
+  try {
+    const askedAt = parse(fs.readFileSync(file, 'utf8')).asked_at;
+    return typeof askedAt === 'string' && TIMESTAMP.test(askedAt) ? askedAt : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The names of the answer files beside a node's request, `<node>.answer.<actor>.yml`, sorted. */
+function answerFileNames(gates, node) {
+  try {
+    return fs.readdirSync(gates).filter(name => name.startsWith(`${node}.answer.`) && name.endsWith('.yml')).sort();
+  } catch {
+    return [];
+  }
+}
+
+/** One answer file as a session is told it: its name and path, what it holds, whether it can be used. */
+function judgeAnswerFile(gates, file, askedAt) {
+  const named = { file, path: path.join(gates, file) };
+  let doc;
+  try {
+    doc = parse(fs.readFileSync(named.path, 'utf8'));
+  } catch {
+    return { ...named, usable: false, reason: 'it cannot be read' };
+  }
+  const answer = isPlainObject(doc) && isPlainObject(doc.answer) ? doc.answer : null;
+  if (answer === null) return { ...named, usable: false, reason: 'it holds no answer' };
+  const held = Object.fromEntries(['option', 'answers', 'answered_by', 'at']
+    .filter(key => answer[key] !== undefined && answer[key] !== null)
+    .map(key => [key, answer[key]]));
+  const reason = whyUnusable(answer, askedAt);
+  return reason === null ? { ...named, usable: true, ...held } : { ...named, usable: false, reason, ...held };
+}
+
+/**
+ * Why an answer block cannot be used, in words a person can be shown; null when it
+ * can. A valid `at` not earlier than the request's `asked_at` is what ties an
+ * answer to the question now being asked, and nothing else can supply it.
+ */
+function whyUnusable(answer, askedAt) {
+  if (typeof answer.answered_by !== 'string' || answer.answered_by === '') return 'it does not say who answered';
+  if (typeof answer.at !== 'string' || !TIMESTAMP.test(answer.at)) return 'it does not say when it was answered, as a UTC time';
+  const chosen = (typeof answer.option === 'string' && answer.option !== '')
+    || (isPlainObject(answer.answers) && Object.keys(answer.answers).length > 0);
+  if (!chosen) return 'it holds no choice';
+  if (askedAt === null) return 'the question it answers cannot be read';
+  return answer.at < askedAt ? 'it is earlier than the question now being asked' : null;
 }
 
 /**

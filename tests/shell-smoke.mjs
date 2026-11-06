@@ -227,6 +227,8 @@ try {
   const resumed = call('resume-check', [flag('state', statePath)]);
   const report = json(resumed.stdout);
   check('resume-check accepts the run', resumed.code === 0 && report?.ok === true && report.workflow?.name === 'development', show(resumed));
+  const waiting = call('resume-check', []);
+  check('resume-check with no state answers from the project root', waiting.code === 0 && Array.isArray(json(waiting.stdout)?.waiting), show(waiting));
   let viewer = null;
   try {
     viewer = report?.dashboard ? fileURLToPath(report.dashboard) : null;

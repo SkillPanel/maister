@@ -113,8 +113,7 @@ test('resume-check: a missing state file is unreadable, not 2.x', t => {
   assert.equal(result.json.code, 'state-unreadable');
 });
 
-test('resume-check: --state is required and no other flag is taken', () => {
-  assert.equal(verb(['resume-check']).code, 2);
+test('resume-check: no flag but --state and --no-open is taken', () => {
   assert.equal(verb(['resume-check', '--state=x', '--node=y']).code, 2);
 });
 

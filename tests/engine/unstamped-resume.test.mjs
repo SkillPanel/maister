@@ -36,6 +36,44 @@ test('every refusal is given in fixed words saying what was recorded and what ca
   ]) assert.ok(words.includes(sentence), `missing: ${sentence}`);
 });
 
+test('the refusal that sends a person to answer is kept for when no answer is on disk', () => {
+  const words = section();
+  const send = 'Answer where the question was asked';
+  assert.equal(words.split(send).length, 2, 'said once');
+  assert.ok(words.indexOf('`answer_state` is `none`') < words.indexOf(send) && words.indexOf(send) < words.indexOf('`answer_state` is `unusable`'));
+  for (const sentence of [
+    'This run is waiting on an answer, and nothing was recorded. An answer is on disk but cannot be used: <each file\'s name and reason>. It is driven from where it was started: take it up there.',
+    'This run is waiting on an answer, and nothing was recorded. Several answers are on disk and nothing says which one stands. It is driven from where it was started: take it up there.',
+  ]) assert.ok(words.includes(sentence), `missing: ${sentence}`);
+  assert.ok(words.includes('the `unusable` words with that reason, then `GATE-INVALID: <reason>`'), 'an answer the request does not offer');
+});
+
+test('a session is sent to the verb first, and no answer comes from the session itself', () => {
+  const words = section();
+  assert.ok(words.includes('never take an answer from the person in the session, and never record one yourself'));
+  assert.ok(words.includes('An answer comes from a stamped line or a usable answer file and from nowhere else'));
+  assert.ok(words.indexOf('never take an answer') < words.indexOf('Try `resume-check` first'), 'the prohibition is read first');
+  assert.ok(words.includes('`resume-check --state=<run directory>/orchestrator-state.yml`'));
+  assert.ok(words.includes('`resume-check` with no flags'));
+  assert.ok(words.includes('absolute path under the plugin root'));
+  assert.ok(words.includes('never list `gates/`, guess an answer file\'s name or judge a file again'));
+  assert.ok(flat(SKILL).includes('never takes an answer from the person in the session and never records one itself'));
+});
+
+test('a denied call has one truthful outcome, the read as much as a write, and no sentence promises the shell', () => {
+  const words = flat(GATES);
+  assert.ok(!words.includes('A write denied on this path'));
+  const start = words.indexOf('**A call denied on this path.**');
+  assert.ok(start > 0, 'gates.md carries the paragraph');
+  const paragraph = words.slice(start, words.indexOf('**A question set answered.**'));
+  assert.ok(paragraph.includes('may deny `resume-check` there as well'));
+  assert.ok(paragraph.includes('or denies that `resume-check`, nothing was recorded'));
+  assert.ok(paragraph.includes('tell the person so and what the denial says to do, and try no other way'));
+  assert.ok(paragraph.includes('What the denial names wins over the fixed words in this section'));
+  assert.ok(!words.includes('shell calls cannot run'), 'true on a host that allows the read and on one that denies it');
+  assert.equal(words.split('a host may deny the engine\'s shell calls').length, 3);
+});
+
 test('the stamp stays the contract: a stamped shape with no at= still fails, and only the answer file stands in for it', () => {
   const words = flat(GATES);
   assert.ok(words.includes('A line in one of the five shapes with no `at=` is below the contract'));
