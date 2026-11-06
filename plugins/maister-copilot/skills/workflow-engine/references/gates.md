@@ -419,8 +419,8 @@ earlier turn's time. Record it as the `at` of the decision the turn writes, on a
 steer no less than on an answer. A line in one of the five shapes with no `at=` is below the
 contract, and since tooling emits these lines it is a defect, not a person: print
 `RUN-FAILED: prompt-line-unstamped`, write nothing, and leave the run where it was. A first line
-in none of the five shapes is a person's, and the disk decides what it can do (*A first line from
-a person*, below).
+in none of the five shapes is a person's: it gets a report of where the run stands and writes nothing
+(*A first line from a person*, below).
 
 **None of the five carries the run's inputs.** A resumed driver reads those off
 `orchestrator.options.inputs`, which the freeze wrote (engine Step 4); never re-derive one from
@@ -480,10 +480,10 @@ an immediate re-validation through the writer.
 **A call denied on this path.** A host may carry a hook that denies a session's writes to a run
 waiting on a gate, because another session is driving that run, and on a first line from a person it
 may deny `resume-check` there as well. Whether it does depends on the run, and a hook cannot read the
-prompt, so a stamped line is denied just as a person's is. When a hook denies a write while you record
-an answer, or denies that `resume-check`, nothing was recorded. Stop, tell the person so and what the
-denial says to do, and try no other way: a denied `resume-check` is no reason to look for the answer
-with other tools. What the denial names wins over the fixed words in this section.
+prompt, so a stamped line can be denied too. When a hook denies the first write while you record an
+answer, or denies that `resume-check`, nothing was recorded. When it denies a later write, the record is
+part-way through. Stop, tell the person which and what the denial says to do, and try no other way: a
+denied `resume-check` is no reason to look for the answer with other tools. What the denial names wins over the fixed words in this section.
 
 **A question set answered.** A `GATE-ANSWER` for a node that asked a question set is folded
 the same way, with three differences, because the node has not finished — it asked from inside
@@ -517,15 +517,15 @@ running node is never in the ready set, so do not take the ready set first:
   `resume-check` reports such a revise `applied: false` until it has run.
 
 **A first line from a person.** Someone opens a session in the run's checkout, or resumes one, and
-says "carry on", or names the run with a command. No line is stamped, yet the answer may already be
-on disk, so both kinds of session follow the same steps, and a call denied on the way stops as *A
+says "carry on", or names the run with a command. No line is stamped, so the session reports where the
+run stands and writes nothing, whatever the disk holds, and a call denied on the way stops as *A
 call denied on this path* says. This holds for a run whose driver is `cockpit` or `dispatch`; any
 other run resumes as `SKILL.md` § *Resume* says.
 
-**On such a run, never take an answer from the person in the session, and never record one
-yourself.** An answer comes from a stamped line or a usable answer file and from nowhere else. Offer
-no way to answer here and write nothing into a request or an answer file on what the person says: a
-driver's audit stops a run on such a fold.
+**On such a run, a session given a person's first line records nothing at all, not even an answer on
+disk, and never takes an answer from the person in the session.** An answer is folded only on a stamped
+line. Offer no way to answer here and write nothing into a request, an answer file or the state on what
+the person says: a driver's audit stops a run on such a fold.
 
 **Try `resume-check` first**, before reading anything else, from the project root with the script's
 absolute path under the plugin root, as for every engine call:
@@ -542,7 +542,9 @@ absolute path under the plugin root, as for every engine call:
 
 The report's `gate` is there while the run waits: its `node`, `request` and `asked_at`, its verdict
 `answer_state`, and `answer_files`, each with its `file`, `path` and `usable`, the `reason` when it is not
-usable, and what it holds of `option` or `answers`, `answered_by` and `at`. Go by it: never list
+usable, and what it holds of `option` or `answers`, `answered_by` and `at`. It carries `part_recorded` only
+when the run's record is part-way through: its marker is still set, yet the list says what is already
+written, `answer-block` and `node-completed`. Go by it: never list
 `gates/`, guess an answer file's name or judge a file again. A file is **usable** when it parses, its
 `answer` block holds `answered_by`, `at` as a UTC stamp and an `option` or `answers`, and that `at` is
 not earlier than the request's `asked_at`. The last condition matters because answer files stay on
@@ -551,23 +553,19 @@ question no longer being asked.
 
 - **No `gate`:** say *This run is not waiting on an answer, and nothing was recorded. It is driven
   from where it was started: carry on there.* Re-driving a run is its driver's.
-- **`answer_state` is `one`:** read the usable file at its `path`, and the state and the request with
-  read-only tools, and carry on exactly as for a `GATE-ANSWER`, with the line's fields read from the
-  disk: the node from `gate.node`, and the `option`, `answered_by` and `at` from the file's `answer`
-  block. That `at` is the turn's stamp, for every decision the turn writes. Everything above holds
-  unchanged: the validation, the order of the writes, the re-validation, a question set,
-  `held-approval`, and a revise with its note.
+- **`gate` carries `part_recorded`,** whatever its `answer_state`: say *This run's record is part-way
+  through, and nothing more was written here. It is driven from where it was started: take it up there.*
+  Never finish it or repair it.
+- **`answer_state` is `one`:** say *An answer from <answered_by> is recorded, and nothing more was
+  written here. It is driven from where it was started: take it up there.*, with the name from the usable file.
 - **`answer_state` is `none`:** say *This run is waiting on an answer, and nothing was recorded. Answer
-  where the question was asked, then carry on.*
+  where the question was asked.*
 - **`answer_state` is `unusable`:** say *This run is waiting on an answer, and nothing was recorded. An
   answer is on disk but cannot be used: <each file's name and reason>. It is driven from where it was
   started: take it up there.* A file without a valid `at` never gets one from a clock.
 - **`answer_state` is `several`:** say *This run is waiting on an answer, and nothing was recorded. Several
   answers are on disk and nothing says which one stands. It is driven from where it was started: take
   it up there.*, then name the usable files and who answered each. None is chosen.
-- **`answer_state` is `one` and the file fails the validation** (an option or a question the request does
-  not offer): the `unusable` words with that reason, then `GATE-INVALID: <reason>` as the last line.
-  Nothing is written and the node stays suspended.
 
 Use these words as they stand. They are all the session can truthfully say about what to do next:
 never tell a person to re-send anything, and never name a step this reference does not, except what
@@ -643,11 +641,10 @@ the `suggestions`, as `gate-brief --request` wrote them into the request. The an
 `GATE-ANSWER` as any answer does; its note arrives on the answer file the driver writes beside the
 request — `gates/<node>.answer.<operator>.yml`, under `answer.note`. Read it with the read-only
 tools, fold the answer exactly as *Driver-suspended mode — resume* says, run the empty-patch
-re-validation, then write `{"note", "answered_by", "at"}` — `at` the `GATE-ANSWER` stamp, or the
-answer file's on a first line from a person — to the
+re-validation, then write `{"note", "answered_by", "at"}` — `at` the `GATE-ANSWER` stamp — to the
 patch file and run `gate-revise`. It recognises the answer the fold recorded and completes it in
 place. With no note on the answer file, the note is the first suggestion's, and the
-decision carries `answered_by` from the line as usual, or from the answer file on a first line from a person.
+decision carries `answered_by` from the line as usual.
 
 **A driven revise with no note is asked again.** When the option offered no suggestion and the
 answer file carries no note, or a blank one, there is nothing to send back with, and no note is
