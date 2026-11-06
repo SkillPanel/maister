@@ -4,6 +4,7 @@
  * A run's state folder sits four levels below its checkout, under one of two
  * roots: `<checkout>/.maister/tasks/<type>/<date-name>` for an ordinary run,
  * `<checkout>/.maister/umbrella/runs/<run-id>` for the run that drives a chain.
+ * A chain's own runs sit one level deeper, at `<run-id>/runs/<sub-run>`.
  * Beside a run there may be a copy set aside: `<run>.moved-<digits>`, the copy a
  * machine kept after the run moved to another, and `<run>.failed-<digits>`, a
  * rolled-back copy. Either holds a state file that looks like a run's, and
@@ -46,11 +47,16 @@ function foldersIn(dir) {
   }
 }
 
-/** Every folder under `checkout` that sits where a run sits, set-aside copies left out. */
+/**
+ * Every folder under `checkout` that sits where a run sits, set-aside copies
+ * left out, and with one anything under it.
+ */
 export function runFolders(checkout) {
   const maister = path.join(checkout, '.maister');
+  const kept = dirs => dirs.filter(dir => !isSetAside(dir));
   return [
-    ...foldersIn(path.join(maister, 'tasks')).flatMap(foldersIn),
-    ...foldersIn(path.join(maister, 'umbrella', 'runs')),
-  ].filter(dir => !isSetAside(dir));
+    ...kept(foldersIn(path.join(maister, 'tasks')).flatMap(foldersIn)),
+    ...kept(foldersIn(path.join(maister, 'umbrella', 'runs')))
+      .flatMap(run => [run, ...kept(foldersIn(path.join(run, 'runs')))]),
+  ];
 }

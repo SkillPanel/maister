@@ -561,7 +561,7 @@ absolute path under the plugin root, as for every engine call:
 - **Told the run:** `resume-check --state=<run directory>/orchestrator-state.yml`. A refusal is
   relayed as `SKILL.md` § *Resume* says.
 - **Told none:** `resume-check` with no flags. It writes nothing and lists under `waiting` the runs
-  under `.maister/tasks/*/*/` and `.maister/umbrella/runs/*/` with a `gate_pending` that is not null,
+  under `.maister/tasks/*/*/`, `.maister/umbrella/runs/*/` and `.maister/umbrella/runs/*/runs/*/` with a `gate_pending` that is not null,
   leaving out a copy set aside beside a run; each carries its `task_path`, `state`, `driver_kind` and
   `gate`, and `unreadable` names any state it could not read. With none, say *No run here is waiting
   on an answer, and nothing was recorded. Say which run to carry on.*, naming any unreadable folder

@@ -294,6 +294,20 @@ test('resume-check find: several runs are all listed, under either root and any 
   assert.deepEqual(waiting.map(each => each.task_path).sort(), [first, second, umbrella].map(run => real(first, run.dir)).sort());
 });
 
+test('resume-check find: a run nested under an umbrella run is found, and a set-aside copy on either level is not', t => {
+  const first = suspended(scratch(t));
+  const nestedAt = rel => {
+    const dir = path.join(first.root, '.maister/umbrella/runs', rel);
+    fs.mkdirSync(dir, { recursive: true });
+    return suspended({ root: first.root, dir, state: path.join(dir, 'orchestrator-state.yml') }, { kind: 'dispatch' });
+  };
+  const nested = nestedAt('r-0001/runs/m-0001');
+  nestedAt('r-0001/runs/m-0002.moved-42');
+  nestedAt('r-0002.failed-2/runs/m-0001');
+  const { waiting } = find(first.root);
+  assert.deepEqual(waiting.map(each => each.task_path).sort(), [first, nested].map(run => real(first, run.dir)).sort());
+});
+
 test('resume-check find: a set-aside copy of a waiting run is left out', t => {
   const run = suspended(scratch(t));
   for (const suffix of ['moved-42', 'failed-2']) fs.cpSync(run.dir, `${run.dir}.${suffix}`, { recursive: true });
