@@ -34,8 +34,8 @@ test('every refusal is given in fixed words saying what was recorded and what ca
     'This run is not waiting on an answer, and nothing was recorded. It is driven from where it was started: carry on there.',
     'No run here is waiting on an answer, and nothing was recorded. Say which run to carry on.',
     'Several runs are waiting on an answer, and nothing was recorded. Say which one to carry on.',
-    'An answer from <answered_by> is recorded, and nothing more was written here. It is driven from where it was started: take it up there.',
-    'This run\'s record is part-way through, and nothing more was written here. It is driven from where it was started: take it up there.',
+    'An answer from <answered_by> is recorded, and nothing more was written here. Go back to where the question was asked: it carries the run on, or gives you the line to send here.',
+    'This run\'s record is part-way through, and nothing more was written here. Go back to where the question was asked: it carries the run on, or gives you the line to send here.',
   ]) assert.ok(words.includes(sentence), `missing: ${sentence}`);
 });
 
@@ -45,8 +45,8 @@ test('the refusal that sends a person to answer is kept for when no answer is on
   assert.equal(words.split(send).length, 2, 'said once');
   assert.ok(words.indexOf('`answer_state` is `none`') < words.indexOf(send) && words.indexOf(send) < words.indexOf('`answer_state` is `unusable`'));
   for (const sentence of [
-    'This run is waiting on an answer, and nothing was recorded. An answer is on disk but cannot be used: <each file\'s name and reason>. It is driven from where it was started: take it up there.',
-    'This run is waiting on an answer, and nothing was recorded. Several answers are on disk and nothing says which one stands. It is driven from where it was started: take it up there.',
+    'This run is waiting on an answer, and nothing was recorded. An answer is on disk but cannot be used: <each file\'s name and reason>. Take it up where the question was asked.',
+    'This run is waiting on an answer, and nothing was recorded. Several answers are on disk and nothing says which one stands. Take it up where the question was asked.',
   ]) assert.ok(words.includes(sentence), `missing: ${sentence}`);
 });
 
@@ -122,6 +122,25 @@ test('the stamp stays the contract: a stamped shape with no at= still fails, and
   assert.ok(person.includes('`at` as a UTC stamp'), 'an answer file with no valid at is not usable');
   assert.ok(person.includes('not earlier than the request\'s `asked_at`'), 'a file from an earlier round answers nothing');
   assert.ok(person.includes('never gets one from a clock'));
+});
+
+test('the words send a person to a place they can find, and no longer to "there"', () => {
+  assert.ok(!section().includes('take it up there'));
+  assert.ok(section().includes('add no other step, and no line of your own to send, except what a denial names'));
+});
+
+test('a stamped line that differs from what is written is refused, after the already-answered check', () => {
+  const words = flat(GATES);
+  const refusal = 'Still set, and the line\'s option differs from an `answer` block already in the request or from the answer file the fold copies → print `GATE-INVALID: <reason>`, naming both, write nothing, stay suspended.';
+  assert.ok(words.includes(refusal));
+  assert.ok(words.indexOf('print `GATE-ALREADY-ANSWERED`') < words.indexOf(refusal), 'an answered gate still reads as answered');
+  assert.ok(words.indexOf(refusal) < words.indexOf('4. Otherwise record,'), 'refused before anything is written');
+  const set = words.slice(words.indexOf('**A question set answered.**'), words.indexOf('**`held-approval` answered.**'));
+  assert.ok(set.includes('A line that differs from what is written is refused the same way.'));
+});
+
+test('a session is told to read the reference with the read tool before it reaches the reference', () => {
+  assert.ok(flat(SKILL).includes('Read the reference with the read tool, never through a shell: a host may deny shell calls on a waiting run.'));
 });
 
 test('every route to a resume is sent to the first-line rule', () => {

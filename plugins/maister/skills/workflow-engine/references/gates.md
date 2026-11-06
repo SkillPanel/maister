@@ -488,7 +488,9 @@ an immediate re-validation through the writer.
 2. Validate the answer against the request's own option ids. Not one of them → print
    `GATE-INVALID: <reason>`, write nothing, stay suspended.
 3. `gate_pending` already `null` → print `GATE-ALREADY-ANSWERED`, write nothing. A gate is
-   answered once.
+   answered once. Still set, and the line's option differs from an `answer` block already in the
+   request or from the answer file the fold copies → print `GATE-INVALID: <reason>`, naming both,
+   write nothing, stay suspended. A line never overrides what is written.
 4. Otherwise record, **in this order**: the `answer:` block in `gates/<node>.request.yml` —
    the answer file's `answer` block copied whole, **less `grants`**, which never lands in a
    request's answer — then `node_summaries.<node>` and the node's `status: completed`, then
@@ -523,7 +525,8 @@ its work:
    the question takes the operator's own words. The first question falls back to
    `answer.option`, which is what the `GATE-ANSWER` line carries. A question with no answer, an
    id the question does not offer, a list for a single choice, or own words where they are not
-   taken → `GATE-INVALID: <reason>`, nothing written, still suspended.
+   taken → `GATE-INVALID: <reason>`, nothing written, still suspended. A line that differs from
+   what is written is refused the same way.
 2. **Record, in this order:** the answer block, whole **less `grants`**, in
    `gates/<node>.request.yml`; then the node's `status` back to **`running`** — never
    `completed`; then `gate_pending: null` last. Then the empty-patch re-validation, as in step 5.
@@ -582,22 +585,22 @@ question no longer being asked.
 - **No `gate`:** say *This run is not waiting on an answer, and nothing was recorded. It is driven
   from where it was started: carry on there.* Re-driving a run is its driver's.
 - **`gate` carries `part_recorded`,** whatever its `answer_state`: say *This run's record is part-way
-  through, and nothing more was written here. It is driven from where it was started: take it up there.*
-  Never finish it or repair it.
+  through, and nothing more was written here. Go back to where the question was asked: it carries the
+  run on, or gives you the line to send here.* Never finish it or repair it.
 - **`answer_state` is `one`:** say *An answer from <answered_by> is recorded, and nothing more was
-  written here. It is driven from where it was started: take it up there.*, with the name from the usable file.
+  written here. Go back to where the question was asked: it carries the run on, or gives you the line
+  to send here.*, with the name from the usable file.
 - **`answer_state` is `none`:** say *This run is waiting on an answer, and nothing was recorded. Answer
   where the question was asked.*
 - **`answer_state` is `unusable`:** say *This run is waiting on an answer, and nothing was recorded. An
-  answer is on disk but cannot be used: <each file's name and reason>. It is driven from where it was
-  started: take it up there.* A file without a valid `at` never gets one from a clock.
+  answer is on disk but cannot be used: <each file's name and reason>. Take it up where the question
+  was asked.* A file without a valid `at` never gets one from a clock.
 - **`answer_state` is `several`:** say *This run is waiting on an answer, and nothing was recorded. Several
-  answers are on disk and nothing says which one stands. It is driven from where it was started: take
-  it up there.*, then name the usable files and who answered each. None is chosen.
+  answers are on disk and nothing says which one stands. Take it up where the question was asked.*, then
+  name the usable files and who answered each. None is chosen.
 
 Use these words as they stand. They are all the session can truthfully say about what to do next:
-never tell a person to re-send anything, and never name a step this reference does not, except what
-a denial names.
+add no other step, and no line of your own to send, except what a denial names.
 
 ## Choosing a stop option
 

@@ -768,7 +768,8 @@ definition: the graph that ran is the graph that resumes. `/maister:run <run dir
 § *Driver-suspended mode — resume*, by whichever route it came here.** A stamped line and a person's
 words each have their rule there; neither takes the ready set while `gate_pending` is set. A person's
 words get a report of where the run stands and write nothing. They start with this verb, and with no
-`--state` when no run was named: it finds the waiting runs. On such a run a session given a person's
+`--state` when no run was named: it finds the waiting runs. Read the reference with the read tool, never
+through a shell: a host may deny shell calls on a waiting run. On such a run a session given a person's
 words records nothing at all, not even an answer on disk, and never takes an answer from the person in
 the session: an answer is folded only on a stamped line.
 
