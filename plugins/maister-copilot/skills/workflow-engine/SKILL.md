@@ -1,6 +1,6 @@
 ---
 name: workflow-engine
-description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as an orchestrated run. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session or suspends on them according to the run's driver, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator, or by `/maister-copilot:run` for a workflow started by name; not a workflow a user starts directly.
+description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as an orchestrated run. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session or suspends on them according to the run's driver, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator, or by `/maister-copilot:run` for a workflow started by name; not a workflow a user starts directly. Also the way to carry on a driven run that is waiting on an answer.
 user-invocable: false
 ---
 
@@ -762,6 +762,10 @@ the ready set from the recorded node statuses, and continue. Resume never re-res
 definition: the graph that ran is the graph that resumes. `/maister-copilot:run <run directory>` and
 `/maister-copilot:work <run directory>` take `workflow.name` from the run's state, through
 `resume-check`, and hand it here with the directory as the resume target.
+
+**A run under a `cockpit` or `dispatch` driver takes its first line through `references/gates.md`
+§ *Driver-suspended mode — resume*, by whichever route it came here.** A stamped line and a person's
+words each have their rule there; neither takes the ready set while `gate_pending` is set.
 
 **A resume declines the same two flags a first run does.** Resume skips Step 3 and Step 4 — the
 graph is already frozen — but never Step 5, and a resume is where those flags usually arrive.

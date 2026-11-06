@@ -440,12 +440,15 @@ answered, or that spells a different question, still refuses.
 
 ## Driver-suspended mode — resume
 
-A resume always arrives as a first line in one of five shapes — `GATE-ANSWER`, `RE-DRIVE`,
+A driver resumes a run with a first line in one of five shapes — `GATE-ANSWER`, `RE-DRIVE`,
 `STEER`, `RESUME` or `SUB-RUN-DONE` — and **all five end with `at=<timestamp>`**. That stamp is the turn's
 measured time and the only one the engine has: never read a clock of your own or reuse an
 earlier turn's time. Record it as the `at` of the decision the turn writes, on a re-drive and a
-steer no less than on an answer. A first line with no `at=` is below the contract: print
-`RUN-FAILED: prompt-line-unstamped`, write nothing, and leave the run where it was.
+steer no less than on an answer. A line in one of the five shapes with no `at=` is below the
+contract, and since tooling emits these lines it is a defect, not a person: print
+`RUN-FAILED: prompt-line-unstamped`, write nothing, and leave the run where it was. A first line
+in none of the five shapes is a person's, and the disk decides what it can do (*A first line from
+a person*, below).
 
 **None of the five carries the run's inputs.** A resumed driver reads those off
 `orchestrator.options.inputs`, which the freeze wrote (engine Step 4); never re-derive one from
@@ -533,6 +536,41 @@ running node is never in the ready set, so do not take the ready set first:
   says; it resets the stretch, the closing node included, and then the ready set is taken.
   `resume-check` reports such a revise `applied: false` until it has run.
 
+**A first line from a person.** Someone opens a session in the run's checkout, or resumes one, and
+says "carry on", or names the run with a command. No line is stamped, yet the answer may already be
+on disk, so both kinds of session do the same thing. This holds for a run whose driver is `cockpit`
+or `dispatch`; any other run resumes as `SKILL.md` § *Resume* says.
+
+The run is the one the session was told. When it was told none, it is the one under
+`.maister/tasks/*/*/` or `.maister/umbrella/runs/*/` whose state has a `gate_pending` that is not
+null, leaving out a copy set aside beside a run. With none, say *No run here is waiting on an
+answer, and nothing was recorded. Say which run to carry on.* With several, name their directories
+after *Several runs are waiting on an answer, and nothing was recorded. Say which one to carry on.*
+
+Then read the state and the files in `gates/` beside the request with read-only tools. An answer file
+`gates/<node>.answer.<operator>.yml` is **usable** when it parses, its `answer` block holds
+`answered_by`, `at` as a UTC stamp and an `option` or `answers`, and that `at` is not earlier than
+the request's `asked_at`. The last condition matters because answer files stay on disk: after a
+revise asks a gate again, the earlier round's file is still there, and it answers a question no
+longer being asked.
+
+- **`gate_pending` is null:** say *This run is not waiting on an answer, and nothing was recorded.
+  It is driven from where it was started: carry on there.* Re-driving a run is its driver's.
+- **Pending, exactly one usable file:** carry on exactly as for a `GATE-ANSWER`, with the line's
+  fields read from the disk: the node from `gate_pending`, and the `option`, `answered_by` and `at`
+  from the file's `answer` block. That `at` is the turn's stamp, for every decision the turn writes.
+  Everything above holds unchanged: the validation, the order of the writes, the re-validation, a
+  question set, `held-approval`, and a revise with its note.
+- **Pending, no usable file or more than one:** say *This run is waiting on an answer, and nothing
+  was recorded. Answer where the question was asked, then carry on.* Nothing says which of several
+  answers stands, so none is chosen, and a file without a valid `at` never gets one from a clock.
+- **Pending, one usable file that fails the validation** (an option or a question the request does
+  not offer): the same words, then `GATE-INVALID: <reason>` as the last line. Nothing is written and
+  the node stays suspended.
+
+Use these words as they stand. They are all the session can truthfully say about what to do next:
+never tell a person to re-send anything, and never name a step this reference does not.
+
 ## Choosing a stop option
 
 A stop option ends the run, and ends it completely:
@@ -615,10 +653,11 @@ the `suggestions`, as `gate-brief --request` wrote them into the request. The an
 `GATE-ANSWER` as any answer does; its note arrives on the answer file the driver writes beside the
 request — `gates/<node>.answer.<operator>.yml`, under `answer.note`. Read it with the read-only
 tools, fold the answer exactly as *Driver-suspended mode — resume* says, run the empty-patch
-re-validation, then write `{"note", "answered_by", "at"}` — `at` the `GATE-ANSWER` stamp — to the
+re-validation, then write `{"note", "answered_by", "at"}` — `at` the `GATE-ANSWER` stamp, or the
+answer file's on a first line from a person — to the
 patch file and run `gate-revise`. It recognises the answer the fold recorded and completes it in
 place. With no note on the answer file, the note is the first suggestion's, and the
-decision carries `answered_by` from the line as usual.
+decision carries `answered_by` from the line as usual, or from the answer file on a first line from a person.
 
 **A driven revise with no note is asked again.** When the option offered no suggestion and the
 answer file carries no note, or a blank one, there is nothing to send back with, and no note is
