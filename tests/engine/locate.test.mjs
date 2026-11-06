@@ -370,6 +370,7 @@ test('without a name, the project\'s own workflows are listed and nothing else',
     title: 'Team onboarding',
     summary: 'Surveys a new team\'s repositories and proposes an onboarding plan.',
     chain: false,
+    changes_code: false,
     error: null,
   });
   assert.equal(rollout.chain, true);

@@ -63,6 +63,7 @@
 name: development
 version: 1
 description: "Builds a change to the code — a new feature, an enhancement, a bug fix or a refactor — from analysis through specification, planning, implementation and verification, with an operator gate after each phase. Use it for any task that modifies code; the optional stretches (a failing test written before the fix, UI mockups, a specification audit, browser checks, user documentation) run only when the task calls for them."
+changes_code: true
 inputs:
   task_description: {type: string, required: true}
   # The path of a completed research task whose report and artifacts the

@@ -1034,7 +1034,7 @@
     },
     "modules": []
   },
-  "interface_version": "1.12",
+  "interface_version": "1.13",
   "mcp": {
     "servers": [],
     "tools": [
@@ -1662,6 +1662,35 @@
       "sets",
       "answered_in"
     ]
+  },
+  "workflow_declarations": {
+    "builtins": {
+      "development": {
+        "changes_code": true
+      },
+      "migration": {
+        "changes_code": true
+      },
+      "mockup-studio": {
+        "changes_code": false
+      },
+      "performance": {
+        "changes_code": true
+      },
+      "product-design": {
+        "changes_code": false
+      },
+      "research": {
+        "changes_code": false
+      }
+    },
+    "keys": {
+      "changes_code": {
+        "default": false,
+        "required": false,
+        "type": "boolean"
+      }
+    }
   },
   "workflows": [
     "development",

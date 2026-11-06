@@ -15,7 +15,8 @@
  * derive: the `--definition` and `--overlay` values `validate` and `resolve`
  * take, the inputs the definition declares (so a caller asks only for what is
  * missing), the nodes that dispatch into a member repository (which make the
- * definition a chain), the HTML companions its nodes owe, and a title and a
+ * definition a chain), the HTML companions its nodes owe, whether it declares
+ * that it changes code, and a title and a
  * summary, so a router can say what the workflow is for. The summary is the definition's own `description:` when it
  * has one and the companion's opening paragraph otherwise; the title is the
  * companion's H1, and a workflow without one is labelled by its name.
@@ -41,7 +42,7 @@ import path from 'node:path';
 import { companionsOf } from './companions.mjs';
 import { readDefinition } from './definition.mjs';
 import {
-  TARGET_NAME, bareWorkflowName, companionSummary, foldDefinition, locateWorkflow, orphanOverlay, pluginRoot, projectRoot,
+  TARGET_NAME, bareWorkflowName, changesCodeOf, companionSummary, foldDefinition, locateWorkflow, orphanOverlay, pluginRoot, projectRoot,
 } from './graph.mjs';
 
 /** Where definitions live, relative to a project root: joined onto it, and named in messages as written. */
@@ -108,6 +109,9 @@ function one(name, root, { overlays: extra = [], profile = null } = {}) {
     // Which markdown artifacts owe an HTML page, merged over the same layers
     // and profile, so an author sees what a run of this name will be held to.
     html_companions: companionsFor({ definition: read, overlays: layers, profile }),
+    // Whether it declares that it changes code, over the same layers and
+    // profile: an overlay's added work may raise the base's word.
+    changes_code: changesCodeOf({ definition: read, overlays: layers, profile }),
   };
 }
 
@@ -127,6 +131,7 @@ function list(root) {
       title: described.title,
       summary: described.summary,
       chain: read.doc ? dispatchesOf(read.doc).length > 0 : false,
+      changes_code: changesCodeOf({ definition: read }),
       error: error || null,
     });
   }

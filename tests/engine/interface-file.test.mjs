@@ -222,6 +222,63 @@ test('a removed verb steps the major version; a removed state key is refused unt
 });
 
 // ---------------------------------------------------------------------------
+// what each workflow declares about itself
+// ---------------------------------------------------------------------------
+
+test('each tree\'s file carries what a definition may declare and what each built-in says, with the name list left as it was', () => {
+  const expected = {
+    keys: { changes_code: { default: false, required: false, type: 'boolean' } },
+    builtins: {
+      development: { changes_code: true },
+      migration: { changes_code: true },
+      'mockup-studio': { changes_code: false },
+      performance: { changes_code: true },
+      'product-design': { changes_code: false },
+      research: { changes_code: false },
+    },
+  };
+  for (const root of [SOURCE, VARIANT]) {
+    const file = JSON.parse(fs.readFileSync(path.join(root, 'interface.json'), 'utf8'));
+    assert.deepEqual(file.workflow_declarations, expected, root);
+    assert.deepEqual(file.workflows, Object.keys(expected.builtins), root);
+  }
+});
+
+test('the section reads the definitions: a value that changed steps the major version, a new built-in the minor, and an unreadable one stops the build', t => {
+  const [major, minor] = INTERFACE.interface_version.split('.').map(Number);
+  const workflow = (root, name) => path.join(root, 'skills/workflow-engine/workflows', `${name}.yml`);
+
+  const raised = treeCopy(t);
+  edit(workflow(raised, 'research'), 'version: 1\n', 'version: 1\nchanges_code: true\n');
+  assert.equal(run(GENERATOR, ['--root', raised]).code, 0);
+  assert.equal(generated(raised).workflow_declarations.builtins.research.changes_code, true);
+  assert.equal(generated(raised).interface_version, `${major + 1}.0`, 'a value that changed is a major step');
+
+  const added = treeCopy(t);
+  fs.writeFileSync(workflow(added, 'scratch-builtin'), 'name: scratch-builtin\nversion: 1\nchanges_code: true\nnodes: {}\n');
+  assert.equal(run(GENERATOR, ['--root', added]).code, 0);
+  assert.equal(generated(added).workflow_declarations.builtins['scratch-builtin'].changes_code, true);
+  assert.equal(generated(added).interface_version, `${major}.${minor + 1}`, 'a new built-in only adds');
+
+  const broken = treeCopy(t);
+  fs.writeFileSync(workflow(broken, 'development'), 'name: [\n');
+  const refused = run(GENERATOR, ['--root', broken]);
+  assert.equal(refused.code, 2, 'an unreadable definition stops the build');
+  assert.match(refused.stderr, /development\.yml/);
+});
+
+test('a file with no section yet, given the rest of today\'s, steps the minor version', t => {
+  const root = treeCopy(t);
+  const previous = generated(root);
+  const [major, minor] = previous.interface_version.split('.').map(Number);
+  delete previous.workflow_declarations;
+  const baseline = path.join(root, 'previous-interface.json');
+  fs.writeFileSync(baseline, JSON.stringify(previous));
+  assert.equal(run(GENERATOR, ['--root', root, '--baseline', baseline]).code, 0);
+  assert.equal(generated(root).interface_version, `${major}.${minor + 1}`);
+});
+
+// ---------------------------------------------------------------------------
 // run through a symlinked path
 // ---------------------------------------------------------------------------
 

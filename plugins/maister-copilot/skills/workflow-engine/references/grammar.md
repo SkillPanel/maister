@@ -82,6 +82,7 @@ judges nothing else — so a newer definition in a mixed fleet is a diagnostic, 
 | `html_companions` | no | Node id → the artifact keys whose markdown owes an HTML companion (§ 3.2) |
 | `brief` | no | Node id → the data a node's brief prints beside its prose (§ 3.3) |
 | `chain_only` | no | `true` for a workflow that runs only as a step of a chain (§ 1); default `false`. Outside the recorded identity |
+| `changes_code` | no | `true` for a workflow that changes the project's code; default `false`. Omitting it reads as `false`. It tells a reader what the workflow does: no run reads it, and the engine does not verify it. Outside the recorded identity. An overlay may raise it (§ 12); `locate --name` reports the folded value |
 
 `profiles:` is not a definition key: profiles belong to an overlay, and a definition's own are
 refused rather than silently ignored. Nor is there a `title:` key: a workflow's title is its
@@ -658,9 +659,16 @@ result is validated as a whole: an overlay that breaks the graph is an error, ne
 | `html_companions` | Companions owed, including by added nodes; a node's list replaces the base's (§ 3.2) |
 | `brief` | Brief data, including for added nodes; merged key by key, `null` removing (§ 3.3) |
 | `subagents` | The models and effort this workflow's subagents run on, without `tiers` (*Subagent models* below) |
+| `changes_code` | `true` only: the overlay makes the workflow change the project's code (below) |
 
 **Fold order:** the base, then for each overlay in order its `disable`, its `tune`, its `add`;
 then the selected profile's `disable`, `tune` and `add`. Validation reads the graph that results.
+
+**`changes_code`** only rises. An overlay can add work that changes code, so it or a profile may
+write `true`, which holds when the base says so, any applied overlay says so, or the selected
+profile says so. `false` is refused, because disabling a node does not show that what is left
+changes no code; a workflow that no longer does is an eject, which says what it says. An overlay
+that is never applied (§ 1) raises nothing.
 
 **`disable`** removes a node and rewires its dependents to wait for whatever it waited for, so the
 chain closes up rather than breaking. Naming a node the base does not carry is an error.
@@ -705,6 +713,7 @@ refused, because the node's dependents no longer wait for it. To change what a n
 | `html_companions` | As above; the profile's wins |
 | `brief` | As above; the profile's wins, key by key |
 | `subagents` | As above; the profile's wins over the overlay's |
+| `changes_code` | As above; `true` only, and it counts only when the profile is selected |
 
 Every profile is validated whether or not it is selected, and a finding only one profile produces
 is prefixed with its name. Selecting a profile no overlay declares is an error.
