@@ -36,10 +36,13 @@
  *   to the rows Claude Code allows there (`PANEL_ROWS`) — a gate's, or a
  *   question set's step and count.
  *
- * Pure: no I/O; its one import is the declared shapes the request is held to.
- * Zero dependencies, Node >= 20.
+ * Pure: no I/O; it imports the declared shapes the request is held to, and the
+ * path arithmetic that names a kept file from the project root. Zero
+ * dependencies, Node >= 20.
  */
 
+import path from 'node:path';
+import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { REQUEST_SUGGESTION, keysOf } from './interface-shapes.mjs';
 
 /** Most lines, and characters, of the continue option's preview. */
@@ -583,6 +586,16 @@ function stopReason(checkpoint) {
   return stop.length ? stop[0].risk : '';
 }
 
+/**
+ * A kept file as a person reads it: from the project root, so it can be opened
+ * as printed. `keeps` itself stays relative to the run, the spelling the driven
+ * request carries, which reads `../../…` for a file adopted from a sub-run.
+ */
+function keptPath(checkpoint, keep) {
+  const shown = path.relative(projectRootOf(checkpoint.run.dir), path.resolve(checkpoint.run.dir, keep));
+  return `${shown.split(path.sep).join('/')}${keep.endsWith('/') ? '/' : ''}`;
+}
+
 /** The stop option's preview: why, when it is recommended; what stays; what does not run. */
 function stopLines(checkpoint, option) {
   const out = [];
@@ -593,7 +606,7 @@ function stopLines(checkpoint, option) {
   }
   // The gate brief's own line: under a parent run it names the parent the stop also ends.
   out.push(option.consequence ?? 'Ends the run here.');
-  const kept = [...(option.keeps ?? [])];
+  const kept = (option.keeps ?? []).map(keep => keptPath(checkpoint, keep));
   if (checkpoint.run?.dashboard) kept.push('the dashboard');
   if (kept.length) out.push(`Kept: ${andList(kept)}.`);
   const notRun = option.not_run;

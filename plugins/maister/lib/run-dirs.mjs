@@ -1,5 +1,5 @@
 /**
- * Which folders beside a run are not runs.
+ * Where a run's folder sits, and which folders beside a run are not runs.
  *
  * A run's state folder sits four levels below its checkout, under one of two
  * roots: `<checkout>/.maister/tasks/<type>/<date-name>` for an ordinary run,
@@ -11,12 +11,22 @@
  *
  * Zero dependencies, `node:` builtins only, Node >= 20. It sits at the plugin
  * root because the engine's resume check and the umbrella's run listing share
- * the one rule.
+ * the one rule, and the engine's state writer and gate previews the other.
  */
 
 import path from 'node:path';
 
 const SET_ASIDE = /\.(moved|failed)-\d+$/;
+
+/**
+ * The checkout a run's folder belongs to, derived from the folder and from
+ * nothing else. The run directory is the only thing a write knows for certain:
+ * `CLAUDE_PROJECT_DIR` and the process cwd are no property of the run, and a
+ * dispatched worker started elsewhere would resolve another project's files.
+ */
+export function projectRootOf(runDir) {
+  return path.resolve(runDir, '..', '..', '..', '..');
+}
 
 /** Whether the folder `dir` (a path or a bare name) is a set-aside copy of a run. */
 export function isSetAside(dir) {
