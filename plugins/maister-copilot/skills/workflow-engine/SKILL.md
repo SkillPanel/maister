@@ -1,6 +1,6 @@
 ---
 name: workflow-engine
-description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as an orchestrated run. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session or suspends on them according to the run's driver, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator, or by `/maister-copilot:run` for a workflow started by name; not a workflow a user starts directly. Also the way to carry on a driven run that is waiting on an answer.
+description: Runs a workflow definition — a graph of nodes with declared needs, guards and outputs — as an orchestrated run. Loads a definition plus any overlays, freezes the resolved graph into task state, executes the ready set, asks gates in session or suspends on them according to the run's driver, and writes every state change through the workflow tooling. Machinery invoked by a workflow's own orchestrator, or by `/maister-copilot:run` for a workflow started by name; not a workflow a user starts directly. A person asking to carry on a driven run that is waiting on an answer gets, through it, a report of where the run stands.
 user-invocable: false
 ---
 
@@ -766,9 +766,10 @@ definition: the graph that ran is the graph that resumes. `/maister-copilot:run 
 **A run under a `cockpit` or `dispatch` driver takes its first line through `references/gates.md`
 § *Driver-suspended mode — resume*, by whichever route it came here.** A stamped line and a person's
 words each have their rule there; neither takes the ready set while `gate_pending` is set. A person's
-words start with this verb, and with no `--state` when no run was named: it finds the waiting runs.
-On such a run a session never takes an answer from the person in the session and never records one
-itself.
+words get a report of where the run stands and write nothing. They start with this verb, and with no
+`--state` when no run was named: it finds the waiting runs. On such a run a session given a person's
+words records nothing at all, not even an answer on disk, and never takes an answer from the person in
+the session: an answer is folded only on a stamped line.
 
 **A resume declines the same two flags a first run does.** Resume skips Step 3 and Step 4 — the
 graph is already frozen — but never Step 5, and a resume is where those flags usually arrive.
@@ -799,7 +800,8 @@ the revise and `gate-revise` never ran: run it first (`references/gates.md` § *
 
 While a gate is pending, the report carries `gate: {node, request, asked_at, answer_state, answer_files}`:
 each answer file's name, path, whether it is usable and why not, and what it holds, with the verdict
-`answer_state` (`none`, `one`, `several` or `unusable`). `driver_kind` is always there. What a person's
+`answer_state` (`none`, `one`, `several` or `unusable`), and `part_recorded` only when the run's record
+is part-way through. `driver_kind` is always there. What a person's
 first line does with them is `references/gates.md` § *A first line from a person*.
 
 Step-level resume *inside* a node is that node's prose, not the engine's business.

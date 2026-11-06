@@ -254,6 +254,75 @@ test('resume-check gate: the check writes nothing in the run, a session\'s point
   assert.ok(fs.existsSync(path.join(run.root, '.maister/display/sessions/session-new.json')));
 });
 
+/** The request's `answer: null` replaced by what a fold writes first. */
+function answerBlockWritten(run, node = GATE) {
+  const file = path.join(run.dir, 'gates', `${node}.request.yml`);
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('answer: null\n',
+    `answer:\n  option: continue-to-audit\n  answered_by: dana\n  at: "${LATER}"\n`));
+}
+
+/** The gate's status set with an editor tool, as a fold does while the marker is set. */
+function statusWritten(run, status) {
+  fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8')
+    .replace(new RegExp(`^( {4}${GATE}: \\{kind: gate, status: )suspended`, 'm'), `$1${status}`));
+}
+
+test('resume-check gate: a marker set beside an answer block is part-way through', t => {
+  const run = suspended(scratch(t));
+  answerBlockWritten(run);
+  assert.deepEqual(check(run).gate.part_recorded, ['answer-block']);
+});
+
+test('resume-check gate: a marker set beside a completed node is part-way through', t => {
+  const run = suspended(scratch(t));
+  statusWritten(run, 'completed');
+  assert.deepEqual(check(run).gate.part_recorded, ['node-completed']);
+});
+
+test('resume-check gate: a fold denied its last write reads as both, every other field still reported', t => {
+  const run = suspended(scratch(t));
+  const file = answerFile(run, 'dana', answered('dana'));
+  answerBlockWritten(run);
+  statusWritten(run, 'completed');
+  const before = snapshot(run.dir);
+  const { gate } = check(run);
+  assert.deepEqual(gate.part_recorded, ['answer-block', 'node-completed']);
+  assert.equal(gate.node, GATE);
+  assert.equal(gate.asked_at, ASKED_AT);
+  assert.equal(gate.answer_state, 'one');
+  assert.equal(gate.answer_files[0].path, file);
+  assert.deepEqual(snapshot(run.dir), before, 'it is reported, never repaired');
+});
+
+test('resume-check gate: a question set\'s fold, its node running again, is part-way through by its answer block', t => {
+  const run = suspended(scratch(t));
+  answerBlockWritten(run);
+  statusWritten(run, 'running');
+  assert.deepEqual(check(run).gate.part_recorded, ['answer-block']);
+});
+
+test('resume-check gate: an answer file, a suspended node and answer: null are no part-way record', t => {
+  const run = suspended(scratch(t));
+  answerFile(run, 'dana', answered('dana'));
+  assert.ok(!Object.hasOwn(check(run).gate, 'part_recorded'));
+});
+
+test('resume-check gate: a request that cannot be read says nothing of a part-way record', t => {
+  const run = suspended(scratch(t));
+  fs.writeFileSync(path.join(run.dir, 'gates', `${GATE}.request.yml`), 'answer: {option: x\n: : :\n');
+  const { gate } = check(run);
+  assert.equal(gate.asked_at, null);
+  assert.ok(!Object.hasOwn(gate, 'part_recorded'));
+});
+
+test('resume-check find: a part-way run is still found, and carries the field', t => {
+  const run = suspended(scratch(t));
+  answerBlockWritten(run);
+  statusWritten(run, 'completed');
+  const [only] = find(run.root).waiting;
+  assert.deepEqual(only.gate.part_recorded, ['answer-block', 'node-completed']);
+});
+
 test('resume-check find: a project with no runs, or none waiting, finds none and exits 0', t => {
   const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-engine-'));
   t.after(() => fs.rmSync(empty, { recursive: true, force: true }));

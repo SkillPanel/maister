@@ -22,10 +22,11 @@
  * slash commands.
  *
  * A run waiting on a gate is also told what is on disk for that gate, because a
- * session given no stamped line may have nothing else to go on: its tools may
- * not list `gates/`, and nothing else names the file an answer sits in. Which
- * answer file can be used is judged here, once, so no prose re-derives it. With
- * no state named, `findWaiting` finds the runs waiting under the project root.
+ * session given no stamped line reports where the run stands and may have nothing
+ * else to go on: its tools may not list `gates/`, and nothing else names the file
+ * an answer sits in. Which answer file can be used is judged here, once, so no
+ * prose re-derives it. A record left part-way through is named and never repaired.
+ * With no state named, `findWaiting` finds the runs waiting under the project root.
  *
  * It reads the state file and writes nothing in the directory: not the state,
  * not the dashboard, not anything else. Its one write is outside the run and only
@@ -205,11 +206,16 @@ function driverKindOf(doc) {
 
 /**
  * What is on disk for the gate a run waits on, or null when it waits on none:
- * `{node, request, asked_at, answer_state, answer_files}`. `answer_state` is the verdict a
+ * `{node, request, asked_at, answer_state, answer_files, part_recorded?}`. `answer_state` is the verdict a
  * session chooses its words from: `none` with no answer file, `one` or `several`
  * by how many are usable, `unusable` with files of which none is. Files stay on
  * disk after a revise asks the gate again, so a usable file beside an earlier
  * round's still reads `one`.
+ *
+ * `part_recorded` is there only when a fold stopped before its last write: the
+ * marker is cleared last, so a marker still set beside an answer block in the
+ * request or a completed node is a record part-way through, and the verdict alone
+ * would read as a clean wait. It lists what is already written.
  */
 function waitingGate(doc, dir) {
   const pending = isPlainObject(doc.orchestrator) ? doc.orchestrator.gate_pending : null;
@@ -217,26 +223,43 @@ function waitingGate(doc, dir) {
   const { node } = pending;
   const gates = path.join(dir, 'gates');
   const request = `${node}.request.yml`;
-  const askedAt = askedAtOf(path.join(gates, request));
+  const held = readRequest(path.join(gates, request));
+  const askedAt = askedAtOf(held);
   const files = answerFileNames(gates, node).map(file => judgeAnswerFile(gates, file, askedAt));
   const usable = files.filter(each => each.usable).length;
+  const written = partRecorded(doc, node, held);
   return {
     node,
     request: `gates/${request}`,
     asked_at: askedAt,
     answer_state: files.length === 0 ? 'none' : usable === 0 ? 'unusable' : usable === 1 ? 'one' : 'several',
     answer_files: files,
+    ...(written.length ? { part_recorded: written } : {}),
   };
 }
 
-/** The request's `asked_at`, or null when the request cannot be read or holds no valid one. */
-function askedAtOf(file) {
+/** The parsed request, or null when it cannot be read. */
+function readRequest(file) {
   try {
-    const askedAt = parse(fs.readFileSync(file, 'utf8')).asked_at;
-    return typeof askedAt === 'string' && TIMESTAMP.test(askedAt) ? askedAt : null;
+    return parse(fs.readFileSync(file, 'utf8'));
   } catch {
     return null;
   }
+}
+
+/** The request's `asked_at`, or null when the request cannot be read or holds no valid one. */
+function askedAtOf(request) {
+  const askedAt = request?.asked_at;
+  return typeof askedAt === 'string' && TIMESTAMP.test(askedAt) ? askedAt : null;
+}
+
+/** What a fold has already written for a gate whose marker is still set. */
+function partRecorded(doc, node, request) {
+  const entry = isPlainObject(doc.workflow?.nodes) ? doc.workflow.nodes[node] : null;
+  return [
+    ...(request?.answer !== null && request?.answer !== undefined ? ['answer-block'] : []),
+    ...(isPlainObject(entry) && entry.status === 'completed' ? ['node-completed'] : []),
+  ];
 }
 
 /** The names of the answer files beside a node's request, `<node>.answer.<actor>.yml`, sorted. */
