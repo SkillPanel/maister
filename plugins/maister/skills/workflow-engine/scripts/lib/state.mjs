@@ -368,7 +368,7 @@ const REQUEST_PATH = /^gates\/[a-z0-9-]+\.request\.yml$/;
  */
 const PARENT_KEYS = ['run', 'node'];
 const PARENT_RUN = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/;
-const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+export const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const MIDNIGHT = /^\d{4}-\d{2}-\d{2}T00:00:00Z$/;
 
 /**

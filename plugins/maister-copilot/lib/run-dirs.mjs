@@ -14,6 +14,7 @@
  * the one rule, and the engine's state writer and gate previews the other.
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 
 const SET_ASIDE = /\.(moved|failed)-\d+$/;
@@ -31,4 +32,25 @@ export function projectRootOf(runDir) {
 /** Whether the folder `dir` (a path or a bare name) is a set-aside copy of a run. */
 export function isSetAside(dir) {
   return SET_ASIDE.test(path.basename(String(dir).replace(/[\\/]+$/, '')));
+}
+
+/** The folders directly under `dir`, sorted; none when it cannot be listed. */
+function foldersIn(dir) {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .map(entry => path.join(dir, entry.name))
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+/** Every folder under `checkout` that sits where a run sits, set-aside copies left out. */
+export function runFolders(checkout) {
+  const maister = path.join(checkout, '.maister');
+  return [
+    ...foldersIn(path.join(maister, 'tasks')).flatMap(foldersIn),
+    ...foldersIn(path.join(maister, 'umbrella', 'runs')),
+  ].filter(dir => !isSetAside(dir));
 }

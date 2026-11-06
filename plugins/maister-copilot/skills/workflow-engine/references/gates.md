@@ -370,7 +370,7 @@ order, and the order is the contract:
    verb's stdout into the patch file, unchanged; compose nothing and edit nothing in it. The one
    exception is a gate whose brief is refused `gate-brief-no-graph`, asked from its `ask:` alone (above).
    **There is no second call here, and there must not be**: the run is pending from the moment
-   the request file lands, and while the gate is pending the engine's shell calls cannot run.
+   the request file lands, and while the gate is pending a host may deny the engine's shell calls.
    **When `gate-request` answers `gate-request-unavailable`, this edition carries no gate
    module and the run cannot suspend:** stop with `RUN-FAILED: gate-request-unavailable` —
    never ask in session and never take a default answer.
@@ -450,7 +450,7 @@ A parent woken `completed` by a child still running stays waiting; a parent woke
 child that completed completes. A re-drive carrying no `SUB-RUN-DONE` at all reaches the same
 waiting node and takes the same path.
 
-While the gate is pending, the engine's shell calls cannot run, so the decision is recorded with
+While the gate is pending a host may deny the engine's shell calls, so the decision is recorded with
 editor tools, on the files this step writes and no others — the one sanctioned exception to
 "never edit state with an editor tool", lasting exactly until the marker is null and ending with
 an immediate re-validation through the writer.
@@ -477,12 +477,13 @@ an immediate re-validation through the writer.
    the operator repairs the directory or starts a new task. **Never repair the state file to get
    past it** — editing further with the same tools compounds the drift.
 
-**A write denied on this path.** A host may carry a hook that denies a session's writes to a run
-waiting on a gate, because another session is driving that run. Whether it does depends on the run,
-and a hook cannot read the prompt, so a stamped line is denied just as a person's is. When a hook
-denies a write while you record an answer, nothing was recorded. Stop, tell the person so and what
-the denial says to do, and try no other way. What the denial names wins over the fixed words in this
-section.
+**A call denied on this path.** A host may carry a hook that denies a session's writes to a run
+waiting on a gate, because another session is driving that run, and on a first line from a person it
+may deny `resume-check` there as well. Whether it does depends on the run, and a hook cannot read the
+prompt, so a stamped line is denied just as a person's is. When a hook denies a write while you record
+an answer, or denies that `resume-check`, nothing was recorded. Stop, tell the person so and what the
+denial says to do, and try no other way: a denied `resume-check` is no reason to look for the answer
+with other tools. What the denial names wins over the fixed words in this section.
 
 **A question set answered.** A `GATE-ANSWER` for a node that asked a question set is folded
 the same way, with three differences, because the node has not finished — it asked from inside
@@ -517,36 +518,56 @@ running node is never in the ready set, so do not take the ready set first:
 
 **A first line from a person.** Someone opens a session in the run's checkout, or resumes one, and
 says "carry on", or names the run with a command. No line is stamped, yet the answer may already be
-on disk, so both kinds of session follow the same steps, and a write denied on the way stops as *A
-write denied on this path* says. This holds for a run whose driver is `cockpit` or `dispatch`; any
+on disk, so both kinds of session follow the same steps, and a call denied on the way stops as *A
+call denied on this path* says. This holds for a run whose driver is `cockpit` or `dispatch`; any
 other run resumes as `SKILL.md` § *Resume* says.
 
-The run is the one the session was told. When it was told none, it is the one under
-`.maister/tasks/*/*/` or `.maister/umbrella/runs/*/` whose state has a `gate_pending` that is not
-null, leaving out a copy set aside beside a run. With none, say *No run here is waiting on an
-answer, and nothing was recorded. Say which run to carry on.* With several, name their directories
-after *Several runs are waiting on an answer, and nothing was recorded. Say which one to carry on.*
+**On such a run, never take an answer from the person in the session, and never record one
+yourself.** An answer comes from a stamped line or a usable answer file and from nowhere else. Offer
+no way to answer here and write nothing into a request or an answer file on what the person says: a
+driver's audit stops a run on such a fold.
 
-Then read the state and the files in `gates/` beside the request with read-only tools. An answer file
-`gates/<node>.answer.<operator>.yml` is **usable** when it parses, its `answer` block holds
-`answered_by`, `at` as a UTC stamp and an `option` or `answers`, and that `at` is not earlier than
-the request's `asked_at`. The last condition matters because answer files stay on disk: after a
-revise asks a gate again, the earlier round's file is still there, and it answers a question no
-longer being asked.
+**Try `resume-check` first**, before reading anything else, from the project root with the script's
+absolute path under the plugin root, as for every engine call:
 
-- **`gate_pending` is null:** say *This run is not waiting on an answer, and nothing was recorded.
-  It is driven from where it was started: carry on there.* Re-driving a run is its driver's.
-- **Pending, exactly one usable file:** carry on exactly as for a `GATE-ANSWER`, with the line's
-  fields read from the disk: the node from `gate_pending`, and the `option`, `answered_by` and `at`
-  from the file's `answer` block. That `at` is the turn's stamp, for every decision the turn writes.
-  Everything above holds unchanged: the validation, the order of the writes, the re-validation, a
-  question set, `held-approval`, and a revise with its note.
-- **Pending, no usable file or more than one:** say *This run is waiting on an answer, and nothing
-  was recorded. Answer where the question was asked, then carry on.* Nothing says which of several
-  answers stands, so none is chosen, and a file without a valid `at` never gets one from a clock.
-- **Pending, one usable file that fails the validation** (an option or a question the request does
-  not offer): the same words, then `GATE-INVALID: <reason>` as the last line. Nothing is written and
-  the node stays suspended.
+- **Told the run:** `resume-check --state=<run directory>/orchestrator-state.yml`. A refusal is
+  relayed as `SKILL.md` § *Resume* says.
+- **Told none:** `resume-check` with no flags. It writes nothing and lists under `waiting` the runs
+  under `.maister/tasks/*/*/` and `.maister/umbrella/runs/*/` with a `gate_pending` that is not null,
+  leaving out a copy set aside beside a run; each carries its `task_path`, `state`, `driver_kind` and
+  `gate`, and `unreadable` names any state it could not read. With none, say *No run here is waiting
+  on an answer, and nothing was recorded. Say which run to carry on.*, naming any unreadable folder
+  after it. With several, name their directories after *Several runs are waiting on an answer, and
+  nothing was recorded. Say which one to carry on.* With one, that entry is the report.
+
+The report's `gate` is there while the run waits: its `node`, `request` and `asked_at`, its verdict
+`answer_state`, and `answer_files`, each with its `file`, `path` and `usable`, the `reason` when it is not
+usable, and what it holds of `option` or `answers`, `answered_by` and `at`. Go by it: never list
+`gates/`, guess an answer file's name or judge a file again. A file is **usable** when it parses, its
+`answer` block holds `answered_by`, `at` as a UTC stamp and an `option` or `answers`, and that `at` is
+not earlier than the request's `asked_at`. The last condition matters because answer files stay on
+disk: after a revise asks a gate again, the earlier round's file is still there, and it answers a
+question no longer being asked.
+
+- **No `gate`:** say *This run is not waiting on an answer, and nothing was recorded. It is driven
+  from where it was started: carry on there.* Re-driving a run is its driver's.
+- **`answer_state` is `one`:** read the usable file at its `path`, and the state and the request with
+  read-only tools, and carry on exactly as for a `GATE-ANSWER`, with the line's fields read from the
+  disk: the node from `gate.node`, and the `option`, `answered_by` and `at` from the file's `answer`
+  block. That `at` is the turn's stamp, for every decision the turn writes. Everything above holds
+  unchanged: the validation, the order of the writes, the re-validation, a question set,
+  `held-approval`, and a revise with its note.
+- **`answer_state` is `none`:** say *This run is waiting on an answer, and nothing was recorded. Answer
+  where the question was asked, then carry on.*
+- **`answer_state` is `unusable`:** say *This run is waiting on an answer, and nothing was recorded. An
+  answer is on disk but cannot be used: <each file's name and reason>. It is driven from where it was
+  started: take it up there.* A file without a valid `at` never gets one from a clock.
+- **`answer_state` is `several`:** say *This run is waiting on an answer, and nothing was recorded. Several
+  answers are on disk and nothing says which one stands. It is driven from where it was started: take
+  it up there.*, then name the usable files and who answered each. None is chosen.
+- **`answer_state` is `one` and the file fails the validation** (an option or a question the request does
+  not offer): the `unusable` words with that reason, then `GATE-INVALID: <reason>` as the last line.
+  Nothing is written and the node stays suspended.
 
 Use these words as they stand. They are all the session can truthfully say about what to do next:
 never tell a person to re-send anything, and never name a step this reference does not, except what

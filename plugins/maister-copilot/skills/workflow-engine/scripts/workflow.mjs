@@ -91,11 +91,13 @@
  *                  JSON on stdout, or written to the patch file; a findings
  *                  list it cannot use is a warning and nothing to paste —
  *                  reads the run, writes no state
- *   resume-check   --state, optional --no-open               JSON on stdout
- *                  (the frozen workflow's name, overlays and profile, or the
- *                  refusal for a directory the engine does not resume, a 2.x
- *                  one among them) — read-only over a run; opens the run's
- *                  dashboard for a run it accepts
+ *   resume-check   optional --state, optional --no-open      JSON on stdout
+ *                  (the frozen workflow's name, overlays and profile, the gate
+ *                  a run waits on with its answer files, or the refusal for a
+ *                  directory the engine does not resume, a 2.x one among them)
+ *                  — read-only over a run; opens the run's dashboard for a run
+ *                  it accepts. With no --state, the runs waiting on a gate
+ *                  under the working directory, opening and writing nothing
  *   subrun-path    --state (the parent's), --node             JSON on stdout
  *                  (a workflow: node's child run directory, relative to the
  *                  project root, and its run id: the one the parent recorded,
@@ -286,7 +288,8 @@ const VERBS = {
   'finding-brief': { module: 'finding-brief.mjs', flags: ['state', 'node', 'findings-file', 'patch-file'] },
   // Read-only as well, and asked first by every resume: whether the directory
   // holds a run this engine froze, and what it froze. One flag for the reason
-  // the other state verbs take one, and `--no-open` for `write-state`'s.
+  // the other state verbs take one, and `--no-open` for `write-state`'s. Without
+  // `--state` it finds the runs waiting on a gate instead.
   'resume-check': { module: 'resume-check.mjs', flags: ['state', 'no-open'] },
   // Read-only as well: where a `workflow:` node's child run lives. `--node`
   // because a run may hold several such nodes; the rest — the parent's
@@ -1437,10 +1440,17 @@ function reportProgress(result) {
  * directory it does not resume — so the refusal's `message`, which is written
  * for the operator, is read from the same place as the frozen workflow's name.
  * A warning goes to stderr, opening with `warning:`, and stays out of the JSON.
+ *
+ * With no `--state` it finds the runs waiting on a gate under the working
+ * directory, the project root: exit 0 however many, and nothing is opened or
+ * written. The same verb, because a host classifies a read-only call by its name.
  */
 async function runResumeCheck(flags) {
-  if (!flags.state) throw new UsageError('resume-check needs --state');
   const module = await loadModule(VERBS['resume-check'].module);
+  if (!flags.state) {
+    report(entryOf(module, 'findWaiting', VERBS['resume-check'].module)({ root: process.cwd() }));
+    return EXIT.OK;
+  }
   const check = entryOf(module, 'resumeCheck', VERBS['resume-check'].module);
   const { warnings = [], ...result } = check({ state: flags.state });
   report(result);
