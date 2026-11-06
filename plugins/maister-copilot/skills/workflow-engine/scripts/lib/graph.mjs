@@ -193,9 +193,9 @@ const TUNABLE = ['with', 'provider'];
  * key, so an `id:` written inside a node is refused like any other key outside
  * the set.
  */
-const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes', 'html_companions', 'brief', 'chain_only'];
-const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display', 'html_companions', 'brief', 'subagents'];
-const PROFILE_KEYS = ['disable', 'tune', 'add', 'display', 'html_companions', 'brief', 'subagents'];
+const DEFINITION_KEYS = ['name', 'version', 'description', 'inputs', 'outputs', 'display', 'nodes', 'html_companions', 'brief', 'chain_only', 'changes_code'];
+const OVERLAY_KEYS = ['extends', 'version', 'disable', 'tune', 'add', 'profiles', 'display', 'html_companions', 'brief', 'subagents', 'changes_code'];
+const PROFILE_KEYS = ['disable', 'tune', 'add', 'display', 'html_companions', 'brief', 'subagents', 'changes_code'];
 const DISPLAY_KEYS = ['icons', 'titles', 'option_labels', 'headers'];
 
 /**
@@ -2582,6 +2582,38 @@ function checkDefinition(definition, errors) {
     fail(errors, file, 'chain_only',
       `chain_only is true or false, saying whether the workflow runs only as a step of a chain; ${describe(doc.chain_only)} is not`, null);
   }
+  // Read by whoever needs to know what the workflow does, and by no node:
+  // outside the hash, like `description`. An explicit null is refused rather
+  // than read as the default, since it says nothing an absent key would not.
+  if (doc.changes_code !== undefined && typeof doc.changes_code !== 'boolean') {
+    fail(errors, file, 'changes_code',
+      `changes_code is true or false, saying whether the workflow changes the project's code; ${describe(doc.changes_code)} is not`, null);
+  }
+}
+
+/**
+ * `changes_code:` in an overlay or a profile: `true` or nothing. An overlay can
+ * add work that changes code, so it may say so; it cannot show that the work it
+ * leaves behind changes none, so it may not take the base's word back.
+ */
+function checkRaisedChangesCode(ops, file, prefix, errors) {
+  const value = ops.changes_code;
+  if (value === undefined || value === true) return;
+  fail(errors, file, `${prefix}changes_code`, value === false
+    ? 'an overlay or a profile may set changes_code to true and never to false; a workflow that no longer changes code is an eject of its own'
+    : `changes_code is true here, saying the overlay makes the workflow change the project's code; ${describe(value)} is not`, null);
+}
+
+/**
+ * Whether the workflow declares that it changes code, over the same layers a
+ * run folds: the base's word, raised by any overlay and by the selected
+ * profile. A value that is not `true` counts for nothing here; `validate` is
+ * where it is reported. Never throws on a malformed document.
+ */
+export function changesCodeOf({ definition, overlays = [], profile = null }) {
+  if (definition?.doc?.changes_code === true) return true;
+  return overlays.some(overlay => overlay?.doc?.changes_code === true
+    || selectedProfile(overlay, profile)?.changes_code === true);
 }
 
 function isPresent(value) {
@@ -3665,6 +3697,7 @@ function checkOverlayShape(overlay, errors) {
   // they changed.
   checkKeys(Object.keys(doc), OVERLAY_KEYS, { file, prefix: '', label: 'an overlay key' }, errors);
   checkOps(doc, file, '', errors);
+  checkRaisedChangesCode(doc, file, '', errors);
 
   if (doc.profiles !== undefined) {
     if (!isMap(doc.profiles)) {
@@ -3678,6 +3711,7 @@ function checkOverlayShape(overlay, errors) {
       }
       checkKeys(Object.keys(ops), PROFILE_KEYS, { file, prefix: `profiles.${name}.`, label: 'a profile key' }, errors);
       checkOps(ops, file, `profiles.${name}.`, errors);
+      checkRaisedChangesCode(ops, file, `profiles.${name}.`, errors);
     }
   }
 }

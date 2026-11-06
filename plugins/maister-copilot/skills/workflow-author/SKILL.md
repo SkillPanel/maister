@@ -49,14 +49,15 @@ This skill uses four, all read-only:
 
 | Verb | Gives |
 |---|---|
-| `locate --name=<name>` | Where the name resolves: `from` (`eject`, `generated`, `overlay`, `builtin`), the `definition` and `overlays` paths the next verbs take, `ignored`, `inputs`, `dispatches`, and `html_companions` — the block (§ 3.2) merged over the overlays and profile given, a node an overlay or the profile disables dropped, `{}` without one. Without `--name`: the project's own workflows |
+| `locate --name=<name>` | Where the name resolves: `from` (`eject`, `generated`, `overlay`, `builtin`), the `definition` and `overlays` paths the next verbs take, `ignored`, `inputs`, `dispatches`, and `html_companions` — the block (§ 3.2) merged over the overlays and profile given, a node an overlay or the profile disables dropped, `{}` without one, and `changes_code`, the definition's declaration raised by the same overlays and profile (§ 12). Without `--name`: the project's own workflows |
 | `validate --definition=… [--overlay=…] [--profile=…]` | `errors`, `warnings`, `resolved` (each target, the tier that answered and the file), `counts` |
 | `resolve` (same flags) | The folded graph: `nodes` in frozen order, each with `needs`, `when`, `on`, `with`, `outputs`, and a gate's `ask` and `options`; the `graph_hash` |
 | `diagram` (same flags) | Mermaid text carrying each node's title. Read it for the titles; **never print it** — a terminal does not render Mermaid |
 
 Overlays passed to a verb are always the ones `locate` found, then the author's `--overlay`s, in
 that order, with `--profile` when given — and `locate --name` itself takes the author's
-`--overlay`s and `--profile` too, so its `html_companions` matches the graph the other verbs fold.
+`--overlay`s and `--profile` too, so its `html_companions` and `changes_code` match the graph the
+other verbs fold.
 
 ---
 
@@ -126,10 +127,14 @@ questions:
    a default for every in-node question. Ask whether it behaves differently as a child — writes
    elsewhere, skips a step, returns something else — and write an `## Embedded mode` section only
    where the workflow behaves differently as a child, saying how.
+9. **Will this workflow change the project's code?** Propose the answer from the phases given: a
+   phase that implements, fixes or migrates says yes, and so does a child workflow that does. Yes
+   becomes `changes_code: true` (§ 3); no leaves the line out.
 
 **Write the pair.**
 
-- `<name>.yml` — `name`, `version: 1`, `description`, `inputs`, `nodes` wired by `needs` in the
+- `<name>.yml` — `name`, `version: 1`, `description`, `changes_code` when the answer was yes,
+  `inputs`, `nodes` wired by `needs` in the
   order given, gates after the phases chosen, guards, outputs, `html_companions` when any page was
   chosen, `display.titles` for every node.
   Pass what a node needs from earlier ones through `with:` using `${…}` references inside its
@@ -182,6 +187,7 @@ without asking.
 | Different titles or icons | `display` |
 | A step's budget, absences or recommendation changed | `brief:` — merged node by node and key by key over the built-in's, `null` removes a key (§ 3.3) |
 | A companion added or dropped | `html_companions: {<id>: [<key>…]}`, `[]` drops a node's — merged node by node over the built-in's (§ 3.2) |
+| A step added that changes the project's code, on a built-in that does not declare it | `changes_code: true` — an overlay may raise it and never lower it (§ 12); to say a built-in no longer changes code, eject |
 | A different executor, gate wording or options, a guard, a reorder | an eject — see *Overlay or eject* |
 
 An added node without `before:` is a side branch nothing waits for; propose the `before:` anchor
@@ -243,6 +249,12 @@ validate. Then run **check** on the built-in's name, which picks the overlay up,
        disabled node still counts). The report above warns `orphan-prose-section` for it: a
        renamed node or a mistyped target has silently fallen back to the conventions. Fix: rename
        the heading to the node id, or delete the section.
+   - **Code changes** — the validator judges `changes_code` only as true or false. When
+     `locate --name`'s `changes_code` is false, read the folded graph: a node that runs
+     `skill:implementation-plan-executor`, a `workflow:` child whose own `locate` says true, or a
+     section telling a step to edit the project's code means the workflow says less than it does.
+     Fix: add `changes_code: true`, in the overlay when the overlay brought that work in. A true
+     with nothing like that in the graph is the author's call; mention it and leave it.
    - **Dangling leaves** — the validator warns for these itself, for a definition's own node
      and for one an overlay adds; they are in the report above. Add nothing.
    - **Gates asked whatever their guard reads** — the validator warns `skip-guard-not-pure` for
@@ -323,11 +335,12 @@ Prefer an overlay: it keeps following the built-in as the plugin improves it, an
 what the project changed.
 
 **An overlay can** disable a node, tune a node's `with` or `provider`, add a node with its own
-`needs` and a `before:` that makes existing nodes wait for it, carry profiles, and retitle.
+`needs` and a `before:` that makes existing nodes wait for it, carry profiles, retitle, and raise
+`changes_code` to true.
 
 **Only an eject can** change what runs a node (`uses` is immutable), reword a gate or change its
 options, change or drop a guard, change a node's `needs` or declared outputs, reorder existing
-phases, or remove a node that a guard reads.
+phases, remove a node that a guard reads, or take a built-in's `changes_code: true` back.
 
 **What an eject costs.** It is a copy of the built-in's definition and companion under the same
 name in `.maister/workflows/`, and it shadows the built-in entirely:

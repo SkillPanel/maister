@@ -19,7 +19,9 @@
  *   declares them, and its refusals found by following the verb's handler
  *   through every function it can reach (`refusalsByVerb`);
  * - `agents`, `skills`, `commands`: the directories; `hooks`: `hooks/hooks.json`;
- *   `mcp`: the servers the manifest ships and the tool names shipped files name.
+ *   `mcp`: the servers the manifest ships and the tool names shipped files name;
+ * - `workflow_declarations`: what a definition may declare about itself
+ *   (`lib/interface-shapes.mjs`), and what each built-in's definition says.
  *
  * The version. `interface_version` is `MAJOR.MINOR`, worked out against the
  * file it replaces (`--baseline`, by default the file on disk): nothing changed
@@ -104,6 +106,9 @@ export async function describe(root) {
   const studio = await load('../../mockup-studio/scripts/lib/shapes.mjs');
   const { verbs, runners } = verbTable(fs.readFileSync(path.join(root, ENGINE, 'workflow.mjs'), 'utf8'));
   const refusals = refusalsByVerb(path.join(root, ENGINE), verbs, runners);
+  const { readDefinition } = await load('lib/definition.mjs');
+  const workflows = path.join(root, 'skills/workflow-engine/workflows');
+  const builtins = names(workflows, entry => entry.isFile() && entry.name.endsWith('.yml'), name => name.slice(0, -4));
 
   return sorted({
     gate_request: { keys: declared(shapes.GATE_REQUEST) },
@@ -157,8 +162,23 @@ export async function describe(root) {
       formats: studio.FORMATS,
       fidelities: studio.FIDELITIES,
     },
-    workflows: names(path.join(root, 'skills/workflow-engine/workflows'), entry => entry.isFile() && entry.name.endsWith('.yml'), name => name.slice(0, -4)),
+    workflows: builtins,
+    workflow_declarations: {
+      keys: declared(shapes.WORKFLOW_DECLARATIONS),
+      builtins: Object.fromEntries(builtins.map(name => [name, declarationsOf(path.join(workflows, `${name}.yml`), shapes.WORKFLOW_DECLARATIONS, readDefinition)])),
+    },
   });
+}
+
+/**
+ * What one definition declares, every key spelled out with its default filled
+ * in. Strict: a definition that cannot be read stops the build rather than
+ * reading as the default.
+ */
+function declarationsOf(file, shape, readDefinition) {
+  const { doc, errors } = readDefinition(file);
+  if (errors.length) throw new Error(`${path.basename(file)}: ${errors[0].message}`);
+  return Object.fromEntries(Object.entries(shape).map(([key, spec]) => [key, doc[key] ?? spec.default]));
 }
 
 /** A shape declaration as the file carries it: every key's type, required flag, and what it holds. */

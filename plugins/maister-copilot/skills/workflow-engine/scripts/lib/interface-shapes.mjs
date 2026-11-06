@@ -130,6 +130,11 @@ export const CHECKPOINT_KEYS = {
   },
 };
 
+/** What a workflow definition declares about itself for a reader, not for a run. */
+export const WORKFLOW_DECLARATIONS = {
+  changes_code: { type: 'boolean', required: false, default: false },
+};
+
 /** The names of a shape's keys, in declared order. */
 export function keysOf(shape) {
   return Object.keys(shape);
