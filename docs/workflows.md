@@ -69,6 +69,8 @@ When run without arguments, the plugin extracts the task description from your c
 
 **Publishing.** With `--publish` the plan checkpoint offers *Continue to the implementation — also pushes the branch and opens the pull request where one is owed*. That one answer approves the plan and the publication: when the run finishes it commits what it changed on its own branch (never the default branch), pushes it and opens one pull request, or updates the one already open from that branch. Nothing is ever merged. Without the flag the plan checkpoint is the plain one, and publishing stays a next step the run names at the end. A run started by a workspace dispatch gets the same choice from its `publish` input.
 
+**The grounding pack.** When the change touches a file the project's grounding pack was built from (`.maister/docs/design-context/`, which mockups are drawn from), the run rebuilds the pack at its end, the way `/maister:mockup-studio --ground` does, and the refreshed pack goes into the same commit or pull request as the change; when the run makes no commit, its closing message says the pack is to be committed with the change. It asks nothing. With no pack, or no recorded source touched, nothing happens. A refresh that fails leaves the pack as it was and is listed as an open item.
+
 ### How it runs
 
 This workflow is a workflow definition — a graph of nodes with declared dependencies and guards —

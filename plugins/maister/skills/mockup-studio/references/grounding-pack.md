@@ -6,7 +6,9 @@ drifts from turn to turn, so they are harvested once into a **grounding pack** t
 and that records what it was built from so a turn can tell when it has gone stale.
 
 Two entries build it: `--ground` always rebuilds it, whatever its status, and a turn builds it only
-when `ground-status` says `missing`. A turn never rebuilds an existing pack, stale or not.
+when `ground-status` says `missing`. A turn never rebuilds an existing pack, stale or not. A
+development run whose change touched a recorded source runs `--ground` once at its end, at
+finalization, and commits the refreshed pack with the change.
 
 ---
 
@@ -111,6 +113,13 @@ plugin's. A schema version above the plugin's reports `schema-newer` and stays f
 used and never rebuilt by a turn. There is no time-based expiry, and images never make a pack stale;
 only `--ground` replaces them.
 
+**What a run changed** is a separate question. With `--state=<run's orchestrator-state.yml>`,
+`ground-status` also prints `base`, the commit the run started from (`task.base_commit`, null when
+the run recorded none), and `touched`: the recorded sources whose content at that commit differs
+from the working tree now, or that exist on one side only, by the same hashing rules. A pack stale
+before the run and left alone by it is not touched; with no pack or no base, `touched` is empty. A
+base git cannot read is refused as `base-unknown`.
+
 ---
 
 ## The per-turn read
@@ -147,4 +156,6 @@ The manifest records the digest and the staleness either way.
 
 **The pack is never committed by a turn.** It is written in place and the note asks the person to
 commit it. In a dispatched run's worktree, a pack nobody commits is lost when the worktree goes; the
-note is the only mitigation, and the next turn elsewhere builds it again.
+note is the only mitigation, and the next turn elsewhere builds it again. A pack a development run
+refreshed at its end goes into the run's own commit with the change, or, when the run makes none,
+its close says the pack is to be committed with it.

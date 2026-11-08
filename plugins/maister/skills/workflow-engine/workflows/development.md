@@ -758,23 +758,55 @@ than retried.
    consolidated, and a line of the close says so. The run applies none of them
    and asks nothing about them: a person adds the ones worth keeping afterwards,
    with standards-update.
-5. **Set the task status to completed**.
-6. **Guide the next steps**, which for this workflow are its own four: a commit
+5. **Refresh the grounding pack when the change touched it.** Mockups are drawn
+   from the project's grounding pack, which records the theme, shell and string
+   files it was harvested from; a change to one of them leaves it in the old look.
+   This step asks nothing, under any driver. Run
+   `node <plugin root>/skills/mockup-studio/scripts/turn.mjs ground-status --pack=<project root>/.maister/docs/design-context --root=<project root> --state=<task path>/orchestrator-state.yml`:
+   its `touched` lists the recorded sources this run changed since the commit it
+   started from — the run's diff decides, not whether the pack was already stale.
+   - **No pack** (`missing`), or **`touched` empty**: the step ends here, and
+     nothing about the pack goes into the summary, the commit message or the
+     close. The run is exactly what it would be without this step.
+   - **A refusal**: no re-ground; record one `open` risk naming the code and its
+     message, and the pack stays as it is.
+   - **Sources touched**: copy the pack folder to a fresh `mktemp -d` directory,
+     then invoke `maister:mockup-studio` with the Skill tool and `--ground` — the
+     pack's one builder, which rebuilds and seals it in place, draws no mockup
+     and touches no task folder. Its commit note does not apply here: this step
+     handles the commit. When it succeeds, this node's summary records
+     "Refreshed the grounding pack (digest `<first 8>`): `<touched paths>`
+     changed", the close repeats it under **Done** and names the pack folder
+     under **Files**, and step 7's commit message names the refresh. When it
+     fails — the build, or a `ground-seal` refusal its own recovery did not
+     settle — put the copy back so the pack is as it was, and record an `open`
+     risk naming what failed and that the pack stays stale until
+     `/maister:mockup-studio --ground` is run. A failed re-ground never fails
+     the run.
+   - **The refreshed pack belongs to the change**: whichever commit carries the
+     change carries the pack's files too — step 8's when it publishes. When the
+     run makes no commit, say it plainly where the close names the commit: the
+     grounding pack was refreshed and `.maister/docs/design-context/` is to be
+     committed with the change. Under a dispatch driver the close-out summary
+     says the same.
+6. **Set the task status to completed**.
+7. **Guide the next steps**, which for this workflow are its own four: a commit
    message covering the change; a review of the diff; a pull request; and
    deployment as the project's own process has it. Suggest a fresh session for
    whatever comes next. **Write the commit message to `commit-message.txt` in
    the task directory** and name the file; never print the message itself.
-7. **Publish when the plan gate granted it.** Only when `planning-approval-publish`
+8. **Publish when the plan gate granted it.** Only when `planning-approval-publish`
    completed on its continue — read from state; under the plain plan gate this
    step does not exist. Commit what the run changed on its own branch if any of
-   it is uncommitted, with `commit-message.txt` as the message. Never push the
+   it is uncommitted — the grounding pack step 5 refreshed included — with
+   `commit-message.txt` as the message. Never push the
    repository's default branch: on it, create a branch named for the task first.
    Push the branch, then publish once per branch — `gh pr view` first, and when a
    pull request from it is already open the push has updated it, so it is not
    opened again; otherwise `gh pr create` against the default branch, its body
    drawn from the executive summary. Merging is never part of this. The pull
    request goes in the close-out's `prs` as `{repo, number, url}` under a
-   dispatch driver, and its URL under **Done** in a terminal run, where step 6's
+   dispatch driver, and its URL under **Done** in a terminal run, where step 7's
    pull request is then dropped from **Next**. When a dispatch seed's close-out says the member's
    git host takes no pull request, the push is the whole of the publish: no `gh pr view` or
    `gh pr create`, and `prs` stays empty. A push or a pull request that is refused or held is not routed
@@ -782,9 +814,11 @@ than retried.
    reported; in a terminal run the held command goes under **Needs you**.
 
 **Close for whoever reads the end** (the engine skill's run-end rule).
-**Next** holds every one of step 6's next steps, a line each: commit first, with
+**Next** holds every one of step 7's next steps, a line each: commit first, with
 the message file's path, then the rest of this workflow's own four, then the
-fresh-session suggestion, none dropped or merged.
+fresh-session suggestion, none dropped or merged. When step 5 refreshed the
+grounding pack and the run made no commit, the commit line says the pack folder
+goes into that commit.
 
 **Standard candidates in the close**: when step 4 wrote the candidates file,
 the close names the run's task directory, lists each candidate — its line, its
@@ -804,4 +838,4 @@ says.
 verb before this node ends** — the grade and the summary the seed's close-out
 contract asks for, drawn from the executive summary above; a dispatched run that
 ends with none is `RUN-FAILED: closeout-unpublished`. Under a terminal driver
-step 6 is what the operator gets.
+step 7 is what the operator gets.
