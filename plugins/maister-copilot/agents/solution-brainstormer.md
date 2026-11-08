@@ -91,6 +91,7 @@ Product design's inputs, in place of the research paths:
 | `explore` | `analysis/explore/`: the explore briefs; read each one |
 | `problem_statement` | `analysis/problem-statement.md` |
 | `personas` | `analysis/personas.md` |
+| `work_context` | `analysis/work-context/`: a context pack, when that folder exists. Read all of it, opening images and PDFs with your file tool; it is background, never a specification, and you change nothing in it |
 
 **Accumulated Context** (Pattern 7):
 - `research_type`: technical, requirements, literature, mixed

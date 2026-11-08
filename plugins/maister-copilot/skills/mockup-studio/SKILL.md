@@ -58,7 +58,9 @@ by name; a terminal entry builds them from its flags.
 | `record` | The path of a `turn-result.json` to write. Only the `mockup-studio` workflow's node passes it |
 
 Any other key a caller passes — `gap`, `scope_clarifications`, `design_index`, `feature_spec`,
-`design_context` — is read as context for the screens: what they must show and what they settle.
+`design_context`, `work_context` — is read as context for the screens: what they must show and what
+they settle. A key naming a folder that does not exist is skipped, and a folder of source material
+is read, images and PDFs included, and never changed.
 **`iteration` is retired.** A caller still passing it gets the note "`iteration` is retired and was
 ignored: each call is one turn", and nothing else changes.
 

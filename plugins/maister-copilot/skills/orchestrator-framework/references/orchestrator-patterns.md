@@ -268,7 +268,7 @@ Workflows add domain-specific fields in their context block, at the **top level*
 | Performance | `performance_context` | bottlenecks_identified, user_data_available, bottleneck_priorities |
 | Migration | `migration_context` | migration_type, migration_strategy, breaking_changes, rollback_plan_created |
 | Research | `research_context` | research_type, research_question, confidence_level, gathering_strategy, work_reference |
-| Product design | `design_context` | research_reference, project_context_summary, greenfield, scope_areas, quick_design_question, design_resources, midway_options |
+| Product design | `design_context` | research_reference, work_reference, project_context_summary, greenfield, scope_areas, quick_design_question, design_resources, midway_options |
 
 The state writer maps each workflow to its block (`workflow-engine/references/writing-state.md`); for product design the block's shape is "The context block" in `workflow-engine/workflows/product-design.md`. A step's summary is never kept in the context block: it is the step's `node_summaries` entry (*Shared: node_summaries entry shape*).
 
@@ -289,12 +289,12 @@ Research context flows to ALL phases via context passing. Artifacts are also cop
 
 ### Shared: work_reference
 
-When a development or research run is started with a context pack (`--context` flag, the
+When a development, research or product-design run is started with a context pack (`--context` flag, the
 `context` input), the run's context block records where it came from, and the pack is copied to
 `analysis/work-context/`:
 
 ```yaml
-task_context:          # research_context in a research run
+task_context:          # research_context in a research run, design_context in a product-design run
   work_reference:
     path: null         # the path as given, relative to the project root
 ```

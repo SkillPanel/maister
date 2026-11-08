@@ -28,8 +28,9 @@ link and the first phase, composed from the lines the freeze prints first, the p
 printed. The terminal collapses that output, so the banner is not on screen until you write it;
 before the next call, check that you did (engine Step 4).
 
-- **The one flag is an input of the definition**: `--research=PATH` is `research`, a finished
-  research task to start from. There is no flag for the specification outcome: it is chosen at the
+- **Each flag is an input of the definition**: `--research=PATH` is `research`, a finished
+  research task to start from; `--context=PATH` is `context`, a context pack — a file or a
+  directory of source material — the intake copies in. There is no flag for the specification outcome: it is chosen at the
   first checkpoint. An invocation with no description takes it from the
   conversation, as the design brief the operator has been describing.
   Any other flag, apart from the two resume flags below, is not an input of this workflow: name

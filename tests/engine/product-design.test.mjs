@@ -101,7 +101,7 @@ function atProblemApproval(t, { draws = true, inputs = {}, problem = {}, driver 
   const run = freshRun(t, inputs, driver);
   walk(run, {
     nodes: { intake: { status: 'completed', values: { draws } } },
-    node_summaries: { intake: { summary: 'An enhancement with a UI.', absent: { research_context: 'no research task was named' } } },
+    node_summaries: { intake: { summary: 'An enhancement with a UI.', absent: { research_context: 'no research task was named', work_context: 'no context pack was named' } } },
   });
   walk(run, {
     nodes: { problem: { status: 'completed' } },
@@ -182,7 +182,7 @@ test('recorded run: with the absences its nodes sanction recorded, it ends on RU
 });
 
 test('recorded run: an unsanctioned research context reads as the one missing artifact', t => {
-  const result = complete(replayRecorded(t, { intake: null }));
+  const result = complete(replayRecorded(t, { intake: { work_context: 'no context pack was named' } }));
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, 'missing-artifact: intake context/research-context\nRUN-COMPLETE\n');
 });
@@ -348,7 +348,7 @@ test('inputs: the outcome and the embedded flag are optional bools that default 
   assert.deepEqual(errors, []);
   assert.deepEqual({ ...doc.inputs.specification }, { type: 'bool', required: false, default: false });
   assert.deepEqual({ ...doc.inputs.embedded }, { type: 'bool', required: false, default: false });
-  assert.deepEqual(Object.keys(doc.inputs).sort(), ['embedded', 'research', 'specification', 'task_description']);
+  assert.deepEqual(Object.keys(doc.inputs).sort(), ['context', 'embedded', 'research', 'specification', 'task_description']);
   assert.equal(doc.nodes.completion.when, '!${inputs.embedded}');
 });
 
@@ -579,7 +579,7 @@ test('guards: correct-scope records draws afresh, switching the sketches and the
     const run = atProblemApproval(t, { draws: first });
     const result = revise(run, 'problem-approval', 'correct-scope', first ? 'Nothing a person sees' : 'It has a screen after all');
     assert.equal(result.code, 0, result.stderr);
-    walk(run, { nodes: { intake: { status: 'completed', values: { draws: then } } }, node_summaries: { intake: { summary: 'The scope, corrected.', absent: { research_context: 'no research task was named' } } } });
+    walk(run, { nodes: { intake: { status: 'completed', values: { draws: then } } }, node_summaries: { intake: { summary: 'The scope, corrected.', absent: { research_context: 'no research task was named', work_context: 'no context pack was named' } } } });
     walk(run, { nodes: { problem: { status: 'completed' } }, node_summaries: { problem: { summary: 'The problem, again.' } } });
     answer(run, 'problem-approval', 'brief-with-screens');
     walk(run, { nodes: { alternatives: { status: 'completed', values: { visual_areas: true } } }, node_summaries: { alternatives: { summary: 'Two decision areas.' } } });
@@ -849,7 +849,7 @@ test('brief-approval: its labels and header, the review naming the brief and the
 test('delegates: completing the intake without Explore listed is refused and writes nothing', t => {
   const closing = delegated => ({
     nodes: { intake: { status: 'completed', values: { draws: true } } },
-    node_summaries: { intake: { summary: 'An enhancement with a UI.', absent: { research_context: 'no research task was named' }, ...delegated } },
+    node_summaries: { intake: { summary: 'An enhancement with a UI.', absent: { research_context: 'no research task was named', work_context: 'no context pack was named' }, ...delegated } },
   });
   const run = freshRun(t);
   const before = fs.readFileSync(run.state, 'utf8');

@@ -58,7 +58,7 @@ node_summaries:
     decisions: [reuse the existing invitation email for the share link]
     risks:
       - {risk: "Assumes the audit log can record a guest's visit", tag: open, change: "keep the audit log to internal viewers"}
-    absent: {research_context: "no research task was named"}
+    absent: {research_context: "no research task was named", work_context: "no context pack was named"}
     artifacts:
       - {path: analysis/scope.md, label: Scope proposal, role: primary}
       - {path: analysis/explore/product.md, label: Explore brief on the product, role: evidence}
