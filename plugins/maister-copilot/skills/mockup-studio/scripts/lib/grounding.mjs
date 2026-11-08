@@ -15,13 +15,21 @@
  * `<hash> pack:<path>` for each pack file except `grounding.json` and
  * dot-files.
  *
+ * `touchedSince` answers a different question from staleness: which recorded
+ * sources a run changed, comparing each source as the run's base commit holds
+ * it (read with `git cat-file`) with the working tree now, by the same hashing
+ * rules. A pack already stale at the base is not touched by a run that leaves
+ * its sources alone.
+ *
  * Refusals owned: `source-missing` (a source or image is not a file, or the
  * lockfile does not hold the package), `grounding-malformed` (`grounding.json`
- * cannot be read as its shape).
+ * cannot be read as its shape), `base-unknown` (the base names no commit git
+ * can read in the project).
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
 
+import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -83,7 +91,11 @@ function lockedVersion(bytes, name) {
  * (or, for a package, when the lockfile no longer holds it).
  */
 export function hashSource(root, source) {
-  const bytes = readBytes(path.join(root, source.path));
+  return hashSourceBytes(readBytes(path.join(root, source.path)), source);
+}
+
+/** `hashSource` over bytes already read; null bytes are a file that is not there. */
+function hashSourceBytes(bytes, source) {
   if (bytes === null) return null;
   if (source.kind === 'lockfile' && source.package !== undefined && path.posix.basename(source.path) === 'package-lock.json') {
     const version = lockedVersion(bytes, source.package);
@@ -160,4 +172,32 @@ export function compare(root, document) {
     else if (now.hash !== source.hash) changed.push(source.path);
   }
   return { changed, gone };
+}
+
+/** The bytes of `rel` as commit `sha` holds it, or null when the commit has no such file. */
+function bytesAt(root, sha, rel) {
+  const out = spawnSync('git', ['cat-file', 'blob', `${sha}:./${rel}`], { cwd: root, maxBuffer: 256 * 1024 * 1024 });
+  return out.status === 0 ? out.stdout : null;
+}
+
+/**
+ * The recorded sources whose content at commit `sha` differs from the working
+ * tree now, or that exist on one side only, as their recorded paths.
+ */
+export function touchedSince(root, document, sha) {
+  const commit = spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd: root, encoding: 'utf8' });
+  if (commit.error || commit.status !== 0) {
+    throw new Refusal('base-unknown',
+      `${sha}, the commit the run started from, is not a commit git can read in ${root}. Nothing was written; `
+      + 'the run cannot tell which sources it changed, so leave the pack as it is and refresh it with --ground if the change touched it.');
+  }
+  const touched = [];
+  for (const source of document.sources) {
+    const rel = inside(source.path);
+    if (rel === null) continue;
+    const before = hashSourceBytes(bytesAt(root, sha, rel), source);
+    const now = hashSource(root, { ...source, path: rel });
+    if ((before === null) !== (now === null) || (before !== null && before.hash !== now.hash)) touched.push(source.path);
+  }
+  return touched;
 }
