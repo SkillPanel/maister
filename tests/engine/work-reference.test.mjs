@@ -97,7 +97,7 @@ function designRun(t, inputs = {}) {
 
 /** One node's section of the guide, from its heading to the next rule. */
 function guideSection(node) {
-  const guide = fs.readFileSync(path.join(ENGINE_DIR, 'workflows/product-design.md'), 'utf8');
+  const guide = fs.readFileSync(path.join(ENGINE_DIR, 'workflows/product-design.md'), 'utf8').replace(/\r\n?/g, '\n');
   const start = guide.indexOf(`\n## \`${node}\`\n`);
   assert.notEqual(start, -1, node);
   const end = guide.indexOf('\n---\n', start);
