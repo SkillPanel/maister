@@ -347,7 +347,7 @@ Interactive workflow for deciding what to build before building it. It explores 
 
 When run without arguments, the plugin extracts the design brief from your conversation.
 
-**Flags**: `--research=PATH`
+**Flags**: `--research=PATH`, `--context=PATH`. `--context=PATH` hands the run a context pack — a file or a directory of source material, such as PDFs, images, a spec or extracted text — that the intake copies into `analysis/work-context/`. The steps that frame the problem and decide the design read it as background, and none of them changes it; a path that cannot be read is reported and the run continues without it.
 
 The mockups follow `mockup_format` in `.maister/config.yml`: `html` by default, or `ascii` for
 terminal mockups that need no browser.
@@ -778,12 +778,12 @@ To finish a 2.x task, install the 2.x line as the README's
 [Staying on 2.x](../README.md#staying-on-2x) section describes, and resume it there. To start the
 work over on 3.0, run the command again without a task path.
 
-A development or research task can instead continue as a new 3.0 run started with
+A development, research or product-design task can instead continue as a new 3.0 run started with
 `--context=<the 2.x task directory>`. The new run's first phase copies that folder whole, its
 `orchestrator-state.yml` included, into `analysis/work-context/` and reads it as background for
 every phase, never as a specification. Nothing of the 2.x state is resumed: the run starts at its
-first phase and asks every gate again, and the 2.x folder is not changed. Performance, migration
-and product-design take no `--context`.
+first phase and asks every gate again, and the 2.x folder is not changed. Performance and
+migration take no `--context`.
 
 ## Task Directory Structure
 
@@ -817,7 +817,7 @@ What sits beside them depends on the workflow:
 |----------|----------------|
 | **development** | `analysis/` (codebase analysis, gap analysis, `research-context/`, `design-context/`), `implementation/` (spec, plan, work log), `verification/`, `documentation/` |
 | **research** | `planning/` (brief, plan, sources), `analysis/` (`findings/`, synthesis), `outputs/` (report, decision log, `decision-areas.json`) |
-| **product-design** | `context/research-context/` (when you name a research task), `analysis/` (`scope.md`, `explore/`, problem statement, personas, alternatives, `decision-areas.json`, design decisions, feature spec, `mockups/` with one folder per version under `mockups/versions/`), `outputs/` (product brief, delivery scope) |
+| **product-design** | `context/research-context/` (when you name a research task), `analysis/` (`work-context/` when you pass a context pack, `scope.md`, `explore/`, problem statement, personas, alternatives, `decision-areas.json`, design decisions, feature spec, `mockups/` with one folder per version under `mockups/versions/`), `outputs/` (product brief, delivery scope) |
 | **performance** | `analysis/` (bottleneck analysis, `user-profiling-data/`), `implementation/`, `verification/` |
 | **migration** | `analysis/` (current state, target state, rollback plan), `implementation/`, `verification/`, `documentation/` |
 

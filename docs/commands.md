@@ -218,6 +218,7 @@ Starts the interactive product/feature design workflow (six steps and three chec
 | Flag | Description |
 |------|-------------|
 | `--research=PATH` | Start design informed by a completed research task |
+| `--context=PATH` | Hand the run a context pack — a file or a directory inside the project, relative to the project root, holding source material such as PDFs, images, a spec or extracted text — copied into the task's `analysis/work-context/` and read as background by the steps that frame the problem and decide the design; a path that cannot be read, or that leads outside the project, is reported and the run continues without it |
 | `--from=PHASE` | Declined by name — see below |
 | `--reset-attempts` | Declined by name — see below |
 
