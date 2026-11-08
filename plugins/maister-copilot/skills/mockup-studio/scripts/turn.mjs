@@ -24,7 +24,7 @@
  * from a tool list alone; a probe that fails reads as null and never refuses.
  *
  *   node <path to this file> ground-seal   --pack=<dir> [--root=<project root>]
- *   node <path to this file> ground-status --pack=<dir> [--root=<project root>]
+ *   node <path to this file> ground-status --pack=<dir> [--root=<project root>] [--state=<run state>]
  *
  * Between `begin` and `finish`, the turn writes one input file, `versions/<vNNN>/.turn.json`
  * (the `TURN_FILE` shape in `lib/shapes.mjs`), with its own file tool — and,
@@ -57,7 +57,11 @@
  * changed, gone}` with `status` fresh, stale or missing, `reasons` from
  * source-changed, source-gone, schema-older and schema-newer (the last never
  * stales a pack), `changed` and `gone` the source paths. Images and time never
- * make a pack stale. The hashing rules live in `lib/grounding.mjs`.
+ * make a pack stale. With `--state`, a workflow run's `orchestrator-state.yml`,
+ * it also prints `base`, the run's recorded `task.base_commit.sha` (null when
+ * the run recorded none), and `touched`, the recorded sources the run changed
+ * since that commit (empty with no pack or no base). The hashing rules live in
+ * `lib/grounding.mjs`.
  *
  * Every file is written whole, through a temp and a rename
  * (`lib/canonical.mjs`). The scripts return codes only and never command
@@ -75,7 +79,7 @@
  *           index-malformed, folder-unwritable
  *   ground-seal    sources-file-missing, sources-file-malformed, source-missing,
  *                  folder-unwritable
- *   ground-status  grounding-malformed
+ *   ground-status  grounding-malformed, base-unknown
  * Every write fault, the write primitives' included, is `folder-unwritable`.
  */
 
@@ -90,7 +94,7 @@ import { openFile, optedOut } from '../../../lib/open-file.mjs';
 import { isTerminalDriver } from '../../workflow-engine/scripts/lib/driver.mjs';
 import { parse as parseState } from '../../workflow-engine/scripts/lib/state-read.mjs';
 import {
-  GROUNDING_FILE, compare, digestOf, hashSource, hashesPackage, inside, blobHash, readGrounding,
+  GROUNDING_FILE, compare, digestOf, hashSource, hashesPackage, inside, blobHash, readGrounding, touchedSince,
 } from './lib/grounding.mjs';
 import { rewriteIndex } from './lib/index-rows.mjs';
 import { mockupsJson, renderGallery, renderPage } from './lib/render.mjs';
@@ -106,7 +110,7 @@ const VERBS = {
   begin: { values: ['task-path', 'subdir', 'against'], switches: [] },
   finish: { values: ['task-path', 'subdir', 'version', 'index', 'record'], switches: ['preview'] },
   'ground-seal': { values: ['pack', 'root'], switches: [] },
-  'ground-status': { values: ['pack', 'root'], switches: [] },
+  'ground-status': { values: ['pack', 'root', 'state'], switches: [] },
 };
 const GROUND_VERBS = ['ground-seal', 'ground-status'];
 
@@ -669,13 +673,34 @@ function groundSeal(flags) {
   return { ok: true, digest, sources: sources.length, images: images.length };
 }
 
+/** The base commit a run's state records, or null; `--state` that cannot be read is `base-unknown`. */
+function runBase(file) {
+  let doc;
+  try {
+    doc = parseState(fs.readFileSync(path.resolve(file), 'utf8'));
+  } catch (err) {
+    throw new Refusal('base-unknown',
+      `${path.resolve(file)} could not be read as a run's state (${err.message}). Nothing was written; pass the run's own orchestrator-state.yml as --state.`);
+  }
+  const recorded = doc?.task?.base_commit;
+  if (recorded === undefined || recorded === null) return null;
+  if (typeof recorded?.sha !== 'string' || recorded.sha === '') {
+    throw new Refusal('base-unknown',
+      `${path.resolve(file)} records a task.base_commit with no commit id. Nothing was written; the run cannot tell which sources it changed.`);
+  }
+  return recorded.sha;
+}
+
 function groundStatus(flags) {
   const { pack, root } = groundDirs(flags);
+  const base = flags.state === undefined ? undefined : runBase(flags.state);
   const document = readGrounding(pack);
+  const since = document === null || !base ? [] : touchedSince(root, document, base);
+  const run = base === undefined ? {} : { base, touched: since };
   if (document === null) {
     return {
       ok: true, status: 'missing', pack, digest: null, schema_version: null,
-      plugin_schema_version: GROUNDING_SCHEMA_VERSION, reasons: [], changed: [], gone: [],
+      plugin_schema_version: GROUNDING_SCHEMA_VERSION, reasons: [], changed: [], gone: [], ...run,
     };
   }
   const { changed, gone } = compare(root, document);
@@ -695,6 +720,7 @@ function groundStatus(flags) {
     reasons,
     changed,
     gone,
+    ...run,
   };
 }
 
