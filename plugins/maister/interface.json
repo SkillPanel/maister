@@ -7,6 +7,7 @@
     "docs-operator",
     "e2e-test-verifier",
     "gap-analyzer",
+    "grounding-pack-builder",
     "html-companion-writer",
     "implementation-planner",
     "implementation-runner",
@@ -1036,7 +1037,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.12",
+  "interface_version": "1.13",
   "mcp": {
     "servers": [],
     "tools": [
