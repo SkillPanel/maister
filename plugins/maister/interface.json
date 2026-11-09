@@ -1037,7 +1037,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.13",
+  "interface_version": "1.14",
   "mcp": {
     "servers": [],
     "tools": [
@@ -1642,6 +1642,9 @@
       "node",
       "request",
       "since"
+    ],
+    "pending_gate_optional_keys": [
+      "asked_by_session"
     ],
     "schema_version": 1,
     "top_level_blocks": [

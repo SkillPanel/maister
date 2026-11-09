@@ -129,6 +129,7 @@ export async function describe(root) {
       writer_fields: state.WRITER_FIELDS,
       clock_fields: state.CLOCK_FIELDS,
       pending_gate_keys: state.PENDING_KEYS,
+      pending_gate_optional_keys: state.PENDING_OPTIONAL_KEYS,
       parent_keys: state.PARENT_KEYS,
     },
     grammar: {

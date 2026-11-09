@@ -391,7 +391,8 @@ order, and the order is the contract:
    first** — before the request file exists and before the pending marker is set.
 2. `workflow.mjs gate-request --state=<state>` writes `gates/<node>.request.yml` through a
    temp file and a rename, regenerates `gates/index.yml`, and then sets
-   `orchestrator.gate_pending` to `{node, request, since}` **and** the node's `status` to
+   `orchestrator.gate_pending` to `{node, request, since}` (plus the optional
+   `asked_by_session`, below) **and** the node's `status` to
    `suspended` through the state writer — one invocation, three writes, in that order. The
    request document arrives in the patch file as JSON, written before the call, while nothing
    is pending yet. **That document is `gate-brief --request` output, as it stands.** Write the
@@ -425,7 +426,12 @@ link (W3) both complete **before** the write that projects the dashboard and bef
 directory and the frozen graph the node id is checked against. Send `{node, kind, question,
 context?, options[], the multi-choice flag, run_id?}`; the verb supplies `version`, `asked_at`
 and `answer: null` itself and **refuses a caller that sends any of the three**. `since` is the
-request's own `asked_at`. Its own five refusals are `gate-request-unavailable` (above),
+request's own `asked_at`. The marker may carry one more key, `asked_by_session`: the id of the
+session that suspended on the gate, in that session's own word, taken from the host's
+`CLAUDE_CODE_SESSION_ID`. It is optional — written only on a `cockpit` or `dispatch` run whose host
+names its session, and left out, never written null or empty, on any other host or with no id — and
+it is cleared with the marker when the answer is folded. It never writes, and is never read as,
+`orchestrator.driver.session`. Readers of the marker ignore keys they do not know. Its own five refusals are `gate-request-unavailable` (above),
 `gate-request-invalid` (fix the document and re-run), `gate-request-exists` (a *different* gate
 has already been asked at that node — read the file rather than re-asking), `gate-unwritable`
 and `gate-temp-exists` (handled exactly like `state-unwritable` and `state-temp-exists` in
