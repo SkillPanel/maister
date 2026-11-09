@@ -773,11 +773,15 @@ than retried.
    - **Sources touched**: copy the pack folder to a fresh `mktemp -d` directory,
      then invoke `mockup-studio` with the Skill tool and `--ground` — the
      pack's one builder, which rebuilds and seals it in place, draws no mockup
-     and touches no task folder. Its commit note does not apply here: this step
+     and touches no task folder. It builds every file afresh from the sources,
+     never by editing the old pack's files, so follow its steps rather than
+     patching the pack here. Its commit note does not apply here: this step
      handles the commit. When it succeeds, this node's summary records
      "Refreshed the grounding pack (digest `<first 8>`): `<touched paths>`
-     changed", the close repeats it under **Done** and names the pack folder
-     under **Files**, and step 7's commit message names the refresh. When it
+     changed", the close's **Done** carries that same line copied as it is —
+     the same words, the digest and the paths, never retold or renamed — and
+     names the pack folder under **Files**, and step 7's commit message names
+     the refresh. When it
      fails — the build, or a `ground-seal` refusal its own recovery did not
      settle — put the copy back so the pack is as it was, and record an `open`
      risk naming what failed and that the pack stays stale until
@@ -817,8 +821,10 @@ than retried.
 **Next** holds every one of step 7's next steps, a line each: commit first, with
 the message file's path, then the rest of this workflow's own four, then the
 fresh-session suggestion, none dropped or merged. When step 5 refreshed the
-grounding pack and the run made no commit, the commit line says the pack folder
-goes into that commit.
+grounding pack, **Done** holds the summary's "Refreshed the grounding pack
+(digest …)" line copied word for word from the summary, not a retelling of it;
+and when the run made no commit, the commit line says the pack folder goes into
+that commit.
 
 **Standard candidates in the close**: when step 4 wrote the candidates file,
 the close names the run's task directory, lists each candidate — its line, its

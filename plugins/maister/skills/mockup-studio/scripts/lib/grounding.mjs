@@ -110,7 +110,7 @@ export const hashesPackage = source => source.kind === 'lockfile' && source.pack
   && path.posix.basename(source.path) === 'package-lock.json';
 
 /** The pack's own files as `/`-separated paths below the pack, `grounding.json` and dot-files left out. */
-function packFiles(pack) {
+export function packFiles(pack) {
   const found = [];
   const walk = (dir, prefix) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

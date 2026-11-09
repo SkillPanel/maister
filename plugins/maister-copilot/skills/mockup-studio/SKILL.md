@@ -87,8 +87,9 @@ The steps say what each one does; the references say how.
 1. **Resolve** the target root `<task_path>/<output_subdir>`, the format and the fidelity, and
    capture the clock once (`date -u +"%Y-%m-%dT%H:%M:%SZ"`). Check that Node 20 or newer runs; when
    it does not, the turn takes *The no-Node path* below instead of steps 2–6.
-2. **Ground.** Run `turn.mjs ground-status` on the `grounding` directory, with the project root as
-   `--root`.
+2. **Ground.** Run
+   `node <plugin root>/skills/mockup-studio/scripts/turn.mjs ground-status --pack=<project root>/<grounding> --root=<project root>`,
+   `<grounding>` the input above; the verb takes no other flag here.
    - `missing`: build the pack, as `references/grounding-pack.md` says, and use it. The note is
      "Built the grounding pack at `<path>`; commit it so later turns and machines reuse it."
      Every entry builds it — node mode, an inline call, a terminal turn — whatever the project
@@ -223,7 +224,7 @@ turn writes ASCII by hand, in the shapes `references/turn-contract.md` spells:
 | `--turn "<note>" --task=<dir>`, `<dir>` any other workflow's task directory (development, product-design, quick-design's `design/`) | An inline turn on `<dir>/<--subdir, or analysis/mockups>/`, whether or not a version exists there (none means `v001`). No run state, no dashboard, no `turn-result.json`, no INDEX rows: the turn belongs to that workflow's own record |
 | `--turn "<note>"` from inside a task directory whose `<subdir>/versions/index.json` exists | The same as `--task=<that directory>`: a recorded turn N+1 for a `mockup-studio` record folder, an inline turn for any other |
 | `/maister-copilot:mockup-studio "<text>"` | Read as `--turn "<text>"` |
-| `/maister-copilot:mockup-studio --ground` | Builds or refreshes the grounding pack (`references/grounding-pack.md`), whatever its status, and touches no task folder. It closes with the digest, what was recorded, and the commit note. A workflow step that runs it (development's finalization) takes that close as its result and handles the commit itself |
+| `/maister-copilot:mockup-studio --ground` | Rebuilds the grounding pack from scratch, whatever its status: it clears the pack's generated files, harvests every value again from the sources and writes each file new, never by editing the old pack's files (`references/grounding-pack.md` § *Building afresh*), and touches no task folder. It closes with the digest, what was recorded, and the commit note. A workflow step that runs it (development's finalization) takes that close as its result and handles the commit itself |
 
 The flags are `--format`, `--fidelity`, `--scope`, `--against`, `--subdir` and `--task`. Any other
 flag is named as not taken, in one line, and the turn runs without it. A call with no note and no

@@ -5,8 +5,8 @@ fonts, radii and shadows, its app shell, its real copy. Rediscovering those ever
 drifts from turn to turn, so they are harvested once into a **grounding pack** that every turn reads,
 and that records what it was built from so a turn can tell when it has gone stale.
 
-Two entries build it: `--ground` always rebuilds it, whatever its status, and a turn builds it only
-when `ground-status` says `missing`. A turn never rebuilds an existing pack, stale or not. A
+Two entries build it: `--ground` always rebuilds it from scratch, whatever its status, and a turn
+builds it only when `ground-status` says `missing`. A turn never rebuilds an existing pack, stale or not. A
 development run whose change touched a recorded source runs `--ground` once at its end, at
 finalization, and commits the refreshed pack with the change.
 
@@ -77,11 +77,24 @@ gaps.
 
 ---
 
+## Building afresh
+
+A build, `--ground` above all, starts from an empty pack and writes every file new. First delete
+the pack's generated files — `tokens.md`, `shell.html`, `strings/`, `reference/`, everything in the
+folder but `grounding.json` — then harvest each value again from the sources, the recorded ones and
+whatever *What to harvest* finds now, and write each file from what was harvested. Never read the
+old pack to diff or patch it: a patch carries only the differences someone noticed, and the seal
+would then certify the rest as fresh. `ground-seal` refuses a pack sealed before that still holds a
+file not written since that seal (`pack-not-rebuilt`); a caller that needs the old pack back on
+failure copies the whole folder before the build.
+
+---
+
 ## Sealing
 
 The digest and the source hashes are computed by code, never by the model.
 
-1. Write the pack's files.
+1. Write the pack's files, afresh (*Building afresh*).
 2. Write `<pack>/.sources.json` with the file tool: `{sources, images}`. Each source is
    `{path, kind, package?}`, `kind` one of `theme`, `tokens`, `lockfile`, `shell` or `i18n`, the path
    relative to the project root; a `package-lock.json` source names its `package`. Each image is
