@@ -220,7 +220,7 @@ turn writes ASCII by hand, in the shapes `references/turn-contract.md` spells:
 | `--turn "<note>" --task=<dir>`, `<dir>` any other workflow's task directory (development, product-design, quick-design's `design/`) | An inline turn on `<dir>/<--subdir, or analysis/mockups>/`, whether or not a version exists there (none means `v001`). No run state, no dashboard, no `turn-result.json`, no INDEX rows: the turn belongs to that workflow's own record |
 | `--turn "<note>"` from inside a task directory whose `<subdir>/versions/index.json` exists | The same as `--task=<that directory>`: a recorded turn N+1 for a `mockup-studio` record folder, an inline turn for any other |
 | `/maister:mockup-studio "<text>"` | Read as `--turn "<text>"` |
-| `/maister:mockup-studio --ground` | Rebuilds the grounding pack from scratch, whatever its status: it clears the pack's generated files, harvests every value again from the sources and writes each file new, never by editing the old pack's files (`references/grounding-pack.md` § *Building afresh*), and touches no task folder. It closes with the digest, what was recorded, and the commit note. A workflow step that runs it (development's finalization) takes that close as its result and handles the commit itself |
+| `/maister:mockup-studio --ground` | Rebuilds the grounding pack from scratch, whatever its status: it clears the pack's generated files, harvests every value again from the sources and writes each file new, never by editing the old pack's files (`references/grounding-pack.md` § *Building afresh*), and touches no task folder. The build runs in a fresh agent: dispatch the `maister:grounding-pack-builder` agent with the Task tool, with the model and effort `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:grounding-pack-builder --host=claude` prints, and a prompt that carries only the absolute pack path (`<project root>/<grounding>`), the project root and the plugin root — nothing this session saw of the old pack. This session neither reads nor writes the pack's files itself. From the agent's result it closes with the digest, what was recorded, and the commit note; when the agent reports a failure, the close says the pack may be left cleared or partly built, and is restored from version control or by running `--ground` again. A workflow step that runs it (development's finalization) takes that close as its result and handles the commit itself |
 
 The flags are `--format`, `--fidelity`, `--scope`, `--against`, `--subdir` and `--task`. Any other
 flag is named as not taken, in one line, and the turn runs without it. A call with no note and no
@@ -268,7 +268,7 @@ as a run of its own. A workflow run ends the same way, from its node's prose.
 ## Running the scripts
 
 The scripts are `<plugin root>/skills/mockup-studio/scripts/turn.mjs` (`begin`, `finish`,
-`ground-status`, `ground-seal`), `<plugin root>/skills/mockup-studio/scripts/frames.mjs` (`export`)
+`ground-status`, `ground-clear`, `ground-seal`), `<plugin root>/skills/mockup-studio/scripts/frames.mjs` (`export`)
 and `<plugin root>/skills/mockup-studio/server/index.mjs` (`start`, `stop`). The plugin root is
 this plugin's own directory — the one holding `.claude-plugin/plugin.json`, two levels above the
 base directory the loader shows for this skill. Run each script by that absolute path, never

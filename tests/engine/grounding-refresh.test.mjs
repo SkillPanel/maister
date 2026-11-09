@@ -211,7 +211,7 @@ test('finalization: the refreshed pack goes into the change\'s commit, or the cl
 test('finalization: a failed re-ground puts the pack back and is an open risk, never a failed run', t => {
   const { step } = finalizationBrief(t);
   assert.match(step, /copy the pack folder to a fresh `mktemp -d` directory/);
-  assert.match(step, /put the copy back so the pack is as it was, and record an `open` risk naming what failed/);
+  assert.match(step, /put the copy back so the pack is as it was: replace the pack folder with the copy \(remove the folder, then copy the backup in its place\), so no file the build wrote, its start marker included, stays\. Record an `open` risk naming what failed/);
   assert.match(step, /A failed re-ground never fails the run/);
   assert.match(step, /\*\*A refusal\*\*: no re-ground; record one `open` risk/);
 });
@@ -267,63 +267,231 @@ const prose = file => fs.readFileSync(path.join(STUDIO, file), 'utf8').replace(/
 test('rebuild: --ground clears the generated files and writes each afresh, never patching the old pack', t => {
   const pack = prose('references/grounding-pack.md');
   assert.match(pack, /`--ground` always rebuilds it from scratch/);
-  assert.match(pack, /First delete the pack's generated files — `tokens\.md`, `shell\.html`, `strings\/`, `reference\/`, everything in the folder but `grounding\.json`/);
-  assert.match(pack, /Never read the old pack to diff or patch it/);
-  assert.match(pack, /`ground-seal` refuses a pack sealed before that still holds a file not written since that seal \(`pack-not-rebuilt`\)/);
+  assert.match(pack, /Every build, a first one included, starts from an empty pack and writes every file new/);
+  assert.match(pack, /`turn\.mjs ground-clear --pack=<pack>` deletes everything in the folder but `grounding\.json` — `tokens\.md`, `shell\.html`, `strings\/`, `reference\/`, a stale `\.sources\.json` — and records the build's start in the marker `<pack>\/\.build-started`/);
+  assert.match(pack, /Never read the old pack, by any route — a backup copy, its git history, an earlier mockup — to diff or patch it/);
+  assert.match(pack, /`ground-seal` refuses a pack sealed before that was not cleared for this build \(`pack-not-cleared`\)/);
+  assert.match(pack, /one that holds a file older than the clear \(`pack-not-rebuilt`\)\. On success it removes the marker, which is therefore never committed/);
   const skill = prose('SKILL.md');
   assert.match(skill, /\| `\/maister:mockup-studio --ground` \| Rebuilds the grounding pack from scratch, whatever its status: it clears the pack's generated files, harvests every value again from the sources and writes each file new, never by editing the old pack's files/);
   const { step } = finalizationBrief(t);
-  assert.match(step, /It builds every file afresh from the sources, never by editing the old pack's files/);
+  assert.match(step, /It builds every file afresh from the sources, never by editing the old pack's files, in a fresh agent that never saw the old pack: this session neither reads nor writes the pack's files itself, and passes on nothing it saw of them/);
 });
 
-/** A sealed pack with a reference page, its files dated two hours back and the seal one. */
-function aged(t) {
+// The rebuild runs in a fresh agent, so nothing the session saw of the old
+// pack can reach the new one.
+
+test('rebuild: --ground dispatches the builder agent with only the pack path, the project root and the plugin root', () => {
+  const skill = prose('SKILL.md');
+  assert.match(skill, /The build runs in a fresh agent: dispatch the `maister:grounding-pack-builder` agent with the Task tool, with the model and effort `node <plugin root>\/skills\/workflow-engine\/scripts\/workflow\.mjs dispatch-model --agent=maister:grounding-pack-builder --host=claude` prints/);
+  assert.match(skill, /a prompt that carries only the absolute pack path \(`<project root>\/<grounding>`\), the project root and the plugin root — nothing this session saw of the old pack\. This session neither reads nor writes the pack's files itself/);
+  const pack = prose('references/grounding-pack.md');
+  assert.match(pack, /`--ground` always rebuilds it from scratch, whatever its status, in a fresh `grounding-pack-builder` agent/);
+  assert.match(pack, /hands the build to the `grounding-pack-builder` agent, which never saw the old pack and is given only the pack path, the project root and the plugin root/);
+});
+
+test('rebuild: the builder agent clears first, never reads the old pack, and seals', () => {
+  const text = fs.readFileSync(path.join(ROOT, 'plugins/maister/agents/grounding-pack-builder.md'), 'utf8').replace(/\r\n/g, '\n').replace(/\s+/g, ' ');
+  assert.match(text, /^--- name: grounding-pack-builder description: /);
+  assert.doesNotMatch(text.slice(0, text.indexOf('# Grounding Pack Builder')), /\b(tools|model):/);
+  assert.match(text, /\*\*Clear first, before reading anything in the pack\.\*\* Run `turn\.mjs ground-clear --pack=<pack>`/);
+  assert.match(text, /\*\*Never read the old pack, by any route\.\*\* Its generated files are gone after step 1; do not look for them elsewhere — not in a backup copy, not through `git show`, `git diff` or `git log -p` of the pack folder/);
+  assert.match(text, /\*\*Write `<pack>\/\.sources\.json`\*\*/);
+  assert.match(text, /\*\*Seal\.\*\* Run `turn\.mjs ground-seal --pack=<pack> --root=<project root>`/);
+  assert.match(text, /seal: \{ok, digest, sources, images\} # ground-seal's JSON as it printed/);
+  assert.match(text, /never commit/);
+});
+
+const MARKER = '.build-started';
+function clear(project) {
+  const result = run(TURN, ['ground-clear', `--pack=${path.join(project.root, PACK)}`], undefined, {}, project.root);
+  let json = null;
+  try {
+    json = JSON.parse(result.stdout);
+  } catch {
+    // no JSON: asserted by the test
+  }
+  return { ...result, json };
+}
+
+/** Every file under `dir`, `/`-separated, with its bytes: a tree compared byte for byte. */
+function tree(dir) {
+  const found = {};
+  const walk = (at, prefix) => {
+    for (const entry of fs.readdirSync(at, { withFileTypes: true })) {
+      const rel = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+      if (entry.isDirectory()) walk(path.join(at, entry.name), rel);
+      else found[rel] = fs.readFileSync(path.join(at, entry.name)).toString('base64');
+    }
+  };
+  walk(dir, '');
+  return found;
+}
+
+/** A sealed pack with a reference page, the theme changed since, and the seal's input written again. */
+function resealable(t) {
   const project = started(t);
   const pack = path.join(project.root, PACK);
   fs.mkdirSync(path.join(pack, 'reference'), { recursive: true });
   fs.writeFileSync(path.join(pack, 'reference', 'list.html'), '<p>list</p>\n');
-  const ago = hours => (Date.now() - hours * 3600_000) / 1000;
-  for (const file of ['tokens.md', 'reference/list.html']) fs.utimesSync(path.join(pack, file), ago(2), ago(2));
-  fs.utimesSync(path.join(pack, 'grounding.json'), ago(1), ago(1));
   put(project, 'src/theme.css', ':root { --accent: #f00; }\n');
+  return { project, pack };
+}
+
+function writeSources(pack) {
   fs.writeFileSync(path.join(pack, '.sources.json'), JSON.stringify({
     sources: [{ path: 'src/theme.css', kind: 'theme' }, { path: 'package-lock.json', kind: 'lockfile', package: 'ui-kit' }],
     images: [],
   }));
-  return { project, pack };
 }
 
-test('rebuild: a re-seal of a pack patched in place is refused as pack-not-rebuilt, and nothing is written', t => {
-  const { project, pack } = aged(t);
+test('rebuild: a pack fresh from a clone, one file patched, is refused as pack-not-cleared, whatever its file times', t => {
+  const origin = started(t);
+  const pack = path.join(origin.root, PACK);
+  assert.equal(clear(origin).code, 0);
+  fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens\n');
+  fs.writeFileSync(path.join(pack, 'shell.html'), '<header>green</header>\n');
+  writeSources(pack);
+  assert.equal(ground(origin, 'ground-seal').code, 0);
+  git(origin.root, ['add', '-f', '--', PACK]);
+  git(origin.root, ['commit', '-q', '-m', 'pack']);
+  const copy = scratch(t);
+  const clone = path.join(copy.root, 'clone');
+  git(copy.root, ['clone', '-q', origin.root, clone]);
+  const project = { root: clone };
+  const cloned = path.join(clone, PACK);
+  fs.writeFileSync(path.join(cloned, 'shell.html'), '<header>navy</header>\n');
+  put(project, 'src/theme.css', ':root { --accent: #1e3a5f; }\n');
+  writeSources(cloned);
+  const before = fs.readFileSync(path.join(cloned, 'grounding.json'));
+  const result = ground(project, 'ground-seal');
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  assert.equal(result.json.code, 'pack-not-cleared');
+  assert.match(result.json.message, /was sealed before and was not cleared for this build/);
+  assert.match(result.json.message, /Nothing was written and the input file is kept; run ground-clear/);
+  assert.deepEqual(fs.readFileSync(path.join(cloned, 'grounding.json')), before);
+  assert.equal(fs.existsSync(path.join(cloned, '.sources.json')), true);
+});
+
+test('rebuild: a re-seal with no clear is refused as pack-not-cleared, even with every file rewritten', t => {
+  const { project, pack } = resealable(t);
   fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens\n--accent: #f00\n');
+  fs.writeFileSync(path.join(pack, 'reference', 'list.html'), '<p>list, red</p>\n');
+  writeSources(pack);
   const before = fs.readFileSync(path.join(pack, 'grounding.json'));
   const result = ground(project, 'ground-seal');
   assert.equal(result.code, 1, result.stdout + result.stderr);
-  assert.equal(result.json.code, 'pack-not-rebuilt');
-  assert.match(result.json.message, /reference[\\/]list\.html was not written since the pack was last sealed/);
-  assert.doesNotMatch(result.json.message, /tokens\.md/);
-  assert.match(result.json.message, /Nothing was written and the input file is kept/);
+  assert.equal(result.json.code, 'pack-not-cleared');
   assert.deepEqual(fs.readFileSync(path.join(pack, 'grounding.json')), before);
-  assert.equal(fs.existsSync(path.join(pack, '.sources.json')), true);
   assert.equal(guard(project).json.status, 'stale');
 });
 
-test('rebuild: a pack whose every file was written afresh seals fresh', t => {
-  const { project, pack } = aged(t);
+test('rebuild: clear, write every file and seal is fresh, and leaves no marker', t => {
+  const { project, pack } = resealable(t);
+  fs.writeFileSync(path.join(pack, '.sources.json'), '{"stale": true}\n');
+  const cleared = clear(project);
+  assert.equal(cleared.code, 0, cleared.stdout + cleared.stderr);
+  assert.equal(cleared.json.ok, true);
+  assert.deepEqual(fs.readdirSync(pack).sort(), [MARKER, 'grounding.json']);
   fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens\n--accent: #f00\n');
+  fs.mkdirSync(path.join(pack, 'reference'));
   fs.writeFileSync(path.join(pack, 'reference', 'list.html'), '<p>list, red</p>\n');
+  writeSources(pack);
   const result = ground(project, 'ground-seal');
   assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.equal(fs.existsSync(path.join(pack, MARKER)), false);
+  assert.equal(fs.existsSync(path.join(pack, '.sources.json')), false);
   assert.equal(guard(project).json.status, 'fresh');
 });
 
 test('rebuild: a cleared pack that no longer makes an old file seals fresh', t => {
-  const { project, pack } = aged(t);
-  fs.rmSync(path.join(pack, 'reference'), { recursive: true });
+  const { project, pack } = resealable(t);
+  assert.equal(clear(project).code, 0);
   fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens\n--accent: #f00\n');
+  writeSources(pack);
   const result = ground(project, 'ground-seal');
   assert.equal(result.code, 0, result.stdout + result.stderr);
   assert.equal(guard(project).json.status, 'fresh');
+});
+
+test('rebuild: a file older than the clear is refused as pack-not-rebuilt, and nothing is written', t => {
+  const { project, pack } = resealable(t);
+  assert.equal(clear(project).code, 0);
+  fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens\n--accent: #f00\n');
+  fs.mkdirSync(path.join(pack, 'reference'));
+  fs.writeFileSync(path.join(pack, 'reference', 'list.html'), '<p>list</p>\n');
+  const ago = (Date.now() - 3600_000) / 1000;
+  fs.utimesSync(path.join(pack, 'reference', 'list.html'), ago, ago);
+  writeSources(pack);
+  const before = fs.readFileSync(path.join(pack, 'grounding.json'));
+  const result = ground(project, 'ground-seal');
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  assert.equal(result.json.code, 'pack-not-rebuilt');
+  assert.match(result.json.message, /reference[\\/]list\.html is older than the pack's clear/);
+  assert.doesNotMatch(result.json.message, /tokens\.md/);
+  assert.match(result.json.message, /Nothing was written and the input file is kept/);
+  assert.deepEqual(fs.readFileSync(path.join(pack, 'grounding.json')), before);
+  assert.equal(fs.existsSync(path.join(pack, MARKER)), true, 'a refusal keeps the marker for the retry');
+  fs.writeFileSync(path.join(pack, 'reference', 'list.html'), '<p>list, red</p>\n');
+  assert.equal(ground(project, 'ground-seal').code, 0);
+  assert.equal(fs.existsSync(path.join(pack, MARKER)), false);
+});
+
+test('rebuild: a first build seals with or without a clear, and a clear makes a missing pack folder', t => {
+  const plain = gitScratch(t, FILES);
+  seal(plain);
+  assert.equal(ground(plain, 'ground-status').json.status, 'fresh');
+  const first = gitScratch(t, FILES);
+  const pack = path.join(first.root, PACK);
+  assert.equal(fs.existsSync(pack), false);
+  const cleared = clear(first);
+  assert.equal(cleared.code, 0, cleared.stdout + cleared.stderr);
+  assert.equal(cleared.json.cleared, 0);
+  assert.deepEqual(fs.readdirSync(pack), [MARKER]);
+  seal(first);
+  assert.deepEqual(fs.readdirSync(pack).sort(), ['grounding.json', 'tokens.md']);
+});
+
+test('rebuild: the marker changes neither the digest nor the status, touched included', t => {
+  const project = started(t);
+  const pack = path.join(project.root, PACK);
+  put(project, 'src/theme.css', ':root { --accent: #f00; }\n');
+  const before = guard(project).json;
+  fs.writeFileSync(path.join(pack, MARKER), '{"started": "2026-01-01T00:00:00Z"}\n');
+  const after = guard(project).json;
+  assert.deepEqual(after, before);
+  assert.equal(after.status, 'stale');
+  assert.deepEqual(after.touched, ['src/theme.css']);
+});
+
+test('rebuild: ground-clear refuses a folder that is not a pack and deletes nothing', t => {
+  const project = gitScratch(t, FILES);
+  const pack = path.join(project.root, PACK);
+  fs.mkdirSync(pack, { recursive: true });
+  fs.writeFileSync(path.join(pack, 'notes.md'), 'mine\n');
+  const result = clear(project);
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  assert.equal(result.json.code, 'not-a-pack');
+  assert.match(result.json.message, /Nothing was deleted/);
+  assert.deepEqual(fs.readdirSync(pack), ['notes.md']);
+});
+
+test('rebuild: a failed rebuild after the clear is put back byte for byte by replacing the folder with the copy', t => {
+  const { project, pack } = resealable(t);
+  const snapshot = tree(pack);
+  const backup = path.join(scratch(t).root, 'design-context');
+  fs.cpSync(pack, backup, { recursive: true });
+  assert.equal(clear(project).code, 0);
+  fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens, half written\n');
+  fs.writeFileSync(path.join(pack, '.sources.json'), JSON.stringify({ sources: [{ path: 'src/gone.css', kind: 'theme' }], images: [] }));
+  const failed = ground(project, 'ground-seal');
+  assert.equal(failed.code, 1);
+  assert.equal(failed.json.code, 'source-missing');
+  fs.rmSync(pack, { recursive: true, force: true });
+  fs.cpSync(backup, pack, { recursive: true });
+  assert.deepEqual(tree(pack), snapshot);
+  assert.equal(fs.existsSync(path.join(pack, MARKER)), false);
+  assert.equal(guard(project).json.status, 'stale');
 });
 
 // The mockup turn names ground-status's flags exactly.

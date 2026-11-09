@@ -23,6 +23,7 @@
  * else null. It is handed to the turn as a fact, so the look pass never judges
  * from a tool list alone; a probe that fails reads as null and never refuses.
  *
+ *   node <path to this file> ground-clear  --pack=<dir>
  *   node <path to this file> ground-seal   --pack=<dir> [--root=<project root>]
  *   node <path to this file> ground-status --pack=<dir> [--root=<project root>] [--state=<run state>]
  *
@@ -49,13 +50,24 @@
  * effort and records nothing; whatever happens to the opener, the turn's result
  * and exit code are the ones already decided.
  *
+ * `ground-clear` starts a build of the grounding pack: it deletes every entry
+ * of the pack folder but `grounding.json` (dot-files included, so a stale
+ * `.sources.json` goes too), creating the folder when it is missing, and writes
+ * the start marker `<pack>/.build-started`; it prints `{ok, pack, cleared,
+ * started}`. A folder that holds entries but neither `grounding.json` nor a
+ * marker is not a pack, and nothing in it is deleted.
+ *
  * `ground-seal` reads `<pack>/.sources.json` (`SOURCES_FILE`, the input-file
  * rule), hashes each source and image under `--root` (default the working
- * directory), writes `<pack>/grounding.json` and deletes the input; it prints
- * `{ok, digest, sources, images}`. A pack sealed before is sealed again only
- * when it was rebuilt: every pack file must have been written since the last
- * `grounding.json`, so a pack patched in place, with a file left from the old
- * build, is refused as `pack-not-rebuilt`. `ground-status` writes nothing: it prints
+ * directory), writes `<pack>/grounding.json`, deletes the input and the start
+ * marker; it prints `{ok, digest, sources, images}`. A pack sealed before is
+ * sealed again only when it was cleared for this build: with no marker it is
+ * refused as `pack-not-cleared` — whatever the files' times, so a clone or a
+ * checkout, which dates every file now, proves nothing — and a pack file older
+ * than the marker, one copied back with its times kept, is refused as
+ * `pack-not-rebuilt`. The marker is a dot-file, so it is in no digest and
+ * `ground-status` never reads it; the seal removes it, so it is never
+ * committed. `ground-status` writes nothing: it prints
  * `{ok, status, pack, digest, schema_version, plugin_schema_version, reasons,
  * changed, gone}` with `status` fresh, stale or missing, `reasons` from
  * source-changed, source-gone, schema-older and schema-newer (the last never
@@ -80,8 +92,9 @@
  *   finish  version-unknown, version-published, turn-file-missing,
  *           turn-file-malformed, slug-invalid, screens-empty, index-locked,
  *           index-malformed, folder-unwritable
+ *   ground-clear   not-a-pack, folder-unwritable
  *   ground-seal    sources-file-missing, sources-file-malformed, source-missing,
- *                  pack-not-rebuilt, folder-unwritable
+ *                  pack-not-cleared, pack-not-rebuilt, folder-unwritable
  *   ground-status  grounding-malformed, base-unknown
  * Every write fault, the write primitives' included, is `folder-unwritable`.
  */
@@ -112,10 +125,14 @@ const TEMPLATE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '
 const VERBS = {
   begin: { values: ['task-path', 'subdir', 'against'], switches: [] },
   finish: { values: ['task-path', 'subdir', 'version', 'index', 'record'], switches: ['preview'] },
+  'ground-clear': { values: ['pack'], switches: [] },
   'ground-seal': { values: ['pack', 'root'], switches: [] },
   'ground-status': { values: ['pack', 'root', 'state'], switches: [] },
 };
-const GROUND_VERBS = ['ground-seal', 'ground-status'];
+const GROUND_VERBS = ['ground-clear', 'ground-seal', 'ground-status'];
+
+/** The start marker `ground-clear` writes and a successful `ground-seal` removes. */
+const BUILD_MARKER = '.build-started';
 
 class UsageError extends Error {}
 
@@ -603,6 +620,43 @@ function groundDirs(flags) {
   return { pack: path.resolve(flags.pack), root: path.resolve(flags.root ?? process.cwd()) };
 }
 
+/**
+ * Start a build: empty the pack but for `grounding.json`, then record the
+ * start. Every build, a first one included, begins here, so the seal can tell
+ * a pack written for this build from one carried over or patched.
+ */
+function groundClear(flags) {
+  const { pack } = groundDirs(flags);
+  let entries;
+  try {
+    entries = fs.readdirSync(pack);
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw new Refusal('folder-unwritable', `${pack} could not be read (${err.message}). Nothing was deleted; make --pack the pack folder and run ground-clear again.`);
+    entries = null;
+  }
+  if (entries !== null && entries.length && !entries.includes(GROUNDING_FILE) && !entries.includes(BUILD_MARKER)) {
+    throw new Refusal('not-a-pack',
+      `${pack} holds files but no ${GROUNDING_FILE} and no build marker, so it is not a grounding pack. Nothing was deleted; pass the pack folder as --pack, or empty this folder yourself if it really is the pack.`);
+  }
+  const doomed = (entries ?? []).filter(name => name !== GROUNDING_FILE);
+  try {
+    fs.mkdirSync(pack, { recursive: true });
+    for (const name of doomed) fs.rmSync(path.join(pack, name), { recursive: true, force: true });
+  } catch (err) {
+    throw new Refusal('folder-unwritable', `${pack} could not be cleared (${err.message}). Some files may be gone; make the pack folder writable and run ground-clear again.`);
+  }
+  const started = stamp();
+  try {
+    put(path.join(pack, BUILD_MARKER), json({ started }));
+  } catch (err) {
+    if (err instanceof Refusal && err.code === 'folder-unwritable') {
+      throw new Refusal('folder-unwritable', `${err.message.replace(/^[a-z-]+: /, '')}. The pack was cleared but its build was not started; make the pack folder writable and run ground-clear again.`);
+    }
+    throw err;
+  }
+  return { ok: true, pack, cleared: doomed.length, started };
+}
+
 function groundSeal(flags) {
   const { pack, root } = groundDirs(flags);
   const expected = path.join(pack, '.sources.json');
@@ -660,16 +714,21 @@ function groundSeal(flags) {
     return { path: rel, hash: blobHash(bytes) };
   });
 
-  // A pack sealed before must have been built afresh: a file not written
-  // since the last seal survived from the old build, and a patch the seal
-  // certified would carry it on as fresh. Equal times pass, so a coarse
-  // clock only errs toward accepting. A first build has nothing to compare.
-  const previous = sealedAt(path.join(pack, GROUNDING_FILE));
-  if (previous !== null) {
-    const leftover = packFiles(pack).filter(rel => fs.statSync(path.join(pack, rel)).mtimeMs < previous);
+  // A pack sealed before must have been cleared for this build and written
+  // since: the marker is the proof, and no file's checkout time is. A file
+  // older than the marker was carried over with its times kept. Equal times
+  // pass, so a coarse clock only errs toward accepting. A first build, with
+  // no grounding.json, needs no marker.
+  const started = markedAt(path.join(pack, BUILD_MARKER));
+  if (started === null && fs.existsSync(path.join(pack, GROUNDING_FILE))) {
+    throw new Refusal('pack-not-cleared',
+      `${pack} was sealed before and was not cleared for this build: --ground starts every build with ground-clear and writes every file afresh from the sources, never by patching the old pack. Nothing was written and the input file is kept; run ground-clear, build every file again, write .sources.json and run ground-seal again.`);
+  }
+  if (started !== null) {
+    const leftover = packFiles(pack).filter(rel => fs.statSync(path.join(pack, rel)).mtimeMs < started);
     if (leftover.length) {
       throw new Refusal('pack-not-rebuilt',
-        `${leftover.join(', ')} ${leftover.length === 1 ? 'was' : 'were'} not written since the pack was last sealed: --ground builds every file afresh from the sources, never by patching the old pack. Nothing was written and the input file is kept; rebuild ${leftover.length === 1 ? 'it' : 'them'} from the sources (or delete what the build no longer makes) and run ground-seal again.`);
+        `${leftover.join(', ')} ${leftover.length === 1 ? 'is' : 'are'} older than the pack's clear, so ${leftover.length === 1 ? 'it was' : 'they were'} carried over rather than written for this build: --ground builds every file afresh from the sources, never by patching the old pack. Nothing was written and the input file is kept; rebuild ${leftover.length === 1 ? 'it' : 'them'} from the sources (or delete what the build no longer makes) and run ground-seal again.`);
     }
   }
 
@@ -686,11 +745,16 @@ function groundSeal(flags) {
     throw err;
   }
   consume(file);
+  try {
+    unlinkIfPresent(path.join(pack, BUILD_MARKER));
+  } catch (err) {
+    throw new Refusal('folder-unwritable', `${err.message.replace(/^[a-z-]+: /, '')}. The pack is sealed (digest ${digest}), but its build marker is left; delete ${BUILD_MARKER} from the pack folder by hand and never commit it.`);
+  }
   return { ok: true, digest, sources: sources.length, images: images.length };
 }
 
-/** When `grounding.json` was last written, or null when the pack was never sealed. */
-function sealedAt(file) {
+/** When `ground-clear` started this build, by the marker's own time, or null when there is no marker. */
+function markedAt(file) {
   try {
     return fs.statSync(file).mtimeMs;
   } catch (err) {
@@ -758,11 +822,11 @@ function main() {
     parsed = parseArgs(process.argv.slice(2));
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
-    process.stderr.write(`turn: ${error.message}\nusage: node turn.mjs begin|finish --task-path=<dir> | ground-seal|ground-status --pack=<dir> [flags]\n`);
+    process.stderr.write(`turn: ${error.message}\nusage: node turn.mjs begin|finish --task-path=<dir> | ground-clear|ground-seal|ground-status --pack=<dir> [flags]\n`);
     return EXIT.INTERNAL;
   }
   try {
-    const handlers = { begin, finish, 'ground-seal': groundSeal, 'ground-status': groundStatus };
+    const handlers = { begin, finish, 'ground-clear': groundClear, 'ground-seal': groundSeal, 'ground-status': groundStatus };
     const result = handlers[parsed.verb](parsed.flags);
     process.stdout.write(json(result));
     if (parsed.verb === 'finish') openGallery(parsed.flags, result);

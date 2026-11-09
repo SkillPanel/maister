@@ -774,8 +774,9 @@ than retried.
      then invoke `maister:mockup-studio` with the Skill tool and `--ground` — the
      pack's one builder, which rebuilds and seals it in place, draws no mockup
      and touches no task folder. It builds every file afresh from the sources,
-     never by editing the old pack's files, so follow its steps rather than
-     patching the pack here. Its commit note does not apply here: this step
+     never by editing the old pack's files, in a fresh agent that never saw the
+     old pack: this session neither reads nor writes the pack's files itself,
+     and passes on nothing it saw of them. Its commit note does not apply here: this step
      handles the commit. When it succeeds, this node's summary records
      "Refreshed the grounding pack (digest `<first 8>`): `<touched paths>`
      changed", the close's **Done** carries that same line copied as it is —
@@ -783,7 +784,10 @@ than retried.
      names the pack folder under **Files**, and step 7's commit message names
      the refresh. When it
      fails — the build, or a `ground-seal` refusal its own recovery did not
-     settle — put the copy back so the pack is as it was, and record an `open`
+     settle — put the copy back so the pack is as it was: replace the pack
+     folder with the copy (remove the folder, then copy the backup in its
+     place), so no file the build wrote, its start marker included, stays.
+     Record an `open`
      risk naming what failed and that the pack stays stale until
      `/maister:mockup-studio --ground` is run. A failed re-ground never fails
      the run.
