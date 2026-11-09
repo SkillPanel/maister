@@ -234,7 +234,7 @@ function delegateContext(t, node, { withPack = true } = {}) {
 for (const node of ['gap-analysis', 'specification', 'planning', 'verification']) {
   test(`scope: the ${node} delegate is told the pack is rebuilt at finalization, never edited by the change`, t => {
     const text = delegateContext(t, node);
-    assert.match(text, /grounding pack \(not this change's to edit\): \S+\.maister\/docs\/design-context — /);
+    assert.match(text, /grounding pack \(not this change's to edit\): \S+\.maister[\\/]docs[\\/]design-context — /);
     assert.match(text, /rebuilt only from the sources it records by the studio's --ground, which a development run runs once, at finalization, when its change touched one of them/);
     assert.match(text, /No gap, scope question, requirement, task group or edit names a file under it, and no step runs --ground: the change edits the product's own sources/);
     assert.match(text, /The task folder's analysis\/design-context\/ \(mockups and design intent\) is a different folder and is read as before/);
