@@ -149,7 +149,7 @@ prompt: |
   [List relevant files for full details]
 ```
 
-**Why**: Subagents run in isolated context. The run-context block carries what every delegate needs — `task_path:`, the `html:` line (§ 9), the project's `docs (read-only):` list, the `scratch:` rule, the summary contract of § 7 and the `companions:` the node owes — so none of it is typed by hand and none of it is forgotten.
+**Why**: Subagents run in isolated context. The run-context block carries what every delegate needs — `task_path:`, the `html:` line (§ 9), the project's `docs (read-only):` list, the `grounding pack` line when the project has one (the pack is rebuilt from its sources, never edited by the change), the `scratch:` rule, the summary contract of § 7 and the `companions:` the node owes — so none of it is typed by hand and none of it is forgotten.
 
 **The prior-phase passage is fetched, not composed** — a hand-written `## CONTEXT FROM PRIOR PHASES` block drops items without a trace. The read-only `prior-context` verb prints every phase, its decisions and its risks, one bullet each with the count beside the heading, for every workflow (`workflow-engine/SKILL.md` § *Delegation by scheme* has the invocation). Call it **at each consuming delegate** — one call per prompt, in the turn that composes it — and paste its stdout unedited: trimming, re-ordering or tightening it is the same defect by hand, and a rendering taken for an earlier delegate is stale once a summary is written in between. The verb writes nothing, so the extra call costs nothing.
 

@@ -4,8 +4,8 @@
  * Why this module exists at all. Every delegate an engine run dispatches needs
  * the same handful of run facts: where the task directory is, whether it owes
  * HTML companions and which guide writes them, the project documentation to
- * read, how to make a scratch copy, what a markdown artifact opens with, and
- * which pages this node owes. Left to the orchestrating model, each of those is
+ * read, the grounding pack it must leave alone, how to make a scratch copy,
+ * what a markdown artifact opens with, and which pages this node owes. Left to the orchestrating model, each of those is
  * a sentence it must remember to compose into every prompt, and the one that
  * is forgotten is never noticed — the delegate does its work without it. So the
  * facts are fetched, the way `prior-context` fetches the prior phases'
@@ -69,6 +69,26 @@ const STANDARDS_INDEX = path.join('.maister', 'docs', 'INDEX.md');
 const INSTRUCTIONS = ['CLAUDE.md', path.join('.claude', 'CLAUDE.md')];
 const INDEX_IMPORT = /(?:^|\s)@\.maister\/docs\/INDEX\.md(?=\s|$)/m;
 
+/**
+ * The mockup studio's grounding pack, relative to the project root. It sits
+ * under the docs directory but outside the index, so the docs list never names
+ * it, and a delegate that meets its files while searching the code reads them
+ * as project docs a change has to keep true. They are not: the studio's
+ * `--ground` rebuilds the pack from the sources it records, and a development
+ * run does that once, at finalization, when its change touched one. So when a
+ * project has a pack, the block says so in one line.
+ */
+const GROUNDING_PACK = path.join('.maister', 'docs', 'design-context');
+
+/** The one line the block carries for a project's grounding pack, at its absolute path. */
+export function groundingPackLine(pack) {
+  return `grounding pack (not this change's to edit): ${pack} — the mockup studio's picture of the product's look, `
+    + 'rebuilt only from the sources it records by the studio\'s --ground, which a development run runs once, at finalization, '
+    + 'when its change touched one of them. No gap, scope question, requirement, task group or edit names a file under it, '
+    + 'and no step runs --ground: the change edits the product\'s own sources. The task folder\'s analysis/design-context/ '
+    + '(mockups and design intent) is a different folder and is read as before';
+}
+
 /** The scheme of a node that starts a sub-run, whose files land in the child's task directory. */
 const WORKFLOW_SCHEME = 'workflow:';
 
@@ -131,12 +151,14 @@ export function runContext({ state, node }) {
   }
 
   const docs = docsOf(doc, root);
+  const pack = path.resolve(root, GROUNDING_PACK);
   const text = [
     '## Run context',
     '',
     `task_path: ${taskPathOf(doc, runDir, root)}`,
     `html: ${html}`,
     ...(docs.length ? ['docs (read-only):', ...docs.map(file => `- ${file}`)] : ['docs: none']),
+    ...(isDirectory(pack) ? [groundingPackLine(pack)] : []),
     SCRATCH,
     CONTRACT,
     ...companions,
@@ -197,6 +219,15 @@ function docsOf(doc, root) {
   if (importsIndex(root)) seen.delete(index);
   else if (fs.existsSync(index)) seen.add(index);
   return [...seen];
+}
+
+/** Whether `dir` is a directory; an unreadable path is not. */
+function isDirectory(dir) {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 /** Whether one of the project's instructions files imports the standards index. */

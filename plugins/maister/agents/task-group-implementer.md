@@ -229,6 +229,7 @@ Output structured report in expected format (see Output Format section).
 - ❌ Commit changes to git
 - ❌ Edit `.maister/docs/INDEX.md`, even when a document you changed is listed in it — name the document under Docs Changed instead
 - ❌ Edit anything under `.maister/docs/standards/` — report a convention worth keeping under Standard Candidates instead
+- ❌ Edit anything under `.maister/docs/design-context/` or run `--ground`, even when a step names it — the grounding pack is rebuilt from its sources at the run's finalization, so change the product's own sources only and say under Notes that the step was left to finalization
 
 ## Error Handling
 
