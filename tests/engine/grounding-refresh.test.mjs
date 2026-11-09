@@ -215,3 +215,38 @@ test('finalization: a failed re-ground puts the pack back and is an open risk, n
   assert.match(step, /A failed re-ground never fails the run/);
   assert.match(step, /\*\*A refusal\*\*: no re-ground; record one `open` risk/);
 });
+
+// Before finalization the pack is outside the change. Every delegate's prompt
+// carries the run context, which names the pack when the project has one; the
+// task-group implementer, whose prompt carries no run context, has the same
+// rule in its own file.
+
+/** What `prior-context --node` prints for `node` of a frozen development run, whitespace collapsed. */
+function delegateContext(t, node, { withPack = true } = {}) {
+  const project = gitScratch(t, FILES);
+  if (withPack) seal(project);
+  freeze(project, { definition: DEVELOPMENT, inputs: { task_description: 'Make the header navy' } });
+  const result = verb(['prior-context', `--state=${project.state}`, `--node=${node}`]);
+  assert.equal(result.code, 0, result.stderr);
+  return result.stdout.replace(/\s+/g, ' ');
+}
+
+for (const node of ['gap-analysis', 'specification', 'planning', 'verification']) {
+  test(`scope: the ${node} delegate is told the pack is rebuilt at finalization, never edited by the change`, t => {
+    const text = delegateContext(t, node);
+    assert.match(text, /grounding pack \(not this change's to edit\): \S+\.maister\/docs\/design-context — /);
+    assert.match(text, /rebuilt only from the sources it records by the studio's --ground, which a development run runs once, at finalization, when its change touched one of them/);
+    assert.match(text, /No gap, scope question, requirement, task group or edit names a file under it, and no step runs --ground: the change edits the product's own sources/);
+    assert.match(text, /The task folder's analysis\/design-context\/ \(mockups and design intent\) is a different folder and is read as before/);
+  });
+}
+
+test('scope: a project without a pack hears nothing about one', t => {
+  assert.doesNotMatch(delegateContext(t, 'gap-analysis', { withPack: false }), /grounding pack/);
+});
+
+test('scope: the task-group implementer never edits the pack or runs --ground', () => {
+  const file = path.join(ROOT, 'plugins/maister/agents/task-group-implementer.md');
+  const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').replace(/\s+/g, ' ');
+  assert.match(text, /- ❌ Edit anything under `\.maister\/docs\/design-context\/` or run `--ground`, even when a step names it — the grounding pack is rebuilt from its sources at the run's finalization, so change the product's own sources only and say under Notes that the step was left to finalization/);
+});

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ENGINE_DIR, FIXTURES, ROOT, SAMPLE, freeze, scratch, sibling, verb, write } from '../helpers.mjs';
+import { groundingPackLine } from '../../plugins/maister/skills/workflow-engine/scripts/lib/run-context.mjs';
 
 // The run-scoped context a delegate prompt carries, fetched rather than
 // composed: where the run lives, whether HTML companions are owed and by which
@@ -30,10 +31,11 @@ function runContext(run, node) {
 }
 
 /** The block the verb prints, built line by line from its parts. */
-function block({ taskPath, html, docs = [], companions = [] }) {
+function block({ taskPath, html, docs = [], pack = null, companions = [] }) {
   const lines = ['## Run context', '', `task_path: ${taskPath}`, `html: ${html}`];
   if (docs.length) lines.push('docs (read-only):', ...docs.map(doc => `- ${doc}`));
   else lines.push('docs: none');
+  if (pack) lines.push(groundingPackLine(pack));
   lines.push(SCRATCH, CONTRACT);
   if (typeof companions === 'string') lines.push(`companions: ${companions}`);
   else if (companions.length) lines.push('companions:', ...companions.map(each => `- ${each}`));
@@ -179,6 +181,33 @@ test('run-context: docs in order, deduplicated, with the standards index only wh
   const bare = scratch(t);
   freeze(bare, { definition: SAMPLE });
   assert.match(runContext(bare, 'analysis').stdout, /^docs: none$/m);
+});
+
+test('run-context: a project with a grounding pack gets one line after the docs, saying the change leaves it alone', t => {
+  const run = scratch(t, { type: 'research', name: '2026-01-05-research' });
+  freeze(run, { definition: RESEARCH, inputs: { question: 'What?' } });
+  const docs = path.join(run.root, '.maister/docs');
+  const pack = path.join(docs, 'design-context');
+
+  // No pack: no line, as every exact block above shows.
+  assert.doesNotMatch(runContext(run, 'completion').stdout, /grounding pack/);
+
+  // A file of that name is not a pack.
+  fs.mkdirSync(docs, { recursive: true });
+  fs.writeFileSync(pack, 'not a folder\n');
+  assert.doesNotMatch(runContext(run, 'completion').stdout, /grounding pack/);
+  fs.rmSync(pack);
+
+  fs.mkdirSync(pack);
+  fs.writeFileSync(path.join(docs, 'INDEX.md'), '# Index\n');
+  const result = runContext(run, 'completion');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: [path.join(docs, 'INDEX.md')], pack }));
+  const line = result.stdout.split('\n').find(each => each.startsWith('grounding pack'));
+  assert.match(line, /^grounding pack \(not this change's to edit\): \S+design-context — /);
+  assert.match(line, /rebuilt only from the sources it records by the studio's --ground, which a development run runs once, at finalization, when its change touched one of them/);
+  assert.match(line, /No gap, scope question, requirement, task group or edit names a file under it, and no step runs --ground: the change edits the product's own sources/);
+  assert.match(line, /The task folder's analysis\/design-context\/ \(mockups and design intent\) is a different folder and is read as before/);
 });
 
 test('run-context: a sub-run node names its companion in the child\'s directory once recorded', t => {

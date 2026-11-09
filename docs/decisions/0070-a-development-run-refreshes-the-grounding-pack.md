@@ -37,6 +37,10 @@ someone committed it.
   risk names what failed. The run never fails for it.
 
 ### Consequences
+- Before finalization the pack is outside the change. Every delegate's run context carries a
+  `grounding pack` line when the project has one, saying no gap, requirement, task group or edit
+  names it and no step runs `--ground`; the task-group implementer's rules say the same. The task
+  folder's `analysis/design-context/` is a different folder and is unaffected.
 - Development's graph hash does not move. A frozen run takes the step when it reaches finalization,
   since the node prose is read live.
 - Out of scope: asking before drawing on a stale pack, tracking more sources, a turn rebuilding a
