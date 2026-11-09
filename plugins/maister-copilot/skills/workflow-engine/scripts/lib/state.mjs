@@ -113,7 +113,7 @@ import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDrive
 import { atClose, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
-import { DISPLAY_DIR, publishRun } from './display-files.mjs';
+import { DISPLAY_DIR, SESSION_ID, hostSession, publishRun } from './display-files.mjs';
 // The write primitives are shared with the umbrella writer, so they live beside
 // `hooks/` at the plugin root rather than in this skill's `scripts/lib/` — the
 // same depth as the reader above, and `build.sh` copies both unmodified. The
@@ -134,7 +134,7 @@ export const STATE_SCHEMA_VERSION = 1;
 
 // The vocabulary the interface file publishes, exported from where the writer
 // holds it so the two cannot differ.
-export { CLOCK_FIELDS, CONTEXT_BLOCKS, NODE_KEYS, NODE_STATUSES, PARENT_KEYS, PATCH_KEYS, PENDING_KEYS, TOP_LEVEL_BLOCKS, WORKFLOW_KEYS, WRITER_FIELDS };
+export { CLOCK_FIELDS, CONTEXT_BLOCKS, NODE_KEYS, NODE_STATUSES, PARENT_KEYS, PATCH_KEYS, PENDING_KEYS, PENDING_OPTIONAL_KEYS, TOP_LEVEL_BLOCKS, WORKFLOW_KEYS, WRITER_FIELDS };
 
 /**
  * This writer's own names for the two refusals the shared publish path can
@@ -355,6 +355,15 @@ const RESERVED_VALUES = ['task_path', 'run_id'];
  */
 const PENDING_KEYS = ['node', 'request', 'since'];
 const REQUEST_PATH = /^gates\/[a-z0-9-]+\.request\.yml$/;
+
+/**
+ * The marker's one optional key: the id of the session that suspended on the
+ * gate, in the caller's own word. Written only on a cockpit or dispatch run
+ * whose host names its session (`pendingMarker`), never as null or empty, and
+ * cleared with the marker. It names who asked, not who drives: the driver's
+ * `session` is a separate value this key never touches.
+ */
+const PENDING_OPTIONAL_KEYS = ['asked_by_session'];
 
 /**
  * The two keys of the child's parent link, and the spelling its path obeys.
@@ -1540,12 +1549,16 @@ function applyScalars(doc, section, values, changed) {
  *   a non-midnight `since`     Midnight is the signature of a date that was
  *                              formatted rather than measured, so the writer
  *                              refuses it here.
+ *
+ *   `asked_by_session`         Optional, and the one key beyond the three. When
+ *                              present it is a session id; null or empty is
+ *                              refused, since "no session" is the key left out.
  */
 function assertPending(value) {
   if (value === null) return;
   const refuse = detail => {
     throw new Refusal('state-gate-pending-form',
-      `gate_pending is written as the literal null or as {node, request, since} on one line: ${detail}`);
+      `gate_pending is written as the literal null or as {node, request, since[, asked_by_session]} on one line: ${detail}`);
   };
   if (!isPlainObject(value)) {
     return refuse(`this value is ${Array.isArray(value) ? 'a sequence' : typeof value}, and a marker sent as text would reach the file with its own bytes`);
@@ -1553,8 +1566,12 @@ function assertPending(value) {
   const keys = Object.keys(value);
   const missing = PENDING_KEYS.filter(key => !keys.includes(key));
   if (missing.length) return refuse(`it is missing ${missing.join(', ')}`);
-  const extra = keys.filter(key => !PENDING_KEYS.includes(key));
+  const extra = keys.filter(key => !PENDING_KEYS.includes(key) && !PENDING_OPTIONAL_KEYS.includes(key));
   if (extra.length) return refuse(`${extra.join(', ')} is not part of the marker`);
+  if (Object.hasOwn(value, 'asked_by_session')
+    && (typeof value.asked_by_session !== 'string' || !SESSION_ID.test(value.asked_by_session))) {
+    return refuse(`asked_by_session ${JSON.stringify(value.asked_by_session)} is not a session id; a marker whose caller names no session leaves the key out`);
+  }
 
   if (typeof value.node !== 'string' || !NODE_ID.test(value.node)) {
     return refuse(`${JSON.stringify(String(value.node))} is not a usable node id`);
@@ -1568,6 +1585,24 @@ function assertPending(value) {
   if (typeof value.since !== 'string' || !TIMESTAMP.test(value.since) || MIDNIGHT.test(value.since)) {
     return refuse(`${JSON.stringify(String(value.since))} is not a measured UTC timestamp`);
   }
+}
+
+/**
+ * The pending marker a gate suspends with: `{node, request, since}`, plus
+ * `asked_by_session` — the calling session's own id — on a run whose driver
+ * suspends (`cockpit` or `dispatch`) when the host names its session. With no
+ * id, or under any other driver, the key is left out, never written empty.
+ * `doc` is the parsed state; its `driver.session` is read by nothing here and
+ * written by nothing here.
+ */
+export function pendingMarker({ node, since, doc, session = hostSession() }) {
+  const marker = { node, request: `gates/${node}${REQUEST_SUFFIX}`, since };
+  const driver = isPlainObject(doc?.orchestrator) ? doc.orchestrator.driver : null;
+  const kind = isPlainObject(driver) ? driver.kind : null;
+  if (SUSPENDING_KINDS.has(kind) && typeof session === 'string' && SESSION_ID.test(session)) {
+    marker.asked_by_session = session;
+  }
+  return marker;
 }
 
 /**

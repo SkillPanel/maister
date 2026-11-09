@@ -77,7 +77,17 @@ export const SESSIONS_DIR = path.join('.maister', 'display', 'sessions');
 
 /** The environment variable a host names its session in, and the shape an id must have to name a file. */
 const SESSION_ENV = 'CLAUDE_CODE_SESSION_ID';
-const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+export const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+/**
+ * The calling session's own id, as the host names it in the environment, or
+ * null when it names none or names one that could not name a file. The one
+ * reading of it: the display pointer and the pending marker both take it here.
+ */
+export function hostSession(env = process.env) {
+  const session = env[SESSION_ENV];
+  return typeof session === 'string' && SESSION_ID.test(session) ? session : null;
+}
 
 /** The format every display file declares, for a reader to refuse one it does not know. */
 const VERSION = 1;
@@ -168,7 +178,7 @@ export function checkpointOf(doc, titles) {
  * projects it; `verifier` the node that runs the reviews, or null.
  * Returns the warnings, `{file, code, message}` each.
  */
-export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], progress = {}, verifier = null, executor = null, banner = null, session = process.env[SESSION_ENV] }) {
+export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], progress = {}, verifier = null, executor = null, banner = null, session = hostSession() }) {
   const warnings = [];
   const dir = path.join(runDir, DISPLAY_DIR);
   attempt(warnings, `${DISPLAY_DIR}/${NEXT}`, () => remove(path.join(dir, NEXT)));
@@ -188,7 +198,7 @@ export function publishRun({ runDir, root, doc, now, titles, dashboard, artifact
  * `.maister/` holds the pointer. Nothing is written without a session id that
  * can name a file. Returns the warnings, as `publishRun` does.
  */
-export function publishPointer({ runDir, root, now, session = process.env[SESSION_ENV] }) {
+export function publishPointer({ runDir, root, now, session = hostSession() }) {
   const warnings = [];
   if (typeof session !== 'string' || !SESSION_ID.test(session)) return warnings;
   const file = `${session}.json`;
