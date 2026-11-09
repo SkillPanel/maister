@@ -250,3 +250,84 @@ test('scope: the task-group implementer never edits the pack or runs --ground', 
   const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').replace(/\s+/g, ' ');
   assert.match(text, /- ❌ Edit anything under `\.maister\/docs\/design-context\/` or run `--ground`, even when a step names it — the grounding pack is rebuilt from its sources at the run's finalization, so change the product's own sources only and say under Notes that the step was left to finalization/);
 });
+
+// The close repeats the refresh line rather than retelling it.
+
+test('close: Done carries the summary\'s refresh line word for word, digest and paths included', t => {
+  const { step, all } = finalizationBrief(t);
+  assert.match(step, /the close's \*\*Done\*\* carries that same line copied as it is — the same words, the digest and the paths, never retold or renamed/);
+  assert.match(all, /When step 5 refreshed the grounding pack, \*\*Done\*\* holds the summary's "Refreshed the grounding pack \(digest …\)" line copied word for word from the summary, not a retelling of it/);
+});
+
+// --ground builds the pack afresh; the seal refuses a pack patched in place.
+
+const STUDIO = path.join(ROOT, 'plugins/maister/skills/mockup-studio');
+const prose = file => fs.readFileSync(path.join(STUDIO, file), 'utf8').replace(/\r\n/g, '\n').replace(/\s+/g, ' ');
+
+test('rebuild: --ground clears the generated files and writes each afresh, never patching the old pack', t => {
+  const pack = prose('references/grounding-pack.md');
+  assert.match(pack, /`--ground` always rebuilds it from scratch/);
+  assert.match(pack, /First delete the pack's generated files — `tokens\.md`, `shell\.html`, `strings\/`, `reference\/`, everything in the folder but `grounding\.json`/);
+  assert.match(pack, /Never read the old pack to diff or patch it/);
+  assert.match(pack, /`ground-seal` refuses a pack sealed before that still holds a file not written since that seal \(`pack-not-rebuilt`\)/);
+  const skill = prose('SKILL.md');
+  assert.match(skill, /\| `\/maister:mockup-studio --ground` \| Rebuilds the grounding pack from scratch, whatever its status: it clears the pack's generated files, harvests every value again from the sources and writes each file new, never by editing the old pack's files/);
+  const { step } = finalizationBrief(t);
+  assert.match(step, /It builds every file afresh from the sources, never by editing the old pack's files/);
+});
+
+/** A sealed pack with a reference page, its files dated two hours back and the seal one. */
+function aged(t) {
+  const project = started(t);
+  const pack = path.join(project.root, PACK);
+  fs.mkdirSync(path.join(pack, 'reference'), { recursive: true });
+  fs.writeFileSync(path.join(pack, 'reference', 'list.html'), '<p>list</p>\n');
+  const ago = hours => (Date.now() - hours * 3600_000) / 1000;
+  for (const file of ['tokens.md', 'reference/list.html']) fs.utimesSync(path.join(pack, file), ago(2), ago(2));
+  fs.utimesSync(path.join(pack, 'grounding.json'), ago(1), ago(1));
+  put(project, 'src/theme.css', ':root { --accent: #f00; }\n');
+  fs.writeFileSync(path.join(pack, '.sources.json'), JSON.stringify({
+    sources: [{ path: 'src/theme.css', kind: 'theme' }, { path: 'package-lock.json', kind: 'lockfile', package: 'ui-kit' }],
+    images: [],
+  }));
+  return { project, pack };
+}
+
+test('rebuild: a re-seal of a pack patched in place is refused as pack-not-rebuilt, and nothing is written', t => {
+  const { project, pack } = aged(t);
+  fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens\n--accent: #f00\n');
+  const before = fs.readFileSync(path.join(pack, 'grounding.json'));
+  const result = ground(project, 'ground-seal');
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  assert.equal(result.json.code, 'pack-not-rebuilt');
+  assert.match(result.json.message, /reference[\\/]list\.html was not written since the pack was last sealed/);
+  assert.doesNotMatch(result.json.message, /tokens\.md/);
+  assert.match(result.json.message, /Nothing was written and the input file is kept/);
+  assert.deepEqual(fs.readFileSync(path.join(pack, 'grounding.json')), before);
+  assert.equal(fs.existsSync(path.join(pack, '.sources.json')), true);
+  assert.equal(guard(project).json.status, 'stale');
+});
+
+test('rebuild: a pack whose every file was written afresh seals fresh', t => {
+  const { project, pack } = aged(t);
+  fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens\n--accent: #f00\n');
+  fs.writeFileSync(path.join(pack, 'reference', 'list.html'), '<p>list, red</p>\n');
+  const result = ground(project, 'ground-seal');
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.equal(guard(project).json.status, 'fresh');
+});
+
+test('rebuild: a cleared pack that no longer makes an old file seals fresh', t => {
+  const { project, pack } = aged(t);
+  fs.rmSync(path.join(pack, 'reference'), { recursive: true });
+  fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens\n--accent: #f00\n');
+  const result = ground(project, 'ground-seal');
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.equal(guard(project).json.status, 'fresh');
+});
+
+// The mockup turn names ground-status's flags exactly.
+
+test('turn: the Ground step names ground-status with its exact flags and full script path', () => {
+  assert.match(prose('SKILL.md'), /2\. \*\*Ground\.\*\* Run `node <plugin root>\/skills\/mockup-studio\/scripts\/turn\.mjs ground-status --pack=<project root>\/<grounding> --root=<project root>`/);
+});

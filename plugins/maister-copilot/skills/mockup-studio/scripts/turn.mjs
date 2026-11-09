@@ -52,7 +52,10 @@
  * `ground-seal` reads `<pack>/.sources.json` (`SOURCES_FILE`, the input-file
  * rule), hashes each source and image under `--root` (default the working
  * directory), writes `<pack>/grounding.json` and deletes the input; it prints
- * `{ok, digest, sources, images}`. `ground-status` writes nothing: it prints
+ * `{ok, digest, sources, images}`. A pack sealed before is sealed again only
+ * when it was rebuilt: every pack file must have been written since the last
+ * `grounding.json`, so a pack patched in place, with a file left from the old
+ * build, is refused as `pack-not-rebuilt`. `ground-status` writes nothing: it prints
  * `{ok, status, pack, digest, schema_version, plugin_schema_version, reasons,
  * changed, gone}` with `status` fresh, stale or missing, `reasons` from
  * source-changed, source-gone, schema-older and schema-newer (the last never
@@ -78,7 +81,7 @@
  *           turn-file-malformed, slug-invalid, screens-empty, index-locked,
  *           index-malformed, folder-unwritable
  *   ground-seal    sources-file-missing, sources-file-malformed, source-missing,
- *                  folder-unwritable
+ *                  pack-not-rebuilt, folder-unwritable
  *   ground-status  grounding-malformed, base-unknown
  * Every write fault, the write primitives' included, is `folder-unwritable`.
  */
@@ -94,7 +97,7 @@ import { openFile, optedOut } from '../../../lib/open-file.mjs';
 import { isTerminalDriver } from '../../workflow-engine/scripts/lib/driver.mjs';
 import { parse as parseState } from '../../workflow-engine/scripts/lib/state-read.mjs';
 import {
-  GROUNDING_FILE, compare, digestOf, hashSource, hashesPackage, inside, blobHash, readGrounding, touchedSince,
+  GROUNDING_FILE, compare, digestOf, hashSource, hashesPackage, inside, blobHash, packFiles, readGrounding, touchedSince,
 } from './lib/grounding.mjs';
 import { rewriteIndex } from './lib/index-rows.mjs';
 import { mockupsJson, renderGallery, renderPage } from './lib/render.mjs';
@@ -657,6 +660,19 @@ function groundSeal(flags) {
     return { path: rel, hash: blobHash(bytes) };
   });
 
+  // A pack sealed before must have been built afresh: a file not written
+  // since the last seal survived from the old build, and a patch the seal
+  // certified would carry it on as fresh. Equal times pass, so a coarse
+  // clock only errs toward accepting. A first build has nothing to compare.
+  const previous = sealedAt(path.join(pack, GROUNDING_FILE));
+  if (previous !== null) {
+    const leftover = packFiles(pack).filter(rel => fs.statSync(path.join(pack, rel)).mtimeMs < previous);
+    if (leftover.length) {
+      throw new Refusal('pack-not-rebuilt',
+        `${leftover.join(', ')} ${leftover.length === 1 ? 'was' : 'were'} not written since the pack was last sealed: --ground builds every file afresh from the sources, never by patching the old pack. Nothing was written and the input file is kept; rebuild ${leftover.length === 1 ? 'it' : 'them'} from the sources (or delete what the build no longer makes) and run ground-seal again.`);
+    }
+  }
+
   // The pack folder's files are hashed into the digest as they are now; the
   // input file is a dot-file and is not among them.
   const digest = digestOf({ schema: GROUNDING_SCHEMA_VERSION, sources, images, pack });
@@ -671,6 +687,16 @@ function groundSeal(flags) {
   }
   consume(file);
   return { ok: true, digest, sources: sources.length, images: images.length };
+}
+
+/** When `grounding.json` was last written, or null when the pack was never sealed. */
+function sealedAt(file) {
+  try {
+    return fs.statSync(file).mtimeMs;
+  } catch (err) {
+    if (err.code === 'ENOENT') return null;
+    throw err;
+  }
 }
 
 /** The base commit a run's state records, or null; `--state` that cannot be read is `base-unknown`. */
