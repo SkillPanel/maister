@@ -85,7 +85,9 @@ Every build, a first one included, starts from an empty pack and writes every fi
 1. **Clear.** `turn.mjs ground-clear --pack=<pack>` deletes everything in the folder but
    `grounding.json` — `tokens.md`, `shell.html`, `strings/`, `reference/`, a stale `.sources.json` —
    and records the build's start in the marker `<pack>/.build-started`. It creates a missing folder,
-   so a first build runs it too.
+   so a first build runs it too, and keeps the pack's `.gitignore`, which it makes sure lists the
+   marker and `.sources.json`: a build that fails or is abandoned leaves them, and neither is ever
+   committed.
 2. **Harvest and write.** Harvest each value again from the sources, the recorded ones and whatever
    *What to harvest* finds now, and write each file from what was harvested. Never read the old
    pack, by any route — a backup copy, its git history, an earlier mockup — to diff or patch it: a

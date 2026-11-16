@@ -51,11 +51,12 @@
  * and exit code are the ones already decided.
  *
  * `ground-clear` starts a build of the grounding pack: it deletes every entry
- * of the pack folder but `grounding.json` (dot-files included, so a stale
- * `.sources.json` goes too), creating the folder when it is missing, and writes
- * the start marker `<pack>/.build-started`; it prints `{ok, pack, cleared,
- * started}`. A folder that holds entries but neither `grounding.json` nor a
- * marker is not a pack, and nothing in it is deleted.
+ * of the pack folder but `grounding.json` and `.gitignore` (other dot-files
+ * included, so a stale `.sources.json` goes too), creating the folder when it
+ * is missing, writes the start marker `<pack>/.build-started`, and makes sure
+ * `<pack>/.gitignore` lists the marker and `.sources.json`; it prints `{ok,
+ * pack, cleared, started}`. A folder that holds entries but neither
+ * `grounding.json` nor a marker is not a pack, and nothing in it is deleted.
  *
  * `ground-seal` reads `<pack>/.sources.json` (`SOURCES_FILE`, the input-file
  * rule), hashes each source and image under `--root` (default the working
@@ -133,6 +134,9 @@ const GROUND_VERBS = ['ground-clear', 'ground-seal', 'ground-status'];
 
 /** The start marker `ground-clear` writes and a successful `ground-seal` removes. */
 const BUILD_MARKER = '.build-started';
+/** The pack's own ignore file: the build's scratch (the marker, the seal's input) is never committed. */
+const PACK_IGNORE = '.gitignore';
+const PACK_IGNORED = [BUILD_MARKER, '.sources.json'];
 
 class UsageError extends Error {}
 
@@ -634,11 +638,12 @@ function groundClear(flags) {
     if (err.code !== 'ENOENT') throw new Refusal('folder-unwritable', `${pack} could not be read (${err.message}). Nothing was deleted; make --pack the pack folder and run ground-clear again.`);
     entries = null;
   }
-  if (entries !== null && entries.length && !entries.includes(GROUNDING_FILE) && !entries.includes(BUILD_MARKER)) {
+  const held = (entries ?? []).filter(name => name !== PACK_IGNORE);
+  if (held.length && !held.includes(GROUNDING_FILE) && !held.includes(BUILD_MARKER)) {
     throw new Refusal('not-a-pack',
       `${pack} holds files but no ${GROUNDING_FILE} and no build marker, so it is not a grounding pack. Nothing was deleted; pass the pack folder as --pack, or empty this folder yourself if it really is the pack.`);
   }
-  const doomed = (entries ?? []).filter(name => name !== GROUNDING_FILE);
+  const doomed = held.filter(name => name !== GROUNDING_FILE);
   try {
     fs.mkdirSync(pack, { recursive: true });
     for (const name of doomed) fs.rmSync(path.join(pack, name), { recursive: true, force: true });
@@ -648,6 +653,7 @@ function groundClear(flags) {
   const started = stamp();
   try {
     put(path.join(pack, BUILD_MARKER), json({ started }));
+    ignoreScratch(pack);
   } catch (err) {
     if (err instanceof Refusal && err.code === 'folder-unwritable') {
       throw new Refusal('folder-unwritable', `${err.message.replace(/^[a-z-]+: /, '')}. The pack was cleared but its build was not started; make the pack folder writable and run ground-clear again.`);
@@ -751,6 +757,25 @@ function groundSeal(flags) {
     throw new Refusal('folder-unwritable', `${err.message.replace(/^[a-z-]+: /, '')}. The pack is sealed (digest ${digest}), but its build marker is left; delete ${BUILD_MARKER} from the pack folder by hand and never commit it.`);
   }
   return { ok: true, digest, sources: sources.length, images: images.length };
+}
+
+/**
+ * Keep the build's scratch out of git: `<pack>/.gitignore` lists the marker and
+ * the seal's input, which a failed or abandoned build leaves behind. Lines the
+ * project added are kept; missing ones are appended.
+ */
+function ignoreScratch(pack) {
+  const file = path.join(pack, PACK_IGNORE);
+  let text = '';
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw new Refusal('folder-unwritable', `${file} could not be read: ${err.message}`);
+  }
+  const have = new Set(text.split(/\r?\n/).map(line => line.trim()));
+  const missing = PACK_IGNORED.filter(name => !have.has(name));
+  if (!missing.length) return;
+  put(file, `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${missing.join('\n')}\n`);
 }
 
 /** When `ground-clear` started this build, by the marker's own time, or null when there is no marker. */
