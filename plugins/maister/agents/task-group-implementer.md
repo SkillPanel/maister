@@ -142,7 +142,10 @@ For each implementation step:
 
 ### Phase 5: Generate Report
 
-Output structured report in expected format (see Output Format section).
+Output structured report in expected format (see Output Format section). When your prompt names
+a `report_path`, write the same report to that file with your file tool as your last act, then
+return it: your caller may have had to hand back before you finished, and it reads your report
+from that file.
 
 ## Output Format
 

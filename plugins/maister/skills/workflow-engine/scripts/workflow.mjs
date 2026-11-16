@@ -158,6 +158,14 @@
  *                  inline, dispatch the runner and with what to resume, ask
  *                  the decision the runner returned, or close on its end)
  *                  — writes only <runner>/decisions-<cycle or pass>.json
+ *   in-flight      --state, --node, optional --runner, and one of
+ *                  --record=<id>:<output>,…, --agents=<id>:<agent id>,…
+ *                  or --ended=<id>,…                       JSON on stdout
+ *                  (the agents a loop sent and that have not reported,
+ *                  in <runner>/in-flight.json: recorded with the calling
+ *                  session before each is sent, its stale output cleared;
+ *                  the host's agent ids attached; or marked ended without
+ *                  their output)
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -329,6 +337,9 @@ const VERBS = {
   // answers to the decision the runner returned.
   'runner-result': { module: 'runner.mjs', flags: ['state', 'node', 'runner', 'patch-file'] },
   'runner-step': { module: 'runner.mjs', flags: ['state', 'node', 'runner', 'answered'] },
+  // The agents a runner's loop sent, recorded before they act, so a resume
+  // waits for one still out instead of sending a second onto its work.
+  'in-flight': { module: 'runner.mjs', flags: ['state', 'node', 'runner', 'record', 'agents', 'ended'] },
 };
 
 /** This plugin's root, three levels above this file: what the edition check locates. */
@@ -1634,6 +1645,35 @@ async function runRunnerStep(flags) {
   return EXIT.OK;
 }
 
+/**
+ * `in-flight` prints the record as written; a refusal's code first on stderr
+ * at exit 1, nothing written.
+ */
+async function runInFlight(flags) {
+  if (!flags.state) throw new UsageError('in-flight needs --state');
+  if (!flags.node) throw new UsageError('in-flight needs --node: the node whose loop sends the agents');
+  const module = await loadModule(VERBS['in-flight'].module);
+  const runner = runnerOf(flags, 'in-flight', module);
+  const pairs = name => {
+    if (flags[name] === undefined) return null;
+    if (typeof flags[name] !== 'string') throw new UsageError(`in-flight --${name} takes <id>:<value>[,<id>:<value>…]`);
+    return flags[name].split(',').filter(Boolean).map(item => {
+      const at = item.indexOf(':');
+      return at < 0 ? [item, undefined] : [item.slice(0, at), item.slice(at + 1)];
+    });
+  };
+  const ended = flags.ended === undefined ? null
+    : typeof flags.ended === 'string' ? flags.ended.split(',').filter(Boolean) : [];
+  const write = entryOf(module, 'inFlight', VERBS['in-flight'].module);
+  const result = write({ state: flags.state, node: flags.node, runner, record: pairs('record'), agents: pairs('agents'), ended });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(`${JSON.stringify({ file: result.file, agents: result.agents }, null, 2)}\n`);
+  return EXIT.OK;
+}
+
 /** The loop `--runner` names, verification's when it is absent. */
 function runnerOf(flags, verb, module) {
   if (flags.runner === undefined) return 'verification';
@@ -1691,6 +1731,7 @@ const RUNNERS = {
   'project-profile': runProjectProfile,
   'runner-result': runRunnerResult,
   'runner-step': runRunnerStep,
+  'in-flight': runInFlight,
 };
 
 // ---------------------------------------------------------------------------

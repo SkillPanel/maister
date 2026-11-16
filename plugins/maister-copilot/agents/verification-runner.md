@@ -66,7 +66,10 @@ stop. Do no review yourself.
   `verification/findings.json`. When the recorded cycle has a verdict (`last_status` set) and
   `fixes: on`, go to the fix pass on those findings; otherwise run that cycle again from its
   brief (step 2), which keeps its number. `fixes_applied` and `reverify_count` are kept as
-  recorded, so the budget survives a restart.
+  recorded, so the budget survives a restart. An agent `verification/in-flight.json` records in
+  the current cycle (its `cycle`) whose output is on disk is **adopted**: read its report or fix
+  report as if it had just returned, and do not send it again. `runner-step` sends you back only
+  once no agent this session sent is still out, so no review or fix ever runs twice at once.
 - `resume: {cycle, decisions_file}` — the person's answers to the decision you returned. Read the
   file: each `answers[]` entry names a finding of your findings list and the option label chosen,
   `"Accept the risk and list it"`, or `null` (nobody answered: it stays open). `stop` is the
@@ -100,7 +103,9 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    dispatch-model --agent=<every agent this cycle sends> --host=copilot --state=<state>
    --node=<node>` once, and give each call the `model` and `reasoning_effort` its line
    prints (framework § 1, *Model and Effort on Every Agent Call*).
-5. **The tests and the checks, alone.** Dispatch `maister-copilot:test-suite-runner` — the only agent call
+5. **The tests and the checks, alone.** Record it first — `in-flight --state=<state> --node=<node>
+   --runner=verification --record=suite:verification/test-suite-results.md`, which clears the old
+   results file — then dispatch `maister-copilot:test-suite-runner` — the only agent call
    in its message — with the task path, the brief and `verification/test-suite-results.md` as its
    results file. It runs the project's other checks (lint, format, typecheck, build) every time,
    and the full suite unless `orchestrator.options.skip_test_suite` is true (a re-check always
@@ -108,7 +113,9 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    the implementation phase". Wait for it; its results are the **test-suite result**. Then run
    `review-brief --state=<state> --refresh`, which carries them into the brief.
 6. **The panel.** Record `verification_context.reviews` as `{chosen: [...], done: []}`, by short
-   name — `spec conformance`, `code risk`, `simplicity`. Then send all three in **one message**,
+   name — `spec conformance`, `code risk`, `simplicity` — and record the reviewers in flight, one
+   `in-flight … --runner=verification --record=review-<stem>:verification/<stem>.md,…` for the
+   reviews you send (`review-code-risk:verification/code-risk-review.md`). Then send them in **one message**,
    each prompt carrying only `task_path`, `review_brief`, its `report_path` and the test-suite
    result. Nobody writes the reviewers a prompt for the change: each reads the run's documents the
    brief names and decides where to look.
@@ -170,7 +177,10 @@ You carry it out:
 
 - **Batch, never one agent per finding.** Group every unfixed, fixable, non-risky critical and
   warning issue — and every fix a person chose — by file or area, so each batch touches files no other batch does.
-  Send the batches to `maister-copilot:task-group-implementer` in one message, each prompt a fix brief: the
+  Record them first — `in-flight … --runner=verification
+  --record=fix-<cycle>-<n>:verification/fix-reports/fix-<cycle>-<n>.md,…`, one per batch — then
+  send the batches to `maister-copilot:task-group-implementer` in one message, each prompt a fix brief, its
+  `report_path` that output: the
   issues by number with their evidence and suggested change, the files it may touch, the
   standards the code risk review checked against, and "fix these, run the affected tests, report each fix as
   `{finding, change}`". Their `model` and `reasoning_effort` are what `node
@@ -214,7 +224,16 @@ message is exactly what it printed**, nothing else.
   noted in the report and `html_path: null`; it never blocks.
 - **`needs_decision`** — `{result: needs_decision, report_path, findings_path, counts, decision:
   {kind, findings_file, resume_token: {cycle, snapshot}}}`. The report is current; no companion.
-- **`unavailable`** — `{result: unavailable, reason}`, one line.
+- **`waiting`** — `{result: waiting, pending: [<ids>]}`: you must end while agents you sent are
+  still out — `suite`, `review-<stem>` and `fix-<cycle>-<n>` ids as recorded. Whenever agents are
+  out, this is the result, never `unavailable`.
+- **`unavailable`** — `{result: unavailable, reason}`, one line: you could not run at all, such as
+  no agent tool. The engine refuses it while an agent this session sent is still out.
+
+**Every agent call you make** carries `run_in_background: false`. A host that runs it in the
+background anyway returns it at once with an agent id: attach the ids (`in-flight …
+--runner=verification --agents=<id>:<agent id>,…`) and wait for the completion notices; when the
+host makes you hand back before they are all in, end with `waiting` naming those still out.
 
 Never announce a fix before it is made; name each by a few words beside its number. Issue numbers
 are `findings.json`'s, kept across cycles.
@@ -229,7 +248,8 @@ differences are three:
 
 - It asks where you would hand back a decision: framework § 6 steps 5–10, as the node's prose says
   (in session, or a request under a driver), then carries on with the answers.
-- It writes no `runner-result.json` and no decisions file.
+- It writes no `runner-result.json` and no decisions file. In a run it still records every agent
+  with `in-flight` before sending it, and adopts an output on disk the same way.
 - Standalone, with no state file, it writes no state at all, asks once which commit the work
   started from (`review-brief --task-path=<task path> --base=<commit>`), runs the same three
   reviews, and the report is the run's record.

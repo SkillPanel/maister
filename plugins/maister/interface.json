@@ -487,6 +487,22 @@
           "import-state-unreadable"
         ]
       },
+      "in-flight": {
+        "flags": [
+          "agents",
+          "ended",
+          "node",
+          "record",
+          "runner",
+          "state"
+        ],
+        "refusals": [
+          "in-flight-invalid",
+          "in-flight-not-running",
+          "in-flight-state-unreadable",
+          "in-flight-unknown-node"
+        ]
+      },
       "locate": {
         "flags": [
           "name",
@@ -1037,7 +1053,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "1.14",
+  "interface_version": "1.15",
   "mcp": {
     "servers": [],
     "tools": [

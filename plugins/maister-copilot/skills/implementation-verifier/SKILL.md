@@ -75,7 +75,18 @@ or `inline`:
   - `none` — nobody can be asked and the run's policy classes questions: send the set in the
     classing write as the node's prose says, then `runner-step --answered`. (When nobody can be
     asked and nothing classes, `runner-step` takes the defaults itself and never prints `ask`.)
-- **`unavailable`** — the runner could not dispatch subagents. Narrow the run's delegation: one
+- **`wait`** — agents the runner sent (the suite runner, reviewers, fix batches) are still out:
+  the runner ended `waiting`, or ended without a result, on a host that runs a subagent's own
+  agent calls in the background. `pending` lists each one's `id`, the host's `agent` id when
+  recorded, and the `output` it owes. Those agents outlive the runner and report to this
+  session: wait for their completion notices — never end the turn here, never narrow the
+  delegation, never dispatch the runner while one is out — then run `runner-step` again. A
+  pending agent whose completion notice came and whose output is still missing ended without
+  it: run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs in-flight --state=<state>
+  --node=<node> --runner=verification --ended=<id>`, then `runner-step` again.
+- **`unavailable`** — the runner could not run at all: no agent tool, or no way to dispatch
+  subagents. It is never a loop with agents still out — that is `wait`, and the engine refuses
+  `unavailable` while one is. Narrow the run's delegation: one
   `write-state` of `{"orchestrator": {"options": {"delegation": {"mode": "inline", "reason":
   "<the reason, one line>"}}}}`. Then `runner-step` says `inline`.
 - **`inline`** — the run keeps its loop in the main session (its delegation is `inline`, with
@@ -102,6 +113,7 @@ the `running` node, this skill runs `runner-step`, and the files say where the l
 | `verification/<review>-report.md` and `<review>-findings.json` | Each review that ran (`references/review-findings.md`) |
 | `verification/review-brief-<N>.json`, `findings.json`, `findings-<N>.json` | Each cycle, by the engine's `review-brief` and `findings-merge` |
 | `verification/runner-result.json`, `decisions-<N>.json` | When the runner runs the loop: its last result, and each decision's answers |
+| `verification/in-flight.json`, `verification/fix-reports/fix-<cycle>-<n>.md` | In a run: the agents sent and not yet reported, and each fix batch's report |
 
 ## The runner's result
 
@@ -109,10 +121,11 @@ What `runner-result` writes and the runner returns, with the node, the attempt a
 stamped on:
 
 ```yaml
-result: verdict | needs_decision | unavailable
+result: verdict | needs_decision | waiting | unavailable
 verdict: passed | passed_with_issues | failed      # a verdict only
 report_path / findings_path / html_path / counts   # counts: critical, warning, info, fixed
 decision: {kind: findings | budget | no_progress, findings_file, resume_token: {cycle, snapshot}}
+pending: [<agent ids>]                             # waiting: agents still out
 reason: "<one line>"                               # unavailable
 ```
 
@@ -151,5 +164,6 @@ The reviewers grade each finding, and the loop acts on the grade (framework § 6
 - `runner-step` asked before every move, and acted on as printed
 - The runner dispatched with `run_in_background: false` and the `dispatch-model` values
 - Every decision asked as the node's prose says, the answers recorded before `--answered`
-- `unavailable` narrowed through `write-state` before running inline
+- `unavailable` narrowed through `write-state` before running inline; a `wait` never narrowed,
+  and the runner not dispatched while an agent it sent is still out
 - No state write of the loop's own here while the runner runs it: the runner makes them

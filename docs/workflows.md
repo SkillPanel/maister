@@ -659,6 +659,13 @@ after moving up a model, a group that skipped its tests, or a wave that would ru
 budget your `config.yml` sets. Your answers go to the runner's next pass. The same setting decides it as for verification
 below, and a run that stops part way through picks up from the plan and the work log.
 
+Some hosts start a subagent's own subagents in the background and make the runner hand back
+before its implementers are done. The run records every implementer before it starts. When the
+runner has to hand back early, it reports which groups are still running, and your session waits
+for them rather than taking the loop over. Once they finish, the runner picks up their reports.
+A group is never given a second implementer while its first is still running. Verification works
+the same way for its reviews and fixes.
+
 ## Verification in one subagent
 
 Verification runs many steps: the tests and the project's other checks, three reviews, the merge of
