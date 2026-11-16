@@ -392,7 +392,7 @@ test('rebuild: clear, write every file and seal is fresh, and leaves no marker',
   const cleared = clear(project);
   assert.equal(cleared.code, 0, cleared.stdout + cleared.stderr);
   assert.equal(cleared.json.ok, true);
-  assert.deepEqual(fs.readdirSync(pack).sort(), [MARKER, 'grounding.json']);
+  assert.deepEqual(fs.readdirSync(pack).sort(), [MARKER, '.gitignore', 'grounding.json']);
   fs.writeFileSync(path.join(pack, 'tokens.md'), '# Tokens\n--accent: #f00\n');
   fs.mkdirSync(path.join(pack, 'reference'));
   fs.writeFileSync(path.join(pack, 'reference', 'list.html'), '<p>list, red</p>\n');
@@ -447,9 +447,9 @@ test('rebuild: a first build seals with or without a clear, and a clear makes a 
   const cleared = clear(first);
   assert.equal(cleared.code, 0, cleared.stdout + cleared.stderr);
   assert.equal(cleared.json.cleared, 0);
-  assert.deepEqual(fs.readdirSync(pack), [MARKER]);
+  assert.deepEqual(fs.readdirSync(pack).sort(), [MARKER, '.gitignore']);
   seal(first);
-  assert.deepEqual(fs.readdirSync(pack).sort(), ['grounding.json', 'tokens.md']);
+  assert.deepEqual(fs.readdirSync(pack).sort(), ['.gitignore', 'grounding.json', 'tokens.md']);
 });
 
 test('rebuild: the marker changes neither the digest nor the status, touched included', t => {
@@ -498,4 +498,44 @@ test('rebuild: a failed rebuild after the clear is put back byte for byte by rep
 
 test('turn: the Ground step names ground-status with its exact flags and full script path', () => {
   assert.match(prose('SKILL.md'), /2\. \*\*Ground\.\*\* Run `node <plugin root>\/skills\/mockup-studio\/scripts\/turn\.mjs ground-status --pack=<project root>\/<grounding> --root=<project root>`/);
+});
+
+test('clear: the pack ignores the build marker and the seal input, so an abandoned build leaves nothing for git', t => {
+  const project = started(t);
+  const pack = path.join(project.root, PACK);
+  assert.equal(clear(project).code, 0);
+  writeSources(pack);
+  assert.equal(fs.readFileSync(path.join(pack, '.gitignore'), 'utf8'), `${MARKER}\n.sources.json\n`);
+  const ignored = git(project.root, ['check-ignore', '--', `${PACK}/${MARKER}`, `${PACK}/.sources.json`]);
+  assert.deepEqual(ignored.trim().split('\n'), [`${PACK}/${MARKER}`, `${PACK}/.sources.json`]);
+  assert.equal(ground(project, 'ground-seal').code, 0);
+  assert.equal(fs.existsSync(path.join(pack, '.gitignore')), true);
+});
+
+test('clear: a project\'s own pack .gitignore is kept, only missing lines are appended, and a second clear adds nothing', t => {
+  const project = started(t);
+  const pack = path.join(project.root, PACK);
+  fs.writeFileSync(path.join(pack, '.gitignore'), `*.bak\n${MARKER}`);
+  assert.equal(clear(project).code, 0);
+  const expected = `*.bak\n${MARKER}\n.sources.json\n`;
+  assert.equal(fs.readFileSync(path.join(pack, '.gitignore'), 'utf8'), expected);
+  assert.equal(clear(project).code, 0);
+  assert.equal(fs.readFileSync(path.join(pack, '.gitignore'), 'utf8'), expected);
+});
+
+test('clear: a .gitignore alone does not make a folder a pack, and does not stop a first build', t => {
+  const project = gitScratch(t, FILES);
+  const pack = path.join(project.root, PACK);
+  fs.mkdirSync(pack, { recursive: true });
+  fs.writeFileSync(path.join(pack, '.gitignore'), '*.bak\n');
+  fs.writeFileSync(path.join(pack, 'notes.md'), '# notes\n');
+  const refused = clear(project);
+  assert.equal(refused.code, 1, refused.stdout + refused.stderr);
+  assert.equal(refused.json.code, 'not-a-pack');
+  assert.equal(fs.existsSync(path.join(pack, 'notes.md')), true);
+  fs.rmSync(path.join(pack, 'notes.md'));
+  const cleared = clear(project);
+  assert.equal(cleared.code, 0, cleared.stdout + cleared.stderr);
+  assert.equal(cleared.json.cleared, 0);
+  assert.equal(fs.readFileSync(path.join(pack, '.gitignore'), 'utf8'), `*.bak\n${MARKER}\n.sources.json\n`);
 });
