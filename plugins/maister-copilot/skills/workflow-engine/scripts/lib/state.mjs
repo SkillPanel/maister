@@ -3077,6 +3077,18 @@ function readParentState(parent, runDir) {
 function assertSubrunPath(doc, sent, runDir) {
   if (runDir === null) return;
   let link = isPlainObject(sent) && Object.hasOwn(sent, 'parent') ? sent.parent : undefined;
+  if (link !== undefined) {
+    // The link the freeze sends names the parent's directory as subrun-path
+    // prints it, under the project's .maister/ folder: a bare run id reaches
+    // no parent, and every reader that follows the link stalls on it. Only the
+    // link a write sends is judged here; one already on file is read as is.
+    assertParent(link);
+    if (!link.run.startsWith('.maister/')) {
+      throw new Refusal('state-patch-invalid',
+        `orchestrator.parent names ${link.run}, which is not a run directory: the link is the parent's directory relative to the project root (.maister/…), never its bare run id. `
+        + `Nothing was written. Send orchestrator.parent exactly as the subrun-path verb on the parent's state with --node=${link.node} prints it as parent.`);
+    }
+  }
   if (link === undefined) {
     if (!/^ +parent:/m.test(doc.text())) return;
     try {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, freeze, freezePatch, scratch, sibling, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, freeze, freezePatch, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 
 const RESEARCH = path.join(ENGINE_DIR, 'workflows/research.yml');
 
@@ -49,6 +49,7 @@ test('subrun-path: a new child gets the derived directory and its run id, and no
     workflow: 'research',
     task_path: '.maister/tasks/research/2026-01-05-sample-research',
     run_id: '2026-01-05-sample-research',
+    parent: { run: parent.path, node: 'research' },
     recorded: false,
     existing: 'absent',
   });
@@ -64,6 +65,18 @@ test('subrun-path: a recorded task_path is printed as recorded', t => {
   assert.equal(report.task_path, '.maister/tasks/research/2026-01-05-elsewhere');
   assert.equal(report.run_id, '2026-01-05-elsewhere');
   assert.equal(report.recorded, true);
+  assert.deepEqual(report.parent, { run: parent.path, node: 'research' });
+});
+
+test('subrun-path: the parent link it prints is the one a child freeze lands', t => {
+  const parent = scratch(t);
+  freeze(parent);
+  const { report } = subrunPath(parent);
+  assert.match(report.parent.run, /^\.maister\/tasks\//);
+  const child = sibling(parent, { type: 'research', name: report.run_id });
+  const frozen = freezeChild(child, report.parent);
+  assert.equal(frozen.code, 0, frozen.stderr);
+  assert.deepEqual(readState(child).orchestrator.parent, report.parent);
 });
 
 test('subrun-path: the derived directory says whether to create, freeze into or adopt it', t => {

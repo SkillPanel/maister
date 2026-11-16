@@ -386,6 +386,7 @@ for (const [label, parentLink] of [
   ['climbs out of the repository root', { run: '../elsewhere', node: 'research' }],
   ['is absolute', { run: '/tmp/run', node: 'research' }],
   ['names no node', { run: '.maister/tasks/development/x' }],
+  ['is the bare run id, not its directory', { run: '2026-01-05-sample', node: 'research' }],
 ]) {
   test(`refusal: a parent link that ${label}`, t => {
     const parent = scratch(t);
@@ -400,3 +401,16 @@ for (const [label, parentLink] of [
     assert.equal(fs.existsSync(child.state), false, 'a refused first write creates no state file');
   });
 }
+
+test('refusal: a bare run id says to send the link subrun-path prints', t => {
+  const parent = scratch(t);
+  const child = sibling(parent, { type: 'research', name: '2026-01-05-child' });
+  const result = verb(['write-state', `--state=${child.state}`], {
+    task: { title: 'Child', status: 'in_progress' },
+    workflow: { name: 'research', nodes: { 'research-foundation': { kind: 'direct' } } },
+    orchestrator: { parent: { run: '2026-01-05-sample', node: 'research' } },
+  });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /never its bare run id/);
+  assert.match(result.stderr, /subrun-path verb on the parent's state with --node=research prints it as parent/);
+});
