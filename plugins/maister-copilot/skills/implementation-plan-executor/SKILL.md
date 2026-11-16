@@ -71,7 +71,19 @@ or `inline`:
   - `none` — nobody can be asked and the run's policy classes questions: send the set in the
     classing write, then `runner-step --answered`. (When nobody can be asked and nothing
     classes, `runner-step` takes each question's default itself and never prints `ask`.)
-- **`unavailable`** — the runner could not dispatch subagents. Narrow the run's delegation: one
+- **`wait`** — implementers (or the suite runner) the runner sent are still out: the runner
+  ended `waiting`, or ended without a result, on a host that runs a subagent's own agent calls in
+  the background. `pending` lists each one's `id`, the host's `agent` id when recorded, and the
+  `output` it owes. Those agents outlive the runner and report to this session: wait for their
+  completion notices — never end the turn here, never narrow the delegation, never dispatch
+  the runner while one is out — then run `runner-step` again. A pending agent whose completion
+  notice came and whose output is still missing ended without its report: run
+  `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs in-flight --state=<task path>/orchestrator-state.yml
+  --node=<node> --runner=implementation --ended=<id>`, then `runner-step` again; the runner sends
+  that group again.
+- **`unavailable`** — the runner could not run at all: no agent tool, or no way to dispatch
+  subagents. It is never a loop with agents still out — that is `wait`, and the engine refuses
+  `unavailable` while one is. Narrow the run's delegation: one
   `write-state` of `{"orchestrator": {"options": {"delegation": {"mode": "inline", "reason":
   "<the reason, one line>"}}}}`. Then `runner-step` says `inline`.
 - **`inline`** — the run keeps its waves in the main session (its delegation is `inline`, with
@@ -96,6 +108,7 @@ files say where the waves stand.
 | `implementation/work-log.md` | Always: the opening entry, each wave start and group return, reverts, the closing entry |
 | `implementation/test-suite-results.md` | The full suite, at the end |
 | `implementation/runner-result.json`, `decision-wave-<K>.json`, `decisions-<N>.json` | When the runner runs the waves: its last result, each decision's questions, and each decision's answers |
+| `implementation/in-flight.json`, `implementation/group-reports/group-<N>.md` | In a run: the implementers sent and not yet reported, and each group's report |
 
 ## Structured output
 
@@ -120,6 +133,7 @@ standing as they are.
 - The runner dispatched with `run_in_background: false` and the `dispatch-model` values
 - Every decision asked from its questions file, the answers recorded under each question's id
   before `--answered`
-- `unavailable` narrowed through `write-state` before running inline
+- `unavailable` narrowed through `write-state` before running inline; a `wait` never narrowed,
+  and the runner not dispatched while an agent it sent is still out
 - No wave start, group return or work-log entry of the loop's own here while the runner runs it:
   the runner makes them

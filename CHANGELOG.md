@@ -152,6 +152,12 @@ workspace with work in flight.
   — research's planning, gathering and synthesis, the specification writer — names them in its
   definition, and on either host the engine records the step complete only once it lists each
   agent it dispatched.
+- **Runners survive background subagents.** On a host that starts a subagent's own subagents in
+  the background and makes the subagent hand back early, the implementation and verification
+  runners record every agent before it starts and hand back as `waiting`, naming the agents still
+  running. Your session waits for those agents, then sends the runner back to pick up their
+  reports, so the run never falls back to running the loop in your session for good. A resumed
+  run never starts a second implementer, review or fix on work whose first is still running.
 
 ### Removed
 

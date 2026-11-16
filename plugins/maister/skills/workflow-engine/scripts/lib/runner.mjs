@@ -29,7 +29,7 @@
  * The verification result, closed keys, stamped with the cycle
  * `verification_context.cycle` records:
  *
- *   result     verdict | needs_decision | unavailable
+ *   result     verdict | needs_decision | waiting | unavailable
  *   verdict    passed | passed_with_issues | failed          a verdict only
  *   report_path, findings_path, html_path                    run-relative paths;
  *              report_path required with a verdict; html_path null unless a
@@ -38,12 +38,13 @@
  *   decision   {kind: findings | budget | no_progress, findings_file,
  *              resume_token: {cycle, snapshot}}           needs_decision only;
  *              findings_file is required for findings and may be null otherwise
+ *   pending    the ids of the agents still out             waiting only
  *   reason     one line; required when unavailable
  *
  * The implementation result, closed keys, stamped with the pass — one more than
  * the decisions files of this node's attempt, so no state key counts it:
  *
- *   result         done | needs_decision | unavailable
+ *   result         done | needs_decision | waiting | unavailable
  *   work_log_path  run-relative; required when done
  *   summary        {groups_done, groups_total, models, test_suite,
  *                  docs_changed, standard_candidates, stopped}   done only;
@@ -52,7 +53,15 @@
  *   decision       {kind: groups | budget, questions_file, wave}   needs_decision
  *                  only; questions_file a question set inside the run that
  *                  `question-set.mjs` accepts, every option with its id
+ *   pending        the ids of the agents still out         waiting only
  *   reason         one line; required when unavailable
+ *
+ * `waiting` is the result of a runner that must end before every agent it
+ * sent is back — a host that runs a subagent's own agent calls in the
+ * background, and makes it hand back once it ends a turn idle. Its pending
+ * ids are agents this attempt's `in-flight.json` records; a pending id it does
+ * not hold is refused. `unavailable` is for a runner that could not run, and
+ * is refused while an agent this session sent is still out.
  *
  * `runner-step --state --node [--runner] [--answered]` is the node's. It reads
  * the run and prints one JSON object naming what the node does next:
@@ -78,6 +87,13 @@
  *                                     findings_path, html_path, counts;
  *                                     implementation: work_log_path, summary
  *   {next: unavailable, reason}       the runner could not dispatch subagents
+ *   {next: wait, pending: [{id, agent, output}]}
+ *                                     the runner would continue from the
+ *                                     files (a `waiting` result, none, or one
+ *                                     it moved past) while agents it sent are
+ *                                     still out; the node waits for them and
+ *                                     asks again, so no second agent is ever
+ *                                     sent onto live work
  *
  * Verification is `fresh` when no cycle is recorded in this node's attempt;
  * implementation when the run has no work log yet.
@@ -109,10 +125,25 @@
  *                 the defaults at once: every finding left open and
  *                 `continue`, every implementation question its default
  *
+ * `in-flight --state --node [--runner] --record | --agents | --ended` is the
+ * loop's record of the agents it sends, `<folder>/in-flight.json`: `{node,
+ * attempt, agents: {<id>: {output, session, dispatched, agent, cycle?,
+ * ended?}}}`. `--record=<id>:<output>,…` is called before the agents are sent:
+ * it stamps each with the calling session (the host's session id) and the
+ * clock, verification's with its cycle, and deletes the output's stale copy,
+ * so an output on disk always answers the latest dispatch. `--agents=<id>:<agent
+ * id>,…` attaches the ids a host gave at launch; `--ended=<id>,…` marks agents
+ * whose completion came without their output. An agent is still out while
+ * its record names this session, is not ended and its output is not on disk;
+ * a record of another session, or with no session, is never waited for: a
+ * background agent lives in its session's process and went with it.
+ *
  * The refusals, none of them fixed by a state write and each leaving nothing
  * written: `<verb>-state-unreadable`, `<verb>-unknown-node` (no node of the
  * run, or a gate), `<verb>-not-running`, and for `runner-result`
- * `runner-result-invalid` naming the first field that breaks the shape. A
+ * `runner-result-invalid` naming the first field that breaks the shape (or a
+ * `pending` id no record holds, or `result` for an `unavailable` with agents
+ * still out), and for `in-flight` `in-flight-invalid` naming the flag. A
  * result file `runner-step` cannot use is a `runner-result-unusable` warning,
  * and the runner is dispatched to continue from the files.
  *
@@ -129,6 +160,8 @@ import { questionSets, canAsk } from './driver.mjs';
 import { VERIFICATION, readJson, writeJson } from './review-brief.mjs';
 import { ACCEPT_OPTION } from './finding-brief.mjs';
 import { ROUNDS_MAX, checkSet, roundsAsked } from './question-set.mjs';
+import { hostSession } from './display-files.mjs';
+import { stamp } from '../../../../lib/canonical.mjs';
 
 /** The loops a runner carries, each in its own folder of the run. */
 export const RUNNERS = ['verification', 'implementation'];
@@ -141,17 +174,17 @@ export const RESULT_FILE = 'runner-result.json';
 export const DECISIONS_FILE = cycle => `decisions-${cycle}.json`;
 const DECISIONS_NAME = /^decisions-([1-9]\d*)\.json$/;
 
-export const RESULTS = ['verdict', 'needs_decision', 'unavailable'];
+export const RESULTS = ['verdict', 'needs_decision', 'waiting', 'unavailable'];
 export const VERDICTS = ['passed', 'passed_with_issues', 'failed'];
 export const DECISION_KINDS = ['findings', 'budget', 'no_progress'];
 const COUNT_KEYS = ['critical', 'warning', 'info', 'fixed'];
-const RESULT_KEYS = ['result', 'verdict', 'report_path', 'findings_path', 'html_path', 'counts', 'decision', 'reason'];
+const RESULT_KEYS = ['result', 'verdict', 'report_path', 'findings_path', 'html_path', 'counts', 'decision', 'pending', 'reason'];
 const DECISION_KEYS = ['kind', 'findings_file', 'resume_token'];
 const TOKEN_KEYS = ['cycle', 'snapshot'];
 
-export const IMPLEMENTATION_RESULTS = ['done', 'needs_decision', 'unavailable'];
+export const IMPLEMENTATION_RESULTS = ['done', 'needs_decision', 'waiting', 'unavailable'];
 export const IMPLEMENTATION_KINDS = ['groups', 'budget'];
-const IMPLEMENTATION_KEYS = ['result', 'work_log_path', 'summary', 'decision', 'reason'];
+const IMPLEMENTATION_KEYS = ['result', 'work_log_path', 'summary', 'decision', 'pending', 'reason'];
 const SUMMARY_KEYS = ['groups_done', 'groups_total', 'models', 'test_suite', 'docs_changed', 'standard_candidates', 'stopped'];
 const IMPLEMENTATION_DECISION_KEYS = ['kind', 'questions_file', 'wave'];
 /** Where the run's work log lives: its presence means the waves have begun. */
@@ -163,6 +196,13 @@ const STOP_ANSWERS = [[/^one more/i, 'more'], [/^continue/i, 'continue'], [/^sto
 
 /** The suffix of a reviewing node's declared finding question id. */
 const FINDINGS_SUFFIX = '-findings';
+
+/** The record of the agents a loop sent and that have not reported, in its folder of the run. */
+export const IN_FLIGHT_FILE = 'in-flight.json';
+/** An agent's id in that record: a short slug, `group-3`, `review-code-risk`, `fix-2-1`. */
+const AGENT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+/** The loop's own files, which no agent's output may name: a record clears its output. */
+const LOOP_FILE = /^(runner-result\.json|in-flight\.json|decisions-\d+\.json)$/;
 
 const isLine = value => typeof value === 'string' && value.trim() !== '' && !/[\r\n]/.test(value);
 const isCount = value => Number.isInteger(value) && value >= 0;
@@ -183,6 +223,21 @@ export function runnerResult({ state, node, document, runner = VERIFICATION }) {
       + 'Correct that field and send the whole result again');
   }
   const dir = path.join(run.runDir, runner);
+  const agents = attemptAgents(dir, node, run.attempt);
+  if (document.result === 'waiting') {
+    const unknown = document.pending.filter(id => !Object.hasOwn(agents, id));
+    if (unknown.length) {
+      return refuse('runner-result-invalid',
+        `the waiting result's pending names ${unknown.join(', ')}, which no in-flight record of this attempt holds. Nothing was written. `
+        + 'Record each agent with in-flight --record before it is sent, then send the whole result again naming only those still out');
+    }
+  }
+  const out = outstanding(run.runDir, agents);
+  if (document.result === 'unavailable' && out.length) {
+    return refuse('runner-result-invalid',
+      `the result is unavailable while ${out.map(each => each.id).join(', ')} of this session ${out.length === 1 ? 'is' : 'are'} still out. Nothing was written. `
+      + 'unavailable means the runner could not run; with agents still out, send result waiting with pending naming them, and the node waits for them');
+  }
   const where = implementation
     ? { pass: attemptDecisions(dir, node, run.attempt).length + 1 }
     : { cycle: run.cycle };
@@ -232,6 +287,7 @@ export function resultFault(doc, runDir) {
   } else if (Object.hasOwn(doc, 'decision')) {
     return 'decision';
   }
+  if (pendingFault(doc)) return 'pending';
   if (doc.result === 'unavailable' && !isLine(doc.reason)) return 'reason';
   return null;
 }
@@ -262,8 +318,17 @@ export function implementationFault(doc, runDir) {
   } else if (Object.hasOwn(doc, 'decision')) {
     return 'decision';
   }
+  if (pendingFault(doc)) return 'pending';
   if (doc.result === 'unavailable' && !isLine(doc.reason)) return 'reason';
   return null;
+}
+
+/** Whether `pending` breaks the shape: a waiting result's agent ids, absent from any other. */
+function pendingFault(doc) {
+  if (doc.result !== 'waiting') return Object.hasOwn(doc, 'pending');
+  const { pending } = doc;
+  return !Array.isArray(pending) || pending.length === 0 || !pending.every(id => typeof id === 'string' && AGENT_ID.test(id))
+    || new Set(pending).size !== pending.length;
 }
 
 /** The first field of a `done` summary that breaks its shape, or null. */
@@ -301,7 +366,14 @@ export function runnerStep({ state, node, answered = false, runner = VERIFICATIO
   const delegation = isPlainObject(run.doc.orchestrator?.options?.delegation) ? run.doc.orchestrator.options.delegation : null;
   if (frozenOnCopilot(delegation)) return ok({ next: 'inline', reason: COPILOT_REASON });
   if (delegation?.mode !== 'nested') return ok({ next: 'inline', reason: inlineReason(delegation) });
-  return (runner === IMPLEMENTATION ? implementationStep : verificationStep)({ run, node, answered, warnings, ok });
+  const next = (runner === IMPLEMENTATION ? implementationStep : verificationStep)({ run, node, answered, warnings, ok });
+  // A runner sent back to continue from the files while an agent it sent is
+  // still out would send a second one onto the same work: wait for it instead.
+  if (next.ok && next.step.next === 'dispatch' && typeof next.step.resume === 'string') {
+    const out = outstanding(run.runDir, attemptAgents(path.join(run.runDir, runner), node, run.attempt));
+    if (out.length) return ok({ next: 'wait', pending: out.map(({ id, agent, output }) => ({ id, agent, output })) });
+  }
+  return next;
 }
 
 /** Verification's next step, from `verification_context` and the cycle files. */
@@ -319,6 +391,7 @@ function verificationStep({ run, node, answered, warnings, ok }) {
     return ok({ next: 'dispatch', resume: fresh ? 'fresh' : 'auto' });
   }
   if (result.result === 'unavailable') return ok({ next: 'unavailable', reason: result.reason });
+  if (result.result === 'waiting') return ok({ next: 'dispatch', resume: 'auto' });
   if (result.result === 'verdict') {
     const { verdict, report_path, findings_path = null, html_path = null, counts = null } = result;
     return ok({ next: 'close', verdict, report_path, findings_path, html_path, counts });
@@ -360,6 +433,7 @@ function implementationStep({ run, node, answered, warnings, ok }) {
     return ok({ next: 'dispatch', resume: fs.existsSync(path.join(runDir, ...WORK_LOG.split('/'))) ? 'auto' : 'fresh' });
   }
   if (result.result === 'unavailable') return ok({ next: 'unavailable', reason: result.reason });
+  if (result.result === 'waiting') return ok({ next: 'dispatch', resume: 'auto' });
   if (result.result === 'done') return ok({ next: 'close', work_log_path: result.work_log_path, summary: result.summary });
 
   // A result whose pass was never stamped cannot name its decisions file.
@@ -568,6 +642,90 @@ function attemptDecisions(dir, node, attempt) {
     const doc = readJson(path.join(dir, name));
     return isPlainObject(doc) && doc.node === node && doc.attempt === attempt;
   });
+}
+
+// ---------------------------------------------------------------------------
+// in-flight
+// ---------------------------------------------------------------------------
+
+/**
+ * Record the agents a loop sends, attach the ids the host gave them, or mark
+ * ones that ended without their output: `{ok, file, agents}`. Exactly one of
+ * `record` (`[[id, output]]`), `agents` (`[[id, agent id]]`) or `ended`
+ * (`[id]`) is given. A record is written before the agent is sent, stamped with
+ * the calling session, and clears the agent's stale output, so an output on
+ * disk always answers the latest dispatch. A file of another node or attempt
+ * is replaced, not merged.
+ */
+export function inFlight({ state, node, runner = VERIFICATION, record = null, agents = null, ended = null }) {
+  const run = runningNode(state, node, 'in-flight');
+  if (!run.ok) return run;
+  const invalid = message => refuse('in-flight-invalid', `${message}. Nothing was written. Correct the flag and run the call again`);
+  const given = [record, agents, ended].filter(each => each !== null);
+  if (given.length !== 1) return invalid('in-flight takes exactly one of --record, --agents or --ended');
+  const dir = path.join(run.runDir, runner);
+  const recorded = attemptAgents(dir, node, run.attempt);
+
+  if (record !== null) {
+    if (!record.length) return invalid('--record names no agent; give each as <id>:<output>');
+    for (const [id, output] of record) {
+      if (!AGENT_ID.test(id ?? '')) return invalid(`--record names the agent "${id}"; an id is a lowercase slug such as group-3 or review-code-risk`);
+      const fault = outputFault(output, run.runDir, runner);
+      if (fault) return invalid(`--record gives ${id} the output "${output}", which ${fault}`);
+    }
+    const session = hostSession();
+    const cycle = runner === VERIFICATION ? run.cycle : null;
+    for (const [id, output] of record) {
+      fs.rmSync(path.resolve(run.runDir, output), { force: true });
+      recorded[id] = { output, session, dispatched: stamp(), agent: null, ...(cycle === null ? {} : { cycle }) };
+    }
+  } else {
+    const ids = agents !== null ? agents.map(([id]) => id) : ended;
+    const unknown = ids.filter(id => !Object.hasOwn(recorded, id));
+    if (unknown.length) return invalid(`${unknown.join(', ')} ${unknown.length === 1 ? 'has' : 'have'} no in-flight record in this attempt; record an agent with --record before it is sent`);
+    if (agents !== null) {
+      const bad = agents.find(([, agent]) => !isLine(agent ?? '') || /[\s,]/.test(agent));
+      if (bad) return invalid(`--agents gives ${bad[0]} the agent id "${bad[1] ?? ''}"; give it as the host printed it`);
+      for (const [id, agent] of agents) recorded[id].agent = agent;
+    } else {
+      for (const id of ended) recorded[id].ended = true;
+    }
+  }
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, IN_FLIGHT_FILE);
+  writeJson(file, { node, attempt: run.attempt, agents: recorded });
+  return { ok: true, file: relative(run.runDir, file), agents: recorded, errors: [], warnings: [] };
+}
+
+/** Why an agent's output cannot be recorded, or null: it lies in the loop's folder and is none of its own files. */
+function outputFault(output, runDir, runner) {
+  if (!insideRun(output, runDir)) return 'is not a path inside the run';
+  const rel = path.relative(path.join(runDir, runner), path.resolve(runDir, output));
+  if (rel === '' || rel.split(path.sep)[0] === '..' || path.isAbsolute(rel)) return `is not inside the run's ${runner}/ folder`;
+  if (LOOP_FILE.test(rel)) return 'is one of the loop\'s own files';
+  return null;
+}
+
+/** The agents recorded for this node's attempt, by id; empty for a file of another node or attempt. */
+function attemptAgents(dir, node, attempt) {
+  const doc = readJson(path.join(dir, IN_FLIGHT_FILE));
+  if (!isPlainObject(doc) || doc.node !== node || doc.attempt !== attempt || !isPlainObject(doc.agents)) return {};
+  return Object.fromEntries(Object.entries(doc.agents).filter(([id, entry]) => AGENT_ID.test(id) && isPlainObject(entry)));
+}
+
+/**
+ * The recorded agents still out: sent by this session, so alive while it is,
+ * not marked ended, and with no output on disk. A record of another session,
+ * or one the host named no session for, is not waited for: its agents went
+ * with that session.
+ */
+function outstanding(runDir, agents) {
+  const session = hostSession();
+  if (session === null) return [];
+  return Object.entries(agents)
+    .filter(([, entry]) => entry.session === session && entry.ended !== true && typeof entry.output === 'string')
+    .filter(([, entry]) => !fs.existsSync(path.resolve(runDir, entry.output)))
+    .map(([id, entry]) => ({ id, agent: typeof entry.agent === 'string' ? entry.agent : null, output: entry.output }));
 }
 
 // ---------------------------------------------------------------------------

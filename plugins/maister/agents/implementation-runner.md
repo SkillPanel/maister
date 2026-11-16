@@ -49,9 +49,13 @@ nothing yourself.
 
 - `resume: fresh` — Phase 1 below, then the waves from the first.
 - `resume: auto` — continue from the files. The plan's checkboxes say which groups are done, the
-  work log which wave started last and which groups were reverted. A group whose wave started
-  but that is not ticked is dispatched again in the next wave: its implementer finds its own
-  partial edits. When no group of the plan is ticked and the log holds no wave of it — a plan
+  work log which wave started last and which groups were reverted, and
+  `implementation/in-flight.json` which implementers were sent. A group whose wave started but
+  that is not ticked is **adopted** when its report is on disk at its recorded output: judge that
+  report as if its implementer had just returned (§ *As each member returns*), and send nothing.
+  Otherwise it is dispatched again in the next wave: its implementer finds its own partial
+  edits. `runner-step` sends you back only once no implementer this session sent is still out,
+  so a group is never given a second implementer while its first runs. When no group of the plan is ticked and the log holds no wave of it — a plan
   written again after a revise — open the log with a new *Implementation Started* entry.
 - `resume: {pass, decisions_file}` — the person's answers to the decision you returned. Read the
   file: each `answers[]` entry names a question of your set by `id` and the option label chosen
@@ -120,15 +124,26 @@ before each wave's fan-out (`<plugin_root>/skills/orchestrator-framework/referen
    --wave=<K> --groups=<A>,<B>`, before the fan-out: the groups show as running until each is
    recorded done or reverted. On a resumed run this is also the call that brings the dashboard
    up to date.
-2. **Prepare each group's prompt** (§ *The implementer's prompt*): its plan section with any
+2. **Record the implementers before they act**, in the same message as the start:
+   `in-flight --state=<state> --node=<node> --runner=implementation
+   --record=group-<A>:implementation/group-reports/group-<A>.md,group-<B>:…`. It clears each
+   group's old report, so a report on disk always answers this dispatch. Every later send of a
+   group — an escalation, a retry — is recorded the same way first.
+3. **Prepare each group's prompt** (§ *The implementer's prompt*): its plan section with any
    `Visual References`, the spec excerpt it needs, the standards that apply to it, and the
    design context when `analysis/design-context/` exists — paths to mockups, never their HTML
    inlined; a small ASCII excerpt may be.
-3. **Fan out in one message.** One agent call per group, all in the same message, each with
-   `subagent_type: maister:task-group-implementer` and the `model` and `effort` its tier's line
-   printed (a field printed as `omit` left out). Never send one, wait, then send the next:
+4. **Fan out in one message.** One agent call per group, all in the same message, each with
+   `subagent_type: maister:task-group-implementer`, the `model` and `effort` its tier's line
+   printed (a field printed as `omit` left out), `run_in_background: false`, and its
+   `report_path` in the prompt. Never send one, wait, then send the next:
    that is serial execution in a wave's clothing, and the wave takes the sum of its groups
    instead of the longest. A wave of one is one call.
+5. **A host that runs them in the background anyway** returns each call at once with an agent
+   id. Attach the ids — `in-flight … --runner=implementation --agents=group-<A>:<id>,…` — and
+   wait for the completion notices. When the host makes you hand back before every member is
+   back, end with `waiting` (§ *Ending a dispatch*), naming the groups still out: the node waits
+   for them and sends you back to adopt their reports.
 
 ### As each member returns
 
@@ -214,7 +229,8 @@ twice.
 1. **Completion**: no `- [ ]` step left, every group in the work log, the Standards Reading Log
    complete.
 2. **The full test suite** — every test, not just the feature's — through
-   `maister:test-suite-runner`, with the task path and `implementation/test-suite-results.md` as
+   `maister:test-suite-runner`, recorded first as `--record=suite:implementation/test-suite-results.md`
+   and adopted the same way, with the task path and `implementation/test-suite-results.md` as
    its results file, and the `model` and `effort` that `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs
    dispatch-model --agent=maister:test-suite-runner --host=claude --state=<state> --node=<node>`
    prints just before the call (a field printed as `omit` left out). A failure is a decision as
@@ -256,6 +272,7 @@ the design context when there is one (the root, the brief excerpt, the mockup pa
 rule: each referenced mockup is read before implementing, its layout, copy, field order and
 states bind, and each `acceptance` criterion is self-checked), the sibling wave (the other groups
 running beside it and their files — "do not edit paths outside your declared Files to Modify"),
+its `report_path` (`implementation/group-reports/group-<N>.md`),
 and the requirements: tests first (N.1), then the steps, then this group's tests; log every
 standard applied by source; report each failure with its root cause; **never mark checkboxes**.
 
@@ -302,7 +319,11 @@ it. **Your final message is exactly what it printed**, nothing else.
   closing entry's tally, `test_suite` one line ("passed: 40 of 40"), the two lists one line an
   item, `stopped` null or the stop's reason.
 - **`needs_decision`** — `{result: needs_decision, decision: {kind, questions_file, wave}}`.
-- **`unavailable`** — `{result: unavailable, reason}`, one line.
+- **`waiting`** — `{result: waiting, pending: [<ids>]}`: you must end while agents you sent are
+  still out — `group-<N>` ids and `suite` as recorded. Whenever agents are out, this is the
+  result, never `unavailable`.
+- **`unavailable`** — `{result: unavailable, reason}`, one line: you could not run at all, such as
+  no agent tool. The engine refuses it while an agent this session sent is still out.
 
 A refused result names the field to correct; send the whole result again.
 
@@ -316,6 +337,8 @@ The differences are three:
 
 - It asks where you would hand back a decision: the same questions, with the question tool, in
   session — or under the run's driver as the hand-off says — then carries out the answers.
-- It writes no `runner-result.json`, no decision file and no decisions file.
+- It writes no `runner-result.json`, no decision file and no decisions file. It still records
+  every implementer with `in-flight` before sending it, and adopts a report on disk the same way.
 - Standalone, with no state file, it passes no `--state` or `--node` to `dispatch-model` and
-  writes no state; `wave-start` and `group-done` still record the plan and the log.
+  writes no state and records nothing in flight; `wave-start` and `group-done` still record the
+  plan and the log.
