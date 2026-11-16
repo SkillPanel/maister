@@ -75,13 +75,17 @@ export function subrunPath({ state, node }) {
   }
 
   const values = isPlainObject(recorded[node]) && isPlainObject(recorded[node].values) ? recorded[node].values : {};
-  if (typeof values.task_path === 'string' && values.task_path !== '') {
-    const runId = typeof values.run_id === 'string' && values.run_id !== '' ? values.run_id : basename(values.task_path);
-    return { ok: true, node, workflow: null, task_path: values.task_path, run_id: runId, recorded: true, existing: null, warnings: [] };
-  }
-
   const runDir = path.dirname(path.resolve(state));
   const root = projectRootOf(runDir);
+  const parentRun = relative(root, runDir);
+  // The child's link back, exactly as its freeze sends it: the parent's
+  // directory relative to the project root, never the bare run id.
+  const parent = { run: parentRun, node };
+  if (typeof values.task_path === 'string' && values.task_path !== '') {
+    const runId = typeof values.run_id === 'string' && values.run_id !== '' ? values.run_id : basename(values.task_path);
+    return { ok: true, node, workflow: null, task_path: values.task_path, run_id: runId, parent, recorded: true, existing: null, warnings: [] };
+  }
+
   const warnings = [];
   const current = reread(doc, workflow, runDir);
   if (current.graph === null) {
@@ -99,14 +103,13 @@ export function subrunPath({ state, node }) {
   if (refused !== null) return refuse(refused.code, refused.message);
 
   const name = uses.slice('workflow:'.length).replace(/^builtin:/, '');
-  const parentRun = relative(root, runDir);
   const taskPath = `.maister/tasks/${taskTypeOf(name)}/${childName(basename(parentRun), node)}`;
   const existing = existingAt(path.join(root, ...taskPath.split('/')), parentRun, node);
   if (existing.foreign) {
     return refuse('subrun-child-foreign',
       `${taskPath} holds a run whose parent link names ${existing.foreign}, not ${parentRun} node ${node}. Nothing is overwritten: move that run away, or settle with its owner, before this node starts its child.`);
   }
-  return { ok: true, node, workflow: name, task_path: taskPath, run_id: basename(taskPath), recorded: false, existing: existing.state, warnings };
+  return { ok: true, node, workflow: name, task_path: taskPath, run_id: basename(taskPath), parent, recorded: false, existing: existing.state, warnings };
 }
 
 /** A workflow's task type folder: its name, but for migration's `migrations`. */
