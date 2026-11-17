@@ -334,8 +334,8 @@ done
 cp "$ROOT/platforms/copilot-cli/README.md" "$OUT/README.md"
 
 # The shared write primitives and the state reader are plugin-root libraries,
-# not a skill's scripts: the engine's state writer and the umbrella writer
-# import them from ../../../../lib/. `cp -r` above carries the directory across
+# not a skill's scripts: the engine's state writer and the other skills'
+# scripts import them from ../../../../lib/. `cp -r` above carries the directory across
 # and no sed pass touches .mjs, so these are assertions rather than copies — if
 # a future transform ever prunes or rewrites the tree, the build fails here
 # rather than shipping a variant whose engine cannot resolve its own import.

@@ -237,7 +237,7 @@ Beta versions may contain features that are not yet fully tested. Use at your ow
 
 ## Pro Edition
 
-The Pro Edition adds what unattended and multi-repository work needs: driven sessions, which the cockpit resumes headlessly and which suspend at each gate until you answer from outside the terminal, with gate enforcement on every tool call; the `plan`, `change` and `fix` workflows that a chain dispatches into member repositories; and the compatibility contracts register, the normative record of every on-disk shape. It installs from a private marketplace:
+The Pro Edition adds what unattended and multi-repository work needs: driven sessions, which the cockpit resumes headlessly and which suspend at each gate until you answer from outside the terminal, with gate enforcement on every tool call; multi-repository workspaces, set up, validated and pruned with the workspace command; the `plan`, `change` and `fix` workflows that a chain dispatches into member repositories; and the compatibility contracts register, the normative record of every on-disk shape. It installs from a private marketplace:
 
 ```bash
 # Add the pro marketplace (private — access is granted per customer)
@@ -308,7 +308,7 @@ beside it — and continues into umbrella workspaces and chains.
 | To | See |
 |---|---|
 | Watch a run you started in a terminal | [Cockpit README](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/README.md) |
-| Set up a multi-repository workspace for the cockpit to drive (the umbrella runtime) and author a chain | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
+| Set up a multi-repository workspace for the cockpit to drive and author a chain (a Pro Edition feature) | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
 | Understand what an autonomy tier actually enforces | [Autonomy tiers and permissions](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/autonomy.md) |
 | See what asks you, and what a gate answer grants, in a run the cockpit drives | [Permissions in a run the cockpit drives](docs/workflows.md#permissions-in-a-run-the-cockpit-drives) |
 | Write your own chains, use your own skills and agents as nodes, or overlay a built-in | [Extending maister](docs/extending.md) |

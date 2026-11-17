@@ -1051,7 +1051,7 @@
     },
     "modules": []
   },
-  "interface_version": "1.16",
+  "interface_version": "2.0",
   "mcp": {
     "servers": [],
     "tools": [
@@ -1594,7 +1594,6 @@
     "run",
     "standards-discover",
     "standards-update",
-    "umbrella",
     "workflow-author",
     "workflow-engine"
   ],

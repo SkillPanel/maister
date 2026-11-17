@@ -48,30 +48,6 @@ repository.
 - **Agent**: `agents/<name>.md` with `name`, `description`, `tools` frontmatter. Read-only unless it must write. If it truly needs destructive Bash, add it to the whitelist in `hooks/block-destructive-commands.mjs` — default is *not* whitelisted.
 - **Hook**: script alongside `hooks/hooks.json`, registered there with a `${CLAUDE_PLUGIN_ROOT}`-anchored path. Every hook is a zero-dependency Node `*.mjs` in the exec form — `command: node` with the script path in `args` — so nothing depends on a shebang, an executable bit, bash or jq; `make validate` refuses a shell hook. The Copilot variant ships only the hooks Copilot CLI can run, registered by `platforms/copilot-cli/hooks.json` in Copilot's exec form (`exec: node` with the same `args`); a hook it ships writes its JSON output under one `const HOOK_SHAPE = 'claude';` line, which the build switches to Copilot's top-level shape — so a new hook for both hosts follows the same switch, and one Copilot cannot run stays out of that file.
 
-## Adding a refusal to the umbrella runtime
-
-A refusal is a closed set with three carriers. Nothing here checks them against each other, so
-keep them in step by hand:
-
-1. **A raise site in the source.** `throw new Refusal('<code>', '<message>')` somewhere under
-   `skills/umbrella/scripts/lib/`.
-2. **A recovery row in the shipped skill**, in the refusal table for its subsystem, with a
-   minimum length — a recovery too short to tell an operator what to do is not a recovery. A
-   code raised *after* its mutation has already been published owes more: its row must say the
-   entry landed, so nobody re-issues the op and applies the change twice.
-3. **A live provocation.** A test under `tests/` makes the runtime raise it, through the real
-   writers. A code that cannot be provoked portably is noted as platform-gated with the reason —
-   never silently dropped.
-
-**A fourth carrier is prose only.** Each module header lists the codes
-that module owns. One entry there is raised by the shared value emitter rather than by the
-module, and is named in the list without ever being thrown or caught locally; the sibling case
-is a dispatch refusal whose message is composed for an operator reading a validation report
-rather than quoted as a code. Keep those lists true by hand — nothing will tell you.
-
-The message is user-facing text, so it follows the prose rules above: say what happened, what
-landed, and what to do, not which function raised it.
-
 ## Delegation (skills that orchestrate)
 
 Skill tool for skills, Task tool for agents — never a skill via Task (`subagent_type` will fail). On Claude Code subagents can dispatch subagents, to a depth the host limits (three levels below the main thread); on Copilot they cannot — the build grants no agent the agent tool, because Copilot runs each subagent level under a session of its own, and the freeze records every Copilot run's delegation as `inline`. Either way orchestrators, not leaf agents, run workflows: skills that orchestrate — spawning subagents, writing state, asking at gates — run in the main agent. **Every source agent carries the containment sentence** on a line of its own after its title, byte-identical (`make validate` checks it; the sentence is the Makefile's `CONTAINMENT`): it never starts another workflow, a command or an orchestrator skill, and loads only a skill its own instructions name. Beside it go the scratch-file sentence (the Makefile's `SCRATCH`) and the search-scope sentence (`SEARCH`: no search outside the project and the paths its prompt names), each checked the same way. The companion-agent pattern (e.g. `docs-operator` preloading `docs-manager`) is for skills that spawn **no** subagents. Canonical: `orchestrator-patterns.md` § 1.

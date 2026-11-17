@@ -357,6 +357,6 @@ author's agreement, then run **check**.
 - **Run, resume or dry-run a workflow.** `/maister:run <name>` starts it; `/maister:run
   <name> --check` is the validator alone.
 - **Author a chain.** A node with `dir:` dispatches into member repositories; chains are
-  planned and started from maister cockpit, and judged in a workspace by `/maister:umbrella
-  validate`.
+  planned and started from maister cockpit, and a workspace is set up and validated through
+  the Pro edition.
 - **Write the skills and agents a node calls,** or anything outside `.maister/workflows/`.

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, ROOT, freezePatch, readDashboard, readState, run as runScript, scratch, sharedPlugin, sibling, umbrella, verb } from '../helpers.mjs';
+import { FIXTURES, ROOT, freezePatch, readDashboard, readState, run as runScript, scratch, sharedPlugin, sibling, publishOutbox, verb } from '../helpers.mjs';
 import { atClose, heldApprovalBefore, skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 import { checkpointOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display-files.mjs';
 import { provenGraph } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
@@ -1111,8 +1111,7 @@ function completeRun(run, ...flags) {
 /** Publish a close-out for dispatch d-1 in the run's scratch outbox; returns the run-complete flags that find it. */
 function publishCloseout(run, grade = 'success') {
   const outbox = path.join(run.root, 'outbox');
-  const published = umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade, summary: 'closed' });
-  assert.equal(published.code, 0, published.stderr);
+  publishOutbox(outbox, 'd-1', 'closeout', { grade, summary: 'closed' });
   return [`--outbox=${outbox}`, '--dispatch-id=d-1'];
 }
 

@@ -43,9 +43,8 @@ test('each facade export has its pinned kind and is the engine module\'s own bin
   }
 });
 
-const UMBRELLA_SCRIPTS = path.join(ROOT, 'plugins/maister/skills/umbrella/scripts');
-const FACADE = 'workflow-engine/scripts/lib/umbrella-facade.mjs';
-
+// The umbrella runtime ships with the Pro edition and imports the engine only
+// through the facade; the open plugin, for its part, imports nothing from it.
 function moduleFiles(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
     const full = path.join(dir, entry.name);
@@ -54,19 +53,15 @@ function moduleFiles(dir) {
   });
 }
 
-test('the umbrella reaches the engine through the facade and nowhere else', () => {
+test('no module of the open plugin imports the umbrella runtime', () => {
   const stray = [];
-  let throughFacade = 0;
-  for (const file of moduleFiles(UMBRELLA_SCRIPTS)) {
+  for (const file of moduleFiles(path.join(ROOT, 'plugins/maister'))) {
     const text = fs.readFileSync(file, 'utf8');
-    // Static `import … from` and `export … from` specifiers; a multi-line
-    // import list is matched as a whole.
     for (const [, specifier] of text.matchAll(/^(?:import|export)\b[^;]*?\bfrom\s+'([^']+)'/gm)) {
-      if (!specifier.includes('workflow-engine/')) continue;
-      if (specifier.endsWith(FACADE)) throughFacade++;
-      else stray.push(`${path.relative(ROOT, file).split(path.sep).join('/')}: ${specifier}`);
+      if (specifier.includes('skills/umbrella/') || /(^|\/)umbrella\//.test(specifier)) {
+        stray.push(`${path.relative(ROOT, file).split(path.sep).join('/')}: ${specifier}`);
+      }
     }
   }
-  assert.deepEqual(stray, [], 'umbrella modules importing the engine other than through its facade');
-  assert.ok(throughFacade > 0, 'no umbrella module imports the facade, so the scan found nothing to check');
+  assert.deepEqual(stray, []);
 });

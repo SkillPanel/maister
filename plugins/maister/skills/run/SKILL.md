@@ -172,8 +172,8 @@ report says so.
      below. Never compose a hint the table does not give: a guessed fix is worse than none.
    - **Warnings,** one line each, with their `fix:` line where the table has one.
    - **Problems no verb reports:** a non-empty `dispatches` — the workflow is a chain, started
-     from maister cockpit; in the workspace, `/maister:umbrella validate` adds the member and
-     driver checks the engine cannot make. A name that is a legacy folder name. An `ignored`
+     from maister cockpit; a workspace is set up and validated through the Pro edition, which
+     adds the member and driver checks the engine cannot make. A name that is a legacy folder name. An `ignored`
      overlay.
    - **What resolved:** one line per `skill:`, `agent:` and `workflow:` target from `resolved`,
      with the tier or home that answered, so a shadowed name shows.

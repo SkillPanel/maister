@@ -31,7 +31,6 @@ process.env.MAISTER_NO_OPEN = '1';
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const ENGINE_DIR = path.join(ROOT, 'plugins/maister/skills/workflow-engine');
 export const ENGINE = path.join(ENGINE_DIR, 'scripts/workflow.mjs');
-export const UMBRELLA = path.join(ROOT, 'plugins/maister/skills/umbrella/scripts/umbrella.mjs');
 export const FIXTURES = path.join(ROOT, 'tests/fixtures');
 export const SAMPLE = path.join(FIXTURES, 'definitions/sample.yml');
 export const DECLARED = path.join(FIXTURES, 'definitions/declared-outputs.yml');
@@ -65,9 +64,20 @@ export function verb(args, stdin, env = {}) {
   return run(ENGINE, args, stdin, env);
 }
 
-/** Run one umbrella runtime verb, for the outbox a dispatched run publishes to. */
-export function umbrella(args, stdin) {
-  return run(UMBRELLA, args, stdin);
+/**
+ * Publish one message to a dispatch's outbox the way the outbox writer names it:
+ * `<outbox>/<dispatch_id>/<seq>-<type>.yml`, the next sequence after what is
+ * there. The engine reads an outbox by the file names only (`lib/outbox-files.mjs`),
+ * so the body is a plain record of the fields.
+ */
+export function publishOutbox(outbox, dispatchId, type, fields = {}) {
+  const dir = path.join(outbox, dispatchId);
+  fs.mkdirSync(dir, { recursive: true });
+  const seq = fs.readdirSync(dir).filter(name => /^\d+-[a-z]+\.yml$/.test(name)).length + 1;
+  const body = [`type: ${type}`, `dispatch_id: ${dispatchId}`, ...Object.entries(fields).map(([key, value]) => `${key}: ${JSON.stringify(value)}`)].join('\n');
+  const file = path.join(dir, `${String(seq).padStart(4, '0')}-${type}.yml`);
+  fs.writeFileSync(file, `${body}\n`);
+  return file;
 }
 
 const CHILD_TIMEOUT_MS = 60_000;
