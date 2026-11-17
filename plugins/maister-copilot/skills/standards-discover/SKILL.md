@@ -17,7 +17,8 @@ Analyzes multiple project sources in parallel to discover coding standards, conv
 2. **Evidence-Based**: Every finding must cite specific files, line counts, or config rules as evidence
 3. **Confidence Scoring**: Multi-factor confidence based on source count, consistency, and explicitness
 4. **Deduplication**: Same standard found across sources merges into single finding with combined evidence
-5. **Graceful Degradation**: Skip unavailable sources (no gh CLI, no docs) without failing entire workflow
+5. **Graceful Degradation**: Skip unavailable sources (no gh CLI, no docs) without failing entire workflow — a source that is not there is skipped and named, never an error
+6. **Node Is Enough**: Every command this skill runs is a plain read-only command or one of its Node scripts by absolute path, each run as a command of its own — no `&&`, `;`, pipe, here-string or inline `node -e` script — so it reads the same in bash, PowerShell and cmd.exe. Nothing here calls `python` or needs `gh`: a host may have neither
 
 ---
 
@@ -72,7 +73,8 @@ Custom scope values are matched against existing `.maister/docs/standards/*/` di
 1. **Parse options** from command arguments
 2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, ask once — "Set up Maister first? (runs the setup, then this)": "Set it up (Recommended)" runs `init` with the Skill tool, which ends by running a full discovery; "Not now" stops here, and so does any other answer
 3. **Read existing standards** from `.maister/docs/INDEX.md` to identify updates vs creates and avoid duplicates; Phase 6 reads the rules of the files a finding lands in, to find the ones it contradicts
-4. **Print the plan as one progress line** — scope and sources — and go on: the user asked for the discovery, so there is nothing to confirm
+4. **Check the external sources** — unless `--skip-external` is set or the scope is `quick` — with `node <base directory>/scripts/external-sources.mjs` from the project root (this skill's base directory, as an absolute path). Its JSON says whether the external phase has anything to read (`scan`): pull requests through a signed-in `gh` and a git remote, CI configuration, or pre-commit hooks, and why pull requests are or are not readable. A missing or signed-out `gh` is a reported state, not an error. With `scan` false, Phase 5 is skipped, and Phase 9 names it with the reason
+5. **Print the plan as one progress line** — scope and sources, a skipped external phase with its reason — and go on: the user asked for the discovery, so there is nothing to confirm
 
 ---
 
@@ -93,20 +95,21 @@ Each phase's brief is a template under this skill's base directory: which source
 | 2: Config Analysis | Always | `references/config-analyzer-prompt.md` |
 | 3: Code Patterns | scope != `quick` | `references/code-pattern-prompt.md` |
 | 4: Documentation | scope != `quick` | `references/docs-extractor-prompt.md` |
-| 5: External Sources | `--skip-external` not set | `references/external-analyzer-prompt.md` |
+| 5: External Sources | `--skip-external` not set, scope != `quick`, and the external sources check found something to read | `references/external-analyzer-prompt.md` |
 
 **Step 3: Launch subagents in parallel** — Use the Task tool with `agent_type: maister-copilot:standards-scanner` for each phase. Its prompt is these lines, each filled in, and no part of the brief itself — never pasted, reworded or summed up:
 - `brief:` the phase brief's absolute path
 - `project_root:` the project root's absolute path
 - `output_file:` the phase's temp file
 - `scope:` the discovery scope, and `confidence:` the threshold
-- `pr_count:` the number of pull requests, for the external phase only
+- `checker:` the absolute path of `scripts/check-findings.mjs` under this skill's base directory, which the scanner runs on its file
+- `pr_count:` the number of pull requests, and `github:` `available` when the external sources check found pull requests readable, otherwise its reason — for the external phase only
 
-The scanner carries the rest itself — read-only, absolute paths, one file written. Each call carries the model and effort `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:standards-scanner --host=copilot` prints once just before the launch (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
+The scanner carries the rest itself — read-only, absolute paths, one file written. Each call carries the model and effort `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister-copilot:standards-scanner --host=copilot` prints once just before the launch, run as a command of its own (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
 
 Every applicable phase is a subagent of its own, whatever the size of the repository: a small repository, one commit or no linter config is no reason to run a phase's discovery in this session or to write its file yourself. The phases read different sources than this session has in view, which is what makes their findings worth scoring.
 
-**Step 4: Wait** for ALL subagents to complete, then read each temp file using the Read tool to collect findings. A phase whose file is missing did not run: dispatch it once more, and report it as not run if it is still missing.
+**Step 4: Wait** for ALL subagents to complete, then check each temp file with `node <checker> <file>` — one command per file — and read each one that passes using the Read tool to collect findings. The checker needs only Node; never check a file with `python` or an inline script of your own. A phase whose file is missing or fails the check did not run: dispatch it once more, and report it as not run if it is still missing or failing.
 
 **Step 5: Display progress** — Show count of findings per phase.
 
@@ -161,7 +164,7 @@ Display the application summary in findings, read from the list: "N findings app
 ### Phase 9: Summary Report
 
 Display final results. Every count is read from the list, and the counts add up to the count line's total: applied, skipped, below the threshold, and conflicts settled or left unsettled. Nothing merged or dropped is said again here; it was said where it happened.
-- Sources analyzed (config files, code files sampled, docs parsed, PRs reviewed)
+- Sources analyzed (config files, code files sampled, docs parsed, PRs reviewed), and each source skipped with its reason — no `gh`, `gh` not signed in, no remote, nothing external to read
 - Findings applied, by category
 - Findings skipped (user declined, or skipped with the rest) and below the threshold, each named
 - Conflicts with written rules: each settled one, with the rule that now holds, and each skipped one, both rules named with their files, for the user to settle
@@ -174,7 +177,7 @@ Display final results. Every count is read from the list, and the counts add up 
 | Situation | Strategy |
 |-----------|----------|
 | `.maister/docs/` missing | Ask "Set up Maister first?" (Phase 1); stop if declined |
-| gh CLI unavailable | Skip PR analysis, continue with other sources |
+| gh CLI missing or signed out | Not an error: the external sources check reports it, the external scan skips pull requests (or the whole phase, with nothing else to read), and the summary names the skipped source |
 | GitHub API rate limit | Skip PR analysis, note in report |
 | Config file parse error | Skip that file, log warning, continue |
 | No standards found | Suggest lowering threshold or checking specific scope |
