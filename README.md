@@ -2,321 +2,330 @@
 
 # Maister
 
-**Structured, standards-aware development workflows for Claude Code**
+**Structured, standards-aware development workflows for Claude Code and GitHub Copilot CLI**
 
-Describe what you want to build, and the plugin handles the rest - from specification through implementation to verification - while enforcing your project's coding standards at every step.
+[![Release](https://img.shields.io/github/v/release/SkillPanel/maister)](https://github.com/SkillPanel/maister/releases)
+[![Tests](https://github.com/SkillPanel/maister/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/SkillPanel/maister/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/github/license/SkillPanel/maister)](LICENSE)
 
 </div>
 
-## What You Get
+Maister gives a coding agent a working method. You describe a task. A workflow reads your codebase, writes a specification and a plan, builds the change test-first, and checks the result with your test suite and three independent reviews. It stops at checkpoints for your decision, and it follows the coding standards it found in your own project.
 
-- **Guided workflows** for features, bug fixes, enhancements, performance, migrations, research, and product design
-- **Auto-discovered standards** from your codebase - config files, source patterns, and documentation are analyzed and enforced throughout every workflow
-- **Test-driven implementation** with automated planning, incremental verification, and full test suite runs before completion
-- **Pause and resume** any workflow - state is preserved across sessions
-- **Three reviews of every change** - spec conformance, code risk and simplicity - with fixes and re-checks before the work is called done
-- **Workflows you can extend** - write your own, adjust a built-in with an overlay, and run them like any other with `/maister:run`
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="The dashboard of a development run: its phases, the decisions made so far and the risks still open" width="860">
+</p>
 
-## Getting Started
+## Quick start
 
-### Prerequisites
-
-- [Claude Code](https://claude.ai/code) CLI installed and configured — version 2.1.233 or newer (or GitHub Copilot CLI 1.0.100+ with the `maister-copilot` variant — see [Maister on GitHub Copilot CLI](docs/copilot.md))
-- Node.js 20 or newer — required, with no fallback. Every workflow runs on the workflow engine, which needs it: without Node, a workflow command stops before it creates a task directory and says why. The plugin's hooks and HTML mockups need it too
-- Optional: a browser tool, for browser checks, user documentation with screenshots and looking at the mockup gallery (a file you can open yourself) — `playwright-cli`, a Playwright MCP server, Claude in Chrome or the Claude desktop app's built-in browser. Maister ships none; without one, those steps are offered without the browser
-
-### Installation
+You need [Claude Code](https://claude.ai/code) 2.1.233 or newer and Node.js 20 or newer.
 
 ```bash
 /plugin marketplace add SkillPanel/maister
 /plugin install maister@maister-plugins
 ```
 
-After installing, restart Claude Code (`/exit` and relaunch) to ensure the plugin is fully loaded. To move to a newer version later, see [Upgrading](#upgrading).
-
-On GitHub Copilot CLI, follow [Maister on GitHub Copilot CLI](docs/copilot.md), the guide to installing, running and troubleshooting the Copilot build. In short: install the `maister-copilot` variant with `copilot plugin install` — from a registered marketplace (`copilot plugin marketplace add SkillPanel/maister`, then `copilot plugin install maister-copilot@maister-plugins`) or straight from the repository subdirectory (`copilot plugin install SkillPanel/maister:plugins/maister-copilot`). To run a local checkout instead, load it with `copilot --plugin-dir /path/to/maister/plugins/maister-copilot`; add `--add-dir` for the same path when the checkout sits outside your working directory, which grants file access to it. `--add-dir` on its own does not load a plugin. The beta channel installs the same way from `SkillPanel/maister#beta` as `maister-copilot@maister-plugins-beta`.
-
-**Copilot names the commands under the plugin.** Every command and workflow in this README is typed `/maister-copilot:<name>` on Copilot CLI, where Claude Code takes `/maister:<name>` — `/maister-copilot:development`, `/maister-copilot:init`, `/maister-copilot:reviews-code-risk`. A bare `/development` is reported as an unknown command.
-
-**The plugin root is optional.** Several of the variant's skills — the workflow engine's among them — tell an agent to run a script under the plugin's own directory, spelled `${MAISTER_PLUGIN_ROOT}`. Nothing has to be set: Copilot CLI hands every skill its base directory, the agent builds the script's path from it, and the scripts resolve the plugin from their own location. Export the variable when you want the path fixed rather than worked out — when you run the engine's scripts by hand, or a model keeps guessing the directory. Point it at the directory holding `.claude-plugin/plugin.json`, which is a different place on each install path:
-
-```bash
-# installed from a marketplace — <marketplace> is the one you added, e.g. maister-plugins
-export MAISTER_PLUGIN_ROOT=~/.copilot/installed-plugins/<marketplace>/maister-copilot
-# installed straight from the repository, without a marketplace
-export MAISTER_PLUGIN_ROOT=~/.copilot/installed-plugins/_direct/<source>
-# running a local checkout — the same path you passed to --plugin-dir
-export MAISTER_PLUGIN_ROOT=/path/to/maister/plugins/maister-copilot
-```
-
-`copilot plugin list` names what is installed. Put the export in your shell profile: it is read at spawn time and there is no flag for it. On Claude Code nothing is needed here — that host exports the same directory under its own name.
-
-**Hooks on Copilot.** The variant ships the session-start reminder and the destructive-command guard, which Copilot CLI loads from the plugin. Claude Code's second reminder, the one that runs after a session's context is compacted, has no Copilot equivalent — Copilot starts no session after compaction — so after a long Copilot session is compacted, tell the model to re-read the run's `orchestrator-state.yml` before it continues a workflow.
-
-**Two directory flags, and only one of them loads a plugin.** Both hosts have them and they are easy to confuse:
-
-| Flag | What it does |
-|---|---|
-| `--plugin-dir <path>` | Loads the plugin at that path. This is the one that makes the workflows available. |
-| `--add-dir <path>` | Grants file access to that directory, and picks up any `.claude/skills` or `.claude/agents` it contains — which a plugin directory does not have, because a plugin's skills live in its own `skills/`. It loads no plugin. |
-
-Pointing only `--add-dir` at a checkout starts a session that can read the files and has none of the workflows: asking for one reports the skill as not found. Pass `--plugin-dir`, and add `--add-dir` for the same path as well when the checkout sits outside your working directory.
-
-**Checking what loaded.** `claude plugin list` and `copilot plugin list` report a plugin loaded from a directory alongside the installed ones. The skill listing is the narrower answer — it is the session's own view, so read it inside the session rather than expecting an external command to confirm discovery.
-
-### Initial project setup
-
-Initialize your project to auto-detect coding standards and generate project documentation:
+Restart Claude Code. Then set your project up once, and give it a task:
 
 ```bash
 /maister:init
+/maister:development Add CSV export to the orders page
 ```
 
-This scans your codebase and creates `.maister/` with standards, docs, and task folders.
+`/maister:init` reads your configuration, code and documentation. It writes the standards and project facts it finds to `.maister/docs/`, and its settings to `.maister/config.yml`. Every workflow reads them from then on.
 
-If you have another project already using Maister, you can reuse its standards as a starting point:
+<details>
+<summary><b>On GitHub Copilot CLI</b></summary>
+
+You need Copilot CLI 1.0.100 or newer and Node.js 20 or newer.
 
 ```bash
-/maister:init --standards-from=/path/to/other-project
+copilot plugin marketplace add SkillPanel/maister
+copilot plugin install maister-copilot@maister-plugins
 ```
 
-### First Workflow
+There, every command is typed `/maister-copilot:<name>`: `/maister-copilot:init`, `/maister-copilot:development`. [Maister on GitHub Copilot CLI](docs/copilot.md) covers the rest.
+
+</details>
+
+## What a run looks like
+
+A development run has six stages, and it stops after each of the first five:
+
+```text
+analysis → ◆ → specification → ◆ → plan → ◆ → implementation → ◆ → verification → ◆ → summary
+
+◆  a checkpoint: you decide whether the run goes on
+```
+
+The task shapes the run. A bug gets a failing test before the fix. A change to the user interface gets mockups before the specification. A specification audit, browser checks and a user guide with screenshots are offered along the way.
+
+At a checkpoint, the question arrives with what you need to answer it:
+
+```text
+Approve specification? Type "details" for the full brief.
+
+❯ Continue to the specification audit (Recommended)
+  Continue to planning, skip the audit
+  Revise the specification
+  Stop here
+
+  Done: Specified a CSV export of the filtered orders list: 9 requirements and
+        2 user stories, reusing the existing report streamer.
+  Next: Specification audit
+  Review: implementation/spec.md (HTML beside it)
+  Open risks:
+  - Excel misreads UTF-8 CSV without a byte-order mark; the spec adds one
+
+  Decided by the run:
+  - Stream the file instead of building it in memory — specification
+  - The export respects the active filters — specification
+```
+
+**Revise** sends the run back to the step that wrote the document, with a note you pick from suggestions or type yourself. That step and everything after it run again, and the checkpoint asks once more.
+
+Everything a run produces is a file in your repository:
+
+```text
+.maister/tasks/development/2026-03-24-orders-csv-export/
+├── orchestrator-state.yml     where the run is; what a resume reads
+├── dashboard.html             the run in a browser: phases, decisions, risks
+├── analysis/                  codebase analysis, gap analysis
+├── implementation/            spec.md, implementation-plan.md, work-log.md
+└── verification/              test results, the three reviews, the report
+```
+
+Close the session whenever you like. Give the same command the task directory, and the run carries on from where it stopped:
 
 ```bash
-/maister:development Add user profile page with avatar upload
+/maister:development .maister/tasks/development/2026-03-24-orders-csv-export
 ```
 
-Or just discuss your task with Claude and then run:
+A run changes your working tree and commits nothing. It ends with a summary, a commit message in a file and the next steps. Start it with `--publish`, and approving the plan also approves publishing: the run commits on a branch of its own, pushes it and opens a pull request. It never merges.
+
+[Getting started](docs/getting-started.md) walks through a first run, checkpoint by checkpoint.
+
+## Why use it
+
+| What goes wrong with a coding agent | What Maister does about it |
+|---|---|
+| It starts coding before it understands the codebase | Analysis and a gap analysis come first, and you approve them before anything is specified |
+| It builds something other than what you meant | You approve a specification, and can have an independent agent audit it, before a plan exists |
+| It ignores how your team writes code | Standards are discovered from your repository and read while specifying, planning and coding |
+| It reports success too early | The full test suite, your lint, type and build checks and three reviews run first. Clear fixes are made and re-checked |
+| A long session loses the thread | Work is done by subagents, state lives in files, and a run resumes from its task directory |
+| The process is someone else's | Workflows are definitions. Add a step to a built-in, or write your own |
+
+## Pick your command
+
+| When you have | Run | You get |
+|---|---|---|
+| A feature, an enhancement or a bug | `/maister:development` | A specified, planned, tested and reviewed change |
+| A question to answer before building | `/maister:research` | A report with its evidence, then optionally compared solutions and a high-level design |
+| An idea that is not a specification yet | `/maister:product-design` | A brief with the final screens, ready to build from |
+| Screens to draw or redraw | `/maister:mockup-studio` | One new version of a set of mockups |
+| Slow code | `/maister:performance` | Bottlenecks found by reading the code, then fixed |
+| A technology, platform or architecture to move | `/maister:migration` | A staged migration with a rollback plan |
+| A task or an issue, and no idea which fits | `/maister:work` | The right workflow, chosen for you |
+
+`/maister:work` takes a description, or an issue from GitHub, Jira or Azure DevOps.
+
+Workflows hand over to each other. Pass a finished research or product-design task to development, and its report, brief and screens become the starting point:
 
 ```bash
-/maister:development
+/maister:development "Build the usage page" --design=.maister/tasks/product-design/2026-03-10-usage-page
 ```
 
-The plugin picks up context from your conversation - no arguments needed.
+For smaller jobs, without a full run:
 
-## How It Works
+| Run | To |
+|---|---|
+| `/maister:quick-plan` | Plan a change with your standards in view, before you code |
+| `/maister:quick-dev` | Implement a change you already understand, with standards applied |
+| `/maister:quick-bugfix` | Fix a bug test-first: a fix plan, a failing test, the fix |
+| `/maister:quick-design` | Settle one small design question and keep a decision record |
 
-1. You describe a task - either as an argument or just in conversation
-2. The plugin classifies it (feature, bug, enhancement, etc.) and proposes a workflow
-3. You confirm, and it guides you through phases: **requirements → spec → plan → implement → verify**
-4. At each phase, it asks for your input and decisions
-5. You get tested, verified code with a detailed work log
+[Workflows](docs/workflows.md) describes each workflow's steps and checkpoints, and the [command reference](docs/commands.md) lists every command and flag.
 
-All artifacts are saved in `.maister/tasks/` organized by type and date.
+## Standards that come from your code
 
-### Context-Aware Commands
+`/maister:init` looks at your configuration files, your source and your documentation, and writes down the conventions it finds, with a tech stack, an architecture document and an index. They live in `.maister/docs/` as Markdown you can read and edit.
 
-Every workflow command works without arguments. The plugin reads your current conversation to extract the task description and auto-detect the task type:
+- Workflows read them while specifying, planning and coding, and the code-risk review reports each rule a change breaks.
+- A finished run lists the conventions it met that no standard covers yet. `/maister:standards-update` offers them, and you choose which to keep.
+- `/maister:standards-discover` looks again as the codebase changes.
+- Any Markdown file your team adds under `.maister/docs/` gets an entry in the index, so workflows find it too.
 
+More in [Standards](docs/standards.md).
+
+## Verification sized to your project
+
+Every change gets the same three reviews, each by its own agent:
+
+| Review | Asks |
+|---|---|
+| Spec conformance | Does the code do what the specification and your decisions say? |
+| Code risk | What can break, leak or fall over where this project runs? |
+| Simplicity | Is there complexity this project does not need? |
+
+They judge against a profile of your project. A command-line tool is not asked for rate limiting, and a project with no data store is not asked for down-migrations.
+
+Findings with a clear, safe fix are fixed and re-checked without a question. What is left reaches you one finding at a time, each with the proposed change, the alternatives and a recommendation.
+
+Each review also runs on its own: `/maister:reviews-spec`, `/maister:reviews-code-risk`, `/maister:reviews-simplicity`, and `/maister:reviews-spec-audit` for a specification before anything is built from it.
+
+The project profile and the reviewers' models are set in [Configuration](docs/configuration.md); [Workflows](docs/workflows.md) describes the verification step.
+
+## Design before you build
+
+- **`/maister:product-design`** turns a rough idea into a brief. It explores the project, proposes the scope, asks each design decision with sketches of its options, and ends with the final screens.
+- **`/maister:mockup-studio`** draws one new version of a set of mockups each time you call it, and keeps every earlier version. Screens are drawn in your product's own colours, fonts, layout and copy, harvested from the codebase. They come as HTML pages with a gallery, or as ASCII in the terminal.
+- **`/maister:quick-design`** settles one small question: the options, a recommendation, your decision, a one-page record.
+
+Product design and quick design feed development. Pass the task with `--design`, and the chosen screens become binding references for the plan, the implementation and the browser checks.
+
+More in [Mockups](docs/mockups.md).
+
+## Workflows of your own
+
+The built-in workflows are definitions, and yours run on the same engine. This overlay adds your own security reviewer to every development run, after verification and before its checkpoint:
+
+```yaml
+# .maister/workflows/development.overlay.yml
+extends: builtin:development
+
+add:
+  security-review:
+    uses: agent:security-reviewer     # an agent in your project's .claude/agents/
+    needs: [verification]
+    before: [verification-approval]
 ```
-You: "The login page throws a 500 error when the session expires"
-You: /maister:development
-→ Auto-detects: bug fix, extracts description from conversation
+
+<details>
+<summary><b>A whole workflow of your own, in one file</b></summary>
+
+```yaml
+# .maister/workflows/release-notes.yml
+name: release-notes
+version: 1
+description: "Drafts release notes from the changes since the last tag, for review before they are published."
+inputs:
+  version: {type: string, required: true}
+
+nodes:
+  draft:
+    uses: direct:draft
+    needs: []
+    with: {version: "${inputs.version}"}
+    outputs:
+      artifacts: {notes: outputs/release-notes.md}
+
+  approve:
+    type: gate
+    needs: [draft]
+    ask: "Release notes drafted. Publish them?"
+    options:
+      publish: continue
+      revise: {effect: revise, reruns: draft}
+      stop: stop
+
+  publish:
+    uses: direct:publish
+    needs: [approve]
 ```
 
+What `draft` and `publish` do is written in plain language in `release-notes.md` beside it. Then:
+
+```bash
+/maister:run release-notes version=3.1.0
 ```
-You: /maister:standards-update
-→ Scans conversation for patterns like "we always use..." or "prefer X over Y";
-  in a fresh session, offers the standard candidates the latest workflow run left
-```
 
-You can always be explicit when you prefer - arguments and flags simply override the auto-detection.
+</details>
 
-## Supported Workflows
+A workflow of your own gets the same checkpoints, dashboard and resume as a built-in. A step can be prose you write, one of your skills, one of your agents, or another workflow. `/maister:workflow-author` interviews you and writes the files, and `/maister:run <name> --check` validates a workflow without starting it.
 
-| Command | Use When |
-|---------|----------|
-| `/maister:development` | Features, bug fixes, enhancements |
-| `/maister:research` | Research with synthesis and solution design |
-| `/maister:performance` | Optimizing speed or resource usage |
-| `/maister:migration` | Changing technologies or patterns |
-| `/maister:product-design` | Product and feature design |
-| `/maister:mockup-studio` | One new version of a set of UI mockups |
+More in [Extending Maister](docs/extending.md), with every built-in's steps and checkpoints by id in the [workflow reference](docs/workflow-reference.md).
 
-All six run on the workflow engine. A task started on the 2.x plugin is finished on 2.x — see [Staying on 2.x](#staying-on-2x).
+## How it works
 
-Whether a task is a bug fix is detected by the analysis, which then writes a failing test first. Or use `/maister:work` as a single entry point that routes to the right workflow.
+A workflow is a graph of steps and checkpoints in a YAML file. When a run starts, the workflow engine copies that graph into the run's state and works through it, so a plugin upgrade or an edited definition does not change the steps and checkpoints of a run already in flight.
 
-Workflows your project defines in `.maister/workflows/` run with `/maister:run <name>`; see [Extending maister](docs/extending.md).
+Every change to a run's state goes through the engine, and the engine refuses what the graph does not allow: a step recorded as done before the checkpoint in front of it has an answer, an answer the checkpoint does not offer, a run closed while steps it can still reach have not run.
 
-### Quick Commands
+The work is done by subagents: analysts, a specification writer, implementers that run side by side, reviewers. Each has its own context, which keeps your session free for the decisions. `.maister/config.yml` sets the model each kind of agent runs on. By default the reviewers get a stronger model than the clerical agents.
 
-For smaller tasks that don't need a full workflow:
+What Maister does not do:
 
-| Command | Use When |
-|---------|----------|
-| `/maister:quick-plan` | You want a plan with standards awareness before coding |
-| `/maister:quick-dev` | You know what to do - just implement with standards applied |
-| `/maister:quick-bugfix` | Quick TDD-driven bug fix — write failing test, fix, verify |
-| `/maister:quick-design` | One small design question — options, a recommendation, one decision, a one-page decision record |
+- **Commit, push or open a pull request**, unless you start the run with `--publish`. It never merges.
+- **Roll back on its own.** When a step fails, the run stops and asks you.
+- **Let a subagent destroy work.** A hook blocks `git reset --hard`, `git checkout .`, `git clean`, `git stash`, force pushes and `rm -rf` from subagents.
+- **Phone home.** Maister is prompts, a Node.js engine and files under `.maister/` in your repository. It has no account, no service and no telemetry, and its hooks send nothing anywhere.
 
-## Standards-Aware Development
+Every setting in `.maister/config.yml`, the task directory layout and the subagent models are described in [Configuration](docs/configuration.md).
 
-This is the key differentiator. Maister doesn't just run workflows - it learns your project's conventions and enforces them:
+## Claude Code and GitHub Copilot CLI
 
-- **`/maister:init`** scans config files, source code, and documentation to auto-detect your coding standards
-- **Continuous checking** - standards are consulted before specification, during planning, and while coding (not just at the start)
-- **`/maister:standards-discover`** refreshes standards from your evolving codebase
-- **`/maister:standards-update`** lets you add or refine standards manually, record project knowledge (a decision, a fact about the system) in a project doc, or sync from another project with `--from=PATH`
+| | Claude Code | GitHub Copilot CLI |
+|---|---|---|
+| Plugin | `maister` | `maister-copilot` |
+| Commands | `/maister:<name>` | `/maister-copilot:<name>` |
+| Checkpoints | Options, with the detail beside the one you are on | The same detail, in the question |
+| Run status in the terminal | A band above the prompt and a panel at each checkpoint | Not drawn |
+| Implementation and verification | Each loop runs in a subagent of its own | The loops run in your session |
+| Browser steps | `playwright-cli`, a Playwright MCP server, Claude in Chrome or the desktop app's browser | `playwright-cli` |
 
-Standards live in `.maister/docs/standards/`, project docs in `.maister/docs/project/`, and both are indexed in `.maister/docs/INDEX.md`. The project docs `/maister:init` writes are a start: add any Markdown doc the team wants every run to read, and `/maister:standards-update --refresh-index` indexes it.
+Browser checks, user guides with screenshots and the mockup gallery use the browser tool your session already has. Maister ships none, and without one those steps are offered without the browser.
 
-**Important**: Run workflows with **auto-accept edits** enabled. Do not use Claude Code's plan mode with workflows (see [Best Practices](#best-practices) below).
+More in [Maister on GitHub Copilot CLI](docs/copilot.md).
 
-## Answering gates
+## Documentation
 
-When a workflow pauses at a gate, you answer it in the session — every ordinary session works this way, and it needs no setup. Sessions the cockpit drives headlessly, which suspend at each gate until you answer from outside the terminal, are a Pro Edition feature (see [Pro Edition](#pro-edition) below).
+The [documentation index](docs/README.md) routes you by what you want to do. The pages:
+
+- [Getting started](docs/getting-started.md): a first project and a first run, checkpoint by checkpoint
+- [Workflows](docs/workflows.md): the steps and checkpoints of each built-in workflow
+- [Command reference](docs/commands.md): every command and flag
+- [Standards](docs/standards.md): how standards are found, kept and applied
+- [Mockups](docs/mockups.md): mockup versions, the grounding pack, HTML or ASCII
+- [Configuration](docs/configuration.md): `.maister/config.yml`, task directories, subagent models, the project profile, browser tools
+- [Extending Maister](docs/extending.md): overlays, your own workflows, your skills and agents as steps
+- [Workflow reference](docs/workflow-reference.md): each built-in's steps and checkpoints by id, for overlay authors
+- [Maister on GitHub Copilot CLI](docs/copilot.md): installing, running and the differences
+- [Upgrading from 2.x](docs/upgrading-from-2x.md): what changes and what to do first
+- [Troubleshooting](docs/troubleshooting.md): symptoms and fixes
+- [Changelog](CHANGELOG.md): what changed in each release
 
 ## Upgrading
-
-Automatic updates are off for this marketplace unless you turn them on, on the **Marketplaces** tab in `/plugin`. To update now, open `/plugin`, select `maister` on the **Installed** tab and choose **Update now** — or, from your shell:
 
 ```bash
 claude plugin marketplace update maister-plugins
 claude plugin update maister@maister-plugins
 ```
 
-Then run `/reload-plugins`, or start a new session. On GitHub Copilot CLI, `copilot plugin update maister-copilot@maister-plugins` does the same.
+Then run `/reload-plugins` or start a new session. On Copilot CLI: `copilot plugin update maister-copilot@maister-plugins`.
 
-Read the new version's entry in the [changelog](CHANGELOG.md) before you upgrade a workspace with work in flight: anything you have to do on upgrade day is under its **Upgrading** heading.
+> [!IMPORTANT]
+> Coming from 2.x? Version 3 needs Node.js 20 and does not resume tasks started on 2.x. Read [Upgrading from 2.x](docs/upgrading-from-2x.md) before you update.
 
-### Upgrading from 2.x
+<details>
+<summary><b>The beta channel</b></summary>
 
-3.0 runs every workflow on the workflow engine, so it needs Node.js (see [Prerequisites](#prerequisites)), and it resumes only task directories its engine started. Before you upgrade, finish any task still in flight on 2.x, or plan to start it over on 3.0. Trying is safe: given a 2.x task directory, `/maister:work`, `/maister:run` and each workflow's own command say so and change nothing in it.
-
-A development, research or product-design task in flight can also continue on 3.0 as a new run: start it with `--context=<the 2.x task directory>`, for example `/maister:development "finish the export feature" --context=.maister/tasks/development/2026-05-04-export`. The new run's first phase copies the whole folder — its state file, analysis, specification, plan and any other files — into the new task's `analysis/work-context/` and reads it as background for every phase. Nothing is resumed: the new run starts from its first phase and decides each step again, and the 2.x folder is left as it was. Performance and migration runs take no `--context`; finish those on 2.x or start them over.
-
-Finished task directories need nothing. Those written by 2.2.3 or newer stay listed and shown in the dashboard like any other; older ones are listed by directory name, date and type only. There is nothing to migrate.
-
-The [3.0.0 changelog entry](CHANGELOG.md#300) lists every breaking change.
-
-### Staying on 2.x
-
-To keep using 2.x — or to finish a task you started there — install from the 2.x maintenance line:
+Pre-release versions install from the `beta` branch. Only one Maister channel can be enabled at a time, so uninstall the stable one first:
 
 ```bash
-# Add the 2.x marketplace
-/plugin marketplace add SkillPanel/maister#release/2.x
-
-# Install the 2.x plugin
-/plugin install maister@maister-plugins-2x
-```
-
-If another channel is installed, uninstall it first (for example `/plugin uninstall maister@maister-plugins`).
-
-The 2.x line receives fixes only — no new features — for six months after 3.0.0 is released.
-
-On GitHub Copilot CLI, the 2.x line installs the same way: `copilot plugin marketplace add SkillPanel/maister#release/2.x`, then `copilot plugin install maister-copilot@maister-plugins-2x`.
-
-## Beta Channel
-
-Want to try experimental features before they hit stable? Install from the beta channel:
-
-```bash
-# Add the beta marketplace
+/plugin uninstall maister@maister-plugins
 /plugin marketplace add SkillPanel/maister#beta
-
-# Install the beta plugin
 /plugin install maister@maister-plugins-beta
 ```
 
-If you already have the stable version installed, uninstall it first to avoid conflicts:
+On Claude Code, if two channels are enabled together, a warning at session start names both and the command that disables each, and workflows do not start or resume until only one is enabled and the session restarted. [Troubleshooting](docs/troubleshooting.md) has the fix.
 
-```bash
-/plugin uninstall maister@maister-plugins
-```
+</details>
 
-To switch back to stable:
+## Contributing
 
-```bash
-/plugin uninstall maister@maister-plugins-beta
-/plugin install maister@maister-plugins
-```
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) has the build and test loop.
 
-Beta versions may contain features that are not yet fully tested. Use at your own discretion.
+## License
 
-## Pro Edition
-
-The Pro Edition adds what unattended and multi-repository work needs: driven sessions, which the cockpit resumes headlessly and which suspend at each gate until you answer from outside the terminal, with gate enforcement on every tool call; multi-repository workspaces, set up, validated and pruned with the workspace command; the `plan`, `change` and `fix` workflows that a chain dispatches into member repositories; and the compatibility contracts register, the normative record of every on-disk shape. It installs from a private marketplace:
-
-```bash
-# Add the pro marketplace (private — access is granted per customer)
-/plugin marketplace add SkillPanel/maister-pro
-
-# Install the pro plugin
-/plugin install maister@maister-pro
-```
-
-Because both editions use the plugin name `maister`, uninstall the other channel first. With both enabled, Claude Code can load each skill from either edition. Maister detects this: a warning at session start names both editions and the command that disables each, and the workflow engine won't start or resume a run until only one is enabled and Claude Code has been restarted. A tool that starts sessions with `--settings` to turn an edition off for that session also sets `MAISTER_SESSION_SETTINGS` to the same file path or JSON, so the check sees that layer (see [the plugin README](plugins/maister/README.md#sessions-started-with---settings)):
-
-```bash
-/plugin uninstall maister@maister-plugins
-```
-
-To switch back to the free edition:
-
-```bash
-/plugin uninstall maister@maister-pro
-/plugin install maister@maister-plugins
-```
-
-GitHub Copilot CLI follows the same two-command flow with `copilot plugin marketplace add` / `copilot plugin install`, as described in [Installation](#installation).
-
-## Best Practices
-
-**Don't use plan mode when starting a workflow.** Planning is a built-in part of every workflow — the orchestrator creates specs, plans, and other files as it goes. Claude Code's plan mode restricts file creation, which conflicts with this. Let the workflow handle planning on its own.
-
-**Start workflows in a fresh session.** This is especially useful when chaining workflows (e.g., research → development). Research and product-design artifacts already contain all the context needed, so a clean session avoids noise from prior conversation.
-
-**Chain workflows by passing a task folder.** If you've completed a research or product-design workflow and want to build on those results, pass the task folder directly:
-
-```bash
-/maister:development .maister/tasks/research/2026-01-12-oauth-research
-```
-
-You can also append additional instructions to narrow scope or guide the workflow:
-
-```bash
-/maister:development .maister/tasks/product-design/2026-03-10-dashboard-redesign Implement only phase 1
-```
-
-## Known Issues
-
-**Orchestrator may stall after long phases.** After context compaction (which typically happens after lengthy phases like implementation), the main agent may stop progressing automatically. If you notice it's idle, just type something like "continue" or "proceed" — it will pick up where it left off. You can also re-invoke the workflow in resume mode to reload the orchestrator state:
-
-```bash
-/maister:development .maister/tasks/development/2026-03-24-my-feature
-```
-
-## Watching and driving runs from a browser
-
-The plugin runs workflows in one repository at a time, in your terminal. The
-**[maister cockpit](https://github.com/SkillPanel/maister-cockpit)** is its companion: a local daemon
-plus a browser tab that watches those runs live, starts and steers provider sessions, and drives
-multi-repository chains across an umbrella workspace.
-
-```sh
-npx maister-cockpit
-npx maister-cockpit repo add /absolute/path/to/your/repo
-```
-
-It runs entirely on your machine and never writes into a repository you register unless you opt into
-chain driving. Its [quickstart](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/quickstart.md)
-picks up where this README leaves off — install, `/maister:init`, a first workflow, then the cockpit
-beside it — and continues into umbrella workspaces and chains.
-
-| To | See |
-|---|---|
-| Watch a run you started in a terminal | [Cockpit README](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/README.md) |
-| Set up a multi-repository workspace for the cockpit to drive and author a chain (a Pro Edition feature) | [Umbrellas and chain files](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/umbrellas.md) |
-| Understand what an autonomy tier actually enforces | [Autonomy tiers and permissions](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/autonomy.md) |
-| See what asks you, and what a gate answer grants, in a run the cockpit drives | [Permissions in a run the cockpit drives](docs/workflows.md#permissions-in-a-run-the-cockpit-drives) |
-| Write your own chains, use your own skills and agents as nodes, or overlay a built-in | [Extending maister](docs/extending.md) |
-
-## Learn More
-
-- [Workflow Details](docs/workflows.md) - phases, examples, and task structure for each workflow type
-- [Extending maister](docs/extending.md) - your own chains, skills and agents as nodes, overlays and eject, and what needs a contract change
-- [Full Command Reference](docs/commands.md) - all workflow, review, utility, and quick commands
-- [Decision Log](docs/decisions/README.md) - the ADRs behind the gate protocol, the coordination shapes, and the compatibility floor
-- [Cockpit quickstart](https://github.com/SkillPanel/maister-cockpit/blob/main/docs/quickstart.md) - the browser-side path, from a first workflow to a chain across repositories
+[MIT](LICENSE)
