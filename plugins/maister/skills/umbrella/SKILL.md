@@ -491,27 +491,32 @@ override outranks the node, since a caller dispatching by hand is answering for
 that dispatch.
 
 A node whose `with:` map sets `publish: true` and declares nothing owes a pull
-request at every tier: the run it dispatches pushes its branch and opens one,
-and the gate approving its plan grants both. A declared `false` still wins, and
-`validate` warns `publish-pr-declined` at the declaration, keeping it as written.
-Such a node needs a git host behind its member, and the envelope resolves one
-before anything is written: the manifest's `git_host.kind`, else a remote of the
+request at every tier, on a member whose git host takes one (below): the run it
+dispatches pushes its branch and opens one, and the gate approving its plan
+grants both. A declared `false` still wins, and `validate` warns
+`publish-pr-declined` at the declaration, keeping it as written. Such a node
+needs a git host behind its member, and the envelope resolves one before
+anything is written: the manifest's `git_host.kind`, else a remote of the
 member's own checkout that points at a host — a URL with a scheme other than
 `file://`, or `user@host:path`. A remote that is a path on this machine is no
-host. Neither found refuses `dispatch-no-git-host`. A node without
-`publish: true`, or one whose close-out is declared `false`, is not asked.
+host. Neither found, on a member declared to take pull requests, refuses
+`dispatch-no-git-host`. A node without `publish: true`, or one whose close-out
+is declared `false`, is not asked.
 
-A git host that takes no pull request is declared in the manifest, never
-probed: `pull_requests: false` under `git_host`, for every member, or on one
-member's entry, which wins over the workspace's value. Absent, the host takes
-one and everything above holds unchanged. A host the worker's tooling does not
-know, a local bare repository or a mirror that takes pushes only is where this
-is set. When it is false no pull request is owed at any tier, `publish: true`
-included: the envelope's close-out carries `pr_required: false` with
-`host_takes_pr: false`, and the seed tells the worker to push where its tier
-allows, open nothing, and close out with `prs` empty, saying what a reviewer has
-to do with the pushed branch. A close-out declared `true` on such a member is
-refused `dispatch-closeout-impossible`.
+Whether a member's git host takes a pull request is read in this order:
+`pull_requests` on the member's entry, else `pull_requests` under `git_host`,
+for every member. Either declaration wins over everything below. With neither,
+a manifest that sets `git_host.kind` takes one. With no `git_host.kind` either,
+the member checkout's own remotes answer: a remote on github.com takes one, and
+any other remote — another host, a path on this machine, or none — takes none.
+Only the configured remote URLs are read; nothing is asked of the host. A host
+the worker's tooling does know, off github.com, takes one once `git_host.kind`
+or `pull_requests: true` says so. When the answer is no, no pull request is owed
+at any tier, `publish: true` included: the envelope's close-out carries
+`pr_required: false` with `host_takes_pr: false`, and the seed tells the worker
+to push where its tier allows, open nothing, and close out with `prs` empty,
+saying what a reviewer has to do with the pushed branch. A close-out declared
+`true` on such a member is refused `dispatch-closeout-impossible`.
 
 ```yaml
 git_host:
@@ -795,8 +800,8 @@ tool because the script said no is the drift this whole design removes.
 | `dispatch-workflow-not-driver-capable` | The node dispatches into a member but names a workflow that cannot run under a driver — it would ask a question no one is there to answer. Point `uses:` at an orchestrator skill or a `workflow:`, or drop the `dir:` and run the step in the coordinating repository. Nothing was written. |
 | `dispatch-run-unresolved` | The node would be dispatched into a per-run worktree, but no run id resolves, and a worktree named after nothing would be shared by every run of the chain. Point `--run` at the run directory whose basename is the run id, or record the run's task path in its state, or set `defaults.worktree: false` to work in the member checkout itself. Nothing was written. |
 | `dispatch-permissions-override-unsupported` | The dispatch carries a `permissions` override. Permissions belong to the autonomy tier and to nothing else: each tier renders one fixed allow and deny list, and a per-dispatch override would hand a worker permissions its tier never granted. The field is refused rather than ignored, because a discarded security override leaves the caller believing it was applied. Drop `permissions` from the override document and dispatch the node at the tier whose permissions you mean. Nothing was written. |
-| `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. The same refusal answers a declared pull request on a member whose git host the manifest declares takes none (`pull_requests: false`): drop the declaration, or change the manifest once the host can take one. Nothing was written. |
-| `dispatch-no-git-host` | The node sets `publish: true` and owes a pull request, but no git host resolves for its member: the manifest's `git_host.kind` is unset and the member's checkout has no remote on a host. The worker could neither push for review nor open the pull request, and would find out only at its close-out. Set `git_host.kind` in the manifest, give the member a remote on its git host, or drop `publish` from the node's `with:` map. Nothing was written. |
+| `dispatch-closeout-impossible` | A close-out contract — the node's own `with:` declaration, or the dispatch override — demands a pull request while the autonomy tier can never open one: the tier denies the command and has no operator to approve it, so the worker would be handed a contract its own permissions forbid. Dispatch the node at a tier that permits a pull request, or drop the declaration and let the tier decide what close-out means. The same refusal answers a declared pull request on a member whose git host takes none — the manifest declares `pull_requests: false`, or names no `git_host.kind` and the member has no remote on github.com: drop the declaration, or set `pull_requests: true` once the host can take one. Nothing was written. |
+| `dispatch-no-git-host` | The node sets `publish: true` and owes a pull request — the manifest declares `pull_requests: true` — but no git host resolves for its member: the manifest's `git_host.kind` is unset and the member's checkout has no remote on a host. The worker could neither push for review nor open the pull request, and would find out only at its close-out. Set `git_host.kind` in the manifest, give the member a remote on its git host, or drop `publish` from the node's `with:` map. Nothing was written. |
 | `dispatch-worktree-invalid` | The dispatch override carries a `worktree` that is not `.worktrees/<name>` inside the member — an absolute path, a `..`, a second segment, a name a git branch segment could not be. It is refused rather than normalised, because a worker sent to a path outside the member writes where no dispatch should. Send the existing worktree's relative path, or leave the field out to derive one, and re-run. Nothing was written. |
 | `dispatch-siblings-invalid` | The dispatch override carries a `siblings` field that is not a list of `{member, branch, worktree}`, each a non-empty string. It is refused rather than trimmed, because a worker sent to half a path reads the wrong tree. Correct the list the caller builds from the outcome's recorded dispatches, or leave the field out, and re-run. Nothing was written. |
 | `dispatch-driver-features-invalid` | The dispatch override carries a `driver_features` field that is not a list of distinct known feature names — `question-sets` is the one there is. It is refused rather than dropped, because a host that asked for a feature and silently lost it waits on answers its worker never asks for. Send the list with known names once each, or leave the field out, and re-run. Nothing was written. |
