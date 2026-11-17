@@ -18,7 +18,8 @@
  * check (`docs-manager/scripts/docs-check.mjs`), the standard candidates
  * lookup (`standards-update/scripts/candidates.mjs`), and standards
  * discovery's findings check and external sources check
- * (`standards-discover/scripts/`). The freeze travels in
+ * (`standards-discover/scripts/`), and `project-profile` with its profile
+ * file. The freeze travels in
  * the patch file under every shell; the node writes travel as a here-string
  * (`<<< '<json>'`, an apostrophe written `'\''`) under bash and zsh, and in the
  * patch file under every shell on Windows. Then the hooks, each started as `hooks.json`
@@ -320,6 +321,18 @@ try {
   check('the external sources check reports gh as a state and finds CI from a path holding a space',
     sources.code === 0 && ['available', 'not-installed', 'not-signed-in'].includes(sourcesReport?.github)
       && sourcesReport.scan === true && sourcesReport.ci.includes('.github/workflows/ci.yml'), show(sources));
+
+  // --- the project profile --------------------------------------------------
+  // As init sends it: the JSON in the profile file beside config.yml, named by
+  // its project-relative path, so no shell quotes it; the file gone once written.
+  const profileFile = path.join(project, '.maister', '.project-profile.json');
+  fs.writeFileSync(profileFile, JSON.stringify({ kind: 'cli', runtime: "node 20 'lts' $HOME `x`", data: [] }));
+  const profiled = call('project-profile', [flag('patch-file', '.maister/.project-profile.json')]);
+  const profileReport = json(profiled.stdout);
+  const configText = fs.existsSync(path.join(project, '.maister', 'config.yml')) ? fs.readFileSync(path.join(project, '.maister', 'config.yml'), 'utf8') : '';
+  check('project-profile reads the profile file from a path holding a space, its JSON untouched by the shell',
+    profiled.code === 0 && profileReport?.action === 'created' && configText.includes("runtime: \"node 20 'lts' $HOME `x`\"")
+      && !fs.existsSync(profileFile), show(profiled));
 
   // --- the hooks ------------------------------------------------------------
   // Each hook is started from its `hooks.json` entry the way the host starts

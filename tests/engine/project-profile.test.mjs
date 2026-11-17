@@ -296,3 +296,85 @@ test('review-brief: standalone with no project key says source none', t => {
   assert.deepEqual(json.profile, { source: 'none' });
   assert.doesNotMatch(stderr, /review-brief-profile/);
 });
+
+// --- the profile file: init writes the profile with its file tool, beside
+// config.yml, and names it with --patch-file, so no shell quotes the JSON.
+
+const profileFile = run => path.join(run.root, '.maister', '.project-profile.json');
+
+function writeProfileFile(run, text, args = []) {
+  fs.mkdirSync(path.dirname(profileFile(run)), { recursive: true });
+  if (text !== null) fs.writeFileSync(profileFile(run), text);
+  const result = verb(['project-profile', `--patch-file=${profileFile(run)}`, ...args], undefined, { CLAUDE_PROJECT_DIR: run.root });
+  return { ...result, report: result.stdout ? JSON.parse(result.stdout) : null };
+}
+
+test('project-profile --patch-file reads the profile file beside config.yml and deletes it once written', t => {
+  const run = scratch(t);
+  config(run, 'html_output: true\n');
+  const { code, stderr, report } = writeProfileFile(run, JSON.stringify({ kind: 'cli', runtime: "node 20 'lts'", data: [] }));
+  assert.equal(code, 0, stderr);
+  assert.equal(report.action, 'appended');
+  assert.match(fs.readFileSync(configFile(run), 'utf8'), /^project:\n {2}kind: cli {2}#/m);
+  assert.equal(fs.existsSync(profileFile(run)), false);
+});
+
+test('project-profile --patch-file --fill fills the fields an existing key lacks', t => {
+  const run = scratch(t);
+  config(run, 'project:\n  kind: cli\n');
+  const { code, stderr, report } = writeProfileFile(run, JSON.stringify({ kind: 'service', runtime: 'node 22' }), ['--fill']);
+  assert.equal(code, 0, stderr);
+  assert.match(fs.readFileSync(configFile(run), 'utf8'), /kind: cli/);
+  assert.match(fs.readFileSync(configFile(run), 'utf8'), /runtime: "?node 22"?/);
+  assert.notEqual(report.action, 'kept');
+});
+
+test('project-profile --patch-file with no file there is a usage error, nothing written', t => {
+  const run = scratch(t);
+  config(run, 'html_output: true\n');
+  const { code, stderr } = writeProfileFile(run, null);
+  assert.equal(code, 2);
+  assert.match(stderr, /the profile file .*could not be read/);
+  assert.equal(fs.readFileSync(configFile(run), 'utf8'), 'html_output: true\n');
+});
+
+test('project-profile --patch-file holding no JSON is a usage error, the file kept to correct', t => {
+  const run = scratch(t);
+  config(run, 'html_output: true\n');
+  const { code, stderr } = writeProfileFile(run, '{ kind: cli');
+  assert.equal(code, 2);
+  assert.match(stderr, /the detected profile in .*\.project-profile\.json is not JSON/);
+  assert.equal(fs.existsSync(profileFile(run)), true);
+  assert.equal(fs.readFileSync(configFile(run), 'utf8'), 'html_output: true\n');
+});
+
+test('project-profile --patch-file refused as bad input keeps the file', t => {
+  const run = scratch(t);
+  config(run, 'html_output: true\n');
+  const { code, stderr } = writeProfileFile(run, '["cli"]');
+  assert.equal(code, 1);
+  assert.match(stderr, /project-profile-bad-input/);
+  assert.equal(fs.existsSync(profileFile(run)), true);
+});
+
+test('project-profile --patch-file naming any other place is refused unread', t => {
+  const run = scratch(t);
+  config(run, 'html_output: true\n');
+  const elsewhere = path.join(run.root, 'profile.json');
+  fs.writeFileSync(elsewhere, JSON.stringify({ kind: 'cli' }));
+  const result = verb(['project-profile', `--patch-file=${elsewhere}`], undefined, { CLAUDE_PROJECT_DIR: run.root });
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /the profile file must be .*\.project-profile\.json, beside the config\.yml it writes/);
+  assert.equal(fs.existsSync(elsewhere), true);
+});
+
+test('project-profile still takes the profile on stdin, and names the file route when stdin is empty', t => {
+  const run = scratch(t);
+  config(run, 'html_output: true\n');
+  const { code, stderr, report } = writeProfile(run, { kind: 'library' });
+  assert.equal(code, 0, stderr);
+  assert.equal(report.action, 'appended');
+  const empty = verb(['project-profile'], '', { CLAUDE_PROJECT_DIR: run.root });
+  assert.equal(empty.code, 2);
+  assert.match(empty.stderr, /the detected profile on stdin is empty/);
+});
