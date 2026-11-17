@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, lastLine, readState, run as runScript, scratch, scratchPlugin, sibling, umbrella, verb, delegating, write as writeState } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, lastLine, readState, run as runScript, scratch, scratchPlugin, sibling, publishOutbox, verb, delegating, write as writeState } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { published } from '../../plugins/maister/lib/outbox-files.mjs';
 
@@ -132,8 +132,7 @@ test('dispatch: an outbox holding no close-out is closeout-unpublished', t => {
 test('dispatch: once the close-out is published the run completes', t => {
   const run = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE }, { orchestrator: DISPATCH('c') });
   const outbox = path.join(run.root, 'outbox');
-  const published = umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade: 'success', summary: 'done' });
-  assert.equal(published.code, 0, published.stdout);
+  publishOutbox(outbox, 'd-1', 'closeout', { grade: 'success', summary: 'done' });
   const result = complete(run, [`--outbox=${outbox}`, '--dispatch-id=d-1']);
   assert.equal(result.code, 0);
   assert.equal(result.stdout, 'RUN-COMPLETE\n');
@@ -143,13 +142,13 @@ test('dispatch: a failed run is still checked for its close-out before its failu
   const run = ended(t, { task: { status: 'failed' }, nodes: { analysis: { status: 'failed' } } }, { orchestrator: DISPATCH('d') });
   const outbox = path.join(run.root, 'outbox');
   assert.equal(complete(run, [`--outbox=${outbox}`, '--dispatch-id=d-1']).stdout, 'RUN-FAILED: closeout-unpublished\n');
-  umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade: 'failed', summary: 'analysis failed' });
+  publishOutbox(outbox, 'd-1', 'closeout', { grade: 'failed', summary: 'analysis failed' });
   assert.equal(complete(run, [`--outbox=${outbox}`, '--dispatch-id=d-1']).stdout, 'RUN-FAILED: node analysis failed\n');
 });
 
-test('dispatch: run-complete loads and judges the close-out with the umbrella runtime absent', t => {
-  // A copy of the plugin without the umbrella skill: the engine reads an outbox
-  // through the plugin-root library and never imports the umbrella.
+test('dispatch: run-complete loads and judges the close-out from a copy of the plugin alone', t => {
+  // The engine reads an outbox through the plugin-root library and needs no
+  // umbrella skill beside it; the copy is checked to hold none.
   const engine = scratchPlugin(t);
   fs.rmSync(path.join(path.dirname(engine), '..', '..', 'umbrella'), { recursive: true, force: true });
   assert.equal(fs.existsSync(path.join(path.dirname(engine), '..', '..', 'umbrella')), false);
@@ -160,8 +159,7 @@ test('dispatch: run-complete loads and judges the close-out with the umbrella ru
   const before = runScript(engine, flags);
   assert.equal(before.stdout, 'RUN-FAILED: closeout-unpublished\n', before.stderr);
 
-  const sent = umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade: 'success', summary: 'done' });
-  assert.equal(sent.code, 0, sent.stdout);
+  publishOutbox(outbox, 'd-1', 'closeout', { grade: 'success', summary: 'done' });
   const after = runScript(engine, flags);
   assert.equal(after.code, 0, after.stderr);
   assert.equal(after.stdout, 'RUN-COMPLETE\n');
@@ -387,7 +385,7 @@ test('dispatch: unfinished nodes are refused before the close-out is checked, pu
   assertUnfinished(closeWith(run, closingNodes({ notify: { status: 'pending' } })), ['notify']);
   assertUnfinished(complete(run, flags), ['notify']);
 
-  umbrella(['outbox', `--outbox=${outbox}`, '--dispatch-id=d-1', '--type=closeout'], { grade: 'success', summary: 'done' });
+  publishOutbox(outbox, 'd-1', 'closeout', { grade: 'success', summary: 'done' });
   assertUnfinished(complete(run, flags), ['notify']);
 });
 

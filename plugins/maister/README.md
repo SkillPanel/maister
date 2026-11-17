@@ -32,7 +32,6 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 | `/maister:product-design` | Turning a fuzzy idea into a product brief and prototypes |
 | `/maister:run` | Starting or resuming a workflow by name, including ones your project defines |
 | `/maister:workflow-author` | Writing your project's own workflows or overlays of a built-in one |
-| `/maister:umbrella` | Setting up and validating a workspace of several repositories |
 | `/maister:quick-plan` | A plan with standards awareness before coding |
 | `/maister:quick-dev` | Implementing directly with standards applied |
 | `/maister:quick-bugfix` | TDD-driven bug fix: failing test, fix, verify |

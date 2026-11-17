@@ -851,6 +851,7 @@ Warnings never block, and each one is worth reading:
 | `reserved-key:<key>` | A reserved key (§ 10), parsed and ignored |
 | `newer-format` | A version above 1: only the structure and the cycle check ran |
 
-In a workspace, `/maister:umbrella validate` additionally checks every `dir:` against the members
-the manifest declares and that each dispatched target can run unattended. It judges each
-definition as written and applies no overlays, so an overlay is checked with `--check`.
+A workspace is set up and validated through the Pro edition, whose validation additionally checks
+every `dir:` against the members the manifest declares and that each dispatched target can run
+unattended. It judges each definition as written and applies no overlays, so an overlay is checked
+with `--check`.

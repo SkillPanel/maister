@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, umbrella, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, verb, write } from '../helpers.mjs';
 
 // A dispatched node — a workflow: node carrying dir: — whose close-out is
 // graded partial stays waiting and asks one question: accept the work as
@@ -157,23 +157,21 @@ test('stop: the node and every unexecuted node are recorded stopped, and the run
 // A partial close-out asks only while the hold is live. When the dispatch's
 // ledger entry records its pull request in closeout.prs, as {repo, number, url}, or its
 // needs: [permission] follow-up is resolved, the node is completed with a
-// by: run decision naming what resolved it, and nothing is asked. The ledger
-// fields are read back through the umbrella's own query, as the run reads them.
+// by: run decision naming what resolved it, and nothing is asked. The entry is
+// the shape the ledger's query returns for such a dispatch.
 
-/** A ledger entry for `remote` closed out partial, with the given pull requests and follow-up; its queried entry. */
+/** A ledger entry for `remote` closed out partial, with the given pull requests and follow-up, as the ledger query returns it. */
 function ledgerEntry(t, { prs = [], followup = null } = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-ledger-'));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const op = (name, args, id = 'd-0001') => {
-    const result = umbrella(['ledger', `--ledger=${root}`, `--op=${name}`, '--actor=daemon', ...(id ? [`--dispatch-id=${id}`] : [])], args);
-    assert.equal(result.code, 0, result.stdout + result.stderr);
-    return JSON.parse(result.stdout);
+  const followups = followup === null ? [] : [{
+    id: 'f-push', summary: HELD, status: followup === 'resolved' ? 'resolved' : 'open',
+    ...(followup === 'resolved' ? { resolved_by: 'dana' } : {}),
+  }];
+  return {
+    dispatch_id: 'd-0001',
+    chain: { run_id: '2026-01-05-dispatch-partial', node: 'remote' },
+    closeout: { grade: 'partial', prs, summary: 'push held for operator approval' },
+    followups,
   };
-  op('create-entry', { chain: { run_id: '2026-01-05-dispatch-partial', node: 'remote' } }, null);
-  if (followup) op('add-followup', { id: 'f-push', summary: HELD });
-  op('close-out', { grade: 'partial', prs, summary: 'push held for operator approval' });
-  if (followup === 'resolved') op('resolve-followup', { id: 'f-push', by: 'dana' });
-  return op('query', {}).entry;
 }
 
 /** Whether the entry says the held item already happened: the rule the engine skill states. */

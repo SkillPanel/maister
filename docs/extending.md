@@ -134,10 +134,9 @@ overlays over it — the `<name>.overlay.yml` beside it, then any `--overlay` yo
 It parses the file, checks ids and the graph, resolves every target and checks gate shape. Each
 error names the file, the node and the field, with a one-line fix where the fix is mechanical.
 Warnings never block, and each one is listed. `/maister:run` runs the same check before it starts
-a run, so a definition that does not validate never becomes one. In an umbrella workspace,
-`/maister:umbrella validate --definition .maister/workflows/<name>.yml` also checks every `dir:`
-against the members the manifest declares. It needs that manifest, and it judges each definition
-as written, without overlays.
+a run, so a definition that does not validate never becomes one. Multi-repository workspaces are
+set up and validated through the Pro edition, whose validation also checks every `dir:` against the
+members the workspace declares, judging each definition as written, without overlays.
 
 `/maister:workflow-author check <name>` runs the same check and adds more. It checks that
 a skill or agent your project provides is registered under the name the node uses. It flags an

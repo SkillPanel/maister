@@ -537,7 +537,7 @@ adopted once `direction-approval` continued.
    scope layer and in the statement of the member it would have changed. A point
    deliberately not carried is named in the scope layer with why.
 3. **Write `outputs/delivery-scope.yml`** as
-   `<plugin root>/skills/umbrella/references/delivery-scope.md` shapes it. A member is
+   `<plugin root>/skills/product-design/references/delivery-scope.md` shapes it. A member is
    in scope when the design changes something it owns. Draw every statement from the
    agreed points and the documents on disk, never from a guess about code nobody read.
 4. **Check the scope against the agreed points** — every one carried, or named as left
