@@ -196,14 +196,14 @@ copilot plugin marketplace add SkillPanel/maister#release/2.x
 copilot plugin install maister-copilot@maister-plugins-2x
 ```
 
-Or carry a development or research task over as background for a new run:
+Or carry a development, research or product-design task over as background for a new run:
 
 ```
 /maister-copilot:development --context=.maister/tasks/development/2025-06-02-old-task Finish the export feature
 ```
 
 The new run copies the old folder in as reading material and starts from its first phase. See
-[Task directories from 2.x](workflows.md#task-directories-from-2x).
+[Tasks started on 2.x](upgrading-from-2x.md#tasks-started-on-2x).
 
 ## Answering questions
 
@@ -296,7 +296,7 @@ and the HTML companion writer) and the built-in `explore` agent maister starts r
 `claude-haiku-5.5` at high reasoning effort. The docs operator and the standards scans run on
 `claude-sonnet-5.5`. Each task group of an implementation runs on
 the tier its plan gives it, up to `standard`: `claude-haiku-5.5` at high effort for `light`, and
-`claude-sonnet-5.5` for `standard`, for `deep` and for a group with no tier. The five
+`claude-sonnet-5.5` for `standard`, for `deep` and for a group with no tier. The three
 verification reviewers and the specification auditor run on `claude-sonnet-5.5` too, where
 Claude Code gives them its deep model. The fixes verification applies without asking run on the
 session's model.

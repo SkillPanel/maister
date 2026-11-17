@@ -728,7 +728,7 @@ cell carries `effort: high`, and `task-group-implementer` on the planner's tier 
 by-plan-tier` over the whole ladder, `unassessed: standard`, `ceiling: {claude: deep, copilot:
 standard}`, no `budget`), except in the built-in fix-loop nodes — development's and
 performance's `verification`, migration's `issue-resolution` — where it has `model: inherit`;
-the five verification reviewers and `spec-auditor` on `tier: {claude: deep, copilot: standard}`;
+the three verification reviewers and `spec-auditor` on `tier: {claude: deep, copilot: standard}`;
 every other agent inherits. A `ceiling` is a rung or a rung per host, and a host it does not
 name has the top rung. An entry's `tier` is a rung, `inherit`, or one of them per host; an entry
 whose per-host `tier` does not name the host is passed over there, as a pinned `model` is on
