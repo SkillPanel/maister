@@ -465,3 +465,12 @@ test('seed: a malformed driver.features is refused seed-envelope-invalid', () =>
       error => error.code === 'seed-envelope-invalid' && /driver\.features/.test(error.message), JSON.stringify(features));
   }
 });
+
+test('seed: the outbox line is followed by the verb\'s only flags, with the message fields in the body file', () => {
+  const prompt = renderSeed(buildSeed(ENVELOPE, { pluginRoot: path.join(ROOT, 'plugins/maister') }));
+  const lines = prompt.split('\n');
+  assert.ok(lines.length <= SEED_LINE_CAP, `the seed is ${lines.length} lines`);
+  const command = lines.findIndex(line => /umbrella\.mjs outbox --outbox=.+ --dispatch-id=d-0001 --type=<type> --input-file=.+$/.test(line));
+  assert.ok(command >= 0, prompt);
+  assert.match(lines[command + 1], /takes exactly these four flags - --outbox, --dispatch-id, --type and --input-file - and no others: the summary, grade, commits, prs, reason and path are fields of the JSON body in that file, never flags on the line\./);
+});
