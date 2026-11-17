@@ -1,4 +1,4 @@
-.PHONY: build diagram validate test test-mod smoke clean watch
+.PHONY: build diagram reference validate test test-mod smoke clean watch
 
 # No target opens a browser: the engine opens a run's dashboard at the freeze and
 # at a resume check unless this is set, and every recipe's engine call inherits it.
@@ -22,6 +22,13 @@ diagram:
 	    --definition $$definition \
 	    --out $${definition%.yml}.mmd || exit 1; \
 	done
+
+# Regenerate docs/workflow-reference.md, the generated page that lists each
+# built-in's inputs, steps, checkpoints and declared outputs. `make validate`
+# byte-compares it against a fresh generation, so run this after editing a
+# definition and commit both together, as with `make diagram`.
+reference:
+	@node tools/workflow-reference.mjs
 
 # The containment sentence every source agent carries, as validate checks it.
 # It holds no apostrophe, so the recipe can single-quote it.
@@ -213,6 +220,8 @@ validate:
 	  diff -q $$tmp $${definition%.yml}.mmd >/dev/null || { rm -f $$tmp; echo "FAIL: $${definition%.yml}.mmd is stale — run make diagram"; exit 1; }; \
 	done; \
 	rm -f $$tmp
+	@echo "Checking the workflow reference matches a fresh generation..."
+	@node tools/workflow-reference.mjs --check
 	@echo "Checking the plugin ships no JSON schema files..."
 	@test "$$(find plugins/maister -path '*/schemas/*' -name '*.json' 2>/dev/null | wc -l | tr -d ' ')" -eq 0 || (echo "FAIL: a schema file is shipped under plugins/maister/" && exit 1)
 	@echo "Checking each interface file matches a fresh generation from its tree..."
