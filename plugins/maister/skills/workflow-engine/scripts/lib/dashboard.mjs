@@ -16,7 +16,7 @@
  * writing state — the empty patch after each wave, the verification cycle's
  * record after each cycle — never by writing the file.
  *
- * **Write-strict** (ADR-0006). The output is exactly one statement —
+ * **Write-strict**. The output is exactly one statement —
  * `window.MAISTER_DATA = <strict JSON>;` — with double-quoted keys, no banner
  * comment, no trailing content and one trailing newline. A viewer that has to
  * tolerate a second shape is a viewer with a parser in it, and the two dashboard
@@ -29,7 +29,7 @@
  * the same `canonical.stamp()` the state write itself carries, so a write and its
  * projection agree to the second. Every export is a total function of its
  * arguments, following `diagram.mjs`'s `render(resolved)`. That is what makes the
- * output golden-file testable (ADR-0011) — same state, same bytes, on every
+ * output golden-file testable — same state, same bytes, on every
  * platform and at every hour — and it is why this module is separate from the
  * writer that publishes it rather than a section of it: `state.mjs` imports this
  * file, so this file can import nothing of `state.mjs`, exactly the reason

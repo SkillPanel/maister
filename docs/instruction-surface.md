@@ -31,7 +31,7 @@ rather than the plugin.
 
 **What moved since, 2026-09-21, not yet folded into the table above.** The prose twins of
 `development`, `research` and `performance` moved out of their orchestrator `SKILL.md` files into
-`references/<name>-twin.md` (ADR-0023): 117,534 bytes leave the Skills row and 122,483 arrive in the
+`references/<name>-twin.md`: 117,534 bytes leave the Skills row and 122,483 arrive in the
 References row, and the corpus total is unchanged but for the hand-offs' own framing. The number
 this change is scored against is not in this section at all — it is what a *run* loads, and there
 the three orchestrators fell from 129,071 B to 11,537 B on the default path. That is the distinction
