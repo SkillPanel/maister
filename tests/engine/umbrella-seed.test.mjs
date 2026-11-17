@@ -391,7 +391,7 @@ test('seed: a malformed siblings list is refused seed-envelope-invalid', () => {
     error => error.code === 'seed-envelope-invalid' && /siblings entry 0 has no branch/.test(error.message));
 });
 
-// A member whose git host the workspace declares takes no pull request: every
+// A member whose git host takes no pull request: every
 // tier's close-out opens with the one line that says so, and none says a pull
 // request is required.
 test('seed: a host that takes no pull request tells the worker at every tier to push and close out with prs empty', () => {
@@ -403,7 +403,7 @@ test('seed: a host that takes no pull request tells the worker at every tier to 
     const lines = renderSeed(buildSeed(envelope, { pluginRoot: path.join(ROOT, 'plugins/maister') })).split('\n');
     assert.ok(lines.length <= SEED_LINE_CAP, `${autonomy}: the seed is ${lines.length} lines`);
     const closeout = lines.slice(lines.indexOf('# closeout'), lines.indexOf('# siblings'));
-    assert.equal(closeout[1], 'No pull request can be opened - the workspace declares that this member\'s git host takes none. Do not run `gh pr view` or `gh pr create`, even where your workflow\'s own steps would open one. Push your branch where your tier allows it, then close out with `prs` empty and say in the closeout what a reviewer has to do with the pushed branch.', autonomy);
+    assert.equal(closeout[1], 'No pull request can be opened - this member\'s git host takes none. Do not run `gh pr view` or `gh pr create`, even where your workflow\'s own steps would open one. Push your branch where your tier allows it, then close out with `prs` empty and say in the closeout what a reviewer has to do with the pushed branch.', autonomy);
     assert.equal(closeout.filter(line => /No pull request is required|pull request is required before/.test(line)).length, 0, autonomy);
   }
 });

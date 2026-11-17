@@ -352,7 +352,7 @@ export function buildEnvelope({ run, node, manifest, root = null, definition = n
   const session = mapOf(overrides.session);
   const statement = statementOf({ defined, overrides });
   const permissions = permissionsOf(autonomy);
-  const hostTakesPr = hostTakesPrOf({ entry, manifest });
+  const hostTakesPr = hostTakesPrOf({ member, entry, manifest, root });
   const prRequired = closeoutPrOf({ node, member, defined, autonomy, permissions, overrides, hostTakesPr });
   assertGitHost({ node, member, defined, entry, manifest, root, prRequired });
   const siblings = siblingsOf(overrides, members);
@@ -750,7 +750,7 @@ function closeoutPrOf({ node, member, defined, autonomy, permissions, overrides,
   if (!hostTakesPr) {
     if (closeoutDeclaration({ node, defined, overrides }) === true) {
       throw new Refusal('dispatch-closeout-impossible',
-        `a pull request is required for the node "${node}" while the manifest declares that the git host of the member "${member}" takes none (pull_requests: false) — so the worker would be told to open what its host cannot take. Drop the declaration, or set pull_requests in .maister/umbrella.yml to true once the host can take one.`);
+        `a pull request is required for the node "${node}" while the git host of the member "${member}" takes none — the manifest declares pull_requests: false, or names no git_host.kind and the member has no remote on github.com — so the worker would be told to open what its host cannot take. Drop the declaration, or set pull_requests in .maister/umbrella.yml to true once the host can take one.`);
     }
     return false;
   }
@@ -766,22 +766,30 @@ function closeoutPrOf({ node, member, defined, autonomy, permissions, overrides,
 }
 
 /**
- * Whether the member's git host takes a pull request, as the workspace declares
- * it: `members.<member>.pull_requests`, else `git_host.pull_requests`, else yes.
+ * Whether the member's git host takes a pull request.
  *
- * A host is known to take none only when someone says so. An unset
- * `git_host.kind` is not that statement — it is also what `init` leaves when it
- * cannot name a host — and asking `gh` at envelope time would answer for the
- * machine building the envelope, not for the worker. So the answer is a declared
- * boolean, and a manifest that declares nothing keeps every close-out it had.
- * When the answer is no, no pull request is owed whatever the tier or `publish`
- * says, and the envelope records why so the seed can tell the worker plainly.
+ * A declaration wins: `members.<member>.pull_requests`, else
+ * `git_host.pull_requests`. A manifest that names its host with `git_host.kind`
+ * and declares nothing takes one. A manifest that names no host is answered
+ * from the member checkout's own remotes, the same way the cockpit reads them:
+ * a remote on github.com takes a pull request, and any other remote — another
+ * host, a path on this machine, none at all — takes none, because the worker's
+ * tooling opens pull requests on github.com only. Asking `gh` at envelope time
+ * would answer for the machine building the envelope, not for the worker, so
+ * only the configured remote URLs are read. When the answer is no, no pull
+ * request is owed whatever the tier or `publish` says, and the envelope records
+ * why so the seed can tell the worker plainly.
  */
-function hostTakesPrOf({ entry, manifest }) {
+function hostTakesPrOf({ member, entry, manifest, root }) {
   for (const value of [mapOf(entry).pull_requests, mapOf(manifest?.git_host).pull_requests]) {
     if (typeof value === 'boolean') return value;
   }
-  return true;
+  const kind = mapOf(manifest?.git_host).kind;
+  if (typeof kind === 'string' && kind.trim() !== '') return true;
+  const base = rootOf(root);
+  if (base === null) return false;
+  const checkout = path.resolve(base, entry?.path ?? member);
+  return remoteUrls(checkout).some((url) => gitHostKind(url) === 'github');
 }
 
 /**

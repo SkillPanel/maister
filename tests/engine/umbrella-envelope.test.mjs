@@ -290,11 +290,21 @@ test('envelope: a declared false outranks publish, from the node and from the ov
 });
 
 // Publishing needs a git host behind the member — the manifest's git_host.kind,
-// or a remote of the member's own on a host — and a dispatch that has neither is
-// refused before its entry is opened or its envelope published.
+// or a remote of the member's own on a host — and a dispatch that owes a pull
+// request with neither is refused before its entry is opened or its envelope
+// published. With no git_host.kind and no declaration, the member's remote
+// decides whether a pull request is owed at all: github.com takes one, any
+// other remote or none takes none.
 
-test('envelope: publish with no git host is refused dispatch-no-git-host, and nothing is written', (t) => {
+/** Declare `pull_requests: true` on the workspace's git host. */
+function pullRequests(ws) {
+  const text = fs.readFileSync(ws.manifest, 'utf8');
+  fs.writeFileSync(ws.manifest, text.replace(/^( {2}org: null)$/m, '$1\n  pull_requests: true'));
+}
+
+test('envelope: publish declared to owe a pull request with no git host is refused dispatch-no-git-host, and nothing is written', (t) => {
   const ws = workspace(t);
+  pullRequests(ws);
   const result = dispatch(ws, publishChain(ws, ['publish: true']));
   assert.equal(result.code, 1, result.stdout + result.stderr);
   const report = JSON.parse(result.stdout);
@@ -314,17 +324,52 @@ test('envelope: publish with git_host.kind set is dispatched', (t) => {
   assert.equal(published(dispatch(ws, publishChain(ws, ['publish: true']))).envelope.closeout_contract.pr_required, true);
 });
 
-test('envelope: publish with no git_host but a member remote on a host is dispatched', (t) => {
-  for (const url of ['git@github.com:acme/alpha.git', 'https://gitlab.example.com/acme/alpha.git']) {
+test('envelope: publish with no git_host but a member remote on github.com owes a pull request', (t) => {
+  for (const url of ['git@github.com:acme/alpha.git', 'https://github.com/acme/alpha.git']) {
     const ws = workspace(t);
     remote(ws, url);
-    assert.equal(published(dispatch(ws, publishChain(ws, ['publish: true']))).envelope.closeout_contract.pr_required, true, url);
+    const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true'])));
+    assert.deepEqual(envelope.closeout_contract, { pr_required: true, grade: ['success', 'partial', 'failed'] }, url);
   }
 });
 
-test('envelope: a member remote on a local path is no git host, so publish is refused', (t) => {
+test('envelope: with no git_host.kind, a member remote off github.com, on a local path or absent takes no pull request', (t) => {
+  for (const url of ['https://gitlab.example.com/acme/alpha.git', 'git@bitbucket.org:acme/alpha.git', 'LOCAL', null]) {
+    const ws = workspace(t);
+    if (url !== null) remote(ws, url === 'LOCAL' ? path.join(ws.root, 'bare.git') : url);
+    const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true']).replace('autonomy: auto-medium', 'autonomy: auto-high')));
+    assert.equal(envelope.closeout_contract.pr_required, false, String(url));
+    assert.equal(envelope.closeout_contract.host_takes_pr, false, String(url));
+  }
+});
+
+test('envelope: a declared pull_requests: true wins over a remote off github.com', (t) => {
+  const ws = workspace(t);
+  remote(ws, 'https://gitlab.example.com/acme/alpha.git');
+  pullRequests(ws);
+  const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true'])));
+  assert.deepEqual(envelope.closeout_contract, { pr_required: true, grade: ['success', 'partial', 'failed'] });
+});
+
+test('envelope: a declared pull_requests: false wins over a remote on github.com', (t) => {
+  const ws = workspace(t);
+  remote(ws, 'git@github.com:acme/alpha.git');
+  noPullRequests(ws);
+  const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true'])));
+  assert.equal(envelope.closeout_contract.host_takes_pr, false);
+});
+
+test('envelope: a git_host.kind with no declaration takes a pull request whatever the remote', (t) => {
+  const ws = workspace(t);
+  gitHost(ws, 'gitlab');
+  remote(ws, 'https://gitlab.example.com/acme/alpha.git');
+  assert.equal(published(dispatch(ws, publishChain(ws, ['publish: true']))).envelope.closeout_contract.pr_required, true);
+});
+
+test('envelope: a member remote on a local path is no git host, so publish declared to owe a pull request is refused', (t) => {
   const ws = workspace(t);
   remote(ws, path.join(ws.root, 'bare.git'));
+  pullRequests(ws);
   const result = dispatch(ws, publishChain(ws, ['publish: true']));
   assert.equal(result.code, 1, result.stdout + result.stderr);
   assert.equal(JSON.parse(result.stdout).errors[0].code, 'dispatch-no-git-host');
@@ -378,7 +423,7 @@ test('envelope: a host declared to take no pull request owes none, publish and t
   const { envelope } = published(dispatch(ws, publishChain(ws, ['publish: true']).replace('autonomy: auto-medium', 'autonomy: attended')));
   assert.deepEqual(envelope.closeout_contract, { pr_required: false, host_takes_pr: false, grade: ['success', 'partial', 'failed'] });
   const closeout = closeoutSection(envelope);
-  assert.match(closeout[1], /^No pull request can be opened - the workspace declares that this member's git host takes none\. Do not run `gh pr view` or `gh pr create`/);
+  assert.match(closeout[1], /^No pull request can be opened - this member's git host takes none\. Do not run `gh pr view` or `gh pr create`/);
   assert.match(closeout[1], /close out with `prs` empty/);
   assert.equal(closeout.filter((line) => /pull request is required/.test(line)).length, 0);
 });

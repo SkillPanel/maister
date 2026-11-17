@@ -491,10 +491,11 @@ function outboxLines(document, pluginRoot) {
 function closeoutLines({ closeout, autonomy, permissions }) {
   const lines = [];
   if (closeout.host_takes_pr === false) {
-    // The workspace declared that this member's git host takes no pull request.
+    // This member's git host takes no pull request: the workspace declared so,
+    // or names no host and the member's remote is not on github.com.
     // Said first and plainly, because the workflow the worker runs may have its
     // own step that opens one, and that step would block on a host that cannot.
-    lines.push('No pull request can be opened - the workspace declares that this member\'s git host takes none. Do not run `gh pr view` or `gh pr create`, even where your workflow\'s own steps would open one. Push your branch where your tier allows it, then close out with `prs` empty and say in the closeout what a reviewer has to do with the pushed branch.');
+    lines.push('No pull request can be opened - this member\'s git host takes none. Do not run `gh pr view` or `gh pr create`, even where your workflow\'s own steps would open one. Push your branch where your tier allows it, then close out with `prs` empty and say in the closeout what a reviewer has to do with the pushed branch.');
   } else if (closeout.pr_required === true && autonomy === RELAYED) {
     lines.push('A pull request is required before close-out. Your tier denies opening one directly, so the command is held for an operator to approve rather than refused outright.');
   } else if (closeout.pr_required === true) {
