@@ -246,7 +246,7 @@ findable:
   `absent` (an artifact it may leave unwritten, and why) and `recommends` (which continue option a
   gate after it recommends for a value). It sits outside the graph hash, an overlay or profile may
   change one item, and the grammar's § 3.3 has its shape.
-- **What a step runs from.** Before each node the run reads the engine's brief for it: a short
+- **What a step runs from.** Before each node the run reads the engine's `node-brief` for it: a short
   header, the convention rows that apply, the step's `brief:` data, then its section — or
   `section: none` for a step without one. The `brief:` block and the section are what you write.
 - **Declare the HTML companions.** A markdown artifact that people read as a page gets an HTML

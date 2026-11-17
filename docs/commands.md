@@ -262,7 +262,7 @@ the version folder, the gallery and the grounding pack are explained in [Mockups
 |------|-------------|
 | `--turn "<note>"` | Draw one version from the note. A bare `/maister:mockup-studio "<note>"` is read the same way |
 | `--ground` | Rebuild the grounding pack from scratch, and touch no task folder |
-| `--task=<dir>` | Draw the next version in `<dir>/<subdir>/`. On a mockup studio folder (under `.maister/tasks/mockup-studio/`) the turn is recorded as a run of its own; on another workflow's task folder it is drawn there with no run record |
+| `--task=<dir>` | Draw the next version in `<dir>/<subdir>/`. On a mockup studio folder (under `.maister/tasks/mockup-studio/`) the turn is a new recorded run; on another workflow's task folder it is drawn there with no run record |
 | `--subdir=<rel>` | The folder under the task folder that holds the versions (default `analysis/mockups`) |
 | `--against=<vNNN>` | Build on that version instead of the latest |
 | `--scope=<slugs>` | Comma-separated screens to change or add; the rest carry over |
