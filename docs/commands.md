@@ -1,76 +1,99 @@
 # Command Reference
 
-## Unified Entry Point
+For people who use Maister and want the exact arguments and flags of a command. Each command is
+listed with what it takes and a line on what it does; how a workflow runs step by step is in
+[Workflows](workflows.md).
+
+On GitHub Copilot CLI, type `/maister-copilot:<name>` wherever this page writes `/maister:<name>`
+(see [Maister on GitHub Copilot CLI](copilot.md)).
+
+## Notes for every workflow command
+
+**Starting without a description.** `/maister:development`, `/maister:performance`,
+`/maister:migration`, `/maister:research` and `/maister:product-design` can be run with no
+description: the task is taken from your conversation so far.
+
+**Resuming.** Pass the task folder alone, for example
+`/maister:development .maister/tasks/development/2026-02-17-user-profile`. The run continues from
+where it stopped. A task folder started on the 2.x plugin is not resumed; the message says where to
+finish it, and [Upgrading from 2.x](upgrading-from-2x.md) explains why.
+
+<a id="flags-that-are-not-taken"></a>
+**Flags that are not taken.** `--from=PHASE` and `--reset-attempts` came from the 2.x plugin. A
+3.0 run cannot start in the middle or reset its attempts, so any workflow command that receives
+either one names it as not taken and carries on without it. Any other flag a workflow does not
+know is named the same way, in one line, and never dropped silently.
+
+---
+
+## Unified entry point
 
 ### `/maister:work [input]`
 
-Auto-classifies your task and routes to the appropriate workflow. Accepts:
+Reads the task, picks the workflow that fits and starts it, or resumes a task folder. Accepts:
 
-- **No arguments**: Extracts the task from your current conversation context
-- Task description: `/maister:work "Add user profile page"`
-- Task folder path: `/maister:work .maister/tasks/development/2026-02-17-user-profile` (resumes)
-- GitHub issue URL: `/maister:work https://github.com/org/repo/issues/42`
+| Input | Example |
+|-------|---------|
+| Task description | `/maister:work "Add user profile page"` |
+| Task folder path | `/maister:work .maister/tasks/development/2026-02-17-user-profile` (resumes) |
+| Task folder name alone | `/maister:work 2026-02-17-user-profile` (searches every task type) |
+| GitHub issue | `#456`, `GH-456` or the issue URL |
+| Jira ticket | `PROJ-456` or the ticket URL |
+| Azure DevOps work item | `AB#123` or the work item URL |
+| No argument | Asks what you want to work on |
 
-The plugin classifies the task type with confidence scoring, asks for confirmation, then starts the matching workflow.
-
-Workflows your project defines in `.maister/workflows/` are candidates too. When your description
-matches one of them, `/maister:work` offers it beside the best built-in match, and the manual
-selection lists them after the built-ins. A task folder of a workflow started by name resumes the
-same way as any other.
+When it is confident about the workflow it starts it straight away and says why in one line.
+When it is less sure, or the description covers several tasks, it asks once, with its best guess
+recommended. Workflows your project defines in `.maister/workflows/` are candidates too: when one
+matches, it asks before starting it. A finished or failed task folder gets one question about what
+to do next; one in progress resumes without asking.
 
 ### `/maister:run <name> ["title"] [key=value ...] [--profile=NAME] [--overlay=PATH ...] [--check]`
 
 Starts a workflow by name: one your project defines in `.maister/workflows/<name>.yml`, an eject
-or an overlay of a built-in, or a built-in itself. It finds the definition, checks that it
-validates, asks for any required input you did not give, and starts the run. From there the run
-behaves like any built-in one: the same dashboard, the same gates, and the same way of resuming.
+or an overlay of a built-in, or a built-in itself. It finds the definition, checks that it is
+valid, asks for any required input you did not give, and starts the run. From there the run
+behaves like any built-in one: the same dashboard, the same checkpoints and the same way of
+resuming.
 
 | Argument | Description |
 |----------|-------------|
 | `<name>` | The workflow's file name without `.yml`, or a built-in's name |
 | `"title"` | Free text: the run's title. When the workflow has exactly one required text input you did not give, this fills it too |
-| `key=value` | One input the definition declares. Quote a value with spaces: `team="Payments Core"` |
+| `key=value` | One input the definition declares. Quote a value with spaces: `team="Payments Core"`. A key the definition does not declare is refused |
 | `--profile=NAME` | A profile one of the run's overlays declares |
 | `--overlay=PATH` | An extra overlay laid over the definition, after any `<name>.overlay.yml` found beside it. Repeatable |
 | `--check` | Validate the workflow as it would run, overlays and profile included, and start nothing |
+| `<task folder>` | In place of a name: resume that run (the folder name alone also works) |
+| `--list` | List your project's workflows and start nothing |
 
 **Names are looked up in one order, and the first match wins:**
 1. `.maister/workflows/<name>.yml` (your own workflow, or an eject of a built-in);
-2. `.maister/workflows/generated/<name>.yml`;
-3. `.maister/workflows/<name>.overlay.yml` (laid over the built-in);
-4. the built-in.
+2. `.maister/workflows/<name>.overlay.yml` (laid over the built-in);
+3. the built-in.
 
 An overlay beside a definition of its own name is not applied, and the command says so.
 
 **The run's folder is the workflow's name**: `.maister/tasks/<name>/YYYY-MM-DD-<title>/`.
 
-**Resume** with `/maister:run <task-path>` (the folder name alone also works) or with
-`/maister:work <task-path>`. The run continues from the graph it started with. An overlay or
-profile edited since then does not change it.
+**Resume** with `/maister:run <task folder>` or `/maister:work <task folder>`. The run continues
+from the graph it started with; an overlay or profile edited since then does not change it.
 
-**List** your project's workflows with `/maister:run --list`. With no argument at all, it lists
-them and asks which to start.
+**With no argument**, it lists your project's workflows: with one, it starts it; with several, it
+asks which.
 
 **Check** a workflow with `/maister:run <name> --check`, adding `--overlay` and `--profile` as for
-a run. It finds and validates the workflow and starts nothing. Each error names the file, the node
-and the field, with a one-line fix where the fix is mechanical. The report then lists the
-warnings, where each skill and agent was found, and the inputs a start would ask for. Warnings
-never block. One worth knowing: `skip-guard-not-pure` names a gate whose guard reads something
-the run itself found, rather than something you chose, and which decides more than "go on". Such
-a gate is asked whatever its guard reads; guard it on an input or on another gate's answer, or
-make it a single plain continue. This is the
-check to run while writing a definition or an overlay; the
-[workflow definition grammar](../plugins/maister/skills/workflow-engine/references/grammar.md)
-covers every key it judges.
+a run. It starts nothing. Each error names the file, the step and the field, with a one-line fix
+where the fix is mechanical; the report then lists the warnings (which never block), where each
+skill and agent was found, and the inputs a start would ask for. What the warnings mean is in
+[Extending Maister](extending.md).
 
 **What it will not start:**
-- A *chain*, meaning a definition whose nodes dispatch work into member repositories with `dir:`,
-  including a `dir:` node an overlay adds. Chains are started from maister cockpit.
 - A workflow named `bug-fixes`, `enhancements`, `new-features`, `refactoring` or `mockups`. Those
   task folder names are reserved: nothing lists a run from them, so a run started under one could
   never be found again. Rename the workflow.
 - A file whose `name:` differs from its file name.
-- A definition that does not validate. The errors name the file, the node and the field.
+- A definition that is not valid. The errors name the file, the step and the field.
 
 **Examples**:
 ```bash
@@ -85,16 +108,17 @@ covers every key it judges.
 ### `/maister:workflow-author <subcommand> [args]`
 
 Helps you write your own workflow definitions and overlays, and check them before a run. It
-writes only under `.maister/workflows/` and never starts, resumes or changes a run. Use
-`/maister:run` to run a workflow.
+writes only under `.maister/workflows/` and never starts, resumes or changes a run; use
+`/maister:run` to run a workflow. With no subcommand it lists your workflows and overlays and the
+subcommands. How definitions and overlays work is in [Extending Maister](extending.md).
 
 | Subcommand | What it does |
 |------------|--------------|
-| `new <name>` | Asks what the workflow is for, its inputs, phases, gates, executors and artifacts. Then it writes `<name>.yml` and a `<name>.md` companion with a section for each `direct:` node, and checks both. Ask for a workflow that another workflow can call and it follows the child-capable recipe |
-| `overlay <builtin>` | Shows the built-in's nodes first, then writes `<builtin>.overlay.yml`, plus `.overlay.md` when you add `direct:` nodes. An added phase or verifier gets a `before:`, and changed inputs are a `tune` of `with`. When a change needs an eject rather than an overlay, it tells you |
-| `check [<name> \| --all]` | The `/maister:run <name> --check` report. On top of it, three checks: a project skill or agent whose file name differs from its `name:` or that sits only under `.github/`, an installed plugin's skill named without its plugin, and an artifact path that leaves the run directory. `--all` checks every workflow and overlay in the project |
-| `nodes <builtin>` | The built-in's nodes in order, with needs, guards, values and artifacts. It also lists which nodes can be disabled cleanly and which make good `before:` anchors |
-| `preview <name>` | Draws the resolved graph as ASCII: the overlays and profile applied, every guard in words, and nodes that nothing waits for |
+| `new <name>` | Asks what the workflow is for, its inputs, steps, checkpoints and artifacts, then writes `<name>.yml` and its `<name>.md` companion and checks both |
+| `overlay <builtin>` | Shows what the built-in lets an overlay change, then writes `<builtin>.overlay.yml` (plus `.overlay.md` when you add steps of your own). When a change needs an eject rather than an overlay, it tells you |
+| `check [<name> \| --all]` | The `/maister:run <name> --check` report, plus checks the validator does not make: the skills and agents a step calls, the prose sections, the HTML pages a step owes and whether the workflow says it changes code. `--all` checks every workflow and overlay in the project, which is worth running after a plugin update |
+| `nodes <builtin>` | The built-in's steps in order, with what each needs, its guard, its values and artifacts, which steps can be disabled cleanly and which make good `before:` anchors |
+| `preview <name>` | Draws the resolved graph as ASCII: the overlays and profile applied, every guard in words, and steps that nothing waits for |
 
 `--overlay=PATH` and `--profile=NAME` work with `check` and `preview` as they do with `/maister:run`.
 
@@ -112,310 +136,277 @@ writes only under `.maister/workflows/` and never starts, resumes or changes a r
 
 ## Development
 
-### `/maister:development [description | task-path]`
+### `/maister:development [description | task-folder]`
 
-Starts the unified development workflow (14 adaptive phases) or resumes an existing one. All arguments are optional — when run without a description, the plugin extracts it from your current conversation. Pass an existing task path to resume. Whether the task fixes a reproducible bug is detected by the analysis, which adds the failing-test-first phases when it does.
+Starts the development workflow for a bug fix, an enhancement or a new feature, or resumes one.
+The analysis finds whether the task fixes a reproducible bug, and adds the failing-test-first steps
+when it does; there is no task-type flag.
 
 | Flag | Description |
 |------|-------------|
-| `--audit` / `--no-audit` | Recommend running or skipping the specification audit; the specification checkpoint still asks, with one continue for each |
-| `--e2e` / `--no-e2e` | Recommend running or skipping the E2E browser checks; the verification checkpoint still asks, with one continue for each |
-| `--user-docs` / `--no-user-docs` | Generate or skip user documentation without being asked (asked if omitted) |
-| `--research=PATH` | Start development informed by a completed research task |
-| `--context=PATH` | Hand the run a context pack — a file or a directory inside the project, relative to the project root — copied into the task's `analysis/work-context/` as background for every phase; a path that cannot be read, or that leads outside the project, is reported and the run continues without it |
-| `--design=PATH` | Start development from a completed product-design task, or from a quick-design task or its `decision.md`: the brief or the decision, and the mockups of what was chosen, become the design context |
-| `--architecture=PATH` | Build within a high-level design — a design document, or a research task that wrote one: its interfaces, contracts and decisions constrain the specification and the plan |
+| `--audit` / `--no-audit` | Recommend running or skipping the specification audit; the checkpoint before it is still asked |
+| `--e2e` / `--no-e2e` | Recommend running or skipping the browser checks; the verification checkpoint is still asked |
+| `--user-docs` / `--no-user-docs` | Write or skip user documentation without being asked (asked when omitted) |
+| `--research=PATH` | Start from a completed research task |
+| `--context=PATH` | A context pack: a file or a directory inside the project, relative to the project root, copied into the task's `analysis/work-context/` as background for every step. A path that cannot be read, or that leads outside the project, is reported and the run continues without it |
+| `--design=PATH` | Start from a completed product-design task, or from a quick-design task or its `decision.md`: the brief or the decision, and the mockups of what was chosen, become the design context, and those mockups are binding (see [Mockups](mockups.md)) |
+| `--architecture=PATH` | Build within a high-level design, a design document or a research task that wrote one: its interfaces, contracts and decisions constrain the specification and the plan |
 | `--sequential` | Run task groups one at a time instead of in parallel waves |
-| `--publish` | Approving the plan also publishes: when the run finishes it pushes its branch and opens a pull request, or updates the one already open from that branch |
-| `--from=PHASE` | Declined by name — see below |
-| `--reset-attempts` | Declined by name — see below |
+| `--publish` | Approving the plan also publishes: when the run finishes it commits on its own branch, pushes it and opens a pull request, or updates the one already open from that branch |
 
-**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:development` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume a run by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
+See [Notes for every workflow command](#notes-for-every-workflow-command) for starting without a
+description, resuming and flags that are not taken.
 
-**Task directory**: `.maister/tasks/development/`
+**Task folder**: `.maister/tasks/development/`
 
 ---
 
 ## Performance
 
-### `/maister:performance [description | task-path]`
+### `/maister:performance [description | task-folder]`
 
-Starts performance optimization with static bottleneck analysis (9 phases) or resumes an existing one. Can be run without arguments — the plugin extracts the optimization target from your conversation. Detects N+1 queries, missing indexes, O(n^2) algorithms, blocking I/O, and memory leak patterns.
+Starts performance optimization with static bottleneck analysis, or resumes one. It looks for
+N+1 queries, missing indexes, O(n^2) algorithms, blocking I/O and memory leak patterns, then
+specifies, plans, implements and verifies the fix.
 
 | Flag | Description |
 |------|-------------|
 | `--sequential` | Run task groups one at a time instead of in parallel waves |
-| `--from=PHASE` | Declined by name — see below |
-| `--reset-attempts` | Declined by name — see below |
 
-You can optionally provide profiling data (flame graphs, APM screenshots) — the workflow creates a directory for these.
+The run creates `analysis/user-profiling-data/` in its task folder and asks whether you have
+profiling data (flame graphs, APM screenshots, slow-query logs). Files you put there inform the
+analysis; an empty folder means static analysis alone.
 
-**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:performance` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume a run by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
+See [Notes for every workflow command](#notes-for-every-workflow-command).
 
-**Task directory**: `.maister/tasks/performance/`
+**Task folder**: `.maister/tasks/performance/`
 
 ---
 
 ## Migration
 
-### `/maister:migration [description | task-path]`
+### `/maister:migration [description | task-folder]`
 
-Starts migration workflow (8 phases) with mandatory rollback planning and risk assessment, or resumes an existing one. Can be run without arguments — the plugin extracts migration details from your conversation.
+Starts a migration with risk assessment and a rollback plan, or resumes one.
 
 | Flag | Description |
 |------|-------------|
-| `--type=code\|data\|architecture\|general` | Migration type (affects risk focus) |
-| `--user-docs` | Generate the migration guide in the documentation phase |
-| `--sequential` | Run one task group at a time during execution |
-| `--from=PHASE` | Declined by name — see below |
-| `--reset-attempts` | Declined by name — see below |
+| `--type=code\|data\|architecture\|general` | Migration type (affects the risk focus) |
+| `--user-docs` | Write the migration guide in the documentation step |
+| `--sequential` | Run task groups one at a time instead of in parallel waves |
 
-**Runs on the workflow engine.** This workflow ships as a workflow definition — a graph of nodes the engine freezes into the task's state and executes — and that is what `/maister:migration` runs. The engine resumes by recomputing which nodes are ready from the frozen graph, so it has no mid-graph entry point to jump to and no attempt counter held in state to reset: it declines both flags by name rather than accepting one it would ignore. Resume a run by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
+See [Notes for every workflow command](#notes-for-every-workflow-command).
 
-**Task directory**: `.maister/tasks/migrations/`
+**Task folder**: `.maister/tasks/migrations/`
 
 ---
 
 ## Research
 
-### `/maister:research [question | task-path]`
+### `/maister:research [question | task-folder]`
 
-Starts research workflow with multi-source gathering, synthesis, and optional solution brainstorming and high-level design, or resumes an existing one. Can be run without arguments — the plugin extracts the research question from your conversation.
+Starts a research run, with multi-source gathering, synthesis, and optional solution
+brainstorming and high-level design, or resumes one.
 
 | Flag | Description |
 |------|-------------|
 | `--type=technical\|requirements\|literature\|mixed` | Research methodology type |
 | `--brainstorm` / `--no-brainstorm` | Recommend going on to solution brainstorming, or past it, at the checkpoint after the research (still asked) |
 | `--design` / `--no-design` | Recommend going on to the high-level design, or finishing without one, at the checkpoint that decides it (still asked) |
-| `--context=PATH` | Hand the run a context pack — a file or a directory inside the project, relative to the project root — copied into the task's `analysis/work-context/` as background for the brief, the plan and the gathering; a path that cannot be read, or that leads outside the project, is reported and the run continues without it |
-| `--from=PHASE` | Declined by name — see below |
-| `--reset-attempts` | Declined by name — see below |
+| `--context=PATH` | A context pack: a file or a directory inside the project, relative to the project root, copied into the task's `analysis/work-context/` as background for the brief, the plan and the gathering. A path that cannot be read, or that leads outside the project, is reported and the run continues without it |
 
-**Neither flag applies to research.** Research runs on the workflow engine, and the engine resumes by recomputing which nodes are ready from the graph frozen into the task's state: there is no mid-graph entry point to jump to, and no attempt counter held in state to reset. A run on the engine declines both by name rather than accepting one it would ignore. Resume research by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
+Research output can feed into development:
+`/maister:development --research=.maister/tasks/research/...`, or
+`--architecture=.maister/tasks/research/...` when the research wrote a high-level design.
 
-Research output can feed into development: `/maister:development --research=.maister/tasks/research/...`
+See [Notes for every workflow command](#notes-for-every-workflow-command).
 
-A research run can also be started by another run rather than by this command — a chain names the
-workflow from one of its nodes, supplies the question, and waits for the report and conclusions the
-research definition declares. A chain that wants the findings alone says so, and the checkpoint
-after the research then offers continue, revise or stop, with no brainstorming or design. Such a
-run is named after the run that started it,
-`.maister/tasks/research/<parent's date>-<parent's name>-<node>/`, and is otherwise an ordinary
-research run: same phases, same gates, listed and resumed the same way. The run that started it is
-not yet re-driven automatically when the research ends — under the cockpit the parent waits until it
-is woken, while in the terminal the research runs in the same session and the parent carries on.
-
-**Task directory**: `.maister/tasks/research/`
+**Task folder**: `.maister/tasks/research/`
 
 ---
 
-## Product Design
+## Product design
 
-### `/maister:product-design [description | task-path]`
+### `/maister:product-design [description | task-folder]`
 
-Starts the interactive product/feature design workflow (six steps and three checkpoints) or resumes an existing one. Explores the project, proposes the scope, decides each choice with sketches, and writes a product brief with its final screens. The first checkpoint chooses the outcome — a design brief (with screens when there is anything to see), or a brief with a feature specification — or stops in favour of `/maister:quick-design` when one bounded question is all there is. Can be run without arguments — the plugin extracts the design brief from your conversation.
-
-| Flag | Description |
-|------|-------------|
-| `--research=PATH` | Start design informed by a completed research task |
-| `--context=PATH` | Hand the run a context pack — a file or a directory inside the project, relative to the project root, holding source material such as PDFs, images, a spec or extracted text — copied into the task's `analysis/work-context/` and read as background by the steps that frame the problem and decide the design; a path that cannot be read, or that leads outside the project, is reported and the run continues without it |
-| `--from=PHASE` | Declined by name — see below |
-| `--reset-attempts` | Declined by name — see below |
-
-**Neither resume flag applies to product design.** Product design runs on the workflow engine, and the engine resumes by recomputing which nodes are ready from the graph frozen into the task's state: there is no mid-graph entry point to jump to, and no attempt counter held in state to reset. A run on the engine declines both by name rather than accepting one it would ignore. Resume a design by passing the task path alone; a task directory started on the 2.x plugin is refused with a message that says where to finish it.
-
-A run driven from outside the session — from the cockpit, or dispatched — sends the questions inside the phases to the operator when its driver supports question sets. Otherwise it takes each one's stated default, and its documents say they were drafted without review. It never chooses a design direction itself: the direction pause lists each decision with its recommendation, and that is where you choose.
-
-Design output can feed directly into development: `/maister:development .maister/tasks/product-design/...`, or `--design=PATH` beside a description of your own. The brief ends with the delivery scope — the repositories in scope, in order — also written as `outputs/delivery-scope.yml`.
-
-**Task directory**: `.maister/tasks/product-design/`
-
-### `/maister:mockup-studio "<screen or feature>"`
-
-Draws one new version of a set of UI mockups, on its own rather than as a step inside another workflow. Each call is one turn: it writes a new version, keeps every earlier one and never asks a question. Run it again for the next version. It binds the screens to the project's design language through a grounding pack (see `--ground`), by real token and component names, so what you see is what the codebase can actually build.
-
-Two formats. The default writes HTML pages and a gallery page per version, and a turn in your terminal opens that gallery as a file in your default browser. A run under a cockpit or a dispatch opens nothing. Where the gallery cannot open, the pages are still written, and the turn tells you which file to open by hand or to run again with `--format ascii`. ASCII shows layout and placement and nothing about style, and needs neither Node nor a browser.
+Starts the product design workflow, or resumes one. It explores the project, proposes the scope,
+decides each choice with sketches, and writes a product brief with its final screens. It has three
+checkpoints. The first chooses the outcome: a design brief (with screens when there is anything to
+see) or a brief with a feature specification; it can also stop in favour of
+`/maister:quick-design` when one bounded question is all there is.
 
 | Flag | Description |
 |------|-------------|
-| `--turn "<note>"` | Draw one version from the note. A bare `/maister:mockup-studio "<text>"` is read the same way |
-| `--ground` | Build or refresh the grounding pack, and touch no task folder |
-| `--task=<dir>` | Draw the next version in `<dir>/<subdir>/`. On a mockup studio folder (under `.maister/tasks/mockup-studio/`) the turn is a new recorded run; on another workflow's task folder it runs inline, writing no run record |
+| `--research=PATH` | Start from a completed research task |
+| `--context=PATH` | A context pack: a file or a directory inside the project, relative to the project root, holding source material such as PDFs, images, a spec or extracted text. It is copied into the task's `analysis/work-context/` and read as background by the steps that frame the problem and decide the design. A path that cannot be read, or that leads outside the project, is reported and the run continues without it |
+
+There is no flag for the specification outcome: you choose it at the first checkpoint.
+
+Design output feeds development: `/maister:development .maister/tasks/product-design/...`, or
+`--design=PATH` beside a description of your own.
+
+See [Notes for every workflow command](#notes-for-every-workflow-command).
+
+**Task folder**: `.maister/tasks/product-design/`
+
+---
+
+## Mockups
+
+### `/maister:mockup-studio ["<note>"] [flags]`
+
+Draws one new version of a set of UI mockups per call and never asks a question. What a turn is,
+the version folder, the gallery and the grounding pack are explained in [Mockups](mockups.md).
+
+| Flag | Description |
+|------|-------------|
+| `--turn "<note>"` | Draw one version from the note. A bare `/maister:mockup-studio "<note>"` is read the same way |
+| `--ground` | Rebuild the grounding pack from scratch, and touch no task folder |
+| `--task=<dir>` | Draw the next version in `<dir>/<subdir>/`. On a mockup studio folder (under `.maister/tasks/mockup-studio/`) the turn is recorded as a run of its own; on another workflow's task folder it is drawn there with no run record |
 | `--subdir=<rel>` | The folder under the task folder that holds the versions (default `analysis/mockups`) |
 | `--against=<vNNN>` | Build on that version instead of the latest |
 | `--scope=<slugs>` | Comma-separated screens to change or add; the rest carry over |
-| `--fidelity=<sketch\|prototype>` | `sketch` (default) draws static pages; `prototype` also writes a working `prototype.html` whose scenes become the version's screens |
+| `--fidelity=<sketch\|prototype>` | `sketch` (default) draws static pages; `prototype` also writes a working `prototype.html` whose scenes become the version's screens (HTML only) |
 | `--format=<html\|ascii>` | Overrides `mockup_format` in `.maister/config.yml`; without either, `html` |
 
-`--turn` with no `--task`, or with a `--task` under `.maister/tasks/mockup-studio/`, starts the `mockup-studio` workflow, a single node with no checkpoints. Each run writes its own record folder, `.maister/tasks/mockup-studio/<YYYY-MM-DD-slug>/`, holding `orchestrator-state.yml` and `turn-result.json`, and puts the mockups under it, or under `<task_path>/<output_subdir>/` when a task path is given. The workflow also runs with `/maister:run mockup-studio`, taking the same inputs.
+Any other flag is named as not taken and the turn runs without it. A call with no note and no
+`--ground` draws nothing and shows the command to use. Run from inside a task folder that already
+holds versions, `--turn` works as if `--task` named that folder.
 
-**Layout** under `<task folder>/analysis/mockups/`:
+The same turn runs as a workflow with `/maister:run mockup-studio`, taking the inputs `note`,
+`task_path`, `output_subdir`, `against`, `scope`, `fidelity`, `format`, `brief` and `grounding`.
 
-```
-versions/
-  index.json            # latest, and one entry per version, oldest first
-  v001/
-    manifest.json       # note, parent, screens and which changed
-    index.html          # the version's gallery: open this file
-    <screen>.html       # one page per screen
-    prototype.html      # prototype fidelity only
-<screen>.html           # the latest version's pages
-.mockups.json           # the latest version's screens
-```
-
-ASCII versions hold `ascii-mockups.md` instead of the pages, and the latest view is `ascii-mockups.md` beside `versions/`. Screens keep their slug from one version to the next. A version is never changed after it is written.
-
-**Grounding pack.** `--ground` reads the project's theme and token files, its app shell, its strings and a few reference pages, and writes them to `.maister/docs/design-context/`: resolved tokens, one still shell page, realistic copy, and a record of what it was built from. A turn uses the pack, builds it when it is missing, and when a source has changed since, uses it anyway and says the pack is stale; only `--ground` refreshes it, and a development run whose change touched one of the pack's sources runs it at its end and commits the refreshed pack with the change. A pack a turn builds is written in place and not committed, so the turn's notes ask you to commit it, and a dispatched run in a worktree loses it unless someone does.
-
-**Turn N+1.** Run the next turn against the same folder. The turn's closing message ends with the exact command, `/maister:mockup-studio --turn "<note>" --task=<folder>`, with `--subdir=<subdir>` added when it is not the default. On a mockup studio folder that command starts a new recorded run, with its own record folder, whose task path is that folder and whose `against` is the latest version (or `--against`). From the workflow, start a new `mockup-studio` run with the same `task_path` and `output_subdir`, the new note, and `against` set to the previous run's `version` (or `latest` in `versions/index.json`). One folder holds one list of versions however many runs wrote it, and each turn has a record folder of its own under `.maister/tasks/mockup-studio/`: to list the turns on a folder, read the record folders whose task path is that folder, plus the folder itself. There is no command that reopens an earlier run; a bare second `--turn` from the project root, with no folder, starts a new run at v001.
-
-The development and product-design workflows draw their mockups with the same turn, one per round, so a mockup made here and one made inside a workflow are the same artifact.
-
-**Task directory**: `.maister/tasks/mockup-studio/` (a legacy `.maister/tasks/mockups/` is left alone and no longer written)
+**Task folder**: `.maister/tasks/mockup-studio/`
 
 ---
 
-## Reviews & Audits
+## Reviews and audits
 
-Standalone review commands that can be run anytime, independent of workflows.
+Standalone review commands you can run at any time, outside a workflow. The three reviews run in
+every workflow's verification too.
 
-### `/maister:reviews-spec [task-path]`
+### `/maister:reviews-spec [task-folder | base]`
 
-Checks that a change obeys its spec, clarifications and recorded decisions: it writes down the rules they set (who may do what, what must never happen, ordering, what a failure must do), checks every operation the change adds against them, then each requirement and story, the work log's claims against the code and tests, and the docs the change made false. Needs a task directory with a spec.
+Checks that a change obeys its spec, clarifications and recorded decisions: the rules they set
+(who may do what, what must never happen, ordering, what a failure must do), then each requirement
+and story, the work log's claims against the code and tests, and the docs the change made false.
+Needs a task folder with a spec; without one it says so and stops.
 
-### `/maister:reviews-code-risk [task-path or base]`
+### `/maister:reviews-code-risk [task-folder | base]`
 
-What in a change can break, leak or fall over where the project runs: correctness, failure paths, security and resilience keyed to the project profile, how CI and the build run the change, operational hygiene, and the standards that govern the change (the ones the task claims and the ones it judges relevant from `.maister/docs/INDEX.md`).
+What in a change can break, leak or fall over where the project runs: correctness, failure paths,
+security and resilience keyed to the project profile, how CI and the build run the change,
+operational hygiene, and the standards that govern the change (the ones the task claims and the
+ones it judges relevant from `.maister/docs/INDEX.md`).
 
-### `/maister:reviews-simplicity [task-path or base]`
+### `/maister:reviews-simplicity [task-folder | base]`
 
-Complexity the project does not need for its scale: abstraction with one use, infrastructure beyond scale, configuration sprawl, indirection, developer friction. At most five findings.
+Complexity the project does not need for its scale: abstraction with one use, infrastructure
+beyond its scale, configuration sprawl, indirection and developer friction.
 
-Each of the three reviews the change in a task directory, or the working tree against a base commit or branch, and writes its report under the task's `verification/` (or `.maister/reviews/` without a task). The same three run in every workflow's verification.
+Each of the three reviews the change in a task folder, or the working tree against a base commit
+or branch. With no argument it asks once what to review: the uncommitted changes, the latest task,
+or this branch against the default branch. It writes its report under the task's `verification/`
+folder, or under `.maister/reviews/` without a task, and changes no code.
 
-### `/maister:reviews-spec-audit [spec-path]`
+### `/maister:reviews-spec-audit [spec-path] [--post-implementation]`
 
-Independent specification audit with senior auditor perspective.
+An independent audit of a specification for completeness, ambiguity, internal contradictions and
+whether it can be built against the current code. With no path it offers the most recently changed
+`spec.md` under `.maister/tasks/`. The report goes to the task's `verification/spec-audit.md` and
+lists open ambiguities as questions; nothing is modified.
 
 | Flag | Description |
 |------|-------------|
-| `--post-implementation` | Compare spec vs actual implementation (default: pre-implementation) |
-
-Identifies ambiguities, missing details, and gaps. Uses external tools (GitHub CLI, Azure CLI) for verification.
-
-------|-------------|
-| `--target=prod\|staging` | Target environment (default: `prod` with full rigor) |
+| `--post-implementation` | Also compare the spec with what was built. Chosen on its own when an implementation exists next to the spec |
 
 ---
 
 ## Standards
 
+What standards are and how workflows use them is in [Standards](standards.md).
+
 ### `/maister:init [--standards-from=PATH]`
 
-Initialize the Maister framework. Scans your codebase with a project-analyzer subagent, presents findings for confirmation, then generates:
-
-- `.maister/docs/` with INDEX.md, project docs (vision, roadmap, tech stack, architecture), and coding standards
-- `.maister/tasks/` directory structure
-- CLAUDE.md integration
-
-The four project docs are a start, not a fixed set. Add any Markdown document the team wants every run to know — a glossary, a decision log, a domain or integration note — under `.maister/docs/project/` or anywhere in `.maister/docs/` outside `standards/`, as it is: no frontmatter or naming rules. Once it is in INDEX.md (`/maister:standards-update --refresh-index`, or the next refresh a workflow makes), every workflow run reads it with the predefined docs.
+Sets Maister up in a project: analyzes the codebase, confirms the findings with you, writes the
+project documents and starter standards under `.maister/docs/`, writes `.maister/config.yml`, adds
+the pointer to `.maister/docs/INDEX.md` in `CLAUDE.md`, and ends by running standards discovery.
 
 | Flag | Description |
 |------|-------------|
-| `--standards-from=PATH` | Copy standards from another project's `.maister/docs/standards/` instead of built-in defaults. Useful when starting a new project that should follow the same conventions as an existing one. |
+| `--standards-from=PATH` | Copy the starter standards from another project's `.maister/docs/standards/` instead of the built-in set. The other project must already have them |
 
-If `.maister/` already exists, it asks whether to update the setup or start over (the old one moved to a dated backup); leaving without changes is the free-text answer.
+When `.maister/` already exists, it asks whether to update the setup or start over (the old setup
+is moved to `.maister.backup-<date>/`). Leaving without changes is the free-text answer.
 
-**Updating.** The update first looks without writing: it re-analyzes the codebase, compares
-`.maister/config.yml` with what init writes today, compares the project profile and the vision,
-roadmap, tech-stack and architecture documents with the analysis, notes standards categories the
-stack needs that `standards/` lacks, and checks INDEX.md. Then it asks one question listing every
-proposed change: apply the recommended changes, choose change by change, or leave everything as
-it is.
+### `/maister:standards-discover [flags]`
 
-- Only additions are recommended: missing config keys and blocks, missing profile fields, missing
-  project documents.
-- A config value that differs from today's default, a profile field the analysis contradicts, or
-  a project document it contradicts is offered one line or one file at a time, and kept unless you
-  take the change. Edits are made line by line, so the rest of the file stays as it is.
-- Standards are never changed; a missing category is named with its
-  `/maister:standards-discover --scope=<category>` command.
-- Other Markdown you keep in `.maister/docs/` is never rewritten or flagged; it only gets an
-  INDEX.md entry when it has none.
-
-Whatever you choose, INDEX.md is refreshed and the `CLAUDE.md` pointer repaired, and a summary
-says what changed, what was kept and what drift remains.
-
-### `/maister:standards-discover [--scope=SCOPE]`
-
-Auto-discovers coding standards from multiple sources in parallel: config files, source code patterns, documentation, pull requests, and CI/CD pipelines. Each source is scanned by its own read-only agent, which writes only its findings.
+Finds the standards your code already follows, from configuration files, code, documentation, and
+pull requests and CI, and offers them for your approval.
 
 | Flag | Description |
 |------|-------------|
-| `--scope=full\|quick\|frontend\|backend\|testing\|custom` | Discovery scope (default: `full`) |
-| `--confidence=N` | Minimum confidence threshold, 0-100 (default: `60`) |
-| `--auto-apply` | Auto-apply standards with 90%+ confidence |
-| `--skip-external` | Skip PR and CI/CD analysis |
-| `--pr-count=N` | Number of PRs to analyze (default: `10`, max: `20`) |
-
-Presents findings in confidence tiers (high/medium/low) for review before applying.
+| `--scope=SCOPE` | `full` (default), `quick` (configuration files only), or a category: `global`, `frontend`, `backend`, `testing`, or a custom category that exists under `.maister/docs/standards/` |
+| `--confidence=N` | Minimum confidence, 0 to 100, for a finding to be offered (default `60`). Findings below it are listed in the summary |
+| `--auto-apply` | Apply findings at 90% confidence or more without asking. Conflicts are still asked |
+| `--skip-external` | Skip pull request and CI analysis |
+| `--pr-count=N` | Number of recent merged pull requests to analyze (default `20`) |
 
 ### `/maister:standards-update [description] [--from=PATH] [--refresh-index]`
 
-Records what the team has learned: a coding standard, or project knowledge — a decision, a fact about the system — in a project document. Give it either kind as the description:
+Records a coding standard, or project knowledge (a decision, a fact about the system) in a project
+document.
 
-```
-/maister:standards-update "prefer named exports over default exports"
-→ a rule in a standards file, e.g. standards/global/conventions.md
+| Argument or flag | Description |
+|------------------|-------------|
+| No argument | Proposes conventions from your conversation. In a fresh session with nothing to scan, offers the standard candidates the most recent workflow run left in its task folder |
+| `"description"` | The standard or the fact to record, for example `"prefer named exports over default exports"` |
+| `"split <path>"` | Proposes splitting a standards file that has grown past its size guidance |
+| `--from=PATH` | Import standards from another project's `.maister/docs/standards/`: shows what is new or changed and lets you choose |
+| `--refresh-index` | Bring `.maister/docs/INDEX.md` back in shape: rewrites the entries that run long or hold dates, ticket references or counts, adds missing entries, removes dead ones and settles a merge conflict. Touches no other document |
 
-/maister:standards-update "we chose Postgres over MongoDB because orders need transactions"
-→ an entry in a project document, e.g. project/decisions.md (an existing one or a new file — it asks which)
-```
-
-When run without arguments, scans your current conversation for standards patterns like "we should always...", "our convention is...", "prefer X over Y" and proposes them as new standards. In a fresh session with nothing to scan, it finds the most recent workflow run that left standard candidates in its task folder and offers them — the well-supported ones recommended, other runs with candidates mentioned — then adds the ones you choose, one after another, asking where each goes; candidates already added are not offered again. A decision or a fact about the system rather than a way of writing code can go to a project document under `.maister/docs/project/` instead — a decision log, a glossary, an architecture note, whatever the project calls it. When the file a rule belongs in is past its size guidance (about 12 KB or 15 rules), it recommends a new file beside it; `/maister:standards-update "split <path>"` proposes splitting a large file into topic files or a sub-folder.
-
-| Flag | Description |
-|------|-------------|
-| `--from=PATH` | Sync standards from another project. Analyzes differences, shows what's missing or changed, and lets you select which standards to import. |
-| `--refresh-index` | Bring `.maister/docs/INDEX.md` back in shape: rewrites the entries that run long or hold dates, ticket references or counts, adds missing entries, removes dead ones, settles a merge conflict, and keeps every entry that already follows the rules. Touches no other document. |
-
-INDEX.md is maintained by maister: one short entry per document, saying what it is for and when to open it. Don't edit it by hand — change the document, and the next refresh (after implementation, after the verification fixes, or this flag) updates its entry. Any Markdown file may live in `.maister/docs/` as it is; no frontmatter or naming is required. A file you add by hand — written there or copied in from elsewhere — is picked up with `--refresh-index`.
+It always asks where a standard goes before writing it.
 
 ---
 
-## Multi-repository workspaces
+## Quick commands
 
-A workspace whose members are checkouts of separate repositories, run as one unit by chains that
-dispatch into them, is a Pro Edition feature: the workspace is set up, validated and pruned through
-the Pro edition, and chains are started from maister cockpit. Everything else on this page works in
-one repository without it.
-
-## Quick Commands
-
-Lightweight commands for small tasks that don't need a full orchestrator workflow.
+Lightweight commands for small tasks that do not need a full workflow. Each follows the project's
+standards; see [Standards](standards.md). Without an argument, each takes the task from your
+conversation, and asks only when there is nothing to take.
 
 ### `/maister:quick-dev [task description]`
 
-Implement a task directly — exactly as the main agent normally would, no planning mode — with standards enforcement. Reads INDEX.md and the specific matched standard files relevant to what you touch, applies them while implementing, and verifies compliance (pass/fail checklist) afterward.
+Implements the task directly, with no planning mode, reading the standards that apply to what it
+touches, and reports a pass or fail Standards Compliance Checklist at the end.
 
-**When to use**: Task is clear, no architectural decisions needed, you know what needs doing.
+**When to use**: the task is clear and needs no architectural decisions.
 
 ### `/maister:quick-plan [task description]`
 
-Works exactly like Claude Code's built-in plan mode, with standards enforcement folded in. While planning, it reads INDEX.md and the specific matched standard files (INDEX.md alone is not enough), and the plan must reference the applicable standards and include a Standards Compliance Checklist (verified after implementation) before exiting plan mode.
+Plan mode with the project's standards folded in. The plan names the standards that apply and
+includes a Standards Compliance Checklist, which is checked after implementation.
 
 ### `/maister:quick-bugfix [bug description]`
 
-Lightweight TDD-driven bug fix without a full orchestrator workflow. Analyzes the bug, writes a failing test, implements the fix, and verifies the test passes.
+A test-driven bug fix: analyzes the bug, presents a fix plan for approval, writes a failing test,
+fixes the bug and confirms the test passes. No task folder is created.
 
-**When to use**: Simple, isolated bugs where you can quickly identify the root cause. If the bug is too complex (multiple files, unclear root cause, architectural impact), the skill suggests escalating to `/maister:development`.
-
-No task directory created — works directly in your codebase.
+**When to use**: a reproducible bug whose cause is likely in a few files. When the bug turns out to
+be bigger (several subsystems, an unclear cause, architectural impact), it offers to switch to
+`/maister:development` with the analysis so far.
 
 ### `/maister:quick-design [design question]`
 
-Settles one small design question in the session: frames it (what is known, the decisions already taken, the standards that apply), lays out two to four options per decision area with what changes, pros, cons and rough cost, recommends one, and asks every decision area in one question set. It decides on its own whether mockups help — they do when the decision turns on layout or presentation — and sketches one per option with the mockup studio; the same question set lets you ask for mockups or skip them. Points it cannot settle become "unknown, to check" lines rather than stopping it.
+Settles one small design question in the session: frames it, lays out two to four options per
+decision area with pros, cons and a rough cost, recommends one, and asks every decision area in one
+question set. When the decision turns on layout or presentation it sketches one mockup per option
+with the mockup studio; the same question set lets you ask for mockups or skip them.
 
-Writes `decision.md` under `.maister/tasks/design/YYYY-MM-DD-name/`: about a page in ADR style (context, options considered, decision and reason, consequences, unknowns, proposed issues or slices), with the mockups beside it when they were made.
+Writes `decision.md` under `.maister/tasks/design/YYYY-MM-DD-name/`: about a page with the context,
+the options considered, the decision and its reason, consequences, unknowns to check and proposed
+pieces of work, with the mockups beside it when they were made.
 
-**When to use**: A bounded design question with at most three decision areas. When it needs research or has more, the skill recommends `/maister:product-design`, which will propose the scope, or `/maister:research` instead and says why.
+**When to use**: a bounded design question with at most three decision areas. When it needs
+research or has more, it recommends `/maister:product-design` or `/maister:research` instead and
+says why.
