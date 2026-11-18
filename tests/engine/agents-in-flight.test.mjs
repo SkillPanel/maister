@@ -304,6 +304,13 @@ for (const [runner, handOff] of [
   });
 }
 
+test('the verification runner records a re-check at its own name, under one fixed id', () => {
+  const text = read('agents/verification-runner.md');
+  assert.match(text, /--record=review-<stem>:verification\/<stem>-review\.md/);
+  assert.match(text, /`verification\/<stem>-review-recheck-<cycle>\.md`/);
+  assert.doesNotMatch(text, /review-<stem>:verification\/<stem>\.md/);
+});
+
 test('the implementer writes its report to the path its prompt names', () => {
   assert.match(read('agents/task-group-implementer.md'), /`report_path`/);
 });
