@@ -279,6 +279,23 @@ test('a host that names no session waits for nothing, as before', t => {
 });
 
 // ---------------------------------------------------------------------------
+// re-check cycles: an earlier cycle's report is never lost or waited on
+// ---------------------------------------------------------------------------
+
+const nextCycle = (run, cycle) => write(run, { verification_context: { cycle, snapshot: `tree-${cycle}`, last_status: null, issues_found: [] } });
+const onDisk = (run, rel) => fs.existsSync(path.join(run.dir, ...rel.split('/')));
+const readRun = (run, rel) => fs.readFileSync(path.join(run.dir, ...rel.split('/')), 'utf8');
+
+test('an earlier cycle\'s records are never waited on, whatever their output', t => {
+  const run = verifying(t);
+  recorded(run, REVIEWS);
+  nextCycle(run, 2);
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: 'auto' });
+  assert.equal(result(run, { result: 'unavailable', reason: 'No agent tool in this session' }).code, 0,
+    'nothing of this cycle is out, so unavailable is the runner\'s to say');
+});
+
+// ---------------------------------------------------------------------------
 // the prose: the executor waits, the runners record and end waiting
 // ---------------------------------------------------------------------------
 

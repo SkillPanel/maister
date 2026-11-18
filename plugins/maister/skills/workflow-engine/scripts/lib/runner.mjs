@@ -134,7 +134,8 @@
  * so an output on disk always answers the latest dispatch. `--agents=<id>:<agent
  * id>,…` attaches the ids a host gave at launch; `--ended=<id>,…` marks agents
  * whose completion came without their output. An agent is still out while
- * its record names this session, is not ended and its output is not on disk;
+ * its record names this session, belongs to the current cycle (a record
+ * without one always does), is not ended and its output is not on disk;
  * a record of another session, or with no session, is never waited for: a
  * background agent lives in its session's process and went with it.
  *
@@ -232,7 +233,7 @@ export function runnerResult({ state, node, document, runner = VERIFICATION }) {
         + 'Record each agent with in-flight --record before it is sent, then send the whole result again naming only those still out');
     }
   }
-  const out = outstanding(run.runDir, agents);
+  const out = outstanding(run.runDir, agents, run.cycle);
   if (document.result === 'unavailable' && out.length) {
     return refuse('runner-result-invalid',
       `the result is unavailable while ${out.map(each => each.id).join(', ')} of this session ${out.length === 1 ? 'is' : 'are'} still out. Nothing was written. `
@@ -370,7 +371,7 @@ export function runnerStep({ state, node, answered = false, runner = VERIFICATIO
   // A runner sent back to continue from the files while an agent it sent is
   // still out would send a second one onto the same work: wait for it instead.
   if (next.ok && next.step.next === 'dispatch' && typeof next.step.resume === 'string') {
-    const out = outstanding(run.runDir, attemptAgents(path.join(run.runDir, runner), node, run.attempt));
+    const out = outstanding(run.runDir, attemptAgents(path.join(run.runDir, runner), node, run.attempt), run.cycle);
     if (out.length) return ok({ next: 'wait', pending: out.map(({ id, agent, output }) => ({ id, agent, output })) });
   }
   return next;
@@ -715,15 +716,20 @@ function attemptAgents(dir, node, attempt) {
 
 /**
  * The recorded agents still out: sent by this session, so alive while it is,
- * not marked ended, and with no output on disk. A record of another session,
- * or one the host named no session for, is not waited for: its agents went
- * with that session.
+ * in the current cycle, not marked ended, and with no output on disk. A record
+ * of another session, or one the host named no session for, is not waited
+ * for: its agents went with that session. Nor is a record of an earlier
+ * verification cycle: a cycle starts only once the last one's agents are
+ * back, and its output may be a name the agent never wrote, or a file a later
+ * record shares.
  */
-function outstanding(runDir, agents) {
+function outstanding(runDir, agents, cycle) {
   const session = hostSession();
   if (session === null) return [];
+  const current = entry => !Number.isInteger(entry.cycle) || cycle === null || entry.cycle === cycle;
   return Object.entries(agents)
     .filter(([, entry]) => entry.session === session && entry.ended !== true && typeof entry.output === 'string')
+    .filter(([, entry]) => current(entry))
     .filter(([, entry]) => !fs.existsSync(path.resolve(runDir, entry.output)))
     .map(([id, entry]) => ({ id, agent: typeof entry.agent === 'string' ? entry.agent : null, output: entry.output }));
 }
