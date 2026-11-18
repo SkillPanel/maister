@@ -36,6 +36,7 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 | `/maister:quick-dev` | Implementing directly with standards applied |
 | `/maister:quick-bugfix` | TDD-driven bug fix: failing test, fix, verify |
 | `/maister:quick-design` | Settling one small design question and keeping a one-page decision record |
+| `/maister:update-branch` | Bringing the branch up to date with its default branch, and keeping an unfinished run's review to its own work |
 | `/maister:mockup-studio` | UI mockups bound to your project's design language, one version per turn; `--ground` builds the grounding pack |
 | `/maister:init` | Setting up Maister in a project |
 | `/maister:standards-update` | Adding or changing standards, or recording project knowledge (a decision, a fact about the system), from conversation context or the candidates a finished run left |

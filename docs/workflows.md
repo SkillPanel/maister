@@ -329,6 +329,27 @@ Versions, the gallery, the grounding pack and the HTML and ASCII formats are cov
 
 ---
 
+## Bringing a branch up to date
+
+`/maister:update-branch` merges the default branch into the current branch, resolves any conflict
+from the branch's intent, runs the project's checks and commits the merge. It never pushes. When a
+workflow run is unfinished on the branch, the run's start commit moves to the merged commit, so the
+run's next review counts only the run's own work.
+
+```
+/maister:update-branch
+```
+
+Pass `--onto <branch>` when the branch was cut from a branch other than the default one:
+
+```
+/maister:update-branch --onto feature/search
+```
+
+The flags are listed in [Commands](commands.md).
+
+---
+
 ## Your own workflows
 
 A project can define workflows of its own in `.maister/workflows/`, overlay a built-in to add or

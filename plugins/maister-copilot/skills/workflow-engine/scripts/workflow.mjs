@@ -37,6 +37,19 @@
  *                  in one write, with the operator's note on the gate; at
  *                  `--node=held-approval`, the owning node and everything
  *                  downstream of it, closing node included)
+ *   move-base      --state, optional --to, --reason           changed paths
+ *                  (the run's base commit moved, the replaced one kept under
+ *                  `task.base_commit.previous` with the reason), then a blank
+ *                  line and `moved: <old> → <new> (<rule>)`; a target that is
+ *                  the base already writes nothing and prints only
+ *                  `unchanged: <base> (<rule>)`. The base rule: with --to, the
+ *                  commit it names; without it, HEAD's second parent, the
+ *                  merged tip, when HEAD is a merge (`merged tip: HEAD is a
+ *                  merge`), and HEAD when it is not (`HEAD: not a merge`),
+ *                  whether the run's work is committed, uncommitted or both.
+ *                  Refused while a merge is in progress, and unless the base
+ *                  is an ancestor of the target and the target an ancestor of
+ *                  HEAD
  *   prior-context  --state, optional --background, --node     the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt; with --node, the node's run context first and a
@@ -130,7 +143,10 @@
  *                  verification cycle's review brief it wrote — what changed
  *                  since the run's base commit, the run's documents by path,
  *                  the plan, the test result, the profile, and on a re-check
- *                  the issues and the fix's snapshots; a part it cannot fill is a
+ *                  the issues and the fix's snapshots; after `move-base` the
+                  brief is full with `fix: null` and carries `base_moved_from`,
+                  and a re-check becomes a full cycle with a
+                  `warning: review-brief-base-moved`; a part it cannot fill is a
  *                  `warning:` line — writes only under the run's verification/
  *   findings-merge --state, or --task-path; optional --cycle  JSON on stdout
  *                  (the cycle's reviewer findings merged into findings.json,
@@ -174,7 +190,7 @@
  * wrong" from "the engine is broken" without parsing prose.
  *
  * The verbs that brief a moment or refuse a state change — `gate-brief`,
- * `area-brief`, `finding-brief`, `gate-revise`, `write-state` and
+ * `area-brief`, `finding-brief`, `gate-revise`, `write-state`, `move-base` and
  * `run-complete` — also name the reference section that governs it, in one
  * spelling, `rules: <file> § <heading>`: the last stdout paragraph of a text
  * form, a `rules` key of a `--json` form, one stderr line after a refusal's
@@ -245,6 +261,12 @@ const VERBS = {
   // state records no "current" gate and no chosen option until this write
   // records it; the note travels in the patch file for `write-state`'s reason.
   'gate-revise': { module: 'revise.mjs', flags: ['state', 'node', 'option', 'patch-file'] },
+  // The run's base commit moved past work merged in from another branch, the
+  // one write that changes it after the freeze. No patch file: the record is
+  // built by the writer from the repository and the record it replaces, so
+  // `--to` (a commit in place of the base rule) and `--reason` are all a
+  // caller can say.
+  'move-base': { module: 'move-base.mjs', flags: ['state', 'to', 'reason'] },
   // Three flags, where the other two state verbs take one: the outbox root and
   // the dispatch id are not derivable from a run directory. They are the
   // dispatch's, not the run's, and the worker already holds both — its seed
@@ -792,6 +814,34 @@ async function runGateRevise(flags) {
     const { gate, reruns, revision, ceiling, reset } = result.revision;
     process.stdout.write(`\nrevised: ${gate} reruns=${reruns} revision=${revision}/${ceiling} reset=${reset.join(',')}\n`);
     printRules('gateRevise');
+  }
+  return code;
+}
+
+/**
+ * Move the run's base commit past work merged in from another branch.
+ *
+ * Reported like `write-state`, because it is one write: the changed paths on
+ * stdout, then a blank line and the `moved:` line naming the old base, the new
+ * one and the rule that chose it; a refusal on stderr with its code first and
+ * the rules pointer after it. A target that is the base already writes
+ * nothing and prints one `unchanged:` line instead.
+ */
+async function runMoveBase(flags) {
+  if (!flags.state) throw new UsageError('move-base needs --state');
+  const state = await loadModule(VERBS['write-state'].module);
+  if (refusedForEditions(state, flags)) return EXIT.REJECTED;
+  const module = await loadModule(VERBS['move-base'].module);
+  const move = entryOf(module, 'moveBase', VERBS['move-base'].module);
+  const result = move({ state: flags.state, to: flags.to ?? null, reason: flags.reason ?? null });
+  if (result.ok && result.unchanged) {
+    process.stdout.write(`unchanged: ${result.unchanged.base} (${result.unchanged.rule})\n`);
+    return EXIT.OK;
+  }
+  const code = reportWrite(result, { file: null }, 'writeRefused');
+  if (result.ok && result.move) {
+    const { from, to, rule } = result.move;
+    process.stdout.write(`\nmoved: ${from} → ${to} (${rule})\n`);
   }
   return code;
 }
@@ -1741,6 +1791,7 @@ const RUNNERS = {
   'write-state': runWriteState,
   'gate-request': runGateRequest,
   'gate-revise': runGateRevise,
+  'move-base': runMoveBase,
   'run-complete': runRunComplete,
   'prior-context': runPriorContext,
   'run-context': runRunContext,

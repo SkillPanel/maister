@@ -7,7 +7,11 @@
  * working tree, untracked files included. Each verification reviewer used to
  * work that out with its own `git diff` and `git log`, differently every time.
  * The freeze now records the base (`task.base_commit`), and `review-brief`
- * measures from it once per cycle, here.
+ * measures from it once per cycle, here. One verb moves it afterwards:
+ * `move-base`, once the default branch has been merged into the run's branch,
+ * so the merged-in work stops counting as the run's own. It reads the same
+ * dirty paths the freeze reads (`dirtyPaths`) and checks ancestry here
+ * (`isAncestor`); the state writer records the move.
  *
  * What it never does. It never writes the user's index, never commits, never
  * stashes and never moves a ref. The working tree is captured as a tree id
@@ -56,7 +60,8 @@ const OWN_DIR = '.maister';
 
 /**
  * Run one git command. `{ok, stdout}` on exit 0, else `{ok: false, error,
- * timedOut}` with git's last stderr line or the reason it never ran.
+ * timedOut, status}` with git's last stderr line or the reason it never ran;
+ * `status` is git's exit code, null when it never ran or was killed.
  */
 function git(cwd, args, { env = {}, timeout = READ_TIMEOUT_MS } = {}) {
   const childEnv = { ...process.env, GIT_OPTIONAL_LOCKS: '0', ...env };
@@ -75,11 +80,11 @@ function git(cwd, args, { env = {}, timeout = READ_TIMEOUT_MS } = {}) {
   });
   if (result.error) {
     const timedOut = result.error.code === 'ETIMEDOUT';
-    return { ok: false, timedOut, error: timedOut ? `git ${args[0]} did not finish within ${timeout} ms` : `git ${args[0]} could not run: ${result.error.message}` };
+    return { ok: false, timedOut, status: null, error: timedOut ? `git ${args[0]} did not finish within ${timeout} ms` : `git ${args[0]} could not run: ${result.error.message}` };
   }
   if (result.status !== 0) {
     const last = String(result.stderr ?? '').trim().split(/\r?\n/).filter(Boolean).pop();
-    return { ok: false, timedOut: false, error: `git ${args[0]} exited ${result.status ?? result.signal}${last ? `: ${last}` : ''}` };
+    return { ok: false, timedOut: false, status: result.status, error: `git ${args[0]} exited ${result.status ?? result.signal}${last ? `: ${last}` : ''}` };
   }
   return { ok: true, stdout: result.stdout };
 }
@@ -126,6 +131,19 @@ export function commitOf(repo, rev) {
   return found.ok ? found.stdout.trim() : null;
 }
 
+/**
+ * Whether commit `a` is an ancestor of commit `b`, a commit counting as its
+ * own: `{ok: true, ancestor}`, or `{ok: false, error}` when git could not
+ * answer. `merge-base --is-ancestor` exits 1 for "no", and anything else
+ * that is not 0 is a failed read.
+ */
+export function isAncestor(repo, a, b) {
+  const found = git(repo.top, ['merge-base', '--is-ancestor', a, b]);
+  if (found.ok) return { ok: true, ancestor: true };
+  if (found.status === 1) return { ok: true, ancestor: false };
+  return found;
+}
+
 /** Whether a tree (or any object) is still in the object store. */
 export function hasObject(repo, id) {
   return typeof id === 'string' && /^[0-9a-f]{7,64}$/.test(id) && git(repo.top, ['cat-file', '-e', `${id}^{tree}`]).ok;
@@ -146,15 +164,28 @@ export function baseAtFreeze(projectRoot) {
   if (sha === null) {
     return { warning: 'base-commit-unrecorded: the repository has no commit yet, so the run records no base; review-brief will need --base' };
   }
-  const status = git(repo.top, ['status', '--porcelain=v1', '-z', '--untracked-files=all', ...scope(repo)]);
+  const status = dirtyPaths(repo);
   if (!status.ok) {
     return { sha, dirty: [], warning: `base-dirty-unread: ${status.error}; the base is recorded with no dirty paths` };
   }
-  const dirty = [...new Set(statusPaths(status.stdout))].sort();
+  const { dirty } = status;
   if (dirty.length > DIRTY_MAX) {
     return { sha, dirty: dirty.slice(0, DIRTY_MAX), warning: `base-dirty-cut: ${dirty.length} paths were dirty at the freeze; the first ${DIRTY_MAX} are recorded` };
   }
   return { sha, dirty };
+}
+
+/**
+ * The paths dirty now — modified, staged or untracked, the project's own
+ * directory left out — sorted, each once: `{ok: true, dirty}`, or `{ok: false,
+ * error}` for a status that could not be read. Every path, uncut: the freeze
+ * cuts its record at `DIRTY_MAX`, and a move keeps only the paths its record
+ * already holds.
+ */
+export function dirtyPaths(repo) {
+  const status = git(repo.top, ['status', '--porcelain=v1', '-z', '--untracked-files=all', ...scope(repo)]);
+  if (!status.ok) return status;
+  return { ok: true, dirty: [...new Set(statusPaths(status.stdout))].sort() };
 }
 
 /** The paths of `status --porcelain=v1 -z`: `XY path`, and a rename's or copy's source after it. */

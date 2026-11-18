@@ -131,6 +131,7 @@ when you are not sure which one you need. To choose yourself:
 | `quick-dev` | A small change you want made directly, with your standards applied and checked at the end. |
 | `quick-bugfix` | A bug with a clear symptom: reproduces it with a failing test first, then fixes it. |
 | `quick-design` | A small design question: lays out the options, recommends one, asks you once and writes a one-page decision record. |
+| `update-branch` | Brings the branch up to date with its default branch: merges it, runs the checks and commits. An unfinished run's start commit moves past the merged-in work. Pass `--onto <branch>` when the branch was cut from another. |
 | `reviews-spec`, `reviews-code-risk`, `reviews-simplicity`, `reviews-spec-audit` | One review on its own: whether a change obeys its spec, what in it can break or leak where the project runs, complexity it does not need, and a specification audit. |
 
 The six workflows at the top are described in full, with their flags, in

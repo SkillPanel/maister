@@ -410,3 +410,20 @@ pieces of work, with the mockups beside it when they were made.
 **When to use**: a bounded design question with at most three decision areas. When it needs
 research or has more, it recommends `/maister:product-design` or `/maister:research` instead and
 says why.
+
+### `/maister:update-branch [--onto <ref>] [--run <task dir>] [--no-run]`
+
+Brings the current branch up to date with its default branch. It merges the default branch without
+committing, resolves any conflict from the branch's own intent, runs the project's checks and
+commits the merge. It never pushes, never stashes and never resets.
+
+When the branch carries an unfinished workflow run, the run's start commit moves to the merged
+commit. The run's next review then counts only the run's own work, not what the merge brought in.
+`--run <task dir>` names the run to move, and `--no-run` updates the branch alone.
+
+Pass `--onto <branch>` when the branch was cut from a branch other than the default one, so the
+merge brings in that branch instead.
+
+**When to use**: the branch has fallen behind its default branch, or a run on it is about to be
+reviewed and the merged-in work should not count as its own. See
+[Troubleshooting](troubleshooting.md#the-review-counts-files-the-default-branch-brought-in).

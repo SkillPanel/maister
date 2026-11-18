@@ -144,6 +144,7 @@ For smaller jobs, without a full run:
 | `/maister:quick-dev` | Implement a change you already understand, with standards applied |
 | `/maister:quick-bugfix` | Fix a bug test-first: a fix plan, a failing test, the fix |
 | `/maister:quick-design` | Settle one small design question and keep a decision record |
+| `/maister:update-branch` | Bring your branch up to date with its default branch, and keep an unfinished run's review to its own work |
 
 [Workflows](docs/workflows.md) describes each workflow's steps and checkpoints, and the [command reference](docs/commands.md) lists every command and flag.
 
