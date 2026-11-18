@@ -64,8 +64,9 @@ stop. Do no review yourself.
   `fixes: on`, go to the fix pass on those findings; otherwise run that cycle again from its
   brief (step 2), which keeps its number. `fixes_applied` and `reverify_count` are kept as
   recorded, so the budget survives a restart. An agent `verification/in-flight.json` records in
-  the current cycle (its `cycle`) whose output is on disk is **adopted**: read its report or fix
-  report as if it had just returned, and do not send it again. `runner-step` sends you back only
+  the current cycle (its `cycle`) whose output is written — on disk, and not the earlier cycle's
+  file its record `kept` — is **adopted**: read its report or fix report as if it had just
+  returned, and do not send it again. `runner-step` sends you back only
   once no agent this session sent is still out, so no review or fix ever runs twice at once.
 - `resume: {cycle, decisions_file}` — the person's answers to the decision you returned. Read the
   file: each `answers[]` entry names a finding of your findings list and the option label chosen,
@@ -111,10 +112,14 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    `review-brief --state=<state> --refresh`, which carries them into the brief.
 6. **The panel.** Record `verification_context.reviews` as `{chosen: [...], done: []}`, by short
    name — `spec conformance`, `code risk`, `simplicity` — and record the reviewers in flight, one
-   `in-flight … --runner=verification --record=review-<stem>:verification/<stem>.md,…` for the
-   reviews you send (`review-code-risk:verification/code-risk-review.md`). Then send them in **one message**,
-   each prompt carrying only `task_path`, `review_brief`, its `report_path` and the test-suite
-   result. The cycle is whatever the brief's `mode` says: a full brief, as after a `review-brief-base-moved` warning, sends the full panel. Nobody writes the reviewers a prompt for the change: each reads the run's documents the
+   `in-flight … --runner=verification --record=review-<stem>:verification/<stem>-review.md,…` for
+   the reviews you send. `<stem>` is always the findings-file stem — `spec-conformance`,
+   `code-risk`, `simplicity` — so a review keeps one id in every cycle (`review-code-risk`). A
+   re-check's output is the re-check file, `verification/<stem>-review-recheck-<cycle>.md`
+   (`review-code-risk:verification/code-risk-review-recheck-2.md`): the reviewer writes it beside
+   its report, and the earlier cycle's full report stays as it is. Then send them in **one message**,
+   each prompt carrying only `task_path`, `review_brief`, its `report_path` (the full report's path,
+   in a re-check too) and the test-suite result. The cycle is whatever the brief's `mode` says: a full brief, as after a `review-brief-base-moved` warning, sends the full panel. Nobody writes the reviewers a prompt for the change: each reads the run's documents the
    brief names and decides where to look.
    - `maister:spec-conformance-review`, `verification/spec-conformance-review.md`;
    - `maister:code-risk-review`, `verification/code-risk-review.md`;
@@ -125,9 +130,14 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    them in `chosen`. Under `recheck: tests-only` no review is sent and this step writes nothing.
 7. **As each review returns**, record it done: one `verification_context.reviews` write with
    `done` holding every review returned so far, `chosen` unchanged. One write per return, never
-   batched — the status line moves review by review.
+   batched — the status line moves review by review. When the output its record names is missing,
+   or is still the earlier cycle's file the record `kept`, mark it ended at once — `in-flight
+   --state=<state> --node=<node> --runner=verification --ended=<id>` — before anything else: its
+   completion notice comes only to you, who sent it, so nobody else can release the wait on it. The
+   suite runner and every fix batch get the same: back without their recorded output, ended at
+   once.
 8. **Each report reached disk.** Every review owes its report and its findings file beside it.
-   For each one missing, add an issue to `verification/artifacts-findings.json` (the contract's
+   For each one missing (marked ended in step 7), add an issue to `verification/artifacts-findings.json` (the contract's
    schema, `reviewer: "artifacts"`, `severity: "warning"`, category `docs`) naming the agent and
    the path, and transcribe its reply's issues there. The report says plainly which findings are
    a transcription.
