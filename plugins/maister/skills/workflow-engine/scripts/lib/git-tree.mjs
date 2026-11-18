@@ -16,8 +16,11 @@
  * What it never does. It never writes the user's index, never commits, never
  * stashes and never moves a ref. The working tree is captured as a tree id
  * through a temporary index of its own (`GIT_INDEX_FILE` pointed at a file in
- * the OS temp directory, removed afterwards): `read-tree` of the base, `add -A`
- * over the project, `write-tree`. The blobs and the tree land in the object
+ * the OS temp directory, removed afterwards): `read-tree` of the base, `add -u`
+ * for the tracked files, the untracked, not-ignored ones added by name, then
+ * `write-tree`. Never `add -A` with the exclude: when the project's .gitignore
+ * already ignores `.maister/`, git takes the exclude pathspec as naming an
+ * ignored path and exits 1, which would drop the whole snapshot. The blobs and the tree land in the object
  * store as unreferenced objects, which is what lets a later cycle diff against
  * an earlier one with no commit to point at. `status` runs with
  * `GIT_OPTIONAL_LOCKS=0`, so it does not refresh the user's index either.
@@ -63,7 +66,7 @@ const OWN_DIR = '.maister';
  * timedOut, status}` with git's last stderr line or the reason it never ran;
  * `status` is git's exit code, null when it never ran or was killed.
  */
-function git(cwd, args, { env = {}, timeout = READ_TIMEOUT_MS } = {}) {
+function git(cwd, args, { env = {}, timeout = READ_TIMEOUT_MS, input = null } = {}) {
   const childEnv = { ...process.env, GIT_OPTIONAL_LOCKS: '0', ...env };
   // An index inherited from a caller's environment would be read, or written,
   // in place of the one each call means; only the snapshot names one.
@@ -72,7 +75,8 @@ function git(cwd, args, { env = {}, timeout = READ_TIMEOUT_MS } = {}) {
     cwd,
     env: childEnv,
     encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: [input === null ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+    ...(input === null ? {} : { input }),
     timeout,
     killSignal: 'SIGKILL',
     maxBuffer: MAX_BUFFER,
@@ -218,8 +222,16 @@ export function snapshot(repo, base, { timeout = SNAPSHOT_TIMEOUT_MS } = {}) {
     const env = { GIT_INDEX_FILE: path.join(dir, 'index') };
     const seeded = git(repo.top, ['read-tree', base], { env, timeout: left() });
     if (!seeded.ok) return seeded;
-    const added = git(repo.top, ['add', '-A', ...scope(repo)], { env, timeout: left() });
-    if (!added.ok) return added;
+    const updated = git(repo.top, ['add', '-u', ...scope(repo)], { env, timeout: left() });
+    if (!updated.ok) return updated;
+    // Untracked against the base, as `add -A` would see them: the same scope,
+    // the standard ignore rules, each path added literally by name.
+    const others = git(repo.top, ['ls-files', '--others', '--exclude-standard', '-z', ...scope(repo)], { env, timeout: left() });
+    if (!others.ok) return others;
+    if (others.stdout.split('\0').some(Boolean)) {
+      const added = git(repo.top, ['add', '--pathspec-from-file=-', '--pathspec-file-nul'], { env: { ...env, GIT_LITERAL_PATHSPECS: '1' }, timeout: left(), input: others.stdout });
+      if (!added.ok) return added;
+    }
     const written = git(repo.top, ['write-tree'], { env, timeout: left() });
     if (!written.ok) return written;
     return { ok: true, tree: written.stdout.trim() };

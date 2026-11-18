@@ -251,7 +251,9 @@ export function gitScratch(t, files = {}, options = {}) {
     fs.mkdirSync(path.dirname(path.join(run.root, file)), { recursive: true });
     fs.writeFileSync(path.join(run.root, file), text);
   }
-  git(run.root, ['add', '-A', '--', '.', ':(exclude).maister']);
+  // The written files by name: an exclude pathspec for `.maister` makes `git
+  // add` exit 1 when the project's .gitignore already ignores it.
+  if (Object.keys(files).length > 0) git(run.root, ['add', '--', ...Object.keys(files)]);
   git(run.root, ['commit', '-q', '--allow-empty', '-m', 'initial']);
   return run;
 }

@@ -113,6 +113,32 @@ test('review-brief: a re-check carries the fix diff since the previous cycle and
   assert.ok(json.changed.some(entry => entry.path === 'src/other.mjs'), 'the whole change is still listed beside the fix');
 });
 
+test('review-brief: a project whose .gitignore excludes .maister/ gets the same changed files, diffstat and fix', t => {
+  const run = gitScratch(t, { ...FILES, '.gitignore': '.maister/\n' });
+  freeze(run);
+  write(run, 'src/app.mjs', 'export const a = 1;\nexport const b = 3;\n');
+  write(run, 'src/untracked.mjs', 'export const loose = 1;\n');
+  fs.rmSync(path.join(run.root, 'src/gone.mjs'));
+
+  const first = brief(run);
+  assert.equal(first.code, 0, first.stderr);
+  assert.doesNotMatch(first.stderr, /review-brief-snapshot/, 'the snapshot is taken with the run directory ignored');
+  assert.match(first.json.snapshot, /^[0-9a-f]{40,64}$/);
+  assert.deepEqual(first.json.changed, [
+    { path: 'src/app.mjs', status: 'M', added: 1, removed: 1 },
+    { path: 'src/gone.mjs', status: 'D', added: 0, removed: 1 },
+    { path: 'src/untracked.mjs', status: 'A', added: 1, removed: 0, untracked: true },
+  ]);
+  assert.equal(first.json.diffstat, '3 files changed, 2 insertions(+), 2 deletions(-)');
+  verification(run, 'code-review-findings.json', { reviewer: 'code-review', cycle: 1, mode: 'full', findings: [] });
+  assert.equal(merge(run).code, 0);
+
+  write(run, 'src/app.mjs', 'export const a = 1;\nexport const b = 2;\n');
+  const second = brief(run);
+  assert.equal(second.code, 0, second.stderr);
+  assert.deepEqual(second.json.fix, { from: first.json.snapshot, to: second.json.snapshot, files: ['src/app.mjs'] });
+});
+
 test('review-brief: a cycle never merged is built again under its number; a merged one moves to the next', t => {
   const run = frozen(t);
   assert.equal(brief(run).json.cycle, 1);
