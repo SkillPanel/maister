@@ -232,7 +232,7 @@ export function reviewBrief({ state = null, taskPath = null, base = null, cycle 
   }
   if (recheck !== null) brief.recheck = recheckOf(dir, number, recheck, fixedIssues, warnings);
   brief.documents = documentsOf(runDir, state);
-  brief.plan = planOf(runDir, warnings);
+  brief.plan = planOf(runDir, warnings, { standalone: doc === null });
   brief.tests = testsOf(doc, dir, number, recheck, warnings, { refreshing: false });
   brief.checks = checksOf(dir, number);
   brief.profile = profileOf(doc, projectRoot, warnings);
@@ -411,11 +411,14 @@ function documentsOf(runDir, state) {
   return found;
 }
 
-/** `plan`: how many task groups, and how many have every step settled. */
-function planOf(runDir, warnings) {
+/**
+ * `plan`: how many task groups, and how many have every step settled. A
+ * standalone brief has no run to miss the plan, so its absence is not warned.
+ */
+function planOf(runDir, warnings, { standalone }) {
   const text = readText(path.join(runDir, PLAN));
   if (text === null) {
-    warnings.push(`review-brief-plan: ${PLAN} is not in the run, so the brief carries no group counts`);
+    if (!standalone) warnings.push(`review-brief-plan: ${PLAN} is not in the run, so the brief carries no group counts`);
     return null;
   }
   const { groups } = readPlan(text);

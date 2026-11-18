@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
-import { freeze, git, gitScratch, readState, verb } from '../helpers.mjs';
+import { ENGINE, freeze, git, gitScratch, readState, run as runScript, verb } from '../helpers.mjs';
 
 // The freeze records the commit a run starts from, and `review-brief` measures
 // one verification cycle from it, once: changed files through a temporary
@@ -154,6 +155,21 @@ test('review-brief: standalone, a task directory and a base; --task-path without
   const json = JSON.parse(fs.readFileSync(result.stdout.trim(), 'utf8'));
   assert.deepEqual(json.changed.map(entry => entry.path), ['src/app.mjs']);
   assert.equal(json.tests.status, 'pending');
+});
+
+test('review-brief: a standalone brief has no run, so a missing plan is not warned', t => {
+  const run = gitScratch(t, FILES);
+  write(run, 'src/app.mjs', 'changed\n');
+  // As /maister:update-branch builds it: a mktemp -d directory outside the
+  // project, the project root taken from the working directory.
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-standalone-'));
+  t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
+  const result = runScript(ENGINE, ['review-brief', `--task-path=${scratch}`, '--base=HEAD'], undefined, {}, run.root);
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stderr, /review-brief-plan/);
+  assert.doesNotMatch(result.stderr, /not in the run/);
+  const json = JSON.parse(fs.readFileSync(result.stdout.trim(), 'utf8'));
+  assert.equal(json.plan, null);
 });
 
 test('review-brief: the run\'s documents by path, the plan\'s groups, and the test result on --refresh', t => {
