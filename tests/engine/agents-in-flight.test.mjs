@@ -402,6 +402,14 @@ test('the verification runner records a re-check at its own name, under one fixe
   assert.doesNotMatch(text, /review-<stem>:verification\/<stem>\.md/);
 });
 
+test('the verification runner ends an agent back without its recorded output at once', () => {
+  const text = read('agents/verification-runner.md');
+  const step = text.slice(text.indexOf('7. **As each review returns**'), text.indexOf('8. **Each report reached disk.**'));
+  assert.match(step, /--runner=verification --ended=<id>/);
+  assert.match(step, /at once/);
+  assert.match(text, /not the earlier cycle's\s+file its record `kept`/);
+});
+
 test('the implementer writes its report to the path its prompt names', () => {
   assert.match(read('agents/task-group-implementer.md'), /`report_path`/);
 });

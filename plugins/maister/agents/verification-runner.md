@@ -64,8 +64,9 @@ stop. Do no review yourself.
   `fixes: on`, go to the fix pass on those findings; otherwise run that cycle again from its
   brief (step 2), which keeps its number. `fixes_applied` and `reverify_count` are kept as
   recorded, so the budget survives a restart. An agent `verification/in-flight.json` records in
-  the current cycle (its `cycle`) whose output is on disk is **adopted**: read its report or fix
-  report as if it had just returned, and do not send it again. `runner-step` sends you back only
+  the current cycle (its `cycle`) whose output is written — on disk, and not the earlier cycle's
+  file its record `kept` — is **adopted**: read its report or fix report as if it had just
+  returned, and do not send it again. `runner-step` sends you back only
   once no agent this session sent is still out, so no review or fix ever runs twice at once.
 - `resume: {cycle, decisions_file}` — the person's answers to the decision you returned. Read the
   file: each `answers[]` entry names a finding of your findings list and the option label chosen,
@@ -129,9 +130,14 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    them in `chosen`. Under `recheck: tests-only` no review is sent and this step writes nothing.
 7. **As each review returns**, record it done: one `verification_context.reviews` write with
    `done` holding every review returned so far, `chosen` unchanged. One write per return, never
-   batched — the status line moves review by review.
+   batched — the status line moves review by review. When the output its record names is missing,
+   or is still the earlier cycle's file the record `kept`, mark it ended at once — `in-flight
+   --state=<state> --node=<node> --runner=verification --ended=<id>` — before anything else: its
+   completion notice comes only to you, who sent it, so nobody else can release the wait on it. The
+   suite runner and every fix batch get the same: back without their recorded output, ended at
+   once.
 8. **Each report reached disk.** Every review owes its report and its findings file beside it.
-   For each one missing, add an issue to `verification/artifacts-findings.json` (the contract's
+   For each one missing (marked ended in step 7), add an issue to `verification/artifacts-findings.json` (the contract's
    schema, `reviewer: "artifacts"`, `severity: "warning"`, category `docs`) naming the agent and
    the path, and transcribe its reply's issues there. The report says plainly which findings are
    a transcription.
