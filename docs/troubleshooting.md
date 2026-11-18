@@ -177,4 +177,6 @@ adds commits after that point, so the review counts the merged-in work as the ru
 **Fix.** Run `/maister:update-branch` on the branch. It merges the default branch, runs the checks,
 commits the merge and moves the run's start commit to the merged commit, so the next review counts
 only the run's own work. Pass `--onto <branch>` when the branch was cut from a branch other than the
-default one. The flags are in the [command reference](commands.md).
+default one. The flags are in the [command reference](commands.md). A run that started after the
+branch already had commits of its own cannot have its start commit moved past the merge: the command
+leaves that run as it was and says so, and its review keeps measuring from its own start.

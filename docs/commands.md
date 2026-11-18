@@ -419,7 +419,10 @@ commits the merge. It never pushes, never stashes and never resets.
 
 When the branch carries an unfinished workflow run, the run's start commit moves to the merged
 commit. The run's next review then counts only the run's own work, not what the merge brought in.
-`--run <task dir>` names the run to move, and `--no-run` updates the branch alone.
+`--run <task dir>` names the run to move, and `--no-run` updates the branch alone. A run that
+started after the branch already had commits of its own is left as it was, and the command says so
+before merging: its start commit cannot move past the merge, so its next review still measures from
+its own start.
 
 Pass `--onto <branch>` when the branch was cut from a branch other than the default one, so the
 merge brings in that branch instead.

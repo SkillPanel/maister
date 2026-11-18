@@ -60,18 +60,22 @@ With a merge in progress, skip those two checks and go to Step 2. Unstaged and u
 
 Call the chosen ref the *merged ref* and its commit the *merged tip*.
 
-**A merge already in progress** is adopted only when `MERGE_HEAD` is the merged tip. No fetch, no new merge; the merged tip is `MERGE_HEAD`. When `MERGE_HEAD` is any other commit, stop and name both commits. Note the adoption for the report, and go to Step 4's conflict handling for whatever is still unmerged.
+**A merge already in progress** is adopted only when `MERGE_HEAD` is the merged tip. No fetch, no new merge; the merged tip is `MERGE_HEAD`. When `MERGE_HEAD` is any other commit, stop and name both commits. Note the adoption for the report, find the run (Step 3), then go to Step 4's conflict handling for whatever is still unmerged.
 
 ### Step 3: Find the run
 
-- `--run <task dir>` names it; `--no-run` means none; skip the search for either.
+The search runs once the merged tip is known and before anything is merged.
+
+- `--no-run` means none; skip the search.
+- `--run <task dir>` names it and skips the search, but only when its `task.base_commit.sha` is an ancestor of the merged tip (`git merge-base --is-ancestor <base> <merged tip>`). When it is not, stop before merging, changing nothing: the run started after the branch had commits of its own, so its start commit cannot move past the merge. Say that `--no-run` updates the branch alone.
 - Otherwise the candidates are the run folders under `.maister/tasks/<type>/`, leaving out the set-aside copies `<run>.moved-<digits>` and `<run>.failed-<digits>` (the rule of `<plugin root>/lib/run-dirs.mjs`, the plugin root being two levels above this skill's base directory), whose `orchestrator-state.yml` has:
   - `task.status` that is not `completed`, `failed` or `stopped`;
   - a `task.base_commit.sha` that is an ancestor of HEAD (`git merge-base --is-ancestor`);
   - that same sha having the fork point, `git merge-base HEAD <merged ref>`, as an ancestor. This excludes runs frozen before this branch left the default branch.
-- No candidate: the plain branch, no run. One: that run. Several: ask once, before the merge, with AskUserQuestion — "Several unfinished runs match this branch. Which one moves with the merge?" — one option per run, labelled by its folder name with its title or status, the most recently modified first and marked (Recommended). A person who wants none uses `--no-run` on a second call.
+- A run that passes those checks is kept only when its `task.base_commit.sha` is also an ancestor of the merged tip (`git merge-base --is-ancestor <base> <merged tip>`; on an adopted merge the merged tip is `MERGE_HEAD`). A run that fails this check is skipped: it started after the branch had commits of its own, so its start commit cannot move past the merge, and its next review will still measure from its own start. Keep each skipped run for the report.
+- No candidate kept: the plain branch, no run — merge, check and commit, moving nothing. One: that run. Several: ask once, before the merge, with AskUserQuestion — "Several unfinished runs match this branch. Which one moves with the merge?" — one option per run, labelled by its folder name with its title or status, the most recently modified first and marked (Recommended). A person who wants none uses `--no-run` on a second call.
 
-Say which run was found, or that none was.
+Before merging, say which run was found, or that none was, and name each skipped run with the reason.
 
 ### Step 4: Merge
 
@@ -137,7 +141,7 @@ No `--to`: the verb moves the base to the merged tip when HEAD is a merge, to HE
 - Already there: exactly `unchanged: <base full sha> (<rule>)`, nothing written. Report it as already moved.
 - Refused: exit 1, the code first on stderr, ending "Nothing was written." and the next step. The codes are `move-base-state-unreadable`, `move-base-no-repository`, `move-base-merge-in-progress`, `move-base-no-base`, `move-base-bad-ref`, `move-base-not-ancestor` and `move-base-not-in-head`.
 
-On a refusal the merge commit stays. Quote the refusal and warn that the run's next review will count the merged-in work. Do not invent a `--to` to get past it. In particular `move-base-not-ancestor` arises when the run was frozen after its branch already had commits of its own: its base is not an ancestor of the merged tip, and a forced move would hide the run's own commits. Say plainly that the review keeps measuring from the old base, so merged-in files may count as the branch's own.
+On a refusal the merge commit stays. Quote the refusal and warn that the run's next review will count the merged-in work. Do not invent a `--to` to get past it: a forced move could hide the run's own commits. Say plainly that the review keeps measuring from the old base, so merged-in files may count as the branch's own.
 
 ### Step 9: Summary
 
@@ -147,5 +151,6 @@ Close with one report naming:
 - each resolution, file by file, with what was kept and why;
 - the check results, base failures marked as not caused by the branch;
 - the run updated and its old → new base, or "no run found, no start commit moved", or that the run's base was left alone;
+- each run skipped by Step 3, and why: it started after the branch had commits of its own, so its start commit could not move past the merge, and its next review still measures from its own start;
 - any refusal or note: the fetch fallback, an adopted merge, a refused move;
 - that nothing was pushed.
