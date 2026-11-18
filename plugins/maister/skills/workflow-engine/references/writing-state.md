@@ -135,7 +135,7 @@ the whole parsed file, its keys sorted at every depth, arrays kept in order, no 
 file that exists but cannot be applied is refused whole: the run applies the built-in default,
 records that hash, and the freeze prints `warning: policy-refused:<path>:<reason>`, with
 ` at <dotted path>` for a shape fault. Relay the warning; the run goes on. A value a patch sends
-is ignored with a `note:` line, a sub-run's freeze records its own, and no later write changes it.
+is ignored with a `note:` line, a sub-run's freeze records its own, and no later write changes it — `move-base` alone moves `task.base_commit` (below).
 
 **It records `task.base_commit`** — where the run starts: `{sha, dirty}`, HEAD at the freeze and
 the paths already modified, staged or untracked then, the project's `.maister/` left out.
@@ -143,7 +143,7 @@ the paths already modified, staged or untracked then, the project's `.maister/` 
 says nothing; a repository with no commit yet records none and prints
 `warning: base-commit-unrecorded`, and a status it cannot read keeps the base with no dirty paths
 and prints `warning: base-dirty-unread`. A value a patch sends is ignored with a `note:` line, a
-sub-run's freeze records its own, and no later write changes it.
+sub-run's freeze records its own, and no `write-state` changes it. The one exception is `move-base`, which moves the base to the merged tip after a merge and keeps each replaced base: `{sha, dirty, previous: [{sha, dirty, at, reason}, …]}`, oldest first, `dirty` being the paths still dirty that were already dirty before. A run that never moves keeps the two-key `{sha, dirty}`.
 
 **It records `orchestrator.options.delegation`** — whether the run's subagents can dispatch
 subagents of their own: `{mode, depth, source}`, from the host the freeze's `--host` names.

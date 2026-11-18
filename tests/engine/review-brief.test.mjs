@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
-import { freeze, git, gitScratch, readState, verb } from '../helpers.mjs';
+import { ENGINE, freeze, git, gitScratch, readState, run as runScript, verb } from '../helpers.mjs';
 
 // The freeze records the commit a run starts from, and `review-brief` measures
 // one verification cycle from it, once: changed files through a temporary
@@ -154,6 +155,21 @@ test('review-brief: standalone, a task directory and a base; --task-path without
   const json = JSON.parse(fs.readFileSync(result.stdout.trim(), 'utf8'));
   assert.deepEqual(json.changed.map(entry => entry.path), ['src/app.mjs']);
   assert.equal(json.tests.status, 'pending');
+});
+
+test('review-brief: a standalone brief has no run, so a missing plan is not warned', t => {
+  const run = gitScratch(t, FILES);
+  write(run, 'src/app.mjs', 'changed\n');
+  // As /maister:update-branch builds it: a mktemp -d directory outside the
+  // project, the project root taken from the working directory.
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-standalone-'));
+  t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
+  const result = runScript(ENGINE, ['review-brief', `--task-path=${scratch}`, '--base=HEAD'], undefined, {}, run.root);
+  assert.equal(result.code, 0, result.stderr);
+  assert.doesNotMatch(result.stderr, /review-brief-plan/);
+  assert.doesNotMatch(result.stderr, /not in the run/);
+  const json = JSON.parse(fs.readFileSync(result.stdout.trim(), 'utf8'));
+  assert.equal(json.plan, null);
 });
 
 test('review-brief: the run\'s documents by path, the plan\'s groups, and the test result on --refresh', t => {
@@ -332,4 +348,76 @@ test('review-brief: a snapshot git cannot take degrades the same way, never a re
   assert.match(stderr, /^warning: review-brief-snapshot: git add exited/m);
   assert.equal(json.snapshot, null);
   assert.equal(json.changed, null);
+});
+
+/**
+ * A run on a feature branch with cycle 1 briefed and merged, then the default
+ * branch merged in and the run's base moved: the next brief starts from a new base.
+ */
+function movedAfterCycleOne(t) {
+  const run = gitScratch(t, FILES);
+  git(run.root, ['checkout', '-q', '-b', 'feature']);
+  freeze(run);
+  write(run, 'src/feature.mjs', 'export const feature = 1;\n');
+  git(run.root, ['add', 'src/feature.mjs']);
+  git(run.root, ['commit', '-q', '-m', 'the run\'s work']);
+  const first = brief(run);
+  assert.equal(first.code, 0, first.stderr);
+  assert.equal(merge(run).code, 0);
+  git(run.root, ['checkout', '-q', 'main']);
+  write(run, 'lib/one.mjs', 'export const one = 1;\n');
+  git(run.root, ['add', 'lib']);
+  git(run.root, ['commit', '-q', '-m', 'the default branch moves on']);
+  git(run.root, ['checkout', '-q', 'feature']);
+  git(run.root, ['merge', '-q', '--no-ff', '-m', 'merge main', 'main']);
+  const moved = verb(['move-base', `--state=${run.state}`]);
+  assert.equal(moved.code, 0, moved.stderr);
+  return { run, firstBase: first.json.base };
+}
+
+test('review-brief: after the base moved, the next cycle is a full brief with no fix and names the old base', t => {
+  const { run, firstBase } = movedAfterCycleOne(t);
+  const { code, stderr, json } = brief(run);
+  assert.equal(code, 0, stderr);
+  assert.equal(json.cycle, 2);
+  assert.equal(json.mode, 'full');
+  assert.equal(json.fix, null);
+  assert.equal(json.recheck, null);
+  assert.equal(json.base_moved_from, firstBase);
+  assert.notEqual(json.base, firstBase);
+  assert.ok(!/review-brief-base-moved/.test(stderr), 'no re-check was asked, so no warning');
+});
+
+test('review-brief: a re-check after the base moved becomes a full cycle with one warning naming both bases', t => {
+  const { run, firstBase } = movedAfterCycleOne(t);
+  const { code, stderr, json } = brief(run, ['--recheck=reviews', '--fixed-issues=1']);
+  assert.equal(code, 0, stderr);
+  assert.equal(json.mode, 'full');
+  assert.equal(json.fix, null);
+  assert.equal(json.recheck, null);
+  assert.equal(json.base_moved_from, firstBase);
+  assert.equal(json.tests.status, 'pending', 'the tests block is the full cycle\'s');
+  const lines = stderr.split('\n').filter(line => line.startsWith('warning: review-brief-base-moved:'));
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].includes(firstBase) && lines[0].includes(json.base), 'both bases are named');
+  assert.match(lines[0], /full review/);
+});
+
+test('review-brief: a re-check with no previous brief is still refused after a move', t => {
+  const { run } = movedAfterCycleOne(t);
+  const refused = brief(run, ['--cycle=5', '--recheck=reviews', '--fixed-issues=1']);
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.stderr, /^review-brief-no-previous: /);
+});
+
+test('review-brief: with no move, cycle 2 has no base_moved_from, keeps its fix and its key list', t => {
+  const run = frozen(t);
+  const first = brief(run);
+  assert.equal(merge(run).code, 0);
+  write(run, 'src/app.mjs', 'export const a = 1;\nexport const b = 3;\n');
+  const { code, stderr, json } = brief(run, ['--base=' + first.json.base]);
+  assert.equal(code, 0, stderr);
+  assert.ok(!Object.hasOwn(json, 'base_moved_from'));
+  assert.deepEqual(json.fix.files, ['src/app.mjs']);
+  assert.deepEqual(Object.keys(json), ['cycle', 'mode', 'base', 'snapshot', 'previous_snapshot', 'contract', 'changed', 'diffstat', 'excluded', 'fix', 'recheck', 'documents', 'plan', 'tests', 'checks', 'profile']);
 });

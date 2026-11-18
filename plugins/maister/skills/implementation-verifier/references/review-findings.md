@@ -46,6 +46,7 @@ paths relative to the repository's top.
   audits, and `state`, whose phase summaries record the decisions. Open what your method needs.
 - **`profile`**: the project profile, its fields and `source` (§ The project profile).
 - **`fix`** and **`recheck`**: § Re-check mode.
+- **`base_moved_from`**: present only on the first cycle built after the run's base commit moved (a merge brought in other work). It names the previous cycle's base; `mode` is `full`, and `fix` and `recheck` are `null`, so review the whole range from the new `base`. Earlier cycles' findings are not carried over as a re-check.
 - **A part the verb could not fill is `null`.** For example, `changed` is null when the snapshot
   failed. For that part only, find it yourself, and say so in your report.
 

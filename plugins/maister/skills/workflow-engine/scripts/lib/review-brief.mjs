@@ -13,7 +13,8 @@
  * The contract. Orchestrator mode takes `--state` (the run's
  * `orchestrator-state.yml`); standalone mode takes `--task-path` (the task
  * directory) and `--base` (the commit the work starts from). In orchestrator
- * mode the base is the freeze's `task.base_commit`; a run frozen before that
+ * mode the base is the run's current `task.base_commit` — the freeze's, or the
+ * one `move-base` moved it to; a run frozen before that
  * key existed has none, and then `--base` is required — the verb never
  * guesses one. The verb writes `verification/review-brief-<N>.json` in the run
  * directory and prints its absolute path.
@@ -31,7 +32,11 @@
  * What it holds, all paths of run files relative to the run directory and all
  * paths of code relative to the repository's top:
  *
- *   base, snapshot      the base commit, and the working tree as a tree id
+ *   base, snapshot      the base commit (`base_moved_from` beside it, only when
+ *                       it differs from the previous cycle's: that cycle is
+ *                       then full, with `fix` null, even when a re-check was
+ *                       asked, which adds the `review-brief-base-moved` warning),
+ *                       and the working tree as a tree id
  *                       taken through a temporary index (`git-tree.mjs`)
  *   changed, diffstat   every path that differs, untracked files included,
  *                       with its status and line counts; `untracked` and
@@ -187,11 +192,21 @@ export function reviewBrief({ state = null, taskPath = null, base = null, cycle 
       `a re-check builds on the brief of cycle ${number - 1}, and ${dir} has none. Nothing was written. Build a full brief instead (drop --recheck and --fixed-issues), or name the right --cycle`);
   }
 
+  // A base that differs from the previous cycle's means the run's start moved
+  // (`move-base`): the fix diff and a re-check's issues are measured from the
+  // old base, so the cycle is a full review and says where it came from.
+  const movedFrom = isPlainObject(previous) && typeof previous.base === 'string' && previous.base !== baseSha ? previous.base : null;
+  if (movedFrom !== null && recheck !== null) {
+    warnings.push(`review-brief-base-moved: the run's base moved from ${movedFrom} to ${baseSha} since cycle ${number - 1}, so the re-check became a full review`);
+    recheck = null;
+  }
+
   fs.mkdirSync(dir, { recursive: true });
   const brief = {
     cycle: number,
     mode: recheck === null ? 'full' : 'recheck',
     base: baseSha,
+    ...(movedFrom === null ? {} : { base_moved_from: movedFrom }),
     snapshot: null,
     previous_snapshot: isPlainObject(previous) && typeof previous.snapshot === 'string' ? previous.snapshot : null,
     contract: path.join(pluginRoot, CONTRACT),
@@ -213,11 +228,11 @@ export function reviewBrief({ state = null, taskPath = null, base = null, cycle 
   } else {
     brief.snapshot = taken.tree;
     diffParts(brief, repo, dirty, warnings);
-    fixParts(brief, repo, number, previous, warnings);
+    if (movedFrom === null) fixParts(brief, repo, number, previous, warnings);
   }
   if (recheck !== null) brief.recheck = recheckOf(dir, number, recheck, fixedIssues, warnings);
   brief.documents = documentsOf(runDir, state);
-  brief.plan = planOf(runDir, warnings);
+  brief.plan = planOf(runDir, warnings, { standalone: doc === null });
   brief.tests = testsOf(doc, dir, number, recheck, warnings, { refreshing: false });
   brief.checks = checksOf(dir, number);
   brief.profile = profileOf(doc, projectRoot, warnings);
@@ -396,11 +411,14 @@ function documentsOf(runDir, state) {
   return found;
 }
 
-/** `plan`: how many task groups, and how many have every step settled. */
-function planOf(runDir, warnings) {
+/**
+ * `plan`: how many task groups, and how many have every step settled. A
+ * standalone brief has no run to miss the plan, so its absence is not warned.
+ */
+function planOf(runDir, warnings, { standalone }) {
   const text = readText(path.join(runDir, PLAN));
   if (text === null) {
-    warnings.push(`review-brief-plan: ${PLAN} is not in the run, so the brief carries no group counts`);
+    if (!standalone) warnings.push(`review-brief-plan: ${PLAN} is not in the run, so the brief carries no group counts`);
     return null;
   }
   const { groups } = readPlan(text);

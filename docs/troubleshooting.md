@@ -165,3 +165,18 @@ workflow command names any other flag it does not take in the same way.
 **Fix.** Resume with the task directory alone. To go back inside a run, choose *revise* at a
 checkpoint: it sends the run back to the step that wrote the document, with your note. The flags
 each command takes are in the [command reference](commands.md).
+
+## The review counts files the default branch brought in
+
+**Symptom.** A run's review lists files you did not change in the run: files that came in when the
+default branch was merged into the branch.
+
+**Cause.** The review measures from the commit the run started on. A merge of the default branch
+adds commits after that point, so the review counts the merged-in work as the run's own.
+
+**Fix.** Run `/maister:update-branch` on the branch. It merges the default branch, runs the checks,
+commits the merge and moves the run's start commit to the merged commit, so the next review counts
+only the run's own work. Pass `--onto <branch>` when the branch was cut from a branch other than the
+default one. The flags are in the [command reference](commands.md). A run that started after the
+branch already had commits of its own cannot have its start commit moved past the merge: the command
+leaves that run as it was and says so, and its review keeps measuring from its own start.

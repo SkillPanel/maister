@@ -439,9 +439,9 @@ const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
  *                   a replacement by definition.
  *
  * `task:` carries no open map at all (`title`, `status`, `description`,
- * `tags[]`, `priority`, `key`, and the freeze's own `base_commit`), so nothing
- * under it merges and the list stays qualified by its section rather than by
- * key alone.
+ * `tags[]`, `priority`, `key`, and the freeze's own `base_commit`, which only
+ * `move-base` replaces afterwards, whole), so nothing under it merges and the
+ * list stays qualified by its section rather than by key alone.
  *
  * A future open map added to the state contract must be added here too: the
  * default is to replace, so a mapping absent from this list is replaced
@@ -536,8 +536,13 @@ const WORKFLOW_CONTEXT = {
  * read inside `apply`, which `writeState` never saw — so the projection would have
  * had to read a second one and a write could be stamped a second apart from the
  * file describing it.
+ *
+ * `moveBase`, given only by the `move-base` verb and never read from a patch, is
+ * `{sha, dirty, reason}`: the commit the run's base moves to, the paths dirty
+ * now and why (a string or null). The writer replaces `task.base_commit` from
+ * the record the document holds (`applyMoveBase`).
  */
-export function writeState({ state, patch, regress = null, host = null }) {
+export function writeState({ state, patch, regress = null, host = null, moveBase = null }) {
   const warnings = [];
   // What `apply` reports back about the record it built. `changed`: the dotted
   // paths it wrote. `ignored`: the clock fields the patch carried and the
@@ -569,7 +574,7 @@ export function writeState({ state, patch, regress = null, host = null }) {
     const before = statusesOf(doc.text());
     // `asking`: the ids a classing write left to ask, null when the write sent no question set.
     const out = { changed, ignored, undeclared, writeWarnings, notes, asking: null, before };
-    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress, host)) allowed.add(key);
+    for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress, host, checkMoveBase(moveBase))) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
     // Before the state commit, so a refusal out of the index leaves the state
@@ -1208,9 +1213,9 @@ function fallbackExecutor(doc) {
  * freshness cannot be reasoned about.
  *
  * `host` is the `--host` the call named, or null; only the freeze reads it
- * (`seedDelegation`).
+ * (`seedDelegation`). `moveBase` is `writeState`'s option of that name, checked.
  */
-function apply(doc, patch, now, runDir, out, regress = null, host = null) {
+function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBase = null) {
   const { changed, ignored, undeclared, writeWarnings, notes } = out;
   const intended = new Set(['orchestrator']);
   // The run's frozen graph, proven, for the checks that need the definition;
@@ -1291,6 +1296,10 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null) {
     intended.add('task');
   }
   if (freezing && runDir !== null && seedBaseCommit(doc, runDir, changed, writeWarnings)) intended.add('task');
+  if (moveBase !== null) {
+    applyMoveBase(doc, moveBase, now, changed);
+    intended.add('task');
+  }
   if (patch.workflow) {
     applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored, notes);
     intended.add('workflow');
@@ -2808,11 +2817,14 @@ function seedPolicyHash(doc, workflow, loaded, changed, writeWarnings) {
  * every verification cycle from it, and marks a changed path that was dirty
  * before the run started.
  *
- * Only the freeze writes it, and a patch value is never taken (`apply` drops
+ * Only the freeze seeds it, and a patch value is never taken (`apply` drops
  * it). A project outside git records none and says nothing; a repository with
  * no commit yet records none and warns, and so does a status that could not
  * be read, with the base kept. A run frozen before the key existed stays
  * without one, and `review-brief` then needs `--base`. Whether it wrote.
+ *
+ * The one later change is `move-base`'s (`applyMoveBase`), which adds the key
+ * `previous`; a run that never moves keeps exactly the two keys written here.
  */
 function seedBaseCommit(doc, runDir, changed, writeWarnings) {
   const base = baseAtFreeze(projectRootOf(runDir));
@@ -2835,6 +2847,61 @@ function seedBaseCommit(doc, runDir, changed, writeWarnings) {
   doc.set(['task', 'base_commit'], [`  base_commit: ${flow({ sha: base.sha, dirty }, 'task.base_commit')}`]);
   changed.push('task.base_commit');
   return true;
+}
+
+/**
+ * `writeState`'s `moveBase` option, checked for shape: null, or `{sha, dirty,
+ * reason}` with a full commit id, a list of paths and a string or null. Its
+ * only caller is the `move-base` verb, so a wrong shape is a fault in the
+ * engine, thrown rather than refused.
+ */
+function checkMoveBase(moveBase) {
+  if (moveBase === null || moveBase === undefined) return null;
+  const sound = isPlainObject(moveBase)
+    && typeof moveBase.sha === 'string' && /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/.test(moveBase.sha)
+    && Array.isArray(moveBase.dirty) && moveBase.dirty.every(file => typeof file === 'string')
+    && (moveBase.reason === null || typeof moveBase.reason === 'string');
+  if (!sound) throw new TypeError('writeState: moveBase must be {sha: <full commit id>, dirty: [paths], reason: string or null}');
+  return moveBase;
+}
+
+/**
+ * The base moved: `task.base_commit` replaced, whole and on its one line as
+ * the freeze writes it, by `{sha, dirty, previous}`, built from the record
+ * the document holds so the history is always the record replaced.
+ *
+ * - `sha`: the commit the base moves to.
+ * - `dirty`: the paths dirty now that the record already marked dirty, so the
+ *   run's own edits never count as dirty before the run.
+ * - `previous`: the earlier entries, then the replaced base as `{sha, dirty,
+ *   at, reason}` — oldest first, `at` this write's own stamp.
+ *
+ * A document with no recorded base is refused: there is nothing to move.
+ */
+function applyMoveBase(doc, moveBase, now, changed) {
+  const task = typedOf(doc).task;
+  const record = isPlainObject(task) && isPlainObject(task.base_commit) ? task.base_commit : null;
+  if (record === null || typeof record.sha !== 'string' || record.sha === '') {
+    throw new Refusal('move-base-no-base',
+      'the run records no task.base_commit, so there is no base to move. Nothing was written. '
+      + 'Give review-brief --base for this run instead');
+  }
+  // A reason that opens like a list or a map would be emitted as one and read
+  // back as something else, so it is refused like any other unsafe value.
+  if (moveBase.reason !== null && /^[[{]/.test(moveBase.reason)) {
+    throw new Refusal('value-not-flow-safe',
+      'task.base_commit.previous.reason opens with a bracket or a brace, which the one-line reader '
+      + 'would take for a list or a map. Nothing was written. Give a reason that opens with a word');
+  }
+  const was = Array.isArray(record.dirty) ? record.dirty.filter(file => typeof file === 'string') : [];
+  const kept = new Set(was);
+  const dirty = [...new Set(moveBase.dirty)].filter(file => kept.has(file)).sort();
+  const previous = [
+    ...(Array.isArray(record.previous) ? record.previous : []),
+    { sha: record.sha, dirty: was, at: now, reason: moveBase.reason },
+  ];
+  doc.set(['task', 'base_commit'], [`  base_commit: ${flow({ sha: moveBase.sha, dirty, previous }, 'task.base_commit')}`]);
+  changed.push('task.base_commit');
 }
 
 /**

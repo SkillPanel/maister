@@ -149,7 +149,7 @@ used and never rebuilt by a turn. There is no time-based expiry, and images neve
 only `--ground` replaces them.
 
 **What a run changed** is a separate question. With `--state=<run's orchestrator-state.yml>`,
-`ground-status` also prints `base`, the commit the run started from (`task.base_commit`, null when
+`ground-status` also prints `base`, the run's current base commit (`task.base_commit`: the commit the run started from, moved by `move-base` after a merge; null when
 the run recorded none), and `touched`: the recorded sources whose content at that commit differs
 from the working tree now, or that exist on one side only, by the same hashing rules. A pack stale
 before the run and left alone by it is not touched; with no pack or no base, `touched` is empty. A
