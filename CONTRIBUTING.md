@@ -19,6 +19,12 @@ author to date.
    Skipped where the `claude` CLI is not installed.
 6. Commit the source change and the regenerated `plugins/maister-copilot/` output together.
 
+After editing a workflow definition under `plugins/maister/skills/workflow-engine/workflows/`, run
+`make diagram` and `make reference` as well: the first regenerates the diagram beside each
+definition, the second `docs/workflow-reference.md`, the page that lists each built-in's inputs,
+steps, checkpoints and declared outputs. `make validate` fails while either is stale. `make smoke`
+runs the engine verbs and the hooks through a shell from a path holding a space.
+
 `make validate` checks that every command `hooks.json` names resolves on disk and that the
 committed generated variant matches a fresh `make build` byte for byte, plus the flat-command,
 no-colon, picker-rendering and plugin-root-vocabulary lints, and the guide template lint

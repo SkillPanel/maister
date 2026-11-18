@@ -53,7 +53,7 @@
  *
  * One whole-file write per invocation, temp-then-rename, and the temp file is
  * named exactly `orchestrator-state.yml.tmp` because a fixed name is what a
- * permission rule or hook can match (ADR-0012).
+ * permission rule or hook can match.
  *
  * One entry outside the frozen graph is accepted under `workflow.nodes`: the
  * status of the reserved closing checkpoint `held-approval` — `pending`,
@@ -150,8 +150,8 @@ const TMP_NAME = 'orchestrator-state.yml.tmp';
 const GATE_INDEX = 'gates/index.yml';
 
 /**
- * The projection's two file names, frozen for the same reason `TMP_NAME` is
- * (ADR-0012). Both dashboard files are engine-owned, and
+ * The projection's two file names, frozen for the same reason `TMP_NAME` is.
+ * Both dashboard files are engine-owned, and
  * `dashboard-data.js.tmp` exists only inside this module's publish.
  *
  * A temp left behind by a killed writer heals itself: the shared publish path

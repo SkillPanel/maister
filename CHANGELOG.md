@@ -1,262 +1,161 @@
 # Changelog
 
-Notable changes per release, newest first. Anything an operator has to *do* on upgrade day is
-called out under **Upgrading** — read that section before you install a new version over a
-workspace with work in flight.
+Notable changes per release, newest first. Anything you have to *do* on upgrade day is called out
+under **Upgrading**; read that section before you install a new version over a project with work
+in flight.
 
 ## 3.0.0
 
-Maister 3.0 runs every workflow on a workflow engine. Each of the five built-in workflows —
-`development`, `research`, `performance`, `migration` and `product-design` — now ships as a workflow
-definition: a graph of phases and gates that the engine freezes into the task's state when the run
-starts, and then executes. A resumed run continues from the graph it froze, so neither an upgrade
-nor an edited definition changes a run already in flight. This is a major version because two
-things a 2.x user relies on change: Node.js is now required, and a task started on 2.x is not
-resumed by 3.0. Read **Breaking changes** and **Upgrading** below before you install over a
-workspace with work in flight.
+Maister 3.0 runs every workflow on a workflow engine. Each of the six built-in workflows
+(`development`, `research`, `performance`, `migration`, `product-design` and `mockup-studio`) is a
+definition: a graph of steps and checkpoints that the engine copies into the run's state when the
+run starts, then works through. The workflow, quick and standards commands keep their names, and
+your project's `.maister/` directory needs no conversion. This is a major version because two
+things a 2.x user relies on change: Node.js 20 is now required, and a task started on 2.x is not resumed by 3.0. Read
+**Breaking changes** and **Upgrading** below, and the
+[migration guide](https://github.com/SkillPanel/maister/blob/master/docs/upgrading-from-2x.md),
+before you install over a project with work in flight.
 
 ### What's new
 
-- **Engine-driven workflows.** A workflow's phases, gates and artifacts are declared in its
-  definition rather than described in a long prose skill, and every change to a run's state goes
-  through the engine. It refuses a change the frozen graph does not allow — an unknown phase, a
-  status a phase cannot have, a gate answer that is not one of the gate's options — and a run cannot
-  be recorded as complete while a phase it can still reach has not run.
-- **Your own workflows.** A project can define a workflow in `.maister/workflows/<name>.yml`, with
-  the prose for its steps in `<name>.md` beside it, and run it like a built-in with
-  `/maister:run <name>` — the same dashboard, the same gates, the same resume.
-  `/maister:run <name> --check` validates one without starting it, `/maister:run --list` shows what
-  the project defines, and `/maister:work` offers one when your task matches what it is for. A
-  built-in can be adjusted without copying it, through an overlay that disables, tunes or adds
-  phases, or copied whole into the project as an eject. `/maister:workflow-author` writes them with
-  you: `new` interviews you and writes the definition, `overlay` shows what a built-in lets an
-  overlay change and writes one, and `check`, `nodes` and `preview` judge, list and draw. See
-  [Extending maister](https://github.com/SkillPanel/maister/blob/master/docs/extending.md).
-- **Child runs.** A phase can start another workflow as a run of its own — a research run inside a
-  larger piece of work, say. The child gets its own task directory beside the parent's, with its own
-  gates and dashboard; the parent waits for it, then reads back what the child declares, such as its
-  report and conclusions.
-- **A live dashboard.** A run's `dashboard.html` draws from data the engine republishes on every
-  state change, so it is never behind the run, through implementation waves and verification cycles
-  included. Phases are shown by readable titles.
-- **Gates that can send a run back.** Approval gates that close a document offer **revise** beside
-  continue and stop. It sends the run back to the phase that wrote the document, with a note you
-  pick from suggested changes drawn from that phase's open risks and decisions, or type yourself.
-  That phase and everything after it run again, and the gate asks once more. Revise as often as you
-  need: the option says how often the gate has sent the run back so far, and a safety ceiling of
-  ten per gate stops a runaway loop, after which the gate offers continue and stop alone.
-- **Checkpoints you can read at a glance.** A gate asks one line: what finished, and whether
-  it is ready to go on; the continue option names where the run goes. On Claude Code each option shows a preview beside it — the continue
-  option's says what was done, what runs next, the files to review, who settled each decision
-  (the analysis, an audit or a default) and how many of the choices were your own; revise and
-  stop say what they would do. Risks are kept under **More details**, grouped as open, accepted
-  trade-offs and follow-ups. On GitHub Copilot CLI the same content is in the question itself,
-  with the ask as its last line.
-- **Obvious fixes without a question.** When verification finds issues — in development and
-  performance, and in migration's issue resolution — every fix that is clear and not risky is
-  made without asking, and the run re-checks on its own, up to two times. Only then does it ask:
-  about the issues that need your decision, one per issue, and whether to take another round,
-  continue as is or stop. The next gate lists every fix made without asking.
-- **Questions that carry their own context.** A question inside a phase says what it is about
-  in its own text, and its recommended answer gives the reason. Questions that stand on their
-  own come as pages of up to four; a design decision comes one area at a time, each with every
-  alternative, its pros and cons and the recommendation, and is never accepted wholesale. A
-  question the run can already answer from its own analysis is not asked: it says the answer in
-  one line instead. Where the context is long, **More details** writes it out and asks again.
-- **Design decisions asked from the brainstorm itself.** In research and product design, every
-  decision area's question and its full write-up — each alternative with its pros and cons, and
-  the recommendation — now come from the record the brainstorm keeps beside its document, word
-  for word, so the terminal and a cockpit show the same text. In a cockpit, each area carries its
-  full write-up, so you can decide it without opening the exploration document. A brainstorm
-  without that record, or whose document changed after it was written, still asks as before, and
-  says so; a research or product-design run already in progress when you upgrade sees a notice at
-  its later checkpoints that its workflow changed, and asks its areas as before.
-- **Questions inside a phase classed under an autonomy ceiling.** Inert unless an autonomy policy
-  that classes in-node questions is installed; under the built-in default nothing here changes.
-  With one, a phase sends the questions it would ask to the engine first, which settles the
-  routine ones within the run's autonomy ceiling, takes a default where nobody can be asked, and
-  holds for your approval any choice that needs it. The engine's `write-state` then prints an
-  `ask:` line after the changed paths, naming the questions still to ask (`ask: none` when
-  nothing is). Held choices are listed first at the next checkpoint, with the step that holds
-  each, and continuing there approves them; a question that recommended nothing is held with no
-  choice yet, and you settle it by sending its phase back with your choice in the note, never by
-  continuing. A checkpoint that can send back only some of the phases holding such a question
-  settles those, and a sub-run after such a phase waits until the question is settled. A revise
-  at a checkpoint says which held choice it rejects, and a checkpoint offers a *Revise <phase>*
-  for each phase before it that holds a choice, so you can send one back with a note without
-  approving the rest. When no checkpoint follows, the run asks a closing
-  checkpoint, *Held for approval* (`held-approval`), before it finishes; a run that cannot ask it
-  ends `RUN-FAILED: run-held-unapproved`, and a continue nobody could have been asked there is
-  refused rather than recorded. The autonomy ceiling is fixed when the run starts: a
-  later change may narrow it, never widen it. A dispatch envelope carries the ceiling to the
-  worker, never wider than the dispatcher's own.
-- **A question per review finding.** When the specification audit or the verification fix loop
-  leaves a finding that needs your decision, each is asked on its own, after the fixes the run
-  makes without asking: the reviewer's proposed change, the alternatives it names, "Accept the risk
-  and list it", the recommended choice with its reason, and the evidence. An accepted risk is
-  listed as a tradeoff at the next checkpoint; under a driver that cannot ask, a finding stays an
-  open risk, or is held for your approval when an autonomy policy says so. Under such a policy, a
-  checkpoint's continue also records each value it sets as its own decision.
-- **A record of who decided.** Every decision a run records says who settled it: the analysis,
-  an audit, a default taken because nobody could be asked, or you. Your answers are kept in the
-  task's state, on the step that asked them, with whether you took the recommendation — read the
-  same whatever its case and whether or not the answer carries the "(Recommended)" label — and the
-  dashboard shows each decision with who settled it.
-- **Product design on the engine.** `/maister:product-design` runs as a definition like the others,
-  in six steps and three pauses. It explores the project and proposes the scope, so the first pause
-  shows the scope, the problem and the personas, and asks for the outcome: a design brief with
-  screens, a brief with a feature specification, or `/maister:quick-design` instead when one bounded
-  question is all there is. Each decision area is asked with sketches of its options beside it, and
-  you can have something checked before you answer. The second pause approves the direction, and the
-  third the brief and the final screens together. A design with nothing to draw goes through without
-  sketches or screens. A run driven from outside the session never chooses a design direction itself:
-  it lays out the alternatives with a recommendation for each decision, and the direction pause is
-  where you choose.
-- **Quick-design decisions feed development.** `/maister:development` takes a quick-design task or
-  its `decision.md`, by `--design=PATH` or named in the description. The decision becomes the design
-  intent for the specification and the plan, and the pages of the options you chose become binding
-  mockups; the rejected options' pages are left behind.
-- **HTML pages declared, not remembered.** Every delegate gets the run's context from the engine
-  (`run-context`), and a definition declares which steps owe an HTML page beside their markdown
-  (`html_companions`). A missing page is reported when its step completes, and again at the end
-  of the run.
-- **One brief per step.** Before each step the engine prints its brief (`node-brief`): what the
-  run already knows about the step — its inputs, the files it writes, the questions it may ask,
-  the checkpoint it feeds — the rules every step of its kind follows that apply right now, and then
-  only that step's own section of the workflow's guide. The five built-in guides are about two
-  fifths shorter, each step written in one fixed shape that `make validate` checks for structure,
-  not length. The per-step data — sanctioned absences, attempt budgets, recommendations — sits
-  in the definition's `brief:` block; a question's default is written once, in the step's own
-  section. In your own workflow, a step with nothing to say beyond those rules needs no section in
-  its guide; a guide heading that names no step is warned about rather than ignored.
-- **A context pack for a run.** `/maister:development` and `/maister:research` take
-  `--context=PATH`: a file or a directory, relative to the project root, that the run's first phase
-  copies into `analysis/work-context/` and records as `work_reference` in the run's context block.
-  Every later phase reads it as background. A path that cannot be read is reported and the run
-  continues without it. Adding it changed both definitions' graphs, so an eject or an overlay of
-  either built-in is checked again against the new base.
-- **An interface file for tools that pin the plugin.** `interface.json` at the plugin's root
-  describes what the plugin offers a tool built on it — every key of a driven gate request with its
-  type and whether it is required, the checkpoint's kinds and keys, the keys and statuses the engine
-  writes into state, each engine verb with its flags and refusal codes, and the agents, skills,
-  commands, hook events and MCP tool names. It is generated from the code, so a diff between two
-  pins shows what changed; an additive change raises its minor version, a removal or a changed
-  type or required flag its major.
-- **Also new.** Umbrella workspaces span several repositories (`/maister:umbrella init`, `validate`
-  and `prune`) and are driven as chains from the
-  [maister cockpit](https://github.com/SkillPanel/maister-cockpit). On GitHub Copilot CLI, the
-  plugin now names every command the way Copilot registers it, `/maister-copilot:<name>`. There,
-  implementation and verification run their loops in the session: no Copilot agent is given the
-  agent tool, so no subagent dispatches subagents of its own; every agent call names the fields
-  Copilot's task tool takes, `name` among them. A step that dispatches agents from its own prose
-  — research's planning, gathering and synthesis, the specification writer — names them in its
-  definition, and on either host the engine records the step complete only once it lists each
-  agent it dispatched.
-- **Runners survive background subagents.** On a host that starts a subagent's own subagents in
-  the background and makes the subagent hand back early, the implementation and verification
-  runners record every agent before it starts and hand back as `waiting`, naming the agents still
-  running. Your session waits for those agents, then sends the runner back to pick up their
-  reports, so the run never falls back to running the loop in your session for good. A resumed
-  run never starts a second implementer, review or fix on work whose first is still running.
+- **Six built-in workflows on one engine.** Every change to a run's state goes through the engine,
+  which refuses what the graph does not allow: a step recorded as done before the checkpoint in
+  front of it has an answer, an answer the checkpoint does not offer, a run closed while steps it
+  can still reach have not run. A resumed run continues from the graph it copied at its start, so
+  a plugin upgrade does not change the steps and checkpoints of a run already in flight.
+- **The mockup studio.** `/maister:mockup-studio` draws one new version of a set of mockups each
+  time you call it, never asks a question, and keeps every earlier version. `--turn "<note>"`
+  draws the next version; `--ground` rebuilds the grounding pack. The grounding pack, in
+  `.maister/docs/design-context/`, holds your product's colours, fonts, layout and copy, harvested
+  from the codebase, so the screens look like your product. It is built on the first mockup.
+  Development and product design draw their mockups through it. See
+  [Mockups](https://github.com/SkillPanel/maister/blob/master/docs/mockups.md).
+- **Your own workflows and overlays.** A project can define a workflow in
+  `.maister/workflows/<name>.yml`, with the plain-language prose for its steps in `<name>.md`
+  beside it, and run it like a built-in with `/maister:run <name>`: the same checkpoints,
+  dashboard and resume. A step can be prose, one of your skills, one of your agents, or another
+  workflow. An overlay adds, tunes or disables steps of a built-in without copying it.
+  `/maister:run <name> --check` validates a workflow without starting it, `/maister:run --list`
+  shows what the project defines, and `/maister:work` offers one when your task matches it.
+  `/maister:workflow-author` interviews you and writes the files. See
+  [Extending Maister](https://github.com/SkillPanel/maister/blob/master/docs/extending.md).
+- **Checkpoints that can send a run back.** A checkpoint that closes a document offers **revise**
+  beside continue and stop. It sends the run back to the step that wrote the document, with a
+  note you pick from suggestions or type yourself. That step and everything after it run again,
+  and the checkpoint asks once more. A safety ceiling of ten revisions per checkpoint stops a
+  runaway loop; after it, the checkpoint offers continue and stop alone.
+- **Checkpoints you can read at a glance.** A checkpoint asks one line, and the option to continue
+  shows what was done, what runs next, the files to review, the risks still open and who settled
+  each decision. On GitHub Copilot CLI the same content is in the question itself.
+- **Obvious fixes without a question.** When verification finds issues, in development and
+  performance and in migration's issue resolution, every fix that is clear and not risky is made
+  without asking, and the run re-checks on its own, up to two times. Only then does it ask about
+  what is left. The next checkpoint lists every fix made without asking.
+- **A question per finding.** When the specification audit or verification leaves a finding that
+  needs your decision, each is asked on its own: the reviewer's proposed change, the alternatives,
+  "Accept the risk and list it", the recommended choice with its reason, and the evidence.
+  Questions inside a step say what they are about in their own text. In research and product
+  design, each design decision is asked one area at a time, with every alternative, its pros and
+  cons and a recommendation.
+- **Three reviews, sized to your project.** Verification runs your full test suite, your lint,
+  type and build checks, and three reviews, each by its own agent: spec conformance, code risk
+  and simplicity. They judge against a project profile, the `project` block `/maister:init` writes
+  to `.maister/config.yml`, so a command-line tool is not asked for rate limiting. Each review
+  also runs on its own: `/maister:reviews-spec`, `/maister:reviews-code-risk` and
+  `/maister:reviews-simplicity`.
+- **Subagent models per call.** The `subagents` block of `.maister/config.yml` sets the model and
+  effort each kind of agent runs on, per workflow or step if you want. Every agent call carries
+  the values that apply. By default the reviewers get a stronger model than the clerical agents.
+  See [Configuration](https://github.com/SkillPanel/maister/blob/master/docs/configuration.md).
+- **A live dashboard.** Each run's `dashboard.html` follows the run as it goes: its steps, the
+  decisions made and who made them, and the risks still open.
+- **Context packs.** `/maister:development`, `/maister:research` and `/maister:product-design`
+  take `--context=PATH`: a file or a folder that the run copies into its task directory and reads
+  as background at every step.
+- **More ways into development.** `/maister:development` takes `--design=PATH`, a product-design
+  or quick-design task whose chosen screens become binding references for the plan, the
+  implementation and the browser checks; `--architecture=PATH`, a high-level design the
+  specification and the plan work within; and `--publish`, which makes approving the plan also
+  approve publishing: the run commits on a branch of its own, pushes it and opens a pull request.
+  It never merges.
+- **Quick design.** `/maister:quick-design` settles one small design question: the options, a
+  recommendation, your decision and a one-page record, with a sketch per option when sketches
+  help.
+- **GitHub Copilot CLI.** The `maister-copilot` plugin runs the same six workflows on the same
+  engine. Every command now carries the plugin's name: type `/maister-copilot:<name>`, not a bare
+  `/development`. The plugin now ships hooks there too: a reminder at session start and the guard
+  that stops subagents from running commands that throw work away. See
+  [Maister on GitHub Copilot CLI](https://github.com/SkillPanel/maister/blob/master/docs/copilot.md).
+- **Hooks on Node.js.** Every hook is a Node.js script with no dependencies. None needs bash or jq,
+  so they run on Windows too.
 
 ### Removed
 
 - **The prose orchestrators.** In 2.x each workflow was a long prose skill that the session
   followed phase by phase. In 3.0 the definition is the workflow, and each workflow's command hands
   the run to the engine. There is no second way to run a built-in workflow.
-- **The prose switch.** The 2.3.0 betas could run a workflow's prose form instead, by setting
-  `MAISTER_WORKFLOW_PROSE`. That form is gone, and the variable is no longer read.
-- **Gates that asked nothing new.** Development no longer pauses to approve the passing test of a
-  bug fix — its evidence reaches the verification checkpoint instead — and performance no longer
-  pauses to approve the checks you just chose. Development's UI mockups have no review loop of
-  their own any more: the mockup gate's revise sends them back.
-- **The bundled browser server.** The plugin no longer starts a Playwright MCP server in every
-  session. Browser checks, user documentation with screenshots and the mockup gallery use whichever
-  browser tool your session has — `playwright-cli` first, then a Playwright MCP server you
-  configured, Claude in Chrome or the Claude desktop app's built-in browser — and a session with
-  none is told so where a browser step would be offered, and carries on without it.
-- **`--no-visual`.** `/maister:product-design` no longer takes it. Set `mockup_format: ascii` in
-  `.maister/config.yml` for mockups drawn as text.
+- **Four review commands.** `/maister:reviews-code` is replaced by `/maister:reviews-code-risk`,
+  and `/maister:reviews-pragmatic` by `/maister:reviews-simplicity`.
+  `/maister:reviews-reality-check` is gone: `/maister:reviews-spec` checks a change against its
+  specification, and the run's claims against evidence. `/maister:reviews-production-readiness` is
+  gone: `/maister:reviews-code-risk` covers resilience, security and operational hygiene for the
+  way your project is deployed. `/maister:reviews-spec-audit` is unchanged.
+- **Flags.** `--type` on development: the analysis finds out whether the task fixes a reproducible
+  defect, and writes a failing test first if so. `--code-review` on development: the three reviews
+  always run. `--no-visual` on product design: set `mockup_format: ascii` in `.maister/config.yml`
+  for mockups drawn as text. `--scope` on `reviews-code` and `--target` on
+  `reviews-production-readiness` went with their commands.
+- **The bundled browser server.** The plugin no longer starts a Playwright MCP server. Browser
+  checks, user documentation with screenshots and the mockup gallery use the browser tool your
+  session has: `playwright-cli` first, then a Playwright MCP server you configured, Claude in
+  Chrome or the Claude desktop app's built-in browser. Without one, those steps are offered
+  without the browser.
+- **Approvals that asked nothing new.** Development no longer stops to approve a bug fix's passing
+  test; its evidence reaches the verification checkpoint instead. Performance no longer stops to
+  approve the checks you just chose. Development's mockups have no review loop of their own: the
+  mockup checkpoint's revise sends them back.
 
 ### Breaking changes
 
-- **Node.js 20 or newer is required, with no fallback.** In 2.x, Node was needed only for HTML
-  mockups. In 3.0 every workflow runs on the engine, which needs it: without Node, a workflow
-  command stops before it creates a task directory and says why.
-- **A task started on 2.x is not resumed.** Its state has no frozen graph, so there is nothing for
-  the engine to resume. Given a 2.x task directory, `/maister:work`, `/maister:run` and each
-  workflow's own command say so and change nothing in it. Its artifacts stay readable in place, and
-  it is still listed like any other task directory.
-- **The prose switch is gone, and nothing replaces it.** Setting `MAISTER_WORKFLOW_PROSE` changes
-  nothing. A run the engine cannot continue stops and says why; the way back to the 2.x behaviour is
-  the 2.x line, task by task.
-- **`--from=PHASE` and `--reset-attempts` are declined.** A resumed run recomputes what is ready
-  from its frozen graph, so there is no phase to jump to and no attempt counter to reset. Both flags
-  are declined by name rather than silently ignored, and the run continues without them. Re-entering
-  a run at a phase of your choosing is planned for a later release; until then, a gate's revise is
-  the way back inside a run.
-- **Each step's summary is recorded once.** A step's summary, decisions and risks live on that
-  step's own record, and every later step, checkpoint and dashboard card reads them from there.
-  The copy each built-in also kept in its context block (`phase_summaries`) is no longer written
-  or read: a write that still sends it, top-level or under `context`, lands without it and says
-  so in a note, and `summary_keys` in a `brief:` block is accepted with a warning and does nothing.
+- **Node.js 20 or newer is required.** In 2.x, Node.js was needed only for HTML mockups. In 3.0
+  every workflow runs on the engine, which needs it. Without it, a workflow command stops before it
+  creates a task directory and says why.
+- **A task started on 2.x is not resumed.** Given a 2.x task directory, `/maister:work`,
+  `/maister:run` and each workflow's own command say so and change nothing in it. Its files stay
+  readable in place. Development, research and product design can take it as background with
+  `--context` in a new run.
+- **`--from=PHASE` and `--reset-attempts` are declined.** A resumed run works out what is ready
+  from its graph, so there is no phase to jump to and no attempt counter to reset. Both flags are
+  declined by name and the run continues without them. To go back inside a run, choose revise at a
+  checkpoint.
 
 ### Upgrading
 
-*Finish 2.x work on 2.x first.* 3.0 resumes only runs its own engine started. Take any task still
-in flight to its end on 2.x before you upgrade, or plan to start it over on 3.0. Trying is safe: a
-2.x task directory handed to 3.0 is refused with a message that says so, and nothing in it changes.
+The [migration guide](https://github.com/SkillPanel/maister/blob/master/docs/upgrading-from-2x.md)
+has every step in detail.
 
-*Install Node.js 20 or newer* where you run Claude Code; `node --version` tells you which you have.
+1. **Finish 2.x work on 2.x first**, or plan to start it again on 3.0.
+2. **Install Node.js 20 or newer** where you run Claude Code or Copilot CLI. `node --version` shows
+   what you have.
+3. **Update the plugin.** Automatic updates are off for this marketplace unless you turned them
+   on. From your shell:
 
-*Upgrade the plugin.* Automatic updates are off for this marketplace unless you turned them on. In
-a session, open `/plugin`, select `maister` on the **Installed** tab and choose **Update now** — or,
-from your shell:
+   ```bash
+   claude plugin marketplace update maister-plugins
+   claude plugin update maister@maister-plugins
+   ```
 
-```bash
-claude plugin marketplace update maister-plugins
-claude plugin update maister@maister-plugins
-```
+   Then run `/reload-plugins` or start a new session. On Copilot CLI:
+   `copilot plugin update maister-copilot@maister-plugins`.
+4. **Expect one new permission prompt.** The engine records each step of a run with a command of
+   its own. Approve it with "don't ask again", or allow it in your permission settings.
+5. **Add a browser tool** if you use browser checks, user documentation with screenshots or the
+   mockup gallery: `npm install -g @playwright/cli` for `playwright-cli`, a Playwright MCP server,
+   Claude in Chrome or the Claude desktop app's built-in browser. On Copilot CLI, use
+   `playwright-cli`.
 
-Then run `/reload-plugins`, or start a new session.
-
-*Expect the engine's command to ask for permission.* Every state change is one write to a file in
-the task directory and one engine command that applies it. Running with edits auto-accepted, as the
-README recommends, covers the write; approve the command with *don't ask again*, or allow it in your
-permission settings, and it stops asking.
-
-*Add a browser tool yourself* if you use browser checks, user documentation with screenshots or
-the mockup gallery: the plugin no longer brings one. Any one will do — `npm install -g
-@playwright/cli` for `playwright-cli`, or a Playwright MCP server added with
-`claude mcp add playwright -- npx @playwright/mcp@latest`, or Claude in Chrome. Without one, those
-steps are offered without the browser.
-
-*If a driver raises a run's autonomy ceiling after it starts*, expect that write to be dropped
-with a note: the ceiling is fixed when the run starts and may only narrow. Set the ceiling you
-want when the run starts. This matters only where an autonomy policy is installed.
-
-*If a project workflow — an eject or an overlay — should produce HTML pages*, declare
-`html_companions` in it and have its steps fetch `run-context`. A definition that uses the key
-needs this plugin version or newer, because an older engine refuses it. Agents no longer take a
-style-guide path parameter. A run already in flight may report a missing page for a step it
-completes after the upgrade; one html-companion-writer run fixes it.
-
-*If you ran the 3.0.0 betas, finish a run started on 3.0.0-beta.28 or earlier on that version.*
-After the upgrade such a run resumes, but decisions and risks it recorded only in its context
-block's `phase_summaries` no longer reach its later steps; the copy stays in the file, and
-resuming the run or assembling a step's prompt prints one `legacy-mirror-ignored` warning
-counting what it holds. *If a project workflow or overlay carries `summary_keys`*, remove it;
-`/maister:run --check` warns `brief-retired-key` until you do.
-
-*If you ran the 3.0.0 betas, finish a product-design run started on an earlier beta on that
-version.* Most of its steps are gone from the definition, and a step's instructions are read from
-the definition as installed, not frozen with the run. After the upgrade such a run resumes without
-a warning, but assembling a step's prompt warns `node-brief-graph-drift`, and a step the definition
-no longer carries also warns `node-brief-node-gone` and prints `section: unknown` where its
-instructions would be.
-
-*To stay on 2.x*, install the 2.x maintenance line instead. It receives fixes only — no new
-features — for six months after 3.0.0 is released:
+**To stay on 2.x**, install the 2.x maintenance line. Only one Maister channel can be enabled at a
+time, so uninstall the other first:
 
 ```bash
 /plugin uninstall maister@maister-plugins
@@ -264,54 +163,12 @@ features — for six months after 3.0.0 is released:
 /plugin install maister@maister-plugins-2x
 ```
 
-On GitHub Copilot CLI, check out the `release/2.x` branch and load its `plugins/maister-copilot`
-directory with `copilot --plugin-dir`.
+On Copilot CLI:
 
-*On GitHub Copilot CLI*, type every command as `/maister-copilot:<name>`, and export
-`MAISTER_PLUGIN_ROOT` as the
-[README's Installation section](https://github.com/SkillPanel/maister/blob/master/README.md#installation)
-describes. On 2.x only HTML mockups needed it; on 3.0 the workflow engine does too.
-
-## 2.3.0-beta.27
-
-A `workflow:` node with no `dir:` now starts a **child run**: an ordinary task directory beside the
-parent's, with its own frozen graph, its own gates and its own driver, linked back to the node that
-started it. The parent waits while the child executes and adopts the child's outcome when it ends.
-Alongside it, a workflow name is now resolved in all four homes — an eject, then a generated chain,
-then an overlay, then the shipped built-in — at validate time as well as at run time, which closes a
-case where a workspace validated one file and ran another.
-
-### Upgrading
-
-**Every built-in workflow definition's recorded identity moved in this release.** A workflow-level
-`outputs:` block now enters the hash envelope, and it enters it unconditionally — a definition that
-declares no interface at all is hashed as one that declares an empty one, which is not what the
-previous version hashed. So the hash changed for every built-in, including definitions whose text is
-byte-for-byte identical to the previous release: nothing in the file moved, the envelope the file is
-hashed inside did. The resolution fix is not the cause — where a definition was found never entered
-the hash, and still does not.
-
-*What breaks:* a multi-repository workspace holding a **chain run that is still in flight** refuses
-its first dispatch after the upgrade. The refusal is this, verbatim:
-
-```
-dispatch-graph-drifted: the workflow definition has changed since the run froze its graph (frozen <hash>, now <hash>) — dispatching would run work this run never planned
+```bash
+copilot plugin uninstall maister-copilot@maister-plugins
+copilot plugin marketplace add SkillPanel/maister#release/2.x
+copilot plugin install maister-copilot@maister-plugins-2x
 ```
 
-Both hashes are printed in full in the real message. It fires whether or not you touched the chain
-definition yourself — nothing in your workspace changed; the engine moved underneath it.
-
-*What to do:* either **finish the chain run on the previous version** and upgrade afterwards, or
-**re-freeze the run against the current definition** — re-resolve the definition the run's
-`workflow.source` names, read the resulting graph, satisfy yourself it still plans the work the run
-has left, and write the fresh `graph_hash` onto the run's `workflow` block through the engine's
-`write-state` verb. Re-freezing keeps every node the chain has already completed. Starting a new run
-also clears the refusal and discards that progress, so it is the last resort, not the first. Do not
-force past the refusal.
-
-*What is unaffected:* an ordinary local run. Resuming one never re-resolves its definition and never
-compares its frozen hash against a fresh one — it runs the graph it froze. Every in-flight local run
-survives the upgrade untouched, and a workspace with no chain run open has nothing to do.
-
-*Scripting the check:* `umbrella envelope` reads its overrides from stdin and will block if stdin is
-a terminal, so run it with stdin closed (`< /dev/null`) when sweeping several runs.
+The 2.x line receives fixes only, with no new features, for six months, until <!-- RELEASE: fill in the 2.x end date (six months after the 3.0.0 release date) --> **[2.x end date]**.

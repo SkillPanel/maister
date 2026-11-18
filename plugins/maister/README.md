@@ -4,7 +4,7 @@ Structured, standards-aware development workflows for Claude Code. Describe what
 
 ## Getting Started
 
-1. Initialize your project. This scans the codebase and creates `.maister/` with detected standards, project docs, and task folders:
+1. Initialize your project. This scans the codebase and creates `.maister/docs/` with the standards and project docs it detects, and `.maister/config.yml` with the project's settings:
 
    ```bash
    /maister:init
@@ -16,7 +16,7 @@ Structured, standards-aware development workflows for Claude Code. Describe what
    /maister:development Add user profile page with avatar upload
    ```
 
-   Every workflow command also works without arguments: it picks up the task from your conversation.
+   Given no description, `/maister:development`, `/maister:research`, `/maister:performance`, `/maister:migration` and `/maister:product-design` take the task from your conversation. `/maister:work` asks what to work on, and `/maister:mockup-studio` needs a note for its turn.
 
 Workflows pause at checkpoints for your decisions and save their state in the task folder under `.maister/tasks/`. To resume one, pass its task folder to the same command, for example `/maister:development .maister/tasks/development/2026-01-12-profile-page`; the run picks up from its saved state. Task folders created by Maister 2.x are not resumed.
 
@@ -35,6 +35,7 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 | `/maister:quick-plan` | A plan with standards awareness before coding |
 | `/maister:quick-dev` | Implementing directly with standards applied |
 | `/maister:quick-bugfix` | TDD-driven bug fix: failing test, fix, verify |
+| `/maister:quick-design` | Settling one small design question and keeping a one-page decision record |
 | `/maister:mockup-studio` | UI mockups bound to your project's design language, one version per turn; `--ground` builds the grounding pack |
 | `/maister:init` | Setting up Maister in a project |
 | `/maister:standards-update` | Adding or changing standards, or recording project knowledge (a decision, a fact about the system), from conversation context or the candidates a finished run left |
@@ -47,7 +48,7 @@ Workflows pause at checkpoints for your decisions and save their state in the ta
 ## Requirements
 
 - **Node.js 20 or newer** is required. Every workflow runs on the workflow engine, which needs it; without Node.js, a workflow command stops before it creates a task folder and says why. The plugin's hooks run on it too.
-- **A browser tool is your choice.** The plugin ships none. The optional browser steps of the development workflow — browser checks and user documentation with screenshots, which you switch on when verification options are offered — and looking at the HTML mockups use whichever one your session has, in this order of preference: `playwright-cli`, a Playwright MCP server you configured, Claude in Chrome, or the built-in browser of the Claude desktop app. Without one, a workflow says so where it would offer a browser step and carries on: browser checks off, user documentation without screenshots, mockups as ASCII or a gallery file you open yourself.
+- **A browser tool is your choice.** The plugin ships none. The optional browser steps of the development workflow — browser checks and user documentation with screenshots, which the run offers you during verification — and looking at the HTML mockups use whichever one your session has, in this order of preference: `playwright-cli`, a Playwright MCP server you configured, Claude in Chrome, or the built-in browser of the Claude desktop app. Without one, a workflow says so where it would offer a browser step and carries on: browser checks off, user documentation without screenshots, mockups as ASCII or a gallery file you open yourself.
 
 ## Hooks
 
@@ -55,18 +56,16 @@ The plugin registers four hooks, each a Node script with no dependencies. None o
 
 - **SessionStart**: injects a short reminder to run `/maister:*` commands through their skill and to ask at every workflow checkpoint.
 - **SessionStart (after compaction)**: when the project has `.maister/tasks/`, reminds Claude to re-read the active workflow's `orchestrator-state.yml` so a long workflow resumes at the right step.
-- **SessionStart (edition check)**: warns when two editions of the plugin are enabled at once. It reads local settings only: the settings files, and the file or JSON `MAISTER_SESSION_SETTINGS` names when a session is started with `--settings` (see [Sessions started with `--settings`](#sessions-started-with---settings)).
+- **SessionStart (channel check)**: warns when more than one Maister channel is enabled at once, for example the stable (`maister@maister-plugins`), beta (`maister@maister-plugins-beta`) and 2.x (`maister@maister-plugins-2x`) installs. The warning names each enabled install and the command that disables it, and workflows do not start or resume until only one is enabled and Claude Code has been restarted. It reads local settings only: the settings files, and the file or JSON `MAISTER_SESSION_SETTINGS` names when a session is started with `--settings` (see [Sessions started with `--settings`](#sessions-started-with---settings)).
 - **PreToolUse (Bash)**: blocks destructive commands (`git stash`, `git reset --hard`, `git checkout .`, `git clean`, `git push --force`, `rm -rf`) from subagents. It judges subagents only, and only commands that lose data: your own commands in the main session, and outward actions such as a commit, a push or a pull request, are left to Claude Code's permission system and to you.
 
 ### Sessions started with `--settings`
 
-Claude Code doesn't tell a hook or a script what a session's `--settings` holds, so the edition check can't see an edition that `--settings` turns off. A tool that starts sessions with `--settings` sets `MAISTER_SESSION_SETTINGS` in the session's environment to the same value: an absolute path to the settings file, or the inline JSON. The check then reads that layer where Claude Code ranks `--settings`: above user, project and local settings, below managed settings. A value it can't read or parse is ignored, and the settings files decide.
+Claude Code doesn't tell a hook or a script what a session's `--settings` holds, so the channel check can't see a channel that `--settings` turns off. When a tool or script starts sessions with `--settings`, it sets `MAISTER_SESSION_SETTINGS` in the session's environment to the same value: an absolute path to the settings file, or the inline JSON. The check then reads that layer where Claude Code ranks `--settings`: above user, project and local settings, below managed settings. A value it can't read or parse is ignored, and the settings files decide.
 
 ```bash
 MAISTER_SESSION_SETTINGS=/path/to/session-settings.json claude --settings /path/to/session-settings.json
 ```
-
-A Pro Edition, for driven sessions and multi-repository work, installs from a private marketplace; see the repository README.
 
 ## Learn More
 
