@@ -1179,6 +1179,24 @@ test('write-state: a headline that already fits is kept as sent, with no note', 
   assert.doesNotMatch(result.stderr, /fitted/);
 });
 
+test('write-state: a headline holding YAML indicators is written double-quoted and reads back as sent', t => {
+  const run = scratch(t);
+  freeze(run);
+  const cases = [
+    ['Approved: continue to close-out.', 'Approved: continue to close-out.'],
+    ['Two gaps # both closed', 'Two gaps # both closed'],
+    ['- a leading dash', '- a leading dash'],
+    ['The "quoted" and the \'single\' word', 'The "quoted" and the \'single\' word'],
+    ['Line one: cut\nline two', 'Line one: cut line two'],
+  ];
+  for (const [headline, expected] of cases) {
+    write(run, { node_summaries: { analysis: { summary: 'S.', headline } } });
+    const lines = fs.readFileSync(run.state, 'utf8').split('\n');
+    assert.ok(lines.includes(`    headline: ${JSON.stringify(expected)}`), headline);
+    assert.equal(readState(run).node_summaries.analysis.headline, expected, headline);
+  }
+});
+
 test('write-state: the run\'s own context block sent top-level is written as context, with a note', t => {
   const run = scratch(t);
   freeze(run);

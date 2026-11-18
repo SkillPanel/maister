@@ -553,6 +553,7 @@ export function writeState({ state, patch, regress = null, host = null }) {
   try {
     const misplaced = checkPatch(patch);
     const doc = readDoc(state);
+    requoteSummaries(doc, changed, notes);
     if (misplaced !== null) patch = ownContextRouted(doc, patch, misplaced, notes);
     const now = canonical.stamp();
     // The top-level keys the file already carries, plus the ones this write
@@ -5320,6 +5321,57 @@ function assertBlockKey(key) {
       // several stderr lines, where the caller reads the first token as a code.
       `${JSON.stringify(String(key))} is not a usable block key; a block key is letters, digits, dot, dash and underscore only`);
   }
+}
+
+/**
+ * Summary entries a session typed with a plain value YAML reads otherwise.
+ *
+ * A driven gate's answer is recorded with editor tools (`references/gates.md`
+ * § *Driver-suspended mode — resume*), so its summary holds what the session
+ * spelled. A plain value holding ": " — `headline: Approved: continue.` — is
+ * text to the shared reader and a nested mapping every YAML parser rejects, so
+ * one hand-typed line leaves the whole file unreadable to them. Each entry
+ * holding such a line is emitted again whole, from what the shared reader made
+ * of it, in `block`'s spelling; every other entry keeps its bytes. An entry
+ * with a key `block` cannot write is left as it is.
+ */
+function requoteSummaries(doc, changed, notes) {
+  const region = doc.locate(['node_summaries']);
+  if (!region) return;
+  const flagged = [];
+  let entry = null;
+  for (let i = region.start + 1; i < region.end; i++) {
+    const line = doc.lines[i];
+    const head = /^ {2}([A-Za-z0-9._-]+):/.exec(line);
+    if (head) {
+      entry = head[1];
+      continue;
+    }
+    if (entry !== null && misreadPlain(line) && !flagged.includes(entry)) flagged.push(entry);
+  }
+  if (!flagged.length) return;
+  const summaries = typedOf(doc).node_summaries;
+  for (const id of flagged) {
+    const value = isPlainObject(summaries) ? summaries[id] : undefined;
+    if (!isPlainObject(value) || !blockSafe(value)) continue;
+    doc.set(['node_summaries', id], block(id, value, 2));
+    if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+    notes.push(`quoted node_summaries.${id}, which held a value written by hand that YAML parsers read as something else`);
+  }
+}
+
+/**
+ * Does this line hold a `key: value` whose plain value a YAML parser rejects or
+ * reads as something else — a ": " or a closing colon inside it, or a lead
+ * character that opens an indicator? Quoted, flow and block-scalar values pass.
+ */
+function misreadPlain(line) {
+  const body = line.trimStart().replace(/^(?:- )+/, '');
+  const hit = /^[A-Za-z0-9._-]+:[ \t]+(.+)$/.exec(body);
+  if (!hit) return false;
+  const value = hit[1].trim();
+  if (/^["'[{|>]/.test(value)) return false;
+  return /:[ \t]/.test(value) || value.endsWith(':') || /^[@`%&*!]/.test(value) || /^[-?:](?:[ \t]|$)/.test(value);
 }
 
 function blockScalar(value) {

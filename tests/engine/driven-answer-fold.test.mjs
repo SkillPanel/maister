@@ -218,3 +218,61 @@ test('a request whose options cannot be read costs the answer only the asked lab
   assert.equal(answer.by, 'operator');
   assert.equal(answer.decision, 'Continue to the specification audit');
 });
+
+// The fold is typed by a session, so a value can reach the file as a plain
+// scalar holding ": " — which the engine's own reader takes as text and every
+// YAML parser rejects as a nested mapping. The re-validation write re-emits
+// such an entry in the writer's own spelling, so no reader is left failing on it.
+
+/** Fold an answer that needs nothing from the re-validation, plus one hand-typed line under the gate's summary. */
+function foldWithLine(run, line) {
+  sessionFold(run, 'continue-to-audit', [`{option: continue-to-audit, decision: "${ASKED_LABEL}", by: operator, ${PERSON}}`]);
+  const text = fs.readFileSync(run.state, 'utf8').replace(/^ {4}status: completed\n(?![\s\S]*^ {4}status: completed$)/m, `    status: completed\n    ${line}\n`);
+  fs.writeFileSync(run.state, text);
+}
+
+test('a hand-typed headline holding ": " is quoted by the re-validation, and reads back as typed', t => {
+  const run = atGate(t);
+  foldWithLine(run, 'headline: Approved: continue to close-out.');
+  assert.match(fs.readFileSync(run.state, 'utf8'), /^ {4}headline: Approved: continue to close-out\.$/m);
+  write(run, {});
+  const text = fs.readFileSync(run.state, 'utf8');
+  assert.match(text, /^ {4}headline: "Approved: continue to close-out\."$/m);
+  assert.equal(readState(run).node_summaries[GATE].headline, 'Approved: continue to close-out.');
+  assert.equal(decisionsOf(run)[0].decision, ASKED_LABEL);
+});
+
+test('a plain value a YAML parser misreads is quoted wherever it sits in a summary, and a clean one is left alone', t => {
+  const cases = [
+    ['summary: Ends on a colon:', 'Ends on a colon:'],
+    ['summary: @mention leads', '@mention leads'],
+    ['summary: - a leading dash', '- a leading dash'],
+    ['summary: *alias-like', '*alias-like'],
+  ];
+  for (const [line, value] of cases) {
+    const run = atGate(t);
+    foldWithLine(run, line);
+    write(run, {});
+    const lines = fs.readFileSync(run.state, 'utf8').split('\n');
+    assert.ok(lines.includes(`    summary: ${JSON.stringify(value)}`), line);
+    assert.equal(readState(run).node_summaries[GATE].summary, value, line);
+  }
+
+  const clean = atGate(t);
+  foldWithLine(clean, 'headline: Approved, continue to close-out.');
+  write(clean, {});
+  assert.match(fs.readFileSync(clean.state, 'utf8'), /^ {4}headline: Approved, continue to close-out\.$/m);
+});
+
+test('a decision item typed with a plain value holding ": " is quoted too', t => {
+  const run = atGate(t);
+  sessionFold(run, 'continue-to-audit', [
+    `{option: continue-to-audit, decision: "${ASKED_LABEL}", by: operator, ${PERSON}}`,
+  ]);
+  const text = fs.readFileSync(run.state, 'utf8').replace(/^ {6}- \{option: continue-to-audit/m,
+    '      - decision: Scope: kept as agreed\n        by: run\n      - {option: continue-to-audit');
+  fs.writeFileSync(run.state, text);
+  write(run, {});
+  assert.match(fs.readFileSync(run.state, 'utf8'), /decision: "Scope: kept as agreed"$/m);
+  assert.deepEqual(decisionsOf(run)[0], { decision: 'Scope: kept as agreed', by: 'run' });
+});
