@@ -44,6 +44,7 @@ CONTRIBUTING.md                   # Contributor loop (make targets); license inb
 | `make test` | Run the engine verb suite (`node --test`, Node ≥ 20, no dependencies) over the committed fixtures in `tests/` |
 | `make smoke` | Run the engine verbs through bash and the hooks as `hooks.json` starts them, from paths holding a space (`tests/shell-smoke.mjs`; CI also runs it under pwsh, Windows PowerShell, cmd.exe and Git Bash on Windows) |
 | `make test-mod` | `claude plugin validate` the plugin, then run the hooks module's tests (`tests/mod/`) with `claude plugin test` on a scratch copy; skipped without the `claude` CLI |
+| `make reference` | Regenerate `docs/workflow-reference.md` from the built-in definitions (`tools/workflow-reference.mjs`); `make validate` fails when the committed page differs from a fresh generation |
 | `make clean` | Delete the generated variant |
 | `make watch` | Rebuild on change (requires `fswatch`) |
 

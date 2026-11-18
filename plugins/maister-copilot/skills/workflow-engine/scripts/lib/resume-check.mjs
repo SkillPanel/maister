@@ -68,7 +68,7 @@ export function writtenBy2x(pluginName = ownPluginName()) {
     'and maister 3.0 does not resume it. Nothing in the directory was changed, and its artifacts are still ',
     'readable in place. To finish it, install the 2.x line and resume it there: ',
     INSTALL_2X[pluginName === COPILOT_VARIANT ? 'copilot' : 'claude'],
-    'To start the work over on 3.0, run the command again without a task path; a development or research run ',
+    'To start the work over on 3.0, run the command again without a task path; a development, research or product design run ',
     'started with `--context=<this task directory>` reads this task\'s files as background.',
   ].join('');
 }
