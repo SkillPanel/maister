@@ -286,6 +286,41 @@ const nextCycle = (run, cycle) => write(run, { verification_context: { cycle, sn
 const onDisk = (run, rel) => fs.existsSync(path.join(run.dir, ...rel.split('/')));
 const readRun = (run, rel) => fs.readFileSync(path.join(run.dir, ...rel.split('/')), 'utf8');
 
+test('a re-check recorded at the full report\'s path keeps the cycle-1 report, and ends on dispatch once the runner marks it ended', t => {
+  const run = verifying(t);
+  // Cycle 1: the full review, under an id an earlier runner derived from the report's file name.
+  recorded(run, 'review-code-risk-review:verification/code-risk-review.md');
+  report(run, 'verification/code-risk-review.md', '# Code risk review, cycle 1\n');
+
+  // Cycle 2: the re-check, recorded at the full report's path under another id.
+  nextCycle(run, 2);
+  recorded(run, 'review-code-risk:verification/code-risk-review.md');
+  assert.equal(readRun(run, 'verification/code-risk-review.md'), '# Code risk review, cycle 1\n', 'the earlier cycle\'s report stays as it is');
+
+  // The reviewer writes the re-check under the contract's name, never the recorded one.
+  report(run, 'verification/code-risk-review-recheck-2.md', '# Code risk re-check, cycle 2\n');
+  const waiting = stepOf(run);
+  assert.equal(waiting.next, 'wait');
+  assert.deepEqual(waiting.pending.map(each => each.id), ['review-code-risk'], 'the cycle-1 record is never waited on');
+
+  // The runner sees the recorded output missing and marks the agent ended at once.
+  assert.equal(inFlight(run, ['--ended=review-code-risk']).code, 0);
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: 'auto' });
+  assert.equal(readRun(run, 'verification/code-risk-review.md'), '# Code risk review, cycle 1\n');
+});
+
+test('a re-check recorded at its own name is answered by that file, and the cycle-1 report is kept', t => {
+  const run = verifying(t);
+  recorded(run, 'review-code-risk:verification/code-risk-review.md');
+  report(run, 'verification/code-risk-review.md', '# Code risk review, cycle 1\n');
+  nextCycle(run, 2);
+  recorded(run, 'review-code-risk:verification/code-risk-review-recheck-2.md');
+  assert.equal(stepOf(run).next, 'wait');
+  report(run, 'verification/code-risk-review-recheck-2.md', '# Code risk re-check, cycle 2\n');
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: 'auto' });
+  assert.ok(onDisk(run, 'verification/code-risk-review.md'));
+});
+
 test('an earlier cycle\'s records are never waited on, whatever their output', t => {
   const run = verifying(t);
   recorded(run, REVIEWS);
@@ -293,6 +328,45 @@ test('an earlier cycle\'s records are never waited on, whatever their output', t
   assert.deepEqual(stepOf(run), { next: 'dispatch', resume: 'auto' });
   assert.equal(result(run, { result: 'unavailable', reason: 'No agent tool in this session' }).code, 0,
     'nothing of this cycle is out, so unavailable is the runner\'s to say');
+});
+
+test('the suite re-recorded in a later cycle keeps the earlier results and waits until the file is written again', t => {
+  const run = verifying(t);
+  recorded(run, 'suite:verification/test-suite-results.md');
+  report(run, 'verification/test-suite-results.md', 'Cycle 1: 4 passed\n');
+  nextCycle(run, 2);
+  recorded(run, 'suite:verification/test-suite-results.md');
+  assert.equal(readRun(run, 'verification/test-suite-results.md'), 'Cycle 1: 4 passed\n', 'an earlier cycle\'s file is never deleted');
+  assert.ok(flightFile(run).agents.suite.kept, 'the record keeps the earlier file\'s fingerprint');
+  assert.deepEqual(stepOf(run).pending.map(each => each.id), ['suite'], 'the earlier results do not answer this cycle\'s dispatch');
+
+  // Recorded again in the same cycle, the untouched earlier file is still kept.
+  recorded(run, 'suite:verification/test-suite-results.md');
+  assert.ok(onDisk(run, 'verification/test-suite-results.md'));
+  assert.equal(stepOf(run).next, 'wait');
+
+  report(run, 'verification/test-suite-results.md', 'Cycle 2: 5 passed, 1 failed\n');
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: 'auto' });
+});
+
+test('in-flight --record clears the same cycle\'s stale output', t => {
+  const run = verifying(t);
+  recorded(run, REVIEWS);
+  report(run, 'verification/code-risk-review.md', 'a review this cycle sent earlier');
+  recorded(run, 'review-code-risk:verification/code-risk-review.md');
+  assert.ok(!onDisk(run, 'verification/code-risk-review.md'));
+  assert.equal(flightFile(run).agents['review-code-risk'].kept, undefined);
+});
+
+test('the implementation runner shares the record and is unaffected: no cycle, a re-sent group\'s report cleared, waited on in any cycle', t => {
+  const run = implementing(t);
+  write(run, { verification_context: { cycle: 3, node: 'review', attempt: 1 } });
+  recorded(run, GROUPS);
+  assert.equal(flightFile(run).agents['group-1'].cycle, undefined);
+  report(run, 'implementation/group-reports/group-1.md', 'the first try');
+  recorded(run, 'group-1:implementation/group-reports/group-1.md');
+  assert.ok(!onDisk(run, 'implementation/group-reports/group-1.md'), 'a retried group\'s report answers the latest dispatch');
+  assert.deepEqual(stepOf(run).pending.map(each => each.id), ['group-1', 'group-2']);
 });
 
 // ---------------------------------------------------------------------------

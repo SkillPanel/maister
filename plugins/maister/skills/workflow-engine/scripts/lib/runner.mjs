@@ -127,15 +127,18 @@
  *
  * `in-flight --state --node [--runner] --record | --agents | --ended` is the
  * loop's record of the agents it sends, `<folder>/in-flight.json`: `{node,
- * attempt, agents: {<id>: {output, session, dispatched, agent, cycle?,
+ * attempt, agents: {<id>: {output, session, dispatched, agent, cycle?, kept?,
  * ended?}}}`. `--record=<id>:<output>,…` is called before the agents are sent:
  * it stamps each with the calling session (the host's session id) and the
  * clock, verification's with its cycle, and deletes the output's stale copy,
- * so an output on disk always answers the latest dispatch. `--agents=<id>:<agent
+ * so an output on disk always answers the latest dispatch. Verification
+ * deletes only the same cycle's stale copy: a file an earlier cycle left is
+ * kept, its size and mtime in the record's `kept`, and the output is written
+ * once the file differs from it. `--agents=<id>:<agent
  * id>,…` attaches the ids a host gave at launch; `--ended=<id>,…` marks agents
  * whose completion came without their output. An agent is still out while
  * its record names this session, belongs to the current cycle (a record
- * without one always does), is not ended and its output is not on disk;
+ * without one always does), is not ended and its output is not written;
  * a record of another session, or with no session, is never waited for: a
  * background agent lives in its session's process and went with it.
  *
@@ -655,8 +658,11 @@ function attemptDecisions(dir, node, attempt) {
  * `record` (`[[id, output]]`), `agents` (`[[id, agent id]]`) or `ended`
  * (`[id]`) is given. A record is written before the agent is sent, stamped with
  * the calling session, and clears the agent's stale output, so an output on
- * disk always answers the latest dispatch. A file of another node or attempt
- * is replaced, not merged.
+ * disk always answers the latest dispatch. In verification only the same
+ * cycle's stale output is cleared: a file an earlier cycle left is kept, and
+ * the record holds its fingerprint (`kept`), so the output counts as written
+ * only once the file changes. A file of another node or attempt is replaced,
+ * not merged.
  */
 export function inFlight({ state, node, runner = VERIFICATION, record = null, agents = null, ended = null }) {
   const run = runningNode(state, node, 'in-flight');
@@ -676,9 +682,14 @@ export function inFlight({ state, node, runner = VERIFICATION, record = null, ag
     }
     const session = hostSession();
     const cycle = runner === VERIFICATION ? run.cycle : null;
+    const before = { ...recorded };
     for (const [id, output] of record) {
-      fs.rmSync(path.resolve(run.runDir, output), { force: true });
-      recorded[id] = { output, session, dispatched: stamp(), agent: null, ...(cycle === null ? {} : { cycle }) };
+      const kept = cycle === null ? null : keptFile(run.runDir, output, before, cycle);
+      if (kept === null) fs.rmSync(path.resolve(run.runDir, output), { force: true });
+      recorded[id] = {
+        output, session, dispatched: stamp(), agent: null,
+        ...(cycle === null ? {} : { cycle }), ...(kept === null ? {} : { kept }),
+      };
     }
   } else {
     const ids = agents !== null ? agents.map(([id]) => id) : ended;
@@ -707,6 +718,43 @@ function outputFault(output, runDir, runner) {
   return null;
 }
 
+/**
+ * The fingerprint of a file at `output` that a record keeps instead of
+ * deleting, or null when the file is to be cleared or there is none. A file
+ * is the same cycle's stale output when a record of this cycle names it and
+ * that record did not keep it untouched; any other file is an earlier
+ * cycle's, and a re-check's full report or the last suite results are never
+ * deleted.
+ */
+function keptFile(runDir, output, records, cycle) {
+  const stat = fingerprint(path.resolve(runDir, output));
+  if (stat === null) return null;
+  const same = Object.values(records).filter(entry => entry.output === output && entry.cycle === cycle);
+  if (same.length && !same.some(entry => unchanged(stat, entry.kept))) return null;
+  return stat;
+}
+
+/** A file's size and modification time, or null when there is no file. */
+function fingerprint(file) {
+  try {
+    const stat = fs.statSync(file);
+    return stat.isFile() ? { size: stat.size, mtime_ms: stat.mtimeMs } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a file's fingerprint is the one a record kept. */
+function unchanged(stat, kept) {
+  return isPlainObject(kept) && kept.size === stat.size && kept.mtime_ms === stat.mtime_ms;
+}
+
+/** Whether an agent's output is written: the file is there, and is not the earlier file its record kept. */
+function written(file, kept) {
+  const stat = fingerprint(file);
+  return stat !== null && !unchanged(stat, kept);
+}
+
 /** The agents recorded for this node's attempt, by id; empty for a file of another node or attempt. */
 function attemptAgents(dir, node, attempt) {
   const doc = readJson(path.join(dir, IN_FLIGHT_FILE));
@@ -716,7 +764,7 @@ function attemptAgents(dir, node, attempt) {
 
 /**
  * The recorded agents still out: sent by this session, so alive while it is,
- * in the current cycle, not marked ended, and with no output on disk. A record
+ * in the current cycle, not marked ended, and with no output written. A record
  * of another session, or one the host named no session for, is not waited
  * for: its agents went with that session. Nor is a record of an earlier
  * verification cycle: a cycle starts only once the last one's agents are
@@ -730,7 +778,7 @@ function outstanding(runDir, agents, cycle) {
   return Object.entries(agents)
     .filter(([, entry]) => entry.session === session && entry.ended !== true && typeof entry.output === 'string')
     .filter(([, entry]) => current(entry))
-    .filter(([, entry]) => !fs.existsSync(path.resolve(runDir, entry.output)))
+    .filter(([, entry]) => !written(path.resolve(runDir, entry.output), entry.kept))
     .map(([id, entry]) => ({ id, agent: typeof entry.agent === 'string' ? entry.agent : null, output: entry.output }));
 }
 
