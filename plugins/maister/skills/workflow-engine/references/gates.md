@@ -501,14 +501,17 @@ an immediate re-validation through the writer.
    the answer file's `answer` block copied whole, **less `grants`**, which never lands in a
    request's answer — then `node_summaries.<node>` and the node's `status: completed`, then
    **`gate_pending: null` last** — clearing the marker first would end the suspension before
-   the decision was recorded.
+   the decision was recorded. Every text value typed into the summary is double-quoted, as the
+   writer spells it: `headline: "Approved: continue to close-out."`. A plain value holding
+   `: ` is a nested mapping to a YAML parser, which then cannot read the file at all.
 5. The very next action is the **re-validation write**: `write-state --state=<state>` with
    `{}` as the patch file's body (engine § *The invocation contract*), described as
    re-validating the recorded answer. It is not a no-op: the writer reads
    back the file the editor tools wrote, self-checks it and re-publishes it, recording what the
    answer implies — a person's answer its `by: operator` and label, the gate's values, the
    provenance keys copied from the request's answer block, and under a classifying policy the
-   triage and settlement items — and regenerating `gates/index.yml`. None of that is drift.
+   triage and settlement items — and regenerating `gates/index.yml`. It also re-emits, quoted, a
+   summary entry holding a plain value a YAML parser would misread, with a note. None of that is drift.
 6. A refusal at step 5 is `RUN-FAILED: <code>`, reported verbatim, and the run stops there:
    the operator repairs the directory or starts a new task. **Never repair the state file to get
    past it** — editing further with the same tools compounds the drift.
