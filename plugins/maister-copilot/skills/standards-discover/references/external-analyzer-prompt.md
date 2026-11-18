@@ -10,18 +10,15 @@ Mine external sources for standards evidence, write the findings to the output f
 
 ### 1. Pull Requests (via gh CLI)
 
-**First check availability:**
-```bash
-which gh && gh auth status
-```
+Your prompt's `github` line says whether pull requests can be read; discovery checked before dispatching you. Never probe `gh` yourself.
 
-If gh CLI available:
+If it says `available`:
 - Get the last `[pr_count]` merged PRs (`pr_count` from your prompt): `gh pr list --state merged --limit [pr_count] --json number,title`
 - For each PR, check review comments for repeated feedback patterns
 - Look for: "Please use...", "Always...", "Avoid...", "Per our convention...", "Style:", "Nit:"
 - Only report patterns that appear in **3+ different PRs** (significant feedback, not one-off)
 
-If gh CLI unavailable: skip PR analysis, note in output, not an error.
+Otherwise — or when a `gh` call fails anyway: skip PR analysis, run no `gh` command, write `github_available: false`, and name the skipped source with the `github` line's reason in your final message. Not an error.
 
 ### 2. CI/CD Workflows
 

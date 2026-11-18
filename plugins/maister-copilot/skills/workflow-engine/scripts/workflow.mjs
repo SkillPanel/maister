@@ -138,7 +138,8 @@
  *                  writes under the run's verification/, and with --state
  *                  records issues_found and suite_run in the run's
  *                  verification_context
- *   project-profile the detected profile as JSON on stdin; optional --fill
+ *   project-profile --patch-file (.maister/.project-profile.json) or the
+ *                  detected profile as JSON on stdin; optional --fill
  *                                                          JSON on stdout
  *                  (the profile `init` detected, written into the project's
  *                  .maister/config.yml under `project:` — appended, or the
@@ -325,10 +326,11 @@ const VERBS = {
   // The cycle's reviewer findings merged into the run's one numbered list.
   'findings-merge': { module: 'findings-merge.mjs', flags: ['state', 'task-path', 'cycle'] },
   // The project profile `init` detected, written into the project's
-  // config.yml only when it has no `project:` key. The fields come on stdin:
-  // there is no run, so no run directory to anchor a patch file in. `--fill`
-  // is init's update: an existing key gets only the fields it lacks.
-  'project-profile': { module: 'project-profile.mjs', flags: ['fill'] },
+  // config.yml only when it has no `project:` key. The fields come on stdin,
+  // or in the one profile file `--patch-file` names: there is no run, so it
+  // sits beside config.yml (`profileFileOf`). `--fill` is init's update: an
+  // existing key gets only the fields it lacks.
+  'project-profile': { module: 'project-profile.mjs', flags: ['fill', 'patch-file'] },
   // A runner's two ends: its result, written by the runner through the one
   // place a patch is read from, and the node's next step, read from the run.
   // `--node` because the node is the one state records as running, and both
@@ -939,8 +941,11 @@ const PATCH_FILE = '.state-patch.json';
  * read. Without one, stdin is read to its end but never waited on for ever: a
  * terminal is refused unread, and a pipe silent for `STDIN_IDLE_MS` without
  * ending is refused (`lib/stdin.mjs` at the plugin root).
+ *
+ * `fileOf` anchors the file and `place` names it in the stdin message: the
+ * run's patch file by default, another fixed place for a verb with no run.
  */
-async function readInput(flags, what) {
+async function readInput(flags, what, { fileOf = patchFileOf, place = `<run>/${PATCH_FILE}` } = {}) {
   if (flags['patch-file'] === undefined) {
     let read;
     try {
@@ -948,7 +953,7 @@ async function readInput(flags, what) {
     } catch (err) {
       throw new UsageError(`${what} could not be read from stdin: ${err.message}`);
     }
-    const routes = `Send it by here-string (<<< '<json>') or name it with --patch-file=<run>/${PATCH_FILE}`;
+    const routes = `Send it by here-string (<<< '<json>') or name it with --patch-file=${place}`;
     if (read.refused === 'tty') throw new UsageError(`${what} was not given: stdin is a terminal. ${routes}`);
     if (read.refused === 'idle') {
       throw new UsageError(`${what} on stdin never ended (${read.bytes} bytes received, no end of input within`
@@ -956,9 +961,27 @@ async function readInput(flags, what) {
     }
     return { document: parseDocument(read.text, `${what} on stdin`), file: null };
   }
-  const file = patchFileOf(flags);
+  const file = fileOf(flags);
   const text = readFileText(file, what, UsageError);
   return { document: parseDocument(text, `${what} in ${file}`), file };
+}
+
+/** The one name `project-profile --patch-file` may carry, in the project's `.maister/`. */
+const PROFILE_FILE = '.project-profile.json';
+
+/**
+ * The profile file: `.project-profile.json` in the project's `.maister/`,
+ * beside the `config.yml` the verb writes — there is no run to anchor a patch
+ * file in. A regular file, not a link; the rules are `lib/input-file.mjs`'s.
+ */
+function profileFileOf(root) {
+  return flags => anchoredFile({
+    given: flags['patch-file'],
+    expected: path.join(root, '.maister', PROFILE_FILE),
+    noun: 'the profile file',
+    beside: 'beside the config.yml it writes',
+    Usage: UsageError,
+  });
 }
 
 function parseDocument(text, where) {
@@ -1588,15 +1611,19 @@ async function runFindingsMerge(flags) {
  * `project-profile` reports like `findings-merge`: the result as JSON on
  * stdout — the action, the file, the fields written and the block — a
  * refusal's code first on stderr at exit 1, and each field it could not write
- * as one `warning:` line, exit 0. The project root is the engine's own.
+ * as one `warning:` line, exit 0. The project root is the engine's own. The
+ * profile comes on stdin or, with `--patch-file`, from the profile file
+ * (`profileFileOf`), deleted once the write landed and kept on a refusal.
  */
 async function runProjectProfile(flags) {
   const module = await loadModule(VERBS['project-profile'].module);
   const write = entryOf(module, 'writeProfile', VERBS['project-profile'].module);
   const graph = await loadModule(VERBS.validate.module);
-  const input = await readInput(flags, 'the detected profile');
-  const { warnings = [], ...result } = write({ root: entryOf(graph, 'projectRoot', VERBS.validate.module)(), detected: input.document, fill: flags.fill === true });
+  const root = entryOf(graph, 'projectRoot', VERBS.validate.module)();
+  const input = await readInput(flags, 'the detected profile', { fileOf: profileFileOf(root), place: `.maister/${PROFILE_FILE}` });
+  const { warnings = [], ...result } = write({ root, detected: input.document, fill: flags.fill === true });
   report(result);
+  if (result.ok) consume(input);
   if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
   for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
   return result.ok ? EXIT.OK : EXIT.REJECTED;

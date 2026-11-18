@@ -15,8 +15,11 @@
  * `node-brief` for a node, two node writes with a patch no shell may touch, `area-brief`'s
  * fallback at a node that declares no decision areas, `gate-brief --json` at
  * the gate, the dashboard projection, `resume-check`, the documentation
- * check (`docs-manager/scripts/docs-check.mjs`) and the standard candidates
- * lookup (`standards-update/scripts/candidates.mjs`). The freeze travels in
+ * check (`docs-manager/scripts/docs-check.mjs`), the standard candidates
+ * lookup (`standards-update/scripts/candidates.mjs`), and standards
+ * discovery's findings check and external sources check
+ * (`standards-discover/scripts/`), and `project-profile` with its profile
+ * file. The freeze travels in
  * the patch file under every shell; the node writes travel as a here-string
  * (`<<< '<json>'`, an apostrophe written `'\''`) under bash and zsh, and in the
  * patch file under every shell on Windows. Then the hooks, each started as `hooks.json`
@@ -115,6 +118,10 @@ const engine = path.join(pluginRoot, 'skills', 'workflow-engine', 'scripts', 'wo
 const docsCheck = path.join(pluginRoot, 'skills', 'docs-manager', 'scripts', 'docs-check.mjs');
 
 const candidatesLookup = path.join(pluginRoot, 'skills', 'standards-update', 'scripts', 'candidates.mjs');
+
+const findingsCheck = path.join(pluginRoot, 'skills', 'standards-discover', 'scripts', 'check-findings.mjs');
+
+const externalSources = path.join(pluginRoot, 'skills', 'standards-discover', 'scripts', 'external-sources.mjs');
 
 /** One engine call (or a call of another plugin script), as one command line through the shell, from the project root. */
 function call(verb, flags, hereString = null, script = engine) {
@@ -285,6 +292,47 @@ try {
   check('the candidates lookup finds a run under a path holding a space and records one applied',
     found?.run?.name === '2026-01-05-candidate run' && marked.code === 0 && after?.run === null
       && named?.run?.name === '2026-01-05-candidate run' && named.candidates.length === 0, show(marked));
+
+  // --- standards discovery's checks -------------------------------------------
+  // The findings check takes a scanner's file by a path holding a space; the
+  // file holds a backtick, a `$` and a Windows path, which never pass through
+  // the shell. The external sources check runs from the project root, whatever
+  // `gh` the machine has, and finds a CI workflow there.
+  const findingsFile = path.join(scratch, 'scan output', 'config.yml');
+  fs.mkdirSync(path.dirname(findingsFile), { recursive: true });
+  fs.writeFileSync(findingsFile, [
+    'findings:',
+    '  - category: "global/naming"',
+    '    standard_name: "Template strings"',
+    '    description: "Build strings with `${name}`, paths like C:\\\\work"',
+    '    confidence: 80',
+    '    evidence: [".eslintrc.json:4: prefer-template"]',
+    '    source: config',
+    '    examples: []',
+    '',
+  ].join('\n'));
+  const findings = call(null, [quote(findingsFile)], null, findingsCheck);
+  const findingsReport = json(findings.stdout);
+  check('the findings check reads a scanner file from a path holding a space', findings.code === 0 && findingsReport?.ok === true && findingsReport.findings === 1, show(findings));
+  fs.mkdirSync(path.join(project, '.github', 'workflows'), { recursive: true });
+  fs.writeFileSync(path.join(project, '.github', 'workflows', 'ci.yml'), 'on: push\n');
+  const sources = call(null, [], null, externalSources);
+  const sourcesReport = json(sources.stdout);
+  check('the external sources check reports gh as a state and finds CI from a path holding a space',
+    sources.code === 0 && ['available', 'not-installed', 'not-signed-in'].includes(sourcesReport?.github)
+      && sourcesReport.scan === true && sourcesReport.ci.includes('.github/workflows/ci.yml'), show(sources));
+
+  // --- the project profile --------------------------------------------------
+  // As init sends it: the JSON in the profile file beside config.yml, named by
+  // its project-relative path, so no shell quotes it; the file gone once written.
+  const profileFile = path.join(project, '.maister', '.project-profile.json');
+  fs.writeFileSync(profileFile, JSON.stringify({ kind: 'cli', runtime: "node 20 'lts' $HOME `x`", data: [] }));
+  const profiled = call('project-profile', [flag('patch-file', '.maister/.project-profile.json')]);
+  const profileReport = json(profiled.stdout);
+  const configText = fs.existsSync(path.join(project, '.maister', 'config.yml')) ? fs.readFileSync(path.join(project, '.maister', 'config.yml'), 'utf8') : '';
+  check('project-profile reads the profile file from a path holding a space, its JSON untouched by the shell',
+    profiled.code === 0 && profileReport?.action === 'created' && configText.includes("runtime: \"node 20 'lts' $HOME `x`\"")
+      && !fs.existsSync(profileFile), show(profiled));
 
   // --- the hooks ------------------------------------------------------------
   // Each hook is started from its `hooks.json` entry the way the host starts
