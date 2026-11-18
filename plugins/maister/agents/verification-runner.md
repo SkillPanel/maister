@@ -114,7 +114,7 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    `in-flight … --runner=verification --record=review-<stem>:verification/<stem>.md,…` for the
    reviews you send (`review-code-risk:verification/code-risk-review.md`). Then send them in **one message**,
    each prompt carrying only `task_path`, `review_brief`, its `report_path` and the test-suite
-   result. Nobody writes the reviewers a prompt for the change: each reads the run's documents the
+   result. The cycle is whatever the brief's `mode` says: a full brief, as after a `review-brief-base-moved` warning, sends the full panel. Nobody writes the reviewers a prompt for the change: each reads the run's documents the
    brief names and decides where to look.
    - `maister:spec-conformance-review`, `verification/spec-conformance-review.md`;
    - `maister:code-risk-review`, `verification/code-risk-review.md`;

@@ -171,6 +171,24 @@ test('a failed re-ground leaves the stale pack as it was', t => {
   assert.deepEqual(after.json.touched, ['src/theme.css']);
 });
 
+test('guard: after a merge and a move-base, touched counts the run\'s own sources and not the merged-in ones', t => {
+  const project = started(t);
+  git(project.root, ['checkout', '-q', '-b', 'other']);
+  put(project, 'src/theme.css', ':root { --accent: #0a0; }\n');
+  git(project.root, ['commit', '-qam', 'theme changed elsewhere']);
+  git(project.root, ['checkout', '-q', 'main']);
+  put(project, 'src/app.mjs', 'export const a = 4;\n');
+  git(project.root, ['commit', '-qam', 'the run\'s own work']);
+  git(project.root, ['merge', '-q', '--no-ff', '-m', 'merge other', 'other']);
+  assert.deepEqual(guard(project).json.touched, ['src/theme.css']);
+  const moved = verb(['move-base', `--state=${project.state}`]);
+  assert.equal(moved.code, 0, moved.stdout + moved.stderr);
+  assert.match(moved.stdout, /moved: .* \(merged tip: HEAD is a merge\)/);
+  assert.deepEqual(guard(project).json.touched, []);
+  put(project, 'src/theme.css', ':root { --accent: #f00; }\n');
+  assert.deepEqual(guard(project).json.touched, ['src/theme.css']);
+});
+
 /** The finalization step as `node-brief` prints it to the session of a frozen development run. */
 function finalizationBrief(t) {
   const project = gitScratch(t, FILES);
