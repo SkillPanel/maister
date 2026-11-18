@@ -26,7 +26,7 @@ function plant(t, files = {}) {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const base = {
     'plugins/maister/skills/s/SKILL.md': `# S\n\nSend it with the model and effort \`${RUNNABLE}\` prints.\n`,
-    'plugins/maister-copilot/skills/s/SKILL.md': `# S\n\n\`dispatch-model\` resolves the model.\n`,
+    'dist/copilot/skills/s/SKILL.md': `# S\n\n\`dispatch-model\` resolves the model.\n`,
   };
   for (const [name, text] of Object.entries({ ...base, ...files })) {
     fs.mkdirSync(path.dirname(path.join(root, name)), { recursive: true });
@@ -46,18 +46,25 @@ test('dispatch-command-lint: a clean scratch root passes', t => {
 test('dispatch-command-lint: a bare invocation fails in either tree and exits 1', t => {
   const result = lint(`--root=${plant(t, {
     'plugins/maister/agents/a.md': '---\nname: a\n---\n\nRun `dispatch-model --agent=maister:a --host=claude` first.\n',
-    'plugins/maister-copilot/commands/c.md': 'Run `dispatch-model --agent=maister-copilot:a` first.\n',
+    'dist/copilot/commands/c.md': 'Run `dispatch-model --agent=maister:a` first.\n',
   })}`);
   assert.equal(result.code, 1, result.stdout + result.stderr);
   assert.deepEqual(failLines(result), [
     `FAIL: plugins/maister/agents/a.md:5: ${REASON}`,
-    `FAIL: plugins/maister-copilot/commands/c.md:1: ${REASON}`,
+    `FAIL: dist/copilot/commands/c.md:1: ${REASON}`,
   ]);
 });
 
 test('dispatch-command-lint: a non-markdown file is not read', t => {
   const result = lint(`--root=${plant(t, { 'plugins/maister/hooks/h.mjs': '// `dispatch-model --agent=x`\n' })}`);
   assert.equal(result.code, 0, result.stdout + result.stderr);
+});
+
+test('dispatch-command-lint: a named variant folder that does not exist is a usage error', t => {
+  const result = lint(`--root=${plant(t)}`, '--variant=no-such-build');
+  assert.equal(result.code, 2, result.stdout + result.stderr);
+  assert.match(result.stderr, /^usage: .*\(the variant folder .*no-such-build does not exist; run make build\)$/m);
+  assert.equal(result.stdout, '');
 });
 
 test('dispatch-command-lint: an unknown argument is a usage error', () => {

@@ -19,11 +19,11 @@
  *
  * The deny goes out in the host's PreToolUse output shape: Claude Code reads it
  * under hookSpecificOutput, GitHub Copilot CLI as a top-level permissionDecision.
- * The Copilot build sets HOOK_SHAPE to copilot in the variant's copy. A host
+ * The Copilot build sets HOOK_SHAPE to copilot in its own copy. A host
  * names a plugin's agent with its plugin and a colon as a prefix, so the
- * whitelist is matched on the bare name or on this plugin's own spellings of it,
- * prefixed with either of its two names, `maister` and `maister-copilot`. Another
- * plugin's or a project's agent of the same name is judged like any other.
+ * whitelist is matched on the bare name or on this plugin's own spelling of it,
+ * `maister:<name>`. An agent under any other prefix, another plugin's or a
+ * project's of the same name, is judged like any other agent.
  */
 
 import fs from 'node:fs';
@@ -38,7 +38,7 @@ const HOOK_SHAPE = 'claude';
 // blocked to prevent a rogue git stash/reset --hard from clobbering sibling
 // implementers running in parallel waves.
 const WHITELIST = ['test-suite-runner'];
-const OWN_PREFIXES = ['maister', 'maister-copilot'].map(name => `${name}:`);
+const OWN_PREFIX = 'maister:';
 
 // `git stash list` and `git stash show` only read the stash, so they pass;
 // any other stash subcommand, a bare `git stash` included, is blocked.
@@ -63,8 +63,7 @@ try {
 
 const agentType = typeof input?.agent_type === 'string' ? input.agent_type : '';
 const command = typeof input?.tool_input?.command === 'string' ? input.tool_input.command : '';
-const prefix = OWN_PREFIXES.find(own => agentType.startsWith(own));
-const agentName = prefix ? agentType.slice(prefix.length) : agentType;
+const agentName = agentType.startsWith(OWN_PREFIX) ? agentType.slice(OWN_PREFIX.length) : agentType;
 
 if (agentType !== '' && !WHITELIST.includes(agentName) && DESTRUCTIVE.test(command)) {
   const shown = Array.from(command).slice(0, 80).join('');

@@ -56,6 +56,55 @@ const EMPTY_GIT_CONFIG = path.join(GIT_HOME, 'gitconfig');
 fs.writeFileSync(EMPTY_GIT_CONFIG, '');
 
 /**
+ * The bash that runs a shell script: `MAISTER_BASH` when set, then Git's own
+ * `bash.exe` on Windows, where `bash` on PATH may be WSL's launcher, then
+ * `bash` on PATH.
+ */
+export function bashPath() {
+  if (process.env.MAISTER_BASH) return process.env.MAISTER_BASH;
+  if (process.platform === 'win32') {
+    const gitBash = path.join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Git', 'bin', 'bash.exe');
+    if (fs.existsSync(gitBash)) return gitBash;
+  }
+  return 'bash';
+}
+
+/** The Copilot CLI build `variantRoot` returns, once made or found. */
+let variant = null;
+
+/**
+ * The root of a Copilot CLI build of the plugin, for a test that checks what
+ * the build ships. `MAISTER_TEST_VARIANT` names one made already (`make test`
+ * builds once for every test file); without it, the build runs once per test
+ * process into a fresh folder under the OS temp directory, removed on exit.
+ * The path comes back resolved: on macOS the temp directory is a symlink, and
+ * the hooks and the engine report their own location resolved, so a path
+ * built from an unresolved root would fail every comparison with what they
+ * print. A function rather than a constant, so a test file that never asks
+ * for the build never makes one.
+ */
+export function variantRoot() {
+  if (variant !== null) return variant;
+  const given = process.env.MAISTER_TEST_VARIANT;
+  if (given) {
+    if (!fs.existsSync(path.join(given, '.claude-plugin/plugin.json'))) {
+      throw new Error(`MAISTER_TEST_VARIANT=${given} holds no .claude-plugin/plugin.json; it names no Copilot CLI build`);
+    }
+    variant = fs.realpathSync(given);
+    return variant;
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-variant-'));
+  process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
+  const slash = file => file.split(path.sep).join('/');
+  const out = path.join(dir, 'copilot');
+  const result = spawnSync(bashPath(), [slash(path.join(ROOT, 'platforms/copilot-cli/build.sh')), '--out', slash(out)], { encoding: 'utf8' });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`the Copilot CLI build exited ${result.status}: ${result.stderr}`);
+  variant = fs.realpathSync(out);
+  return variant;
+}
+
+/**
  * Run one engine verb. `stdin` is sent as JSON unless it is already a string;
  * `env` is laid over the isolated environment, for a test that supplies its own
  * settings.

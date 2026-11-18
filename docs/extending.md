@@ -479,7 +479,7 @@ quietly dropping the guard.
 
 A tool that pins a commit of the plugin — a driver, a dashboard, a validator — can read what that
 commit offers from one file instead of keeping its own list: `interface.json` at the plugin's root
-(`plugins/maister/interface.json`, and the Copilot variant's own `plugins/maister-copilot/interface.json`).
+(`plugins/maister/interface.json`, and the Copilot build's own `interface.json`, at `copilot/interface.json` on the `dist/stable` and `dist/beta` branches).
 Diff it between two pins to see what changed.
 
 It holds:

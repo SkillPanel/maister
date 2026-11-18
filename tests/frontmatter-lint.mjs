@@ -21,9 +21,12 @@
  * - a line that is neither a key, a continuation, a list item nor a comment,
  *   and a frontmatter opened but never closed.
  *
- * Usage: `node tests/frontmatter-lint.mjs [--file=<md> ...]`. With no argument
- * it checks every `SKILL.md`, agent and command file under `plugins/maister/`
- * and the generated variant.
+ * Usage: `node tests/frontmatter-lint.mjs [--file=<md> ...] [--variant=<dir>]`.
+ * With no `--file` it checks every `SKILL.md`, agent and command file under
+ * `plugins/maister/` and the Copilot CLI build. The build is the folder
+ * `--variant` names, resolved against this repository, and defaults to
+ * `dist/copilot`; the default folder absent is skipped, a named one that does
+ * not exist is a usage error.
  *
  * Output: one `FAIL: <file>:<line>: <reason>` line per finding. Exit 1 after
  * printing every failure, 0 when there is none, and 2 on the script's own
@@ -39,16 +42,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const TREES = ['plugins/maister', 'plugins/maister-copilot'];
+const SOURCE = 'plugins/maister';
+const DEFAULT_VARIANT = 'dist/copilot';
+const USAGE = 'usage: node tests/frontmatter-lint.mjs [--file=<md> ...] [--variant=<dir>]';
 
 const KEY_LINE = /^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*)|)$/;
 const RESERVED_START = /^(?:[`@%&*!|>"']|[-?:](?:[ \t]|$))/;
 
-/** The files the lint reads by default: every SKILL.md, agent and command under both trees. */
-export function defaultFiles() {
+/** The files the lint reads by default: every SKILL.md, agent and command under the source tree and the variant folder. */
+export function defaultFiles(variant = path.resolve(ROOT, DEFAULT_VARIANT)) {
   const files = [];
-  for (const tree of TREES) {
-    const base = path.join(ROOT, tree);
+  for (const base of [path.join(ROOT, SOURCE), variant]) {
     const skills = path.join(base, 'skills');
     for (const name of listDir(skills)) {
       const file = path.join(skills, name, 'SKILL.md');
@@ -61,6 +65,14 @@ export function defaultFiles() {
     }
   }
   return files;
+}
+
+function isDir(dir) {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 function listDir(dir) {
@@ -212,14 +224,21 @@ function flowEnd(text, report) {
 
 function main(argv) {
   const files = [];
+  let named = null;
   for (const arg of argv) {
-    if (!arg.startsWith('--file=')) {
-      console.error(`usage: node tests/frontmatter-lint.mjs [--file=<md> ...] (unknown argument ${arg})`);
+    if (arg.startsWith('--file=')) files.push(path.resolve(arg.slice('--file='.length)));
+    else if (arg.startsWith('--variant=') && arg.length > '--variant='.length) named = arg.slice('--variant='.length);
+    else {
+      console.error(`${USAGE} (unknown argument ${arg})`);
       return 2;
     }
-    files.push(path.resolve(arg.slice('--file='.length)));
   }
-  if (!files.length) files.push(...defaultFiles());
+  const variant = path.resolve(ROOT, named ?? DEFAULT_VARIANT);
+  if (named !== null && !isDir(variant)) {
+    console.error(`${USAGE} (the variant folder ${variant} does not exist; run make build)`);
+    return 2;
+  }
+  if (!files.length) files.push(...defaultFiles(variant));
   const failures = [];
   try {
     for (const file of files) {

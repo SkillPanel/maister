@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, ROOT, freeze, freezePatch, readState, run as runScript, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, freeze, freezePatch, readState, run as runScript, scratch, variantRoot, verb, write } from '../helpers.mjs';
 
 // A `direct:` step's declared delegates: `brief.<node>.delegates` names the
 // agents a step run inline always dispatches. The brief names them on its
@@ -58,12 +58,12 @@ test('the brief of a step with delegates names them on its runs line and prints 
   assert.ok(patch.includes(`"delegated": [${DELEGATES.map(agent => `"${agent}"`).join(', ')}]`), patch);
 });
 
-test('the Copilot variant names each delegate under its own plugin', t => {
+test('the Copilot build names each delegate under the plugin name', t => {
   const run = researchRun(t);
-  const variant = path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs');
+  const variant = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
   const result = runScript(variant, ['node-brief', `--state=${run.state}`, `--node=${FOUNDATION}`]);
   assert.equal(result.code, 0, result.stderr);
-  for (const agent of DELEGATES) assert.match(result.stdout, new RegExp(`^- maister-copilot:${agent}: model omit, effort omit `, 'm'));
+  for (const agent of DELEGATES) assert.match(result.stdout, new RegExp(`^- maister:${agent}: model omit, effort omit `, 'm'));
 });
 
 test('a step without delegates prints neither line nor the key', t => {
@@ -211,7 +211,7 @@ test('a per-host set: the brief and the closing patch name the run host\'s set',
 });
 
 test('a per-host set holds each host to its own set, and the other host\'s set is refused', t => {
-  for (const [host, own, other] of [['claude', ['Plan'], ['maister-copilot:implementation-planner']], ['copilot', ['maister-copilot:implementation-planner'], ['Plan']]]) {
+  for (const [host, own, other] of [['claude', ['Plan'], ['maister:implementation-planner']], ['copilot', ['maister:implementation-planner'], ['Plan']]]) {
     const run = perHostRun(t, PER_HOST, host);
     const before = fs.readFileSync(run.state, 'utf8');
     const refused = completeStep(run, other);
@@ -238,10 +238,10 @@ test('a host the per-host map leaves out declares nothing there', t => {
   assert.match(held.stderr, /state-delegates-unrecorded/);
 });
 
-test('the Copilot variant names a per-host delegate under its own plugin', t => {
+test('the Copilot build names a per-host delegate under the plugin name', t => {
   const run = perHostRun(t, PER_HOST, 'copilot');
-  const variant = path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs');
+  const variant = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
   const result = runScript(variant, ['node-brief', `--state=${run.state}`, '--node=step']);
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^- maister-copilot:implementation-planner: /m);
+  assert.match(result.stdout, /^- maister:implementation-planner: /m);
 });

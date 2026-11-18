@@ -6,10 +6,105 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # A stable tag also tags the dist/stable commit holding that version as
+      # dist/vX.Y.Z, so a release can be installed from a fixed point.
+      # dist/stable follows master, so only a tag on master's first-parent line
+      # gets a dist tag. A tag off that line whose version is below the version
+      # on master is from a maintenance line: it skips this step with a notice,
+      # and its release is still made. A tag off that line at or above master's
+      # version was pushed before its commit reached master, and is refused. If
+      # master cannot be fetched or its version read, the step fails, because it
+      # cannot tell which kind of tag this is.
+      # The dist/stable commit must have been built from the tagged commit or
+      # from an ancestor of it: an identical build makes no new dist commit, so
+      # the tip can name an earlier source commit. An ancestor is accepted only
+      # when the build inputs (plugins/maister, platforms/copilot-cli and
+      # tools/interface.mjs) are the same in both commits. If they differ,
+      # master's publish of the tagged commit has not landed yet, and a re-run
+      # after it lands succeeds. A tip built from any other commit, or naming
+      # no source commit, is refused. The dist/v… tag matches neither this
+      # workflow's v* trigger nor the release resolution below. A re-run
+      # finding the tag on the same commit is done.
+      - name: Check dist/stable carries this version and tag it
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! printf '%s\n' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "$TAG is not a stable tag; dist/stable is tagged for stable releases only"
+            exit 0
+          fi
+          if ! git fetch --no-tags origin "+refs/heads/master:refs/remotes/origin/master"; then
+            echo "::error::master could not be fetched, so $TAG cannot be checked against master's line"
+            exit 1
+          fi
+          master_line="$(git rev-list --first-parent refs/remotes/origin/master)"
+          if ! grep -Fxq "$GITHUB_SHA" <<< "$master_line"; then
+            if ! relation="$(git show refs/remotes/origin/master:plugins/maister/.claude-plugin/plugin.json 2>/dev/null \
+              | node -e '
+                let s = "";
+                process.stdin.on("data", (d) => { s += d; }).on("end", () => {
+                  let v;
+                  try { v = JSON.parse(s).version; } catch { process.exit(1); }
+                  const m = /^(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?$/.exec(typeof v === "string" ? v : "");
+                  if (!m) process.exit(1);
+                  const master = m.slice(1, 4).map(Number), tag = process.argv[1].split(".").map(Number);
+                  const i = [0, 1, 2].find((k) => tag[k] !== master[k]);
+                  console.log(`${i !== undefined && tag[i] < master[i] ? "lower" : "not-lower"} ${v}`);
+                });' "${TAG#v}")"; then
+              echo "::error::master's plugin version could not be read, so $TAG cannot be checked against master's line"
+              exit 1
+            fi
+            read -r relation master_version <<< "$relation"
+            if [ "$relation" = lower ]; then
+              echo "::notice::$TAG's commit $GITHUB_SHA is not on master's first-parent line and $TAG is below master's $master_version; dist/stable follows master, so this maintenance-line tag gets no dist tag"
+              exit 0
+            fi
+            echo "::error::$TAG's commit $GITHUB_SHA is not on master's first-parent line, and $TAG is not below master's $master_version — push master and wait for its publish first"
+            exit 1
+          fi
+          if ! git fetch --no-tags origin "+refs/heads/dist/stable:refs/remotes/origin/dist/stable"; then
+            echo "::error::dist/stable does not exist yet — wait for master's publish to land"
+            exit 1
+          fi
+          version="$(git show origin/dist/stable:copilot/.claude-plugin/plugin.json \
+            | node -e 'let s = ""; process.stdin.on("data", (d) => { s += d; }).on("end", () => { console.log(JSON.parse(s).version); })')"
+          if [ "$version" != "${TAG#v}" ]; then
+            echo "::error::dist/stable holds $version, not ${TAG#v} — wait for master's publish to land"
+            exit 1
+          fi
+          commit="$(git rev-parse origin/dist/stable)"
+          source="$(git log -1 --format=%B "$commit" | sed -n 's/^Source commit: \([0-9a-f]\{40\}\)$/\1/p' | tail -n 1)"
+          if [ -z "$source" ]; then
+            echo "::error::the dist/stable commit $commit names no source commit, so it cannot be checked against $TAG"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$source" "$GITHUB_SHA" 2>/dev/null; then
+            echo "::error::dist/stable was built from $source, which is neither $TAG's commit $GITHUB_SHA nor an ancestor of it"
+            exit 1
+          fi
+          if [ "$source" != "$GITHUB_SHA" ] \
+            && ! git diff --quiet "$source" "$GITHUB_SHA" -- plugins/maister platforms/copilot-cli tools/interface.mjs; then
+            echo "::error::dist/stable was built from $source, and the build changed between it and $TAG's commit $GITHUB_SHA — wait for master's publish to land"
+            exit 1
+          fi
+          git fetch --no-tags origin "+refs/tags/dist/$TAG:refs/tags/dist/$TAG" 2>/dev/null || true
+          if existing="$(git rev-parse -q --verify "refs/tags/dist/$TAG^{commit}")"; then
+            if [ "$existing" = "$commit" ]; then
+              echo "dist/$TAG already tags $commit"
+              exit 0
+            fi
+            echo "::error::dist/$TAG already tags $existing, not the dist/stable commit $commit"
+            exit 1
+          fi
+          git tag "dist/$TAG" "$commit"
+          git push origin "refs/tags/dist/$TAG"
 
       - name: Build and validate
         run: make build && make validate

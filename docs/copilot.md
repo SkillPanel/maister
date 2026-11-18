@@ -1,7 +1,7 @@
 # Maister on GitHub Copilot CLI
 
-Maister ships a build for GitHub Copilot CLI, `maister-copilot`. It has the same workflows,
-agents and engine as the Claude Code plugin, renamed into Copilot's vocabulary. This guide is for
+Maister ships a build for GitHub Copilot CLI under the same name as the Claude Code plugin,
+`maister`. It has the same workflows, agents and engine, renamed into Copilot's vocabulary. This guide is for
 someone who already knows Copilot CLI and is new to Maister: how to install it, run a workflow,
 answer its questions, and keep a long run from stalling on permissions. What each workflow does
 phase by phase is in [Workflow Details](workflows.md); this guide covers what is different on
@@ -23,35 +23,31 @@ The stable channel:
 
 ```bash
 copilot plugin marketplace add SkillPanel/maister
-copilot plugin install maister-copilot@maister-plugins
+copilot plugin install maister@maister-plugins
 ```
 
 The beta channel:
 
 ```bash
 copilot plugin marketplace add 'SkillPanel/maister#beta'
-copilot plugin install maister-copilot@maister-plugins-beta
+copilot plugin install maister@maister-plugins-beta
 ```
 
 Quote the beta source: an unquoted `#` starts a comment in most shells.
 
-The marketplace lists two plugins: `maister-copilot`, the Copilot build, and `maister`, the Claude
-Code build. Install `maister-copilot`. The other one is registered but disabled and is no use on
-Copilot.
+Copilot reads its own marketplace file and lists one plugin, `maister`. The Copilot build was
+called `maister-copilot` until now; that entry is gone, and `copilot plugin update` will not find
+it. Uninstall it once (`copilot plugin uninstall maister-copilot@maister-plugins-beta`, or
+`@maister-plugins` on the stable channel) and install `maister` as above. The project's
+`.maister/` folder is not touched.
 
 Install one channel only. To switch, uninstall the other first, for example
-`copilot plugin uninstall maister-copilot@maister-plugins`.
-
-To install straight from the repository without a marketplace, name the subdirectory:
-
-```bash
-copilot plugin install SkillPanel/maister:plugins/maister-copilot
-```
+`copilot plugin uninstall maister@maister-plugins`.
 
 ### Updating
 
 ```bash
-copilot plugin update maister-copilot@maister-plugins
+copilot plugin update maister@maister-plugins
 ```
 
 Use `maister-plugins-beta` on the beta channel. Start a new session afterwards so the new version
@@ -59,13 +55,15 @@ loads.
 
 ### Running a local checkout
 
-To run a clone of the repository instead of an installed copy, load its Copilot build with
-`--plugin-dir`:
+To run a clone of the repository instead of an installed copy, build it with `make build`, then
+load the build with `--plugin-dir` and `--add-dir`:
 
 ```bash
-copilot --plugin-dir /path/to/maister/plugins/maister-copilot \
-        --add-dir /path/to/maister/plugins/maister-copilot
+copilot --plugin-dir /path/to/maister/dist/copilot \
+        --add-dir /path/to/maister/dist/copilot
 ```
+
+Run `make build` again after pulling or editing.
 
 `--plugin-dir` loads the plugin. `--add-dir` only grants file access to the folder; it loads
 nothing. You need both when the checkout sits outside your project: the workflows run scripts from
@@ -77,7 +75,7 @@ the plugin's folder, and without `--add-dir` Copilot treats that folder as outsi
 Open Copilot CLI in your project and run:
 
 ```
-/maister-copilot:init
+/maister:init
 ```
 
 `init` reads the codebase, then asks you a handful of questions:
@@ -105,18 +103,17 @@ offers to keep your edits.
 ## Running workflows
 
 Copilot names a plugin's commands under the plugin, so every Maister command is typed
-`/maister-copilot:<name>`. A bare `/development` is reported as an unknown command. Wherever the
-other Maister docs write `/maister:<name>`, type `/maister-copilot:<name>` on Copilot.
+`/maister:<name>`, as on Claude Code. A bare `/development` is reported as an unknown command.
 
 Give a workflow a task in plain words:
 
 ```
-/maister-copilot:development Add rate limiting to the login endpoint
+/maister:development Add rate limiting to the login endpoint
 ```
 
 ### Picking a workflow
 
-`/maister-copilot:work <task>` reads the task, picks the workflow that fits and starts it. Use it
+`/maister:work <task>` reads the task, picks the workflow that fits and starts it. Use it
 when you are not sure which one you need. To choose yourself:
 
 | Command | Use it for |
@@ -181,7 +178,7 @@ A run survives the session. To continue it, in the same session or a new one, pa
 to the workflow's command:
 
 ```
-/maister-copilot:development .maister/tasks/development/2026-10-20-rate-limiting
+/maister:development .maister/tasks/development/2026-10-20-rate-limiting
 ```
 
 The run picks up at the first step it has not finished and asks only what is still open.
@@ -199,7 +196,7 @@ copilot plugin install maister-copilot@maister-plugins-2x
 Or carry a development or research task over as background for a new run:
 
 ```
-/maister-copilot:development --context=.maister/tasks/development/2025-06-02-old-task Finish the export feature
+/maister:development --context=.maister/tasks/development/2025-06-02-old-task Finish the export feature
 ```
 
 The new run copies the old folder in as reading material and starts from its first phase. See
@@ -303,7 +300,7 @@ session's model.
 
 **Choose models per agent in `.maister/config.yml`.** Its `subagents` block gives each agent, each
 workflow or each step a model and an effort for each host, and the workflow passes them on every
-agent call. `/maister-copilot:init` writes maister's defaults there as a block you can edit,
+agent call. `/maister:init` writes maister's defaults there as a block you can edit,
 appends it to a config that has none, and leaves an existing block alone; in a codebase of more
 than 2,000 files it puts `explore` on `claude-sonnet-5.5` at high effort. The block governs the
 agent calls maister makes; the explore agents Copilot's own plan mode starts are outside it. On
@@ -385,15 +382,15 @@ renamed:
 - an **eject** is your own copy of a built-in at `.maister/workflows/<name>.yml`, which replaces
   the shipped one for your project and no longer follows the plugin's updates to it;
 - a **custom workflow** is your own definition in `.maister/workflows/`;
-- `/maister-copilot:workflow-author` interviews you and writes a new workflow or an overlay, checks
+- `/maister:workflow-author` interviews you and writes a new workflow or an overlay, checks
   it, and previews its steps;
-- `/maister-copilot:run <name>` starts a workflow by name, `/maister-copilot:run --list` lists the
-  project's own, and `/maister-copilot:run <name> --check` validates one without starting it.
+- `/maister:run <name>` starts a workflow by name, `/maister:run --list` lists the
+  project's own, and `/maister:run <name> --check` validates one without starting it.
 
 ## Troubleshooting
 
 **"Failed to load 1 skill" at startup.** A skill's description could not be read. Update to the
-latest version (`copilot plugin update maister-copilot@<marketplace>`). `copilot skill list` shows which skill failed.
+latest version (`copilot plugin update maister@<marketplace>`). `copilot skill list` shows which skill failed.
 
 **"Path does not exist" or "Parent directory does not exist", again and again.** The model is
 guessing a path wrong, or writing into a folder that is not there yet. A few of these are normal and
@@ -415,10 +412,10 @@ command. That is intended.
 
 **A command is unknown, or a workflow is missing.** Check what loaded:
 
-- `copilot plugin list` shows installed plugins and where they live; `maister-copilot` should be
+- `copilot plugin list` shows installed plugins and where they live; `maister` should be
   there and enabled;
 - `copilot skill list` shows the skills each plugin loaded, and any that failed;
 - inside a session, `/skills` shows the session's own view.
 
-Type commands with the plugin name, `/maister-copilot:<name>`. If you loaded a checkout with
+Type commands with the plugin name, `/maister:<name>`. If you loaded a checkout with
 `--add-dir` alone, add `--plugin-dir`: `--add-dir` loads no plugin.

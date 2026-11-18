@@ -445,19 +445,19 @@ const DELEGATES = 'delegates: dispatch each agent below through the Task tool, o
 
 /**
  * An agent as the Task tool takes it: a built-in agent type bare, another
- * plugin's name kept, and a bare name or one under either variant's prefix
+ * plugin's name kept, and a bare name or one under this plugin's prefix
  * under this plugin's — a definition is not rewritten by the Copilot build,
- * so a name under this plugin's own prefix reaches the variant as written.
+ * so a name under this plugin's own prefix reaches the build as written.
  */
 function dispatchName(agent) {
   if (BUILT_IN_AGENTS.includes(agent)) return agent;
   const at = agent.indexOf(':');
-  if (at < 0 || OWN_PLUGINS.includes(agent.slice(0, at))) return `${shippedPluginName()}:${agent.slice(at + 1)}`;
+  if (at < 0 || agent.slice(0, at) === OWN_PLUGIN) return `${shippedPluginName()}:${agent.slice(at + 1)}`;
   return agent;
 }
 
-/** The names this plugin is registered under, one per host's variant. */
-const OWN_PLUGINS = ['maister', 'maister-copilot'];
+/** The name this plugin is registered under, the same on every host. */
+const OWN_PLUGIN = 'maister';
 
 /** A declared value's placeholder: its literal alternatives, or the kind of string it takes. */
 function placeholderOf(type) {

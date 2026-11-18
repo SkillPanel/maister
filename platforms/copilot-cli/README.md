@@ -15,23 +15,22 @@ On the stable channel:
 
 ```bash
 copilot plugin marketplace add SkillPanel/maister
-copilot plugin install maister-copilot@maister-plugins
+copilot plugin install maister@maister-plugins
 ```
 
 Or on the beta channel:
 
 ```bash
 copilot plugin marketplace add 'SkillPanel/maister#beta'
-copilot plugin install maister-copilot@maister-plugins-beta
+copilot plugin install maister@maister-plugins-beta
 ```
 
-Install `maister-copilot`; the marketplace also lists `maister`, the Claude Code build. Install
-one channel only: uninstall the other first, for example
-`copilot plugin uninstall maister-copilot@maister-plugins`.
-`copilot plugin update maister-copilot@<marketplace>` fetches the latest version.
+Install one channel only: uninstall the other first, for example
+`copilot plugin uninstall maister@maister-plugins`.
+`copilot plugin update maister@<marketplace>` fetches the latest version.
 
-To run a local checkout, pass both `--plugin-dir` and `--add-dir` for
-`/path/to/maister/plugins/maister-copilot`: the first loads the plugin, the second grants file
+To run a local checkout, build it with `make build`, then pass both `--plugin-dir` and `--add-dir`
+for `/path/to/maister/dist/copilot`: the first loads the plugin, the second grants file
 access to it.
 
 ## Requirements
@@ -42,12 +41,12 @@ access to it.
 
 ## Run a workflow
 
-Every command is typed `/maister-copilot:<name>`:
+Every command is typed `/maister:<name>`, as on Claude Code:
 
 ```
-/maister-copilot:init
-/maister-copilot:work Add a multiply(a, b) function
-/maister-copilot:reviews-code-risk
+/maister:init
+/maister:work Add a multiply(a, b) function
+/maister:reviews-code-risk
 ```
 
 A bare `/development` is reported as an unknown command.

@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ROOT, SAMPLE, freeze, run, scratch, scratchPlugin, verb } from '../helpers.mjs';
+import { ROOT, SAMPLE, freeze, run, scratch, scratchPlugin, variantRoot, verb } from '../helpers.mjs';
+import { pathToFileURL } from 'node:url';
 import { findEditionCollision } from '../../plugins/maister/lib/editions.mjs';
 
 const PLUGIN = path.join(ROOT, 'plugins/maister');
@@ -175,12 +176,16 @@ test('editions: a copy running from the plugin cache knows its marketplace from 
   assert.deepEqual(found?.editions.map(edition => edition.id), ['maister@cached-edition', OTHER]);
 });
 
-test('editions: the Copilot variant is a no-op', t => {
-  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-project-'));
-  t.after(() => fs.rmSync(project, { recursive: true, force: true }));
-  const copilot = path.join(ROOT, 'plugins/maister-copilot');
-  const env = settings(t, project, { user: enabled([[`maister-copilot@${OWN}`, true], ['maister-copilot@other-edition', true]]) });
-  assert.equal(findEditionCollision({ pluginRoot: copilot, projectDir: project, env, managedFiles: [] }), null);
+test('editions: the Copilot build is a no-op', async t => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-cache-'));
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const root = path.join(base, 'plugins/cache/cached-edition/maister/1.0.0');
+  place(path.join(root, '.claude-plugin/plugin.json'), { name: 'maister' });
+  const env = settings(t, base, { user: enabled([['maister@cached-edition', true], [OTHER, true]]) });
+  const query = { pluginRoot: root, projectDir: base, env, managedFiles: [] };
+  const built = await import(pathToFileURL(path.join(variantRoot(), 'lib/editions.mjs')).href);
+  assert.equal(built.findEditionCollision(query), null);
+  assert.notEqual(findEditionCollision(query), null, 'the source module finds the collision on the same layout');
 });
 
 // ---------------------------------------------------------------------------
