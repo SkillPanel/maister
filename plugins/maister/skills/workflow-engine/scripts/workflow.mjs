@@ -889,13 +889,20 @@ function reportWrite(result, input, rules) {
   const owned = (result.ignored || []).filter(field => /\.(?:attempt|reruns)$/.test(field));
   // `policy_hash` is the writer's as well, and no clock fills it either.
   const policyHash = (result.ignored || []).filter(field => field === 'orchestrator.policy_hash');
-  const clocked = (result.ignored || []).filter(field => !owned.includes(field) && !policyHash.includes(field));
+  // A node's `dir` is the freeze's, copied from the definition, once recorded.
+  const frozenDirs = (result.ignored || []).filter(field => /^workflow\.nodes\.[^.]+\.dir$/.test(field));
+  const clocked = (result.ignored || []).filter(field => !owned.includes(field) && !policyHash.includes(field)
+    && !frozenDirs.includes(field));
   if (clocked.length) {
     process.stderr.write(`note: ignored the supplied ${clocked.join(', ')}; the writer stamps these from its own clock\n`);
   }
   if (owned.length) {
     process.stderr.write(`note: ignored the supplied ${owned.join(', ')}; the freeze records reruns and a revise counts attempts,`
       + ' so no patch sets either\n');
+  }
+  if (frozenDirs.length) {
+    process.stderr.write(`note: ignored the supplied ${frozenDirs.join(', ')}; the freeze records a node's dir from its`
+      + ' definition, so no patch changes it\n');
   }
   if (policyHash.length) {
     process.stderr.write('note: ignored the supplied orchestrator.policy_hash; the freeze records it from the policy it applied,'
