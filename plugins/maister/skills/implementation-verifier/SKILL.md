@@ -56,7 +56,10 @@ or `inline`:
   - the prompt: `task_path`, `state`, `node`, `plugin_root` (the absolute path above), `fixes`,
     `findings_file`, `work_log`, `hold`, and `resume` exactly as `runner-step` printed it.
 
-  When the runner returns, its reply is its result; `runner-step` reads the same result from disk.
+  When the runner returns — its reply, or its completion notice when the host ran it in the
+  background — run `runner-step` at once, whatever the reply says: it reads the result from disk,
+  and only its `next` says what comes next. A runner can hand back `waiting` and still be woken
+  afterwards; a reply in prose is no result at all.
 - **`ask`** — the runner returned a decision a person makes (`kind`: `findings`, `budget` or
   `no_progress`). Ask it as the node's prose says, under the run's driver (`asking`):
   - the findings, when `findings_file` is set: `finding-brief --state=<state> --node=<node>
@@ -74,11 +77,13 @@ or `inline`:
 - **`wait`** — agents the runner sent (the suite runner, reviewers, fix batches) are still out:
   the runner ended `waiting`, or ended without a result, on a host that runs a subagent's own
   agent calls in the background. `pending` lists each one's `id`, the host's `agent` id when
-  recorded, and the `output` it owes. Those agents outlive the runner and report to this
-  session: wait for their completion notices — never end the turn here, never narrow the
-  delegation, never dispatch the runner while one is out — then run `runner-step` again. A
-  pending agent whose completion notice came and whose output is still missing ended without
-  it: run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs in-flight --state=<state>
+  recorded, and the `output` it owes. Those agents outlive the runner. Their completion
+  notices come to this session or, on a host that wakes the runner for them, to the runner,
+  which then ends again with a completion notice of its own. Run `runner-step` again on every
+  completion notice — a pending agent's or the runner's — and never end the turn here, never
+  narrow the delegation, never dispatch the runner while one is out. A pending agent whose
+  completion notice came to this session and whose output is still missing ended without it:
+  run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs in-flight --state=<state>
   --node=<node> --runner=verification --ended=<id>`, then `runner-step` again.
 - **`unavailable`** — the runner could not run at all: no agent tool, or no way to dispatch
   subagents. It is never a loop with agents still out — that is `wait`, and the engine refuses

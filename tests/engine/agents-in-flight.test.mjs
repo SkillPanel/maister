@@ -231,6 +231,26 @@ for (const make of [implementing, verifying]) {
     assert.deepEqual(stepOf(run), { next: 'dispatch', resume: 'auto' });
   });
 
+  test(`${label}: a waiting result never names an agent already back, so it never says less than the files`, t => {
+    const run = make(t);
+    recorded(run, items);
+    assert.equal(result(run, { result: 'waiting', pending: [first, second] }).code, 0, 'both out: waiting is the result');
+
+    // The first lands while the runner still runs: waiting on it again is refused, the old result kept.
+    report(run, firstOutput);
+    const refused = result(run, { result: 'waiting', pending: [first, second] });
+    assert.equal(refused.code, 1);
+    assert.match(refused.stderr, new RegExp(`^runner-result-invalid: .*pending names ${first}, which is already back`, 's'));
+    const kept = JSON.parse(fs.readFileSync(path.join(run.dir, run.runner, 'runner-result.json'), 'utf8'));
+    assert.deepEqual(kept.pending, [first, second]);
+
+    // An agent marked ended is back too; naming only the one still out is accepted.
+    assert.equal(inFlight(run, [`--ended=${second}`]).code, 0);
+    assert.equal(result(run, { result: 'waiting', pending: [second] }).code, 1);
+    fs.rmSync(path.join(run.dir, ...firstOutput.split('/')));
+    assert.equal(result(run, { result: 'waiting', pending: [first] }).code, 0);
+  });
+
   test(`${label}: a waiting result names only agents recorded in this attempt`, t => {
     const run = make(t);
     recorded(run, items);
@@ -385,6 +405,20 @@ for (const [runner, handOff] of [
     assert.match(text, /`in-flight --state=<state> --node=<node>[^`]*--record=/);
     assert.match(text, /\*\*`waiting`\*\*/);
     assert.match(text, /never `unavailable`/);
+  });
+
+  test(`${runner} ends a pass on waiting: woken afterwards, it takes nothing in and writes no new result`, () => {
+    const text = read(runner);
+    assert.match(text, /\*\*After `waiting`, take nothing in\.\*\*/);
+    assert.match(text, /no new `runner-result` call/);
+    assert.match(text, /the result you already handed back, unchanged/);
+  });
+
+  test(`${handOff} asks runner-step on every completion notice, the runner's own included`, () => {
+    const text = read(handOff);
+    assert.match(text, /run `runner-step` at once, whatever the reply says/);
+    assert.match(text, /Run `runner-step` again on every\s+completion notice — a\s+pending agent's or the runner's/);
+    assert.doesNotMatch(text, /report to this\s+session/);
   });
 
   test(`${handOff} waits for the agents still out and never narrows on a wait`, () => {
