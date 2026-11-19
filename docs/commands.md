@@ -219,6 +219,8 @@ Research output can feed into development:
 `/maister:development --research=.maister/tasks/research/...`, or
 `--architecture=.maister/tasks/research/...` when the research wrote a high-level design.
 
+With HTML pages on, the run also writes `outputs/research-explainer.html`, a one-page explainer of the findings, where every figure is one a source states.
+
 See [Notes for every workflow command](#notes-for-every-workflow-command).
 
 **Task folder**: `.maister/tasks/research/`

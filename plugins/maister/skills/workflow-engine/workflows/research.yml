@@ -83,12 +83,13 @@ inputs:
 
 # What a parent may read. Every entry names an output some node already
 # declares, so a key that stops resolving fails validation rather than a run.
-# Three of the six artifacts belong to nodes a guard may skip: such an entry is
+# Three of the seven artifacts belong to nodes a guard may skip: such an entry is
 # simply absent, and the parent's missing-artifact rule decides what follows.
 # `report` deliberately aliases `research_report` — chains authored against
 # `${research.artifacts.report}` keep resolving.
 outputs:
   artifacts:
+    explainer: research-foundation.artifacts.explainer
     research_report: research-foundation.artifacts.report
     report: research-foundation.artifacts.report
     findings_directory: research-foundation.artifacts.findings
@@ -178,6 +179,7 @@ html_companions:
 brief:
   research-foundation:
     absent:
+      explainer: "HTML output is off for this run, or the explainer writer failed twice; the step's summary says which."
       work_context: "No context pack was named, or it could not be read."
     delegates: [research-planner, information-gatherer, research-synthesizer]
     recommends:
@@ -208,6 +210,7 @@ nodes:
       design_flag: "${inputs.design}"
     outputs:
       artifacts:
+        explainer: outputs/research-explainer.html
         brief: planning/research-brief.md
         plan: planning/research-plan.md
         sources: planning/sources.md

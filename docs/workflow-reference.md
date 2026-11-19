@@ -218,7 +218,7 @@ Artifact paths are relative to the run's task directory.
 
 | Step | Artifacts | Values |
 |---|---|---|
-| `research-foundation` | `brief`: `planning/research-brief.md`<br>`findings`: `analysis/findings`<br>`plan`: `planning/research-plan.md`<br>`report`: `outputs/research-report.md`<br>`sources`: `planning/sources.md`<br>`synthesis`: `analysis/synthesis.md`<br>`work_context`: `analysis/work-context` | `conclusions` (string)<br>`confidence_level` (one of high, medium, low) |
+| `research-foundation` | `brief`: `planning/research-brief.md`<br>`explainer`: `outputs/research-explainer.html`<br>`findings`: `analysis/findings`<br>`plan`: `planning/research-plan.md`<br>`report`: `outputs/research-report.md`<br>`sources`: `planning/sources.md`<br>`synthesis`: `analysis/synthesis.md`<br>`work_context`: `analysis/work-context` | `conclusions` (string)<br>`confidence_level` (one of high, medium, low) |
 | `solution-generation` | `decision_areas`: `outputs/decision-areas.json`<br>`exploration`: `outputs/solution-exploration.md` |  |
 | `solution-convergence` |  | `selected_approach` (id) |
 | `high-level-design` | `decision_log`: `outputs/decision-log.md`<br>`design`: `outputs/high-level-design.md` |  |
@@ -229,6 +229,7 @@ What a parent run, or a workflow that starts this one, can read once it ends.
 
 | Output | Kind | From |
 |---|---|---|
+| `explainer` | artifact | `research-foundation.artifacts.explainer` |
 | `research_report` | artifact | `research-foundation.artifacts.report` |
 | `report` | artifact | `research-foundation.artifacts.report` |
 | `findings_directory` | artifact | `research-foundation.artifacts.findings` |
