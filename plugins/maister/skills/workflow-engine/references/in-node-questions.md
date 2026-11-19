@@ -520,6 +520,20 @@ node_summaries.scoping
 ask: scope-choice
 ```
 
+**Proposing a family.** A question in the set may carry `family`: the policy family the node
+proposes for it. Propose, from the families the policy lists for that question, the one whose
+description fits. The node brief prints the ones a proposal can take under its `asks` line, one `families (<id>):` line
+per declared id with a choice to make, each family beside its description; a per-area id reads
+as the declared id it extends, so that id's line applies. No line for an id, nothing to propose:
+leave `family` out, and the question is classed as the policy reads it.
+
+Propose a stricter family when a question is a choice. The test: would a different answer change
+what the product does, or who may do it? Then it is not a fact. A question worded "should" is
+never a fact. A proposal only ever makes a question stricter: the writer takes it when the policy
+lists it for that question and it is at least as strict as the first family listed, and otherwise
+classes the question under that first family and says so in a note. A carried triage, a floor id
+and a band still raise on top of it.
+
 **The four outcomes.** A question the policy does not class is left to ask, with no triage; a
 classed one takes one of four outcomes, by its class, the autonomy ceiling and whether anybody can
 be asked:

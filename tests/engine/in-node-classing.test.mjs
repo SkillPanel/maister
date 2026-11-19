@@ -36,6 +36,16 @@ const SETTLING = (() => {
 })();
 const WITH_SETTLEMENTS = sharedPlugin({ policy: SETTLING });
 
+// The questions policy, with a row for `scope-choice` that lets a proposal
+// choose: record first, consult stricter, decide-alone looser.
+const PROPOSING = sharedPlugin({
+  policy: (() => {
+    const policy = policyOf('questions.json');
+    const row = { workflow: 'in-node-questions', id: 'scope-choice', kind: 'question', families: ['noted-family', 'asked-family', 'quick-family'] };
+    return { ...policy, table: [...policy.table, row] };
+  })(),
+});
+
 const DEFINITION = path.join(FIXTURES, 'definitions/in-node-questions.yml');
 const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
 
@@ -517,6 +527,33 @@ test('a revise reset clears the reset nodes\' writer-classed items and their rem
   assert.equal(Object.hasOwn(after, 'asking'), false);
   assert.deepEqual(after.decisions, [before.decisions.find(item => item.by === 'operator')]);
   assert.equal(after.summary, 'Drafted.');
+});
+
+test('a proposed family: the brief lists what a proposal can take, the writer takes a stricter one and notes an ignored one', t => {
+  const run = started(t, PROPOSING.engine);
+  const brief = runScript(PROPOSING.engine, ['node-brief', `--state=${run.state}`, '--node=scoping']);
+  assert.equal(brief.code, 0, brief.stderr);
+  assert.match(brief.stdout, /^families \(scope-choice\): noted-family — Settled and recorded\.; asked-family — Worth a second opinion\.$/m);
+  assert.doesNotMatch(brief.stdout, /^families \(review-wanted\)/m, 'an id with no choice to make prints no line');
+
+  const proposed = family => ({ ...question('scope-choice'), family });
+  const stricter = classing(PROPOSING.engine, run, [], { questions: [proposed('asked-family')] });
+  assert.equal(stricter.code, 0, stricter.stderr);
+  assert.equal(askLine(stricter.stdout), 'ask: scope-choice');
+  assert.doesNotMatch(stricter.stderr, /^note: /m);
+
+  const looser = started(t, PROPOSING.engine);
+  const ignored = classing(PROPOSING.engine, looser, [], { questions: [proposed('quick-family')] });
+  assert.equal(ignored.code, 0, ignored.stderr);
+  assert.equal(askLine(ignored.stdout), 'ask: none');
+  assert.match(ignored.stderr, /^note: node_summaries\.scoping: classed scope-choice under noted-family, not the proposed quick-family: /m);
+  assert.deepEqual(byId(summaryOf(looser).decisions, 'scope-choice').triage, { version: 1, class: 'record', family: 'noted-family' });
+
+  // Under the built-in default nothing is classed, so the brief offers nothing to propose.
+  const plain = started(t, null, { ceiling: null });
+  const bare = verb(['node-brief', `--state=${plain.state}`, '--node=scoping']);
+  assert.equal(bare.code, 0, bare.stderr);
+  assert.doesNotMatch(bare.stdout, /^families \(/m);
 });
 
 // ---------------------------------------------------------------------------

@@ -135,6 +135,10 @@ test('triage only raises: floor, band once, unbounded by max, proposed family, u
   // A proposed family counts only when the row lists it.
   assert.deepEqual(at({ family: 'careful-family' }), { version: 1, class: 'approve', family: 'careful-family' });
   assert.deepEqual(at({ family: 'guarded-family' }), { version: 1, class: 'decide-alone', family: 'example-family' });
+  // ... and only when it is at least as strict as the row's first: a looser one the row lists is ignored.
+  const strictFirst = { ...policy, table: policy.table.map(row => (row.id === 'gate-row' ? { ...row, families: ['careful-family', 'example-family'] } : row)) };
+  assert.deepEqual(triageFor({ policy: strictFirst, workflow: 'sample', kind: 'gate', id: 'gate-row', family: 'example-family' }),
+    { version: 1, class: 'approve', family: 'careful-family' });
 
   // No row: unknown_family when set, unclassified when not.
   assert.deepEqual(triageFor({ policy, workflow: 'sample', kind: 'gate', id: 'no-row' }),

@@ -39,6 +39,12 @@
  * - Under a driver nobody can be asked through, the `asks` line names the
  *   question ids and points at the Without line of each: a question's default
  *   is stated there, once.
+ * - A `families (<id>):` line under the `asks` line for each declared id whose
+ *   policy row lets a proposal choose — two or more families a proposal could
+ *   take, each with its description — and only in a run whose policy classes
+ *   questions and still has the hash the freeze recorded. The node proposes a
+ *   family per question from it (the in-node questions reference); an id with
+ *   nothing to choose prints nothing.
  * - An `ask with:` line under the `asks` line only for a run asked in session
  *   on Copilot, whose question tool takes a message and a form: it names the
  *   one command that builds the form, with the run's real paths, at the point
@@ -116,8 +122,9 @@ import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
 import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
+import { loadPolicy, questionFamilies } from './policy.mjs';
 import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
-import { DECISION_BY, HEADLINE_MAX, RISK_TAGS } from './items.mjs';
+import { DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
 
 /** The engine's entry script, which the `ask with:` line names by its absolute path. */
 const ENGINE = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
@@ -551,11 +558,31 @@ function typeText(type) {
 function askLines(origin, resolved, { doc, state, runDir }, node) {
   const ids = origin === null ? [] : declaredQuestionIds(origin, sectionNameOf(resolved));
   if (!ids.length) return [];
-  if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}`];
-  if (!canAsk(doc)) return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies`];
-  const lines = [`asks (in session): ${ids.join(', ')}`];
+  const families = familyLines(doc, ids);
+  if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}`, ...families];
+  if (!canAsk(doc)) return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies`, ...families];
+  const lines = [`asks (in session): ${ids.join(', ')}`, ...families];
   if (runHost(doc) === 'copilot') lines.push(askWithLine(state, runDir, node));
   return lines;
+}
+
+/**
+ * One `families (<id>): <name> — <description>; …` line per declared id whose
+ * row offers a proposal a choice, when the run's policy classes questions and
+ * is the one the freeze recorded: under any other policy the classing write
+ * classes nothing, so there is nothing to propose.
+ */
+function familyLines(doc, ids) {
+  const orchestrator = isPlainObject(doc.orchestrator) ? doc.orchestrator : {};
+  if (orchestrator.classes_questions !== true) return [];
+  const { policy, hash } = loadPolicy();
+  if (orchestrator.policy_hash !== hash) return [];
+  const workflow = typeof doc.workflow?.name === 'string' ? doc.workflow.name : null;
+  return ids.flatMap(id => {
+    const offered = questionFamilies({ policy, workflow, id, declaredIds: ids });
+    if (offered.length < 2) return [];
+    return [`families (${id}): ${offered.map(({ name, description }) => `${name} — ${oneLine(description)}`).join('; ')}`];
+  });
 }
 
 /**

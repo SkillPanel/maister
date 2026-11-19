@@ -4089,7 +4089,8 @@ function sentDecisions(decisions, prior, node, notes) {
  * an `asking` an earlier write stored is removed. Returns `{entry,
  * dropAsking}`: the entry to record in the set's place, and whether the
  * node's recorded `asking` goes.
- * The ids still to ask are added to `classing.out.asking` either way.
+ * The ids still to ask are added to `classing.out.asking` either way; a
+ * classed set's notes — one per proposed family not taken — join the write's.
  */
 function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWarnings, classing }) {
   const { question_set: set, reasons, ...rest } = entry;
@@ -4128,6 +4129,7 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
   // Nothing classed: an `asking` an earlier classing write stored would filter
   // the next request by a remainder this set never had, so it goes.
   if (!matches) return { entry: rest, dropAsking: isPlainObject(held) && Object.hasOwn(held, 'asking') };
+  classing.notes.push(...classed.notes.map(note => `node_summaries.${node}: ${note}`));
 
   const next = { ...rest, asking: classed.asking };
   if (classed.items.length || Array.isArray(rest.decisions)) {

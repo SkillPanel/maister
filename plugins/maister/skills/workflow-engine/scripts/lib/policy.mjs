@@ -115,6 +115,9 @@ export const REFUSAL = {
 };
 
 const NAME = /^[a-z][a-z0-9-]*$/;
+
+/** What a family's name matches: a question set's proposed `family` is checked against it. */
+export const FAMILY_NAME = NAME;
 const ROW_ID = /^[a-z][a-z0-9-]{1,40}$/;
 const VALUE_KEY = /^[a-z_]+$/;
 
@@ -359,7 +362,10 @@ function isMap(value) {
  * - `kind` is `gate`, `question` or `value`. A gate's `id` is its node id; a
  *   question's `id` is its question id, read against the asking node's
  *   `declaredIds`; a value's `id` is its gate's node id and `key` its value key.
- * - `family` is a proposed family, used only when the row lists it.
+ * - `family` is a proposed family, used only when the row lists it and its
+ *   class is at least as strict as the row's first family's; an unlisted or a
+ *   looser proposal is ignored and the first family stands. A proposal can
+ *   make an item stricter, never looser.
  * - `floorIds` are floor ids found on the item; they join the family's floor.
  * - `band` is the item's band; its `without_evidence` is applied once when the
  *   item carries no `evidence`.
@@ -405,13 +411,41 @@ export function triageFor({ policy, workflow, kind, id, declaredIds, key, family
 /** The family an item reads as, or null when it is unclassified. */
 function familyOf({ policy, workflow, kind, id, declaredIds, key, proposed }) {
   const fallback = policy?.unknown_family ?? null;
-  const rowKind = kind === 'value' ? 'gate' : kind;
-  const rowId = kind === 'question' ? declaredIdOf(id, declaredIds) : id;
-  const row = (policy?.table ?? []).find(each => each.workflow === workflow && each.kind === rowKind && each.id === rowId);
+  const row = rowOf({ policy, workflow, kind, id, declaredIds });
   if (!row) return fallback;
   if (kind === 'value') return row.values && Object.hasOwn(row.values, key) ? row.values[key] : fallback;
-  if (typeof proposed === 'string' && row.families.includes(proposed)) return proposed;
-  return row.families[0];
+  return proposable(policy, row).includes(proposed) ? proposed : row.families[0];
+}
+
+/** The table row an item reads, or undefined: a value reads its gate's row, a question its declared id's. */
+function rowOf({ policy, workflow, kind, id, declaredIds }) {
+  const rowKind = kind === 'value' ? 'gate' : kind;
+  const rowId = kind === 'question' ? declaredIdOf(id, declaredIds) : id;
+  return (policy?.table ?? []).find(each => each.workflow === workflow && each.kind === rowKind && each.id === rowId);
+}
+
+/**
+ * The families a row lets a proposal take, in row order: its first, and every
+ * other it lists whose class is at least as strict, so a proposal only raises.
+ */
+function proposable(policy, row) {
+  const families = policy?.families ?? {};
+  const classOf = name => (Object.hasOwn(families, name) ? rank(families[name].class) : -1);
+  const floor = classOf(row.families[0]);
+  return row.families.filter(name => classOf(name) >= floor);
+}
+
+/**
+ * The families a node may propose for a question it asks, as
+ * `[{name, description}]` in row order: the first family of the row its
+ * declared id reads, and every other the row lists that is at least as strict.
+ * Empty when no row of `kind: question` matches; the policy's unknown family
+ * is never offered, since a proposal never applies to it.
+ */
+export function questionFamilies({ policy, workflow, id, declaredIds } = {}) {
+  const row = rowOf({ policy, workflow, kind: 'question', id, declaredIds });
+  if (!row) return [];
+  return proposable(policy, row).map(name => ({ name, description: policy.families[name].description }));
 }
 
 /**

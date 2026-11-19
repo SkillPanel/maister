@@ -212,10 +212,17 @@ function floorOf(triage) {
  * `workflow` name, the node's `declaredIds`, the autonomy ceiling's `settles`,
  * whether a person can be asked (`canAsk`) and the node's `attempt`.
  *
- * Returns `{items, asking, faults}`: the decision items to record, in set
- * order; the ids still to ask, in set order; and every reason the write is
+ * Returns `{items, asking, faults, notes}`: the decision items to record, in
+ * set order; the ids still to ask, in set order; every reason the write is
  * refused — a `reasons` entry naming no question of the set or carrying
- * another key. When `faults` is non-empty nothing is to be recorded.
+ * another key; and one note per proposed family that was not taken. When
+ * `faults` is non-empty nothing is to be recorded.
+ *
+ * A question's `family` is the family the node proposes for it. It is taken
+ * only when the policy lists it for the question and it is at least as strict
+ * as the first family listed (`triageFor`), so a proposal only ever raises;
+ * otherwise the question is classed as it would be without one, and a note
+ * says so.
  *
  * A question offering an option marked `person_act` is never settled: it
  * needs a person, so it is classed as if the ceiling settled nothing.
@@ -237,9 +244,15 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
   const sent = isMap(reasons) ? reasons : {};
   const items = [];
   const asking = [];
+  const notes = [];
   const round = Number(attempt);
   for (const question of list) {
-    const computed = triageFor({ policy, workflow, kind: 'question', id: question.id, declaredIds });
+    const proposed = typeof question.family === 'string' ? question.family : undefined;
+    const computed = triageFor({ policy, workflow, kind: 'question', id: question.id, declaredIds, family: proposed });
+    if (proposed !== undefined && computed !== null && computed.family !== proposed) {
+      notes.push(`classed ${question.id} under ${computed.family}, not the proposed ${proposed}: a proposed family counts only `
+        + 'when the policy lists it for the question and it is at least as strict as the first family listed');
+    }
     const triage = raiseTriage(computed, question.triage);
     // A question offering an option only a person can take needs that person:
     // the run never settles it, whatever its class, so it is asked where
@@ -273,7 +286,7 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
     if (Number.isInteger(round) && round > 1) item.attempt = round;
     items.push(item);
   }
-  return faults.length ? { items: [], asking: [], faults } : { items, asking, faults };
+  return faults.length ? { items: [], asking: [], faults, notes: [] } : { items, asking, faults, notes };
 }
 
 /** Whether a question offers an option marked `person_act` (`question-set.mjs`). */

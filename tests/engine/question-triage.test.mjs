@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { ENGINE_DIR, FIXTURES } from '../helpers.mjs';
-import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, questionOutcome, triageFor } from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
+import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, questionFamilies, questionOutcome, triageFor } from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
+import { checkSet, questionCheckpoint } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-set.mjs';
 import { canAsk } from '../../plugins/maister/skills/workflow-engine/scripts/lib/driver.mjs';
 import { REVISION_CEILING } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
 import {
@@ -216,6 +217,75 @@ test('classesQuestions and classSet', () => {
   assert.deepEqual(open.asking, ['quick-choice', 'noted-choice', 'asked-choice', 'loose-choice']);
   assert.deepEqual(open.items.map(each => [each.question_id, each.decision, each.no_choice, each.triage.held]), [['signed-choice', NO_CHOICE, true, true]]);
   assert.deepEqual(classSet({ ...common, questions: bare, canAsk: true }).asking, bare.map(each => each.id));
+});
+
+test('classSet takes a proposed family only when the row lists it and it is at least as strict as the first', () => {
+  const base = policyOf('questions.json').policy;
+  // `mixed-choice` reads record first; consult is stricter, decide-alone looser.
+  const policy = {
+    ...base,
+    table: [...base.table, { workflow: 'in-node-questions', id: 'mixed-choice', kind: 'question', families: ['noted-family', 'asked-family', 'quick-family'] }],
+  };
+  const option = (id, extra = {}) => ({ id, label: `Label ${id}`, ...extra });
+  const question = (id, family) => ({
+    id, question: `Which ${id}?`, options: [option('a', { recommended: true }), option('b')], default: 'a',
+    ...(family === undefined ? {} : { family }),
+  });
+  const common = { policy, workflow: 'in-node-questions', declaredIds: ['mixed-choice'], settles: 'record', canAsk: true };
+  const one = family => classSet({ ...common, questions: [question('mixed-choice', family)] });
+  const familyOf = result => result.items[0]?.triage.family ?? null;
+
+  // A listed, stricter proposal is used: consult is asked, never settled.
+  const stricter = one('asked-family');
+  assert.deepEqual(stricter.asking, ['mixed-choice']);
+  assert.deepEqual(stricter.notes, []);
+  assert.equal(triageFor({ ...common, kind: 'question', id: 'mixed-choice', family: 'asked-family' }).family, 'asked-family');
+
+  // An unlisted proposal falls back to the first family, with a note.
+  const unlisted = one('signed-family');
+  assert.equal(familyOf(unlisted), 'noted-family');
+  assert.equal(unlisted.items[0].by, 'run');
+  assert.equal(unlisted.notes.length, 1);
+  assert.match(unlisted.notes[0], /^classed mixed-choice under noted-family, not the proposed signed-family: /);
+
+  // A looser proposal the row lists is ignored too: a proposal only raises.
+  const looser = one('quick-family');
+  assert.equal(familyOf(looser), 'noted-family');
+  assert.equal(looser.items[0].triage.class, 'record');
+  assert.match(looser.notes[0], /^classed mixed-choice under noted-family, not the proposed quick-family: /);
+
+  // No proposal: the first family, as before, and no note.
+  const none = one(undefined);
+  assert.equal(familyOf(none), 'noted-family');
+  assert.deepEqual(none.notes, []);
+
+  // Two questions under one declared id class differently by their proposals.
+  const pair = classSet({ ...common, questions: [question('mixed-choice-scope', 'asked-family'), question('mixed-choice-tone')] });
+  assert.deepEqual(pair.asking, ['mixed-choice-scope']);
+  assert.deepEqual(pair.items.map(each => [each.question_id, each.by, each.triage.family, each.triage.class]), [
+    ['mixed-choice-tone', 'run', 'noted-family', 'record'],
+  ]);
+
+  // The families a node may propose for the id: the first and the stricter ones, in row order.
+  assert.deepEqual(questionFamilies({ policy, workflow: 'in-node-questions', id: 'mixed-choice-scope', declaredIds: ['mixed-choice'] }), [
+    { name: 'noted-family', description: 'Settled and recorded.' },
+    { name: 'asked-family', description: 'Worth a second opinion.' },
+  ]);
+  assert.deepEqual(questionFamilies({ policy, workflow: 'in-node-questions', id: 'no-row' }), []);
+});
+
+test('checkSet accepts a proposed family name and carries it; the checkpoint leaves it out', () => {
+  const question = family => ({ id: 'pick', question: 'Which?', options: [{ id: 'a', label: 'A', recommended: true }, { id: 'b', label: 'B' }], family });
+  const checked = checkSet({ questions: [question('asked-family')] });
+  assert.equal(checked.ok, true);
+  assert.equal(checked.set.questions[0].family, 'asked-family');
+  for (const bad of ['Fact Family', 3, '']) {
+    const refused = checkSet({ questions: [question(bad)] });
+    assert.equal(refused.ok, false, JSON.stringify(bad));
+    assert.match(refused.errors[0], /^question "pick": "family" must be a family name/);
+  }
+  const checkpoint = questionCheckpoint({ set: checked.set, node: 'scoping', title: 'Scoping', header: 'Scoping', progress: {}, run: {} });
+  assert.equal(Object.hasOwn(checkpoint.questions[0], 'family'), false);
 });
 
 test('declaredQuestionIds reads one node\'s ids from the companion, and none without one', () => {
