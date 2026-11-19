@@ -133,7 +133,7 @@ test('marketplace-lint: an unknown argument is a usage error', () => {
 
 test('marketplace-lint: make validate runs it under its own heading', () => {
   const heading = "Checking every marketplace file names the same marketplace and version, and no other host's build...";
-  const lines = fs.readFileSync(path.join(ROOT, 'Makefile'), 'utf8').split('\n');
+  const lines = fs.readFileSync(path.join(ROOT, 'Makefile'), 'utf8').split(/\r?\n/);
   const start = lines.findIndex(line => line === `\t@echo "${heading}"`);
   assert.ok(start >= 0, 'the Makefile has the marketplace lint step');
   const body = [];
