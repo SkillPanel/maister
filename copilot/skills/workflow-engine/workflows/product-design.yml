@@ -1,0 +1,369 @@
+# The product-design workflow, as a graph.
+#
+# Six steps and three gates, in twelve nodes: explore and propose the scope
+# (`intake`); the problem and the personas (`problem`), closed by
+# `problem-approval`; the brainstorm (`alternatives`); sketch and converge
+# (`sketches`, `convergence`), closed by `direction-approval`; specify, draw the
+# final screens and write the brief (`specification`, `screens`, `brief`), closed
+# by `brief-approval`; and `completion`. Gates serialize the run, so a wider
+# fan-in would buy nothing.
+#
+# Four bools steer the route:
+# - The `specification` input: a parent or a driver asks for the specification
+#   outcome up front. It guards `specification`, joined by `||` to the next one.
+# - `with_spec`: what `problem-approval`'s two ways on set. It guards
+#   `specification`.
+# - `draws`: the intake records whether the design has anything a person sees. It
+#   guards `screens` and, joined by `&&` to the next one, `sketches`.
+# - `visual_areas`: the brainstorm records whether any decision area is marked
+#   visual. It guards `sketches`.
+#
+# `completion` is guarded on `embedded` as well: it exists only to tell an
+# operator the run is over, and a parent has its own ending.
+#
+# Guards sit on task nodes only, and all three gates are always asked. Each gate
+# closes a document written on every path: the problem, the decisions, the brief.
+# Two of the four bools are the run's own findings, which nobody chose, so a gate
+# guarded by one would be asked anyway unless it only confirmed; and
+# `problem-approval` decides the route, so it could not be skipped.
+#
+# Nothing a guarded node writes is interpolated into a node that still runs, since
+# a skipped node wrote nothing. `convergence` names the sketch folder as a literal,
+# and the outputs of `sketches`, `specification` and `screens` are read from disk,
+# and only when the state records their node completed.
+#
+# `problem-approval` needs `intake` as well as `problem`, because the gate brief
+# renders the summary of a node the gate needs and the scope proposal is the
+# intake's. `brief-approval` needs `screens` beside `brief` for the same reason.
+# `convergence` needs `alternatives` directly, beside `sketches`, because
+# `area-brief` finds the areas file only through a direct need; a skipped
+# `sketches` still satisfies its need.
+#
+# No node carries `on:`. Under the default, a `needs` entry is satisfied by a
+# completed or a skipped predecessor but never by a stopped one, which is what
+# makes each gate's stop option actually end the run: nothing after it is ever
+# ready.
+#
+# The way back is a revise option, and every gate carries one; no node runs an
+# approval loop of its own. A gate is the one checkpoint that reaches the operator
+# in a terminal run and under a driver alike, and the revise note is the
+# correction. `correct-scope` re-runs the intake, which records `draws` afresh, so
+# a corrected scope switches the drawing on or off.
+#
+# `brief-approval`'s `change-screens-and-brief` revises from `specification` on
+# every path, including one where that node is skipped: the revise resets the
+# stretch, the ready set skips `specification` again when its guard still reads
+# false, and `screens` and `brief` run again behind it. One target serves both
+# routes, so a specification that was written can never be left behind the screens
+# drawn from it.
+#
+# The exposed outputs sit on `brief` and `screens`, because those write what a
+# parent reads: the brief with its delivery scope, and the final screens. `sketches`
+# draws into the same folder, but only for the convergence to ask from, and the
+# final screens replace its pages in the folder's flat view.
+#
+# Target names are bare on purpose. Resolution is rooted at the plugin root and
+# the provider prefix is applied at invocation, so this one file is correct
+# under every generated variant without a rewrite.
+#
+# The node prose lives beside this file in `product-design.md`, one section per
+# node id; `node-brief` prints a node's derived facts and then its section. The
+# questions asked inside a node, and their defaults, are in that prose; the
+# generated diagram shows neither. A recovery budget sits in `brief:`, never in
+# `with:`, where it would read like a grammar feature while being inert data the
+# engine never consults.
+name: product-design
+version: 1
+description: "Turns a fuzzy product or feature idea into a brief to build from: it explores the project, proposes the scope, decides each choice with sketches, and writes a brief with the final screens for the development workflow. Use it to decide what to build before building it."
+inputs:
+  task_description: {type: string, required: true}
+  # The path of a completed research task whose findings inform the design.
+  research: {type: path, required: false}
+  # The path of a context pack — a file or a directory — handed over by
+  # whatever started the run; the intake copies it in as context.
+  context: {type: path, required: false}
+  # A parent or a driver sets this to ask for the specification outcome up front:
+  # the feature specification is written whichever way on is chosen. The first
+  # gate is still asked.
+  specification: {type: bool, required: false, default: false}
+  # "This run is a sub-run of another run." The engine supplies it at the child
+  # freeze; an operator never types it. Its only effect here is the guard on
+  # `completion`, which a parent has no use for.
+  embedded: {type: bool, required: false, default: false}
+
+# What a parent or a chain step may bind. Every entry names an output some node already
+# declares, so a key that stops resolving fails validation rather than a run.
+# `mockups` belongs to a node a guard may skip: when the intake recorded `draws`
+# false the entry is simply absent, and the reader's missing-artifact rule decides
+# what follows. The brief and the delivery scope are written on every path that
+# reaches `brief`.
+outputs:
+  artifacts:
+    brief: brief.artifacts.brief
+    delivery_scope: brief.artifacts.delivery_scope
+    mockups: screens.artifacts.mockups
+
+# What the dashboard draws beside each node. Definition data rather than graph
+# data: the block sits outside `nodes:` and outside the hashed envelope, so
+# adding or correcting a hint moves no `graph_hash` and drifts no frozen chain.
+# The seven values are the closed set the viewer knows — `analysis`, `spec`,
+# `plan`, `code`, `verify`, `docs`, `done` — and a writer picks the closest
+# member rather than inventing one; anything else fails validation. Each gate
+# carries the icon of the node it closes, so a stretch and the approval that
+# closes it read as one pair.
+display:
+  icons:
+    intake:             analysis
+    problem:            analysis
+    problem-approval:   analysis
+    alternatives:       plan
+    sketches:           plan
+    convergence:        plan
+    direction-approval: plan
+    specification:      spec
+    screens:            spec
+    brief:              docs
+    brief-approval:     docs
+    completion:         done
+  titles:
+    intake:             "Explore and propose the scope"
+    problem:            "Problem and personas"
+    problem-approval:   "Approve the problem and choose the outcome"
+    alternatives:       "Brainstorm alternatives"
+    sketches:           "Sketches"
+    convergence:        "Converge on a direction"
+    direction-approval: "Approve the design direction"
+    specification:      "Feature specification"
+    screens:            "Final screens"
+    brief:              "Product brief and delivery scope"
+    brief-approval:     "Approve the brief and the screens"
+    completion:         "Completion"
+  option_labels:
+    problem-approval:
+      brief-with-screens: "A design brief"
+      brief-with-spec: "A brief with a feature specification"
+      correct-scope: "Correct the scope"
+      revise-problem: "Revise the problem"
+      use-quick-design: "Use quick-design instead"
+    # A continue label reading "Continue" alone is completed from the walk: the
+    # guards decide whether the specification, the screens or the brief comes
+    # next, so the gate brief names the step that runs.
+    direction-approval:
+      approve-direction: "Continue"
+      revise-direction: "Revise the direction"
+      stop-design: "Stop here"
+    brief-approval:
+      approve-brief: "Approve the brief"
+      change-screens-and-brief: "Change the screens and brief"
+      change-brief: "Change the brief only"
+      stop-design: "Stop here"
+  headers:
+    problem-approval:   "Scope"
+    direction-approval: "Direction"
+    brief-approval:     "Brief"
+
+# The markdown artifacts that owe an HTML companion beside them, per node.
+# Read beside the graph, not part of it: the block moves no graph hash.
+html_companions:
+  alternatives: [alternatives]
+  convergence: [decisions]
+  specification: [spec]
+  brief: [brief]
+
+# What each node's brief prints beside its prose: a file it may leave unwritten,
+# its recovery budget, the agents it always dispatches and the continue an input
+# recommends. Read beside the graph, not part of it: the block moves no graph hash.
+# `problem` is the one node that recommends. With the `specification` input true
+# its flag recommends `brief-with-spec`; with it false the brief prints "the section
+# decides", and the section's summary always names the option. Left to itself the
+# engine would recommend the continue that turns on the most steps, which is the
+# specification whatever the signals say.
+brief:
+  intake:
+    absent:
+      research_context: "No research task was named."
+      work_context: "No context pack was named, or it could not be read."
+    budget: 1
+    delegates: [Explore]
+  problem:
+    budget: 1
+    recommends:
+      specification:
+        "true": brief-with-spec
+  alternatives:
+    absent:
+      decision_areas: "The brainstormer returned no areas file; the convergence asks from the markdown."
+    budget: 2
+  sketches:
+    budget: 2
+  convergence:
+    budget: 1
+  specification:
+    budget: 1
+  screens:
+    budget: 2
+  brief:
+    budget: 1
+
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    with:
+      task_description: "${inputs.task_description}"
+      research: "${inputs.research}"
+      context: "${inputs.context}"
+    outputs:
+      artifacts:
+        # Written only when the invocation named a research task; the absence
+        # is sanctioned in `brief:` under `absent`.
+        research_context: context/research-context
+        work_context: analysis/work-context
+        scope: analysis/scope.md
+        explore: analysis/explore
+      values:
+        # Whether the design has anything a person sees. Recorded afresh when
+        # `correct-scope` re-runs the intake.
+        draws: bool
+
+  problem:
+    uses: direct:problem
+    needs: [intake]
+    with:
+      task_description: "${inputs.task_description}"
+      specification: "${inputs.specification}"
+      scope: "${intake.artifacts.scope}"
+      explore: "${intake.artifacts.explore}"
+      work_context: "${intake.artifacts.work_context}"
+    outputs:
+      artifacts:
+        problem_statement: analysis/problem-statement.md
+        personas: analysis/personas.md
+
+  problem-approval:
+    type: gate
+    needs: [intake, problem]
+    ask: "The scope proposal, the problem and the personas are ready. Which outcome should this run produce?"
+    options:
+      brief-with-screens: {effect: continue, sets: {with_spec: false}}
+      brief-with-spec: {effect: continue, sets: {with_spec: true}}
+      correct-scope: {effect: revise, reruns: intake}
+      revise-problem: {effect: revise, reruns: problem}
+      use-quick-design: stop
+
+  alternatives:
+    uses: agent:solution-brainstormer
+    needs: [problem-approval]
+    with:
+      output_path: analysis/alternatives.md
+      areas_output_path: analysis/decision-areas.json
+      task_description: "${inputs.task_description}"
+      scope: "${intake.artifacts.scope}"
+      explore: "${intake.artifacts.explore}"
+      problem_statement: "${problem.artifacts.problem_statement}"
+      personas: "${problem.artifacts.personas}"
+      work_context: "${intake.artifacts.work_context}"
+      visual_marks: true
+    outputs:
+      artifacts:
+        alternatives: analysis/alternatives.md
+        decision_areas: analysis/decision-areas.json
+      values:
+        # Whether any decision area is marked visual.
+        visual_areas: bool
+
+  sketches:
+    uses: skill:mockup-studio
+    needs: [alternatives]
+    when: "${intake.values.draws} && ${alternatives.values.visual_areas}"
+    with:
+      output_subdir: analysis/mockups
+      fidelity: sketch
+      decision_areas: "${alternatives.artifacts.decision_areas}"
+      alternatives: "${alternatives.artifacts.alternatives}"
+      personas: "${problem.artifacts.personas}"
+      work_context: "${intake.artifacts.work_context}"
+    outputs:
+      artifacts:
+        mockups: analysis/mockups
+
+  convergence:
+    uses: direct:convergence
+    needs: [alternatives, sketches]
+    with:
+      alternatives: "${alternatives.artifacts.alternatives}"
+      decision_areas: "${alternatives.artifacts.decision_areas}"
+      problem_statement: "${problem.artifacts.problem_statement}"
+      work_context: "${intake.artifacts.work_context}"
+      # A literal: `sketches` is guarded, so its output is never interpolated.
+      sketches: analysis/mockups
+    outputs:
+      artifacts:
+        decisions: analysis/design-decisions.md
+
+  direction-approval:
+    type: gate
+    needs: [convergence]
+    ask: "Design direction ready. Continue?"
+    options:
+      approve-direction: continue
+      revise-direction: {effect: revise, reruns: convergence}
+      stop-design: stop
+
+  specification:
+    uses: direct:specification
+    needs: [direction-approval]
+    when: "${inputs.specification} || ${problem-approval.values.with_spec}"
+    with:
+      problem_statement: "${problem.artifacts.problem_statement}"
+      personas: "${problem.artifacts.personas}"
+      decisions: "${convergence.artifacts.decisions}"
+      work_context: "${intake.artifacts.work_context}"
+    outputs:
+      artifacts:
+        spec: analysis/feature-spec.md
+
+  screens:
+    uses: skill:mockup-studio
+    needs: [specification]
+    when: "${intake.values.draws}"
+    with:
+      output_subdir: analysis/mockups
+      fidelity: sketch
+      decisions: "${convergence.artifacts.decisions}"
+      problem_statement: "${problem.artifacts.problem_statement}"
+      personas: "${problem.artifacts.personas}"
+      work_context: "${intake.artifacts.work_context}"
+    outputs:
+      artifacts:
+        mockups: analysis/mockups
+
+  brief:
+    uses: direct:brief
+    needs: [screens]
+    with:
+      task_description: "${inputs.task_description}"
+      scope: "${intake.artifacts.scope}"
+      problem_statement: "${problem.artifacts.problem_statement}"
+      personas: "${problem.artifacts.personas}"
+      decisions: "${convergence.artifacts.decisions}"
+    outputs:
+      artifacts:
+        brief: outputs/product-brief.md
+        # Written on every path: one member for a single repository.
+        delivery_scope: outputs/delivery-scope.yml
+
+  brief-approval:
+    type: gate
+    needs: [screens, brief]
+    ask: "The brief and the screens are ready. Continue?"
+    options:
+      approve-brief: continue
+      change-screens-and-brief: {effect: revise, reruns: specification}
+      change-brief: {effect: revise, reruns: brief}
+      stop-design: stop
+
+  completion:
+    uses: direct:completion
+    needs: [brief-approval]
+    when: "!${inputs.embedded}"

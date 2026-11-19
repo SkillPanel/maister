@@ -1,0 +1,33 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: product-design
+%% graph_hash: sha256:3df73263e2843e68dbb621dbe6a9c0204cc93d526c580570d069a4b6b2261ade
+
+flowchart TD
+  n_intake["Explore and propose the scope<br/>intake<br/>direct:intake"]
+  n_problem["Problem and personas<br/>problem<br/>direct:problem"]
+  n_problem_approval{{"Approve the problem and choose the outcome<br/>problem-approval<br/>gate<br/>The scope proposal, the problem and the personas are ready. Which outcome should this run produce?<br/>brief-with-screens: continue, brief-with-spec: continue, correct-scope: revise → intake, revise-problem: revise → problem, use-quick-design: stop"}}
+  n_alternatives["Brainstorm alternatives<br/>alternatives<br/>agent:solution-brainstormer"]
+  n_sketches{"Sketches<br/>sketches<br/>skill:mockup-studio<br/>when: ${intake.values.draws} #38;#38; ${alternatives.values.visual_areas}"}
+  n_convergence["Converge on a direction<br/>convergence<br/>direct:convergence"]
+  n_direction_approval{{"Approve the design direction<br/>direction-approval<br/>gate<br/>Design direction ready. Continue?<br/>approve-direction: continue, revise-direction: revise → convergence, stop-design: stop"}}
+  n_specification{"Feature specification<br/>specification<br/>direct:specification<br/>when: ${inputs.specification} || ${problem-approval.values.with_spec}"}
+  n_screens{"Final screens<br/>screens<br/>skill:mockup-studio<br/>when: ${intake.values.draws}"}
+  n_brief["Product brief and delivery scope<br/>brief<br/>direct:brief"]
+  n_brief_approval{{"Approve the brief and the screens<br/>brief-approval<br/>gate<br/>The brief and the screens are ready. Continue?<br/>approve-brief: continue, change-brief: revise → brief, change-screens-and-brief: revise → specification, stop-design: stop"}}
+  n_completion{"Completion<br/>completion<br/>direct:completion<br/>when: !${inputs.embedded}"}
+  n_intake --> n_problem
+  n_intake --> n_problem_approval
+  n_problem --> n_problem_approval
+  n_problem_approval --> n_alternatives
+  n_alternatives --> n_sketches
+  n_alternatives --> n_convergence
+  n_sketches --> n_convergence
+  n_convergence --> n_direction_approval
+  n_direction_approval --> n_specification
+  n_specification --> n_screens
+  n_screens --> n_brief
+  n_brief --> n_brief_approval
+  n_screens --> n_brief_approval
+  n_brief_approval --> n_completion
+  class n_problem_approval,n_direction_approval,n_brief_approval gate
+  class n_sketches,n_specification,n_screens,n_completion conditional

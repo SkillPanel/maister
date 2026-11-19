@@ -1,0 +1,13 @@
+{
+  "name": "maister",
+  "version": "3.0.0-beta.99",
+  "description": "Structured, standards-aware development workflows for GitHub Copilot CLI",
+  "author": {
+    "name": "Skillpanel",
+    "email": "marek@skillpanel.com"
+  },
+  "license": "MIT",
+  "repository": "https://github.com/SkillPanel/maister",
+  "homepage": "https://github.com/SkillPanel/maister",
+  "keywords": ["sdlc", "workflows", "specification", "tdd", "code-review", "standards"]
+}

@@ -1,0 +1,37 @@
+%% generated from the workflow definition — regenerate, do not edit
+%% workflow: performance
+%% graph_hash: sha256:183605fc3986554aedd5cf5b92ce001ef65302858909b2984d96d0b8fbbcce62
+
+flowchart TD
+  n_intake["Intake<br/>intake<br/>direct:intake"]
+  n_codebase_analysis["Codebase analysis<br/>codebase-analysis<br/>skill:codebase-analyzer"]
+  n_bottleneck_analysis["Bottleneck analysis<br/>bottleneck-analysis<br/>agent:bottleneck-analyzer"]
+  n_bottleneck_approval{{"Approve bottleneck analysis<br/>bottleneck-approval<br/>gate<br/>Performance analysis complete. Continue to specification?<br/>continue-to-specification: continue, revise-analysis: revise → bottleneck-analysis, stop-performance: stop"}}
+  n_specification["Specification<br/>specification<br/>direct:specification"]
+  n_specification_approval{{"Approve specification<br/>specification-approval<br/>gate<br/>Specification complete. Continue to specification audit?<br/>continue-to-spec-audit: continue, revise-specification: revise → specification, stop-performance: stop"}}
+  n_spec_audit["Specification audit<br/>spec-audit<br/>agent:spec-auditor"]
+  n_spec_audit_approval{{"Approve specification audit<br/>spec-audit-approval<br/>gate<br/>Specification audit complete. Continue to implementation planning?<br/>continue-to-planning: continue, revise-specification: revise → specification, stop-performance: stop"}}
+  n_planning["Implementation planning<br/>planning<br/>agent:implementation-planner"]
+  n_planning_approval{{"Approve implementation plan<br/>planning-approval<br/>gate<br/>Implementation plan complete. Continue to implementation?<br/>continue-to-implementation: continue, revise-plan: revise → planning, stop-performance: stop"}}
+  n_implementation["Implementation<br/>implementation<br/>skill:implementation-plan-executor"]
+  n_implementation_approval{{"Approve implementation<br/>implementation-approval<br/>gate<br/>Implementation complete. Continue to verification options?<br/>continue-to-verification-options: continue, stop-performance: stop"}}
+  n_verification_options["Choosing the checks<br/>verification-options<br/>direct:verification-options"]
+  n_verification["Verification<br/>verification<br/>skill:implementation-verifier"]
+  n_verification_approval{{"Approve verification<br/>verification-approval<br/>gate<br/>Verification complete. Continue to finalization?<br/>continue-to-finalization: continue, stop-performance: stop"}}
+  n_finalization["Finalization<br/>finalization<br/>direct:finalization"]
+  n_intake --> n_codebase_analysis
+  n_codebase_analysis --> n_bottleneck_analysis
+  n_bottleneck_analysis --> n_bottleneck_approval
+  n_bottleneck_approval --> n_specification
+  n_specification --> n_specification_approval
+  n_specification_approval --> n_spec_audit
+  n_spec_audit --> n_spec_audit_approval
+  n_spec_audit_approval --> n_planning
+  n_planning --> n_planning_approval
+  n_planning_approval --> n_implementation
+  n_implementation --> n_implementation_approval
+  n_implementation_approval --> n_verification_options
+  n_verification_options --> n_verification
+  n_verification --> n_verification_approval
+  n_verification_approval --> n_finalization
+  class n_bottleneck_approval,n_specification_approval,n_spec_audit_approval,n_planning_approval,n_implementation_approval,n_verification_approval gate
