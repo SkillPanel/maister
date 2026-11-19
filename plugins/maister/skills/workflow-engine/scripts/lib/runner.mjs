@@ -60,8 +60,10 @@
  * sent is back — a host that runs a subagent's own agent calls in the
  * background, and makes it hand back once it ends a turn idle. Its pending
  * ids are agents this attempt's `in-flight.json` records; a pending id it does
- * not hold is refused. `unavailable` is for a runner that could not run, and
- * is refused while an agent this session sent is still out.
+ * not hold is refused, and so is one already back — its output written, or
+ * marked ended — so a result never says less than the files. `unavailable` is
+ * for a runner that could not run, and is refused while an agent this session
+ * sent is still out.
  *
  * `runner-step --state --node [--runner] [--answered]` is the node's. It reads
  * the run and prints one JSON object naming what the node does next:
@@ -146,9 +148,9 @@
  * written: `<verb>-state-unreadable`, `<verb>-unknown-node` (no node of the
  * run, or a gate), `<verb>-not-running`, and for `runner-result`
  * `runner-result-invalid` naming the first field that breaks the shape (or a
- * `pending` id no record holds, or `result` for an `unavailable` with agents
- * still out), and for `in-flight` `in-flight-invalid` naming the flag. A
- * result file `runner-step` cannot use is a `runner-result-unusable` warning,
+ * `pending` id no record holds or that is already back, or `result` for an
+ * `unavailable` with agents still out), and for `in-flight`
+ * `in-flight-invalid` naming the flag. A result file `runner-step` cannot use is a `runner-result-unusable` warning,
  * and the runner is dispatched to continue from the files.
  *
  * Returns `{ok, …, errors, warnings}` and leaves printing to `workflow.mjs`.
@@ -234,6 +236,16 @@ export function runnerResult({ state, node, document, runner = VERIFICATION }) {
       return refuse('runner-result-invalid',
         `the waiting result's pending names ${unknown.join(', ')}, which no in-flight record of this attempt holds. Nothing was written. `
         + 'Record each agent with in-flight --record before it is sent, then send the whole result again naming only those still out');
+    }
+    // A result never says less than the files: an agent whose output is on
+    // disk, or that ended, is back, and waiting on it would hold the node on
+    // work that has already landed.
+    const back = document.pending.filter(id => agents[id].ended === true
+      || (typeof agents[id].output === 'string' && written(path.resolve(run.runDir, agents[id].output), agents[id].kept)));
+    if (back.length) {
+      return refuse('runner-result-invalid',
+        `the waiting result's pending names ${back.join(', ')}, which ${back.length === 1 ? 'is' : 'are'} already back: its output is written or it ended. Nothing was written. `
+        + 'Take each one in first, then send waiting naming only the agents still out, or go on when none is');
     }
   }
   const out = outstanding(run.runDir, agents, run.cycle);
