@@ -1,6 +1,6 @@
 # Engine verb tests
 
-`make test` runs `node --test tests/engine/*.test.mjs` — Node 20 or newer, nothing installed.
+`make test` builds the Copilot CLI variant, then runs `node --test tests/engine/*.test.mjs` — Node 20 or newer, nothing installed.
 
 Each test drives `plugins/maister/skills/workflow-engine/scripts/workflow.mjs` the way a workflow
 driver does: one verb per child process, the patch or request as JSON on stdin (`patch-file.test.mjs`
@@ -86,6 +86,19 @@ control characters through `write-state`, and reads them back with the engine's 
   folder or a bundled server's tool names, or grant a browser server in a Copilot agent's
   allowlist. `browser-tool-lint.test.mjs` runs it on the repository and on scratch roots it plants
   at test time, one offence each.
+
+The tests that read the Copilot CLI build get it from `variantRoot()` in `helpers.mjs`. `make test`
+builds the variant once into a scratch folder and names it in `MAISTER_TEST_VARIANT`; a test file
+run on its own with that variable unset builds its own copy, once per process, into a temp folder
+removed on exit, and a file that never asks builds nothing. `copilot-build.test.mjs` checks the
+build itself: its name and host marker, the prefix rewrite, the baseline refusals and the guards on
+the output folder. `publish-dist-proof.sh` is not part of `make test`: run it by hand
+(`bash tests/publish-dist-proof.sh`) after changing `tools/publish-dist.sh`. It copies the working
+tree into a scratch source repository with a scratch bare origin, publishes from there, and prints
+PASS or FAIL for each of its twelve scenarios — the first publish, a follow-up build, an unchanged
+build, a rejected push, the first stable publish, a stale source, a missing baseline, and the five
+refusals made before any build (a HEAD that is not the source commit, a dirty tree, a marketplace
+ref of the other channel, a diverged source and a tip with no source commit).
 
 Committed fixtures are never written to. State that depends on a definition's graph hash is produced by
 freezing at test time, so editing a built-in does not stale a fixture.

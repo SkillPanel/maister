@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ROOT, run } from '../helpers.mjs';
+import { ROOT, run, variantRoot } from '../helpers.mjs';
 import { lintText } from '../plugin-path-lint.mjs';
 
 // The plugin-path lint runs as `make validate` runs it: a child process, its
@@ -37,9 +37,16 @@ function plant(t, files = {}) {
 
 const failLines = result => result.stdout.split(/\r?\n/).filter(Boolean);
 
-test('plugin-path-lint: the repository passes', () => {
-  const result = lint();
+test('plugin-path-lint: the repository and its Copilot build pass', () => {
+  const result = lint(`--variant=${variantRoot()}`);
   assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.equal(result.stdout, '');
+});
+
+test('plugin-path-lint: a named variant folder that does not exist is a usage error', t => {
+  const result = lint(`--root=${plant(t)}`, '--variant=no-such-build');
+  assert.equal(result.code, 2, result.stdout + result.stderr);
+  assert.match(result.stderr, /^usage: .*\(the variant folder .*no-such-build does not exist; run make build\)$/m);
   assert.equal(result.stdout, '');
 });
 

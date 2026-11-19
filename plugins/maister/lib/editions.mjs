@@ -45,10 +45,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import { SHIPPED_HOST } from './host.mjs';
+
 /**
- * The plugin name both editions carry. The Copilot variant renames itself in
- * its manifest and has a plugin system of its own, so there the check is a
- * no-op by construction.
+ * The plugin name both editions carry. The check reads Claude Code's settings,
+ * so only a copy shipped for Claude Code runs it; the Copilot build carries the
+ * same name, has a plugin system of its own and returns no collision.
  */
 const SHARED_NAME = 'maister';
 
@@ -79,6 +81,7 @@ export function findEditionCollision({ pluginRoot, projectDir = null, env = proc
 }
 
 function detect({ pluginRoot, projectDir, env, managedFiles }) {
+  if (SHIPPED_HOST !== 'claude') return null;
   const name = readJson(path.join(pluginRoot, '.claude-plugin', 'plugin.json'))?.name;
   if (name !== SHARED_NAME) return null;
   const own = ownMarketplace(pluginRoot, name);

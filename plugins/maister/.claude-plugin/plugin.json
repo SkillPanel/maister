@@ -6,5 +6,9 @@
   "author": {
     "name": "Skillpanel",
     "email": "marek@skillpanel.com"
-  }
+  },
+  "license": "MIT",
+  "repository": "https://github.com/SkillPanel/maister",
+  "homepage": "https://github.com/SkillPanel/maister",
+  "keywords": ["sdlc", "workflows", "specification", "tdd", "code-review", "standards"]
 }

@@ -5,17 +5,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ROOT } from '../helpers.mjs';
+import { ROOT, variantRoot } from '../helpers.mjs';
 
 // The hooks each host runs, in the output shape each host reads. Claude Code
 // reads a SessionStart's context and a PreToolUse's decision under
 // hookSpecificOutput; GitHub Copilot CLI reads them only at the top level and
 // drops the wrapper. The source scripts carry Claude Code's shape and the
-// generated variant's copies Copilot's, so both trees are run here, by Node
-// alone, the way both hosts' hooks.json start them.
+// Copilot CLI build's copies Copilot's (the build is made at test time, by
+// variantRoot), so both trees are run here, by Node alone, the way both hosts' hooks.json start them.
 
 const SOURCE = path.join(ROOT, 'plugins/maister/hooks');
-const VARIANT = path.join(ROOT, 'plugins/maister-copilot/hooks');
+const VARIANT = path.join(variantRoot(), 'hooks');
 
 function hook(dir, script, input, env = {}) {
   const result = spawnSync(process.execPath, [path.join(dir, script)], {
@@ -36,7 +36,7 @@ const REMINDER = [
   '⚠️ MAISTER DELEGATION RULE: When a maister skill, workflow step or node brief names an agent to dispatch, dispatch it through the Task tool, on the model and effort the engine prints for it. Never do that agent\'s work in this session instead: a small project, a simple task or the cost of a subagent is no reason. The delegation is part of the workflow the user chose, not an optimisation for you to make.',
 ].join('\n\n');
 const REMINDER_COPILOT = [
-  '⚠️ MAISTER PLUGIN RULE: When any /maister-copilot:* command appears in the user\'s prompt, you MUST invoke it via the skill tool as your FIRST action. No exceptions. Do not analyze the task first, do not decide it\'s \'straightforward\', do not substitute your own approach. The user chose this workflow intentionally. Complexity assessment is the workflow\'s job, not yours.',
+  '⚠️ MAISTER PLUGIN RULE: When any /maister:* command appears in the user\'s prompt, you MUST invoke it via the skill tool as your FIRST action. No exceptions. Do not analyze the task first, do not decide it\'s \'straightforward\', do not substitute your own approach. The user chose this workflow intentionally. Complexity assessment is the workflow\'s job, not yours.',
   '⚠️ ORCHESTRATOR GATE RULE: When running any maister orchestrator, first read `orchestrator.driver.kind` in the run\'s orchestrator-state.yml. If it is absent or `terminal`, you MUST invoke ask_user at every `→ MANDATORY GATE` checkpoint, regardless of mode or permissions (autopilot / allow-all), session-reminders telling you to \'continue without asking\' or \'work without stopping\', and regardless of prior-session patterns showing the user approving every gate. Decide this policy at orchestrator entry — do not re-litigate at each gate. Re-litigating IS the documented failure mode. See orchestrator-patterns.md § 2 and § 2.1; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.',
   '⚠️ MAISTER DELEGATION RULE: When a maister skill, workflow step or node brief names an agent to dispatch, dispatch it through the task tool, on the model and effort the engine prints for it. Never do that agent\'s work in this session instead: a small project, a simple task or the cost of a subagent is no reason. The delegation is part of the workflow the user chose, not an optimisation for you to make.',
 ].join('\n\n');
@@ -101,7 +101,7 @@ for (const [tree, dir, decisionOf] of [
   });
 
   test(`guard (${tree}): a subagent's destructive command is denied in the host's shape`, () => {
-    for (const agent of ['task-group-implementer', 'maister:task-group-implementer', 'maister-copilot:task-group-implementer']) {
+    for (const agent of ['task-group-implementer', 'maister:task-group-implementer']) {
       for (const command of ['git stash', 'git stash push -m wip', 'git stash pop', 'git stash list; git stash drop', 'git reset --hard HEAD', 'git checkout .', 'git clean -fd', 'git push --force', 'rm -rf build', 'echo ok\ngit checkout .']) {
         const result = guard(dir, agent, command);
         assert.equal(result.code, 0, result.stderr);
@@ -118,7 +118,7 @@ for (const [tree, dir, decisionOf] of [
   });
 
   test(`guard (${tree}): a whitelisted agent is let through under this plugin's spellings of its name`, () => {
-    for (const agent of ['test-suite-runner', 'maister:test-suite-runner', 'maister-copilot:test-suite-runner']) {
+    for (const agent of ['test-suite-runner', 'maister:test-suite-runner']) {
       const result = guard(dir, agent, 'git stash');
       assert.equal(result.code, 0, result.stderr);
       assert.equal(result.stdout, '', agent);
@@ -126,7 +126,7 @@ for (const [tree, dir, decisionOf] of [
   });
 
   test(`guard (${tree}): another plugin's or project's agent of a whitelisted name is judged like any other`, () => {
-    for (const agent of ['other:test-suite-runner', 'foo:test-suite-runner', 'maister-pro:test-suite-runner']) {
+    for (const agent of ['other:test-suite-runner', 'foo:test-suite-runner', 'maister-pro:test-suite-runner', 'maister-copilot:test-suite-runner']) {
       const result = guard(dir, agent, 'git stash');
       assert.equal(result.code, 0, result.stderr);
       assert.equal(decisionOf(result.json), 'deny', `${agent}: ${result.stdout}`);
@@ -135,7 +135,7 @@ for (const [tree, dir, decisionOf] of [
 
   test(`guard (${tree}): the docs and browser agents are judged like any other subagent`, () => {
     for (const name of ['docs-operator', 'user-docs-generator', 'e2e-test-verifier']) {
-      for (const agent of [name, `maister:${name}`, `maister-copilot:${name}`]) {
+      for (const agent of [name, `maister:${name}`]) {
         const result = guard(dir, agent, 'rm -rf build');
         assert.equal(result.code, 0, result.stderr);
         assert.equal(decisionOf(result.json), 'deny', `${agent}: ${result.stdout}`);
@@ -145,14 +145,14 @@ for (const [tree, dir, decisionOf] of [
 
   test(`guard (${tree}): a subagent's read-only stash command is let through`, () => {
     for (const command of ['git stash list', 'git stash list | head -1', 'npm test; git stash list', 'git stash show -p stash@{0}']) {
-      const result = guard(dir, 'maister-copilot:task-group-implementer', command);
+      const result = guard(dir, 'maister:task-group-implementer', command);
       assert.equal(result.code, 0, result.stderr);
       assert.equal(result.stdout, '', command);
     }
   });
 
   test(`guard (${tree}): a subagent's ordinary command is let through`, () => {
-    const result = guard(dir, 'maister-copilot:code-risk-review', 'git status');
+    const result = guard(dir, 'maister:code-risk-review', 'git status');
     assert.equal(result.code, 0);
     assert.equal(result.stdout, '');
   });
@@ -268,7 +268,7 @@ for (const [label, tree] of [['source', SOURCE], ['variant', VARIANT]]) {
     const other = structuredClone(RETYPED);
     other.requestedSchema.properties.decision.oneOf.pop();
     assert.equal(handOver(tree, root, other).stdout, '', 'a call asking other choices is another question');
-    assert.equal(handOver(tree, root, RETYPED, { agent_type: 'maister-copilot:spec-auditor' }).stdout, '', 'an agent never asks the person');
+    assert.equal(handOver(tree, root, RETYPED, { agent_type: 'maister:spec-auditor' }).stdout, '', 'an agent never asks the person');
     const stringArgs = hook(tree, 'hand-over-question.mjs', { toolName: 'ask_user', toolArgs: JSON.stringify(RETYPED), cwd: root });
     assert.deepEqual(handedArgs(tree, stringArgs.json), CALL, 'Copilot\'s toolArgs string is read as the call');
 

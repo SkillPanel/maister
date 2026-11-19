@@ -8,16 +8,19 @@ author to date.
 
 ## Making a change
 
-1. Make your change under `plugins/maister/` (or the relevant top-level directory — never
-   edit `plugins/maister-copilot/` by hand; it is generated).
-2. `make build` — regenerate `plugins/maister-copilot/` from `plugins/maister/`.
-3. `make validate` — lint the generated variant and the plugin source.
-4. `make test` — run the engine verb suite (`tests/`). Needs Node 20 or newer and nothing
-   installed.
+1. Make your change under `plugins/maister/` (or the relevant top-level directory). The Copilot
+   CLI build is generated from it and never committed.
+2. `make build` — regenerate `plugins/maister/interface.json` and build the Copilot CLI variant
+   into `dist/copilot/`, which git ignores.
+3. `make validate` — build the variant afresh, then lint it and the plugin source.
+4. `make test` — run the engine verb suite (`tests/`). It builds its own copy of the variant
+   first. Needs Node 20 or newer and nothing installed.
 5. `make test-mod` — when you change `hooks/display.mjs` or its contract in `types/`: the
    Claude Code CLI validates the plugin and runs the hooks module's tests (`tests/mod/`).
    Skipped where the `claude` CLI is not installed.
-6. Commit the source change and the regenerated `plugins/maister-copilot/` output together.
+6. Commit the source change, with `plugins/maister/interface.json` when `make build` changed it.
+   Nothing under `dist/` is committed: CI publishes the Copilot build to the `dist/beta` and
+   `dist/stable` branches.
 
 After editing a workflow definition under `plugins/maister/skills/workflow-engine/workflows/`, run
 `make diagram` and `make reference` as well: the first regenerates the diagram beside each
@@ -26,7 +29,7 @@ steps, checkpoints and declared outputs. `make validate` fails while either is s
 runs the engine verbs and the hooks through a shell from a path holding a space.
 
 `make validate` checks that every command `hooks.json` names resolves on disk and that the
-committed generated variant matches a fresh `make build` byte for byte, plus the flat-command,
+marketplace files agree on the marketplace name and version, plus the flat-command,
 no-colon, picker-rendering and plugin-root-vocabulary lints, and the guide template lint
 (`tests/guide-template-lint.mjs`), which holds every workflow guide to the step template's
 structure, and the frontmatter lint (`tests/frontmatter-lint.mjs`), which holds every skill,

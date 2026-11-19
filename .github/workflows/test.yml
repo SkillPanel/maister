@@ -29,14 +29,18 @@ jobs:
       - name: Build and validate Copilot CLI variant
         run: make build && make validate
 
-      # `git diff` alone sees modified tracked files only; a newly generated
-      # variant file would be untracked and pass silently. `git status
-      # --porcelain` covers both.
-      - name: Check generated variant is committed
+      # The build writes plugins/maister/interface.json, which is committed.
+      # `git diff` alone sees modified tracked files only; a newly written file
+      # would be untracked and pass silently. `git status --porcelain` covers
+      # both.
+      - name: Check the build left the tree clean
         run: |
-          test -z "$(git status --porcelain -- plugins/maister-copilot/)" \
-            || (echo "generated variant is stale — run \`make build\` and commit" \
-                && git status --porcelain -- plugins/maister-copilot/ && exit 1)
+          status="$(git status --porcelain)"
+          if [ -n "$status" ]; then
+            echo "::error::make build or make validate changed the tree — run make build and commit the result"
+            printf '%s\n' "$status"
+            exit 1
+          fi
 
       - name: Test the engine verbs
         run: make test
@@ -104,6 +108,15 @@ jobs:
         with:
           node-version: 20
 
+      # The engine tests read a built Copilot CLI variant. The mixed `D:/…`
+      # form of the path reads the same in Git Bash and in Node.
+      - name: Build the Copilot CLI variant for the tests
+        shell: bash
+        run: |
+          variant="$(cygpath -m "$RUNNER_TEMP")/copilot-variant/copilot"
+          bash platforms/copilot-cli/build.sh --out "$variant"
+          echo "MAISTER_TEST_VARIANT=$variant" >> "$GITHUB_ENV"
+
       - name: Test the engine verbs
         shell: bash
         run: node --test tests/engine/*.test.mjs
@@ -127,3 +140,87 @@ jobs:
         if: ${{ !cancelled() }}
         shell: bash
         run: node tests/shell-smoke.mjs --shell=bash
+
+  # Builds the Copilot CLI variant of this push and commits it to
+  # dist/beta (from beta) or dist/stable (from master), the branches the Copilot
+  # marketplace file points at. Only pushes to those two branches of this
+  # repository publish: never release/*, never a pull request. Its own
+  # concurrency group queues publishes of one branch instead of cancelling one
+  # mid-push; a superseded run cancelled by the workflow group is safe, since a
+  # push is atomic and the newer run publishes.
+  publish:
+    needs: [test, windows]
+    if: github.event_name == 'push' && github.repository == 'SkillPanel/maister' && (github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-dist-${{ github.ref_name }}
+      cancel-in-progress: false
+    outputs:
+      result: ${{ steps.publish.outputs.result }}
+      version: ${{ steps.publish.outputs.version }}
+      marketplace: ${{ steps.publish.outputs.marketplace }}
+    steps:
+      # The whole history: the publish reads its interface baseline from it
+      # and checks the source commit against the one on the dist branch.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Publish the Copilot CLI variant
+        id: publish
+        env:
+          SOURCE_BRANCH: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+        run: bash tools/publish-dist.sh --source-branch "$SOURCE_BRANCH" --source-sha "$SOURCE_SHA"
+
+  # Installs the published plugin the way a user does, from a clean Copilot
+  # CLI with no sign-in: add this repository's marketplace at the pushed branch,
+  # install maister from it, and check the installed version. The job holds no
+  # credential: no permissions, no checkout, no token handed to setup-node, and
+  # every copilot call runs with the token variables unset under a scratch home.
+  dist-install-smoke:
+    needs: publish
+    if: needs.publish.outputs.result == 'committed' || needs.publish.outputs.result == 'unchanged'
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          token: ''
+
+      - name: Install maister from the marketplace with a clean Copilot CLI
+        env:
+          REPO: ${{ github.repository }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+          MARKETPLACE: ${{ needs.publish.outputs.marketplace }}
+          VERSION: ${{ needs.publish.outputs.version }}
+          COPILOT_VERSION: 1.0.112
+        run: |
+          set -euo pipefail
+          scratch="$(mktemp -d)"
+          npm install --prefix "$scratch/cli" --no-audit --no-fund "@github/copilot@$COPILOT_VERSION"
+          mkdir -p "$scratch/home" "$scratch/copilot-home"
+          cd "$scratch"
+          isolated_copilot() {
+            env -u GH_TOKEN -u GITHUB_TOKEN -u COPILOT_GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN \
+              HOME="$scratch/home" COPILOT_HOME="$scratch/copilot-home" \
+              GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 \
+              "$scratch/cli/node_modules/.bin/copilot" "$@"
+          }
+          isolated_copilot --version
+          isolated_copilot plugin marketplace add "$REPO#$SOURCE_BRANCH"
+          isolated_copilot plugin install "maister@$MARKETPLACE"
+          isolated_copilot plugin list --json > "$scratch/plugins.json"
+          if ! node -e 'const l = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); process.exit(Array.isArray(l) && l.some((p) => p.name === "maister" && p.marketplace === process.env.MARKETPLACE && p.version === process.env.VERSION && p.enabled === true) ? 0 : 1)' "$scratch/plugins.json"; then
+            echo "::error::the installed plugins hold no enabled maister $VERSION from $MARKETPLACE"
+            cat "$scratch/plugins.json"
+            exit 1
+          fi
+          echo "maister $VERSION installed from $MARKETPLACE"

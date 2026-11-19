@@ -512,9 +512,9 @@ refused rather than quietly dropping the guard.
 
 A tool that pins a commit of the plugin — a dashboard, a validator, a script that reads run
 state — can read what that commit offers from one file instead of keeping its own list:
-`interface.json` at the plugin's root (`plugins/maister/interface.json`; the GitHub Copilot
-variant carries its own, because its hooks and tool names are that host's). Diff it between two
-pins to see what changed.
+`interface.json` at the plugin's root (`plugins/maister/interface.json`). The GitHub Copilot build
+carries its own, because its hooks and tool names are that host's: `copilot/interface.json` on the
+`dist/stable` and `dist/beta` branches. Diff it between two pins to see what changed.
 
 It lists the agents, skills and commands the plugin ships, its hooks, the MCP tool names it calls,
 the built-in workflows, the engine's verbs with their flags and the refusal codes each can raise,

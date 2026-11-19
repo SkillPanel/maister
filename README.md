@@ -41,10 +41,10 @@ You need Copilot CLI 1.0.100 or newer and Node.js 20 or newer.
 
 ```bash
 copilot plugin marketplace add SkillPanel/maister
-copilot plugin install maister-copilot@maister-plugins
+copilot plugin install maister@maister-plugins
 ```
 
-There, every command is typed `/maister-copilot:<name>`: `/maister-copilot:init`, `/maister-copilot:development`. [Maister on GitHub Copilot CLI](docs/copilot.md) covers the rest.
+Commands are typed the same way as on Claude Code: `/maister:init`, `/maister:development`. [Maister on GitHub Copilot CLI](docs/copilot.md) covers the rest, including the one-time reinstall if you used the earlier `maister-copilot` plugin.
 
 </details>
 
@@ -268,8 +268,8 @@ Every setting in `.maister/config.yml`, the task directory layout and the subage
 
 | | Claude Code | GitHub Copilot CLI |
 |---|---|---|
-| Plugin | `maister` | `maister-copilot` |
-| Commands | `/maister:<name>` | `/maister-copilot:<name>` |
+| Plugin | `maister` | `maister` |
+| Commands | `/maister:<name>` | `/maister:<name>` |
 | Checkpoints | Options, with the detail beside the one you are on | The same detail, in the question |
 | Run status in the terminal | A band above the prompt and a panel at each checkpoint | Not drawn |
 | Implementation and verification | Each loop runs in a subagent of its own | The loops run in your session |
@@ -303,7 +303,7 @@ claude plugin marketplace update maister-plugins
 claude plugin update maister@maister-plugins
 ```
 
-Then run `/reload-plugins` or start a new session. On Copilot CLI: `copilot plugin update maister-copilot@maister-plugins`.
+Then run `/reload-plugins`, or start a new session. On GitHub Copilot CLI, `copilot plugin update maister@maister-plugins` does the same.
 
 > [!IMPORTANT]
 > Coming from 2.x? Version 3 needs Node.js 20 and does not resume tasks started on 2.x. Read [Upgrading from 2.x](docs/upgrading-from-2x.md) before you update.

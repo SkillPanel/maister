@@ -4,8 +4,8 @@ For people who use Maister and want the exact arguments and flags of a command. 
 listed with what it takes and a line on what it does; how a workflow runs step by step is in
 [Workflows](workflows.md).
 
-On GitHub Copilot CLI, type `/maister-copilot:<name>` wherever this page writes `/maister:<name>`
-(see [Maister on GitHub Copilot CLI](copilot.md)).
+On GitHub Copilot CLI the commands are typed the same way, `/maister:<name>` (see
+[Maister on GitHub Copilot CLI](copilot.md)).
 
 ## Notes for every workflow command
 

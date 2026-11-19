@@ -1,10 +1,34 @@
 #!/bin/bash
+# Builds the GitHub Copilot CLI copy of the plugin from plugins/maister.
+#   usage: build.sh [--out DIR] [--baseline FILE] [--require-baseline]
+#   --out DIR           where the build goes (default dist/copilot); replaced whole
+#   --baseline FILE     the interface file this build replaces, to version against
+#   --require-baseline  refuse to build when there is no baseline at all
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CORE="$ROOT/plugins/maister"
-OUT="$ROOT/plugins/maister-copilot"
+
+usage() {
+  echo "usage: build.sh [--out DIR] [--baseline FILE] [--require-baseline]" >&2
+  exit 2
+}
+
+OUT_ARG="$ROOT/dist/copilot"
+BASELINE=""
+REQUIRE_BASELINE=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --out=?*) OUT_ARG="${1#--out=}" ;;
+    --out) [ -n "${2:-}" ] || usage; OUT_ARG="$2"; shift ;;
+    --baseline=?*) BASELINE="${1#--baseline=}" ;;
+    --baseline) [ -n "${2:-}" ] || usage; BASELINE="$2"; shift ;;
+    --require-baseline) REQUIRE_BASELINE=1 ;;
+    *) usage ;;
+  esac
+  shift
+done
 
 # Cross-platform sed in-place (macOS needs '' arg, Linux doesn't)
 sedi() {
@@ -15,14 +39,87 @@ sedi() {
   fi
 }
 
-# The variant's interface file is versioned against the one it replaces, so
-# that one is kept aside before the tree is rebuilt (see the end of this file).
+# The output folder, resolved against the current directory with its symlinks
+# followed, so the guards below compare real paths. A drive-letter path is
+# absolute too: Git Bash on Windows is handed C:/... forms.
+case "$OUT_ARG" in
+  /*|[A-Za-z]:[/\\]*) ;;
+  *) OUT_ARG="$PWD/$OUT_ARG" ;;
+esac
+if [ -d "$OUT_ARG" ]; then
+  OUT="$(cd "$OUT_ARG" && pwd -P)"
+else
+  mkdir -p "$(dirname "$OUT_ARG")"
+  OUT="$(cd "$(dirname "$OUT_ARG")" && pwd -P)/$(basename "$OUT_ARG")"
+fi
+CORE_REAL="$(cd "$CORE" && pwd -P)"
+
+# The build starts by deleting its output folder, and that folder is an
+# argument, so it only ever replaces one that looks like a build: never the
+# plugin source, a folder inside it or one holding it (the repository, plugins/,
+# /), and never an existing folder with something in it but no plugin manifest.
+# Both are decided before anything is deleted.
+case "${OUT%/}/" in
+  "$CORE_REAL/"*)
+    echo "build: $OUT is or sits in the plugin source $CORE_REAL; refusing to replace it" >&2
+    exit 2 ;;
+esac
+case "$CORE_REAL/" in
+  "${OUT%/}/"*)
+    echo "build: $OUT holds the plugin source $CORE_REAL; refusing to replace it" >&2
+    exit 2 ;;
+esac
+if [ -e "$OUT" ] && [ ! -d "$OUT" ]; then
+  echo "build: $OUT is a file, not a build folder; refusing to replace it" >&2
+  exit 2
+fi
+if [ -d "$OUT" ] && [ -n "$(ls -A "$OUT")" ] && [ ! -f "$OUT/.claude-plugin/plugin.json" ]; then
+  echo "build: $OUT is not empty and holds no .claude-plugin/plugin.json; refusing to replace a folder that is not a build" >&2
+  exit 2
+fi
+
+# The build's interface file is versioned against the one it replaces (see the
+# end of this file): the file --baseline names, else the one in the output
+# folder. It is decided, and kept aside, before the tree is rebuilt, so a
+# refusal here deletes nothing and a baseline inside the output folder outlives
+# that folder's removal. A published build must never fall back to 1.0 without
+# a word, so an explicit baseline has to be an interface file, and
+# --require-baseline refuses to build without one.
+is_interface() {
+  node -e 'try { const v = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).interface_version; process.exit(typeof v === "string" && /^\d+\.\d+$/.test(v) ? 0 : 1); } catch { process.exit(1); }' "$1"
+}
 PREVIOUS_INTERFACE="$(mktemp)"
 trap 'rm -f "$PREVIOUS_INTERFACE"' EXIT
-if [ -f "$OUT/interface.json" ]; then cp "$OUT/interface.json" "$PREVIOUS_INTERFACE"; fi
+if [ -n "$BASELINE" ]; then
+  if ! is_interface "$BASELINE"; then
+    echo "build: $BASELINE is not an interface file; refusing to version against it" >&2
+    exit 1
+  fi
+  cp "$BASELINE" "$PREVIOUS_INTERFACE"
+elif [ -f "$OUT/interface.json" ] && { [ "$REQUIRE_BASELINE" = 0 ] || is_interface "$OUT/interface.json"; }; then
+  cp "$OUT/interface.json" "$PREVIOUS_INTERFACE"
+elif [ "$REQUIRE_BASELINE" = 1 ]; then
+  echo "build: no interface baseline; refusing to version the interface file from 1.0 (give --baseline FILE)" >&2
+  exit 1
+fi
+
+# The prefix rewrite (step 4) marks what it has rewritten with a placeholder; a
+# source file already holding it would come out with the namespace in its place.
+if grep -rl --include='*.md' '@@MAISTER_NS@@' "$CORE" >&2; then
+  echo "build: the source files above hold the placeholder @@MAISTER_NS@@, which the prefix rewrite uses" >&2
+  exit 1
+fi
 
 rm -rf "$OUT"
 cp -r "$CORE" "$OUT"
+# A Windows checkout hands the markdown over with CRLF line ends: .gitattributes
+# forces LF only on the scripts and data files. Several rewrites below are
+# anchored at a line's end, and the plan-mode guard would then stop the build,
+# so every copied *.md holding a carriage return is rewritten without them. tr,
+# not sed: GNU and BSD sed differ on \r.
+grep -rl --include='*.md' "$(printf '\r')" "$OUT" | while IFS= read -r f; do
+  tr -d '\r' < "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+done
 # The hooks. Copilot CLI loads a plugin's hooks/hooks.json -- Claude's nested
 # matcher format and PascalCase events included -- and runs each command with
 # CLAUDE_PLUGIN_ROOT set to the plugin's directory. What only Claude Code can
@@ -33,15 +130,14 @@ cp -r "$CORE" "$OUT"
 #   - post-compact-reminder.mjs: Copilot starts no session after compaction
 #     (a start's source is startup, resume or new) and applies no matcher to a
 #     SessionStart hook, so the compact-only reminder would speak at every start;
-#   - edition-check.mjs: the collision it looks for is between editions that
-#     share the plugin name, which this renamed variant never carries.
+#   - edition-check.mjs: it looks for two enabled editions in Claude Code's
+#     settings, which Copilot does not use.
 # The scripts that stay are switched to Copilot's output shape further down.
 rm -rf "$OUT/types" "$OUT/.claude-plugin/types" "$OUT/tsconfig.json" \
   "$OUT/hooks/display.mjs" "$OUT/hooks/post-compact-reminder.mjs" "$OUT/hooks/edition-check.mjs"
 cp "$ROOT/platforms/copilot-cli/hooks.json" "$OUT/hooks/hooks.json"
 
-# 1. Update plugin.json name and description, and drop the dropped contract
-sedi 's/"name": "maister"/"name": "maister-copilot"/' "$OUT/.claude-plugin/plugin.json"
+# 1. Update plugin.json description and drop the dropped contract
 sedi 's/for Claude Code/for GitHub Copilot CLI/' "$OUT/.claude-plugin/plugin.json"
 sedi '/"types":/d' "$OUT/.claude-plugin/plugin.json"
 
@@ -58,26 +154,43 @@ done
 
 # 4. Rewrite every remaining `maister:` reference into the name Copilot CLI
 #    registers for it. Copilot namespaces a plugin's commands, skills and agents
-#    under the manifest name, so the namespace is read from the manifest step 1
-#    just wrote rather than spelled here. Three forms, three passes, in order —
-#    each pass consumes its own matches, so the next one never sees them:
+#    under the manifest name, so the namespace is read from the manifest rather
+#    than spelled here. The plugin is `maister` on both hosts, so a user types
+#    the same command on either, and any other name stops the build. Three
+#    forms, in order:
 #      /maister:<name>        → /<ns>:<name>   a slash command or skill the user types
 #      maister:<agent>        → <ns>:<agent>   the agent type the task tool dispatches
 #      maister:<skill>        → <skill>        the bare name the skill tool takes
+#    The first two write the placeholder @@MAISTER_NS@@ in place of the
+#    namespace, and a fourth pass swaps it for the namespace after the third:
+#    written as `maister:` directly, what they wrote would be stripped by the
+#    third pass whenever the namespace is itself `maister`. The placeholder is
+#    upper case, so the passes that match `maister:` never see it; a source
+#    file holding it is refused before the copy, and a build file still
+#    holding it after the passes stops the build.
 #    Run AFTER the name: transforms so frontmatter names are already clean.
 NS=$(sed -n 's/^[[:space:]]*"name":[[:space:]]*"\([^"]*\)".*/\1/p' "$OUT/.claude-plugin/plugin.json" | head -1)
 if [ -z "$NS" ]; then
   echo "build: no plugin name in $OUT/.claude-plugin/plugin.json; cannot derive the command namespace" >&2
   exit 1
 fi
+if [ "$NS" != maister ]; then
+  echo "build: the variant manifest is named '$NS', not 'maister'; Copilot would register its commands under another prefix" >&2
+  exit 1
+fi
 AGENTS=$(find "$CORE/agents" -name "*.md" -exec basename {} .md \; | sort | paste -sd'|' -)
 find "$OUT" -name "*.md" | while read f; do
   sedi -E \
-    -e "s#/maister:#/$NS:#g" \
-    -e "s#maister:($AGENTS)([^A-Za-z0-9_-]|\$)#$NS:\\1\\2#g" \
+    -e "s#/maister:#/@@MAISTER_NS@@:#g" \
+    -e "s#maister:($AGENTS)([^A-Za-z0-9_-]|\$)#@@MAISTER_NS@@:\\1\\2#g" \
     -e 's#maister:##g' \
+    -e "s#@@MAISTER_NS@@#$NS#g" \
     "$f"
 done
+if grep -rl --include='*.md' '@@MAISTER_NS@@' "$OUT" >&2; then
+  echo "build: the placeholder @@MAISTER_NS@@ survives the prefix rewrite in the files above" >&2
+  exit 1
+fi
 
 # 5. Replace CLAUDE.md references with copilot equivalents in skills.
 #    A path that only puts CLAUDE.md in a directory (`.claude/CLAUDE.md`) is
@@ -143,10 +256,13 @@ done
 
 # 6c. Give install commands in Copilot's form. Claude Code installs from a
 #     slash command and names the plugin `maister`; Copilot installs from its
-#     shell command under the manifest name.
+#     shell command under the manifest name. The 2.x line is the exception: its
+#     Copilot build ships as `maister-copilot`, so a 2.x install line names
+#     that build, ahead of the general rewrite that would name 2.x Claude Code's.
 find "$OUT" -name "*.md" | while read f; do
   sedi -E \
     -e 's#/plugin marketplace add #copilot plugin marketplace add #g' \
+    -e 's#/plugin (install|uninstall) maister@maister-plugins-2x#copilot plugin \1 maister-copilot@maister-plugins-2x#g' \
     -e "s#/plugin (install|uninstall) maister@#copilot plugin \\1 $NS@#g" \
     "$f"
 done
@@ -173,6 +289,18 @@ for f in "$OUT"/hooks/*.mjs; do
     exit 1
   fi
 done
+
+# 6d2. The host marker. The plugin is named `maister` on both hosts, so the
+#      engine learns which host a copy ships for from one line of lib/host.mjs,
+#      `export const SHIPPED_HOST = 'claude';`, switched here the way the hooks'
+#      HOOK_SHAPE line is; a marker the switch cannot find stops the build.
+if [ -f "$OUT/lib/host.mjs" ]; then
+  sedi -e "s/^export const SHIPPED_HOST = 'claude';\$/export const SHIPPED_HOST = 'copilot';/" "$OUT/lib/host.mjs"
+fi
+if ! grep -q "^export const SHIPPED_HOST = 'copilot';\$" "$OUT/lib/host.mjs" 2>/dev/null; then
+  echo "build: $OUT/lib/host.mjs names no SHIPPED_HOST line; the engine would take this build for Claude Code's" >&2
+  exit 1
+fi
 
 # 6e. Ask the engine for this host's models. Every agent call carries the model
 #     and effort the `dispatch-model` verb resolves, and the verb answers per
@@ -327,10 +455,8 @@ done
 # before. Copilot CLI chooses where a marketplace install lands, so the one
 # thing an operator cannot work out for themselves -- the directory to point the
 # plugin-root variable at -- has to be written down in the tree they installed.
-# It is copied last because the prefix pass rewrites `maister:` wherever it
-# appears, and this file's install commands legitimately contain it: run earlier,
-# that pass turned `copilot plugin install SkillPanel/maister:plugins/...` into a
-# command that does not exist.
+# It is copied last because it is written for Copilot already, and no
+# substitution applies to it.
 cp "$ROOT/platforms/copilot-cli/README.md" "$OUT/README.md"
 
 # The shared write primitives and the state reader are plugin-root libraries,

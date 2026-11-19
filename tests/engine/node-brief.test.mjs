@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, scratch, scratchPlugin, run, sibling, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, scratch, scratchPlugin, run, sibling, variantRoot, verb, write } from '../helpers.mjs';
 
 // The brief a step reads before it runs: the facts the engine derives for it —
 // how it runs, its guard, its attempt, its inputs filled in, the files it
@@ -584,8 +584,8 @@ test('node-brief: an agent step\'s runs line carries the model and effort the ru
   assert.equal(claude.code, 0, claude.stderr);
   assert.equal(runsOf(claude), 'runs: agent:gap-analyzer — Task tool, model opus, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
 
-  // The generated variant ships for Copilot, so the same run's brief names Copilot's model id.
-  const copilot = run(path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${dev.state}`, '--node=gap-analysis']);
+  // The Copilot build is made at test time, so the same run's brief names Copilot's model id.
+  const copilot = run(path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${dev.state}`, '--node=gap-analysis']);
   assert.equal(copilot.code, 0, copilot.stderr);
   assert.equal(runsOf(copilot), 'runs: agent:gap-analyzer — Task tool, model claude-opus-5.5, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
 
@@ -596,7 +596,7 @@ test('node-brief: an agent step\'s runs line carries the model and effort the ru
 test('node-brief: asked in session on Copilot, a step that asks names the question-set command with the run\'s real paths', t => {
   const dev = scratch(t);
   freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
-  const copilotEngine = path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs');
+  const copilotEngine = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
   const patch = path.join(dev.dir, '.state-patch.json');
   const askWith = node => 'ask with: write each question set to ' + patch + ' as the in-node questions reference shapes it, then run node '
     + copilotEngine + ' gate-brief --state=' + path.resolve(dev.state) + ' --node=' + node + ' --ask --patch-file=' + patch
@@ -670,14 +670,13 @@ test('node-brief: a step that owes a page names the companion writer\'s call wit
   // A step that owes no page, and a gate, print none.
   for (const node of ['gap-analysis', 'specification-approval']) assert.deepEqual(companionOf(nodeBrief(dev.state, node)), [], node);
 
-  // The generated variant names its own agent, Copilot's model id and its own style guide.
-  const copilot = run(path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${dev.state}`, '--node=specification']);
+  // The Copilot build keeps the agent's name, names Copilot's model id and its own style guide.
+  const copilot = run(path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${dev.state}`, '--node=specification']);
   assert.equal(copilot.code, 0, copilot.stderr);
   assert.deepEqual(companionOf(copilot), [
     COMPANION_WRITER
-      .replace('maister:html-companion-writer', 'maister-copilot:html-companion-writer')
       .replace('model haiku', 'model claude-haiku-5.5'),
-    `- html: ${path.join(ROOT, 'plugins/maister-copilot/skills/orchestrator-framework/references/html-report-style.md')}`,
+    `- html: ${path.join(variantRoot(), 'skills/orchestrator-framework/references/html-report-style.md')}`,
     `- md_path: ${path.join(dev.dir, pages.specification)}`,
   ]);
 

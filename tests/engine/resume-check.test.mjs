@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ROOT, freeze, legacyMirror, run as runScript, scratch, sibling, verb, write } from '../helpers.mjs';
+import { freeze, legacyMirror, run as runScript, scratch, sibling, variantRoot, verb, write } from '../helpers.mjs';
 
 /** Run `resume-check` against a run and parse the JSON it always prints. */
 function resumeCheck(run) {
@@ -56,9 +56,9 @@ test('resume-check: the refusal says 2.x, names both install lines, and guesses 
   assert.doesNotMatch(message, /\b2\.\d+\.\d+\b/, 'no exact 2.x version: the state never recorded one');
 });
 
-test('resume-check: the Copilot variant gives the 2.x install line in Copilot CLI commands', t => {
+test('resume-check: the Copilot build gives the 2.x install line in Copilot CLI commands', t => {
   const run = scratch(t, { fixture: 'prose-2x' });
-  const variantEngine = path.join(ROOT, 'plugins/maister-copilot/skills/workflow-engine/scripts/workflow.mjs');
+  const variantEngine = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
   const result = runScript(variantEngine, ['resume-check', `--state=${run.state}`]);
   assert.equal(result.code, 1, result.stderr);
   const { code, message } = JSON.parse(result.stdout);
@@ -66,7 +66,7 @@ test('resume-check: the Copilot variant gives the 2.x install line in Copilot CL
   assert.match(message, /started on the maister 2\.x plugin/);
   assert.ok(message.includes('`copilot plugin marketplace add SkillPanel/maister#release/2.x`'));
   assert.ok(message.includes('`copilot plugin install maister-copilot@maister-plugins-2x`'));
-  assert.ok(message.includes('`copilot plugin uninstall maister-copilot@maister-plugins`'));
+  assert.ok(message.includes('`copilot plugin uninstall maister@maister-plugins`'));
   assert.doesNotMatch(message, /\/plugin /, 'no Claude Code slash command');
 });
 

@@ -18,7 +18,7 @@ that you have to plan for: Node.js is now required, and a task started on 2.x is
 | Resuming at a chosen phase | `--from=PHASE` | Not available. A checkpoint's "revise" sends a run back |
 | Your own workflows | Not available | `.maister/workflows/`, run with `/maister:run` |
 | Hooks | Needed bash | Run on Node.js, on Windows too |
-| Copilot CLI command names | `/development` | `/maister-copilot:development` |
+| Copilot CLI plugin and commands | `maister-copilot`, `/development` | `maister`, `/maister:development` |
 
 ## Before you upgrade
 
@@ -44,10 +44,11 @@ claude plugin update maister@maister-plugins
 
 Then run `/reload-plugins` or start a new session.
 
-On Copilot CLI:
+On Copilot CLI the plugin is now called `maister`, so `copilot plugin update` will not move you across. Reinstall it once:
 
 ```bash
-copilot plugin update maister-copilot@maister-plugins
+copilot plugin uninstall maister-copilot@maister-plugins
+copilot plugin install maister@maister-plugins
 ```
 
 Then start a new session.
@@ -168,8 +169,8 @@ Mockups follow your project's design language through a grounding pack in
 
 ## GitHub Copilot CLI
 
-- **Commands carry the plugin's name.** Type `/maister-copilot:development`, not `/development`. A
-  bare name is reported as an unknown command.
+- **The plugin is `maister`, and commands carry its name**, as on Claude Code. Type
+  `/maister:development`, not `/development`. A bare name is reported as an unknown command.
 - **The plugin now ships hooks on Copilot**: a reminder at session start and the guard that stops
   subagents from running commands that throw work away.
 - **No browser server is bundled** here either; use `playwright-cli`.
@@ -190,7 +191,7 @@ one Maister channel can be enabled at a time, so uninstall the other first:
 On Copilot CLI:
 
 ```bash
-copilot plugin uninstall maister-copilot@maister-plugins
+copilot plugin uninstall maister@maister-plugins
 copilot plugin marketplace add SkillPanel/maister#release/2.x
 copilot plugin install maister-copilot@maister-plugins-2x
 ```

@@ -12,8 +12,8 @@ You need:
   creates anything and says why.
 
 Install the plugin as the [README](../README.md) shows, then restart your session. On Copilot CLI,
-follow [Maister on GitHub Copilot CLI](copilot.md): the commands there are typed
-`/maister-copilot:<name>` where this page writes `/maister:<name>`.
+follow [Maister on GitHub Copilot CLI](copilot.md); the commands are typed the same way,
+`/maister:<name>`.
 
 ## Set up the project
 

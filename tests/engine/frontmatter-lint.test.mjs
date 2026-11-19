@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
-import { FIXTURES, ROOT, run } from '../helpers.mjs';
+import { FIXTURES, ROOT, run, variantRoot } from '../helpers.mjs';
 import { lintText } from '../frontmatter-lint.mjs';
 
 // The frontmatter lint runs as `make validate` runs it: a child process from
@@ -48,8 +48,8 @@ test('frontmatter-lint: each bad sample fails with exactly its own FAIL line and
   }
 });
 
-test('frontmatter-lint: the shipped trees pass', () => {
-  const result = lint();
+test('frontmatter-lint: the source tree and its Copilot build pass', () => {
+  const result = run(LINT, [`--variant=${variantRoot()}`], undefined, {}, ROOT);
   assert.equal(result.code, 0, result.stdout + result.stderr);
   assert.equal(result.stdout, '');
 });
@@ -62,6 +62,13 @@ test('frontmatter-lint: a CRLF file is read line by line like an LF one', () => 
 
 test('frontmatter-lint: a file without frontmatter has nothing to check', () => {
   assert.deepEqual(lintText('# A heading: with a colon\n'), []);
+});
+
+test('frontmatter-lint: a named variant folder that does not exist is a usage error', () => {
+  const result = run(LINT, ['--variant=tests/fixtures/no-such-build'], undefined, {}, ROOT);
+  assert.equal(result.code, 2, result.stdout + result.stderr);
+  assert.match(result.stderr, /^usage: .*\(the variant folder .*no-such-build does not exist; run make build\)$/m);
+  assert.equal(result.stdout, '');
 });
 
 test('frontmatter-lint: an unknown argument is a usage error', () => {

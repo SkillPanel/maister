@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { FIXTURES, ROOT, freeze, run, scratch, verb, write } from '../helpers.mjs';
+import { FIXTURES, ROOT, freeze, run, scratch, variantRoot, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
 // The interface file each plugin tree carries is generated from its code
@@ -15,7 +15,7 @@ import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/
 
 const GENERATOR = path.join(ROOT, 'tools/interface.mjs');
 const SOURCE = path.join(ROOT, 'plugins/maister');
-const VARIANT = path.join(ROOT, 'plugins/maister-copilot');
+const VARIANT = variantRoot();
 const INTERFACE = JSON.parse(fs.readFileSync(path.join(SOURCE, 'interface.json'), 'utf8'));
 
 /**
@@ -145,25 +145,15 @@ test('control: a key the file does not declare, at the top or in an option, is c
 // the committed files are fresh
 // ---------------------------------------------------------------------------
 
-test('each committed interface file is what a fresh generation from its tree writes', () => {
-  for (const root of [SOURCE, VARIANT]) {
-    const result = run(GENERATOR, ['--root', root, '--check']);
-    assert.equal(result.code, 0, result.stderr);
-  }
+test('the committed interface file is what a fresh generation from its tree writes', () => {
+  const result = run(GENERATOR, ['--root', SOURCE, '--check']);
+  assert.equal(result.code, 0, result.stderr);
 });
 
 test('the variant\'s file differs from the source\'s only where the host does: its hooks and the tool names it calls', () => {
   const variant = JSON.parse(fs.readFileSync(path.join(VARIANT, 'interface.json'), 'utf8'));
   const differing = Object.keys(INTERFACE).filter(key => JSON.stringify(INTERFACE[key]) !== JSON.stringify(variant[key]));
   assert.deepEqual(differing.filter(key => key !== 'interface_version'), ['hooks', 'mcp']);
-  // Each file is versioned against its own tree's previous file, so a change
-  // only the variant carries (a hook only Copilot registers) raises the
-  // variant's minor alone; the two never differ in major, and the variant is
-  // never behind.
-  const [sourceMajor, sourceMinor] = INTERFACE.interface_version.split('.').map(Number);
-  const [variantMajor, variantMinor] = variant.interface_version.split('.').map(Number);
-  assert.equal(variantMajor, sourceMajor);
-  assert.ok(variantMinor >= sourceMinor, `the variant's ${variant.interface_version} is behind the source's ${INTERFACE.interface_version}`);
 });
 
 // ---------------------------------------------------------------------------

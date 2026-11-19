@@ -1,0 +1,29 @@
+{
+  "name": "maister-plugins-beta",
+  "owner": {
+    "name": "Skillpanel",
+    "email": "marek@skillpanel.com"
+  },
+  "metadata": {
+    "description": "Structured, standards-aware development workflows for GitHub Copilot CLI",
+    "version": "3.0.0-beta.99"
+  },
+  "plugins": [
+    {
+      "name": "maister",
+      "description": "Structured, standards-aware development workflows for GitHub Copilot CLI",
+      "version": "3.0.0-beta.99",
+      "source": {
+        "source": "github",
+        "repo": "SkillPanel/maister",
+        "ref": "dist/beta",
+        "path": "copilot"
+      },
+      "category": "development",
+      "license": "MIT",
+      "repository": "https://github.com/SkillPanel/maister",
+      "homepage": "https://github.com/SkillPanel/maister",
+      "keywords": ["sdlc", "workflows", "specification", "tdd", "code-review", "standards"]
+    }
+  ]
+}

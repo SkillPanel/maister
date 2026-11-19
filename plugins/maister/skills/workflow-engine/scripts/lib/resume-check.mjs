@@ -17,9 +17,9 @@
  * one. No message here spells a command's namespaced name: this file ships to
  * every host unchanged, and each host names the plugin's commands its own way.
  * The install line it gives is the one for the host this copy ships in, told
- * apart by the plugin's own manifest name: the Copilot CLI variant renames
- * itself, and installs from Copilot's shell commands rather than Claude Code's
- * slash commands.
+ * apart by `SHIPPED_HOST`, which the build records in `lib/host.mjs`: the plugin
+ * carries the same name on every host, and the Copilot CLI copy installs from
+ * Copilot's shell commands rather than Claude Code's slash commands.
  *
  * A run waiting on a gate is also told what is on disk for that gate, because a
  * session given no stamped line reports where the run stands and may have nothing
@@ -38,16 +38,13 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parse, isPlainObject } from './state-read.mjs';
 import { TIMESTAMP, childRootOf, dashboardUrl, legacyMirrorWarning, projectRootOf } from './state.mjs';
 import { stamp } from '../../../../lib/canonical.mjs';
+import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { isSetAside, runFolders } from '../../../../lib/run-dirs.mjs';
 import { publishPointer } from './display-files.mjs';
 import { openRevision } from './revise.mjs';
-
-/** The manifest name the Copilot CLI variant carries. */
-const COPILOT_VARIANT = 'maister-copilot';
 
 /** The 2.x line's install commands, per host. */
 const INSTALL_2X = {
@@ -55,33 +52,22 @@ const INSTALL_2X = {
     + '(uninstall any other maister channel first, for example `/plugin uninstall maister@maister-plugins`). ',
   copilot: '`copilot plugin marketplace add SkillPanel/maister#release/2.x`, then '
     + '`copilot plugin install maister-copilot@maister-plugins-2x` (uninstall any other maister channel first, '
-    + 'for example `copilot plugin uninstall maister-copilot@maister-plugins`). ',
+    + 'for example `copilot plugin uninstall maister@maister-plugins`). ',
 };
 
 /**
  * What an operator reads when a 2.x directory is offered for resume, with the
- * install line for the plugin named `pluginName` (this copy's own by default).
+ * install line for the host this copy ships for.
  */
-export function writtenBy2x(pluginName = ownPluginName()) {
+export function writtenBy2x() {
   return [
     'This task was started on the maister 2.x plugin — its `orchestrator-state.yml` has no `workflow:` block — ',
     'and maister 3.0 does not resume it. Nothing in the directory was changed, and its artifacts are still ',
     'readable in place. To finish it, install the 2.x line and resume it there: ',
-    INSTALL_2X[pluginName === COPILOT_VARIANT ? 'copilot' : 'claude'],
+    INSTALL_2X[SHIPPED_HOST] ?? INSTALL_2X.claude,
     'To start the work over on 3.0, run the command again without a task path; a development, research or product design run ',
     'started with `--context=<this task directory>` reads this task\'s files as background.',
   ].join('');
-}
-
-/** This copy's plugin name, read off the manifest four directories up; null when unreadable. */
-function ownPluginName() {
-  try {
-    const root = fileURLToPath(new URL('../../../../', import.meta.url));
-    const manifest = JSON.parse(fs.readFileSync(path.join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
-    return typeof manifest?.name === 'string' ? manifest.name : null;
-  } catch {
-    return null;
-  }
 }
 
 /**

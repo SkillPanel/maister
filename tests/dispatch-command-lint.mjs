@@ -11,9 +11,11 @@
  * An inline code span may wrap across lines inside a paragraph; it is matched
  * over the paragraph's text, and reported at the line it opens on.
  *
- * Usage: `node tests/dispatch-command-lint.mjs [--root=<dir>]`. The root holds
- * `plugins/maister/` and `plugins/maister-copilot/`; it defaults to this
- * repository. A tree that is absent is skipped.
+ * Usage: `node tests/dispatch-command-lint.mjs [--root=<dir>] [--variant=<dir>]`.
+ * The root holds `plugins/maister/` and defaults to this repository. The
+ * variant is the Copilot CLI build, resolved against the root; it defaults to
+ * `dist/copilot`. A source tree or default variant that is absent is skipped; a
+ * variant named with `--variant` that does not exist is a usage error.
  *
  * Output: one `FAIL: <path>:<line>: <reason>` line per finding, the path
  * relative to the root. Exit 1 after printing every finding, 0 when there is
@@ -29,7 +31,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const TREES = ['plugins/maister', 'plugins/maister-copilot'];
+const SOURCE = 'plugins/maister';
+const DEFAULT_VARIANT = 'dist/copilot';
 const REASON = 'invokes `dispatch-model` without the script; write `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs dispatch-model …`';
 
 /**
@@ -105,11 +108,10 @@ function spansIn(para) {
   return findings;
 }
 
-/** Every finding under `root`, as FAIL lines. */
-export function lintRoot(root) {
+/** Every finding in the source tree under `root` and in the variant folder `variant`, as FAIL lines. */
+export function lintRoot(root, variant = path.resolve(root, DEFAULT_VARIANT)) {
   const failures = [];
-  for (const tree of TREES) {
-    const dir = path.join(root, tree);
+  for (const dir of [path.join(root, SOURCE), variant]) {
     if (!fs.existsSync(dir)) continue;
     for (const file of markdownFiles(dir)) {
       const shown = path.relative(root, file).split(path.sep).join('/');
@@ -133,6 +135,14 @@ function markdownFiles(dir) {
   return files;
 }
 
+function isDir(dir) {
+  try {
+    return fs.statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function listDir(dir) {
   try {
     return fs.readdirSync(dir).sort();
@@ -141,16 +151,25 @@ function listDir(dir) {
   }
 }
 
+const USAGE = 'usage: node tests/dispatch-command-lint.mjs [--root=<dir>] [--variant=<dir>]';
+
 function main(argv) {
   let root = REPO;
+  let named = null;
   for (const arg of argv) {
     if (arg.startsWith('--root=') && arg.length > '--root='.length) root = path.resolve(arg.slice('--root='.length));
+    else if (arg.startsWith('--variant=') && arg.length > '--variant='.length) named = arg.slice('--variant='.length);
     else {
-      process.stderr.write(`usage: node tests/dispatch-command-lint.mjs [--root=<dir>] (unknown argument ${arg})\n`);
+      process.stderr.write(`${USAGE} (unknown argument ${arg})\n`);
       return 2;
     }
   }
-  const failures = lintRoot(root);
+  const variant = path.resolve(root, named ?? DEFAULT_VARIANT);
+  if (named !== null && !isDir(variant)) {
+    process.stderr.write(`${USAGE} (the variant folder ${variant} does not exist; run make build)\n`);
+    return 2;
+  }
+  const failures = lintRoot(root, variant);
   for (const line of failures) process.stdout.write(`${line}\n`);
   return failures.length ? 1 : 0;
 }

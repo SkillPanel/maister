@@ -68,6 +68,7 @@ import path from 'node:path';
 
 import { parseDefinition } from './definition.mjs';
 import { BUILT_IN_AGENTS, HOSTS, locateTarget, pluginRoot } from './graph.mjs';
+import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 
 /** The ladder, cheapest first. A project remaps a rung's cells; it adds none. */
 export const LADDER = ['light', 'standard', 'deep'];
@@ -801,9 +802,9 @@ export function rungsUsed(runDir) {
   return used;
 }
 
-/** The host the engine ships for: its plugin's own name says which. */
+/** The host the engine ships for, as the build recorded it in `lib/host.mjs`. */
 export function shippedHost() {
-  return shippedPluginName() === 'maister-copilot' ? 'copilot' : 'claude';
+  return SHIPPED_HOST;
 }
 
 /**
