@@ -145,8 +145,9 @@ before each wave's fan-out (`<plugin_root>/skills/orchestrator-framework/referen
 5. **A host that runs them in the background anyway** returns each call at once with an agent
    id. Attach the ids — `in-flight … --runner=implementation --agents=group-<A>:<id>,…` — and
    wait for the completion notices. When the host makes you hand back before every member is
-   back, end with `waiting` (§ *Ending a dispatch*), naming the groups still out: the node waits
-   for them and sends you back to adopt their reports.
+   back, take in every member already back, then end with `waiting` (§ *Ending a dispatch*),
+   naming the groups still out: the node waits for them and sends you back to adopt their
+   reports. `waiting` ends your pass, even when the host wakes you afterwards.
 
 ### As each member returns
 
@@ -324,11 +325,21 @@ it. **Your final message is exactly what it printed**, nothing else.
 - **`needs_decision`** — `{result: needs_decision, decision: {kind, questions_file, wave}}`.
 - **`waiting`** — `{result: waiting, pending: [<ids>]}`: you must end while agents you sent are
   still out — `group-<N>` ids and `suite` as recorded. Whenever agents are out, this is the
-  result, never `unavailable`.
+  result, never `unavailable`. The engine refuses one naming an agent already back: take that
+  one in first.
 - **`unavailable`** — `{result: unavailable, reason}`, one line: you could not run at all, such as
   no agent tool. The engine refuses it while an agent this session sent is still out.
 
 A refused result names the field to correct; send the whole result again.
+
+**After `waiting`, take nothing in.** A host may deliver your implementers' completion notices
+to you after you handed back, and wake you for each. The node cannot see a pass that is
+running again, so it may already have sent the next pass to adopt those reports. Woken so, run
+no `group-done`, start no wave and make no new `runner-result` call. When the notice's agent
+left no report at its recorded output, mark it `in-flight --state=<state> --node=<node>
+--runner=implementation --ended=<id>`: you are the only one who saw that notice. Then end at
+once, your final message the result you already handed back, unchanged. Your ending is the
+node's cue to ask the engine again.
 
 ## In the main session
 

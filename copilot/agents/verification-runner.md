@@ -236,14 +236,25 @@ message is exactly what it printed**, nothing else.
   {kind, findings_file, resume_token: {cycle, snapshot}}}`. The report is current; no companion.
 - **`waiting`** — `{result: waiting, pending: [<ids>]}`: you must end while agents you sent are
   still out — `suite`, `review-<stem>` and `fix-<cycle>-<n>` ids as recorded. Whenever agents are
-  out, this is the result, never `unavailable`.
+  out, this is the result, never `unavailable`. The engine refuses one naming an agent already
+  back: take that one in first.
 - **`unavailable`** — `{result: unavailable, reason}`, one line: you could not run at all, such as
   no agent tool. The engine refuses it while an agent this session sent is still out.
 
 **Every agent call you make** carries `run_in_background: false`. A host that runs it in the
 background anyway returns it at once with an agent id: attach the ids (`in-flight …
 --runner=verification --agents=<id>:<agent id>,…`) and wait for the completion notices; when the
-host makes you hand back before they are all in, end with `waiting` naming those still out.
+host makes you hand back before they are all in, take in the ones already back, then end with
+`waiting` naming those still out.
+
+**After `waiting`, take nothing in.** A host may deliver your agents' completion notices to you
+after you handed back, and wake you for each. The node cannot see a runner that is running
+again, so it may already have sent the next one to adopt those outputs. Woken so, record no
+review, merge nothing, send no fix and make no new `runner-result` call. When the notice's agent
+left no output at its recorded path, mark it `in-flight --state=<state> --node=<node>
+--runner=verification --ended=<id>`: you are the only one who saw that notice. Then end at once,
+your final message the result you already handed back, unchanged. Your ending is the node's cue
+to ask the engine again.
 
 Never announce a fix before it is made; name each by a few words beside its number. Issue numbers
 are `findings.json`'s, kept across cycles.

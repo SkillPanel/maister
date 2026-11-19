@@ -55,7 +55,10 @@ or `inline`:
   - the prompt: `task_path`, `state`, `node`, `plugin_root` (the absolute path above), and
     `resume` exactly as `runner-step` printed it.
 
-  When the runner returns, its reply is its result; `runner-step` reads the same result from disk.
+  When the runner returns — its reply, or its completion notice when the host ran it in the
+  background — run `runner-step` at once, whatever the reply says: it reads the result from disk,
+  and only its `next` says what comes next. A runner can hand back `waiting` and still be woken
+  afterwards; a reply in prose is no result at all.
 - **`ask`** — the runner returned a decision a person makes: groups that failed after their
   escalation, a test step a group skipped, or a wave past a model budget the project set (`kind`: `groups` or
   `budget`). The questions are ready in `questions_file`, each with its own context and its
@@ -74,10 +77,12 @@ or `inline`:
 - **`wait`** — implementers (or the suite runner) the runner sent are still out: the runner
   ended `waiting`, or ended without a result, on a host that runs a subagent's own agent calls in
   the background. `pending` lists each one's `id`, the host's `agent` id when recorded, and the
-  `output` it owes. Those agents outlive the runner and report to this session: wait for their
-  completion notices — never end the turn here, never narrow the delegation, never dispatch
-  the runner while one is out — then run `runner-step` again. A pending agent whose completion
-  notice came and whose output is still missing ended without its report: run
+  `output` it owes. Those agents outlive the runner. Their completion notices come to this
+  session or, on a host that wakes the runner for them, to the runner, which then ends again
+  with a completion notice of its own. Run `runner-step` again on every completion notice — a
+  pending agent's or the runner's — and never end the turn here, never narrow the delegation,
+  never dispatch the runner while one is out. A pending agent whose completion
+  notice came to this session and whose output is still missing ended without its report: run
   `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs in-flight --state=<task path>/orchestrator-state.yml
   --node=<node> --runner=implementation --ended=<id>`, then `runner-step` again; the runner sends
   that group again.
