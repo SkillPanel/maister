@@ -842,6 +842,41 @@ test('brief-approval: its labels and header, the review naming the brief and the
   assert.equal(statusOf(run, 'screens'), 'completed', 'the screens are not drawn again');
 });
 
+// The brief-approval card pools the risks of the specification, the screens and
+// the brief. An earlier step's risk is listed from that step's own entry, so
+// the brief records only what it found itself: a copy it restated, off by a
+// word, would be a second item, and the specification is not re-run by
+// change-brief, so the pair would outlast the revise.
+const SPEC_RISK = 'Guest links expire after a week, and no test covers the expiry';
+
+test('brief-approval: an earlier step\'s risk is listed once from its own entry, and a revise replaces the brief\'s own risks rather than adding to them', t => {
+  const run = atBriefApproval(t, { outcome: 'brief-with-spec' });
+  walk(run, { node_summaries: { specification: { risks: [{ risk: SPEC_RISK, tag: 'open', change: 'add the expiry test' }] } } });
+  walk(run, { node_summaries: { brief: { risks: [{ risk: 'Mobile is left out with no reason stated', tag: 'open', change: 'state why mobile is left out' }] } } });
+  assert.deepEqual(checkpointOf(run, 'brief-approval').risks.open.map(each => each.risk).sort(),
+    ['Guest links expire after a week, and no test covers the expiry', 'Mobile is left out with no reason stated']);
+
+  const result = revise(run, 'brief-approval', 'change-brief', 'State why mobile is left out');
+  assert.equal(result.code, 0, result.stderr);
+  walk(run, {
+    nodes: { brief: { status: 'completed' } },
+    node_summaries: { brief: { summary: 'The brief, rewritten.', risks: [{ risk: 'Mobile is left out with no reason stated', tag: 'resolved' }] } },
+  });
+  const after = checkpointOf(run, 'brief-approval').risks;
+  assert.deepEqual(after.open.map(each => each.risk), [SPEC_RISK], 'the earlier attempt\'s open risk is gone, the specification\'s kept once');
+  assert.deepEqual(after.resolved.map(each => each.risk), ['Mobile is left out with no reason stated']);
+});
+
+test('brief: the step records only the risks it found, never an earlier step\'s restated', () => {
+  const guide = fs.readFileSync(path.join(ENGINE_DIR, 'workflows/product-design.md'), 'utf8');
+  const section = guide.slice(guide.indexOf('## `brief`'), guide.indexOf('## `completion`'));
+  const summary = section.slice(section.indexOf('**Summary.**'), section.indexOf('**Re-run.**'));
+  assert.doesNotMatch(summary, /risk carried from an earlier step/i, 'no earlier risk is carried into the brief');
+  assert.doesNotMatch(summary, /so a parent's scope gate sees it/, 'a parent reads the outputs, not the brief\'s risks');
+  assert.match(summary, /an earlier step's risk is not restated/i);
+  assert.match(summary, /retag(?:ged|s)? `resolved` on (?:the|that) step/i);
+});
+
 // ---------------------------------------------------------------------------
 // the intake's delegate, and the flags beside the inputs
 // ---------------------------------------------------------------------------

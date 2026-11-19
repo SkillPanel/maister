@@ -563,10 +563,11 @@ the scope carries and each one still missing. When the state records `screens` s
 `summary` also says no screens were drawn, so both revises read as rewriting the brief,
 with `change-screens-and-brief` rewriting the specification first when one was written.
 `recommends` the `change-brief` revise when the check found a point missing, the reason
-naming it. A point still missing at approval stays an `open` risk, so a parent's scope
-gate sees it. A risk carried from an earlier step keeps that step's words, so it
-is listed once, and a risk a later step or answer settled is not carried. The node
-entry adds `brief_layers`.
+naming it. A point still missing at approval stays an `open` risk. `risks` holds only
+what this step found: the gate lists the specification's and the screens' risks from
+their own entries, so an earlier step's risk is not restated here, in its words or in
+others, and one this step settles is retagged `resolved` on that step's own entry. The
+node entry adds `brief_layers`.
 
 **Re-run.** Apply the note, check the scope again and rewrite the page.
 
