@@ -1897,6 +1897,9 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
  * A resolved `needs` then replaces whatever the patch carried for that node, so
  * a caller that copied only the kinds still freezes the edges, and a gate that
  * offers a revise records where each revise option sends the run (`rerunsOf`).
+ * A node that carries `dir:` records it the same way, as the definition spells
+ * it, so the run's own state says which repository a node works in before it is
+ * dispatched; a node without one records no `dir` at all.
  */
 function provenNodes(doc, workflow, runDir) {
   const proof = provenGraph(workflow, runDir);
@@ -1943,14 +1946,21 @@ function provenNodes(doc, workflow, runDir) {
   const byId = new Map(graph.nodes.map(node => [node.id, node]));
   const filled = {};
   for (const [id, entry] of Object.entries(nodes)) {
-    const { attempt: _attempt, reruns: _reruns, sets: _sets, ...sent } = entry;
+    const { attempt: _attempt, reruns: _reruns, sets: _sets, dir: _dir, ...sent } = entry;
     filled[id] = { ...sent, needs: byId.get(id).needs };
+    const dir = dirOf(byId.get(id));
+    if (dir) filled[id].dir = dir;
     const reruns = rerunsOf(byId.get(id));
     if (reruns) filled[id].reruns = reruns;
     const sets = setsOf(byId.get(id));
     if (sets) filled[id].sets = sets;
   }
   return filled;
+}
+
+/** A node's `dir:` as a non-empty string, or null when it carries none. */
+function dirOf(node) {
+  return typeof node?.dir === 'string' && node.dir !== '' ? node.dir : null;
 }
 
 /** One entry per resolved node, each `pending` under the first kind the graph allows it. */
@@ -2128,12 +2138,17 @@ function frozenDifferences(doc, workflow) {
   if (dropped.length) differences.push(`would drop the frozen node(s) ${dropped.join(', ')}`);
   const added = Object.keys(workflow.nodes).filter(id => !Object.hasOwn(recorded, id));
   if (added.length) differences.push(`adds the node(s) ${added.join(', ')}, which the frozen graph does not carry`);
-  // `needs`, `reruns` and `sets` are carried forward like an omitted scalar: the
-  // freeze filled them from the resolved graph, so a retry re-sending the same
-  // entries without them is still the same patch.
+  // `needs`, `reruns`, `sets` and `dir` are carried forward like an omitted
+  // scalar: the freeze filled them from the resolved graph, so a retry
+  // re-sending the same entries without them is still the same patch.
   const rewritten = Object.keys(workflow.nodes).filter(id => Object.hasOwn(recorded, id)
     && !sameValue({
-      status: 'pending', needs: recorded[id]?.needs, reruns: recorded[id]?.reruns, sets: recorded[id]?.sets, ...workflow.nodes[id],
+      status: 'pending',
+      needs: recorded[id]?.needs,
+      reruns: recorded[id]?.reruns,
+      sets: recorded[id]?.sets,
+      dir: recorded[id]?.dir,
+      ...workflow.nodes[id],
     }, recorded[id]));
   if (rewritten.length) differences.push(`would rewrite the recorded entry of ${rewritten.join(', ')}`);
   return differences;
@@ -2238,6 +2253,14 @@ function applyNodes(doc, nodes, now, changed, ignored, graphOf, undeclared, regr
       if (!Object.hasOwn(supplied, field)) continue;
       delete supplied[field];
       ignored.push(`workflow.nodes.${id}.${field}`);
+    }
+    // A `dir` the freeze recorded is the definition's and stays as frozen: a
+    // patch never moves a node to another repository. One that repeats it is
+    // simply dropped; one that differs is dropped and noted.
+    const frozenDir = dirOf(before);
+    if (frozenDir && Object.hasOwn(supplied, 'dir')) {
+      if (!sameValue(supplied.dir, frozenDir)) ignored.push(`workflow.nodes.${id}.dir`);
+      delete supplied.dir;
     }
     const merged = resetting ? reset(before) : stamp(id, supplied, before, now, ignored);
     doc.setNode(id, serializeNode(id, merged, supplied, now));
