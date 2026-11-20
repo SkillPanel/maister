@@ -43,7 +43,12 @@
  * family's `floor` is a unique list of them, and its `max` is a class, read
  * and checked but bounding nothing yet. A row's `families` lists at least one
  * family, each once, the first being its default reading; `values` maps a gate
- * value key to a family and sits only on a gate row. Family names and a row's `workflow` match `^[a-z][a-z0-9-]*$`, a
+ * value key to a family and sits only on a gate row. A row's `workflow` is the
+ * name of the run it classes, with one reserved name: a run whose definition
+ * the engine finds in the project's generated-chain home
+ * (`.maister/workflows/generated/`) is classed by the rows under `generated`,
+ * whatever its file and `name:` are, because each such chain is planned under
+ * a name of its own. Family names and a row's `workflow` match `^[a-z][a-z0-9-]*$`, a
  * row's `id` matches the engine's node id pattern, and value keys match
  * `^[a-z_]+$`. A ceiling's `settles` is a class below `approve` and its
  * `delegates` a boolean. Beyond the shape, every family a row, `values` or
@@ -66,6 +71,9 @@ export const DEFAULT_POLICY = Object.freeze({ version: 1 });
 
 /** Where the engine looks when the caller names no path: its own skill folder. */
 export const POLICY_LOCATION = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../policy/autonomy-policy.json');
+
+/** The workflow name every generated chain's run is classed under, whatever its own name. */
+export const GENERATED_WORKFLOW = 'generated';
 
 /** What `source` reads when no file was applied. */
 export const BUILT_IN = 'built-in';
