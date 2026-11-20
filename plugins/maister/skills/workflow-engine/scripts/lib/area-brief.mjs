@@ -20,6 +20,14 @@
  *                text the picker's More details shows
  *     set        --patch-file=<run>/.state-patch.json, --area repeated or not:
  *                every area as a driven question set, written to the patch file
+ *     check      --check alone: whether the file is usable — valid and stamped
+ *                from the markdown as it stands — reported as
+ *                `{ok, file, source, areas}` with the area ids in order, or
+ *                the fallback warning. `--node` may also be the brainstorm
+ *                node itself, running, which then checks its own declared
+ *                file: the check a brainstorm, first run or corrected, makes
+ *                before it completes, so a markdown corrected without its
+ *                areas file is caught where both are written
  *
  * Only the set form classes an area: each entry carries the `triage` the
  * policy on disk gives the declared question id `convergence-decisions`, when
@@ -129,7 +137,7 @@ export function formOf(picker) {
 
 /**
  * One area of the run's decision areas in the form asked for: `form` is
- * `picker`, `write-up` or `set`; `areas` the `--area` ids (exactly one for the
+ * `picker`, `write-up`, `set` or `check` (no area: the file's usability); `areas` the `--area` ids (exactly one for the
  * first two forms, which the entry point checks); `picker` the profile.
  */
 export function areaBrief({ state, node, areas: ids = [], form, picker = 'rich', patchFile = null }) {
@@ -156,12 +164,15 @@ export function areaBrief({ state, node, areas: ids = [], form, picker = 'rich',
   }
 
   const runDir = path.dirname(path.resolve(state));
-  const located = locate(doc, workflow, recorded, node, runDir);
+  const located = locate(doc, workflow, recorded, node, runDir, { own: form === 'check' });
   if (located.warning) return fallback(located.warning);
   const loaded = loadAreas({ file: located.file, taskDir: runDir, sources: located.sources });
   if (loaded.warning) return fallback(loaded.warning);
 
   const all = loaded.areas;
+  if (form === 'check') {
+    return { ok: true, file: located.relative, source: loaded.source, areas: all.map(area => area.id), errors: [], warnings: [] };
+  }
   const known = new Set(all.map(area => area.id));
   const unknown = ids.filter(id => !known.has(id));
   if (unknown.length) {
@@ -189,11 +200,14 @@ export function areaBrief({ state, node, areas: ids = [], form, picker = 'rich',
  * the re-resolved definition, since the frozen state carries no `with:` and no
  * declared artifacts.
  */
-function locate(doc, workflow, recorded, node, runDir) {
+function locate(doc, workflow, recorded, node, runDir, { own = false } = {}) {
   const { graph } = reread(doc, workflow, runDir);
   const byId = new Map((graph?.nodes ?? []).map(entry => [entry.id, entry]));
   const asking = byId.get(node);
-  const producer = areasProducer(asking);
+  // The check may be made by the brainstorm itself, which declares the file:
+  // it is running, so its own status is not asked for.
+  const self = own && asking?.outputs?.artifacts?.decision_areas !== undefined;
+  const producer = self ? node : areasProducer(asking);
   if (!producer) return { warning: NOT_DECLARED };
   const artifacts = byId.get(producer)?.outputs?.artifacts;
   const declared = artifacts?.decision_areas;
@@ -202,11 +216,11 @@ function locate(doc, workflow, recorded, node, runDir) {
   }
   const relative = declared.split(/[\\/]/).join('/');
   const status = isPlainObject(recorded[producer]) ? recorded[producer].status : undefined;
-  if (status !== 'completed') return { warning: `${WARNING.missing}:${relative}:producer-not-completed` };
+  if (!self && status !== 'completed') return { warning: `${WARNING.missing}:${relative}:producer-not-completed` };
   const sources = Object.entries(artifacts)
     .filter(([key, value]) => key !== 'decision_areas' && typeof value === 'string')
     .map(([, value]) => value.split(/[\\/]/).join('/'));
-  return { file: path.join(runDir, ...relative.split('/')), relative, sources, sketches: asking.with.sketches };
+  return { file: path.join(runDir, ...relative.split('/')), relative, sources, sketches: asking.with?.sketches };
 }
 
 /**

@@ -212,6 +212,7 @@
         "flags": [
           "area",
           "ask",
+          "check",
           "details",
           "json",
           "node",
@@ -1126,7 +1127,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.4",
+  "interface_version": "2.5",
   "mcp": {
     "servers": [],
     "tools": [

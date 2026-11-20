@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 import {
   ENGINE, ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, maskRoot, delegating, prerequisites, reach, readState, run as runScript, scratch, scratchPlugin, verb, write,
@@ -1361,4 +1362,89 @@ test('sketches: a run whose convergence names none keeps every form byte-identic
   const plain = pickerOf(run, 'storage', 'plain').picker;
   assert.deepEqual(plain.options, areaPicker(all[0], all, 'plain').options);
   assert.equal(Object.hasOwn(areaEntry(all[0], all), 'allow_other'), false);
+});
+
+// ---------------------------------------------------------------------------
+// the check: a corrected brainstorm keeps its markdown and its areas file in step
+// ---------------------------------------------------------------------------
+
+/** The areas file at `run`'s declared path, rewritten whole and stamped from the markdown's current bytes. */
+function restamp(run) {
+  const file = path.join(run.dir, run.declared);
+  const doc = JSON.parse(fs.readFileSync(fixture('valid.json'), 'utf8'));
+  doc.source = { path: run.markdown, sha256: createHash('sha256').update(fs.readFileSync(path.join(run.dir, run.markdown))).digest('hex') };
+  fs.writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
+}
+
+test('area-brief --check: the brainstorm node checks its own file, and a correction to the markdown alone reads stale until the file is rewritten', t => {
+  for (const workflow of Object.keys(WORKFLOWS)) {
+    const run = atConvergence(t, { workflow, producer: 'running', asking: 'pending' });
+    const check = () => brief(run, ['--check'], { node: run.producer });
+    const before = snapshotOf(run.dir);
+    const fresh = check();
+    assert.equal(fresh.code, 0, `${workflow}: ${fresh.stderr}`);
+    assert.equal(fresh.stderr, '', workflow);
+    assert.deepEqual(JSON.parse(fresh.stdout), {
+      ok: true, file: run.declared, source: run.markdown, areas: ['storage', 'access', 'sharing-screen'], errors: [], warnings: [], rules: RULES,
+    }, workflow);
+    assert.deepEqual(snapshotOf(run.dir), before, `${workflow}: the check writes nothing`);
+
+    // The correction edits the markdown alone: the file no longer says what the document says.
+    fs.appendFileSync(path.join(run.dir, run.markdown), '\nA corrected alternative.\n');
+    const stale = check();
+    const warning = `decision-areas-stale:${run.declared}:${run.markdown}`;
+    assert.equal(stale.code, 0, `${workflow}: ${stale.stderr}`);
+    assert.deepEqual(JSON.parse(stale.stdout), { ok: true, fallback: true, errors: [], warnings: [warning], rules: RULES }, workflow);
+    assert.equal(stale.stderr, `warning: ${warning}\n`, workflow);
+
+    // A hand patch that breaks the file is named by its fault.
+    fs.writeFileSync(path.join(run.dir, run.declared), '{"version": 1, "areas": [');
+    assert.deepEqual(JSON.parse(check().stdout).warnings, [`decision-areas-invalid:${run.declared}:not-json at (root)`], workflow);
+
+    // Rebuilt from the corrected markdown, the pair is in step again.
+    restamp(run);
+    assert.deepEqual(JSON.parse(check().stdout).areas, ['storage', 'access', 'sharing-screen'], workflow);
+  }
+});
+
+test('area-brief --check: the convergence node checks the file it asks from, after a correction during the convergence', t => {
+  for (const workflow of Object.keys(WORKFLOWS)) {
+    const run = atConvergence(t, { workflow });
+    assert.equal(JSON.parse(brief(run, ['--check']).stdout).file, run.declared, workflow);
+    fs.appendFileSync(path.join(run.dir, run.markdown), '\nA corrected alternative.\n');
+    assert.deepEqual(JSON.parse(brief(run, ['--check']).stdout).warnings, [`decision-areas-stale:${run.declared}:${run.markdown}`], workflow);
+    restamp(run);
+    assert.equal(JSON.parse(brief(run, ['--check']).stdout).fallback, undefined, workflow);
+  }
+});
+
+test('area-brief --check: it stands alone, and a node that neither writes nor asks the areas is the not-declared fallback', t => {
+  const run = atConvergence(t);
+  for (const flags of [['--check', '--area=storage'], ['--check', '--json'], ['--check', '--ask', '--area=storage'], ['--check', `--patch-file=${path.join(run.dir, '.state-patch.json')}`], ['--check', '--picker=rich']]) {
+    const result = brief(run, flags);
+    assert.equal(result.code, 2, `${flags.join(' ')}: ${result.stderr}`);
+    assert.match(result.stderr, /^usage: /, flags.join(' '));
+  }
+  write(run, { nodes: { 'research-foundation': { status: 'running' } } });
+  const other = brief(run, ['--check'], { node: 'research-foundation' });
+  assert.equal(other.code, 0, other.stderr);
+  assert.deepEqual(JSON.parse(other.stdout).warnings, ['decision-areas-missing:not-declared']);
+});
+
+test('area-brief --check: both workflows send a correction to the alternatives back to the brainstormer, with the areas file, and check the pair', () => {
+  const sectionOf = (text, id) => {
+    const start = text.indexOf(`## \`${id}\``);
+    assert.notEqual(start, -1, `no section for ${id}`);
+    const end = text.indexOf('\n## ', start + 1);
+    return text.slice(start, end === -1 ? undefined : end);
+  };
+  for (const spec of Object.values(WORKFLOWS)) {
+    const prose = fs.readFileSync(spec.definition.replace(/\.yml$/, '.md'), 'utf8');
+    const producer = sectionOf(prose, spec.producer);
+    const asking = sectionOf(prose, spec.node);
+    assert.match(producer, new RegExp(`area-brief[^\\n]*--node=${spec.producer}[^\\n]*--check|--node=${spec.producer} --check`), `${spec.producer} checks its own file`);
+    assert.match(producer, /\*\*Re-run\.\*\*[\s\S]*areas_output_path/, `${spec.producer}'s re-run hands the areas file's path`);
+    assert.match(asking, new RegExp(`--node=${spec.node} --check`), `${spec.node} checks after a correction`);
+    assert.match(asking, /A correction to the alternatives — /, `${spec.node} says how a correction is made`);
+  }
 });

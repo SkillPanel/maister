@@ -69,11 +69,25 @@ markdown's path and the SHA-256 of its bytes, and writes it again whenever the m
 in place. A brainstorm that cannot write the file says so; the brainstorm node then records the
 artifact absent with that reason, and convergence asks as it did before the file existed.
 
+**A correction.** A correction to the markdown — a revise note, or an answer during the
+convergence saying an alternative is wrong, missing or misdescribed — is the brainstormer's to
+make. It is re-delegated with the note, the markdown, `areas_output_path` and this page's path,
+and it revises both: the markdown in place, then the whole file rewritten from it and stamped
+again. The session never edits the markdown alone and never patches the file's text: the first
+leaves the file stale, the second leaves it unparseable. Before the node that asked for the
+correction goes on, it runs the check form, `area-brief --check`, with `--node` the brainstorm
+node while that node runs and the convergence node otherwise. A fallback warning re-delegates the
+brainstormer once more, to rebuild the file from the markdown as it now stands; a second leaves
+the warning in the node's summary, and convergence composes from the markdown.
+
 ## Who reads it
 
 The `area-brief` verb, from the convergence node that asks the areas. It finds the file through
 that node's `with: decision_areas` reference to the brainstorm node's declared artifact — never
-by guessing a path — and judges the file whole before it renders any area of it.
+by guessing a path — and judges the file whole before it renders any area of it. Its check form,
+`--check` alone, renders nothing: it reports `{file, source, areas}`, the area ids in order, for
+a file that is valid and fresh, or the warning below. Under `--check` the brainstorm node may name
+itself, while it runs, to check the file it declares.
 
 ## The check
 
