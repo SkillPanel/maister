@@ -31,8 +31,9 @@
  * through `requestGuardRefusal`). Five name no write: `gate-brief-unknown-node`,
  * `gate-brief-not-a-gate` and `gate-brief-reask-not-revise` (the invocation is
  * wrong), `state-unreadable`, and
- * `gate-brief-no-graph` (no definition, no frozen needs and no summary to fall
- * back on: the gate is asked with its `ask:` alone, the refusal kept out of the
+ * `gate-brief-no-graph` (nothing the gate closes — its needs name no step, or
+ * neither the definition nor the freeze says what they are — and no summary to
+ * fall back on: the gate is asked with its `ask:` alone, the refusal kept out of the
  * question, and the patch it carries records it on the gate as a `followup`
  * risk, which fixes nothing in the brief). A question set a node asks inside itself has four more, none
  * fixed by a write: `gate-brief-questions-unsupported` (the driver carries no
@@ -158,6 +159,8 @@ const NEXT_UNKNOWN = 'Next: unknown — the definition changed since the freeze'
  * words: the refusal itself never reaches the question, only the run's record.
  */
 export const NO_GRAPH_RISK = 'Asked without its checkpoint summary: the workflow definition could not be read and no earlier step recorded one';
+/** The same, for a checkpoint whose needs name no step: it closes nothing, and nothing before it recorded a summary. */
+export const NO_NEEDS_RISK = 'Asked without its checkpoint summary: the checkpoint closes no step and no earlier step recorded one';
 const RECOMMENDED_UNKNOWN = 'the continue option';
 
 /**
@@ -295,10 +298,18 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
     // there is, and the warning says it is one.
     closing = closingNode(doc, Object.keys(recorded).slice(0, Object.keys(recorded).indexOf(node)).reverse());
     if (!closing) {
+      // Two causes leave the gate nothing to brief from. Its needs are known —
+      // frozen, or in a definition that still reads — and name no step: a
+      // checkpoint asked before any step it closes. Or neither source says.
+      const needsKnown = Array.isArray(entryOf(recorded, node).needs) || byId.has(node);
+      const cause = needsKnown
+        ? 'this gate closes no step — its needs name none, as a checkpoint asked before any step does — and no node before it carries a summary'
+        : 'the definition cannot be read, the freeze recorded no needs for this gate, and no node before it carries a summary';
+      const risk = needsKnown ? NO_NEEDS_RISK : NO_GRAPH_RISK;
       return refuse('gate-brief-no-graph',
-        'the definition cannot be read, the freeze recorded no needs for this gate, and no node before it carries a summary; '
-        + 'no state write fixes this — ask the gate with its ask: alone and its own options, say nothing of this refusal to the person, '
-        + `and record it on the gate as one followup risk through write-state: {"node_summaries":{"${node}":{"risks":[{"risk":"${NO_GRAPH_RISK}","tag":"followup"}]}}}`,
+        `${cause}; no state write fixes this — ask the gate with its ask: alone and its own options, say nothing of this refusal to the person, `
+        + `and record it on the gate as one followup risk through write-state: {"node_summaries":{"${node}":{"risks":[{"risk":"${risk}","tag":"followup"}]}}}`
+        + (needsKnown ? '. A checkpoint meant to report a step names that step in its needs: in the workflow definition' : ''),
         warnings);
     }
     warnings.push({

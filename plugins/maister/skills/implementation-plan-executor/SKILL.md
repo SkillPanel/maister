@@ -78,10 +78,15 @@ or `inline`:
   with a completion notice of its own. Run `runner-step` again on every completion notice — a
   pending agent's or the runner's — and never end the turn here, never narrow the delegation,
   never dispatch the runner while one is out. A pending agent whose completion
-  notice came to this session and whose output is still missing ended without its report: run
+  notice or reply came to this session while its output is still missing: when the reply holds
+  the implementer's report, write it to `<task path>/<output>`, its first line saying it was copied from
+  the agent's reply, so the runner adopts it; otherwise it ended without its report: run
   `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs in-flight --state=<task path>/orchestrator-state.yml
-  --node=<node> --runner=implementation --ended=<id>`, then `runner-step` again; the runner sends
-  that group again.
+  --node=<node> --runner=implementation --ended=<id>`, and the runner sends that group again.
+  Then `runner-step` again. **The runner's own completion notice releases its agents** where
+  the host says the notice comes only once the runner has no agent of its own still running
+  (its reply, which can come earlier, does not): every pending agent whose output is still
+  missing then ended without it, and is marked `--ended` the same way before `runner-step`.
 - **`unavailable`** — the runner could not run at all: no agent tool, or no way to dispatch
   subagents. It is never a loop with agents still out — that is `wait`, and the engine refuses
   `unavailable` while one is. Narrow the run's delegation: one

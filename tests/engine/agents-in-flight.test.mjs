@@ -298,6 +298,65 @@ test('a host that names no session waits for nothing, as before', t => {
   assert.equal(stepOf(run).next, 'dispatch');
 });
 
+/** Record groups through group-done, as the runner does once it accepts them. */
+const groupDone = (run, groups) => {
+  const entry = path.join(run.impl, '.work-log-entry.md');
+  fs.writeFileSync(entry, groups.split(',').map(n => `## Group ${n}\n**Model**: sonnet (tier standard, planner: "plain code")\n`).join('\n'));
+  const done = verb(['group-done', `--plan=${run.plan}`, `--groups=${groups}`, `--entry-file=${entry}`]);
+  assert.equal(done.code, 0, done.stderr);
+};
+
+/** Move every record's dispatch back in time, so a heading the log gains now follows it. */
+const backdate = run => {
+  const file = path.join(run.dir, run.runner, 'in-flight.json');
+  const doc = flightFile(run);
+  for (const entry of Object.values(doc.agents)) entry.dispatched = '2026-01-05T09:00:01Z';
+  fs.writeFileSync(file, JSON.stringify(doc));
+};
+
+test('a group the work log records done since it was sent is back, though its report never reached disk', t => {
+  const run = implementing(t);
+  recorded(run, GROUPS);
+  backdate(run);
+  // The runner took group 1 in from its reply and recorded it; no report was written, and the runner then stopped.
+  groupDone(run, '1');
+  assert.deepEqual(stepOf(run), { next: 'wait', pending: [{ id: 'group-2', agent: null, output: 'implementation/group-reports/group-2.md' }] });
+
+  const refused = result(run, { result: 'waiting', pending: ['group-1', 'group-2'] });
+  assert.equal(refused.code, 1);
+  assert.match(refused.stderr, /pending names group-1, which is already back: .*work log records its group/s);
+  assert.equal(result(run, { result: 'waiting', pending: ['group-2'] }).code, 0);
+
+  report(run, 'implementation/group-reports/group-2.md');
+  assert.deepEqual(stepOf(run), { next: 'dispatch', resume: 'auto' });
+});
+
+test('a group sent again after the log recorded it is waited for: only a heading since its dispatch counts', t => {
+  const run = implementing(t);
+  recorded(run, GROUPS);
+  backdate(run);
+  groupDone(run, '1');
+  recorded(run, 'group-1:implementation/group-reports/group-1.md');
+  assert.deepEqual(stepOf(run).pending.map(each => each.id), ['group-1', 'group-2']);
+});
+
+test('a record another host process sent is not waited for: its agents went with that process', t => {
+  const run = implementing(t);
+  const withProcess = (pid, extra = {}) => ({ ...env(), ...(pid === null ? {} : { CLAUDE_PID: pid }), ...extra });
+  const recordedBy = verb(['in-flight', `--state=${run.state}`, `--node=${run.node}`, `--runner=${run.runner}`, `--record=${GROUPS}`], undefined, withProcess('4101'));
+  assert.equal(recordedBy.code, 0, recordedBy.stderr);
+  assert.equal(flightFile(run).agents['group-1'].host_pid, 4101);
+  const step = pid => JSON.parse(verb(['runner-step', `--state=${run.state}`, `--node=${run.node}`, `--runner=${run.runner}`], undefined, withProcess(pid)).stdout);
+
+  assert.equal(step('4101').next, 'wait', 'the same process: its agents may still run');
+  assert.equal(step(null).next, 'wait', 'a host that names no process waits by the session alone');
+  assert.deepEqual(step('4202'), { next: 'dispatch', resume: 'auto' }, 'the session resumed in a new process');
+  // unavailable is the runner's to say once the agents went with the old process
+  const said = verb(['runner-result', `--state=${run.state}`, `--node=${run.node}`, `--runner=${run.runner}`],
+    { result: 'unavailable', reason: 'No agent tool in this session' }, withProcess('4202'));
+  assert.equal(said.code, 0, said.stderr);
+});
+
 // ---------------------------------------------------------------------------
 // re-check cycles: an earlier cycle's report is never lost or waited on
 // ---------------------------------------------------------------------------
@@ -421,6 +480,20 @@ for (const [runner, handOff] of [
     assert.doesNotMatch(text, /report to this\s+session/);
   });
 
+  test(`${handOff} writes a reply's report to the output it owes, and the runner's own completion notice releases its agents`, () => {
+    const text = read(handOff);
+    assert.match(text, /write it to `<task path>\/<output>`, its first line saying it was\s+copied from\s+the\s+agent's reply/);
+    assert.match(text, /\*\*The runner's\s+own completion notice releases its agents\*\*/);
+    assert.match(text, /its reply, which can come earlier, does\s+not/);
+  });
+
+  test(`${runner} writes an agent's report from its reply when the file is missing, woken after waiting too`, () => {
+    const text = read(runner);
+    const after = text.slice(text.indexOf('**After `waiting`, take nothing in.**'));
+    assert.match(after, /write it there,\s+its\s+first\s+line\s+saying\s+it\s+was\s+copied\s+from\s+the\s+agent's\s+reply/);
+    assert.match(after, /takes nothing in itself/);
+  });
+
   test(`${handOff} waits for the agents still out and never narrows on a wait`, () => {
     const text = read(handOff);
     assert.match(text, /- \*\*`wait`\*\* — /);
@@ -446,4 +519,10 @@ test('the verification runner ends an agent back without its recorded output at 
 
 test('the implementer writes its report to the path its prompt names', () => {
   assert.match(read('agents/task-group-implementer.md'), /`report_path`/);
+});
+
+test('the implementer writes its report file before it hands back, and the runners\' prompts say so', () => {
+  assert.match(read('agents/task-group-implementer.md'), /\*\*before you return it\*\*\s+— before your final message, and before any hand-back call/);
+  assert.match(read('agents/verification-runner.md'), /write your\s+report to `report_path` before you hand back/);
+  assert.match(read('agents/implementation-runner.md'), /write its report there before it hands\s+back/);
 });
