@@ -416,7 +416,8 @@ test('the inputs and values mockup-studio.yml declares equal the shapes module i
 
 test('the files real turn.mjs runs write depart from nothing the file declares', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-interface-studio-'));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // On Windows a child that has just exited can hold the folder a moment longer: retry instead of failing on EBUSY.
+  t.after(() => fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }));
   const task = path.join(root, '.maister', 'tasks', 'development', '2026-01-01-task');
   const out = path.join(task, 'analysis', 'mockups');
   fs.mkdirSync(task, { recursive: true });

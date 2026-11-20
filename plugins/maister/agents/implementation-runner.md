@@ -136,7 +136,8 @@ before each wave's fan-out (`<plugin_root>/skills/orchestrator-framework/referen
 4. **Fan out in one message.** One agent call per group, all in the same message, each with
    `subagent_type: maister:task-group-implementer`, the `model` and `effort` its tier's line
    printed (a field printed as `omit` left out), `run_in_background: false`, and its
-   `report_path` in the prompt. Never send one, wait, then send the next:
+   `report_path` in the prompt, with the instruction to write its report there before it hands
+   back. Never send one, wait, then send the next:
    that is serial execution in a wave's clothing, and the wave takes the sum of its groups
    instead of the longest. A wave of one is one call.
 5. **A host that runs them in the background anyway** returns each call at once with an agent
@@ -150,6 +151,12 @@ before each wave's fan-out (`<plugin_root>/skills/orchestrator-framework/referen
 
 Without waiting for its siblings:
 
+- **Its report on disk first.** A member back without its report at its recorded output whose
+  reply holds the report: write the reply there, its first line saying it was copied from the
+  agent's reply, before anything else — the record and every later pass read the file, never
+  your context. One whose reply holds no report: mark it `in-flight --state=<state>
+  --node=<node> --runner=implementation --ended=<id>` at once, and judge it from what it
+  returned.
 - **Judge the report**: the steps done, the standards applied, the test result. Whether to
   accept the group is your judgement; the engine records only a group you accepted.
 - **The test step.** When the report marks later steps done but not the test step (N.1), the
@@ -333,8 +340,10 @@ A refused result names the field to correct; send the whole result again.
 to you after you handed back, and wake you for each. The node cannot see a pass that is
 running again, so it may already have sent the next pass to adopt those reports. Woken so, run
 no `group-done`, start no wave and make no new `runner-result` call. When the notice's agent
-left no report at its recorded output, mark it `in-flight --state=<state> --node=<node>
---runner=implementation --ended=<id>`: you are the only one who saw that notice. Then end at
+left no report at its recorded output and the notice holds it, write it there, its first line
+saying it was copied from the agent's reply: that puts the file where the next pass adopts it,
+and takes nothing in itself. Otherwise mark it `in-flight --state=<state> --node=<node>
+--runner=implementation --ended=<id>`. You are the only one who saw that notice. Then end at
 once, your final message the result you already handed back, unchanged. Your ending is the
 node's cue to ask the engine again.
 

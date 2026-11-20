@@ -189,8 +189,10 @@ What a gate asks is built by the engine, never written by hand. The engine reads
 - **`gate-brief-nothing-held`**: `--node=held-approval`, and nothing is held for approval. Nothing
   was written. Publish the close-out when the run is dispatched, write the closing patch and run
   `run-complete`.
-- **`gate-brief-no-graph`**: the definition cannot be read, the freeze recorded no needs and no
-  node carries a summary. No write fixes the brief. Ask the gate with its `ask:` alone and its own
+- **`gate-brief-no-graph`**: nothing says what the gate closes and no node before it carries a
+  summary. Either its needs name no step — a checkpoint asked before any step it closes — or the
+  definition cannot be read and the freeze recorded no needs; the message names which. No write
+  fixes the brief. Ask the gate with its `ask:` alone and its own
   options — in session the question is the `ask:` word for word; driven, the request's `question` is
   the `ask:` and it carries no `context` — and say nothing about the refusal: its code, its message
   and the missing summary never appear in anything the person reads. The run keeps it instead:

@@ -588,6 +588,26 @@ test('refusal: an unreadable definition and no summary anywhere names no write',
   assert.match(result.stderr, /say nothing of this refusal to the person/);
 });
 
+test('refusal: a checkpoint whose needs name no step, with no summary before it, says so rather than that the definition cannot be read', t => {
+  const run = atApproval(t, null);
+  // The freeze recorded the gate's needs as empty: a checkpoint asked before any step it closes.
+  const text = fs.readFileSync(run.state, 'utf8');
+  const frozen = text.replace(/^(\s+approval: \{[^}\n]*needs: )\[[^\]]*\]/m, '$1[]');
+  assert.notEqual(frozen, text, 'the fixture records the gate\'s needs');
+  fs.writeFileSync(run.state, frozen);
+  const result = brief(run, 'approval');
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /^gate-brief-no-graph: this gate closes no step/);
+  assert.doesNotMatch(result.stderr, /cannot be read/);
+  assert.match(result.stderr, /ask the gate with its ask: alone/);
+  assert.match(result.stderr, /names that step in its needs:/);
+  const patch = JSON.parse(result.stderr.match(/(\{"node_summaries":.*?\}\]\}\}\})/m)[1]);
+  const [risk] = patch.node_summaries.approval.risks;
+  assert.equal(risk.tag, 'followup');
+  assert.match(risk.risk, /closes no step/);
+  assert.doesNotMatch(risk.risk, /definition could not be read|gate-brief|no-graph|refus/);
+});
+
 test('refusal: no-graph names the followup risk that records it, and the writer takes it on the gate still to be asked', t => {
   const run = atApproval(t, null);
   loseDefinition(run);
