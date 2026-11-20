@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { ENGINE_DIR, FIXTURES, OPERATOR, ENGINE, freeze, freezePatch, reach, readState, run, scratch, variantRoot } from '../helpers.mjs';
 import { outstandingHeld } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
+import { retireNote } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
 
 // Under Copilot CLI's autopilot the question tool answers "The user is not
 // available to respond …" and the session then picks an option itself. The
@@ -375,4 +376,90 @@ test('autopilot: the Claude Code build never reads a note, so an in-step answer 
   const [stored] = stepAnswers(runDir);
   assert.deepEqual([stored.by, stored.answered_by, stored.actor], ['operator', OPERATOR, { kind: 'person', id: OPERATOR }]);
   assert.equal(fs.existsSync(path.join(runDir.dir, NOTE)), true, 'the source build leaves the note alone');
+});
+
+// ---------------------------------------------------------------------------
+// a person's note: never empty, used once, narrowed to what is left, only the one read
+// ---------------------------------------------------------------------------
+
+test('autopilot (variant): an empty answer is never a person\'s, at a checkpoint or in a step', t => {
+  const cases = [
+    ['a blank answer', { answers: '' }],
+    ['a blank answer marked as typed', { answers: '', typed: ['decision'] }],
+    ['a form left empty', { answers: { decision: '', note: ' ' } }],
+  ];
+  for (const [label, fields] of cases) {
+    const runDir = atCheckpoint(t);
+    noteWith(runDir.dir, fields);
+    const before = fs.readFileSync(runDir.state, 'utf8');
+    needsPerson(writeVia(variantEngine(), runDir, answering('publish-draft')), runDir, before, label);
+  }
+
+  const step = scratch(t);
+  freeze(step);
+  noteWith(step.dir, { questions: ['scope'], answers: '' });
+  wrote(variantEngine(), step, { node_summaries: { analysis: { decisions: [{ decision: 'Narrow', by: 'operator', question_id: 'scope', question: 'Widen the scope?', answer: 'Narrow' }] } } });
+  isHostPick(stepAnswers(step)[0], 'an in-step answer under an empty person note');
+});
+
+test('autopilot (variant): a person\'s note is cleared by the in-step answer that used it, and narrowed to the questions still open', t => {
+  const person = item => ({ decision: item.answer, by: 'operator', question: `${item.question_id}?`, ...item });
+
+  const whole = scratch(t);
+  freeze(whole);
+  noteWith(whole.dir, { questions: ['scope'] });
+  wrote(variantEngine(), whole, { node_summaries: { analysis: { decisions: [person({ question_id: 'scope', answer: 'Narrow' })] } } });
+  assert.equal(stepAnswers(whole)[0].by, 'operator');
+  assert.equal(fs.existsSync(path.join(whole.dir, NOTE)), false, 'the in-step answer that used the note retires it');
+  assert.equal(fs.existsSync(path.join(whole.dir, USED)), true);
+
+  const part = scratch(t);
+  freeze(part);
+  noteWith(part.dir, { questions: ['scope', 'depth'] });
+  wrote(variantEngine(), part, { node_summaries: { analysis: { decisions: [person({ question_id: 'scope', answer: 'Narrow' })] } } });
+  const narrowed = JSON.parse(fs.readFileSync(path.join(part.dir, NOTE), 'utf8'));
+  assert.deepEqual([narrowed.outcome, narrowed.questions, narrowed.bound], ['person', ['depth'], true], 'the note now covers only the question still open');
+
+  // A question the narrowed note does not list is not the person's.
+  wrote(variantEngine(), part, { node_summaries: { analysis: { decisions: [person({ question_id: 'other', answer: 'Yes' })] } } });
+  isHostPick(stepAnswers(part).find(item => item.question_id === 'other'), 'a question the bound note does not list');
+  // Nor is a checkpoint answer.
+  wrote(variantEngine(), part, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { summary: 'Analysed.' } } });
+  const before = fs.readFileSync(part.state, 'utf8');
+  needsPerson(writeVia(variantEngine(), part, { nodes: { approval: { status: 'completed' } }, node_summaries: { approval: { decisions: [{ option: 'continue' }] } } }), part, before, 'a checkpoint under a bound note');
+});
+
+test('autopilot (variant): a send-back is accepted on a person\'s answer to its note', t => {
+  const runDir = atCheckpoint(t);
+  noteWith(runDir.dir, { questions: ['note'], answers: 'Tighten the intro', typed: ['note'] });
+  const result = run(variantEngine(), ['gate-revise', `--state=${runDir.state}`, '--node=review-approval', '--option=send-back'], { note: 'Tighten the intro' });
+  assert.equal(result.code, 0, result.stderr);
+  const [revise] = readState(runDir).node_summaries['review-approval'].decisions;
+  assert.deepEqual([revise.option, revise.by, revise.answered_by], ['send-back', 'operator', OPERATOR]);
+  assert.equal(readState(runDir).workflow.nodes.draft.status, 'pending', 'the stretch is reset');
+  assert.equal(fs.existsSync(path.join(runDir.dir, NOTE)), false, 'the send-back used the note');
+});
+
+test('retireNote clears only the note the write read: a later note the hook wrote meanwhile stays', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-retire-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const read = `${JSON.stringify({ outcome: 'person', at: '2026-01-05T10:00:00Z', questions: ['decision'] })}\n`;
+  const later = `${JSON.stringify({ outcome: 'host', at: '2026-01-05T10:01:00Z', questions: ['decision'] })}\n`;
+  const evidence = { person: true, questions: ['decision'], typed: [], bound: false, text: read };
+
+  fs.writeFileSync(path.join(dir, NOTE), later);
+  const warnings = [];
+  retireNote(dir, { whole: true }, evidence, warnings);
+  assert.equal(fs.readFileSync(path.join(dir, NOTE), 'utf8'), later, 'a newer note is left in place');
+  assert.equal(fs.existsSync(path.join(dir, USED)), false);
+
+  const narrowing = { ...evidence, questions: ['scope', 'depth'], text: read };
+  retireNote(dir, { steps: ['scope'] }, narrowing, warnings);
+  assert.equal(fs.readFileSync(path.join(dir, NOTE), 'utf8'), later, 'nor is it narrowed');
+
+  fs.writeFileSync(path.join(dir, NOTE), read);
+  retireNote(dir, { whole: true }, evidence, warnings);
+  assert.equal(fs.existsSync(path.join(dir, NOTE)), false, 'the note read is retired');
+  assert.equal(fs.readFileSync(path.join(dir, USED), 'utf8'), read);
+  assert.deepEqual(warnings, []);
 });

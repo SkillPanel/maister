@@ -7,14 +7,18 @@
  * each question this hook reads the tool's result and leaves one note in the
  * run's directory, `.ask.result.json`, saying who answered the last question:
  *   - `person`: the result text opens with `User responded:` (or the older
- *     `User selected:`), with the parsed `answers` when they can be told apart
- *     and `typed`, the properties the person answered in their own words;
+ *     `User selected:`) and something follows it, with the parsed `answers`
+ *     when they can be told apart and `typed`, the properties the person
+ *     answered in their own words; a property left empty is neither answered
+ *     nor listed;
  *   - `host`: the tool found nobody there to answer;
- *   - `none`: anything else — skipped, cancelled, accepted with no values, a
- *     failed call, a text it does not know.
+ *   - `none`: anything else — an empty answer, skipped, cancelled, accepted
+ *     with no values, a failed call, a text it does not know.
  * The engine's state writer reads the note; this hook only writes it.
  *
- * It ties the call to a run in this order:
+ * It looks for runs under the project root — the nearest folder at or above
+ * the session's working directory that holds `.maister/tasks` — and ties the
+ * call to a run in this order:
  *   - a run whose `.ask.used.json` or `.ask.json` asks the same questions with
  *     the same option ids, at any age (of several, the state written last);
  *   - otherwise the run that is fresh (state or `display/next.json` within
@@ -137,8 +141,17 @@ function noteOf(input, call) {
   }
   const prefix = text.match(/^\s*user (responded|selected)\s*:\s*/i);
   if (!prefix) return note;
+  const rest = text.slice(prefix[0].length).trim();
+  // An empty answer is never a person's: the form came back with nothing in it.
+  if (rest === '') return note;
+  let answers = answersOf(rest, keys);
+  if (answers !== undefined && typeof answers !== 'string') {
+    // A property left empty was not answered: the note neither lists nor covers it.
+    answers = Object.fromEntries(Object.entries(answers).filter(([, value]) => value.trim() !== ''));
+    if (Object.keys(answers).length === 0) return note;
+    note.questions = keys.filter(key => Object.hasOwn(answers, key));
+  }
   note.outcome = 'person';
-  const answers = answersOf(text.slice(prefix[0].length).trim(), keys);
   if (answers !== undefined) {
     note.answers = answers;
     const typed = typedOf(answers, properties);
@@ -156,6 +169,23 @@ function isActive(dir) {
   const nodes = readJson(path.join(dir, 'display', 'status.json'))?.nodes;
   const list = Array.isArray(nodes) ? nodes : nodes && typeof nodes === 'object' ? Object.values(nodes) : [];
   return list.some(node => node?.status === 'running');
+}
+
+/**
+ * The project root for a session started in `dir`: the nearest folder, `dir`
+ * itself or one above it, that holds `.maister/tasks`, so a session started in
+ * a subfolder of the project still finds its runs. `dir` when none does.
+ */
+function projectRoot(dir) {
+  let current = path.resolve(dir);
+  for (;;) {
+    try {
+      if (fs.statSync(path.join(current, '.maister', 'tasks')).isDirectory()) return current;
+    } catch { /* not here; look one level up */ }
+    const parent = path.dirname(current);
+    if (parent === current) return dir;
+    current = parent;
+  }
 }
 
 /** Every run directory under the project's tasks, set-aside copies left out. */
@@ -214,7 +244,7 @@ try {
   if (agentType === '') {
     let call = null;
     try { call = argumentsOf(input); } catch { /* a call it cannot read is a free-form one */ }
-    const root = typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
+    const root = projectRoot(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
     const note = noteOf(input, call);
     for (const run of tiedRuns(root, call, Date.now())) {
       try { writeNote(run.dir, note); } catch { /* one run's failure leaves the others */ }

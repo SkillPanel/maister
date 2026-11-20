@@ -4066,11 +4066,14 @@ export const ASK_RESULT_USED = '.ask.result.used.json';
  * (ASK_RESULT) or a retired one (ASK_RESULT_USED): a run the hook never
  * reported on has no evidence either way.
  *
- * Otherwise `{person: true, questions, answers, typed, bound}` for a current
- * note whose outcome is `person` — `questions` the property ids the question
- * asked, `answers` the parsed value(s) or undefined, `typed` the properties
- * the person answered in their own words — and `{person: false}` for anything
- * else: a `host` or `none` note, one that cannot be read, or only a retired one.
+ * Otherwise `{person: true, questions, answers, typed, bound, text}` for a
+ * current note whose outcome is `person` — `questions` the property ids the
+ * question asked, `answers` the parsed value(s) or undefined, `typed` the
+ * properties the person answered in their own words, `text` the note as read,
+ * which `retireNote` retires only while the file still holds it — and
+ * `{person: false}` for anything else: a `host` or `none` note, a `person`
+ * note whose answer is empty (`emptyAnswer`), one that cannot be read, or only
+ * a retired one.
  */
 export function answerEvidence(runDir, state) {
   if (SHIPPED_HOST !== 'copilot' || runDir === null || runDir === undefined) return null;
@@ -4089,9 +4092,20 @@ export function answerEvidence(runDir, state) {
   } catch {
     note = null;
   }
-  if (!isPlainObject(note) || note.outcome !== 'person') return { person: false };
+  if (!isPlainObject(note) || note.outcome !== 'person' || emptyAnswer(note.answers)) return { person: false };
   const ids = list => (Array.isArray(list) ? list.filter(id => typeof id === 'string') : []);
-  return { person: true, questions: ids(note.questions), answers: note.answers, typed: ids(note.typed), bound: note.bound === true };
+  return { person: true, questions: ids(note.questions), answers: note.answers, typed: ids(note.typed), bound: note.bound === true, text };
+}
+
+/**
+ * Is a person note's parsed answer empty — a blank string, or a map holding no
+ * value that is not blank? An empty answer is never a person's answer.
+ */
+function emptyAnswer(answers) {
+  const blank = value => typeof value === 'string' && value.trim() === '';
+  if (typeof answers === 'string') return blank(answers);
+  if (isPlainObject(answers)) return Object.values(answers).every(value => blank(value) || value === null);
+  return false;
 }
 
 /**
@@ -4225,14 +4239,24 @@ function newStepAnswers(prior, typed, patch, isGate) {
  * renamed to ASK_RESULT_USED — or, when the write's new answers were in-step
  * ones answering some but not all of the question ids the note lists, written
  * again with only the ids still unanswered and `bound: true`, so it covers
- * those alone. A failure is a warning: the write has already landed.
+ * those alone. Only the note the write read is retired: when the file no
+ * longer holds the text `answerEvidence` read (`evidence.text`) — the hook
+ * reported a later question meanwhile — it is left as it is. A failure is a
+ * warning: the write has already landed.
  */
-function retireNote(runDir, use, evidence, warnings) {
+export function retireNote(runDir, use, evidence, warnings) {
   const file = path.join(runDir, ASK_RESULT);
   try {
+    let current = null;
+    try {
+      current = fs.readFileSync(file, 'utf8');
+    } catch (err) {
+      if (err?.code !== 'ENOENT') throw err;
+    }
+    if (current === null || current !== evidence.text) return;
     const answered = use.whole ? [] : evidence.questions.filter(id => use.steps.includes(id));
     if (answered.length > 0 && answered.length < evidence.questions.length) {
-      const note = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const note = JSON.parse(current);
       const rest = { ...note, questions: evidence.questions.filter(id => !answered.includes(id)), bound: true };
       const scratchFile = `${file}.${process.pid}.tmp`;
       fs.writeFileSync(scratchFile, `${JSON.stringify(rest)}\n`, 'utf8');

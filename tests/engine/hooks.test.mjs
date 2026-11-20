@@ -385,6 +385,31 @@ for (const [label, tree] of [['source', SOURCE], ['variant', VARIANT]]) {
     assert.equal(noteIn(dir).outcome, 'none', 'a failure event with an error and no result');
   });
 
+  test(`${OUTCOME} (${label}): an empty answer is never a person's; a property left empty is neither answered nor listed`, t => {
+    const root = outcomeRoot(t);
+    const dir = outcomeRun(root, '2026-11-03-a', { call: CALL });
+    for (const text of ['User responded: ', 'User responded:', 'User selected:   ']) {
+      fs.writeFileSync(path.join(dir, NOTE_FILE), '{"outcome":"person"}\n');
+      outcome(tree, root, CALL, text);
+      assert.deepEqual([noteIn(dir).outcome, noteIn(dir).answers, noteIn(dir).typed], ['none', undefined, undefined], JSON.stringify(text));
+    }
+    const form = outcomeRun(root, '2026-11-03-b', { call: FORM });
+    outcome(tree, root, FORM, 'User responded: scope=wide, extras=, note= ');
+    assert.deepEqual([noteIn(form).outcome, noteIn(form).answers, noteIn(form).questions], ['person', { scope: 'wide' }, ['scope']]);
+    outcome(tree, root, FORM, 'User responded: scope=, extras=, note=');
+    assert.deepEqual([noteIn(form).outcome, noteIn(form).answers], ['none', undefined]);
+  });
+
+  test(`${OUTCOME} (${label}): a session started in a subfolder of the project finds its runs from the project root`, t => {
+    const root = outcomeRoot(t);
+    const dir = outcomeRun(root, '2026-11-03-a', { call: CALL });
+    const sub = path.join(root, 'src', 'deep');
+    fs.mkdirSync(sub, { recursive: true });
+    outcome(tree, sub, CALL, 'The user is not available to respond');
+    assert.equal(noteIn(dir).outcome, 'host');
+    assert.equal(fs.existsSync(path.join(sub, '.maister')), false, 'nothing is written in the subfolder');
+  });
+
   test(`${OUTCOME} (${label}): set-aside folders are never tied, a free-form call ties to the fresh active run only`, t => {
     const root = outcomeRoot(t);
     const aside = outcomeRun(root, '2026-11-03-a.moved-1', { call: CALL });

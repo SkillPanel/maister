@@ -231,15 +231,19 @@ Every checkpoint waits for a person: the engine refuses an approval nobody gave,
 at the first one. Switch Copilot to interactive mode and resume the run, and it asks the checkpoint
 again.
 
-A question you skip or cancel is treated the same way: it is not an answer, and a checkpoint it
-was meant for stays open.
+A question you skip or cancel, or send back empty, is treated the same way: it is not an answer,
+and a checkpoint it was meant for stays open.
+
+The check starts with the first question the plugin's hook reports on in a run. Until then a run
+has no record of who answered, and its answers are saved as they always were: an answer given
+before the hook first reports, autopilot's included, counts as yours.
 
 This is not the same as allow-all. Allow-all approves tool calls and still leaves every question
 to you; autopilot answers the in-step questions and leaves the approvals waiting.
 
 If a checkpoint keeps being refused in interactive mode although you answered it, the hook that
 records your answers has stopped reporting. Check that plugin hooks are enabled, that `node` is on
-your path and that Copilot was started in the project's root folder, then resume the run so it
+your path and that Copilot was started inside the project, then resume the run so it
 asks the checkpoint again. If it still cannot report, delete `.ask.result.used.json` from the run's
 task directory (`.maister/tasks/<type>/<YYYY-MM-DD-name>/`). The run then accepts approvals without
 this check, so until the hook reports again it cannot tell your approval from one autopilot gave.
