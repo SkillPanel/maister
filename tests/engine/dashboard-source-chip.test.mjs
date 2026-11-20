@@ -9,7 +9,8 @@ import { ENGINE_DIR } from '../helpers.mjs';
 // The dashboard's source chip says who settled a decision. A question a host
 // answered while nobody was there carries its own chip, named by the host.
 
-const html = fs.readFileSync(path.join(ENGINE_DIR, '../../skills/orchestrator-framework/assets/dashboard.html'), 'utf8');
+// A Windows checkout may give the page CRLF line ends; the slicing below looks for LF.
+const html = fs.readFileSync(path.join(ENGINE_DIR, '../../skills/orchestrator-framework/assets/dashboard.html'), 'utf8').replace(/\r\n/g, '\n');
 
 /** The chip helpers lifted from the page's script, run in a bare context. */
 function chips() {
