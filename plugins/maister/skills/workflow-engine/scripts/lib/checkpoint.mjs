@@ -44,6 +44,7 @@
 import path from 'node:path';
 import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { REQUEST_SUGGESTION, keysOf } from './interface-shapes.mjs';
+import { hostLabel } from './items.mjs';
 
 /** Most lines, and characters, of the continue option's preview. */
 export const FOCUS_LINES = 16;
@@ -319,7 +320,19 @@ function decided(checkpoint) {
  * their own — so the panel never reads "0 decided" over "You made 4 choices".
  */
 function decidedCount(checkpoint) {
-  return decided(checkpoint).length + (checkpoint.decisions?.operator?.count ?? 0);
+  return decided(checkpoint).length + (checkpoint.decisions?.operator?.count ?? 0) + hostAnswers(checkpoint).length;
+}
+
+/** The questions a host answered while nobody was there, each as the brief recorded it. */
+function hostAnswers(checkpoint) {
+  const items = checkpoint.decisions?.host;
+  return Array.isArray(items) ? items : [];
+}
+
+/** The host answers in one line a preview carries: how many, and where the rest is. '' when none. */
+function hostLine(checkpoint) {
+  const count = hostAnswers(checkpoint).length;
+  return count ? `Answered by the host: ${count} — see More details` : '';
 }
 
 /**
@@ -472,6 +485,7 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
   const risks = openRisks(checkpoint);
   const review = reviewText(checkpoint.review, companion);
   const choices = choicesLine(checkpoint);
+  const hosted = hostLine(checkpoint);
   const found = foundOf(checkpoint);
   const stories = storiesOf(checkpoint);
   const view = { held: held.length, stories: stories.length, fixes: Math.min(fixes.length, FIXED_CAP), shown: Math.min(items.length, DECIDED_CAP), risks: Math.min(risks.length, RISK_CAP), done: Infinity, found: Infinity };
@@ -516,6 +530,7 @@ function glance(checkpoint, { companion, lines = FOCUS_LINES, budget = FOCUS_BUD
       out.push(`${decidedHeading(items)}: ${items.length} ${items.length === 1 ? 'decision' : 'decisions'}, under More details.`);
     }
     if (choices) out.push(choices);
+    if (hosted) out.push(hosted);
     // A line straight after a bullet continues that bullet where the preview is
     // read as markdown, so the decisions' heading read as part of the last risk
     // or fix and the user's own choices as part of the last decision; a blank
@@ -708,6 +723,20 @@ export function moreDetails(checkpoint) {
   const items = decided(checkpoint);
   if (items.length) {
     blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.class ? ` (${item.class})` : ''}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
+  }
+  const hosted = hostAnswers(checkpoint);
+  if (hosted.length) {
+    const names = [...new Set(hosted.map(each => hostLabel(each.host ?? '')).filter(name => name !== ''))];
+    const who = names.length === 1 ? names[0] : 'The host';
+    const titles = new Map((checkpoint.closed ?? []).map(each => [each.node, each.title]));
+    blocks.push([
+      '**Answered by the host**',
+      `${who} answered ${hosted.length} ${hosted.length === 1 ? 'question' : 'questions'} while nobody was there to answer.`,
+      ...hosted.map(each => {
+        const step = titles.has(each.node) ? lowered(titles.get(each.node)) : null;
+        return `- ${each.question ? `${each.question}: ` : ''}${each.answer ?? each.decision}${each.as_recommended === false && each.recommended ? ` (recommended: ${each.recommended})` : ''}${step ? ` — ${step}` : ''}`;
+      }),
+    ].join('\n'));
   }
   const choices = choicesLine(checkpoint);
   if (choices) {

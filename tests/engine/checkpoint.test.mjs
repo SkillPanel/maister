@@ -1457,3 +1457,25 @@ test('held: the plain brief trims decisions, fixes and risks first, then the hel
   assert.equal(tightLines.filter(line => line.startsWith('- ')).length, 1, tight.stdout);
   assert.ok(briefOf(tight.stdout).length > 1600, 'the brief alone, without its rules pointer, is over its budget, so only the floor of one kept the held choice');
 });
+
+test('host answers: More details lists them after the decided block and before Your choices; the glance counts them; the choices line never does', () => {
+  const host = [
+    { decision: 'Narrow', question: 'Which scope?', answer: 'Narrow', recommended: 'Wide', as_recommended: false, question_id: 'scope', node: 'planning', host: 'copilot' },
+    { decision: 'Yes', question: 'Proceed?', answer: 'Yes', recommended: 'Yes', as_recommended: true, question_id: 'go', node: 'verification', host: 'copilot' },
+  ];
+  const checkpoint = heldCheckpoint({ extra: { decisions: { ...heldCheckpoint().decisions, host, operator: { count: 2, not_recommended: [] } } } });
+  const blocks = moreDetails(checkpoint).split('\n\n');
+  const at = blocks.findIndex(block => block.startsWith('**Answered by the host**'));
+  assert.ok(at > 0, blocks.join('\n\n'));
+  assert.ok(blocks[at - 1].startsWith('**Decided by the run**'), 'after the decided block');
+  assert.ok(blocks[at + 1].startsWith('**Your choices**'), 'before Your choices');
+  assert.equal(blocks[at], [
+    '**Answered by the host**',
+    'Copilot answered 2 questions while nobody was there to answer.',
+    '- Which scope?: Narrow (recommended: Wide) — planning',
+    '- Proceed?: Yes — verification',
+  ].join('\n'));
+  assert.ok(panelOfCheckpoint(checkpoint).glance.concat(richPicker(checkpoint).options.map(option => option.preview ?? '')).join('\n').includes('Answered by the host: 2 — see More details'));
+  assert.equal(choicesLine(checkpoint), 'You made 2 choices, all as recommended.', 'host answers are not the user\'s choices');
+  assert.match(panelOfCheckpoint(checkpoint).glance.find(line => line.startsWith('Held: ')) ?? '', /Decided: 5/, 'the decided count includes them');
+});

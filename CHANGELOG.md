@@ -18,6 +18,11 @@ before you install over a project with work in flight.
 
 ### What's new
 
+- **Autopilot no longer answers a checkpoint.** Under Copilot CLI's autopilot a run works through
+  its steps and Copilot answers the in-step questions, shown as "Answered by the host" and tagged
+  "Copilot", but once the plugin's hook has reported on a question in the run, the engine refuses
+  any checkpoint answer no person gave, so the run waits until you switch to interactive mode and
+  resume.
 - **Six built-in workflows on one engine.** Every change to a run's state goes through the engine,
   which refuses what the graph does not allow: a step recorded as done before the checkpoint in
   front of it has an answer, an answer the checkpoint does not offer, a run closed while steps it
@@ -67,6 +72,11 @@ before you install over a project with work in flight.
   effort each kind of agent runs on, per workflow or step if you want. Every agent call carries
   the values that apply. By default the reviewers get a stronger model than the clerical agents.
   See [Configuration](https://github.com/SkillPanel/maister/blob/master/docs/configuration.md).
+- **A one-page research explainer.** With HTML pages on, each research run writes
+  `outputs/research-explainer.html`: the findings in plain words, for a reader who has not read the
+  report. It is rewritten as you decide the solution and the design, and each section links to the
+  report section that holds its evidence. Every figure on it is one the sources state. Each research
+  checkpoint lists it first.
 - **A live dashboard.** Each run's `dashboard.html` follows the run as it goes: its steps, the
   decisions made and who made them, and the risks still open.
 - **Context packs.** `/maister:development`, `/maister:research` and `/maister:product-design`

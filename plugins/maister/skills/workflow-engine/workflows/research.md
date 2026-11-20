@@ -19,7 +19,16 @@ view.
 What a parent may read is the workflow-level `outputs:` block in
 `research.yml`, and nothing else. `report` aliases `research_report` on
 purpose, so a chain authored against `${research.artifacts.report}` keeps
-resolving.
+resolving. `explainer` names the one-page explainer beside it, the research's
+answer at a glance.
+
+**The explainer's absence is the child's, not the parent's**: with HTML off,
+or with a writer that failed twice, the child completes without the page and
+records it absent on its own foundation. That sanction does not carry to a
+parent: a parent that declares `explainer` permits its absence in its own
+`brief:` and records `absent: {explainer: …}` on its step's summary when the
+child's page is missing; otherwise `run-complete` prints a `missing-artifact`
+line for it.
 
 **A parent that wants the findings and nothing after them** sets
 `findings_only` in the node that starts this run. The foundation gate is then
@@ -31,10 +40,10 @@ The input defaults to false, and a run started by command never sets it.
 
 ## `research-foundation`
 
-**Does.** Four steps in order. On resume, skip each step whose artifacts are on
+**Does.** Five steps in order. On resume, skip each step whose artifacts are on
 disk: the brief (1), the plan and `planning/sources.md` (2), any findings file
-(3), the synthesis and the report (4). The freeze has already written the
-question, and any supplied type, to `research_context`; step 1 writes a
+(3), the synthesis and the report (4), the explainer (5). The freeze has
+already written the question, and any supplied type, to `research_context`; step 1 writes a
 classified type over an absent one.
 
 **Steps 1–3 each end with one milestone write**: this node's `node_summaries`
@@ -115,7 +124,44 @@ short hyphenated phrase (`adapter-scope-bounded`) is preferred, a plain sentence
 with nothing to escape permitted; the write refuses anything else, failing this
 node.
 
-**Asks.** Step 1 asks the clarification it describes.
+### Step 5 — explain (delegate)
+
+Runs when the `html:` line of this node's `run-context` output is a style-guide
+path. When it reads `off`, the writer is not dispatched and the page is
+recorded absent, as the Writes part below says.
+
+Delegate to the `maister:explainer-writer` agent through the Task tool, with the
+model and effort
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:explainer-writer --host=claude --state=<task path>/orchestrator-state.yml --node=research-foundation`
+prints: the writer is not one of the brief's declared delegates, so its call
+takes them from that line. Context for the explainer writer: `page_path`, the
+absolute path of `outputs/research-explainer.html`; `sources`, the absolute
+paths of the report, the synthesis and the findings folder;
+`stage: foundation`; `report_suite`, the run's pages that exist, as `{label, href}`
+entries relative to `outputs/`, the report by its `.html` page or by its `.md`
+when that page was not written; `check_script`, the absolute path of
+`${CLAUDE_PLUGIN_ROOT}/skills/orchestrator-framework/scripts/check-explainer.mjs`;
+plus the `run-context` output.
+
+Read the writer's structured result, never its prose. On `explainer: written`,
+run the check yourself, with the page and the same sources:
+`node ${CLAUDE_PLUGIN_ROOT}/skills/orchestrator-framework/scripts/check-explainer.mjs --page=<page_path> --source=<each source>`.
+The writer's own `check` is its report; this run is the step's.
+
+**Send the writer back at most once**: when the check exits 1, with its
+findings as `check_findings`; or when the result is `failed`, `not-requested`
+or `disabled`, with the run context again. Then check again. What is left
+after that is recorded, never retried:
+
+- figures or links still flagged (exit 1): the page stays and is registered,
+  with one `open` risk naming each finding, its change "correct or remove each
+  figure on the page, or revise the research";
+- a check that could not run (exit 2): the page stays and is registered, with
+  the `open` risk "the explainer was not checked" and the reason;
+- a writer that still returns no page: there is none, and the summary records
+  the absence, as the Writes part below says.
+
+**Asks.** Step 1 asks the clarification it describes. Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
 **With question sets** (`question-clarification`): its sharpened readings
 generated before it suspends.
@@ -126,6 +172,16 @@ guess one, so an unclear question exhausts the step's single attempt and the
 node is recorded `failed`. A re-drive carrying the clarification is the route
 back in.
 
+**Writes.** The closing write's `artifacts`, in this order: the explainer,
+`outputs/research-explainer.html`, `role: primary`, label "Explainer", when
+step 5 left it on disk; the report, `outputs/research-report.md`, `primary`,
+with its page; the synthesis, `analysis/synthesis.md`, `review`; the brief and
+the plan, `review`. Without the page the others keep this order, and the
+summary carries `absent: {explainer: "<reason>"}` with exactly one of two
+reasons: "HTML output is off for this run." or "The explainer writer failed
+twice: <reason>.". When step 5 dispatched the writer, the closing write lists
+`explainer-writer` under `delegated` beside the three declared delegates.
+
 **Summary.** For example: "Adopting the adapter keeps the public API intact;
 confidence medium, two sources disagree on performance". In `summary`, the top
 findings in plain words with what each means for the question, and how many
@@ -133,8 +189,7 @@ sources fed them. In `decisions`, the methodology and any scope boundary step 1
 drew, `by: run`. In `risks`, each gap the synthesis documented: `open` when the
 operator could close it, its `change` the evidence or scope that would ("benchmark
 the adapter on the production data set"); `followup` when it lies outside the
-question. The report is the `primary` artifact; the brief, the plan and the
-synthesis are `review`.
+question.
 
 Recommend one of `foundation-approval`'s three continues, never ask it; a flag
 sets the recommendation, never the answer:
@@ -160,12 +215,14 @@ gate has one continue.
 
 **Re-run.** The resume checks above do not apply. Rerun from the step the note
 reaches back to: the question or its scope, step 1; the sources or the method,
-step 2; missing evidence, step 3; the conclusions, step 4 alone. Each delegate
-gets the note; the summary says which steps ran again.
+step 2; missing evidence, step 3; the conclusions, step 4. Step 5 runs after
+every re-run step, whichever the note reaches, because the page reads what
+those steps rewrite. Each delegate gets the note; the summary says which steps
+ran again.
 
 **Budget.** Per step: step 1 one attempt; step 2 two, widening the search,
 then a mixed methodology; step 3 three, retrying only failed gatherers; step 4
-two, re-gathering for the gaps.
+two, re-gathering for the gaps; step 5 one re-dispatch of the writer.
 
 ---
 
@@ -251,6 +308,35 @@ over by a state write. The chosen combination goes in this node's summary entry;
 `selected_approach` is the converged approach's identifier, not the per-area
 choices.
 
+**Once every area is recorded, refresh the explainer** when the `html:` line of
+`run-context --node=research-foundation` is a path; when it reads `off`, the
+writer is not dispatched and nothing is registered for the page. First write
+the `decisions` text — the chosen approach per area and the deferred ideas — to
+a file in a directory `mktemp -d` makes. That decisions file is what a figure
+the operator chose, in an Other answer say, traces to when the page is
+checked; it is left where it is, not an artifact of the run, and never
+registered.
+
+Delegate to the `maister:explainer-writer` agent through the Task tool, with the
+model and effort
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:explainer-writer --host=claude --state=<task path>/orchestrator-state.yml --node=solution-convergence`
+prints. Context for the explainer writer: `page_path`, the absolute path of
+`outputs/research-explainer.html`; `sources`, the absolute paths of the report,
+the synthesis, the findings folder, `outputs/solution-exploration.md` and the
+decisions file; `stage: convergence`; `decisions`, that same text;
+`report_suite`, the run's pages on disk now, as at the foundation, so a page
+written while no explainer existed gains its Explainer link; `check_script`,
+the absolute path of
+`${CLAUDE_PLUGIN_ROOT}/skills/orchestrator-framework/scripts/check-explainer.mjs`;
+plus the `run-context --node=research-foundation` output.
+
+Read the result, check, send the writer back at most once and record the risks
+as the foundation's step 5 does, with one more `--source` for the decisions
+file in each run of the check. A refresh that still fails after its
+re-dispatch keeps the earlier page on disk but does not register it on this
+step, and records the `open` risk "the explainer does not show this step's
+decisions", its change "revise this step".
+
 **Asks.** One question per decision area, in the file's order.
 
 **With question sets** (`convergence-decisions`): one question per area, from
@@ -270,6 +356,12 @@ alternatives to choose between, which the gate's revise offers. Word it to
 whoever reads the gate ("<area>: you have not yet chosen between <A> and
 <B>"), never naming a role as the one who decides (`orchestrator-patterns.md`
 § 7).
+
+**Writes.** When the refresh wrote the page, the closing write registers
+`outputs/research-explainer.html` as this node's first artifact,
+`role: primary`, label "Explainer", and lists `explainer-writer` under
+`delegated`. With HTML off, or after a failed refresh, the page is not
+registered here.
 
 **Summary.** For example: "Event-sourced storage with CRDT sync, settling three
 areas". In `summary`, the chosen combination in a line per area and the
@@ -295,7 +387,8 @@ otherwise `finish-without-design`, saying why.
 **Re-run.** The resume check does not apply. Read the earlier choices from this
 node's summary entry and re-ask only the areas the note reopens, each in full;
 without question sets, take the alternative the note names for each, recorded as
-the operator's choice. The brainstorm is not run again.
+the operator's choice. The brainstorm is not run again; the explainer is
+refreshed again from the new choices, as above.
 
 **Budget.** Re-read the exploration file and present the decision areas again.
 
@@ -303,7 +396,7 @@ the operator's choice. The brainstorm is not run again.
 
 ## `high-level-design`
 
-**Does.** Three parts. Read the design-techniques reference first,
+**Does.** Four parts. Read the design-techniques reference first,
 `${CLAUDE_PLUGIN_ROOT}/skills/research/references/design-techniques.md`.
 
 ### Part A — design direction (inline)
@@ -326,6 +419,36 @@ values, and say the design input is the report's recommendations.
 Read both artifacts and present an executive summary: the architecture style and
 its key components, how many decisions were recorded, a one-line highlight per
 key decision, and the integration points with the existing system, if any.
+
+### Part D — explainer (delegate)
+
+Runs when the `html:` line of `run-context --node=research-foundation` is a
+path; when it reads `off`, the writer is not dispatched and nothing is
+registered for the page. First write the `decisions` text — the convergence's
+chosen combination when it ran, read from its summary entry, this node's key
+decisions and the Part A constraints answer — to a file in a directory
+`mktemp -d` makes, as convergence does: the decisions file, left where it is
+and never registered.
+
+Delegate to the `maister:explainer-writer` agent through the Task tool, with the
+model and effort
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:explainer-writer --host=claude --state=<task path>/orchestrator-state.yml --node=high-level-design`
+prints. Context for the explainer writer: `page_path`, the absolute path of
+`outputs/research-explainer.html`; `sources`, the absolute paths of the report,
+the synthesis, the findings folder, `outputs/high-level-design.md`,
+`outputs/decision-log.md`, `outputs/solution-exploration.md` when brainstorming
+ran, and the decisions file; `stage: design`; `decisions`, that same text;
+`report_suite`, the run's pages on disk now, as at the foundation;
+`check_script`, the absolute path of
+`${CLAUDE_PLUGIN_ROOT}/skills/orchestrator-framework/scripts/check-explainer.mjs`;
+plus the `run-context --node=research-foundation` output.
+
+Read the result, check, send the writer back at most once and record the risks
+as the foundation's step 5 does, with one more `--source` for the decisions
+file in each run of the check. A refresh that still fails after its
+re-dispatch keeps the earlier page unregistered on this step, with the `open`
+risk "the explainer does not show this step's decisions", its change "revise
+this step".
 
 **Asks.** The constraints question, *"Any architectural constraints or
 preferences for the design?"*, lists the design input a line per area. Options:
@@ -354,6 +477,13 @@ nor skip. The budget is exhausted and nobody is there, so the node is recorded
 `failed` rather than skipped, for the same reason as the brainstormer's retry:
 a skip would hide the failure.
 
+**Writes.** The closing write's `artifacts`, in this order: the explainer,
+`outputs/research-explainer.html`, `role: primary`, label "Explainer", when
+Part D wrote it; the design, `outputs/high-level-design.md`, `primary`; the
+decision log, `outputs/decision-log.md`, `review`. When Part D dispatched the
+writer, `explainer-writer` is listed under `delegated` beside the designer.
+With HTML off, or after a failed refresh, the page is not registered here.
+
 **Summary.** For example: "Hexagonal core with two adapters; six decisions
 recorded". In `summary`, the Part C executive summary. In `decisions`, the key
 design decisions, `by: run` — only what this node settled; the constraints
@@ -365,7 +495,7 @@ consequence the design accepts on purpose `tradeoff`; work it names for later
 **Re-run.** Keep the Part A answer unless the note changes a constraint, and do
 not ask it again. In Part B, hand the designer the note and both existing
 artifacts to revise in place — a decision the note overturns is recorded as
-superseded rather than deleted.
+superseded rather than deleted. Part D then refreshes the explainer again.
 
 **Budget.** The second attempt runs with corrected context.
 
@@ -376,9 +506,9 @@ superseded rather than deleted.
 **Does.** Executed inline, writes no files, and runs only when this run is its
 own.
 
-1. Inventory the outputs: the research report always, plus the solution
-   exploration, the high-level design and the decision log when the stretches
-   that produce them ran.
+1. Inventory the outputs: the explainer when it was written, then the research
+   report always, plus the solution exploration, the high-level design and the
+   decision log when the stretches that produce them ran.
 2. Present the executive summary: the key findings and the confidence level,
    which optional stretches ran, and the key decision highlights when they did.
 3. Suggest the next step as the command that takes it: in a fresh session —
@@ -400,4 +530,5 @@ outbox, and the executive summary above is what the user gets instead.
 
 In a terminal run's wrap-up, Done gives the answer and its confidence in a
 sentence, Next the command from step 3, and Files the outputs from the
-inventory.
+inventory: the explainer first when it was written, then the report, then the
+rest.

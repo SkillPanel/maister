@@ -82,12 +82,17 @@
  *                                     `session` or `suspend`, or `none` when
  *                                     only the run's policy can settle it.
  *                                     Verification adds cycle, kind,
- *                                     findings_file and stop_question;
+ *                                     findings_file and stop_question, and
+ *                                     open, {critical, warning}, when the
+ *                                     stopping question is put;
  *                                     implementation pass, kind and
  *                                     questions_file
  *   {next: close, …}                  verification: verdict, report_path,
- *                                     findings_path, html_path, counts;
- *                                     implementation: work_log_path, summary
+ *                                     findings_path, html_path, counts, and
+ *                                     undecided: true when the attempt's
+ *                                     latest decisions file ended the loop
+ *                                     undecided; implementation:
+ *                                     work_log_path, summary
  *   {next: unavailable, reason}       the runner could not dispatch subagents
  *   {next: wait, pending: [{id, agent, output}]}
  *                                     the runner would continue from the
@@ -110,8 +115,14 @@
  * option id (`option-2`, `accept-risk`, `retry`) read as that option's label,
  * or, when nothing answered it, null for a finding and the question's default
  * for an implementation question. `stop` is the stopping question's answer
- * (`more`, `continue` or `stop`, from `verification-fix-loop`), null when none
- * was put. When the file is written:
+ * (`more`, `continue`, `stop` or `undecided`, the attempt's latest answer
+ * under `verification-fix-loop` or `verification-go-on`), null when none was
+ * put. When nobody answered it — no readable answer, or one recorded by
+ * default or by the run without the policy classing it — the stop is
+ * `undecided` while a warning or critical is open (the result's counts, else
+ * the findings file's, else a critical read as open with a
+ * `runner-counts-unread` warning), and `continue` with nothing above info.
+ * When the file is written:
  *
  *   --answered    the node has recorded the answers it just took in session,
  *                 or the classing write's; the file is built from them
@@ -124,8 +135,9 @@
  *                 rounds are spent. A file of the attempt without
  *                 `rounds_seen` predates the rounds, and the defaults are taken
  *   nobody        a run that cannot ask and whose policy classes nothing takes
- *                 the defaults at once: every finding left open and
- *                 `continue`, every implementation question its default
+ *                 the defaults at once: every finding left open and the stop
+ *                 `undecided` with a warning or critical open, else
+ *                 `continue`; every implementation question its default
  *
  * `in-flight --state --node [--runner] --record | --agents | --ended` is the
  * loop's record of the agents it sends, `<folder>/in-flight.json`: `{node,
@@ -166,6 +178,7 @@ import { questionSets, canAsk } from './driver.mjs';
 import { VERIFICATION, readJson, writeJson } from './review-brief.mjs';
 import { ACCEPT_OPTION } from './finding-brief.mjs';
 import { ROUNDS_MAX, checkSet, roundsAsked } from './question-set.mjs';
+import { isClassedItem } from './question-triage.mjs';
 import { hostSession } from './display-files.mjs';
 import { stamp } from '../../../../lib/canonical.mjs';
 
@@ -196,8 +209,14 @@ const IMPLEMENTATION_DECISION_KEYS = ['kind', 'questions_file', 'wave'];
 /** Where the run's work log lives: its presence means the waves have begun. */
 const WORK_LOG = `${IMPLEMENTATION}/work-log.md`;
 
-/** The stopping question every verification loop declares, and how its answers read. */
+/**
+ * The stopping question a verification loop declares, under one of two ids
+ * with the same answer labels — `verification-go-on` when the recommended
+ * answer leaves the loop with a warning or critical open — and how its
+ * answers read.
+ */
 export const STOP_QUESTION = 'verification-fix-loop';
+export const GO_ON_QUESTION = 'verification-go-on';
 const STOP_ANSWERS = [[/^one more/i, 'more'], [/^continue/i, 'continue'], [/^stop/i, 'stop']];
 
 /** The suffix of a reviewing node's declared finding question id. */
@@ -410,7 +429,8 @@ function verificationStep({ run, node, answered, warnings, ok }) {
   if (result.result === 'waiting') return ok({ next: 'dispatch', resume: 'auto' });
   if (result.result === 'verdict') {
     const { verdict, report_path, findings_path = null, html_path = null, counts = null } = result;
-    return ok({ next: 'close', verdict, report_path, findings_path, html_path, counts });
+    const undecided = latestStop(dir, node, attempt) === 'undecided' ? { undecided: true } : {};
+    return ok({ next: 'close', verdict, report_path, findings_path, html_path, counts, ...undecided });
   }
 
   const cycle = result.decision.resume_token.cycle;
@@ -422,22 +442,62 @@ function verificationStep({ run, node, answered, warnings, ok }) {
   const stopQuestion = kind !== 'findings';
   const findings = findingsOf(findingsFile, runDir, warnings);
   const ids = findings.map(item => item.id);
+  const classes = doc.orchestrator?.classes_questions === true;
+  // The warnings and criticals still open, read once a call and only when the
+  // stopping question is put: `decide()` may collect and then take the defaults.
+  let counts = null;
+  const open = () => (counts ??= openCounts(result, runDir, warnings));
+  // Nobody answered the stopping question: undecided while a warning or critical is open.
+  const fallback = () => (open().critical + open().warning > 0 ? 'undecided' : 'continue');
   return decide({
     run, node, dir, answered,
     collect: () => {
-      const { answers, stop, stopAnswered } = answersOf(doc, node, attempt, findings, stopQuestion, warnings);
+      const { answers, stop, stopAnswered } = answersOf(doc, node, attempt, findings, stopQuestion ? { fallback, classes } : null, warnings);
       return { body: { answers, stop }, back: stopAnswered || answers.some(item => item.answer !== null) };
     },
-    defaults: () => ({ answers: ids.map(id => ({ id, answer: null, by: 'default' })), stop: stopQuestion ? 'continue' : null }),
+    defaults: () => ({ answers: ids.map(id => ({ id, answer: null, by: 'default' })), stop: stopQuestion ? fallback() : null }),
     write: body => {
       writeJson(decisionsFile, { node, attempt, cycle, kind, ...body });
       return ok({ next: 'dispatch', resume }, { file: resume.decisions_file });
     },
     ask: asking => ok({
       next: 'ask', cycle, kind, findings_file: findingsFile, stop_question: stopQuestion, asking,
-      classes_questions: doc.orchestrator?.classes_questions === true,
+      classes_questions: classes, ...(stopQuestion ? { open: open() } : {}),
     }),
   });
+}
+
+/**
+ * The warnings and criticals a stopping point leaves open, `{critical,
+ * warning}`: the result's counts; else the counts of the findings file the
+ * result names; else a critical, with a warning — an unknown state never goes
+ * on as is.
+ */
+function openCounts(result, runDir, warnings) {
+  const pick = counts => (isPlainObject(counts) && isCount(counts.critical) && isCount(counts.warning)
+    ? { critical: counts.critical, warning: counts.warning }
+    : null);
+  const own = pick(result.counts);
+  if (own !== null) return own;
+  const file = typeof result.findings_path === 'string' ? result.findings_path : null;
+  const merged = file === null ? null : pick(readJson(path.resolve(runDir, file))?.counts);
+  if (merged !== null) return merged;
+  const missing = file === null
+    ? 'the result carries no counts and names no findings file'
+    : `neither the result nor ${file} carries the critical and warning counts`;
+  warnings.push(`runner-counts-unread: ${missing}; read as a critical open`);
+  return { critical: 1, warning: 0 };
+}
+
+/** The stop the attempt's latest decisions file records, by cycle; null with none. */
+function latestStop(dir, node, attempt) {
+  let latest = null;
+  for (const name of attemptDecisions(dir, node, attempt)) {
+    // By number: a directory lists decisions-10.json before decisions-2.json.
+    const cycle = Number(DECISIONS_NAME.exec(name)[1]);
+    if (latest === null || cycle > latest.cycle) latest = { cycle, stop: readJson(path.join(dir, name)).stop ?? null };
+  }
+  return latest?.stop ?? null;
 }
 
 /** Implementation's next step, from its result, its decisions files and the work log. */
@@ -574,8 +634,17 @@ function labelFor(finding, answer) {
   return isPlainObject(option) && typeof option.label === 'string' ? option.label : answer;
 }
 
-/** The attempt's answers to the decision's questions, from the node summary. */
-function answersOf(doc, node, attempt, findings, stopQuestion, warnings) {
+/**
+ * The attempt's answers to the decision's questions, from the node summary.
+ * `stopping` is null when no stopping question was put, else `{fallback,
+ * classes}`: the stop when nobody answered it, and whether the run's policy
+ * classes questions. The stop is the attempt's latest answer under either
+ * stopping id, read by its label when a person gave it (or it names no `by`),
+ * or when the writer classed it in a run that classes questions; an answer
+ * recorded by default, or by the run without that classing, is nobody's and
+ * takes the fallback.
+ */
+function answersOf(doc, node, attempt, findings, stopping, warnings) {
   const decisions = attemptAnswers(doc, node, attempt);
   const latest = id => decisions.filter(item => item.question_id === id).at(-1) ?? null;
   const answers = findings.map(finding => {
@@ -586,11 +655,13 @@ function answersOf(doc, node, attempt, findings, stopQuestion, warnings) {
   });
   let stop = null;
   let stopAnswered = false;
-  if (stopQuestion) {
-    const item = latest(STOP_QUESTION);
+  if (stopping !== null) {
+    const item = decisions.filter(entry => entry.question_id === STOP_QUESTION || entry.question_id === GO_ON_QUESTION).at(-1) ?? null;
     const label = item === null ? null : labelOf(item);
     stopAnswered = label !== null;
-    stop = label === null ? 'continue' : stopOf(label, warnings);
+    const someone = item !== null && item.by !== 'default'
+      && (item.by !== 'run' || (isClassedItem(item) && stopping.classes));
+    stop = label !== null && someone ? stopOf(label, stopping.fallback, warnings) : stopping.fallback();
   }
   return { answers, stop, stopAnswered };
 }
@@ -638,12 +709,16 @@ function labelOf(item) {
   return typeof value === 'string' && value.trim() !== '' ? value : null;
 }
 
-/** The stopping question's answer as `more`, `continue` or `stop`. */
-function stopOf(label, warnings) {
+/**
+ * The stopping question's answer as `more`, `continue` or `stop`; a label that
+ * names none of them takes the fallback, `undecided` or `continue`.
+ */
+function stopOf(label, fallback, warnings) {
   const hit = STOP_ANSWERS.find(([pattern]) => pattern.test(label.trim()));
   if (hit) return hit[1];
-  warnings.push(`runner-stop-unread: the stopping answer "${label}" names no round, continue or stop; read as continue`);
-  return 'continue';
+  const stop = fallback();
+  warnings.push(`runner-stop-unread: the stopping answer "${label}" names no round, continue or stop; read as ${stop}`);
+  return stop;
 }
 
 /** The decisions files written for this node's attempt. */

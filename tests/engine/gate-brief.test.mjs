@@ -1526,6 +1526,60 @@ test('Review line: a step that registered nothing is named by its declared folde
     [['analysis/spec.md', 'Specification'], ['analysis/mockups/', '1 file']]);
 });
 
+/**
+ * A run at a gate closing the nodes `shape` lists, each a direct node whose summary registers the
+ * artifacts it is given and whose files are on disk, as the research foundation and its stretch do.
+ */
+function explainerRun(t, nodes) {
+  const run = scratch(t);
+  const definition = path.join(run.root, 'explaining.yml');
+  const ids = Object.keys(nodes);
+  fs.writeFileSync(definition, [
+    'name: development', 'version: 1', 'nodes:',
+    ...ids.flatMap((id, index) => [`  ${id}:`, `    uses: "direct:${id}"`, `    needs: [${index ? ids[index - 1] : ''}]`]),
+    '  approval:', '    type: gate', `    needs: [${ids.join(', ')}]`, '    ask: "Research complete. Continue?"',
+    '    options: {go-on: continue, halt: stop}',
+    '  wrap-up: {uses: "direct:wrap-up", needs: [approval]}', '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'explaining.md'),
+    `# Explaining — node prose\n\n${[...ids, 'wrap-up'].map(id => `## \`${id}\`\n\nN.\n`).join('\n')}`);
+  freeze(run, { definition });
+  for (const id of ids) {
+    for (const artifact of nodes[id]) {
+      onDisk(run, artifact.path);
+      if (artifact.html) onDisk(run, artifact.html);
+    }
+    write(run, { nodes: { [id]: { status: 'completed' } }, node_summaries: { [id]: { summary: `Wrote ${id}.`, artifacts: nodes[id] } } });
+  }
+  return run;
+}
+
+test('Review line: a direct node\'s HTML-only primary page leads, then the report with its page, then the synthesis; the brief is cut by the cap of three', t => {
+  const run = explainerRun(t, {
+    foundation: [
+      { path: 'outputs/research-explainer.html', label: 'Explainer', role: 'primary' },
+      { path: 'outputs/research-report.md', label: 'Report', role: 'primary', html: 'outputs/research-report.html' },
+      { path: 'analysis/synthesis.md', label: 'Synthesis', role: 'review' },
+      { path: 'planning/brief.md', label: 'Brief', role: 'review' },
+    ],
+  });
+  assert.equal(lastLine(brief(run, 'approval').stdout),
+    `Review: ${fromRoot(run, 'outputs/research-explainer.html')}, ${fromRoot(run, 'outputs/research-report.md')} (HTML: research-report.html), ${fromRoot(run, 'analysis/synthesis.md')}`);
+  const checkpoint = JSON.parse(verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.deepEqual(checkpoint.review.slice(0, 2), [
+    { path: 'outputs/research-explainer.html', label: 'Explainer', html: null, role: 'primary' },
+    { path: 'outputs/research-report.md', label: 'Report', html: 'outputs/research-report.html', role: 'primary' },
+  ]);
+});
+
+test('Review line: a direct node\'s HTML-only primary page comes before a stretch node\'s exploration', t => {
+  const run = explainerRun(t, {
+    brainstorm: [{ path: 'outputs/solution-exploration.md', label: 'Exploration', role: 'review' }],
+    convergence: [{ path: 'outputs/research-explainer.html', label: 'Explainer', role: 'primary' }],
+  });
+  assert.equal(lastLine(brief(run, 'approval').stdout), `Review: ${['outputs/research-explainer.html', 'outputs/solution-exploration.md'].map(file => fromRoot(run, file)).join(', ')}`);
+});
+
 test('Review line: an empty folder is not named', t => {
   const run = mockupsRun(t, 0, 'folder');
   fs.mkdirSync(path.join(run.dir, 'analysis/mockups'), { recursive: true });
@@ -2080,4 +2134,20 @@ test('gate-brief: the display panel at a gate with several continues shows the r
   const panel = JSON.parse(fs.readFileSync(path.join(run.dir, 'display/next.json'), 'utf8'));
   assert.ok(panel.glance.includes('Next: Planning (skipping Specification audit)'), JSON.stringify(panel.glance));
   assert.equal(panel.parts.find(part => part.key === 'next').text, 'Planning (skipping Specification audit)');
+});
+
+test('gate-brief --checkpoint: a host-answered question lands in decisions.host, never in operator or run, and a run without one has no host key', t => {
+  const hostItem = {
+    by: 'run', actor: { kind: 'host', id: 'copilot' }, question_id: 'scope', question: 'Which scope?', answer: 'Narrow', recommended: 'Wide', as_recommended: false,
+  };
+  const withHost = atApproval(t, { ...SUMMARY, decisions: [...SUMMARY.decisions, hostItem] });
+  const cp = JSON.parse(verb(['gate-brief', `--state=${withHost.state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.deepEqual(cp.decisions.host, [{
+    decision: 'Narrow', question: 'Which scope?', answer: 'Narrow', recommended: 'Wide', as_recommended: false, question_id: 'scope', node: 'analysis', host: 'copilot',
+  }]);
+  assert.equal(cp.decisions.operator.count, 0, 'not counted as an operator choice');
+  assert.deepEqual(cp.decisions.run.map(item => item.decision), ['Patch the tokenizer'], 'not counted among the run\'s own');
+
+  const without = JSON.parse(verb(['gate-brief', `--state=${atApproval(t).state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.equal(Object.hasOwn(without.decisions, 'host'), false);
 });

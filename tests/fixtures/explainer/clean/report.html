@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nightly build report</title>
+<style>
+  :root { --bg: #f6f7f9; --fg: #1a1d23; --accent: #4f46e5; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111318; --fg: #e5e7eb; --accent: #818cf8; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px; }
+  .crumbs { display: flex; gap: 14px; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+<nav class="crumbs"><a href="../dashboard.html">&larr; Dashboard</a><a href="research-explainer.html">Explainer</a><span class="here">Report</span><a class="md" href="report.md">md twin &#8599;</a></nav>
+<h1 id="nightly-build-report">Nightly build report</h1>
+
+<h2 id="summary">Summary</h2>
+<p>Nightly builds wait on the dependency cache, not on the compiler. Across 14 findings from 9 sources, 62% of a nightly build is spent restoring and re-uploading the cache. The median build takes 38 minutes: 23 minutes go to restoring and uploading the cache, and compiling takes 9 minutes. We compared 3 options. Keeping the cache per branch brings the build to about 15 minutes.</p>
+
+<h2 id="how-the-pipeline-runs">How the pipeline runs</h2>
+<p>Each nightly build checks out the code, restores the whole dependency cache, compiles, and uploads the cache again. The restore and the upload move the whole archive on every run.</p>
+
+<h2 id="timing-breakdown">Timing breakdown</h2>
+<table>
+  <tr><th>Stage</th><th>Minutes</th></tr>
+  <tr><td>Restore cache</td><td>14</td></tr>
+  <tr><td>Upload cache</td><td>9</td></tr>
+  <tr><td>Compile</td><td>9</td></tr>
+</table>
+<p>The test stage is timed in the findings.</p>
+
+<h2 id="incident-on-the-release-night">Incident on the release night</h2>
+<p>The release-night build started at 1:00. By 1:30 a cache miss had forced a full restore, compiling began at 2:00, and the cache upload timed out at 2:24. The build took 84 minutes.</p>
+
+<h2 id="options-compared">Options compared</h2>
+<table>
+  <tr><th>Case</th><th>Keep as is</th><th>Cache per branch</th><th>Remote build cache</th></tr>
+  <tr><td>Nightly, main</td><td>38 min</td><td>about 15 min</td><td>about 12 min</td></tr>
+  <tr><td>Release night</td><td>84 min</td><td>about 18 min</td><td>about 14 min</td></tr>
+  <tr><td>New dependency</td><td>41 min</td><td>41 min</td><td>about 20 min</td></tr>
+</table>
+
+<h2 id="recommendations">Recommendations</h2>
+<p>Keep the dependency cache per branch: a nightly build on main then restores 1.2 GB instead of 4.8 GB and ends near 15 minutes. A remote build cache helps the new-dependency build most, which happens about twice a month; it is deferred.</p>
+</main>
+</body>
+</html>

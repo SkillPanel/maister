@@ -147,6 +147,11 @@
             "transport": "question-set"
           },
           {
+            "id": "verification-go-on",
+            "node": "verification",
+            "transport": "question-set"
+          },
+          {
             "id": "docs-fixes",
             "node": "user-docs",
             "transport": "question-set"
@@ -299,6 +304,11 @@
             "transport": "default"
           },
           {
+            "id": "verification-go-on",
+            "node": "verification",
+            "transport": "default"
+          },
+          {
             "id": "docs-fixes",
             "node": "user-docs",
             "transport": "default"
@@ -446,6 +456,11 @@
           },
           {
             "id": "verification-fix-loop",
+            "node": "verification",
+            "transport": "in-session"
+          },
+          {
+            "id": "verification-go-on",
             "node": "verification",
             "transport": "in-session"
           },
@@ -582,6 +597,10 @@
         "node": "verification"
       },
       {
+        "id": "verification-go-on",
+        "node": "verification"
+      },
+      {
         "id": "docs-fixes",
         "node": "user-docs"
       }
@@ -663,6 +682,11 @@
             "id": "verification-fix-loop",
             "node": "issue-resolution",
             "transport": "question-set"
+          },
+          {
+            "id": "verification-go-on",
+            "node": "issue-resolution",
+            "transport": "question-set"
           }
         ]
       },
@@ -738,6 +762,11 @@
           },
           {
             "id": "verification-fix-loop",
+            "node": "issue-resolution",
+            "transport": "default"
+          },
+          {
+            "id": "verification-go-on",
             "node": "issue-resolution",
             "transport": "default"
           }
@@ -817,6 +846,11 @@
             "id": "verification-fix-loop",
             "node": "issue-resolution",
             "transport": "in-session"
+          },
+          {
+            "id": "verification-go-on",
+            "node": "issue-resolution",
+            "transport": "in-session"
           }
         ]
       }
@@ -883,6 +917,10 @@
       },
       {
         "id": "verification-fix-loop",
+        "node": "issue-resolution"
+      },
+      {
+        "id": "verification-go-on",
         "node": "issue-resolution"
       }
     ]
@@ -992,6 +1030,11 @@
             "id": "verification-fix-loop",
             "node": "verification",
             "transport": "question-set"
+          },
+          {
+            "id": "verification-go-on",
+            "node": "verification",
+            "transport": "question-set"
           }
         ]
       },
@@ -1078,6 +1121,11 @@
           },
           {
             "id": "verification-fix-loop",
+            "node": "verification",
+            "transport": "default"
+          },
+          {
+            "id": "verification-go-on",
             "node": "verification",
             "transport": "default"
           }
@@ -1168,6 +1216,11 @@
             "id": "verification-fix-loop",
             "node": "verification",
             "transport": "in-session"
+          },
+          {
+            "id": "verification-go-on",
+            "node": "verification",
+            "transport": "in-session"
           }
         ]
       }
@@ -1243,6 +1296,10 @@
       },
       {
         "id": "verification-fix-loop",
+        "node": "verification"
+      },
+      {
+        "id": "verification-go-on",
         "node": "verification"
       }
     ]

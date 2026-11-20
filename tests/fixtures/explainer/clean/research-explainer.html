@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nightly builds explainer</title>
+<style>
+  :root { --bg: #f6f7f9; --fg: #1a1d23; --muted: #6b7280; --accent: #4f46e5; --card: #fff; --line: #e2e5ea; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111318; --fg: #e5e7eb; --muted: #9ca3af; --accent: #818cf8; --card: #1b1e25; --line: #2b2f38; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 36px; }
+  .crumbs { display: flex; gap: 14px; font-size: 13px; flex-wrap: wrap; }
+  .crumbs .here { font-weight: 650; }
+  .big { font-size: 64px; font-weight: 700; line-height: 1; color: var(--accent); }
+  .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 16px; min-width: 90px; }
+  .crow { display: grid; grid-template-columns: 110px 1fr 60px; gap: 10px; align-items: center; }
+  .crow .bar { height: 16px; border-radius: 4px; background: var(--accent); }
+  .tlbar { display: flex; height: 44px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .axis { display: flex; justify-content: space-between; color: var(--muted); }
+  .rec { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .dec { background: var(--card); border-left: 4px solid var(--accent); border-radius: 10px; padding: 14px 16px; }
+  a.evidence { font-size: 12.5px; color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<nav class="crumbs"><a href="../dashboard.html">&larr; Dashboard</a><span class="here">Explainer</span><a href="report.html">Report</a><a class="md" href="report.md">report md &#8599;</a></nav>
+
+<header class="hero">
+  <span class="eyebrow">Research &middot; confidence medium &middot; 14 findings from 9 sources</span>
+  <h1>Nightly builds wait on the cache, not on the compiler</h1>
+  <div class="hero-row"><div class="big">62%</div><p class="lede">of a nightly build is spent restoring and re-uploading the dependency cache. Compiling takes 9 minutes of the 38. Keep the cache per branch and the build drops to about 15 minutes.</p></div>
+  <div class="tiles">
+    <div class="tile" title="38 min median build"><b>38 min</b><span>median build</span></div>
+    <div class="tile"><b>23 min</b><span>cache restore + upload</span></div>
+    <div class="tile"><b>9 min</b><span>compile</span></div>
+    <div class="tile"><b>3</b><span>options compared</span></div>
+  </div>
+  <a class="evidence" href="report.html#summary">Evidence: report &sect; Summary &rarr;</a>
+</header>
+
+<section>
+  <h2>How a build spends its time</h2>
+  <svg viewBox="0 0 640 150" role="img" aria-label="Checkout, restore cache, compile, upload cache" xmlns="http://www.w3.org/2000/svg">
+    <rect x="10" y="50" width="120" height="50" rx="8" fill="#eef2ff" stroke="#4f46e5"/><text x="70" y="80" text-anchor="middle" font-size="13">Checkout</text>
+    <rect x="170" y="50" width="140" height="50" rx="8" fill="#fffbeb" stroke="#d97706"/><text x="240" y="74" text-anchor="middle" font-size="13">Restore cache</text><text x="240" y="90" text-anchor="middle" font-size="11">whole archive, every run</text>
+    <rect x="350" y="50" width="110" height="50" rx="8" fill="#ecfdf3" stroke="#16a34a"/><text x="405" y="80" text-anchor="middle" font-size="13">Compile</text>
+    <rect x="500" y="50" width="130" height="50" rx="8" fill="#fffbeb" stroke="#d97706"/><text x="565" y="80" text-anchor="middle" font-size="13">Upload cache</text>
+    <path d="M130 75 H168" stroke="#6b7280" stroke-width="2"/><path d="M310 75 H348" stroke="#6b7280" stroke-width="2"/><path d="M460 75 H498" stroke="#6b7280" stroke-width="2"/>
+  </svg>
+  <a class="evidence" href="report.html#how-the-pipeline-runs">Evidence: report &sect; How the pipeline runs &rarr;</a>
+</section>
+
+<section>
+  <h2>Where the minutes go</h2>
+  <div class="chart">
+    <div class="crow"><span>Restore cache</span><div class="bar" style="width:37%"></div><b>14 min</b></div>
+    <div class="crow"><span>Upload cache</span><div class="bar" style="width:24%"></div><b>9 min</b></div>
+    <div class="crow"><span>Compile</span><div class="bar" style="width:24%"></div><b>9 min</b></div>
+    <div class="crow"><span>Tests</span><div class="bar" style="width:16%"></div><b>6 min</b></div>
+  </div>
+  <a class="evidence" href="report.html#timing-breakdown">Evidence: report &sect; Timing breakdown &rarr;</a>
+</section>
+
+<section>
+  <h2>The night it went wrong</h2>
+  <div class="tlbar"><div style="flex:2">01:00 start</div><div style="flex:5">cache miss &rarr; full restore</div><div style="flex:1">compile</div><div style="flex:3">upload timed out</div></div>
+  <div class="axis"><span>01:00</span><span>01:30</span><span>02:00</span><span>02:24</span></div>
+  <a class="evidence" href="report.html#incident-on-the-release-night">Evidence: report &sect; Incident on the release night &rarr;</a>
+</section>
+
+<section>
+  <h2>The options, against the same builds</h2>
+  <table>
+    <tr><th>Case</th><th>Keep as is</th><th class="rec">Cache per branch</th><th>Remote build cache</th></tr>
+    <tr><td>Nightly, main</td><td>38 min</td><td class="rec">~15 min</td><td>~12 min</td></tr>
+    <tr><td>Release night</td><td>84 min</td><td class="rec">~18 min</td><td>~14 min</td></tr>
+    <tr><td>New dependency</td><td>41 min</td><td class="rec">41 min</td><td>~20 min</td></tr>
+    <tr><td>Cost</td><td>none</td><td class="rec">one setting</td><td>a service to run</td></tr>
+  </table>
+  <a class="evidence" href="report.md#options-compared">Evidence: report &sect; Options compared &rarr;</a>
+</section>
+
+<section>
+  <h2>What the research recommends</h2>
+  <div class="dec"><b>Keep the dependency cache per branch</b><p>Worked case: a nightly build on main restores 1.2 GB instead of 4.8 GB, and ends near 15 minutes.</p><a class="evidence" href="report.html#recommendations">Evidence: report &sect; Recommendations &rarr;</a></div>
+  <div class="dec"><b>Defer a remote build cache</b><p>Worked case: it helps the new-dependency build most, which happens about twice a month.</p></div>
+</section>
+
+<footer>This page says nothing the report does not. Every number traces to the report or its findings.</footer>
+</main>
+</body>
+</html>

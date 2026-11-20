@@ -35,7 +35,7 @@ any other key that is missing. Four keys are read:
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `html_output` | `true` or `false` | `true` | With `false`, runs write no dashboard (`dashboard.html`, `dashboard-data.js`), open nothing in a browser and write no HTML companion pages. The Markdown documents and the run's state file are written either way. |
+| `html_output` | `true` or `false` | `true` | With `false`, runs write no dashboard (`dashboard.html`, `dashboard-data.js`), open nothing in a browser and write no HTML companion pages and no explainer page. The Markdown documents and the run's state file are written either way. |
 | `mockup_format` | `html` or `ascii` | `html` | How UI mockups are drawn when a run makes them: HTML pages with a gallery, or ASCII in the terminal, which needs no browser. Details: [Mockups](mockups.md). |
 | `subagents` | map | Maister's own table | Which model and effort each subagent runs on, per host. See [Subagent models](#subagent-models). |
 | `project` | map | none | What the project is, so the reviewers check what applies to it. See [The project profile](#the-project-profile). |
@@ -96,13 +96,13 @@ them runs.
 | development | `analysis/`: codebase analysis, clarifications, gap analysis, requirements; `research-context/`, `design-context/`, `architecture-context/` and `work-context/` when you pass a research task, a design, an architecture or a context pack; the UI mockups in `design-context/`. `implementation/`: `spec.md`, `implementation-plan.md`, `work-log.md`, the failing-test and passing-test records for a bug fix. `verification/`: the specification audit, `implementation-verification.md`, the browser check reports and `screenshots/`. `documentation/`: `user-guide.md` and its `screenshots/`. At the root: `commit-message.txt` and `standard-candidates.json`. |
 | performance | `analysis/`: codebase analysis, `performance-analysis.md`, requirements, `user-profiling-data/` for files you add. `implementation/`: spec, plan, work log. `verification/`: the specification audit and `implementation-verification.md`. At the root: `standard-candidates.json`. |
 | migration | `analysis/`: current state, target state plan, requirements, `rollback-plan.md`. `implementation/`: spec, plan, work log. `verification/`: `implementation-verification.md`, `compatibility-test-results.md`. `documentation/migration-guide.md` with `--user-docs`. At the root: `standard-candidates.json`. |
-| research | `planning/`: research brief, plan, sources. `analysis/`: `findings/`, `synthesis.md`, `work-context/` when you pass a context pack. `outputs/`: `research-report.md`, and with brainstorming or a design `solution-exploration.md`, `high-level-design.md`, `decision-log.md`. |
+| research | `planning/`: research brief, plan, sources. `analysis/`: `findings/`, `synthesis.md`, `work-context/` when you pass a context pack. `outputs/`: `research-report.md`, `research-explainer.html` (with `html_output` on), and with brainstorming or a design `solution-exploration.md`, `high-level-design.md`, `decision-log.md`. |
 | product-design | `context/research-context/` when you name a research task. `analysis/`: `scope.md`, `explore/`, problem statement, personas, alternatives, design decisions, the feature specification when you ask for one, `work-context/` when you pass a context pack, and `mockups/` with every version under `mockups/versions/`. `outputs/`: `product-brief.md` and `delivery-scope.yml`. |
 | mockup-studio | The run's state and `turn-result.json`; the mockups under `analysis/mockups/versions/vNNN/`, or under the folder you name. See [Mockups](mockups.md). |
 
 With `html_output` on, the main documents also get an `.html` page beside the `.md`, for reading:
 the specification, the plan and the verification report in development, performance and
-migration, and the browser check reports in development; the research report, the solution
+migration, and the browser check reports in development; the research report, the research explainer, the solution
 exploration, the design and the decision log in research; the alternatives, the design decisions,
 the specification and the brief in product design.
 

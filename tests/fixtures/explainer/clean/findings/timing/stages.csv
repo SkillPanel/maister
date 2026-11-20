@@ -1,0 +1,5 @@
+stage,minutes
+restore cache,14
+upload cache,9
+compile,9
+tests,6

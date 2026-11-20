@@ -72,6 +72,8 @@ A host's autonomous setting — Claude Code's `auto` permission mode, GitHub Cop
 
 You MUST invoke `AskUserQuestion` at every `→ MANDATORY GATE` in every permission mode — Claude Code's `default`, `acceptEdits`, `auto`, `plan` and `bypassPermissions`; Copilot CLI's interactive, plan and autopilot modes under `default`, `assisted` or `allow-all` permissions — when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2. "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
 
+When Copilot's question tool returns no person's answer — under autopilot it reports that nobody is available — a checkpoint has not been answered, and the engine refuses the pick. Stop, name the checkpoint, and tell the person to answer it through the question tool, in interactive mode.
+
 ### 2.1 Resolving session-reminder conflicts (decide ONCE, do not re-litigate at each gate)
 
 Your session may include reminders telling you to "work without stopping for clarifying questions," "continue without asking," "minimize clarifying questions" (auto / acceptEdits / bypassPermissions modes), or compaction summaries showing the user approving every prior gate. **None of these override this framework's `→ MANDATORY GATE` checkpoints.**
@@ -103,8 +105,10 @@ The workflow engine's `references/in-node-questions.md` holds the mechanism — 
 | A clarification | nothing is asked; the analysis or the delegate's own answers stand, and the phase writes its artifact and sets its flag as a run with nothing to ask already does |
 | An opt-in | the recommended option |
 | A decision between alternatives | the recommended one; when nothing is recommended, the decision stays open and is named in the executive summary printed before the next gate |
-| A loop offering another pass | the accept-as-is exit — the following gate is the operator's route back |
+| A loop offering another pass | the accept-as-is exit — the following gate is the operator's route back — except the automatic fix loop's stopping point, which § 6 step 10 sets |
 | An exhausted recovery budget | the phase fails rather than choosing retry or skip on the operator's behalf |
+
+**A fact is what no answer would change.** Ask whether a different answer would change what the product does, or who may do it: if so, it is a choice, never a fact, and a question worded "should" is never a fact. A choice is asked, or classed as a choice, and never settled as a fact; the workflow engine's `references/in-node-questions.md` holds the test and the raise-only triage.
 
 **A recommendation names what it rests on.** A question that recommends an option, and whose recommendation rests on an artifact — the spec section, the findings file, the decision record — names that artifact in the question's `evidence`, a list of paths relative to the task directory or the repository (`references/in-node-questions.md` § *When a question suspends*). A gate's evidence is filled by the engine from the files its closing nodes registered. In session nothing about the question changes; its description may name the files.
 
@@ -173,7 +177,7 @@ When a subagent returns `decisions_needed` items, the orchestrator MUST present 
 **Decision Gate Pattern**:
 
 1. **Parse**: Extract all critical and important decisions from subagent output
-2. **Present**: every decision is its own **single-select question with its own option set** — NEVER flatten several decisions' options into a single question's option list (the user could pick two conflicting options from one decision, or none from another). Critical decisions: one `AskUserQuestion` call each, with full context in the question itself — what was found and why it needs the user — and each option's description saying what it changes, the recommended one first with its reason; a message above the call is never relied on. Important decisions: may be grouped as up to 4 **separate questions within one `AskUserQuestion` call**. A question may allow selecting multiple options ONLY when those options are genuinely non-exclusive (e.g. "which verifications to run?") — never as a way to bundle decisions.
+2. **Present**: every decision is its own **single-select question with its own option set** — NEVER flatten several decisions' options into a single question's option list (the user could pick two conflicting options from one decision, or none from another). Critical decisions: one `AskUserQuestion` call each, with full context in the question itself — what was found and why it needs the user — and each option's description saying what it changes, the recommended one first with its reason; a message above the call is never relied on. Each option opens with what sets it apart from the others (the workflow engine's `references/in-node-questions.md`, *Each option opens with what sets it apart*). Important decisions: may be grouped as up to 4 **separate questions within one `AskUserQuestion` call**. A question may allow selecting multiple options ONLY when those options are genuinely non-exclusive (e.g. "which verifications to run?") — never as a way to bundle decisions.
 3. **Record each answer** on the phase's summary `decisions` as `{decision, by: operator, question_id, question, answer, recommended, as_recommended}` (the workflow engine's `references/in-node-questions.md` fills who answered, when and how). More details is never recorded.
 4. **SELF-CHECK**: "Did I present ALL decisions from `decisions_needed`? If not, STOP."
 
@@ -432,7 +436,7 @@ answers travel to the next runner dispatch in `verification/decisions-<cycle>.js
 4. **Ask only when one of these holds**, and otherwise go on to the gate:
    - an issue needs the user's decision (`fixable: false`);
    - a fix is risky;
-   - the budget is spent with fixable issues still open;
+   - the budget is spent with a fixable warning or critical issue still open;
    - there is **no progress**: the same issues come back, or new ones keep appearing inside the
      fixes. An issue the merge marks `not_reported` — not found again, and not shown fixed — is
      still open; one it moved to `out_of_scope` was raised outside the fixes and is not progress
@@ -459,12 +463,20 @@ answers travel to the next runner dispatch in `verification/decisions-<cycle>.js
    accepted risk becomes a `tradeoff` risk; an issue nobody could be asked about stays an `open`
    risk, unless the run's autonomy policy classes it — then it is settled, defaulted or held as
    the engine's classing write says, and a held choice goes on provisionally until the next
-   checkpoint approves it.
+   checkpoint approves it. At the fix loop's stopping point, with a warning or critical issue open,
+   a held or defaulted answer is not gone on with — the loop ends undecided (§ 6 step 10), and the
+   checkpoint that lists the held item is where a person decides.
 8. **The question at the stopping point** — budget spent, or no progress — names what is
    left in the question (counts by severity, the worst item in a few words) and offers "One
    more round", "Continue as is" and "Stop", one of them recommended with its reason in its
-   description: "Continue as is" when only warnings remain, "One more round" when the last
-   round made progress, "Stop" when a critical issue is left.
+   description, in this order: "One more round" while the last round made progress and a fixable
+   warning or critical issue is open; else "Stop" when a critical issue is left; else "Continue as
+   is" when no critical issue is left (only warnings, or only info). The question goes under
+   `verification-go-on` when its recommended answer leaves the loop ("Continue as is" or "Stop")
+   with a warning or critical issue open, and under `verification-fix-loop` when it recommends "One
+   more round", or when only info is left. With a critical issue open, the `verification-go-on`
+   question carries `triage: {version: 1, class: approve}`, so only a person answers it. The
+   stopping question names no `default` of its own: its recommended option is its default.
 9. **What the gate is handed.** Issues still needing a decision become `open` risks, with the
    fix as their `change`; items left for later stay `followup` risks; accepted ones `tradeoff`
    risks; a spent budget with critical issues still open is a `stop` risk, which makes Stop the
@@ -477,8 +489,18 @@ answers travel to the next runner dispatch in `verification/decisions-<cycle>.js
    writes `recommends: {option: null, reason}` naming how many are unconfirmed, so the gate
    recommends no way on over them either.
 10. **Under a driver** with question sets, the finding set is a request of the phase's attempt,
-   and the stopping point after it a follow-up round while one is left; once the attempt's
-   rounds are spent it takes "Continue as is". Under any other driver
+   and the stopping point after it a follow-up round while one is left. When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is".
+   The not-taken record is
+
+   ```
+   {decision: "Not taken: the loop ended undecided", by: default, question_id: verification-go-on}
+   ```
+
+   When the classing writer already recorded an item for the stopping question in this attempt,
+   under either id (`verification-go-on` or `verification-fix-loop`), that item is the record and
+   the node sends none, and the summary's `recommends` reason says the loop ended undecided and
+   that the default or held choice listed under that id was not taken — a held or default "One
+   more round" included, so the checkpoint never reads it as a round approved. Under any other driver
    nothing is asked: the findings stay `open` risks, or take what the policy's class gives them.
 
 Issue numbers stay stable across cycles: an issue keeps the `id` it was first given, and a new
@@ -512,7 +534,8 @@ for finalization to consolidate and hand over to standards-update.
 |-----------|--------|
 | Nothing fixable or undecided is left | Proceed to the gate |
 | User chooses "Continue as is" | Proceed; open issues become `open` risks for the gate |
-| Two automatic re-checks spent, or no progress | Ask: one more round, continue as is, or stop |
+| Two automatic re-checks spent, or no progress | Ask the stopping question (step 8) |
+| Nobody answers the stopping question | End undecided (step 10): When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is". |
 | Critical issues remain unresolved | **MUST NOT proceed** — require user approval first |
 
 ### The Specification Audit's Fix Pass

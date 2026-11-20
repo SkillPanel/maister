@@ -122,10 +122,10 @@ import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
 import { SUITE_RUNS, attemptOf, childRootOf, definitionPathOf, htmlOutput, isStalePage, projectRootOf } from './state.mjs';
 import { STORIES_HEADING, approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
-import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
+import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, isHostAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { areasProducer } from './decision-areas.mjs';
-import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked, setForm } from './question-set.mjs';
+import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked, setForm, sharedOpenings } from './question-set.mjs';
 
 // The note question's call, for `gate-brief --ask --note`: the verb loads this module alone.
 export { noteForm } from './checkpoint.mjs';
@@ -559,9 +559,11 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
     }
     set = { ...set, questions: set.questions.filter(question => asking.includes(question.id)) };
   }
+  // Options of one question that open alike are asked as written, with a
+  // warning: wording is guidance, never a refusal.
+  const warnings = sharedOpenings(set.questions).map(message => ({ code: 'option-openings-shared', message }));
   // Each question's evidence checked against the disk: a path that cannot be
   // kept is dropped with a warning, and never keeps the question from being asked.
-  const warnings = [];
   set = {
     ...set,
     questions: set.questions.map(({ evidence: raw, ...question }) => {
@@ -1602,6 +1604,19 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
             node: entry.id,
           }));
         } else if (decision.as_recommended !== true) asRecommended = false;
+        continue;
+      }
+      if (isHostAnswer(item)) {
+        (decisions.host ??= []).push(compact({
+          decision: decision.decision,
+          question: decision.question,
+          answer: decision.answer,
+          recommended: decision.recommended,
+          as_recommended: typeof decision.as_recommended === 'boolean' ? decision.as_recommended : undefined,
+          question_id: decision.question_id,
+          node: entry.id,
+          host: decision.actor.id,
+        }));
         continue;
       }
       decisions[decision.by].push(compact({

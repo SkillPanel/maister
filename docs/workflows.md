@@ -225,7 +225,7 @@ Research types: `technical`, `requirements`, `literature`, `mixed`.
 ### Steps
 
 1. Research foundation: plan the method, gather information with parallel subagents, synthesize
-   the findings, write the report
+   the findings, write the report and, with HTML pages on, a one-page explainer
 2. Solution brainstorming *(when you choose it)*: alternatives per decision area, with the evidence
 3. Solution convergence *(with brainstorming)*: you decide one area at a time
 4. High-level design *(when you choose it)*: C4 diagrams and decision records
@@ -240,9 +240,12 @@ Research types: `technical`, `requirements`, `literature`, `mixed`.
   decision areas again; or stop.
 - **Design** (when it ran) — continue, revise the design, or stop.
 
-It leaves the research brief, plan and sources, the findings, the synthesis and
-`outputs/research-report.md`; with brainstorming, the solution exploration; with a design,
-`outputs/high-level-design.md` and the decision log. The closing message names the next step,
+With HTML pages on, each checkpoint lists the explainer first.
+
+It leaves the research brief, plan and sources, the findings, the synthesis,
+`outputs/research-explainer.html` (with HTML pages on) and `outputs/research-report.md`; with
+brainstorming, the solution exploration; with a design, `outputs/high-level-design.md` and the
+decision log. The closing message names the next step,
 `/maister:development --research=<task directory>`, in a fresh session. When the research wrote a
 design, `/maister:development --architecture=<task directory>` builds within it instead.
 

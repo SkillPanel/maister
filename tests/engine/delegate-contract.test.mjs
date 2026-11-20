@@ -65,3 +65,36 @@ test('no companion writer declares a tools list', () => {
     assert.doesNotMatch(front, /^tools:/m, `${name} declares no tools:`);
   }
 });
+
+// The explainer writer is not a companion writer: it builds one page from
+// several sources, so it returns an `explainer:` field rather than
+// `companion:`, and it links that page from the suite once the page exists.
+test('the explainer-writer takes the html row, returns each explainer status and runs the check from its plugin path', () => {
+  const text = agent('explainer-writer');
+  assert.match(text, /^\|\s*`html`\s*\|[^\n]*run-context[^\n]*\|[^\n]*`html: off`/m, 'it has the shared html input row');
+  assert.match(text, /^\s*explainer:\s*"?written/m, 'it returns an explainer field in its structured result');
+  for (const status of ['written', 'disabled', 'failed', 'not-requested']) {
+    assert.match(text, new RegExp(`explainer: ${status}`), `it returns explainer: ${status}`);
+  }
+  const front = text.split(/^---$/m)[1];
+  assert.doesNotMatch(front, /^tools:/m, 'it declares no tools:');
+  assert.doesNotMatch(front, /^model:/m, 'it names no model:');
+  assert.ok(text.includes('`<plugin root>/skills/orchestrator-framework/scripts/check-explainer.mjs`'), 'it names the check script under the plugin root');
+  assert.match(text, /never search(ed)? for/, 'it never searches for the check script');
+  assert.ok(fs.existsSync(path.join(ROOT, 'plugins/maister/skills/orchestrator-framework/scripts/check-explainer.mjs')), 'the check script is where the agent says');
+});
+
+test('the explainer-writer adds its crumb to the suite pages after its page is written, and changes nothing else there', () => {
+  const text = agent('explainer-writer');
+  const workflow = text.split(/^## Workflow/m)[1]?.split(/^## /m)[0] ?? '';
+  const write = workflow.search(/^\d+\. \*\*Write the page/m);
+  const link = workflow.search(/^\d+\. \*\*Link the page from the suite/m);
+  assert.ok(write >= 0, 'the workflow has a step that writes the page');
+  assert.ok(link > write, 'the crumb step comes after the page is written');
+  const step = workflow.slice(link).split(/^\d+\. \*\*/m)[1] ?? '';
+  assert.ok(step.includes('`<a href="<file name>">Explainer</a>`'), 'the step names the crumb link it inserts');
+  assert.match(step, /`report_suite`/, 'the crumb goes into the report_suite pages');
+  assert.match(step, /directly after the Dashboard link/, 'the crumb sits after the Dashboard link');
+  assert.match(step, /first in the bar/, 'the crumb opens a bar with no Dashboard link');
+  assert.match(step, /[Cc]hange nothing else/, 'nothing else on those pages changes');
+});
