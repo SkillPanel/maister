@@ -72,7 +72,9 @@ stop. Do no review yourself.
   file: each `answers[]` entry names a finding of your findings list and the option label chosen,
   `"Accept the risk and list it"`, or `null` (nobody answered: it stays open). `stop` is the
   stopping answer: `more` grants one more round past the budget, `continue` ends with the verdict
-  as it stands, `stop` ends with it too. Apply every chosen fix as a fix pass (§ *The fix pass*)
+  as it stands, `stop` ends with it too, and `undecided` ends the loop with the verdict as it
+  stands and nothing accepted on anybody's behalf (nobody answered with a warning or critical
+  issue open, and the node records that). Apply every chosen fix as a fix pass (§ *The fix pass*)
   unless the fix is already in `fixes_applied`, then go on as § 6 of the framework says.
 
 ## A verification cycle
@@ -205,14 +207,17 @@ You carry it out:
   fact is fixed in the document that holds it, as § 6 says.
 
 **Hand back a decision** when § 6 step 4 holds — an issue that needs a person (`fixable: false`),
-a risky fix, the budget spent with fixable issues open, or no progress. First finish every fix
+a risky fix, the budget spent with a fixable warning or critical issue open, or no progress. First finish every fix
 and re-check you can make without asking. Then write `findings_file` in the shape
 `finding-brief` takes (`<plugin_root>/skills/workflow-engine/references/in-node-questions.md`
 § *Findings that need a decision*): one finding per issue still needing a person, `id` its
 kebab-case `name`, most severe first, the proposed fix as its first option; issues with one root
 cause are one finding. An item recommended "leave" that predates the change is not a finding:
 leave it for the node's `followup` risks. Kind `findings` when only findings are open; `budget`
-or `no_progress` when the stopping point is reached (the findings list may then be absent).
+or `no_progress` when the stopping point is reached (the findings list may then be absent):
+`no_progress` whenever the last round made no progress, even with the budget spent; `budget`
+only when the budget is spent, the last round made progress, and a fixable warning or critical
+issue is open.
 
 ## Ending a dispatch
 
@@ -265,7 +270,7 @@ the brief, the writes, the merge, the verdict and the report — move into the m
 differences are three:
 
 - It asks where you would hand back a decision: framework § 6 steps 5–10, as the node's prose says
-  (in session, or a request under a driver), then carries on with the answers.
+  (in session, or a request under a driver), then carries on with the answers. When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is".
 - It writes no `runner-result.json` and no decisions file. In a run it still records every agent
   with `in-flight` before sending it, and adopts an output on disk the same way.
 - Standalone, with no state file, it writes no state at all, asks once which commit the work

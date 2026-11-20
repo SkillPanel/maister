@@ -104,6 +104,11 @@ interface — is not asked: say the answer in one line where the question would 
 ("Browser verification: off — this change has no user interface") and record it as the node
 records an answered one.
 
+**A fact is what no answer would change.** The test is one question: would a different answer
+change what the product does, or who may do it? When it would, the question is a choice, not a
+fact. A question worded "should" is never a fact. A choice is asked, or classed as a choice
+(*When the policy classes a question* gives the raise-only triage), never settled as a fact.
+
 **A recommendation never drops or narrows what was asked for.** The task states what done means
 — its description, its acceptance criteria or "done when" lines, the research question — and the
 recommended option keeps every one of them. An option that narrows one may still be offered, its
@@ -476,7 +481,7 @@ takes:
 | A drafted story | the story as drafted, kept in the requirements as drafted rather than confirmed |
 | A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
 | A finding that needs a decision (a review step's finding questions) | nothing is asked; each finding stays open as an `open` risk for the gate, unless the policy classes it |
-| The automatic fix loop's stopping point | "Continue as is" — the open issues become `open` risks for the gate |
+| The automatic fix loop's stopping point | When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is". |
 | An exhausted recovery budget | the node is recorded `failed`, per engine § *Recording an outcome* |
 | A dispatch closed out partial (*A dispatch closed out partial*) | "Stop the run" — the node, every unexecuted node and the run are recorded `stopped`, and the summary carries what is held as an `open` risk; the work is never accepted and never dispatched again unasked |
 
@@ -565,8 +570,11 @@ re-run step sends the question again with that option as its recommended option 
 `default`), and the classing write holds it for a later continue to approve.
 
 **What the set carries.** The question ids it sends are the ids the node's question-set lines
-in its prose declare; another id reads as itself and may fall to the policy's unknown family. A
-question with no options — open text — cannot travel in a set: leave it out of the classing write
+in its prose declare. A declared id reads as itself; an undeclared one reads as the longest
+declared id it extends (`<declared>-…`), else as the node's only declared id. With several
+declared ids and none it extends, it reads as itself, and may fall to the policy's unknown
+family (only when the policy has one; otherwise it finds no row of its own). A new id that must
+be classed on its own is therefore declared, never spelled as an extension. A question with no options — open text — cannot travel in a set: leave it out of the classing write
 and ask it, or take its default, exactly as the sections above say.
 
 **A held choice is provisional.** It may shape the steps after it, but nothing irreversible is
@@ -575,9 +583,18 @@ It forces the next checkpoint that runs, whose continue approves it; a person wh
 sends its step back with a revise and a note (`references/gates.md` § *Revising at a gate*,
 *For a held choice*). When no checkpoint follows, the closing node asks `held-approval` before
 it closes (`references/gates.md` § *The closing checkpoint `held-approval`*). Say this when you
-present the checkpoint in session: continuing approves what is listed as held.
+present the checkpoint in session: continuing approves what is listed as held. At the fix
+loop's stopping point, with a warning or critical issue open, a held or defaulted answer is not
+gone on with: the loop ends undecided (framework § 6 step 10), and the checkpoint that lists
+the held item is where a person decides.
 
-**What a node never does here.** It never composes a triage, never sends `asking` or
+**A stricter reading is carried, never a looser one.** A step's own judgement may only make a
+question stricter. It carries `triage: {version: 1, class: <class>}` on the set's question, and
+the writer keeps the stricter of the two. With a policy that classes nothing, the carried
+triage is set aside. It never names a floor id or a family.
+
+**What a node never does here.** It never writes a triage on its own decisions and never
+carries one that lowers a class or proposes a looser reading; it never sends `asking` or
 `classes_questions`, and never sends its own `by: run` or `by: default` item for a question the
 writer classed: the writer drops each with a note and keeps its own. It never asks a question the
 writer settled, defaulted or held, and never treats a held choice as approved. A later write may

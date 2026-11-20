@@ -362,12 +362,13 @@ test('under a cockpit with question sets each decision suspends while a round is
   assert.equal(stepOf(run).next, 'dispatch');
   assert.equal(decisionsOf(run, 3).rounds_seen, 3);
 
-  // With the rounds spent, a fourth decision cannot ask: the defaults, and the stop at continue.
+  // With the rounds spent, a fourth decision cannot ask: the defaults, and with
+  // a critical and a warning open the loop ends undecided rather than going on.
   cycleEntry(run, 4);
   assert.equal(record(run, needs(4, 'budget')).code, 0);
   assert.deepEqual(stepOf(run), { next: 'dispatch', resume: { cycle: 4, decisions_file: 'verification/decisions-4.json' } });
   const later = decisionsOf(run, 4);
-  assert.equal(later.stop, 'continue');
+  assert.equal(later.stop, 'undecided');
   assert.ok(later.answers.every(item => item.answer === null && item.by === 'default'));
   assert.equal(later.rounds_seen, 3);
 });
@@ -410,6 +411,202 @@ test('a cockpit without question sets cannot ask either', t => {
   placeFindings(run);
   assert.equal(record(run, needs(1)).code, 0);
   assert.equal(stepOf(run).next, 'dispatch');
+});
+
+// ---------------------------------------------------------------------------
+// going on past an open warning or critical finding
+// ---------------------------------------------------------------------------
+
+const GO_ON = 'verification-go-on';
+/** A stopping point with `counts` left open. */
+const stopping = (cycle, counts, kind = 'budget') => ({ ...needs(cycle, kind), counts: { info: 0, fixed: 2, ...counts } });
+
+test('once the rounds are spent, a stopping point with a warning or a critical open does not go on as is', t => {
+  for (const counts of [{ critical: 0, warning: 1 }, { critical: 1, warning: 0 }]) {
+    const run = verifying(t, { orchestrator: { driver: COCKPIT } });
+    placeFindings(run);
+    for (const cycle of [1, 2, 3]) {
+      cycleEntry(run, cycle);
+      assert.equal(record(run, needs(cycle)).code, 0);
+      assert.equal(stepOf(run).asking, 'suspend');
+      write(run, { node_summaries: { [NODE]: { decisions: [folded('empty-upload', 'Guard the empty body', cycle)] } } });
+      assert.equal(stepOf(run).next, 'dispatch');
+    }
+    cycleEntry(run, 4);
+    assert.equal(record(run, stopping(4, counts)).code, 0);
+    assert.equal(stepOf(run).next, 'dispatch');
+    assert.equal(decisionsOf(run, 4).stop, 'undecided', JSON.stringify(counts));
+  }
+});
+
+test('a driver that neither asks nor classes leaves the loop undecided past a warning, and as is past info alone', t => {
+  const { features: _features, ...bare } = COCKPIT;
+  for (const [counts, stop] of [[{ critical: 0, warning: 1 }, 'undecided'], [{ critical: 0, warning: 0, info: 2 }, 'continue']]) {
+    const run = verifying(t, { orchestrator: { driver: bare } });
+    cycleEntry(run, 1);
+    placeFindings(run);
+    assert.equal(record(run, stopping(1, counts, 'no_progress')).code, 0);
+    assert.equal(stepOf(run).next, 'dispatch');
+    assert.equal(decisionsOf(run, 1).stop, stop, JSON.stringify(counts));
+  }
+});
+
+test('a dispatched run without question sets leaves the stopping point undecided past a warning', t => {
+  const { features: _features, ...bare } = COCKPIT;
+  const run = verifying(t, { orchestrator: { driver: { ...bare, dispatch_id: 'd-1' } } });
+  cycleEntry(run, 1);
+  placeFindings(run);
+  assert.equal(record(run, stopping(1, { critical: 0, warning: 1 })).code, 0);
+  assert.equal(stepOf(run).next, 'dispatch');
+  assert.equal(decisionsOf(run, 1).stop, 'undecided');
+});
+
+test('the go-on question is read under its own id, and an answer nobody gave ends the loop undecided', t => {
+  for (const [item, stop] of [
+    [{ decision: 'Continue as is', by: 'operator', question_id: GO_ON, question: 'Go on with a warning open?', answer: 'Continue as is' }, 'continue'],
+    [{ decision: 'Stop', by: 'operator', question_id: GO_ON, question: 'Go on with a critical open?', answer: 'Stop' }, 'stop'],
+    [{ decision: 'Continue as is', by: 'default', question_id: GO_ON, question: 'Go on with a warning open?' }, 'undecided'],
+  ]) {
+    const run = verifying(t);
+    cycleEntry(run, 3);
+    placeFindings(run);
+    assert.equal(record(run, stopping(3, { critical: 0, warning: 1 })).code, 0);
+    write(run, { node_summaries: { [NODE]: { decisions: [item] } } });
+    stepOf(run, ['--answered']);
+    assert.equal(decisionsOf(run, 3).stop, stop, `${item.by} ${item.decision}`);
+  }
+});
+
+test('the stopping question is asked with the warnings and criticals still open', t => {
+  const run = verifying(t);
+  cycleEntry(run, 3);
+  const findingsFile = placeFindings(run);
+  assert.equal(record(run, stopping(3, { critical: 1, warning: 2 })).code, 0);
+  assert.deepEqual(stepOf(run), {
+    next: 'ask', cycle: 3, kind: 'budget', findings_file: findingsFile, stop_question: true, asking: 'session', classes_questions: false,
+    open: { critical: 1, warning: 2 },
+  });
+});
+
+/** A stopping point whose result carries no counts: the open ones come from elsewhere. */
+const uncounted = cycle => (({ counts: _counts, ...rest }) => rest)(stopping(cycle, {}));
+const countsUnread = stderr => (stderr.match(/runner-counts-unread: /g) ?? []).length;
+
+test('the open counts fall back to the findings file, then to a critical open, warned once', t => {
+  // The findings file the merge wrote holds the counts.
+  const merged = verifying(t);
+  cycleEntry(merged, 2);
+  placeFindings(merged);
+  fs.mkdirSync(merged.verification, { recursive: true });
+  fs.writeFileSync(path.join(merged.verification, 'findings.json'),
+    JSON.stringify({ findings: [], counts: { critical: 0, warning: 1, info: 3, fixed: 0 } }));
+  assert.equal(record(merged, uncounted(2)).code, 0);
+  let result = step(merged);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).open, { critical: 0, warning: 1 });
+  assert.equal(countsUnread(result.stderr), 0);
+
+  // No counts anywhere: read as a critical open, with one warning.
+  const unread = verifying(t);
+  cycleEntry(unread, 2);
+  placeFindings(unread);
+  assert.equal(record(unread, uncounted(2)).code, 0);
+  result = step(unread);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout).open, { critical: 1, warning: 0 });
+  assert.equal(countsUnread(result.stderr), 1, result.stderr);
+  assert.match(result.stderr, /runner-counts-unread: .*; read as a critical open/);
+
+  // A driver that neither asks nor classes ends the loop undecided on that reading.
+  const { features: _features, ...bare } = COCKPIT;
+  const nobody = verifying(t, { orchestrator: { driver: bare } });
+  cycleEntry(nobody, 1);
+  placeFindings(nobody);
+  assert.equal(record(nobody, uncounted(1)).code, 0);
+  result = step(nobody);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(decisionsOf(nobody, 1).stop, 'undecided');
+  assert.equal(countsUnread(result.stderr), 1, result.stderr);
+
+  // One call that collects the answers and then takes the defaults still warns once.
+  const spent = verifying(t, { orchestrator: { driver: COCKPIT } });
+  cycleEntry(spent, 1);
+  placeFindings(spent);
+  // Three rounds answered, none of them this decision's: it cannot be asked again.
+  write(spent, { node_summaries: { [NODE]: { decisions: [{ decision: 'Later', by: 'operator', via: 'cockpit', question_id: 'other-question', question: 'Q', answer: 'Later', round: 3 }] } } });
+  assert.equal(record(spent, uncounted(1)).code, 0);
+  result = step(spent);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).next, 'dispatch');
+  assert.equal(decisionsOf(spent, 1).stop, 'undecided');
+  assert.equal(countsUnread(result.stderr), 1, result.stderr);
+});
+
+test('close reports a loop that ended undecided, from the attempt\'s latest decisions file by cycle', t => {
+  // The engine writes the undecided ending, then the runner closes on a verdict.
+  const { features: _features, ...bare } = COCKPIT;
+  const run = verifying(t, { orchestrator: { driver: bare } });
+  cycleEntry(run, 1);
+  placeFindings(run);
+  assert.equal(record(run, stopping(1, { critical: 0, warning: 1 })).code, 0);
+  assert.equal(stepOf(run).next, 'dispatch');
+  assert.equal(decisionsOf(run, 1).stop, 'undecided');
+  cycleEntry(run, 2);
+  assert.equal(record(run, VERDICT).code, 0);
+  const { result: _r, ...rest } = VERDICT;
+  assert.deepEqual(stepOf(run), { next: 'close', ...rest, undecided: true });
+
+  // A later decision that went on as is: no undecided key. Cycle 10 is later
+  // than cycle 2, though a directory lists decisions-10.json first.
+  const attempt = Number(readState(run).workflow.nodes[NODE].attempt ?? 1);
+  const decisions = (cycle, stop) => fs.writeFileSync(path.join(run.verification, `decisions-${cycle}.json`),
+    JSON.stringify({ node: NODE, attempt, cycle, kind: 'budget', answers: [], stop }));
+  decisions(2, 'undecided');
+  decisions(10, 'continue');
+  assert.deepEqual(stepOf(run), { next: 'close', ...rest });
+  decisions(2, 'continue');
+  decisions(10, 'undecided');
+  assert.deepEqual(stepOf(run), { next: 'close', ...rest, undecided: true });
+});
+
+test('the latest stop answer of either id is read, and a run answer only when the run classes it', t => {
+  const fixLoop = label => ({ decision: label, by: 'operator', question_id: 'verification-fix-loop', question: 'Two re-checks spent. What now?', answer: label });
+  const goOn = (label, extra = {}) => ({ decision: label, by: 'operator', question_id: GO_ON, question: 'Go on with a warning open?', answer: label, ...extra });
+  const classed = goOn('Continue as is', { by: 'run', triage: { version: 1, class: 'decide-alone' } });
+  const { triage: _triage, ...untriaged } = classed;
+  const noChoice = goOn('No choice yet — needs your decision', { by: 'default', no_choice: true, triage: { version: 1, class: 'approve', held: true } });
+  for (const [label, items, stop, classes = false] of [
+    ['one more round, then stop', [fixLoop('One more round'), goOn('Stop')], 'stop'],
+    ['stop, then one more round', [goOn('Stop'), fixLoop('One more round')], 'more'],
+    ['a writer-classed continue in a classing run', [classed], 'continue', true],
+    ['a triaged continue in a run that classes nothing', [classed], 'undecided'],
+    ['an untriaged run continue', [untriaged], 'undecided'],
+    ['a held no-choice item', [noChoice], 'undecided'],
+  ]) {
+    const run = verifying(t);
+    cycleEntry(run, 3);
+    placeFindings(run);
+    assert.equal(record(run, stopping(3, { critical: 0, warning: 1 })).code, 0);
+    write(run, { node_summaries: { [NODE]: { decisions: items } } });
+    // The freeze records whether the run's policy classes questions; no patch sets it.
+    if (classes) fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8').replace(/^orchestrator:\n/m, 'orchestrator:\n  classes_questions: true\n'));
+    stepOf(run, ['--answered']);
+    assert.equal(decisionsOf(run, 3).stop, stop, label);
+  }
+});
+
+test('a stop answer that cannot be read ends undecided with a warning open, and as is with info alone', t => {
+  for (const [counts, stop] of [[{ critical: 0, warning: 1 }, 'undecided'], [{ critical: 0, warning: 0, info: 2 }, 'continue']]) {
+    const run = verifying(t);
+    cycleEntry(run, 3);
+    placeFindings(run);
+    assert.equal(record(run, stopping(3, counts)).code, 0);
+    write(run, { node_summaries: { [NODE]: { decisions: [{ decision: 'Maybe later', by: 'operator', question_id: GO_ON, question: 'Go on?', answer: 'Maybe later' }] } } });
+    const result = step(run, ['--answered']);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(decisionsOf(run, 3).stop, stop, JSON.stringify(counts));
+    assert.match(result.stderr, new RegExp(`runner-stop-unread: the stopping answer "Maybe later" .*; read as ${stop}`));
+  }
 });
 
 // ---------------------------------------------------------------------------

@@ -54,6 +54,8 @@ particular. After the skill returns, ask the round below inline.
 When the answer is "Yes", say where the folder is and wait for the user to say
 the files are there before this node completes.
 
+Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
+
 **With question sets** (`clarifications`): asked through the cockpit, in this
 node's first request.
 
@@ -326,18 +328,27 @@ fix so far written first.
 the policy does not class stays open as an `open` risk; a classed one takes the
 outcome the classing write gives it.
 
-**With question sets** (`verification-fix-loop`): asked through the cockpit, with
-the verification report and every fix so far written first — after the finding
-questions, as a follow-up round; once the attempt's rounds are spent, the
-default below is taken.
+**With question sets** (`verification-fix-loop`): asked through the cockpit when
+it recommends "One more round" (or only info is left), with the verification
+report and every fix so far written first — after the finding questions, as a
+follow-up round; once the attempt's rounds are spent, nothing is asked and the
+loop ends as the `verification-go-on` line says.
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
-two re-checks — and nothing is asked. Every issue that needs a decision, and every
-risky fix, stays open as an `open` risk in this node's summary, and the stopping
-point takes "Continue as is". An issue still critical is **not** proceeded past:
-it is an `open` risk, which the gate brief shows at `verification-approval` — where a person
+two re-checks — nothing is asked and no extra round is taken. Every issue that
+needs a decision, and every risky fix, stays open as an `open` risk in this
+node's summary, and the loop ends as the `verification-go-on` line says. An
+issue still critical is **not** proceeded past: it is an `open` risk and a
+`stop` risk (§ 6 step 9), which the gate brief shows at `verification-approval` — where a person
 answers.
+
+**With question sets** (`verification-go-on`): the stopping question when its
+recommended answer leaves the loop with a warning or critical issue open, asked
+as the fix-loop question is — after the finding questions, as a follow-up
+round. With a critical issue open it carries `triage: {version: 1, class: approve}`.
+
+**Without question sets** (`verification-go-on`): nothing is asked. When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is".
 
 **Writes.** The canonical report and its companion must carry the *final*
 post-fix verdict before this node completes. Recompile a report still showing
@@ -345,7 +356,9 @@ the pre-fix state rather than leaving a side file to carry the truth.
 
 **Summary.** The `headline` — the verdict, what was fixed and what is left; the
 total issues found, how many were fixed and how many remain by severity in
-`summary`. The fixes and risks follow § 6's fix loop, steps 1 and 9.
+`summary`. The fixes and risks follow § 6's fix loop, steps 1 and 9. When the
+loop ended undecided, the go-on choice is recorded as not taken (§ 6 step 10)
+and `recommends` is `{option: null, reason}`.
 Unchecked work recommends no way on (§ 6 step 9): each done-when line of the
 task the verification could not confirm with evidence is an `open` risk naming
 it, and `recommends` is `{option: null, reason}` saying how many; whether the
