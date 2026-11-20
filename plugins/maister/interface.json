@@ -6,6 +6,7 @@
     "codebase-analysis-reporter",
     "docs-operator",
     "e2e-test-verifier",
+    "explainer-writer",
     "gap-analyzer",
     "grounding-pack-builder",
     "html-companion-writer",
@@ -1117,7 +1118,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.2",
+  "interface_version": "2.3",
   "mcp": {
     "servers": [],
     "tools": [

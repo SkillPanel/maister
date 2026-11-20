@@ -202,10 +202,11 @@ const WORKFLOWS = path.join(ENGINE_DIR, 'workflows');
 // The graph hash of each built-in before it declared the block; a change that
 // moves one of these is a change to the graph, not to the block. Development's,
 // research's and product design's moved with the optional context input their
-// first nodes take.
+// first nodes take, and research's again when its outputs gained the explainer
+// page.
 const BASELINE_HASHES = {
   development: 'sha256:70d3e772419b0fc36af0a4971ec8eefef6319a37e3355abab4e3d5d69f5b660b',
-  research: 'sha256:c80fd34e066ab8c1fe74513e84bcfe6f5403f5d62714a2538da0d0d4d22a5988',
+  research: 'sha256:6d352a1b4abd26a4b844c31bfdfb744c9f3bc7ecdd3510d545e7a34480fa9bc6',
   performance: 'sha256:183605fc3986554aedd5cf5b92ce001ef65302858909b2984d96d0b8fbbcce62',
   migration: 'sha256:04f475d1cb380017e6a30a1038448b5af8fb5ecb874ce98b5e67ed5d4ebc1546',
   'product-design': 'sha256:3df73263e2843e68dbb621dbe6a9c0204cc93d526c580570d069a4b6b2261ade',

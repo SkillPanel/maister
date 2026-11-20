@@ -24,6 +24,7 @@ const HEADLINED = [
   'solution-brainstormer',
   'solution-designer',
   'codebase-analysis-reporter',
+  'explainer-writer',
 ];
 
 const AGENT_LINE_LIMIT = 450;

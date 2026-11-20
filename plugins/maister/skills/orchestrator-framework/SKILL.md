@@ -31,6 +31,7 @@ workflow's node prose cites it by section:
 | `references/orchestrator-patterns.md` | Delegation rules, phase gates, state schema, initialization, context passing, issue resolution — the normative shapes for this edition |
 | `references/orchestrator-creation-checklist.md` | Authoring checklist for a new built-in workflow definition (not loaded at runtime) |
 | `references/html-report-style.md` | Style guide for HTML companion reports (delegates take its path from the `html:` line of `run-context`) |
+| `scripts/check-explainer.mjs` | Checks an explainer page against its sources: every figure traces, every section links to an existing heading, nothing loads from outside (exit 0 clean, 1 findings, 2 could not run) |
 | `references/standards-compliance-checklist.md` | How a workflow discovers the project's standards, writes the Standards Compliance Checklist and verifies it after implementation (read by quick-plan, quick-dev and quick-bugfix) |
 | `assets/dashboard.html` | The frozen operator dashboard, copied into every task dir |
 

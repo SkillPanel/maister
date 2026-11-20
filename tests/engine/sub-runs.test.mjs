@@ -367,6 +367,34 @@ test('adoption: the child\'s declared artifacts are registered on the parent, re
   for (const artifact of expected) assert.ok(fs.existsSync(path.join(parent.dir, artifact.path)), artifact.path);
 });
 
+test('adoption: a parent-declared HTML-only alias is adopted with html null, in declared order', t => {
+  const parent = scratch(t, { type: 'survey' });
+  const definition = path.join(parent.root, 'explained.yml');
+  fs.writeFileSync(definition, fs.readFileSync(DECLARED, 'utf8').replace(
+    '        report: outputs/research-report.md\n',
+    '        explainer: outputs/research-explainer.html\n        report: outputs/research-report.md\n'));
+  fs.copyFileSync(DECLARED.replace(/\.yml$/, '.md'), definition.replace(/\.yml$/, '.md'));
+  freeze(parent, { definition, inputs: { subject: 'What is left open?' } });
+  write(parent, { nodes: { scan: { status: 'completed', values: { blocking: false } }, review: { status: 'completed' }, probe: { status: 'running' } } });
+  const child = sibling(parent, { type: 'research', name: '2026-01-05-left-open' });
+  freeze(child, {
+    definition: RESEARCH,
+    task: { title: 'Left open' },
+    inputs: { question: 'What is left open?', embedded: true },
+    orchestrator: { driver: { kind: 'terminal' }, parent: { run: parent.path, node: 'probe' } },
+  });
+  write(parent, { nodes: { probe: { status: 'waiting', values: { task_path: child.path, run_id: child.name } } } });
+  place(child, 'outputs/research-explainer.html');
+  place(child, 'outputs/research-report.md');
+  place(child, 'outputs/research-report.html');
+  adopt(parent, child);
+  const at = `../../research/${child.name}`;
+  assert.deepEqual(readState(parent).node_summaries.probe.artifacts, [
+    { path: `${at}/outputs/research-explainer.html`, label: null, html: null },
+    { path: `${at}/outputs/research-report.md`, label: null, html: `${at}/outputs/research-report.html` },
+  ]);
+});
+
 test('adoption: a file of the same name in the parent\'s own directory is never claimed for the child', t => {
   const { parent, child } = declaring(t);
   place(parent, 'outputs/research-report.md');

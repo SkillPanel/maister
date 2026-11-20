@@ -67,6 +67,11 @@ before you install over a project with work in flight.
   effort each kind of agent runs on, per workflow or step if you want. Every agent call carries
   the values that apply. By default the reviewers get a stronger model than the clerical agents.
   See [Configuration](https://github.com/SkillPanel/maister/blob/master/docs/configuration.md).
+- **A one-page research explainer.** With HTML pages on, each research run writes
+  `outputs/research-explainer.html`: the findings in plain words, for a reader who has not read the
+  report. It is rewritten as you decide the solution and the design, and each section links to the
+  report section that holds its evidence. Every figure on it is one the sources state. Each research
+  checkpoint lists it first.
 - **A live dashboard.** Each run's `dashboard.html` follows the run as it goes: its steps, the
   decisions made and who made them, and the risks still open.
 - **Context packs.** `/maister:development`, `/maister:research` and `/maister:product-design`
