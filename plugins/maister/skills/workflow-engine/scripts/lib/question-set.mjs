@@ -36,8 +36,14 @@ import { FAMILY_NAME } from './policy.mjs';
  * brief checks it against the disk (`evidence.mjs`), and a path it drops costs
  * the question nothing. `family` is the policy family the node proposes for
  * the question, read only by the classing write (`question-triage.mjs`).
+ * `reader` is the verdict a second reader gave on that proposal: an object with
+ * exactly `verdict` and `reason`, checked here and read only by the same write.
  */
-const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage', 'family', 'details', 'evidence'];
+const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage', 'family', 'reader', 'details', 'evidence'];
+
+/** The keys a reader's verdict carries, and the two values its verdict may take. */
+const READER_KEYS = ['verdict', 'reason'];
+const READER_VERDICTS = ['agree', 'raise'];
 
 /**
  * The keys an option may carry. `person_act` marks an option whose answer says
@@ -117,7 +123,16 @@ export function checkSet(input) {
       if (Object.hasOwn(question, key) && typeof question[key] !== 'boolean') errors.push(`${where}: "${key}" must be true or false`);
     }
     if (Object.hasOwn(question, 'family') && !(typeof question.family === 'string' && FAMILY_NAME.test(question.family))) {
-      errors.push(`${where}: "family" must be a family name the policy lists for this question, lowercase letters, digits and hyphens`);
+      errors.push(`${where}: "family" must be a family name: lowercase letters, digits and hyphens; whether the policy lists it for the question is checked at classing, where an unlisted name is noted, not refused`);
+    }
+    if (Object.hasOwn(question, 'reader')) {
+      const reader = question.reader;
+      const exact = isMap(reader) && Object.keys(reader).length === READER_KEYS.length && READER_KEYS.every(key => Object.hasOwn(reader, key));
+      if (!exact) errors.push(`${where}: "reader" must be an object with exactly the keys "verdict" and "reason"`);
+      else {
+        if (!READER_VERDICTS.includes(reader.verdict)) errors.push(`${where}: "reader" "verdict" must be "agree" or "raise"`);
+        if (!isLine(reader.reason)) errors.push(`${where}: "reader" "reason" must be one non-empty line`);
+      }
     }
     const multi = question.multi_select === true;
     const options = adoptMarks(checkOptions(question.options, where, errors));
@@ -153,6 +168,7 @@ export function checkSet(input) {
       ...(fallback !== undefined ? { default: fallback } : {}),
       ...(Object.hasOwn(question, 'triage') ? { triage: question.triage } : {}),
       ...(Object.hasOwn(question, 'family') ? { family: question.family } : {}),
+      ...(Object.hasOwn(question, 'reader') ? { reader: question.reader } : {}),
       ...(isText(question.details) ? { details: question.details } : {}),
       ...(Object.hasOwn(question, 'evidence') ? { evidence: question.evidence } : {}),
     };
@@ -268,10 +284,10 @@ export function questionCheckpoint({ set, node, title, header, progress, run }) 
     ask: set.ask ?? `${title}: ${count} ${count === 1 ? 'question' : 'questions'} to answer`,
     headline: set.headline ?? `Answer ${count === 1 ? 'it' : `all ${count}`} to continue ${lowered}.`,
     progress,
-    // `person_act` and a proposed `family` have done their work once the set is
-    // checked and classed: the checkpoint a reader renders carries the
-    // questions and their options as it always has.
-    questions: set.questions.map(({ family: _family, ...question }) => ({
+    // `person_act`, a proposed `family` and a reader's `reader` have done their
+    // work once the set is checked and classed: the checkpoint a reader renders
+    // carries the questions and their options as it always has.
+    questions: set.questions.map(({ family: _family, reader: _reader, ...question }) => ({
       ...question,
       options: question.options.map(({ person_act: _act, ...option }) => option),
     })),

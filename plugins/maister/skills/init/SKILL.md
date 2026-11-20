@@ -155,6 +155,7 @@ subagents:
     task-classifier: { tier: light }
     test-suite-runner: { tier: light }
     html-companion-writer: { tier: light }
+    question-reader: { tier: light }
     # the reviewers: deep on Claude Code, standard on Copilot, which bills its deep model 15x
     spec-conformance-review: { tier: { claude: deep, copilot: standard } }
     code-risk-review: { tier: { claude: deep, copilot: standard } }

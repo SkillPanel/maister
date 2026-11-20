@@ -115,7 +115,7 @@ one runs on, on Claude Code and on GitHub Copilot CLI.
 
 | Agents | Claude Code | Copilot CLI |
 |---|---|---|
-| The clerical agents (project analysis, task classification, the test-suite runner, the HTML companion writer) and the codebase scouts Maister starts (`Explore`) | `light` tier: a lightweight model on high effort | `light` |
+| The clerical agents (project analysis, task classification, the test-suite runner, the HTML companion writer, the question reader) and the codebase scouts Maister starts (`Explore`) | `light` tier: a lightweight model on high effort | `light` |
 | The docs operator and the standards scanner | your session's model | `standard` |
 | The three reviewers and the specification audit | `deep` | `standard` |
 | Implementers | the tier the plan gives each task group, up to `deep` | the same, up to `standard` |

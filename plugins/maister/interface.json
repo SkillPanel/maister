@@ -13,6 +13,7 @@
     "implementation-runner",
     "information-gatherer",
     "project-analyzer",
+    "question-reader",
     "research-planner",
     "research-synthesizer",
     "simplicity-review",
@@ -1117,7 +1118,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.2",
+  "interface_version": "2.3",
   "mcp": {
     "servers": [],
     "tools": [

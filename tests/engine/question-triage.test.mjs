@@ -157,20 +157,45 @@ test('effectiveCeiling and narrowerLevel order approve < advice < decide, an unk
 test('raiseTriage keeps the higher class, unions the floor and ignores another version', () => {
   const computed = { version: 1, class: 'record', family: 'noted-family' };
   const lower = { version: 1, class: 'decide-alone', family: 'quick-family', floor: ['floor-b'] };
-  const higher = { version: 1, class: 'approve', family: 'signed-family', floor: ['floor-b'] };
+  const higher = { version: 1, class: 'approve', family: 'signed-family', floor: ['floor-b'], band: 'toss-up', held: true };
   const equal = { version: 1, class: 'record', family: 'other-family' };
 
-  assert.deepEqual(raiseTriage(computed, lower), { ...computed, floor: ['floor-b'] });
-  assert.deepEqual(raiseTriage(computed, higher), higher);
+  assert.deepEqual(raiseTriage(computed, lower), { version: 1, class: 'record', floor: ['floor-b'], family: 'noted-family' });
+  // A carried winner brings its class and floor only: the family and every other key stay the computed ones.
+  assert.deepEqual(raiseTriage(computed, higher), { version: 1, class: 'approve', floor: ['floor-b'], family: 'noted-family' });
   assert.deepEqual(raiseTriage(computed, equal), computed);
-  assert.deepEqual(raiseTriage({ ...computed, floor: ['floor-a'] }, higher), { ...higher, floor: ['floor-a', 'floor-b'] });
-  assert.deepEqual(raiseTriage(null, higher), higher);
+  assert.deepEqual(raiseTriage({ ...computed, floor: ['floor-a'] }, higher), { version: 1, class: 'approve', floor: ['floor-a', 'floor-b'], family: 'noted-family' });
+  // The recorded keys keep their order: the floor sits after the class, the proposal after the family.
+  const proposed = { version: 1, class: 'record', family: 'noted-family', proposed: 'quick-family', reader: { verdict: 'raise', reason: 'Why.' } };
+  assert.deepEqual(Object.keys(raiseTriage(proposed, higher)), ['version', 'class', 'floor', 'family', 'proposed', 'reader']);
+  // With no computed triage, a carried version-1 one keeps only its version, class and floor.
+  assert.deepEqual(raiseTriage(null, higher), { version: 1, class: 'approve', floor: ['floor-b'] });
+  assert.deepEqual(raiseTriage(null, equal), { version: 1, class: 'record' });
   assert.deepEqual(raiseTriage(computed, null), computed);
   assert.equal(raiseTriage(null, null), null);
   assert.deepEqual(raiseTriage(computed, { ...higher, version: 2 }), computed);
   assert.equal(raiseTriage(null, { ...higher, version: 2 }), null);
   // Neither side is changed.
   assert.deepEqual(computed, { version: 1, class: 'record', family: 'noted-family' });
+  assert.deepEqual(higher, { version: 1, class: 'approve', family: 'signed-family', floor: ['floor-b'], band: 'toss-up', held: true });
+});
+
+test('a carried triage raises the class but never records its own family or band', () => {
+  const { policy } = policyOf('questions.json');
+  const carried = { version: 1, class: 'approve', family: 'never-listed', band: 'clear' };
+  const question = {
+    id: 'noted-choice', question: 'Which?', default: 'a', triage: carried,
+    options: [{ id: 'a', label: 'A', recommended: true }, { id: 'b', label: 'B' }],
+  };
+  const classed = classSet({ questions: [question], policy, workflow: 'in-node-questions', declaredIds: [], settles: 'record', canAsk: false });
+  assert.deepEqual(classed.faults, []);
+  const [item] = classed.items;
+  // The carried class raises: approve, held with nobody to ask.
+  assert.equal(item.triage.class, 'approve');
+  assert.equal(item.triage.held, true);
+  // The family recorded is the one the policy gave the question, never the carried name.
+  assert.equal(item.triage.family, 'noted-family');
+  assert.equal(Object.hasOwn(item.triage, 'band'), false);
 });
 
 test('classesQuestions and classSet', () => {
@@ -219,7 +244,7 @@ test('classesQuestions and classSet', () => {
   assert.deepEqual(classSet({ ...common, questions: bare, canAsk: true }).asking, bare.map(each => each.id));
 });
 
-test('classSet takes a proposed family only when the row lists it and it is at least as strict as the first', () => {
+test('classSet takes a proposed family only when the row lists it, and a lower one only with the reader\'s agreement', () => {
   const base = policyOf('questions.json').policy;
   // `mixed-choice` reads record first; consult is stricter, decide-alone looser.
   const policy = {
@@ -266,12 +291,244 @@ test('classSet takes a proposed family only when the row lists it and it is at l
     ['mixed-choice-tone', 'run', 'noted-family', 'record'],
   ]);
 
-  // The families a node may propose for the id: the first and the stricter ones, in row order.
+  // The families a node may propose for the id, in row order: the first, the stricter ones, and the
+  // lower ones marked, since a lower family needs the reader's agreement.
   assert.deepEqual(questionFamilies({ policy, workflow: 'in-node-questions', id: 'mixed-choice-scope', declaredIds: ['mixed-choice'] }), [
     { name: 'noted-family', description: 'Settled and recorded.' },
     { name: 'asked-family', description: 'Worth a second opinion.' },
+    { name: 'quick-family', description: 'Settled alone.', lower: true },
   ]);
   assert.deepEqual(questionFamilies({ policy, workflow: 'in-node-questions', id: 'no-row' }), []);
+});
+
+/**
+ * `questions.json` with two more rows: `mixed-choice` reads record first, lists consult as
+ * stricter and decide-alone as lower; `guarded-mix` reads a floored family first, with a lower
+ * one after it.
+ */
+function mixedPolicy() {
+  const base = policyOf('questions.json').policy;
+  return {
+    ...base,
+    table: [
+      ...base.table,
+      { workflow: 'in-node-questions', id: 'mixed-choice', kind: 'question', families: ['noted-family', 'asked-family', 'quick-family'] },
+      { workflow: 'in-node-questions', id: 'guarded-mix', kind: 'question', families: ['guarded-family', 'quick-family'] },
+    ],
+  };
+}
+
+const DECLARED = ['mixed-choice', 'guarded-mix', 'loose-choice'];
+const AGREE = { verdict: 'agree', reason: 'No answer changes what the product does.' };
+const RAISE = { verdict: 'raise', reason: 'Changes who may publish.' };
+const proposal = (id, family, reader, extra = {}) => ({
+  id, question: `Which ${id}?`, options: [{ id: 'a', label: 'A', recommended: true }, { id: 'b', label: 'B' }], default: 'a',
+  ...(family === undefined ? {} : { family }),
+  ...(reader === undefined ? {} : { reader }),
+  ...extra,
+});
+const notTaken = (id, applied, proposed, reason) => `classed ${id} under ${applied}, not the proposed ${proposed}: ${reason}`;
+const ignoredVerdict = id => `ignored the reader's verdict on ${id}: it counts only with a proposed family below the first the policy lists for the question`;
+
+test('classSet lowers a listed family only with the reader\'s agreement, and notes every reason it did not', () => {
+  const policy = mixedPolicy();
+  const one = (question, extra = {}) => classSet({ policy, workflow: 'in-node-questions', declaredIds: DECLARED, settles: 'record', canAsk: false, questions: [question], ...extra });
+  const shape = result => result.items.map(item => [item.by, item.triage.family, item.triage.class, item.triage.proposed ?? null, item.triage.reader ?? null]);
+
+  // A lower family with `agree` is taken: settled under its own class, the proposal and verdict recorded.
+  const agreed = one(proposal('mixed-choice', 'quick-family', AGREE));
+  assert.deepEqual(shape(agreed), [['run', 'quick-family', 'decide-alone', 'quick-family', AGREE]]);
+  assert.deepEqual(agreed.notes, []);
+
+  // `raise`: the first family stands, the verdict is recorded and the note quotes the reader's reason.
+  const raised = one(proposal('mixed-choice', 'quick-family', RAISE));
+  assert.deepEqual(shape(raised), [['run', 'noted-family', 'record', 'quick-family', RAISE]]);
+  assert.deepEqual(raised.notes, [notTaken('mixed-choice', 'noted-family', 'quick-family', 'the reader raised it: "Changes who may publish."')]);
+
+  // No verdict: the first family stands, and nothing of a reader is recorded.
+  const silent = one(proposal('mixed-choice', 'quick-family'));
+  assert.deepEqual(shape(silent), [['run', 'noted-family', 'record', 'quick-family', null]]);
+  assert.deepEqual(silent.notes, [notTaken('mixed-choice', 'noted-family', 'quick-family', 'no verdict sent, and a lower family needs the reader\'s agreement')]);
+
+  // A floored first family is never lowered, even with `agree`; the verdict came with a lowering, so it is recorded.
+  const floored = one(proposal('guarded-mix', 'quick-family', AGREE));
+  assert.deepEqual(shape(floored), [['default', 'guarded-family', 'approve', 'quick-family', AGREE]]);
+  assert.equal(floored.items[0].triage.held, true);
+  assert.deepEqual(floored.notes, [notTaken('guarded-mix', 'guarded-family', 'quick-family', 'the first family carries a floor')]);
+
+  // A question with no row reads the unknown family, which a proposal never moves.
+  const unknown = one(proposal('loose-choice', 'quick-family'));
+  assert.deepEqual(shape(unknown), [['default', 'fallback-family', 'consult', 'quick-family', null]]);
+  assert.deepEqual(unknown.notes, [notTaken('loose-choice', 'fallback-family', 'quick-family', 'no policy row for the question')]);
+});
+
+test('classSet ignores a verdict sent with no lowering proposal, with a note after the proposal\'s own', () => {
+  const policy = mixedPolicy();
+  const one = question => classSet({ policy, workflow: 'in-node-questions', declaredIds: DECLARED, settles: 'record', canAsk: false, questions: [question] });
+
+  // An equal proposal with a verdict: taken, the verdict ignored and not recorded.
+  const equal = one(proposal('mixed-choice', 'noted-family', AGREE));
+  assert.deepEqual(equal.items[0].triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'noted-family' });
+  assert.deepEqual(equal.notes, [ignoredVerdict('mixed-choice')]);
+
+  // A stricter proposal with a verdict: taken as without one.
+  const stricter = one(proposal('mixed-choice', 'asked-family', RAISE));
+  assert.deepEqual(stricter.items[0].triage, { version: 1, class: 'consult', family: 'asked-family', proposed: 'asked-family', advice: 'not_obtained' });
+  assert.deepEqual(stricter.notes, [ignoredVerdict('mixed-choice')]);
+
+  // A verdict with no proposal at all: classed as today, one note, no new key.
+  const bare = one(proposal('mixed-choice', undefined, AGREE));
+  assert.deepEqual(bare.items[0].triage, { version: 1, class: 'record', family: 'noted-family' });
+  assert.deepEqual(bare.notes, [ignoredVerdict('mixed-choice')]);
+
+  // An unlisted proposal and one on a question with no row: the proposal's note, then the verdict's.
+  const unlisted = one(proposal('mixed-choice', 'signed-family', AGREE));
+  assert.deepEqual(unlisted.items[0].triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'signed-family' });
+  assert.deepEqual(unlisted.notes, [notTaken('mixed-choice', 'noted-family', 'signed-family', 'not listed for the question'), ignoredVerdict('mixed-choice')]);
+  const rowless = one(proposal('loose-choice', 'quick-family', AGREE));
+  assert.equal(Object.hasOwn(rowless.items[0].triage, 'reader'), false);
+  assert.deepEqual(rowless.notes, [notTaken('loose-choice', 'fallback-family', 'quick-family', 'no policy row for the question'), ignoredVerdict('loose-choice')]);
+});
+
+test('classSet never lowers a question that carries a triage, and still takes a stricter proposal on one', () => {
+  const policy = mixedPolicy();
+  const one = question => classSet({ policy, workflow: 'in-node-questions', declaredIds: DECLARED, settles: 'record', canAsk: false, questions: [question] });
+  const carried = { version: 1, class: 'record', family: 'noted-family' };
+
+  const lowered = one(proposal('mixed-choice', 'quick-family', AGREE, { triage: carried }));
+  assert.deepEqual(lowered.items[0].triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'quick-family', reader: AGREE });
+  assert.deepEqual(lowered.notes, [notTaken('mixed-choice', 'noted-family', 'quick-family', 'the question carries a triage')]);
+
+  const stricter = one(proposal('mixed-choice', 'asked-family', undefined, { triage: carried }));
+  assert.deepEqual(stricter.items[0].triage, { version: 1, class: 'consult', family: 'asked-family', proposed: 'asked-family', advice: 'not_obtained' });
+  assert.deepEqual(stricter.notes, []);
+
+  // A carried triage of another version is ignored, so it does not stop the lowering.
+  const other = one(proposal('mixed-choice', 'quick-family', AGREE, { triage: { ...carried, version: 2 } }));
+  assert.equal(other.items[0].triage.family, 'quick-family');
+  assert.deepEqual(other.notes, []);
+});
+
+test('the classed triage records its keys in order, the proposal and verdict after the policy\'s', () => {
+  const policy = mixedPolicy();
+  const one = (question, extra = {}) => classSet({ policy, workflow: 'in-node-questions', declaredIds: DECLARED, settles: 'record', canAsk: false, questions: [question], ...extra });
+
+  // A floored first family, lowered and raised: version, class, floor, family, raised_by, proposed, reader, held.
+  const held = one(proposal('guarded-mix', 'quick-family', RAISE));
+  assert.deepEqual(Object.entries(held.items[0].triage), [
+    ['version', 1], ['class', 'approve'], ['floor', ['floor-a']], ['family', 'guarded-family'], ['raised_by', 'floor'],
+    ['proposed', 'quick-family'], ['reader', RAISE], ['held', true],
+  ]);
+  // A carried floor keeps its place after the class, ahead of the proposal.
+  const carried = one(proposal('mixed-choice', 'quick-family', AGREE, { triage: { version: 1, class: 'consult', floor: ['floor-b'] } }));
+  assert.deepEqual(Object.keys(carried.items[0].triage), ['version', 'class', 'floor', 'family', 'proposed', 'reader', 'advice']);
+  assert.equal(carried.items[0].triage.class, 'consult');
+  assert.equal(carried.items[0].triage.family, 'noted-family');
+});
+
+test('a lowered question is still asked when an option needs a person, and a mixed set keeps its order', () => {
+  const policy = mixedPolicy();
+  const run = (questions, extra = {}) => classSet({ policy, workflow: 'in-node-questions', declaredIds: DECLARED, settles: 'record', canAsk: true, questions, ...extra });
+  const option = (id, extra = {}) => ({ id, label: `Label ${id}`, ...extra });
+
+  // Lowered to decide-alone, but one option only a person can take: the run settles nothing, the question is asked.
+  const act = proposal('mixed-choice', 'quick-family', AGREE, { options: [option('a', { recommended: true, person_act: true }), option('b')] });
+  assert.deepEqual(run([act]), { items: [], asking: ['mixed-choice'], faults: [], notes: [] });
+
+  // A per-area slug of the declared id lowers under that row, and the item keeps the slug.
+  const area = run([proposal('mixed-choice-storage', 'quick-family', AGREE)]);
+  assert.deepEqual(area.items.map(item => [item.question_id, item.triage.family, item.triage.proposed]), [['mixed-choice-storage', 'quick-family', 'quick-family']]);
+
+  // Items, asking and notes follow set order, each question deciding for itself.
+  const set = run([
+    proposal('guarded-mix', 'quick-family', AGREE),
+    proposal('mixed-choice', 'quick-family', RAISE),
+    proposal('mixed-choice-other', 'quick-family', AGREE),
+    proposal('loose-choice', 'asked-family'),
+  ], { canAsk: false });
+  assert.deepEqual(set.items.map(item => [item.question_id, item.triage.family]),
+    [['guarded-mix', 'guarded-family'], ['mixed-choice', 'noted-family'], ['mixed-choice-other', 'quick-family'], ['loose-choice', 'fallback-family']]);
+  assert.deepEqual(set.notes, [
+    notTaken('guarded-mix', 'guarded-family', 'quick-family', 'the first family carries a floor'),
+    notTaken('mixed-choice', 'noted-family', 'quick-family', 'the reader raised it: "Changes who may publish."'),
+    notTaken('loose-choice', 'fallback-family', 'asked-family', 'no policy row for the question'),
+  ]);
+});
+
+test('a question lowered from approve to consult with nobody to ask takes its default with advice not obtained', () => {
+  const base = policyOf('questions.json').policy;
+  const policy = { ...base, table: [...base.table, { workflow: 'in-node-questions', id: 'mixed-choice', kind: 'question', families: ['signed-family', 'asked-family'] }] };
+  const classed = classSet({ policy, workflow: 'in-node-questions', declaredIds: ['mixed-choice'], settles: 'record', canAsk: false, questions: [proposal('mixed-choice', 'asked-family', AGREE)] });
+  assert.deepEqual(classed.asking, []);
+  assert.deepEqual(classed.notes, []);
+  const [item] = classed.items;
+  assert.equal(item.by, 'default');
+  assert.deepEqual(item.triage, { version: 1, class: 'consult', family: 'asked-family', proposed: 'asked-family', reader: AGREE, advice: 'not_obtained' });
+  assert.equal(Object.hasOwn(item.triage, 'held'), false);
+});
+
+test('a question the policy leaves unclassified ignores its family and verdict without a note', () => {
+  const { unknown_family: _, ...rowsOnly } = mixedPolicy();
+  const classed = classSet({ policy: rowsOnly, workflow: 'in-node-questions', declaredIds: DECLARED, settles: 'record', canAsk: false, questions: [proposal('loose-choice', 'quick-family', AGREE)] });
+  assert.deepEqual(classed, { items: [], asking: ['loose-choice'], faults: [], notes: [] });
+  // No policy at all, as a write that classes nothing sends it.
+  const none = classSet({ policy: null, workflow: 'in-node-questions', declaredIds: [], settles: null, canAsk: true, questions: [proposal('mixed-choice', 'quick-family', RAISE)] });
+  assert.deepEqual(none, { items: [], asking: ['mixed-choice'], faults: [], notes: [] });
+});
+
+test('with no proposal and no carried triage, classSet classes exactly as before the second reader', () => {
+  // The expected output was captured from the classing code before the reader existed, for this same set.
+  const { unknown_family: _, ...rows } = policyOf('questions.json').policy;
+  const policy = { ...rows, table: [...rows.table, { workflow: 'in-node-questions', id: 'mixed-choice', kind: 'question', families: ['noted-family', 'asked-family', 'quick-family'] }] };
+  const option = (id, extra = {}) => ({ id, label: `Label ${id}`, description: `Why ${id}.`, ...extra });
+  const question = (id, extra = {}) => ({ id, question: `Pick ${id}?`, options: [option('a', { recommended: true }), option('b')], default: 'a', ...extra });
+  const questions = [
+    question('quick-choice'),
+    question('noted-choice'),
+    question('asked-choice'),
+    question('signed-choice'),
+    question('guarded-choice'),
+    question('loose-choice'),
+    question('mixed-choice-scope'),
+    question('mixed-choice-tone', { default: undefined }),
+    question('mixed-choice-act', { options: [option('a', { recommended: true, person_act: true }), option('b')] }),
+  ];
+  const reasons = { 'noted-choice': { rationale: 'Kept it small.', assumption: 'One user.', reversal: 'Swap the option.' } };
+  const common = {
+    questions, reasons, policy, workflow: 'in-node-questions', settles: 'record', attempt: 2,
+    declaredIds: ['quick-choice', 'noted-choice', 'asked-choice', 'signed-choice', 'guarded-choice', 'loose-choice', 'mixed-choice'],
+  };
+  const item = (id, by, triage, extra = {}) => ({ decision: 'Label a', by, question_id: id, question: `Pick ${id}?`, ...extra, triage, attempt: 2 });
+  const settled = (id, triage, rationale = 'Why a.') => item(id, 'run', triage, { rationale });
+  const quick = settled('quick-choice', { version: 1, class: 'decide-alone', family: 'quick-family' });
+  const noted = item('noted-choice', 'run', { version: 1, class: 'record', family: 'noted-family' }, { rationale: 'Kept it small.', assumption: 'One user.', reversal: 'Swap the option.' });
+  const scope = settled('mixed-choice-scope', { version: 1, class: 'record', family: 'noted-family' });
+
+  // Key order counts too: the state file records the item as it is built.
+  const same = (actual, expected) => {
+    assert.deepEqual(actual, expected);
+    assert.equal(JSON.stringify(actual), JSON.stringify(expected));
+  };
+  same(classSet({ ...common, canAsk: false }), {
+    items: [
+      quick,
+      noted,
+      item('asked-choice', 'default', { version: 1, class: 'consult', family: 'asked-family', advice: 'not_obtained' }),
+      item('signed-choice', 'default', { version: 1, class: 'approve', family: 'signed-family', held: true }),
+      item('guarded-choice', 'default', { version: 1, class: 'approve', floor: ['floor-a'], family: 'guarded-family', raised_by: 'floor', held: true }),
+      scope,
+      item('mixed-choice-act', 'default', { version: 1, class: 'record', family: 'noted-family' }),
+    ],
+    asking: ['loose-choice', 'mixed-choice-tone'],
+    faults: [],
+    notes: [],
+  });
+  same(classSet({ ...common, canAsk: true }), {
+    items: [quick, noted, scope],
+    asking: ['asked-choice', 'signed-choice', 'guarded-choice', 'loose-choice', 'mixed-choice-tone', 'mixed-choice-act'],
+    faults: [],
+    notes: [],
+  });
 });
 
 test('checkSet accepts a proposed family name and carries it; the checkpoint leaves it out', () => {
@@ -283,9 +540,49 @@ test('checkSet accepts a proposed family name and carries it; the checkpoint lea
     const refused = checkSet({ questions: [question(bad)] });
     assert.equal(refused.ok, false, JSON.stringify(bad));
     assert.match(refused.errors[0], /^question "pick": "family" must be a family name/);
+    assert.doesNotMatch(refused.errors[0], /policy lists for this question/);
   }
   const checkpoint = questionCheckpoint({ set: checked.set, node: 'scoping', title: 'Scoping', header: 'Scoping', progress: {}, run: {} });
   assert.equal(Object.hasOwn(checkpoint.questions[0], 'family'), false);
+});
+
+test('checkSet accepts a reader verdict and carries it; the checkpoint leaves it out with the family', () => {
+  const question = reader => ({
+    id: 'pick', question: 'Which?', family: 'asked-family', reader,
+    options: [{ id: 'a', label: 'A', recommended: true }, { id: 'b', label: 'B' }],
+  });
+  for (const verdict of ['agree', 'raise']) {
+    const checked = checkSet({ questions: [question({ verdict, reason: 'Changes what the product does.' })] });
+    assert.equal(checked.ok, true, JSON.stringify(checked.errors));
+    assert.deepEqual(checked.set.questions[0].reader, { verdict, reason: 'Changes what the product does.' });
+    const checkpoint = questionCheckpoint({ set: checked.set, node: 'scoping', title: 'Scoping', header: 'Scoping', progress: {}, run: {} });
+    assert.equal(Object.hasOwn(checkpoint.questions[0], 'reader'), false);
+    assert.equal(Object.hasOwn(checkpoint.questions[0], 'family'), false);
+  }
+});
+
+test('checkSet refuses each malformed reader, naming the question and "reader"', () => {
+  const question = reader => ({
+    id: 'pick', question: 'Which?', reader,
+    options: [{ id: 'a', label: 'A', recommended: true }, { id: 'b', label: 'B' }],
+  });
+  const malformed = [
+    'agree',
+    null,
+    ['agree', 'Reason.'],
+    { verdict: 'agree', reason: 'Reason.', extra: true },
+    { verdict: 'agree' },
+    { reason: 'Reason.' },
+    { verdict: 'maybe', reason: 'Reason.' },
+    { verdict: 'agree', reason: '' },
+    { verdict: 'agree', reason: 'First line.\nSecond line.' },
+  ];
+  for (const bad of malformed) {
+    const refused = checkSet({ questions: [question(bad)] });
+    assert.equal(refused.ok, false, JSON.stringify(bad));
+    assert.equal(refused.errors.length, 1, JSON.stringify(refused.errors));
+    assert.match(refused.errors[0], /^question "pick": "reader" /, JSON.stringify(bad));
+  }
 });
 
 test('declaredQuestionIds reads one node\'s ids from the companion, and none without one', () => {

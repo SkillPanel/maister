@@ -558,7 +558,7 @@ function typeText(type) {
 function askLines(origin, resolved, { doc, state, runDir }, node) {
   const ids = origin === null ? [] : declaredQuestionIds(origin, sectionNameOf(resolved));
   if (!ids.length) return [];
-  const families = familyLines(doc, ids);
+  const families = familyLines(doc, ids, node);
   if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}`, ...families];
   if (!canAsk(doc)) return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies`, ...families];
   const lines = [`asks (in session): ${ids.join(', ')}`, ...families];
@@ -570,9 +570,13 @@ function askLines(origin, resolved, { doc, state, runDir }, node) {
  * One `families (<id>): <name> — <description>; …` line per declared id whose
  * row offers a proposal a choice, when the run's policy classes questions and
  * is the one the freeze recorded: under any other policy the classing write
- * classes nothing, so there is nothing to propose.
+ * classes nothing, so there is nothing to propose. A family below the first is
+ * marked as needing the reader's agreement, and a line that offers one ends
+ * with the reader's call — its dispatch name, model and effort, as the
+ * `companion writer:` line prints the writer's; a line with none ends as it
+ * always did.
  */
-function familyLines(doc, ids) {
+function familyLines(doc, ids, node) {
   const orchestrator = isPlainObject(doc.orchestrator) ? doc.orchestrator : {};
   if (orchestrator.classes_questions !== true) return [];
   const { policy, hash } = loadPolicy();
@@ -581,9 +585,16 @@ function familyLines(doc, ids) {
   return ids.flatMap(id => {
     const offered = questionFamilies({ policy, workflow, id, declaredIds: ids });
     if (offered.length < 2) return [];
-    return [`families (${id}): ${offered.map(({ name, description }) => `${name} — ${oneLine(description)}`).join('; ')}`];
+    const list = offered.map(({ name, description, lower }) => `${name} — ${oneLine(description)}${lower ? ' (needs the reader\'s agreement)' : ''}`).join('; ');
+    const reader = offered.some(({ lower }) => lower)
+      ? ` — a family marked as needing the reader's agreement is taken only with the verdict of ${dispatchName(QUESTION_READER)}, ${modelText(QUESTION_READER, node, doc)}`
+      : '';
+    return [`families (${id}): ${list}${reader}`];
   });
 }
+
+/** The agent whose verdict a proposal below a row's first family needs. */
+const QUESTION_READER = 'question-reader';
 
 /**
  * The `ask with:` line: the patch file the set is written to and the
