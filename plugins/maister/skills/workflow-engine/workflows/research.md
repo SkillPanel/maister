@@ -115,7 +115,7 @@ short hyphenated phrase (`adapter-scope-bounded`) is preferred, a plain sentence
 with nothing to escape permitted; the write refuses anything else, failing this
 node.
 
-**Asks.** Step 1 asks the clarification it describes.
+**Asks.** Step 1 asks the clarification it describes. Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
 **With question sets** (`question-clarification`): its sharpened readings
 generated before it suspends.
