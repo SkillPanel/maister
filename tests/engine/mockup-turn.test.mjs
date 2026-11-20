@@ -363,6 +363,61 @@ test('the screen tabs stay beside a screen that fills the page', t => {
   assert.ok(page.includes('<div id="mockup-content"><p>a bare fragment</p></div>'));
 });
 
+// An annotation's note sits beside or above what it describes, never on it, and inside the page's width.
+test('a page places each annotation clear of its target, inside the page width, and places them again when the layout moves', t => {
+  const where = project(t);
+  wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p class="x">a</p>', annotations: [{ selector: '.x', note: 'a note' }] }] });
+  const page = fs.readFileSync(path.join(where.versions, 'v001', 'a.html'), 'utf8');
+  const source = page.match(/function placeTooltip\([\s\S]*?\n    \}\n/);
+  assert.ok(source, 'the page carries its placement function');
+  const placeTooltip = new Function(`${source[0]}; return placeTooltip;`)();
+  const view = { top: 0, width: 1000 };
+  const tip = { width: 200, height: 40 };
+  const cases = [
+    ['room above', { top: 200, left: 100, right: 300, bottom: 240 }, 'above'],
+    ['at the top, room to the right', { top: 10, left: 100, right: 300, bottom: 50 }, 'right'],
+    ['at the top, at the right edge', { top: 10, left: 900, right: 990, bottom: 40 }, 'left'],
+    ['at the top, the full width', { top: 10, left: 0, right: 1000, bottom: 60 }, 'below'],
+    ['above, at the right edge', { top: 300, left: 950, right: 990, bottom: 320 }, 'above'],
+    ['under the viewer\'s own bars', { top: 120, left: 0, right: 1000, bottom: 170 }, 'below', { top: 100, width: 1000 }],
+  ];
+  for (const [label, target, side, within = view] of cases) {
+    const placed = placeTooltip(target, tip, within);
+    assert.equal(placed.side, side, label);
+    const box = { top: placed.top, left: placed.left, right: placed.left + tip.width, bottom: placed.top + tip.height };
+    const overlaps = box.left < target.right && box.right > target.left && box.top < target.bottom && box.bottom > target.top;
+    assert.equal(overlaps, false, `${label}: the note covers its target`);
+    assert.ok(box.left >= 0 && box.right <= within.width, `${label}: the note leaves the page width`);
+    assert.ok(box.top >= within.top, `${label}: the note covers the viewer's own bars`);
+  }
+  assert.match(page, /addEventListener\('resize'/, 'placed again when the window is resized');
+  assert.match(page, /addEventListener\('load'/, 'placed again once the page has loaded');
+});
+
+// A gallery card shows the screen alone: its own markup in a private frame, never the studio page with its bars.
+test('a gallery card frames nothing around the screen: its own html and css, scripts off', t => {
+  const where = project(t);
+  wholeTurn(where, { screens: [
+    { slug: 'list', title: 'List', html: '<header class="app">Todos & "more"</header><main>list</main>', css: '.app{color:red}', annotations: [{ selector: '.app', note: 'the app bar' }] },
+    { slug: 'empty', title: 'Empty', html: '<p>nothing</p>' },
+  ] });
+  const gallery = fs.readFileSync(path.join(where.versions, 'v001', 'index.html'), 'utf8');
+  const frames = [...gallery.matchAll(/<iframe\b[^>]*>/g)].map(match => match[0]);
+  assert.equal(frames.length, 2);
+  for (const frame of frames) {
+    assert.doesNotMatch(frame, /\ssrc=/, 'a card never loads the studio page');
+    assert.match(frame, /\ssandbox=""/, 'no script runs in a card');
+    const srcdoc = frame.match(/\ssrcdoc="([^"]*)"/);
+    assert.ok(srcdoc, frame);
+    const doc = srcdoc[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    assert.doesNotMatch(doc, /mockup-container|annotation-toggle|screen-nav|annotation-tooltip/, 'no studio chrome in a card');
+  }
+  const first = frames[0].match(/\ssrcdoc="([^"]*)"/)[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  assert.ok(first.includes('<style>html,body{margin:0}.app{color:red}</style>'), first);
+  assert.ok(first.includes('<header class="app">Todos & "more"</header><main>list</main>'), first);
+  assert.match(gallery, /<a class="card" href="list\.html">/, 'the card still opens the screen\'s page');
+});
+
 test('the flat view is refreshed from the published version, dropping its removed pages and keeping imported ones', t => {
   const where = project(t);
   fs.mkdirSync(where.out, { recursive: true });
