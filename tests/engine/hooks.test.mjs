@@ -297,3 +297,142 @@ test('hand-over: registered for ask_user in the variant only', () => {
   assert.match(variant, /"matcher": "ask_user"[\s\S]*hand-over-question\.mjs/);
   assert.doesNotMatch(source, /hand-over-question/);
 });
+
+// ---- the after-question note (Copilot variant only)
+// After each ask_user result the hook leaves `.ask.result.json` in the run it
+// ties the call to: who answered the last question.
+
+const OUTCOME = 'question outcome';
+const NOTE_FILE = '.ask.result.json';
+const FORM = {
+  message: 'Settings',
+  requestedSchema: { type: 'object', properties: {
+    scope: { type: 'string', oneOf: [{ const: 'wide', title: 'Wide' }, { const: 'narrow', title: 'Narrow' }] },
+    extras: { type: 'array', items: { enum: ['a', 'b'] } },
+    note: { type: 'string' },
+  } },
+};
+
+/** A run with its state, and the files given, each aged `ageMs` (default fresh). */
+function outcomeRun(root, name, { call, active = true, note, stateAgeMs = 1000, used = true } = {}) {
+  const dir = path.join(root, '.maister/tasks/development', name);
+  fs.mkdirSync(path.join(dir, 'display'), { recursive: true });
+  const at = ageMs => new Date(Date.now() - ageMs);
+  fs.writeFileSync(path.join(dir, 'orchestrator-state.yml'), 'workflow: {}\n');
+  fs.utimesSync(path.join(dir, 'orchestrator-state.yml'), at(stateAgeMs), at(stateAgeMs));
+  if (active) fs.writeFileSync(path.join(dir, 'display/status.json'), JSON.stringify({ nodes: { build: { status: 'running' } } }));
+  if (call) fs.writeFileSync(path.join(dir, used ? '.ask.used.json' : '.ask.json'), JSON.stringify(call));
+  if (note) fs.writeFileSync(path.join(dir, NOTE_FILE), `${JSON.stringify({ outcome: note, at: 'earlier', questions: [] })}\n`);
+  return dir;
+}
+const noteIn = dir => { try { return JSON.parse(fs.readFileSync(path.join(dir, NOTE_FILE), 'utf8')); } catch { return null; } };
+const outcome = (tree, root, call, result, extra = {}) => hook(tree, 'record-question-outcome.mjs', {
+  hook_event_name: 'PostToolUse', tool_name: 'ask_user', tool_input: call, cwd: root,
+  tool_result: { result_type: 'success', text_result_for_llm: result }, ...extra,
+});
+const outcomeRoot = t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-outcome-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  return root;
+};
+
+for (const [label, tree] of [['source', SOURCE], ['variant', VARIANT]]) {
+  test(`${OUTCOME} (${label}): the not-available text writes host with the call's property ids, tied by the used record`, t => {
+    const root = outcomeRoot(t);
+    const dir = outcomeRun(root, '2026-11-03-a', { call: CALL, active: false, stateAgeMs: 3_600_000 });
+    const result = outcome(tree, root, CALL, 'The user is not available to respond and will review your work later. Work autonomously.');
+    assert.deepEqual([result.code, result.stdout], [0, '']);
+    const written = noteIn(dir);
+    assert.equal(written.outcome, 'host');
+    assert.deepEqual(written.questions, ['decision']);
+    assert.equal(written.answers, undefined);
+    assert.ok(!Number.isNaN(Date.parse(written.at)));
+  });
+
+  test(`${OUTCOME} (${label}): a person's answers are parsed and replace an earlier note; typed marks an Other value`, t => {
+    const root = outcomeRoot(t);
+    const dir = outcomeRun(root, '2026-11-03-a', { call: CALL, note: 'host' });
+    outcome(tree, root, CALL, 'User responded: continue-to-planning');
+    assert.deepEqual([noteIn(dir).outcome, noteIn(dir).answers, noteIn(dir).typed], ['person', 'continue-to-planning', undefined]);
+    outcome(tree, root, CALL, 'User responded: Split it in two');
+    assert.deepEqual([noteIn(dir).answers, noteIn(dir).typed], ['Split it in two', ['decision']]);
+    outcome(tree, root, CALL, 'User selected: more-details');
+    assert.deepEqual([noteIn(dir).outcome, noteIn(dir).answers], ['person', 'more-details']);
+
+    const form = outcomeRun(root, '2026-11-03-b', { call: FORM });
+    outcome(tree, root, FORM, 'User responded: scope=wide, extras=a, note=looks fine, really');
+    assert.deepEqual(noteIn(form).answers, { scope: 'wide', extras: 'a', note: 'looks fine, really' });
+    assert.deepEqual(noteIn(form).questions, ['scope', 'extras', 'note']);
+    assert.equal(noteIn(form).typed, undefined, 'a property with no offered options is never typed');
+    outcome(tree, root, FORM, 'User responded: something else');
+    assert.equal(noteIn(form).answers, undefined, 'parts that open no key are not recorded');
+  });
+
+  test(`${OUTCOME} (${label}): every other result writes none over a person note`, t => {
+    const root = outcomeRoot(t);
+    const dir = outcomeRun(root, '2026-11-03-a', { call: CALL });
+    const results = ['User skipped question', 'User cancelled the request.', 'User accepted but provided no values.', 'Something unknown', ''];
+    for (const text of results) {
+      fs.writeFileSync(path.join(dir, NOTE_FILE), '{"outcome":"person"}\n');
+      outcome(tree, root, CALL, text);
+      assert.equal(noteIn(dir).outcome, 'none', text);
+    }
+    fs.writeFileSync(path.join(dir, NOTE_FILE), '{"outcome":"person"}\n');
+    outcome(tree, root, CALL, 'User responded: continue-to-planning', { tool_result: { result_type: 'failure', text_result_for_llm: 'User responded: continue-to-planning' } });
+    assert.equal(noteIn(dir).outcome, 'none', 'a result type other than success');
+    fs.writeFileSync(path.join(dir, NOTE_FILE), '{"outcome":"person"}\n');
+    hook(tree, 'record-question-outcome.mjs', { hook_event_name: 'PostToolUseFailure', tool_name: 'ask_user', tool_input: CALL, cwd: root, error: 'boom' });
+    assert.equal(noteIn(dir).outcome, 'none', 'a failure event with an error and no result');
+  });
+
+  test(`${OUTCOME} (${label}): set-aside folders are never tied, a free-form call ties to the fresh active run only`, t => {
+    const root = outcomeRoot(t);
+    const aside = outcomeRun(root, '2026-11-03-a.moved-1', { call: CALL });
+    const failed = outcomeRun(root, '2026-11-03-a.failed-2', { call: CALL });
+    const stale = outcomeRun(root, '2026-11-02-old', { stateAgeMs: 3_600_000 });
+    const fresh = outcomeRun(root, '2026-11-03-new');
+    outcome(tree, root, { message: 'Free text?' }, 'User responded: yes');
+    assert.equal(noteIn(aside), null);
+    assert.equal(noteIn(failed), null);
+    assert.equal(noteIn(stale), null);
+    assert.deepEqual([noteIn(fresh).outcome, noteIn(fresh).questions, noteIn(fresh).answers], ['person', [], undefined]);
+  });
+
+  test(`${OUTCOME} (${label}): an untied result replaces an older active run's person note and leaves other runs alone`, t => {
+    const root = outcomeRoot(t);
+    const older = outcomeRun(root, '2026-11-01-older', { note: 'person', stateAgeMs: 3_600_000 });
+    const plain = outcomeRun(root, '2026-11-01-plain', { stateAgeMs: 3_600_000 });
+    const fresh = outcomeRun(root, '2026-11-03-new');
+    outcome(tree, root, { message: 'Free text?' }, 'The user is not available to respond');
+    assert.equal(noteIn(fresh).outcome, 'host');
+    assert.equal(noteIn(older).outcome, 'host');
+    assert.equal(noteIn(plain), null);
+  });
+
+  test(`${OUTCOME} (${label}): an agent's call, no tie and unreadable input write nothing and print nothing`, t => {
+    const root = outcomeRoot(t);
+    const dir = outcomeRun(root, '2026-11-03-a', { call: CALL });
+    const agent = outcome(tree, root, CALL, 'User responded: x', { agent_type: 'maister:spec-auditor' });
+    assert.deepEqual([agent.code, agent.stdout, noteIn(dir)], [0, '', null]);
+    const empty = outcomeRoot(t);
+    const none = outcome(tree, empty, CALL, 'User responded: x');
+    assert.deepEqual([none.code, none.stdout, fs.existsSync(path.join(empty, '.maister'))], [0, '', false]);
+    const quiet = outcomeRun(outcomeRoot(t), '2026-11-03-b', { active: false });
+    assert.equal(noteIn(quiet), null);
+    const broken = hook(tree, 'record-question-outcome.mjs', 'not json');
+    assert.deepEqual([broken.code, broken.stdout], [0, '']);
+  });
+}
+
+test(`${OUTCOME}: registered on ask_user for both events in the variant only, with one HOOK_SHAPE line`, () => {
+  const registry = JSON.parse(fs.readFileSync(path.join(VARIANT, 'hooks.json'), 'utf8'));
+  for (const event of ['PostToolUse', 'PostToolUseFailure']) {
+    const [group] = registry.hooks[event];
+    assert.equal(group.matcher, 'ask_user');
+    assert.deepEqual([group.hooks[0].exec, group.hooks[0].args, group.hooks[0].timeout], ['node', ['${CLAUDE_PLUGIN_ROOT}/hooks/record-question-outcome.mjs'], 5]);
+  }
+  assert.doesNotMatch(fs.readFileSync(path.join(SOURCE, 'hooks.json'), 'utf8'), /record-question-outcome/);
+  for (const dir of [SOURCE, VARIANT]) {
+    assert.equal(fs.readFileSync(path.join(dir, 'record-question-outcome.mjs'), 'utf8').match(/^const HOOK_SHAPE = /gm).length, 1);
+  }
+});

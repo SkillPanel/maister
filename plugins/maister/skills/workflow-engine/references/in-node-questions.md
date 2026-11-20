@@ -484,7 +484,10 @@ list:
 `question_id` is the id the node's *Without question sets* line names, and `decision` is the
 default this run actually took. A node that had nothing to ask records nothing. An answered question is recorded the same
 way, `by: operator` (`references/gates.md` § *Before every gate*). `by: operator` is for an
-answer a person gave and nothing else: a question the run settles without asking anybody —
+answer a person gave and nothing else. A pick the question tool returned with no person's
+answer behind it — Copilot CLI's autopilot, or a skipped, declined or failed question — is
+recorded `{by: run, actor: {kind: host, id: copilot}}`, and an approval-class one is refused. A
+question the run settles without asking anybody —
 under any permission mode, and under a driver that asks nobody — is `{decision, by: run,
 rationale}`, never written in the answer shape. Under a `cockpit` or `dispatch` driver the
 writer credits an operator-shaped item with no name, `via` or `actor` to the run, unless it is an

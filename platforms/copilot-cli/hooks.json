@@ -1,5 +1,5 @@
 {
-  "description": "Maister plugin hooks for workflow enforcement: the session-start reminder, the destructive-command guard and the hand-over of the engine's question call to ask_user",
+  "description": "Maister plugin hooks for workflow enforcement: the session-start reminder, the destructive-command guard, the hand-over of the engine's question call to ask_user and the note of who answered each question",
   "hooks": {
     "SessionStart": [
       {
@@ -32,6 +32,32 @@
             "type": "command",
             "exec": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/hand-over-question.mjs"],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "ask_user",
+        "hooks": [
+          {
+            "type": "command",
+            "exec": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/record-question-outcome.mjs"],
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "ask_user",
+        "hooks": [
+          {
+            "type": "command",
+            "exec": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/record-question-outcome.mjs"],
             "timeout": 5
           }
         ]

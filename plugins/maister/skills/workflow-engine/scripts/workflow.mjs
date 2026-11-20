@@ -220,6 +220,7 @@ import { isNewerVersion, readDefinition } from './lib/definition.mjs';
 // Shared with the session-start hook, which warns on the same detection, so it
 // sits at the plugin root beside `canonical.mjs` rather than in this skill.
 import { findEditionCollision } from '../../../lib/editions.mjs';
+import { SHIPPED_HOST } from '../../../lib/host.mjs';
 // Shared with the umbrella runtime's `--input-file`: one rule for a document
 // read from a fixed file instead of stdin.
 import { anchoredFile, consume as consumeFile, readFileText } from '../../../lib/input-file.mjs';
@@ -1307,9 +1308,26 @@ function printAsk(flags, result, noteForm) {
  */
 const ASK_RECORD = '.ask.json';
 
+/**
+ * The Copilot build's after-question note and its retired name (`lib/state.mjs`
+ * owns the note; spelled here so the verbs that print a call need not load the
+ * state writer). Every question printed retires the note left by the one
+ * before it, so a person's answer to that question never counts for this one.
+ */
+const ASK_RESULT = '.ask.result.json';
+const ASK_RESULT_USED = '.ask.result.used.json';
+
 function printCall(flags, call) {
   const text = `${JSON.stringify(call, null, 2)}\n`;
   process.stdout.write(text);
+  if (SHIPPED_HOST === 'copilot') {
+    try {
+      const runDir = path.dirname(path.resolve(flags.state));
+      fs.renameSync(path.join(runDir, ASK_RESULT), path.join(runDir, ASK_RESULT_USED));
+    } catch {
+      // No note, or one that cannot be moved: the call is printed either way.
+    }
+  }
   try {
     const record = path.join(path.dirname(path.resolve(flags.state)), ASK_RECORD);
     const scratchFile = `${record}.${process.pid}.tmp`;

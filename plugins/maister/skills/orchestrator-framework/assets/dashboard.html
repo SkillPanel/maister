@@ -220,6 +220,7 @@
   .risk-item.resolved { color: var(--text-faint); text-decoration: line-through; }
   .src, .tag { display: inline-block; font-size: 10.5px; font-weight: 650; padding: 1px 7px; border-radius: 99px; margin-left: 6px; vertical-align: 1px; background: var(--surface-2); color: var(--text-dim); }
   .src.operator { background: var(--accent-soft); color: var(--accent); }
+  .src.host { background: var(--warn-soft); color: var(--warn); }
   .src.audit { background: var(--info-soft); color: var(--info); }
   .src.approved { background: var(--ok-soft); color: var(--ok); }
   .src.held { background: var(--warn-soft); color: var(--warn); }
@@ -324,6 +325,8 @@ function isResolvedRisk(r) { return riskOf(r).tag === "resolved"; }
 const TAG_ORDER = ["stop", "open", "tradeoff", "followup", "resolved"];
 const TAG_LABEL = { stop: "stop", open: "open", tradeoff: "trade-off", followup: "follow-up", resolved: "resolved" };
 const SOURCE_LABEL = { run: "Analysis", audit: "Audit", default: "Default", operator: "You" };
+/* A question a host answered while nobody was there: the host's own name, by its actor id. */
+const HOST_LABEL = { copilot: "Copilot" };
 function byTag(risks) {
   return risks.map(riskOf).sort((a, b) => TAG_ORDER.indexOf(a.tag) - TAG_ORDER.indexOf(b.tag));
 }
@@ -345,6 +348,7 @@ function onBehalf(name, via) {
 }
 function sourceChip(x) {
   if (!x || typeof x !== "object" || !SOURCE_LABEL[x.by]) return "";
+  if (x.by === "run" && x.actor && x.actor.kind === "host") return '<span class="src host">' + esc(HOST_LABEL[x.actor.id] || x.actor.id || "Host") + '</span>';
   const named = x.answered_by && x.answered_by !== "operator" ? x.answered_by : null;
   const who = x.by === "operator" ? (onBehalf(x.on_behalf_of, named) || named || SOURCE_LABEL[x.by]) : SOURCE_LABEL[x.by];
   return '<span class="src ' + esc(x.by) + '">' + esc(who) + '</span>';

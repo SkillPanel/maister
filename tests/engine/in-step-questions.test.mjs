@@ -7,7 +7,7 @@ import { FIXTURES, freeze, readDashboard, readState, scratch, verb, write } from
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { scanState } from '../../plugins/maister/lib/state-scan.mjs';
 import { isEarlierAnswer } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
-import { checkSet } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-set.mjs';
+import { checkSet, roundsAsked } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-set.mjs';
 
 // A question a node asks inside itself suspends to the operator only under a
 // cockpit driver that lists `question-sets`. The node writes its set to the
@@ -659,4 +659,13 @@ test('the shared state reader still reads the driver line when it lists features
   const scanned = scanState(fs.readFileSync(run.state, 'utf8'));
   assert.equal(scanned.driverKind, 'dispatch');
   assert.equal(scanned.driverSession, 's-1');
+});
+
+test('rounds: roundsAsked counts a host-answered round the way it counts an operator one', () => {
+  const host = round => ({ by: 'run', actor: { kind: 'host', id: 'copilot' }, question_id: `q${round}`, question: 'Which?', answer: 'A', recommended: 'A', as_recommended: true, ...(round > 1 ? { round } : {}) });
+  const operator = { decision: 'B', by: 'operator', question_id: 'other', question: 'Which?', answer: 'B' };
+  assert.equal(roundsAsked([host(1)]), 1);
+  assert.equal(roundsAsked([operator, host(2)]), 2);
+  assert.equal(roundsAsked([host(3)], 2), 0, 'another attempt is not counted');
+  assert.equal(roundsAsked([{ decision: 'plain', by: 'run', question_id: 'x' }]), 0, 'a run decision without the host actor is not an answer');
 });

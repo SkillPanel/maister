@@ -18,6 +18,10 @@ before you install over a project with work in flight.
 
 ### What's new
 
+- **Autopilot no longer answers a checkpoint.** Under Copilot CLI's autopilot a run works through
+  its steps and Copilot answers the in-step questions, shown as "Answered by the host" and tagged
+  "Copilot", but the engine refuses any checkpoint answer no person gave, so the run waits until
+  you switch to interactive mode and resume.
 - **Six built-in workflows on one engine.** Every change to a run's state goes through the engine,
   which refuses what the graph does not allow: a step recorded as done before the checkpoint in
   front of it has an answer, an answer the checkpoint does not offer, a run closed while steps it

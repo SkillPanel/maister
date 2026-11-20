@@ -222,16 +222,27 @@ question, not just the options.
 Every pause between phases asks in the session, whatever your permission settings. Allow-all
 approves tools; it does not answer a workflow's questions.
 
-### Run workflows in interactive mode, not autopilot
+### Autopilot stops at every approval
 
-Copilot's autopilot mode answers questions itself: a question that would wait for you is answered
-with the model's best guess ("Making best guess on autopilot"). In autopilot, Copilot would answer
-every one of Maister's approvals for you, and the run would go from analysis to implementation
-without you seeing a single phase. If you want to answer the gates, run workflows in Copilot's
-interactive mode.
+Under Copilot's autopilot mode the work of a run goes on, and Copilot answers the questions a step
+asks inside its work itself. Those answers are shown as "Answered by the host" in the checkpoint's
+more details and tagged "Copilot" on the dashboard, and "You made N choices" does not count them.
+Every checkpoint waits for a person: the engine refuses an approval nobody gave, so the run stops
+at the first one. Switch Copilot to interactive mode and resume the run, and it asks the checkpoint
+again.
+
+A question you skip or cancel is treated the same way: it is not an answer, and a checkpoint it
+was meant for stays open.
 
 This is not the same as allow-all. Allow-all approves tool calls and still leaves every question
-to you; autopilot answers the questions too.
+to you; autopilot answers the in-step questions and leaves the approvals waiting.
+
+If a checkpoint keeps being refused in interactive mode although you answered it, the hook that
+records your answers has stopped reporting. Check that plugin hooks are enabled, that `node` is on
+your path and that Copilot was started in the project's root folder, then resume the run so it
+asks the checkpoint again. If it still cannot report, delete `.ask.result.used.json` from the run's
+task directory (`.maister/tasks/<type>/<YYYY-MM-DD-name>/`). The run then accepts approvals without
+this check, so until the hook reports again it cannot tell your approval from one autopilot gave.
 
 ## Permissions
 
@@ -251,8 +262,8 @@ flowing:
   for the whole session: file edits, shell commands and the engine's writes alike. Use it in a
   project where you are happy for the run to change files and run commands unattended. Copilot
   still asks about a few command shapes even then. Allow-all leaves the workflow's questions to
-  you; autopilot does not (see
-  [Run workflows in interactive mode, not autopilot](#run-workflows-in-interactive-mode-not-autopilot)).
+  you; autopilot answers the in-step ones and stops at every approval (see
+  [Autopilot stops at every approval](#autopilot-stops-at-every-approval)).
 
 ### Subagents cannot ask
 

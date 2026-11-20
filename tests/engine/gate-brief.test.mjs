@@ -2081,3 +2081,19 @@ test('gate-brief: the display panel at a gate with several continues shows the r
   assert.ok(panel.glance.includes('Next: Planning (skipping Specification audit)'), JSON.stringify(panel.glance));
   assert.equal(panel.parts.find(part => part.key === 'next').text, 'Planning (skipping Specification audit)');
 });
+
+test('gate-brief --checkpoint: a host-answered question lands in decisions.host, never in operator or run, and a run without one has no host key', t => {
+  const hostItem = {
+    by: 'run', actor: { kind: 'host', id: 'copilot' }, question_id: 'scope', question: 'Which scope?', answer: 'Narrow', recommended: 'Wide', as_recommended: false,
+  };
+  const withHost = atApproval(t, { ...SUMMARY, decisions: [...SUMMARY.decisions, hostItem] });
+  const cp = JSON.parse(verb(['gate-brief', `--state=${withHost.state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.deepEqual(cp.decisions.host, [{
+    decision: 'Narrow', question: 'Which scope?', answer: 'Narrow', recommended: 'Wide', as_recommended: false, question_id: 'scope', node: 'analysis', host: 'copilot',
+  }]);
+  assert.equal(cp.decisions.operator.count, 0, 'not counted as an operator choice');
+  assert.deepEqual(cp.decisions.run.map(item => item.decision), ['Patch the tokenizer'], 'not counted among the run\'s own');
+
+  const without = JSON.parse(verb(['gate-brief', `--state=${atApproval(t).state}`, '--node=approval', '--checkpoint']).stdout);
+  assert.equal(Object.hasOwn(without.decisions, 'host'), false);
+});
