@@ -43,6 +43,18 @@ description says what choosing it does or costs; where the tool shows no option 
 that goes in the question, a line per option. Text printed before the picker may never reach
 the screen, so nothing the user needs may depend on it.
 
+**Each option opens with what sets it apart.** An option's label, and its description when it
+has one, starts with the words that tell it from the question's other options, before any
+wording it shares with them: "Keep their own sessions, and look again later" against "Run them
+inside the step's session" — never two options that open with the same words and differ only at
+their ends, which a reader scanning the list takes for the same option. A short shared verb whose
+next word already differs ("Continue to planning" / "Continue to the specification audit") is
+fine; a shared clause is not. Only the opening is governed: an option may still bundle several
+decisions. This holds for every option a person reads — a gate label in a definition, a question
+asked in session, a set that suspends. A set whose two options of one question share their first
+three words is still asked as written; `gate-brief` adds an `option-openings-shared` warning
+naming them, for the next set to be worded better.
+
 **More details — one request, one rule.** Offer **More details** as the last option of every
 question whose full context is longer than its question and descriptions hold: a gate (the
 gate brief lists it), a decision area, a draft or section to approve, a page of fix-loop

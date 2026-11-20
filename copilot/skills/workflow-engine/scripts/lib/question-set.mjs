@@ -233,6 +233,44 @@ function adoptMarks(options) {
   });
 }
 
+/**
+ * The opening words two options of one question should not share. An operator
+ * scans a list by its openings, so two labels that open alike and differ only
+ * at their ends read as one option. A shared verb whose next word differs
+ * ("Continue to planning", "Continue to the audit") is fine, which is why the
+ * opening is three words and not two.
+ */
+const OPENING_WORDS = 3;
+
+/** A label's words for comparing openings: lower case, punctuation dropped. */
+const wordsOf = label => String(label).toLowerCase().replace(/[^\p{L}\p{N}'\s]+/gu, ' ').split(/\s+/).filter(Boolean);
+
+/**
+ * The options of each question whose labels open with the same words, as
+ * `option-openings-shared` warning messages, one per group. Wording is
+ * guidance: the set is asked as written and nothing is refused. Labels only —
+ * descriptions often open in parallel on purpose — and a label shorter than
+ * the opening is never compared. Takes questions `checkSet` accepted, whose
+ * labels no longer carry a typed "(Recommended)".
+ */
+export function sharedOpenings(questions) {
+  const warnings = [];
+  for (const question of questions ?? []) {
+    const groups = new Map();
+    for (const option of question.options ?? []) {
+      const words = wordsOf(option.label);
+      if (words.length < OPENING_WORDS) continue;
+      const opening = words.slice(0, OPENING_WORDS).join(' ');
+      groups.set(opening, [...(groups.get(opening) ?? []), option.label]);
+    }
+    for (const [opening, labels] of groups) {
+      if (labels.length < 2) continue;
+      warnings.push(`option-openings-shared:${question.id}:${labels.map(label => JSON.stringify(label)).join(' and ')} open with "${opening}"; lead each option with what sets it apart`);
+    }
+  }
+  return warnings;
+}
+
 /** An id as a header in plain sentence case: `tag-case` reads "Tag case". */
 function sentenceOf(id) {
   const words = id.replace(/[-_]+/g, ' ').trim();

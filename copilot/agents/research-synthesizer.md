@@ -329,6 +329,8 @@ Your companion follows the `html:` line of the run context in your prompt. With 
 1. **Follow the style guide**: self-contained single file, standard CSS block, breadcrumb bar (research suite), stat-tile row (findings / sources / confidence), no external resources.
 2. **Lead with** the TL;DR block; then findings table (title, category, confidence badge, source count), insight cards, SWOT grid, collapsed `<details>` for evidence and citations. Link to `research-report.md` in the header (`target="_blank"`).
 3. **Same content as the md** — restructure and visualize, never add findings.
+4. **Heading ids**: give each `##` and `###` heading of the report an element whose `id` is its GitHub-style slug, per the style guide's *Heading anchors*.
+5. **Explainer crumb**: link the explainer in the breadcrumb only when `outputs/research-explainer.html` is on disk as the page is written; otherwise leave the crumb out, and the explainer writer adds it.
 
 ---
 

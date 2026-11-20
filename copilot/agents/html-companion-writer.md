@@ -45,6 +45,7 @@ Your companion follows the `html:` line in your prompt. With an absolute path, r
    - Breadcrumb bar from `report_suite` (current report as plain text, others linked; md twin link `target="_blank"`).
    - Lead with the artifact's TL;DR / Key Decisions / Open Questions / Risks block (every contract-compliant md opens with it — the writer heading is `## Open Questions / Risks`), then the stat-tile row, then the artifact's sections restructured as tables / cards / badges / collapsible `<details>` per the style guide.
    - Use the standard severity vocabulary and CSS classes from the guide. Keep ASCII diagrams as `<pre>` (don't redraw).
+   - Give each `##` and `###` heading of the md an element whose `id` is its GitHub-style slug, per the style guide's *Heading anchors*, even where the section is restructured into cards or tables.
 5. **Same content as the md** — visualize only. Never introduce findings, decisions, or numbers absent from the source.
 
 ## Output

@@ -125,7 +125,7 @@ import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { areasProducer } from './decision-areas.mjs';
-import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked, setForm } from './question-set.mjs';
+import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked, setForm, sharedOpenings } from './question-set.mjs';
 
 // The note question's call, for `gate-brief --ask --note`: the verb loads this module alone.
 export { noteForm } from './checkpoint.mjs';
@@ -559,9 +559,11 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
     }
     set = { ...set, questions: set.questions.filter(question => asking.includes(question.id)) };
   }
+  // Options of one question that open alike are asked as written, with a
+  // warning: wording is guidance, never a refusal.
+  const warnings = sharedOpenings(set.questions).map(message => ({ code: 'option-openings-shared', message }));
   // Each question's evidence checked against the disk: a path that cannot be
   // kept is dropped with a warning, and never keeps the question from being asked.
-  const warnings = [];
   set = {
     ...set,
     questions: set.questions.map(({ evidence: raw, ...question }) => {
