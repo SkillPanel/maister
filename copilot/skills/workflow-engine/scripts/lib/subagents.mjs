@@ -137,6 +137,7 @@ export const SHIPPED = Object.freeze({
     'task-classifier': { tier: 'light' },
     'test-suite-runner': { tier: 'light' },
     'html-companion-writer': { tier: 'light' },
+    'question-reader': { tier: 'light' },
     Explore: { tier: 'light' },
     'spec-conformance-review': { tier: { claude: 'deep', copilot: 'standard' } },
     'code-risk-review': { tier: { claude: 'deep', copilot: 'standard' } },

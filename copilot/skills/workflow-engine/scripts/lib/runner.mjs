@@ -60,10 +60,10 @@
  * sent is back — a host that runs a subagent's own agent calls in the
  * background, and makes it hand back once it ends a turn idle. Its pending
  * ids are agents this attempt's `in-flight.json` records; a pending id it does
- * not hold is refused, and so is one already back — its output written, or
- * marked ended — so a result never says less than the files. `unavailable` is
- * for a runner that could not run, and is refused while an agent this session
- * sent is still out.
+ * not hold is refused, and so is one already back — its output written,
+ * marked ended, or its group logged — so a result never says less than the
+ * files. `unavailable` is for a runner that could not run, and is refused
+ * while an agent this session sent is still out.
  *
  * `runner-step --state --node [--runner] [--answered]` is the node's. It reads
  * the run and prints one JSON object naming what the node does next:
@@ -141,20 +141,23 @@
  *
  * `in-flight --state --node [--runner] --record | --agents | --ended` is the
  * loop's record of the agents it sends, `<folder>/in-flight.json`: `{node,
- * attempt, agents: {<id>: {output, session, dispatched, agent, cycle?, kept?,
- * ended?}}}`. `--record=<id>:<output>,…` is called before the agents are sent:
- * it stamps each with the calling session (the host's session id) and the
- * clock, verification's with its cycle, and deletes the output's stale copy,
+ * attempt, agents: {<id>: {output, session, host_pid?, dispatched, agent,
+ * cycle?, kept?, ended?}}}`. `--record=<id>:<output>,…` is called before the
+ * agents are sent: it stamps each with the calling session (the host's session
+ * id), the host's process when the host names it, and the clock,
+ * verification's with its cycle, and deletes the output's stale copy,
  * so an output on disk always answers the latest dispatch. Verification
  * deletes only the same cycle's stale copy: a file an earlier cycle left is
  * kept, its size and mtime in the record's `kept`, and the output is written
  * once the file differs from it. `--agents=<id>:<agent
  * id>,…` attaches the ids a host gave at launch; `--ended=<id>,…` marks agents
  * whose completion came without their output. An agent is still out while
- * its record names this session, belongs to the current cycle (a record
- * without one always does), is not ended and its output is not written;
- * a record of another session, or with no session, is never waited for: a
- * background agent lives in its session's process and went with it.
+ * its record names this session and, when both name one, this host process,
+ * belongs to the current cycle (a record without one always does), is not
+ * ended, its output is not written and, for an implementation group, the work
+ * log records no `Group N Complete` or `Reverted` heading since it was sent;
+ * a record of another session or process, or with no session, is never waited
+ * for: a background agent lives in the process that sent it and went with it.
  *
  * The refusals, none of them fixed by a state write and each leaving nothing
  * written: `<verb>-state-unreadable`, `<verb>-unknown-node` (no node of the
@@ -257,17 +260,17 @@ export function runnerResult({ state, node, document, runner = VERIFICATION }) {
         + 'Record each agent with in-flight --record before it is sent, then send the whole result again naming only those still out');
     }
     // A result never says less than the files: an agent whose output is on
-    // disk, or that ended, is back, and waiting on it would hold the node on
-    // work that has already landed.
-    const back = document.pending.filter(id => agents[id].ended === true
-      || (typeof agents[id].output === 'string' && written(path.resolve(run.runDir, agents[id].output), agents[id].kept)));
+    // disk, that ended, or whose group the work log records, is back, and
+    // waiting on it would hold the node on work that has already landed.
+    const isBack = backTest(run.runDir, runner);
+    const back = document.pending.filter(id => isBack(id, agents[id]));
     if (back.length) {
       return refuse('runner-result-invalid',
-        `the waiting result's pending names ${back.join(', ')}, which ${back.length === 1 ? 'is' : 'are'} already back: its output is written or it ended. Nothing was written. `
+        `the waiting result's pending names ${back.join(', ')}, which ${back.length === 1 ? 'is' : 'are'} already back: its output is written, it ended or the work log records its group. Nothing was written. `
         + 'Take each one in first, then send waiting naming only the agents still out, or go on when none is');
     }
   }
-  const out = outstanding(run.runDir, agents, run.cycle);
+  const out = outstanding(run.runDir, agents, run.cycle, runner);
   if (document.result === 'unavailable' && out.length) {
     return refuse('runner-result-invalid',
       `the result is unavailable while ${out.map(each => each.id).join(', ')} of this session ${out.length === 1 ? 'is' : 'are'} still out. Nothing was written. `
@@ -405,7 +408,7 @@ export function runnerStep({ state, node, answered = false, runner = VERIFICATIO
   // A runner sent back to continue from the files while an agent it sent is
   // still out would send a second one onto the same work: wait for it instead.
   if (next.ok && next.step.next === 'dispatch' && typeof next.step.resume === 'string') {
-    const out = outstanding(run.runDir, attemptAgents(path.join(run.runDir, runner), node, run.attempt), run.cycle);
+    const out = outstanding(run.runDir, attemptAgents(path.join(run.runDir, runner), node, run.attempt), run.cycle, runner);
     if (out.length) return ok({ next: 'wait', pending: out.map(({ id, agent, output }) => ({ id, agent, output })) });
   }
   return next;
@@ -768,13 +771,14 @@ export function inFlight({ state, node, runner = VERIFICATION, record = null, ag
       if (fault) return invalid(`--record gives ${id} the output "${output}", which ${fault}`);
     }
     const session = hostSession();
+    const pid = hostProcess();
     const cycle = runner === VERIFICATION ? run.cycle : null;
     const before = { ...recorded };
     for (const [id, output] of record) {
       const kept = cycle === null ? null : keptFile(run.runDir, output, before, cycle);
       if (kept === null) fs.rmSync(path.resolve(run.runDir, output), { force: true });
       recorded[id] = {
-        output, session, dispatched: stamp(), agent: null,
+        output, session, ...(pid === null ? {} : { host_pid: pid }), dispatched: stamp(), agent: null,
         ...(cycle === null ? {} : { cycle }), ...(kept === null ? {} : { kept }),
       };
     }
@@ -851,22 +855,79 @@ function attemptAgents(dir, node, attempt) {
 
 /**
  * The recorded agents still out: sent by this session, so alive while it is,
- * in the current cycle, not marked ended, and with no output written. A record
- * of another session, or one the host named no session for, is not waited
- * for: its agents went with that session. Nor is a record of an earlier
- * verification cycle: a cycle starts only once the last one's agents are
- * back, and its output may be a name the agent never wrote, or a file a later
- * record shares.
+ * from this host process when the host names one, in the current cycle, and
+ * not back (`backTest`). A record of another session, or one the host named no
+ * session for, is not waited for: its agents went with that session. Nor is
+ * one an earlier host process sent — a session resumed after its process
+ * ended keeps its id, but a background agent lives in the process that sent it
+ * and went with it. Nor is a record of an earlier verification cycle: a cycle
+ * starts only once the last one's agents are back, and its output may be a
+ * name the agent never wrote, or a file a later record shares.
  */
-function outstanding(runDir, agents, cycle) {
+function outstanding(runDir, agents, cycle, runner) {
   const session = hostSession();
   if (session === null) return [];
+  const pid = hostProcess();
+  const sameProcess = entry => pid === null || !Number.isInteger(entry.host_pid) || entry.host_pid === pid;
   const current = entry => !Number.isInteger(entry.cycle) || cycle === null || entry.cycle === cycle;
+  const isBack = backTest(runDir, runner);
   return Object.entries(agents)
-    .filter(([, entry]) => entry.session === session && entry.ended !== true && typeof entry.output === 'string')
-    .filter(([, entry]) => current(entry))
-    .filter(([, entry]) => !written(path.resolve(runDir, entry.output), entry.kept))
+    .filter(([, entry]) => entry.session === session && typeof entry.output === 'string')
+    .filter(([, entry]) => sameProcess(entry) && current(entry))
+    .filter(([id, entry]) => !isBack(id, entry))
     .map(([id, entry]) => ({ id, agent: typeof entry.agent === 'string' ? entry.agent : null, output: entry.output }));
+}
+
+/**
+ * Whether a recorded agent is back, as `(id, entry) => boolean`: it was marked
+ * ended, its output is written, or — an implementation group — the work log
+ * records the group complete or reverted after the record's dispatch.
+ * The last is the loop's own record of a group it took in, so a group taken
+ * in from a reply whose report never reached disk, and whose loop then
+ * stopped, is never waited on again.
+ */
+function backTest(runDir, runner) {
+  const logged = runner === IMPLEMENTATION ? loggedGroups(runDir) : new Map();
+  return (id, entry) => {
+    if (entry.ended === true) return true;
+    if (typeof entry.output === 'string' && written(path.resolve(runDir, entry.output), entry.kept)) return true;
+    const group = GROUP_ID.exec(id);
+    const sent = Date.parse(entry.dispatched);
+    const at = group === null ? undefined : logged.get(String(Number(group[1])));
+    return at !== undefined && Number.isFinite(sent) && at > sent;
+  };
+}
+
+/** An implementation agent's id: `group-<N>`. */
+const GROUP_ID = /^group-(\d+)$/;
+
+/** A work-log heading recording a group taken in: `## <time> - Group N Complete (wave K)`, or Reverted. */
+const LOGGED_GROUP = /^##\s+(.+?)\s+-\s+Group (\d+) (?:Complete|Reverted) \(wave\b/gim;
+
+/** The latest time the work log records each group complete or reverted, by group number; empty without a log. */
+function loggedGroups(runDir) {
+  let text;
+  try {
+    text = fs.readFileSync(path.join(runDir, ...WORK_LOG.split('/')), 'utf8');
+  } catch {
+    return new Map();
+  }
+  const latest = new Map();
+  for (const match of text.matchAll(LOGGED_GROUP)) {
+    const at = Date.parse(match[1]);
+    const group = String(Number(match[2]));
+    if (Number.isFinite(at) && !(latest.get(group) >= at)) latest.set(group, at);
+  }
+  return latest;
+}
+
+/** The environment variable a host names its own process in. */
+const PROCESS_ENV = 'CLAUDE_PID';
+
+/** The host process this call runs under, as the host names it, or null. */
+function hostProcess(env = process.env) {
+  const value = Number(env[PROCESS_ENV]);
+  return Number.isInteger(value) && value > 0 ? value : null;
 }
 
 // ---------------------------------------------------------------------------

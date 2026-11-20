@@ -100,15 +100,16 @@ import { companionsOf, owedCompanions } from './companions.mjs';
 import { placedArtifacts, whereOf } from './artifact-paths.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
+import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isHostAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
-import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
+import { GENERATED_WORKFLOW, ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { frozenSubagents } from './subagents.mjs';
 import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
-import { lowered } from './checkpoint.mjs';
+import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
 import { projectRootOf } from '../../../../lib/run-dirs.mjs';
+import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
 import { atClose, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
@@ -574,7 +575,9 @@ export function writeState({ state, patch, regress = null, host = null, moveBase
     // `apply` and the companion check below both judge only the former.
     const before = statusesOf(doc.text());
     // `asking`: the ids a classing write left to ask, null when the write sent no question set.
-    const out = { changed, ignored, undeclared, writeWarnings, notes, asking: null, before };
+    // `evidence`: who answered the run's last question (`answerEvidence`), null when nothing is
+    // judged; `noteUse`: what of a person's note this write relied on (`assertPersonAnswered`).
+    const out = { changed, ignored, undeclared, writeWarnings, notes, asking: null, before, evidence: null, noteUse: null };
     for (const key of apply(doc, patch, now, path.dirname(path.resolve(state)), out, regress, host, checkMoveBase(moveBase))) allowed.add(key);
     const text = doc.text();
     selfCheck(text, state, allowed);
@@ -588,6 +591,8 @@ export function writeState({ state, patch, regress = null, host = null, moveBase
       changed.push(GATE_INDEX);
     }
     commit(state, text);
+    // Only once the write has landed: a refused write never retires a note.
+    if (out.noteUse !== null) retireNote(path.dirname(path.resolve(state)), out.noteUse, out.evidence, warnings);
     // After the commit, and the asymmetry against `syncIndex` above is
     // deliberate: the index mirrors request files that are already on disk, so
     // publishing it early can never be wrong, while the dashboard is a projection
@@ -1076,6 +1081,27 @@ export function definitionPathOf(doc, runDir) {
   return file;
 }
 
+/**
+ * The workflow name the autonomy policy's rows are matched against for this
+ * run: `generated` when the definition it froze is a file in its project's
+ * generated-chain home (`.maister/workflows/generated/`), else the run's own
+ * `workflow.name`. A generated chain is planned under a fresh name each time,
+ * so rows keyed by that name could never reach it; its own name, task
+ * directory and recorded source stay as they are. The definition is found by
+ * `definitionPathOf`, the lookup every other reader of the run uses, so a run
+ * frozen before this rule existed is classed by it too. Without a run
+ * directory there is no project to judge by, and the own name is used.
+ */
+export function policyWorkflowOf(doc, runDir) {
+  const workflow = isPlainObject(doc?.workflow) ? doc.workflow : {};
+  const name = typeof workflow.name === 'string' ? workflow.name : undefined;
+  if (runDir === null || runDir === undefined) return name;
+  const file = definitionPathOf(doc, runDir);
+  if (file === null) return name;
+  const home = path.join(projectRootOf(runDir), '.maister', 'workflows', 'generated');
+  return path.dirname(path.resolve(file)) === home ? GENERATED_WORKFLOW : name;
+}
+
 /** The base definition `locateWorkflow` finds for a name, or null. */
 function located(name, root) {
   const hit = locateWorkflow(name, root);
@@ -1222,6 +1248,11 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   // The run's frozen graph, proven, for the checks that need the definition;
   // resolved at most once per write, and only if one of them asks.
   const graphOf = frozenGraphOf(doc, runDir);
+  // Who answered the run's last question, on the Copilot build only, read
+  // from the state before any part of the patch lands (`answerEvidence`):
+  // null leaves every path below as it was.
+  const prior = SHIPPED_HOST === 'copilot' && runDir !== null && doc.has('workflow') ? typedOf(doc) : null;
+  out.evidence = prior === null ? null : answerEvidence(runDir, prior);
   // A child run is written where its parent recorded it, or not at all.
   assertSubrunPath(doc, patch.orchestrator, runDir);
 
@@ -1343,11 +1374,16 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   const typedNow = () => (typed ??= typedOf(doc));
   // The gates this write judges, read once for the two passes that care.
   const { judged, fresh, closing } = judgedGates(answering, typedNow, runDir, answeredBefore);
+  // Before anything records, approves or triages a gate's answer, so a write
+  // that needs a person's answer is refused before any of them names it.
+  if (out.evidence !== null) {
+    out.noteUse = assertPersonAnswered({ typed: typedNow(), prior, patch, evidence: out.evidence, judged, fresh, regress, before: out.before, runDir });
+  }
   if (foldDrivenAnswers(doc, typedNow(), closing, runDir, changed)) typed = null;
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
   if (runDir !== null && stampAnsweredIn(doc, typedNow(), out.before, graphOf, runDir, changed)) typed = null;
-  judgeGates(doc, typedNow, judged, changed, writeWarnings);
+  judgeGates(doc, typedNow, judged, changed, writeWarnings, runDir);
   approveHeld(doc, fresh, graphOf, changed, runDir);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
@@ -3431,7 +3467,16 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
       } else {
         via ??= answerVia(parseState(doc.text()));
         const prior = heldOf(key)?.decisions;
-        entry.decisions = stampAnswers(keepRounds(prior, keepProvenance(prior, keepAttempts(prior, runSettled(entry.decisions, via, prior)))), runDir, via);
+        // Who answered the run's last question, when the Copilot build has a
+        // report of it (`answerEvidence`): a pick no person gave is the host's.
+        const evidence = classing?.out?.evidence ?? null;
+        const settled = evidence === null
+          ? runSettled(entry.decisions, via, prior)
+          : hostSettled(entry.decisions, prior, {
+            evidence,
+            needsApproval: item => classes() && approvalClassed(item, key, typedNow(), runDir, classing.policyNow),
+          });
+        entry.decisions = stampAnswers(keepRounds(prior, keepProvenance(prior, keepAttempts(prior, settled))), runDir, via);
         const kept = classing !== null && classes() ? writerKept(prior, entry.decisions) : [];
         entry.decisions = [...earlierAnswers(prior, entry.decisions), ...kept, ...entry.decisions];
       }
@@ -3875,6 +3920,83 @@ function runSettled(decisions, via, prior = null) {
   });
 }
 
+/**
+ * A task node's `decisions` under the Copilot build's report of who answered
+ * the run's last question (`evidence`, from `answerEvidence`, not null), read
+ * after `assertItems`. Each operator-shaped item is judged in this order:
+ *
+ * - one that gives the answer a held host answer gave — the same
+ *   `question_id`, attempt (1 when absent) and answer (`sameAnswer`) — is
+ *   recorded as that held item: a host's pick sent again in a person's shape
+ *   stays the host's, under any note;
+ * - one that gives the answer a held operator answer gave, matched the same
+ *   way, in the current attempt or an earlier one, is kept: a person's answer
+ *   sent again stays the person's;
+ * - one the note covers (`answerCovered`) is a person's, and kept;
+ * - one `needsApproval` reads as approval-class is refused
+ *   (`state-answer-needs-person`): a person must answer it;
+ * - any other is the host's pick (`asHostAnswer`).
+ *
+ * An answer block the writer folded gets no exemption of its own here. Items
+ * already recorded as the run's, a host's included, are left as they are.
+ */
+function hostSettled(decisions, prior, { evidence, needsApproval = () => false }) {
+  if (!Array.isArray(decisions)) return decisions;
+  const held = Array.isArray(prior) ? prior.filter(isPlainObject) : [];
+  const heldLike = (item, isHeld) => held.find(other => isHeld(other) && other.question_id === item.question_id
+    && (attemptNumber(other) ?? 1) === (attemptNumber(item) ?? 1) && sameAnswer(other, item));
+  return decisions.map(item => {
+    if (!isPlainObject(item) || decisionOf(item)?.by !== 'operator') return item;
+    if (typeof item.question_id === 'string') {
+      const host = heldLike(item, isHostAnswer);
+      if (host) return host;
+      if (heldLike(item, other => decisionOf(other)?.by === 'operator')) return item;
+    }
+    if (answerCovered(evidence, { kind: 'step', questionId: item.question_id })) return item;
+    if (needsApproval(item)) {
+      const read = decisionOf(item);
+      const id = typeof item.question_id === 'string' && item.question_id !== '' ? item.question_id : JSON.stringify(read.question ?? read.decision);
+      throw needsPerson(`an answer to ${id}, which the run's policy classes for approval`, { subject: 'question' });
+    }
+    return asHostAnswer(item);
+  });
+}
+
+/**
+ * An in-step pick nobody answered, as the host's: the person's provenance a
+ * session sent with it (`answered_by`, `via`, `actor`, `on_behalf_of`)
+ * dropped, `by: run`, and the shipped host as its `actor`. Everything else —
+ * the question, the answer, the recommendation, the round and the attempt —
+ * is kept, and `as_recommended` filled as for a person's answer.
+ */
+function asHostAnswer(item) {
+  const { answered_by: _answeredBy, via: _via, actor: _actor, [ON_BEHALF_OF]: _onBehalfOf, ...rest } = item;
+  return withAsRecommended({ ...rest, by: 'run', actor: { kind: 'host', id: SHIPPED_HOST } });
+}
+
+/**
+ * Whether an in-step answer at task node `node` needs a person's approval, in
+ * a run that classes questions: the policy loaded now classes its
+ * `question_id` `approve` (`triageFor`, read as `classQuestions` reads it) —
+ * or the policy is not the one the freeze recorded (`policy_hash`), so its
+ * class cannot be read, and any answer does.
+ */
+function approvalClassed(item, node, typed, runDir, policyNow) {
+  const orchestrator = isPlainObject(typed.orchestrator) ? typed.orchestrator : {};
+  const loaded = policyNow();
+  if (orchestrator.policy_hash !== loaded.hash) return true;
+  if (typeof item.question_id !== 'string' || item.question_id === '') return false;
+  const workflow = isPlainObject(typed.workflow) ? typed.workflow : {};
+  const triage = triageFor({
+    policy: loaded.policy,
+    workflow: workflow.name,
+    kind: 'question',
+    id: item.question_id,
+    declaredIds: declaredQuestionIds(runDir === null ? null : definitionPathOf(typed, runDir), node),
+  });
+  return triage?.class === 'approve';
+}
+
 /** Is `item` a current operator answer `prior` already holds, sent again? */
 function isRecordedAnswer(item, prior) {
   if (!Array.isArray(prior) || typeof item.question_id !== 'string') return false;
@@ -3945,6 +4067,229 @@ export function answerVia(state) {
   return DRIVEN_VIA.has(kind) ? kind : 'terminal';
 }
 
+/**
+ * The note the Copilot build's after-question hook leaves beside the run's
+ * state: who answered the last question the session asked with the question
+ * tool — `{outcome: person|host|none, at, questions, answers?, typed?}`, plus
+ * `bound: true` once a write has used part of it. Retired, it is renamed to
+ * ASK_RESULT_USED: by the next question `--ask` prints (`workflow.mjs`) and by
+ * the first write that records answers on its strength (`retireNote`).
+ */
+export const ASK_RESULT = '.ask.result.json';
+export const ASK_RESULT_USED = '.ask.result.used.json';
+
+/**
+ * What the run holds about who answered its last question, read from the
+ * state before a write's patch lands; null when there is nothing to judge, and
+ * the write takes every path it took before the hook existed. It is null
+ * unless this is the Copilot build, the run directory is known, the run is
+ * answered in session (`answerVia` is `terminal`), and the run holds a note
+ * (ASK_RESULT) or a retired one (ASK_RESULT_USED): a run the hook never
+ * reported on has no evidence either way.
+ *
+ * Otherwise `{person: true, questions, answers, typed, bound, text}` for a
+ * current note whose outcome is `person` — `questions` the property ids the
+ * question asked, `answers` the parsed value(s) or undefined, `typed` the
+ * properties the person answered in their own words, `text` the note as read,
+ * which `retireNote` retires only while the file still holds it — and
+ * `{person: false}` for anything else: a `host` or `none` note, a `person`
+ * note whose answer is empty (`emptyAnswer`), one that cannot be read, or only
+ * a retired one.
+ */
+export function answerEvidence(runDir, state) {
+  if (SHIPPED_HOST !== 'copilot' || runDir === null || runDir === undefined) return null;
+  let text = null;
+  try {
+    text = fs.readFileSync(path.join(runDir, ASK_RESULT), 'utf8');
+  } catch (err) {
+    // A note that is there but cannot be read is still the hook's report.
+    if (err?.code !== 'ENOENT') text = '';
+  }
+  if (text === null && !fs.existsSync(path.join(runDir, ASK_RESULT_USED))) return null;
+  if (answerVia(state) !== 'terminal') return null;
+  let note = null;
+  try {
+    note = text === null ? null : JSON.parse(text);
+  } catch {
+    note = null;
+  }
+  if (!isPlainObject(note) || note.outcome !== 'person' || emptyAnswer(note.answers)) return { person: false };
+  const ids = list => (Array.isArray(list) ? list.filter(id => typeof id === 'string') : []);
+  return { person: true, questions: ids(note.questions), answers: note.answers, typed: ids(note.typed), bound: note.bound === true, text };
+}
+
+/**
+ * Is a person note's parsed answer empty — a blank string, or a map holding no
+ * value that is not blank? An empty answer is never a person's answer.
+ */
+function emptyAnswer(answers) {
+  const blank = value => typeof value === 'string' && value.trim() === '';
+  if (typeof answers === 'string') return blank(answers);
+  if (isPlainObject(answers)) return Object.values(answers).every(value => blank(value) || value === null);
+  return false;
+}
+
+/**
+ * Does `evidence` (`answerEvidence`) make `answer` a person's? `answer` is
+ * one of three kinds:
+ *
+ * - `{kind: 'checkpoint', option}` — a gate's or `held-approval`'s answer:
+ *   covered by a note that is not bound, that asked the checkpoint form's
+ *   property (FORM_PROPERTY), and whose chosen value is `option` (`chose`).
+ * - `{kind: 'send-back', option}` — the answer a revise reset carries: as a
+ *   checkpoint answer, or by a note that is not bound and asked the revise
+ *   note's property (NOTE_PROPERTY).
+ * - `{kind: 'step', questionId}` — an in-step answer: covered by any note
+ *   that is not bound, and by a bound one only for the question ids it lists.
+ *
+ * Without a person's note nothing is covered.
+ */
+export function answerCovered(evidence, answer) {
+  if (!evidence?.person) return false;
+  const { questions, bound } = evidence;
+  if (answer.kind === 'step') return !bound || questions.includes(answer.questionId);
+  if (bound) return false;
+  const checkpoint = questions.includes(FORM_PROPERTY) && chose(evidence, answer.option);
+  return answer.kind === 'send-back' ? checkpoint || questions.includes(NOTE_PROPERTY) : checkpoint;
+}
+
+/**
+ * Did the person choose `option` in the checkpoint form? Yes when the note
+ * parsed no value (it is judged by the property alone), when the person typed
+ * their own answer (the session maps their words to an option), or when the
+ * form's value — the note's `answers` for a one-property form, its
+ * FORM_PROPERTY entry for a map — is `option`.
+ */
+function chose({ answers, typed }, option) {
+  if (answers === undefined || answers === null || typed.includes(FORM_PROPERTY)) return true;
+  const value = isPlainObject(answers) ? answers[FORM_PROPERTY] : answers;
+  return typeof option === 'string' && value === option;
+}
+
+/**
+ * The refusal for an answer that is not a person's. `what` completes "this
+ * write records …" — `an answer at <gate>`, `<gate> skipped while it is still
+ * on the run's path`, or for an in-step question `an answer to <id>, which the
+ * run's policy classes for approval` with `subject: 'question'`. `skip` adds
+ * the clause for a checkpoint recorded skipped.
+ */
+export function needsPerson(what, { subject = 'checkpoint', skip = false } = {}) {
+  return new Refusal('state-answer-needs-person',
+    `this write records ${what}, but the question tool returned no person's answer to it — under Copilot's autopilot `
+    + 'it reports that nobody is available; a skipped, declined, cancelled or failed question, or one never asked with '
+    + `the tool, is the same — so the answer is the session's own pick. A person must answer this ${subject}. `
+    + `Nothing was written. Stop here: name the ${subject}, tell the person to switch Copilot to interactive mode if `
+    + 'autopilot is on and resume the run, then ask it again with the question tool from its brief. Never send the '
+    + `answer again with a name, ${skip ? 'never record the checkpoint completed without one, and never skip a checkpoint the run has to ask' : 'and never record the checkpoint completed without one'}`);
+}
+
+/**
+ * Refuse a write that passes a checkpoint without a person's answer to it,
+ * under `evidence` (`answerEvidence`, not null), before anything records,
+ * approves or triages a gate's answer. `typed` is the document with the patch
+ * applied, `prior` the state before it, `before` each node's status before it.
+ *
+ * - A gate or `held-approval` whose answer this write newly records (`fresh`)
+ *   — or, on a write carrying a revise reset, any it judges — must be covered
+ *   as a checkpoint answer, as a send-back answer under the reset.
+ * - A frozen gate the patch moves to `completed` must be one of those.
+ * - A frozen gate the patch moves to `skipped` must be off the run's path by
+ *   the walk at the close (`atClose`, its `skipped`), read on `prior`.
+ *
+ * Returns what of a person's note the write relied on, for `retireNote`:
+ * `{whole: true}` for a checkpoint answer, `{steps}` for the in-step question
+ * ids it newly records as a person's (`newStepAnswers`), or null.
+ */
+function assertPersonAnswered({ typed, prior, patch, evidence, judged, fresh, regress, before, runDir }) {
+  const frozen = isPlainObject(typed.workflow?.nodes) ? typed.workflow.nodes : {};
+  const isGate = id => id === HELD_APPROVAL || (Object.hasOwn(frozen, id) && isPlainObject(frozen[id]) && frozen[id].kind === 'gate');
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  const sendBack = regress !== null;
+  const kind = sendBack ? 'send-back' : 'checkpoint';
+  const answered = [...(sendBack ? judged : fresh)].filter(isGate);
+  for (const id of answered) {
+    const answer = gateAnswer(Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id].decisions : null);
+    if (!answerCovered(evidence, { kind, option: answer?.option })) throw needsPerson(`an answer at ${id}`);
+  }
+  if (sendBack && answered.length === 0 && !answerCovered(evidence, { kind, option: null })) {
+    throw needsPerson(`an answer at ${[...regress].find(isGate) ?? 'the checkpoint'}`);
+  }
+  const nodes = isPlainObject(patch.nodes) ? patch.nodes : {};
+  let offPath = null;
+  for (const [id, entry] of Object.entries(nodes)) {
+    if (id === HELD_APPROVAL || !isGate(id) || !isPlainObject(entry) || entry.status === before[id]) continue;
+    if (entry.status === 'completed' && !answered.includes(id)) throw needsPerson(`an answer at ${id}`);
+    if (entry.status !== 'skipped') continue;
+    offPath ??= new Set(atClose({ doc: prior, runDir }).skipped);
+    if (!offPath.has(id)) throw needsPerson(`${id} skipped while it is still on the run's path`, { skip: true });
+  }
+  if (!evidence.person) return null;
+  if (answered.length > 0) return { whole: true };
+  const steps = newStepAnswers(prior, typed, patch, isGate).filter(questionId => answerCovered(evidence, { kind: 'step', questionId }));
+  return steps.length ? { steps } : null;
+}
+
+/**
+ * The in-step question ids this write newly records a person's answer to: in
+ * each step summary the patch sends, every operator-shaped item with a
+ * `question_id` that `prior` did not hold with the same attempt and the same
+ * answer (`sameAnswer`). An answer sent again is not new.
+ */
+function newStepAnswers(prior, typed, patch, isGate) {
+  const sent = isPlainObject(patch.node_summaries) ? Object.keys(patch.node_summaries) : [];
+  const decisionsAt = (doc, id) => {
+    const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+    const entry = Object.hasOwn(summaries, id) ? summaries[id] : null;
+    return isPlainObject(entry) && Array.isArray(entry.decisions) ? entry.decisions : [];
+  };
+  const ids = new Set();
+  for (const id of sent.filter(each => !isGate(each))) {
+    const held = decisionsAt(prior, id);
+    for (const item of decisionsAt(typed, id)) {
+      if (!isPlainObject(item) || typeof item.question_id !== 'string' || decisionOf(item)?.by !== 'operator') continue;
+      const again = held.some(other => isPlainObject(other) && other.question_id === item.question_id
+        && (attemptNumber(other) ?? 1) === (attemptNumber(item) ?? 1) && sameAnswer(other, item));
+      if (!again) ids.add(item.question_id);
+    }
+  }
+  return [...ids];
+}
+
+/**
+ * Retire the person's note a landed write relied on (`assertPersonAnswered`):
+ * renamed to ASK_RESULT_USED — or, when the write's new answers were in-step
+ * ones answering some but not all of the question ids the note lists, written
+ * again with only the ids still unanswered and `bound: true`, so it covers
+ * those alone. Only the note the write read is retired: when the file no
+ * longer holds the text `answerEvidence` read (`evidence.text`) — the hook
+ * reported a later question meanwhile — it is left as it is. A failure is a
+ * warning: the write has already landed.
+ */
+export function retireNote(runDir, use, evidence, warnings) {
+  const file = path.join(runDir, ASK_RESULT);
+  try {
+    let current = null;
+    try {
+      current = fs.readFileSync(file, 'utf8');
+    } catch (err) {
+      if (err?.code !== 'ENOENT') throw err;
+    }
+    if (current === null || current !== evidence.text) return;
+    const answered = use.whole ? [] : evidence.questions.filter(id => use.steps.includes(id));
+    if (answered.length > 0 && answered.length < evidence.questions.length) {
+      const note = JSON.parse(current);
+      const rest = { ...note, questions: evidence.questions.filter(id => !answered.includes(id)), bound: true };
+      const scratchFile = `${file}.${process.pid}.tmp`;
+      fs.writeFileSync(scratchFile, `${JSON.stringify(rest)}\n`, 'utf8');
+      fs.renameSync(scratchFile, file);
+    } else {
+      fs.renameSync(file, path.join(runDir, ASK_RESULT_USED));
+    }
+  } catch (err) {
+    warnings.push({ file: ASK_RESULT, code: 'ask-result-unretired', message: err && err.message ? String(err.message) : String(err) });
+  }
+}
+
 let operatorNameCache = null;
 
 /**
@@ -3991,7 +4336,8 @@ export function operatorName(runDir = null) {
  * its own `attempt`, or the first when it carries none — so an answer a node
  * asked again in a later attempt never replaces the earlier one, which stays
  * as history, while the same answer carried along, or a current one sent
- * again, replaces itself.
+ * again, replaces itself. A host's pick (`isHostAnswer`) is history the same
+ * way: it stood in for the user's answer, so a write that leaves it out keeps it.
  */
 function earlierAnswers(prior, decisions) {
   if (!Array.isArray(prior)) return [];
@@ -4006,7 +4352,7 @@ function earlierAnswers(prior, decisions) {
     return question === '' ? `answer:${read.decision}` : `text:${question}`;
   };
   const sent = new Set(decisions.map(keyOf).filter(Boolean));
-  return prior.filter(item => isPlainObject(item) && decisionOf(item)?.by === 'operator' && !sent.has(keyOf(item)));
+  return prior.filter(item => isPlainObject(item) && (decisionOf(item)?.by === 'operator' || isHostAnswer(item)) && !sent.has(keyOf(item)));
 }
 
 /**
@@ -4089,7 +4435,8 @@ function sentDecisions(decisions, prior, node, notes) {
  * an `asking` an earlier write stored is removed. Returns `{entry,
  * dropAsking}`: the entry to record in the set's place, and whether the
  * node's recorded `asking` goes.
- * The ids still to ask are added to `classing.out.asking` either way.
+ * The ids still to ask are added to `classing.out.asking` either way; a
+ * classed set's notes — one per proposed family not taken — join the write's.
  */
 function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWarnings, classing }) {
   const { question_set: set, reasons, ...rest } = entry;
@@ -4117,7 +4464,7 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
     questions: matches ? checked.set.questions : checked.set.questions.map(({ triage: _carried, ...question }) => question),
     reasons,
     policy: matches ? loaded.policy : null,
-    workflow: workflow.name,
+    workflow: policyWorkflowOf(typed, runDir),
     declaredIds: matches ? declaredQuestionIds(runDir === null ? null : definitionPathOf(typed, runDir), node) : [],
     settles: matches ? ceilingOf({ options: orchestrator.options, policy: loaded.policy })?.settles ?? null : null,
     canAsk: canAsk(typed),
@@ -4128,6 +4475,7 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
   // Nothing classed: an `asking` an earlier classing write stored would filter
   // the next request by a remainder this set never had, so it goes.
   if (!matches) return { entry: rest, dropAsking: isPlainObject(held) && Object.hasOwn(held, 'asking') };
+  classing.notes.push(...classed.notes.map(note => `node_summaries.${node}: ${note}`));
 
   const next = { ...rest, asking: classed.asking };
   if (classed.items.length || Array.isArray(rest.decisions)) {
@@ -4205,12 +4553,14 @@ function keepProvenance(prior, decisions) {
  * the round the held answer to the same question carries, matched as
  * `keepProvenance` matches it. A closing write re-sends the answers as the
  * node remembers them; without this a follow-up's answers read as the first
- * round's, and the rounds an attempt has spent read fewer than they were.
+ * round's, and the rounds an attempt has spent read fewer than they were. A
+ * host's pick (`isHostAnswer`) sent again keeps its round the same way.
  */
 function keepRounds(prior, decisions) {
   if (!Array.isArray(prior)) return decisions;
   return decisions.map(item => {
-    if (!isPlainObject(item) || Object.hasOwn(item, 'round') || typeof item.question_id !== 'string' || decisionOf(item)?.by !== 'operator') return item;
+    if (!isPlainObject(item) || Object.hasOwn(item, 'round') || typeof item.question_id !== 'string') return item;
+    if (decisionOf(item)?.by !== 'operator' && !isHostAnswer(item)) return item;
     const held = prior.find(other => isPlainObject(other) && other.question_id === item.question_id && Object.hasOwn(other, 'round')
       && !isEarlierAnswer(other, prior) && (attemptNumber(other) ?? 1) === (attemptNumber(item) ?? 1) && sameAnswer(other, item));
     return held ? { ...item, round: held.round } : item;
@@ -4875,7 +5225,7 @@ function blockSafe(value) {
  * it started under. That is a warning, `policy-hash-mismatch:<gate>`, raised
  * only where the loaded policy would have classed the answer or a value.
  */
-function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
+function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings, runDir = null) {
   // A write that records no answer and closes no index row judges nothing.
   if (judgedIds.size === 0) return;
   const typed = typedNow();
@@ -4895,7 +5245,7 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
     const answer = gateAnswer(decisions);
     if (answer === null) continue;
     loaded ??= loadPolicy();
-    const ask = { policy: loaded.policy, workflow: workflow.name, id };
+    const ask = { policy: loaded.policy, workflow: policyWorkflowOf(typed, runDir), id };
     const gateTriage = triageFor({ ...ask, kind: 'gate' });
     const sets = isPlainObject(nodes[id].sets) && Object.hasOwn(nodes[id].sets, answer.option) && isPlainObject(nodes[id].sets[answer.option])
       ? nodes[id].sets[answer.option] : {};

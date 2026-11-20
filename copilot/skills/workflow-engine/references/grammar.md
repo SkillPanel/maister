@@ -24,7 +24,7 @@ the plugin's test suite, so the table and the code cannot disagree.
 | `.maister/workflows/<name>.md` | Its prose companion (§ 11) |
 | `.maister/workflows/<name>.overlay.yml` | An **overlay** of the definition named `<name>`, applied whenever that name runs (§ 12) |
 | `.maister/workflows/<name>.overlay.md` | The overlay's companion: the sections of `direct:` nodes the overlay adds |
-| `.maister/workflows/generated/<name>.yml` | A generated chain, published by the chain planner for one ticket — never written by hand, never overlaid |
+| `.maister/workflows/generated/<name>.yml` | A generated chain, published by the chain planner for one ticket — never written by hand, never overlaid. Its run is classed by the autonomy policy's rows under the reserved workflow name `generated`, whatever its own name |
 
 A name is looked up in one order, first hit winning: the eject, then the generated chain, then the
 overlay laid over the built-in, then the built-in. An overlay beside an eject or a generated chain

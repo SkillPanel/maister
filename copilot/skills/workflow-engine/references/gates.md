@@ -39,6 +39,10 @@ Send the answer only**: never compose provenance stamps, triage, settlement or a
   `coordinator` — the cockpit's coordinator answering on a person's behalf, which names that
   person in `on_behalf_of`. The writer records the kind as sent, whatever it names, and the
   checkpoint counts operator answers by it.
+- **The host as actor.** `host` is a pick nobody answered, recorded after the question tool
+  returned no person's answer — Copilot CLI's autopilot, or a skipped, declined or failed
+  question. The writer records it `by: run` with `actor: {kind: host, id: copilot}`, never on a
+  checkpoint, and ignores a sent `actor`, `answered_by`, `via` or `on_behalf_of` on such a pick.
 - **On whose behalf.** A hub may relay a person's answer to this machine. The answer then
   carries `on_behalf_of`: the name of the person the relaying side says gave it.
   - `by` stays `operator`, and `answered_by` stays the machine's operator, who still writes the
@@ -180,8 +184,10 @@ What a gate asks is built by the engine, never written by hand. The engine reads
 - **`gate-brief-nothing-held`**: `--node=held-approval`, and nothing is held for approval. Nothing
   was written. Publish the close-out when the run is dispatched, write the closing patch and run
   `run-complete`.
-- **`gate-brief-no-graph`**: the definition cannot be read, the freeze recorded no needs and no
-  node carries a summary. No write fixes the brief. Ask the gate with its `ask:` alone and its own
+- **`gate-brief-no-graph`**: nothing says what the gate closes and no node before it carries a
+  summary. Either its needs name no step — a checkpoint asked before any step it closes — or the
+  definition cannot be read and the freeze recorded no needs; the message names which. No write
+  fixes the brief. Ask the gate with its `ask:` alone and its own
   options — in session the question is the `ask:` word for word; driven, the request's `question` is
   the `ask:` and it carries no `context` — and say nothing about the refusal: its code, its message
   and the missing summary never appear in anything the person reads. The run keeps it instead:
@@ -642,6 +648,9 @@ any of them, none recommended; the note is the chosen values joined by `; `, the
 through Other. With fewer than two suggestions the property is text, and the reply is the note —
 a reply of "yes" sends the one suggestion the question names.
 When nothing is chosen and nothing typed, there is no note: ask the gate again from its brief.
+A send-back with no person's answer to it is refused with the writer's `state-answer-needs-person`
+(`references/writing-state.md` § *When a write is refused*): stop and ask the gate with the question
+tool.
 Then write `{"note": "<the note>"}` to the patch file and run `gate-revise
 --state=<state> --node=<gate> --option=<id> --patch-file=<the patch file>`. That one call is the
 whole record — the answer, the note, the reset and the dashboard. Take the ready set from the

@@ -139,8 +139,10 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
    or is still the earlier cycle's file the record `kept`, mark it ended at once — `in-flight
    --state=<state> --node=<node> --runner=verification --ended=<id>` — before anything else: its
    completion notice comes only to you, who sent it, so nobody else can release the wait on it. The
-   suite runner and every fix batch get the same: back without their recorded output, ended at
-   once.
+   suite runner gets the same: back without its recorded output, ended at once. A fix batch back
+   without its report whose reply holds it is not ended: write the reply to its recorded output,
+   its first line saying it was copied from the agent's reply, then take it in as any fix; one
+   whose reply holds no report is ended at once.
 8. **Each report reached disk.** Every review owes its report and its findings file beside it.
    For each one missing (marked ended in step 7), add an issue to `verification/artifacts-findings.json` (the contract's
    schema, `reviewer: "artifacts"`, `severity: "warning"`, category `docs`) naming the agent and
@@ -194,8 +196,8 @@ You carry it out:
   send the batches to `maister:task-group-implementer` in one message, each prompt a fix brief, its
   `report_path` that output: the
   issues by number with their evidence and suggested change, the files it may touch, the
-  standards the code risk review checked against, and "fix these, run the affected tests, report each fix as
-  `{finding, change}`". Their `model` and `reasoning_effort` are what `node
+  standards the code risk review checked against, and "fix these, run the affected tests, write your
+  report to `report_path` before you hand back, and report each fix as `{finding, change}`". Their `model` and `reasoning_effort` are what `node
   <plugin_root>/skills/workflow-engine/scripts/workflow.mjs dispatch-model
   --agent=maister:task-group-implementer --host=copilot --state=<state> --node=<node>` prints.
   A finding whose category is in `hold` is never fixed.
@@ -256,8 +258,11 @@ host makes you hand back before they are all in, take in the ones already back, 
 after you handed back, and wake you for each. The node cannot see a runner that is running
 again, so it may already have sent the next one to adopt those outputs. Woken so, record no
 review, merge nothing, send no fix and make no new `runner-result` call. When the notice's agent
-left no output at its recorded path, mark it `in-flight --state=<state> --node=<node>
---runner=verification --ended=<id>`: you are the only one who saw that notice. Then end at once,
+left no output at its recorded path and the notice holds a fix batch's report, write it there,
+its first line saying it was copied from the agent's reply: that puts the file where the next
+pass takes it in, and takes nothing in itself. Any other agent back without its output, mark
+`in-flight --state=<state> --node=<node> --runner=verification --ended=<id>`. You are the only one
+who saw that notice. Then end at once,
 your final message the result you already handed back, unchanged. Your ending is the node's cue
 to ask the engine again.
 
