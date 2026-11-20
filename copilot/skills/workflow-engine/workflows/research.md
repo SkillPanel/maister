@@ -161,7 +161,7 @@ after that is recorded, never retried:
 - a writer that still returns no page: there is none, and the summary records
   the absence, as the Writes part below says.
 
-**Asks.** Step 1 asks the clarification it describes.
+**Asks.** Step 1 asks the clarification it describes. Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
 **With question sets** (`question-clarification`): its sharpened readings
 generated before it suspends.

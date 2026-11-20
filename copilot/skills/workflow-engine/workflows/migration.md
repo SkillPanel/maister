@@ -53,7 +53,7 @@ the analysis found; ask nothing when it settled everything. **Never ask
 here what the specification's assumptions page frames** — the scope boundaries,
 the rollback expectations and downtime tolerance, the data specifics, the
 dual-run requirements and the code or configuration to preserve are confirmed
-there, after the gap analysis has proposed them.
+there, after the gap analysis has proposed them. Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
 **With question sets** (`clarifications`): asked through the cockpit, in this
 node's first request.
@@ -302,11 +302,15 @@ and a data integrity issue is never fixed and never a finding (Asks below).
 **Asks.** Write the issues still needing a person to
 `verification/issue-resolution-findings.json`, each `id` the verifier's
 `name`, and build the set with `finding-brief` for this node; compose the same
-questions by hand only when it cannot use the file. At the stopping point
-**with a critical issue left**, offer **"Stop here (Recommended): roll back
-with the plan's rollback steps"**, then "One more round" and "Continue as is";
-"Stop here" writes a `stop` risk naming the issue and
-`analysis/rollback-plan.md`.
+questions by hand only when it cannot use the file. At the stopping
+point, recommend "One more round" under `verification-fix-loop` while the last
+round made progress and a fixable warning or critical issue is open. Once there
+is no progress, or nothing fixable is left, with a critical issue left,
+recommend **"Stop here (Recommended): roll back with the plan's rollback
+steps"** under `verification-go-on`, with the approval-class triage; with no
+critical issue left, recommend "Continue as is" — under `verification-go-on`
+with warnings open, under `verification-fix-loop` with only info. "Stop here"
+writes a `stop` risk naming the issue and `analysis/rollback-plan.md`.
 
 A data integrity issue is neither fixable nor a finding question: it halts the
 loop before anything else is asked, and is never fixed without the user or by
@@ -332,18 +336,27 @@ follow-up round, and once the rounds are spent the default below is taken.
 issue the policy does not class stays open as an `open` risk; a classed one
 takes the outcome the classing write gives it.
 
-**With question sets** (`verification-fix-loop`): asked through the cockpit, with
-the verification report and every fix so far written first — after the finding
-questions, as a follow-up round; once the attempt's rounds are spent, the
-default below is taken.
+**With question sets** (`verification-fix-loop`): asked through the cockpit when
+it recommends "One more round" (or only info is left), with the verification
+report and every fix so far written first — after the finding questions, as a
+follow-up round; once the attempt's rounds are spent, nothing is asked and the
+loop ends as the `verification-go-on` line says.
 
 **Without question sets** (`verification-fix-loop`): the loop runs
 exactly as above — fixable, non-risky issues fixed and re-checked within the same
-two re-checks — and nothing is asked. Every issue that needs a decision, and every
-risky fix, stays open as an `open` risk in this node's summary, and the stopping
-point takes "Continue as is". An issue still critical is **not** proceeded past:
-it is an `open` risk, which the gate brief shows at `resolution-approval` — where a person
+two re-checks — nothing is asked and no extra round is taken. Every issue that
+needs a decision, and every risky fix, stays open as an `open` risk in this
+node's summary, and the loop ends as the `verification-go-on` line says. An
+issue still critical is **not** proceeded past: it is an `open` risk and a
+`stop` risk (§ 6 step 9), which the gate brief shows at `resolution-approval` — where a person
 answers.
+
+**With question sets** (`verification-go-on`): the stopping question when its
+recommended answer leaves the loop with a warning or critical issue open, asked
+as the fix-loop question is — after the finding questions, as a follow-up
+round. With a critical issue open it carries `triage: {version: 1, class: approve}`.
+
+**Without question sets** (`verification-go-on`): nothing is asked, and a critical issue left reaches a person at `resolution-approval`. When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is".
 
 **Writes.** The canonical report and its companion carry the *final* post-fix
 verdict before this node completes: recompile one still showing the pre-fix
@@ -352,9 +365,12 @@ state, never leave a side file to carry the truth.
 **Summary.** A `headline` naming what was fixed, what is left and whether the
 run recommends stopping; the issues found, fixed and remaining by severity in
 `summary`; an accepted data risk as a `tradeoff` risk, and the `stop` risk when
-the user chose to stop and roll back. Nothing rolls back automatically: the
-`stop` risk is the rollback recommendation, and `resolution-approval`'s stop
-option acts on it.
+the user chose to stop and roll back. When the loop ended undecided, the go-on
+choice is recorded as not taken (§ 6 step 10) and `recommends` is
+`{option: null, reason}`; with a critical issue left, the `stop` risk names the
+issue and `analysis/rollback-plan.md`, as "Stop here" does. Nothing rolls back
+automatically: the `stop` risk is the rollback recommendation, and
+`resolution-approval`'s stop option acts on it.
 
 **Budget.** None: the loop's two re-checks are its limit, and re-driving a node
 that halts on data integrity would re-run the thing it refused.

@@ -69,15 +69,24 @@ or `inline`:
   - the findings, when `findings_file` is set: `finding-brief --state=<state> --node=<node>
     --findings-file=<findings_file>` builds the set, one question per finding;
   - the stopping question, when `stop_question` is true (framework § 6, step 8): "One more
-    round", "Continue as is" or "Stop", recommended as § 6 says, under the question id
-    `verification-fix-loop`;
+    round", "Continue as is" or "Stop", recommended in step 8's order — "One more round" while
+    progress was made and a fixable warning or critical issue is open; else "Stop" with a
+    critical left; else "Continue as is" when no critical is left, info-only included. The id
+    follows step 8's rule, read from the printed `open` counts and `kind` (`budget` means
+    progress made with a fixable warning or critical issue open; `no_progress` means not):
+    `verification-go-on` when the recommended answer leaves the loop — "Continue as is" or
+    "Stop" — with a warning or critical open; `verification-fix-loop` when it recommends "One
+    more round", or when only info is left. With a critical open, the go-on question carries
+    `triage: {version: 1, class: approve}` in the set. The stopping question names no `default`
+    of its own: its recommended option is its default;
   - `session` — ask in session (paged as the engine's in-node questions say), record the answers
     on the node summary as the node records any answer, then `runner-step --answered`;
   - `suspend` — a request of the node's attempt, its first or a follow-up round (`runner-step`
     asks only while a round is left; `gate-brief --request --patch-file`), and suspend. On the answer the run comes back here, and `runner-step` finds the answers itself;
   - `none` — nobody can be asked and the run's policy classes questions: send the set in the
     classing write as the node's prose says, then `runner-step --answered`. (When nobody can be
-    asked and nothing classes, `runner-step` takes the defaults itself and never prints `ask`.)
+    asked and nothing classes, `runner-step` takes the defaults itself — the stop `undecided`
+    with a warning or critical open, `continue` otherwise — and never prints `ask`.)
 - **`wait`** — agents the runner sent (the suite runner, reviewers, fix batches) are still out:
   the runner ended `waiting`, or ended without a result, on a host that runs a subagent's own
   agent calls in the background. `pending` lists each one's `id`, the host's `agent` id when
@@ -104,7 +113,8 @@ or `inline`:
   code or write a reviewer's report or findings file here.
 - **`close`** — the verdict is final, and the report and its companion are on disk. Return
   § *Structured output*, read from `findings_path`, to the node, which writes its summary and
-  completes.
+  completes. When `runner-step` prints `undecided: true`, the loop ended undecided: return it,
+  and the node records the not-taken choice and recommends no way on (framework § 6 step 10).
 
 A crash, a cleared session or a compaction at any point resumes the same way: the engine re-runs
 the `running` node, this skill runs `runner-step`, and the files say where the loop stands.
@@ -146,6 +156,9 @@ html_path: "verification/implementation-verification.html"  # null unless writte
 issues:   # from findings.json: id, source, severity, description, location, fixable, risky, fixed
 issue_counts: {critical: 0, warning: 0, info: 0}
 fixes_applied: []   # {finding, change}, for the node summary's fixes_applied — never a decision
+undecided: true     # present only when the loop ended undecided: from `close` on the nested
+                    # route; set by the session on the inline route, when the session itself
+                    # ended the loop undecided
 ```
 
 ## Grading fixability

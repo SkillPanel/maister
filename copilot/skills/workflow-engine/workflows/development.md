@@ -134,6 +134,7 @@ from what it found. Never ask here what the scope decisions in `gap-analysis`
 will decide. When more than four things are open, ask the four that change the
 most and name the rest in the file as unsettled, the analysis's own answer
 standing.
+Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
 **With question sets** (`clarifications`): in this node's first request.
 
@@ -327,7 +328,7 @@ the feature and which personas it serves, only when the run drafted no story.
 The visual-assets assumption is not asked when the gap analysis recorded the
 task as not UI-heavy and intake found no design source;
 `analysis/requirements.md` then says "no visual assets: the change has no user
-interface".
+interface". Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
 **With question sets** (`technical-questions`): in this node's first request,
 each architecture area its own question beside the technical ones.
@@ -590,15 +591,24 @@ attempt, with the verification report and every fix so far written first.
 **Without question sets** (`verification-findings`): nothing is asked; an issue
 the policy does not class stays an `open` risk.
 
-**With question sets** (`verification-fix-loop`): the stopping question, with the
-report and every fix written first — after the finding questions, as a follow-up
-round; once the attempt's rounds are spent its default is taken.
+**With question sets** (`verification-fix-loop`): the stopping question when it
+recommends "One more round" (or only info is left), with the report and every
+fix written first — after the finding questions, as a follow-up round; once the
+attempt's rounds are spent, nothing is asked and the loop ends as the
+`verification-go-on` line says.
 
-**Without question sets** (`verification-fix-loop`): the loop runs as above and
-nothing is asked: every issue that needs a decision and every risky fix stays an
-`open` risk, and the stopping point takes "Continue as is". An issue still
-critical is **not** proceeded past on a default: it reaches a person at
-`verification-approval`.
+**Without question sets** (`verification-fix-loop`): the loop runs as above,
+nothing is asked and no extra round is taken: every issue that needs a decision
+and every risky fix stays an `open` risk, and the loop ends as the
+`verification-go-on` line says. An issue still critical is **not** proceeded
+past on a default: it reaches a person at `verification-approval`.
+
+**With question sets** (`verification-go-on`): the stopping question when its
+recommended answer leaves the loop with a warning or critical issue open, asked
+as the fix-loop question is — after the finding questions, as a follow-up
+round. With a critical issue open it carries `triage: {version: 1, class: approve}`.
+
+**Without question sets** (`verification-go-on`): nothing is asked. When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is".
 
 **Summary.** The `headline` gives the final verdict and what is left
 ("Verification passes after three fixes; two warnings remain"); when
@@ -606,7 +616,8 @@ critical is **not** proceeded past on a default: it reaches a person at
 total issues found, how many were fixed and how many remain by severity. In
 `decisions`, each review finding the verifier itself settled, `by: audit`. In
 `risks`, what § 6 step 9 hands the gate, the critical ones first; when the user
-chose "Stop", one `stop` risk saying why the run should not go on.
+chose "Stop", one `stop` risk saying why the run should not go on. When the
+loop ended undecided, the go-on choice is recorded as not taken (§ 6 step 10).
 `verification_context.last_status`, `suite_run`, `issues_found` and `reviews`,
 which the verifier records every cycle, are not repeated.
 
@@ -615,8 +626,9 @@ which the verifier records every cycle, are not repeated.
 itself: `not_run`, or not recorded, and it recommends neither continue. Each
 done-when line of the task the verification could not confirm with evidence is
 an `open` risk naming the line ("Not confirmed: <the line>"); with any such
-line, `recommends` is `{option: null, reason}` saying how many, and the
-browser-checks recommendation below goes into that reason instead ("Two
+line, or when the loop ended undecided, `recommends` is
+`{option: null, reason}` saying how many or that the loop ended undecided, and
+the browser-checks recommendation below goes into that reason instead ("Two
 done-when lines are not confirmed; the browser checks would drive the new page").
 
 Otherwise, recommend whether the browser checks run. When the session has no browser
