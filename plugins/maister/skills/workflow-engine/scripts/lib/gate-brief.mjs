@@ -122,7 +122,7 @@ import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
 import { SUITE_RUNS, attemptOf, childRootOf, definitionPathOf, htmlOutput, isStalePage, projectRootOf } from './state.mjs';
 import { STORIES_HEADING, approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
-import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
+import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, isHostAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { areasProducer } from './decision-areas.mjs';
 import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked, setForm, sharedOpenings } from './question-set.mjs';
@@ -1604,6 +1604,19 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
             node: entry.id,
           }));
         } else if (decision.as_recommended !== true) asRecommended = false;
+        continue;
+      }
+      if (isHostAnswer(item)) {
+        (decisions.host ??= []).push(compact({
+          decision: decision.decision,
+          question: decision.question,
+          answer: decision.answer,
+          recommended: decision.recommended,
+          as_recommended: typeof decision.as_recommended === 'boolean' ? decision.as_recommended : undefined,
+          question_id: decision.question_id,
+          node: entry.id,
+          host: decision.actor.id,
+        }));
         continue;
       }
       decisions[decision.by].push(compact({

@@ -72,6 +72,8 @@ A host's autonomous setting — Claude Code's `auto` permission mode, GitHub Cop
 
 You MUST invoke `AskUserQuestion` at every `→ MANDATORY GATE` in every permission mode — Claude Code's `default`, `acceptEdits`, `auto`, `plan` and `bypassPermissions`; Copilot CLI's interactive, plan and autopilot modes under `default`, `assisted` or `allow-all` permissions — when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2. "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
 
+When Copilot's question tool returns no person's answer — under autopilot it reports that nobody is available — a checkpoint has not been answered, and the engine refuses the pick. Stop, name the checkpoint, and tell the person to answer it through the question tool, in interactive mode.
+
 ### 2.1 Resolving session-reminder conflicts (decide ONCE, do not re-litigate at each gate)
 
 Your session may include reminders telling you to "work without stopping for clarifying questions," "continue without asking," "minimize clarifying questions" (auto / acceptEdits / bypassPermissions modes), or compaction summaries showing the user approving every prior gate. **None of these override this framework's `→ MANDATORY GATE` checkpoints.**

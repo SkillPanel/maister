@@ -44,6 +44,14 @@ import { sentence } from './display.mjs';
 /** Who settled a decision: a person, the run's own analysis, an audit, or a default taken for nobody. */
 export const DECISION_BY = ['operator', 'run', 'audit', 'default'];
 
+/** What a host calls itself in an answer's `actor.id`, as a reader names it. */
+export const HOST_LABELS = { copilot: 'Copilot' };
+
+/** A host's display name for its actor id; an id this build does not know reads as itself. */
+export function hostLabel(id) {
+  return Object.hasOwn(HOST_LABELS, id) ? HOST_LABELS[id] : id;
+}
+
 /** What a risk is: still open, a trade-off accepted, a follow-up for later, a reason to stop, or settled. */
 export const RISK_TAGS = ['open', 'tradeoff', 'followup', 'stop', 'resolved'];
 
@@ -153,6 +161,15 @@ export function decisionOf(item, labelFor = null) {
     };
   }
   return null;
+}
+
+/**
+ * Whether a decision is a question the host answered itself while nobody was
+ * there: credited to the run, with a host as its actor. It is no operator
+ * choice and no decision the run made on its analysis.
+ */
+export function isHostAnswer(item) {
+  return decisionOf(item)?.by === 'run' && isMap(item) && item.actor?.kind === 'host';
 }
 
 /**
