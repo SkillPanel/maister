@@ -64,3 +64,4 @@ Skill tool for skills, Task tool for agents — never a skill via Task (`subagen
 - ✓ Nothing duplicated from a `SKILL.md` — referenced instead
 - ✓ An experienced developer could implement from it
 - ✓ Tool/framework agnostic where possible
+- ✓ Every option a question offers opens with what sets it apart from the others (`plugins/maister/skills/workflow-engine/references/in-node-questions.md`, *Each option opens with what sets it apart*)
