@@ -156,13 +156,14 @@ test('every entry naming the agent wins over every default, an overlay\'s defaul
 test('level 8: the shipped agents put the clerical agents on light', t => {
   const run = scratch(t);
   freezeRun(run);
-  const result = dispatch(run, ['--agent=project-analyzer,task-classifier,test-suite-runner,html-companion-writer']);
+  const result = dispatch(run, ['--agent=project-analyzer,task-classifier,test-suite-runner,html-companion-writer,question-reader']);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, [
     'project-analyzer: model haiku, effort high — source: shipped agents.project-analyzer, tier light',
     'task-classifier: model haiku, effort high — source: shipped agents.task-classifier, tier light',
     'test-suite-runner: model haiku, effort high — source: shipped agents.test-suite-runner, tier light',
     'html-companion-writer: model haiku, effort high — source: shipped agents.html-companion-writer, tier light',
+    'question-reader: model haiku, effort high — source: shipped agents.question-reader, tier light',
     '',
   ].join('\n'));
 });
@@ -426,7 +427,7 @@ test('the subagents block init writes holds exactly the built-in values', t => {
   const skill = fs.readFileSync(path.join(ROOT, 'plugins/maister/skills/init/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
   const block = [...skill.matchAll(/```yaml\n([\s\S]*?)```/g)].map(match => match[1]).find(text => /^subagents:/m.test(text));
   assert.ok(block, 'init carries a subagents block');
-  const agents = `--agent=Explore,project-analyzer,docs-operator,standards-scanner,task-classifier,test-suite-runner,html-companion-writer,${REVIEWERS.join(',')},task-group-implementer,gap-analyzer`;
+  const agents = `--agent=Explore,project-analyzer,docs-operator,standards-scanner,task-classifier,test-suite-runner,html-companion-writer,question-reader,${REVIEWERS.join(',')},task-group-implementer,gap-analyzer`;
   const values = result => result.stdout.replace(/ — source: [^\n]*/g, '');
   const compare = (written, bare, args, options, label) => {
     const own = dispatch(written, args, options);

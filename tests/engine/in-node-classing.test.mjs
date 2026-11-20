@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import { FIXTURES, ROOT, freezePatch, readDashboard, readState, run as runScript, scratch, sharedPlugin, sibling, publishOutbox, verb } from '../helpers.mjs';
@@ -35,6 +36,16 @@ const SETTLING = (() => {
   return { ...policy, families: { ...policy.families, ...classifying.families }, table: [...policy.table, ...classifying.table] };
 })();
 const WITH_SETTLEMENTS = sharedPlugin({ policy: SETTLING });
+
+// The questions policy, with a row for `scope-choice` that lets a proposal
+// choose: record first, consult stricter, decide-alone looser.
+const PROPOSING = sharedPlugin({
+  policy: (() => {
+    const policy = policyOf('questions.json');
+    const row = { workflow: 'in-node-questions', id: 'scope-choice', kind: 'question', families: ['noted-family', 'asked-family', 'quick-family'] };
+    return { ...policy, table: [...policy.table, row] };
+  })(),
+});
 
 const DEFINITION = path.join(FIXTURES, 'definitions/in-node-questions.yml');
 const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
@@ -226,7 +237,7 @@ test('a carried triage only raises; on a policy hash mismatch nothing is classed
   classing(QUESTIONS.engine, held, [], {
     questions: [question('noted-choice', { triage: { version: 1, class: 'approve', family: 'area-family' } })],
   });
-  assert.deepEqual(byId(summaryOf(held).decisions, 'noted-choice').triage, { version: 1, class: 'approve', family: 'area-family', held: true });
+  assert.deepEqual(byId(summaryOf(held).decisions, 'noted-choice').triage, { version: 1, class: 'approve', family: 'noted-family', held: true });
 
   // Frozen under one policy, classed under another: nothing is classed or recorded, and every id is asked.
   const drifted = started(t, QUESTIONS.engine);
@@ -288,7 +299,7 @@ test('a briefed decision area keeps its carried triage through the classing writ
   const decisions = summaryOf(driven).decisions;
   assert.deepEqual(byId(decisions, 'convergence-decisions-storage'), {
     decision: 'Option A', by: 'default', question_id: 'convergence-decisions-storage', question: 'Which convergence-decisions-storage?',
-    triage: { ...stamped, advice: 'not_obtained' },
+    triage: { version: 1, class: 'consult', family: 'area-record-family', advice: 'not_obtained' },
   });
   // The lower carried class is raised to the computed one and settled by the run.
   assert.equal(byId(decisions, 'convergence-decisions-format').by, 'run');
@@ -468,11 +479,12 @@ test('writer-classed items survive later writes and the answer fold; a sent item
   // A set's carried triage survives the answer fold.
   {
     const carried = { version: 1, class: 'record', family: 'area-family' };
+    const recorded = { version: 1, class: 'record', family: 'quick-family' };
     const run = started(t, QUESTIONS.engine, { driver: COCKPIT });
     const set = { questions: [question('quick-choice', { triage: carried }), question('asked-choice')] };
     assert.equal(askLine(send(QUESTIONS.engine, run, { node_summaries: { scoping: { question_set: set } } }).stdout), 'ask: asked-choice');
     const classed = summaryOf(run).decisions;
-    assert.deepEqual(classed[0].triage, carried, 'the carried class decides when it is the higher');
+    assert.deepEqual(classed[0].triage, recorded, 'the carried class decides when it is the higher; the family is the policy\'s');
 
     // The request as it lands on disk, answered.
     fs.mkdirSync(path.join(run.dir, 'gates'), { recursive: true });
@@ -517,6 +529,117 @@ test('a revise reset clears the reset nodes\' writer-classed items and their rem
   assert.equal(Object.hasOwn(after, 'asking'), false);
   assert.deepEqual(after.decisions, [before.decisions.find(item => item.by === 'operator')]);
   assert.equal(after.summary, 'Drafted.');
+});
+
+test('a proposed family: the brief lists what a proposal can take, the writer takes a stricter one and notes an ignored one', t => {
+  const run = started(t, PROPOSING.engine);
+  const brief = runScript(PROPOSING.engine, ['node-brief', `--state=${run.state}`, '--node=scoping']);
+  assert.equal(brief.code, 0, brief.stderr);
+  assert.match(brief.stdout, /^families \(scope-choice\): noted-family — Settled and recorded\.; asked-family — Worth a second opinion\.; quick-family — [^;]+ \(needs the reader's agreement\) — a family marked as needing the reader's agreement is taken only with the verdict of maister:question-reader, model haiku, effort high/m);
+  assert.doesNotMatch(brief.stdout, /^families \(review-wanted\)/m, 'an id with no choice to make prints no line');
+
+  const proposed = family => ({ ...question('scope-choice'), family });
+  const stricter = classing(PROPOSING.engine, run, [], { questions: [proposed('asked-family')] });
+  assert.equal(stricter.code, 0, stricter.stderr);
+  assert.equal(askLine(stricter.stdout), 'ask: scope-choice');
+  assert.doesNotMatch(stricter.stderr, /^note: /m);
+
+  const looser = started(t, PROPOSING.engine);
+  const ignored = classing(PROPOSING.engine, looser, [], { questions: [proposed('quick-family')] });
+  assert.equal(ignored.code, 0, ignored.stderr);
+  assert.equal(askLine(ignored.stdout), 'ask: none');
+  assert.match(ignored.stderr, /^note: node_summaries\.scoping: classed scope-choice under noted-family, not the proposed quick-family: no verdict sent, and a lower family needs the reader's agreement$/m);
+  assert.deepEqual(byId(summaryOf(looser).decisions, 'scope-choice').triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'quick-family' });
+
+  // Under the built-in default nothing is classed, so the brief offers nothing to propose.
+  const plain = started(t, null, { ceiling: null });
+  const bare = verb(['node-brief', `--state=${plain.state}`, '--node=scoping']);
+  assert.equal(bare.code, 0, bare.stderr);
+  assert.doesNotMatch(bare.stdout, /^families \(/m);
+});
+
+test('the families line names the reader with the Copilot model id when the engine is the Copilot build', t => {
+  const run = started(t, PROPOSING.engine);
+  const plugin = path.dirname(path.dirname(path.dirname(path.dirname(PROPOSING.engine))));
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maister-host-')));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.cpSync(plugin, path.join(root, 'maister'), { recursive: true });
+  const hostFile = path.join(root, 'maister/lib/host.mjs');
+  fs.writeFileSync(hostFile, fs.readFileSync(hostFile, 'utf8').replace("SHIPPED_HOST = 'claude';", "SHIPPED_HOST = 'copilot';"));
+  const result = runScript(path.join(root, 'maister/skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${run.state}`, '--node=scoping']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^families \(scope-choice\): .*quick-family — [^;]+ \(needs the reader's agreement\) — .* of maister:question-reader, model claude-haiku-5\.5, effort high/m);
+});
+
+// A row whose first family is approve and whose second is consult: a lowering
+// takes the question from held to a default without advice under a driver.
+const SIGNING = sharedPlugin({
+  policy: (() => {
+    const policy = policyOf('questions.json');
+    const row = { workflow: 'in-node-questions', id: 'scope-choice', kind: 'question', families: ['signed-family', 'asked-family'] };
+    return { ...policy, table: [...policy.table, row] };
+  })(),
+});
+
+test('a lowering with the reader agreeing is settled under the lower family; the request carries neither key', t => {
+  const run = started(t, PROPOSING.engine, { driver: COCKPIT });
+  const reader = { verdict: 'agree', reason: 'No option changes what the product does.' };
+  const set = { questions: [{ ...question('scope-choice'), family: 'quick-family', reader }, question('asked-choice')] };
+  const written = send(PROPOSING.engine, run, { node_summaries: { scoping: { question_set: set } } });
+  assert.equal(written.code, 0, written.stderr);
+  assert.equal(askLine(written.stdout), 'ask: asked-choice');
+  assert.doesNotMatch(written.stderr, /^note: /m);
+  assert.deepEqual(byId(summaryOf(run).decisions, 'scope-choice').triage, {
+    version: 1, class: 'decide-alone', family: 'quick-family', proposed: 'quick-family', reader,
+  });
+  const result = brief(PROPOSING.engine, run, set);
+  assert.equal(result.code, 0, result.stderr);
+  const checkpoint = JSON.stringify(JSON.parse(result.stdout).context.checkpoint);
+  assert.doesNotMatch(checkpoint, /"reader"|"family"|"proposed"/);
+});
+
+test('a raise verdict keeps the first family and quotes the reader; under a hash mismatch family and reader are ignored without notes', t => {
+  const reader = { verdict: 'raise', reason: 'Option B changes who may publish.' };
+  const run = started(t, PROPOSING.engine);
+  const raised = classing(PROPOSING.engine, run, [], { questions: [{ ...question('scope-choice'), family: 'quick-family', reader }] });
+  assert.equal(raised.code, 0, raised.stderr);
+  assert.match(raised.stderr, /^note: node_summaries\.scoping: classed scope-choice under noted-family, not the proposed quick-family: the reader raised it: "Option B changes who may publish\."$/m);
+  assert.deepEqual(byId(summaryOf(run).decisions, 'scope-choice').triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'quick-family', reader });
+
+  const drifted = started(t, PROPOSING.engine);
+  const result = classing(OTHER.engine, drifted, [], { questions: [{ ...question('scope-choice'), family: 'quick-family', reader: { verdict: 'agree', reason: 'Nothing changes.' } }] });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(askLine(result.stdout), 'ask: scope-choice');
+  assert.doesNotMatch(result.stderr, /^note: /m);
+  assert.equal(summaryOf(drifted).decisions, undefined);
+});
+
+test('a briefed decision area keeps its first family against a lower proposal with agree, and says it carries a triage', t => {
+  const run = started(t, PROPOSING.engine);
+  const carried = { version: 1, class: 'record', family: 'area-direction' };
+  const reader = { verdict: 'agree', reason: 'No option changes what the product does.' };
+  const result = classing(PROPOSING.engine, run, [], {
+    questions: [{ ...question('scope-choice', { triage: carried }), family: 'quick-family', reader }],
+  });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stderr, /^note: node_summaries\.scoping: classed scope-choice under noted-family, not the proposed quick-family: the question carries a triage$/m);
+  assert.deepEqual(byId(summaryOf(run).decisions, 'scope-choice').triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'quick-family', reader });
+});
+
+test('a question lowered from approve to consult under a driver takes its default with advice not obtained, not held', t => {
+  const reader = { verdict: 'agree', reason: 'Neither option changes who may do what.' };
+  const lowered = started(t, SIGNING.engine, { driver: DISPATCH });
+  const result = classing(SIGNING.engine, lowered, [], { questions: [{ ...question('scope-choice'), family: 'asked-family', reader }] });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(askLine(result.stdout), 'ask: none');
+  const triage = byId(summaryOf(lowered).decisions, 'scope-choice').triage;
+  assert.deepEqual(triage, { version: 1, class: 'consult', family: 'asked-family', proposed: 'asked-family', reader, advice: 'not_obtained' });
+  assert.equal(Object.hasOwn(triage, 'held'), false);
+
+  // Control: with no proposal the first family holds the question.
+  const kept = started(t, SIGNING.engine, { driver: DISPATCH });
+  classing(SIGNING.engine, kept, [], { questions: [question('scope-choice')] });
+  assert.equal(byId(summaryOf(kept).decisions, 'scope-choice').triage.held, true);
 });
 
 // ---------------------------------------------------------------------------

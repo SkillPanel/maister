@@ -115,6 +115,9 @@ export const REFUSAL = {
 };
 
 const NAME = /^[a-z][a-z0-9-]*$/;
+
+/** What a family's name matches: a question set's proposed `family` is checked against it. */
+export const FAMILY_NAME = NAME;
 const ROW_ID = /^[a-z][a-z0-9-]{1,40}$/;
 const VALUE_KEY = /^[a-z_]+$/;
 
@@ -352,14 +355,17 @@ function isMap(value) {
 
 /**
  * The `triage` v1 an item carries under `policy`, or null when the policy does
- * not class it. Raise-only: the class starts at the family's own, and only the
- * floor and the band raise it — neither is bounded by the family's `max`, and
- * nothing lowers it.
+ * not class it. The family is the one `familyChoice` gives; from there the
+ * class is raise-only: it starts at that family's own, and only the floor and
+ * the band raise it — neither is bounded by the family's `max`, and nothing
+ * lowers it.
  *
  * - `kind` is `gate`, `question` or `value`. A gate's `id` is its node id; a
  *   question's `id` is its question id, read against the asking node's
  *   `declaredIds`; a value's `id` is its gate's node id and `key` its value key.
- * - `family` is a proposed family, used only when the row lists it.
+ * - `family` is a proposed family, `reader` the second reader's verdict on a
+ *   question and `carried` the triage the question carries of its own; see
+ *   `familyChoice` for when a proposal is applied.
  * - `floorIds` are floor ids found on the item; they join the family's floor.
  * - `band` is the item's band; its `without_evidence` is applied once when the
  *   item carries no `evidence`.
@@ -368,12 +374,23 @@ function isMap(value) {
  * any id applies, `band` when one was applied, `raised_by` when the final class
  * is above the family's own. Never `advice` or `held`.
  */
-export function triageFor({ policy, workflow, kind, id, declaredIds, key, family, floorIds, band, evidence } = {}) {
+export function triageFor({ policy, workflow, kind, id, declaredIds, key, family, reader, carried, floorIds, band, evidence } = {}) {
+  const { family: name } = familyChoice({ policy, workflow, kind, id, declaredIds, key, proposed: family, reader, carried });
+  return triageUnder({ policy, family: name, floorIds, band, evidence });
+}
+
+/**
+ * The `triage` v1 of an item read as `family` — a family `familyChoice`
+ * already chose — or null when `family` is null or not one the policy
+ * defines. The class rules are `triageFor`'s; a caller that needs the choice
+ * itself (its reason, whether the proposal was a lowering) calls
+ * `familyChoice` once and passes its family here.
+ */
+export function triageUnder({ policy, family: name, floorIds, band, evidence } = {}) {
   // The policy is one `loadPolicy` accepted (or the built-in default), so its
   // shape is not re-checked here: every family a row or `unknown_family`
   // names exists, and each class is a known one.
-  const name = familyOf({ policy, workflow, kind, id, declaredIds, key, proposed: family });
-  if (name === null || !Object.hasOwn(policy.families ?? {}, name)) return null;
+  if (name == null || !Object.hasOwn(policy?.families ?? {}, name)) return null;
   const own = policy.families[name];
   let level = rank(own.class);
   const start = level;
@@ -402,16 +419,118 @@ export function triageFor({ policy, workflow, kind, id, declaredIds, key, family
   return triage;
 }
 
-/** The family an item reads as, or null when it is unclassified. */
-function familyOf({ policy, workflow, kind, id, declaredIds, key, proposed }) {
+/**
+ * Why a proposed family was not applied — `familyChoice`'s `reason`. A caller
+ * that notes a proposal it did not take words the note from this code.
+ */
+export const FAMILY_REASON = Object.freeze({
+  noRow: 'no-row',
+  unlisted: 'unlisted',
+  flooredFirst: 'floored-first',
+  carriesTriage: 'carries-triage',
+  noVerdict: 'no-verdict',
+  raised: 'raised',
+});
+
+/** The second reader's verdicts: `agree` lets a question take a lower family, `raise` keeps the first. */
+const VERDICT = { agree: 'agree', raise: 'raise' };
+
+/**
+ * The one rule for the family an item reads as, and why a proposal was not
+ * applied: `{family, reason, lower}`, `family` null when the item is
+ * unclassified, `reason` null unless a proposal came and was not applied, and
+ * `lower` true when the proposal is a family the row lists below its first —
+ * whether or not it was applied.
+ *
+ * - No row: the policy's `unknown_family`, which a proposal never moves
+ *   (`no-row` when one came).
+ * - A value: its gate row's `values[key]`, else the unknown family; it takes
+ *   no proposal.
+ * - No proposal: the row's first family.
+ * - A proposal the row lists that is at least as strict as the first family
+ *   (`strictness`) is applied, with no verdict needed.
+ * - A lower one the row lists is applied only to a question, only when the
+ *   first family carries no floor, the question carries no version-1 triage of
+ *   its own (`carried`) and the second reader agreed (`reader.verdict` is
+ *   `agree`). A gate is never lowered: its `reader` is not read.
+ * - Otherwise the first family, with the first reason that holds, in order:
+ *   `unlisted`, `floored-first`, `carries-triage`, `no-verdict`, `raised`.
+ */
+export function familyChoice({ policy, workflow, kind, id, declaredIds, key, proposed, reader, carried } = {}) {
+  const proposal = typeof proposed === 'string' ? proposed : null;
   const fallback = policy?.unknown_family ?? null;
+  const row = rowOf({ policy, workflow, kind, id, declaredIds });
+  if (!row) return { family: fallback, reason: proposal === null ? null : FAMILY_REASON.noRow, lower: false };
+  if (kind === 'value') {
+    return { family: row.values && Object.hasOwn(row.values, key) ? row.values[key] : fallback, reason: null, lower: false };
+  }
+  const first = row.families[0];
+  if (proposal === null) return { family: first, reason: null, lower: false };
+  if (!row.families.includes(proposal)) return { family: first, reason: FAMILY_REASON.unlisted, lower: false };
+  const lower = isBelow(policy, proposal, first);
+  if (!lower) return { family: proposal, reason: null, lower };
+  const keep = reason => ({ family: first, reason, lower });
+  if (carriesFloor(policy, first)) return keep(FAMILY_REASON.flooredFirst);
+  // Only a question has a second reader; a gate's lowering reads as one with no verdict.
+  if (kind !== 'question') return keep(FAMILY_REASON.noVerdict);
+  if (isMap(carried) && carried.version === 1) return keep(FAMILY_REASON.carriesTriage);
+  const verdict = isMap(reader) ? reader.verdict : undefined;
+  if (verdict === VERDICT.agree) return { family: proposal, reason: null, lower };
+  return keep(verdict === VERDICT.raise ? FAMILY_REASON.raised : FAMILY_REASON.noVerdict);
+}
+
+/** Whether family `name` is less strict than the row's `first` (`strictness`). */
+function isBelow(policy, name, first) {
+  return strictness(policy, name) < strictness(policy, first);
+}
+
+/** Whether family `name` carries a floor of its own. */
+function carriesFloor(policy, name) {
+  return ids(policy?.families?.[name]?.floor).length > 0;
+}
+
+/** The table row an item reads, or undefined: a value reads its gate's row, a question its declared id's. */
+function rowOf({ policy, workflow, kind, id, declaredIds }) {
   const rowKind = kind === 'value' ? 'gate' : kind;
   const rowId = kind === 'question' ? declaredIdOf(id, declaredIds) : id;
-  const row = (policy?.table ?? []).find(each => each.workflow === workflow && each.kind === rowKind && each.id === rowId);
-  if (!row) return fallback;
-  if (kind === 'value') return row.values && Object.hasOwn(row.values, key) ? row.values[key] : fallback;
-  if (typeof proposed === 'string' && row.families.includes(proposed)) return proposed;
-  return row.families[0];
+  return (policy?.table ?? []).find(each => each.workflow === workflow && each.kind === rowKind && each.id === rowId);
+}
+
+/**
+ * How strict a family is, as a class rank: its class, or the floor's class
+ * when the family carries a floor of its own. One measure for every kind, so a
+ * proposal never drops a floor the first family carries. -1 for a family the
+ * policy does not define.
+ */
+function strictness(policy, name) {
+  const families = policy?.families ?? {};
+  if (!Object.hasOwn(families, name)) return -1;
+  const own = families[name];
+  return ids(own.floor).length > 0 ? Math.max(rank(own.class), rank(FLOOR_CLASS)) : rank(own.class);
+}
+
+/**
+ * The families a node may propose for a question it asks, as
+ * `[{name, description, lower?}]` in row order: the first family of the row
+ * its declared id reads, every other the row lists that is at least as strict,
+ * and — only when the first family carries no floor — the lower ones, each
+ * marked `lower: true`, since one is applied only with the second reader's
+ * agreement. Empty when no row of `kind: question` matches; the policy's
+ * unknown family is never offered, since a proposal never applies to it.
+ */
+export function questionFamilies({ policy, workflow, id, declaredIds } = {}) {
+  const row = rowOf({ policy, workflow, kind: 'question', id, declaredIds });
+  if (!row) return [];
+  const families = policy.families;
+  const first = row.families[0];
+  const lowerOffered = !carriesFloor(policy, first);
+  const offered = [];
+  for (const name of row.families) {
+    const entry = { name, description: families[name].description };
+    if (!isBelow(policy, name, first)) offered.push(entry);
+    else if (lowerOffered) offered.push({ ...entry, lower: true });
+  }
+  return offered;
 }
 
 /**

@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { ENGINE_DIR, FIXTURES } from '../helpers.mjs';
-import { DEFAULT_POLICY, loadPolicy, policyHash, triageFor } from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
+import { DEFAULT_POLICY, familyChoice, loadPolicy, policyHash, questionFamilies, triageFor, triageUnder } from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
 
 // The autonomy policy module: the loader that falls back to the built-in
 // `{"version": 1}`, the canonical hash a run records, and the raise-only
@@ -135,6 +135,13 @@ test('triage only raises: floor, band once, unbounded by max, proposed family, u
   // A proposed family counts only when the row lists it.
   assert.deepEqual(at({ family: 'careful-family' }), { version: 1, class: 'approve', family: 'careful-family' });
   assert.deepEqual(at({ family: 'guarded-family' }), { version: 1, class: 'decide-alone', family: 'example-family' });
+  // ... and, on a gate, only when it is at least as strict as the row's first: a gate is never
+  // lowered, so a looser family the row lists is ignored, whatever reader verdict comes with it.
+  const strictFirst = { ...policy, table: policy.table.map(row => (row.id === 'gate-row' ? { ...row, families: ['careful-family', 'example-family'] } : row)) };
+  assert.deepEqual(triageFor({ policy: strictFirst, workflow: 'sample', kind: 'gate', id: 'gate-row', family: 'example-family' }),
+    { version: 1, class: 'approve', family: 'careful-family' });
+  assert.deepEqual(triageFor({ policy: strictFirst, workflow: 'sample', kind: 'gate', id: 'gate-row', family: 'example-family', reader: { verdict: 'agree', reason: 'No option changes the product.' } }),
+    { version: 1, class: 'approve', family: 'careful-family' });
 
   // No row: unknown_family when set, unclassified when not.
   assert.deepEqual(triageFor({ policy, workflow: 'sample', kind: 'gate', id: 'no-row' }),
@@ -158,6 +165,149 @@ test('triage only raises: floor, band once, unbounded by max, proposed family, u
     assert.equal('advice' in triage, false);
     assert.equal('held' in triage, false);
   }
+});
+
+// The question rows below are built inline over the in-node fixture's families:
+// quick (decide-alone), noted (record), asked (consult), signed (approve) and
+// guarded (record with a floor id, so approve).
+const questionPolicy = rows => {
+  const base = JSON.parse(fs.readFileSync(fixture('questions.json'), 'utf8'));
+  return { ...base, table: rows.map(([id, families, kind = 'question']) => ({ workflow: 'sample', id, kind, families })) };
+};
+const AGREE = { verdict: 'agree', reason: 'No option changes what the product does.' };
+const RAISE = { verdict: 'raise', reason: 'One option changes who may publish.' };
+
+test('a question is classed below its first family only with the reader\'s agreement', () => {
+  const policy = questionPolicy([
+    ['mixed-choice', ['noted-family', 'asked-family', 'quick-family']],
+    ['floored-choice', ['guarded-family', 'quick-family']],
+    ['short-choice', ['noted-family', 'asked-family']],
+  ]);
+  const ask = (id, extra = {}) => triageFor({ policy, workflow: 'sample', kind: 'question', id, declaredIds: [id], ...extra });
+  const first = { version: 1, class: 'record', family: 'noted-family' };
+
+  // Agreed: the lower family the row lists is applied.
+  assert.deepEqual(ask('mixed-choice', { family: 'quick-family', reader: AGREE }), { version: 1, class: 'decide-alone', family: 'quick-family' });
+  // Raised, or no verdict at all: the first family stands.
+  assert.deepEqual(ask('mixed-choice', { family: 'quick-family', reader: RAISE }), first);
+  assert.deepEqual(ask('mixed-choice', { family: 'quick-family' }), first);
+  // A floored first family is never lowered, agreed or not.
+  assert.deepEqual(ask('floored-choice', { family: 'quick-family', reader: AGREE }),
+    { version: 1, class: 'approve', floor: ['floor-a'], family: 'guarded-family', raised_by: 'floor' });
+  // A family the row does not list is never applied.
+  assert.deepEqual(ask('short-choice', { family: 'quick-family', reader: AGREE }), first);
+  // No row: the unknown family, which a proposal never moves.
+  assert.deepEqual(ask('no-such-choice', { family: 'quick-family', reader: AGREE }), { version: 1, class: 'consult', family: 'fallback-family' });
+  // A question carrying a version-1 triage of its own keeps its first family; one of another version is ignored.
+  assert.deepEqual(ask('mixed-choice', { family: 'quick-family', reader: AGREE, carried: { version: 1, class: 'record' } }), first);
+  assert.equal(ask('mixed-choice', { family: 'quick-family', reader: AGREE, carried: { version: 2, class: 'record' } }).family, 'quick-family');
+
+  // No proposal: exactly what it was before, a verdict or not.
+  assert.deepEqual(ask('mixed-choice'), first);
+  assert.deepEqual(ask('mixed-choice', { reader: AGREE }), first);
+
+  // The floor, floor ids and the band still raise on top of a lowered family.
+  assert.deepEqual(ask('mixed-choice', { family: 'quick-family', reader: AGREE, floorIds: ['floor-z'] }),
+    { version: 1, class: 'approve', floor: ['floor-z'], family: 'quick-family', raised_by: 'floor' });
+  assert.deepEqual(ask('mixed-choice', { family: 'quick-family', reader: AGREE, band: 'toss-up' }),
+    { version: 1, class: 'approve', family: 'quick-family', band: 'toss-up', raised_by: 'band' });
+});
+
+test('a gate and a gate value ignore a reader verdict', () => {
+  const policy = questionPolicy([['plain-gate', ['noted-family', 'quick-family'], 'gate']]);
+  const gate = extra => triageFor({ policy, workflow: 'sample', kind: 'gate', id: 'plain-gate', ...extra });
+  assert.deepEqual(gate({ family: 'quick-family', reader: AGREE }), { version: 1, class: 'record', family: 'noted-family' });
+  assert.deepEqual(gate({ family: 'quick-family', reader: AGREE }), gate({ family: 'quick-family' }));
+  // A stricter listed family is still taken on a gate, with no verdict needed.
+  const stricter = questionPolicy([['plain-gate', ['noted-family', 'asked-family'], 'gate']]);
+  assert.equal(triageFor({ policy: stricter, workflow: 'sample', kind: 'gate', id: 'plain-gate', family: 'asked-family' }).family, 'asked-family');
+  // A value reads its gate row's values, a proposal and a verdict aside.
+  const valued = { ...policy, table: policy.table.map(row => ({ ...row, values: { enabled: 'signed-family' } })) };
+  assert.deepEqual(triageFor({ policy: valued, workflow: 'sample', kind: 'value', id: 'plain-gate', key: 'enabled', family: 'quick-family', reader: AGREE }),
+    { version: 1, class: 'approve', family: 'signed-family' });
+});
+
+test('a family\'s strictness counts its own floor', () => {
+  const policy = questionPolicy([
+    ['floored-choice', ['guarded-family', 'asked-family']],
+    ['open-choice', ['asked-family', 'guarded-family']],
+  ]);
+  const ask = (id, family) => triageFor({ policy, workflow: 'sample', kind: 'question', id, declaredIds: [id], family });
+  // A floored first family reads as approve: consult with no floor is below it, so it is not taken.
+  assert.deepEqual(ask('floored-choice', 'asked-family'),
+    { version: 1, class: 'approve', floor: ['floor-a'], family: 'guarded-family', raised_by: 'floor' });
+  // A floored family of lower bare class reads as approve, stricter than consult: taken with no verdict.
+  assert.deepEqual(ask('open-choice', 'guarded-family'),
+    { version: 1, class: 'approve', floor: ['floor-a'], family: 'guarded-family', raised_by: 'floor' });
+  // So a floored-first row offers no lower family; an unfloored one offers the floored family as stricter.
+  assert.deepEqual(questionFamilies({ policy, workflow: 'sample', id: 'floored-choice', declaredIds: ['floored-choice'] }), [
+    { name: 'guarded-family', description: 'Carries a floor id, so approved.' },
+  ]);
+  assert.deepEqual(questionFamilies({ policy, workflow: 'sample', id: 'open-choice', declaredIds: ['open-choice'] }), [
+    { name: 'asked-family', description: 'Worth a second opinion.' },
+    { name: 'guarded-family', description: 'Carries a floor id, so approved.' },
+  ]);
+});
+
+test('the family rule names why a proposal was not taken', () => {
+  const policy = questionPolicy([
+    ['mixed-choice', ['noted-family', 'asked-family', 'quick-family']],
+    ['floored-choice', ['guarded-family', 'quick-family']],
+    ['plain-gate', ['noted-family', 'quick-family'], 'gate'],
+  ]);
+  const choose = (id, extra = {}) => familyChoice({ policy, workflow: 'sample', kind: 'question', id, declaredIds: [id], ...extra });
+
+  assert.deepEqual(choose('mixed-choice'), { family: 'noted-family', reason: null, lower: false });
+  assert.deepEqual(choose('mixed-choice', { proposed: 'asked-family' }), { family: 'asked-family', reason: null, lower: false });
+  assert.deepEqual(choose('mixed-choice', { proposed: 'noted-family' }), { family: 'noted-family', reason: null, lower: false });
+  assert.deepEqual(choose('mixed-choice', { proposed: 'quick-family', reader: AGREE }), { family: 'quick-family', reason: null, lower: true });
+  assert.deepEqual(choose('no-such-choice', { proposed: 'quick-family', reader: AGREE }), { family: 'fallback-family', reason: 'no-row', lower: false });
+  assert.deepEqual(choose('no-such-choice'), { family: 'fallback-family', reason: null, lower: false });
+  // The reasons are checked in order: unlisted, floored-first, carries-triage, no-verdict, raised.
+  assert.deepEqual(choose('mixed-choice', { proposed: 'signed-family', reader: AGREE }), { family: 'noted-family', reason: 'unlisted', lower: false });
+  assert.deepEqual(choose('floored-choice', { proposed: 'signed-family' }), { family: 'guarded-family', reason: 'unlisted', lower: false });
+  assert.deepEqual(choose('floored-choice', { proposed: 'quick-family', reader: AGREE, carried: { version: 1, class: 'record' } }),
+    { family: 'guarded-family', reason: 'floored-first', lower: true });
+  assert.deepEqual(choose('mixed-choice', { proposed: 'quick-family', reader: RAISE, carried: { version: 1, class: 'record' } }),
+    { family: 'noted-family', reason: 'carries-triage', lower: true });
+  assert.deepEqual(choose('mixed-choice', { proposed: 'quick-family' }), { family: 'noted-family', reason: 'no-verdict', lower: true });
+  assert.deepEqual(choose('mixed-choice', { proposed: 'quick-family', reader: { verdict: 'maybe' } }), { family: 'noted-family', reason: 'no-verdict', lower: true });
+  assert.deepEqual(choose('mixed-choice', { proposed: 'quick-family', reader: RAISE }), { family: 'noted-family', reason: 'raised', lower: true });
+  // A gate is never lowered: the verdict is not read, so the lowering reads as one without a verdict.
+  assert.deepEqual(familyChoice({ policy, workflow: 'sample', kind: 'gate', id: 'plain-gate', proposed: 'quick-family', reader: AGREE }),
+    { family: 'noted-family', reason: 'no-verdict', lower: true });
+
+  // The triage of a chosen family is the one `triageFor` writes for the same choice; no family classes nothing.
+  const agreed = { proposed: 'quick-family', reader: AGREE };
+  assert.deepEqual(triageUnder({ policy, family: choose('mixed-choice', agreed).family }),
+    triageFor({ policy, workflow: 'sample', kind: 'question', id: 'mixed-choice', declaredIds: ['mixed-choice'], family: 'quick-family', reader: AGREE }));
+  assert.equal(triageUnder({ policy, family: null }), null);
+  assert.equal(triageUnder({ policy, family: 'no-such-family' }), null);
+
+  // The brief's families: the first, the stricter, and the lower ones marked, only under an unfloored first.
+  assert.deepEqual(questionFamilies({ policy, workflow: 'sample', id: 'mixed-choice', declaredIds: ['mixed-choice'] }), [
+    { name: 'noted-family', description: 'Settled and recorded.' },
+    { name: 'asked-family', description: 'Worth a second opinion.' },
+    { name: 'quick-family', description: 'Settled alone.', lower: true },
+  ]);
+  assert.deepEqual(questionFamilies({ policy, workflow: 'sample', id: 'floored-choice', declaredIds: ['floored-choice'] }), [
+    { name: 'guarded-family', description: 'Carries a floor id, so approved.' },
+  ]);
+  assert.deepEqual(questionFamilies({ policy, workflow: 'sample', id: 'no-such-choice', declaredIds: ['no-such-choice'] }), []);
+});
+
+test('a verdict that is not a well-formed agree reads as no verdict, and a per-area id lowers under its declared id', () => {
+  const policy = questionPolicy([['mixed-choice', ['noted-family', 'quick-family']]]);
+  const ask = (id, extra = {}) => triageFor({ policy, workflow: 'sample', kind: 'question', id, declaredIds: ['mixed-choice', 'other-choice'], ...extra });
+  const first = { version: 1, class: 'record', family: 'noted-family' };
+
+  // Only the exact word `agree` lowers: a string, an array, another case or a missing field do not.
+  for (const reader of ['agree', ['agree'], { verdict: 'Agree' }, { reason: 'No option changes anything.' }, null]) {
+    assert.deepEqual(ask('mixed-choice', { family: 'quick-family', reader }), first, JSON.stringify(reader));
+  }
+  // A per-area slug of the declared id lowers under that id's row, as the id itself does.
+  assert.deepEqual(ask('mixed-choice-storage', { family: 'quick-family', reader: AGREE }), { version: 1, class: 'decide-alone', family: 'quick-family' });
+  assert.deepEqual(ask('mixed-choice-storage', { family: 'quick-family' }), first);
 });
 
 test('a question id the node does not declare resolves to the declared id it belongs to', () => {

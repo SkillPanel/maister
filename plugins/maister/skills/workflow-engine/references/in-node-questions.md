@@ -540,6 +540,41 @@ node_summaries.scoping
 ask: scope-choice
 ```
 
+**Proposing a family.** A question in the set may carry `family`: the policy family the node
+proposes for it. Propose, from the families the policy lists for that question, the one whose
+description fits. The node brief prints the ones a proposal can take under its `asks` line, one `families (<id>):` line
+per declared id with a choice to make, each family beside its description; a per-area id reads
+as the declared id it extends, so that id's line applies. No line for an id, nothing to propose:
+leave `family` out, and the question is classed as the policy reads it.
+
+Propose a stricter family when a question is a choice. The test: would a different answer change
+what the product does, or who may do it? Then it is not a fact, and a question worded "should" is
+never a fact. The writer takes a listed proposal at least as strict as the first family listed;
+otherwise it classes the question under that first family and says so in a note. A carried
+triage, a floor id and a band still raise on top of it.
+
+Propose a lower family only for a question, never a gate, and only when the answer to that test
+is no for every option: nothing any option would do changes the product or who may do it. The
+families line marks each lower family as needing the reader's agreement. The reader is the agent
+`maister:question-reader`, a light call (the brief prints its model and effort), dispatched once
+per lowering, in parallel when there are several. Its prompt holds the question text and each
+option's label and description, and nothing else: never the recommended mark, `why`, `details`,
+`header`, evidence, the node's reasons or a family name. Copy its verdict onto the question as
+`reader: {verdict, reason}`, `verdict` being `agree` or `raise` and `reason` one line. The writer
+takes the lower family only on `agree`, and only when the first family carries no floor and the
+question carries no triage. A `raise`, no `reader`, a floor on the first family or a triage each
+leave the first family in place, with a note naming the cause.
+
+Failing safe: when the session cannot dispatch the reader, or it returns no well-formed verdict,
+send no `reader`; the node never writes or edits a verdict itself, and the first family stands.
+
+A lowered question takes the outcome of its lower class. Under a driver, a question lowered from
+an approval class to a consult class takes its default with advice not obtained, where it would
+have been held. A lowered question that is still asked records nothing of the proposal. A question
+that carries a triage, a decision-area question among them, is never lowered: send no lower
+family and dispatch no reader for it. A carried triage only raises the class and adds to the
+floor; it never brings a family or band of its own.
+
 **The four outcomes.** A question the policy does not class is left to ask, with no triage; a
 classed one takes one of four outcomes, by its class, the autonomy ceiling and whether anybody can
 be asked:
