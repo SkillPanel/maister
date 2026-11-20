@@ -5117,7 +5117,9 @@ function copyDrivenProvenance(doc, typed, runDir, changed, judged, writeWarnings
  * gate's index row (`closingRows`) the same fold runs over that gate's
  * decisions: each that reads as a person's answer gains the `decision` and the
  * `by` it lacks, and one the run, an audit or a default settled stays as it is.
- * The label is the one the person read, from the request's options. A closed
+ * The label is the one the person read, from the request's options. An answer
+ * the session wrote flat — `answer: <option>` with who answered beside it — is
+ * moved into the decisions first, as a patch's is (`foldFlatAnswer`). A closed
  * row does not close again, so no later write folds, and an answer held from
  * before this fold is left as it stands. Returns whether it wrote.
  */
@@ -5128,14 +5130,16 @@ function foldDrivenAnswers(doc, typed, closing, runDir, changed) {
   let display = null;
   let wrote = false;
   for (const id of closing) {
-    if (!isGateSummary(recorded, id) || !Object.hasOwn(summaries, id) || !isPlainObject(summaries[id]) || !Array.isArray(summaries[id].decisions)) continue;
+    if (!isGateSummary(recorded, id) || !Object.hasOwn(summaries, id) || !isPlainObject(summaries[id])) continue;
+    const summary = foldFlatAnswer(summaries[id]);
+    if (!Array.isArray(summary.decisions)) continue;
     display ??= displayOfRun(typed, runDir);
     const held = gateHeldRevises(typed, id).map(each => each.id);
     const asked = requestLabels(runDir, id);
-    const decisions = summaries[id].decisions;
+    const decisions = summary.decisions;
     const folded = decisions.map(item => (decisionOf(item)?.by === 'operator' ? foldAnswers([item], id, display, held, asked)[0] : item));
-    if (sameValue(folded, decisions)) continue;
-    doc.set(['node_summaries', id], block(id, { ...summaries[id], decisions: folded }, 2));
+    if (summary === summaries[id] && sameValue(folded, decisions)) continue;
+    doc.set(['node_summaries', id], block(id, { ...summary, decisions: folded }, 2));
     if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
     wrote = true;
   }
