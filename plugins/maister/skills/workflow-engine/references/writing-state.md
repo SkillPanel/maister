@@ -134,7 +134,10 @@ one the built-in `{"version": 1}` applies, which classifies nothing. The hash is
 the whole parsed file, its keys sorted at every depth, arrays kept in order, no whitespace. A
 file that exists but cannot be applied is refused whole: the run applies the built-in default,
 records that hash, and the freeze prints `warning: policy-refused:<path>:<reason>`, with
-` at <dotted path>` for a shape fault. Relay the warning; the run goes on. A value a patch sends
+` at <dotted path>` for a shape fault. Relay the warning; the run goes on. A policy row names the
+workflow it classes by the run's `workflow.name`, with one reserved name: a run whose definition is a
+file in `.maister/workflows/generated/` is classed by the rows under `generated`, whatever its file
+and `name:` are, while its own name, task directory and recorded source stay as they are. A value a patch sends
 is ignored with a `note:` line, a sub-run's freeze records its own, and no later write changes it — `move-base` alone moves `task.base_commit` (below).
 
 **It records `task.base_commit`** — where the run starts: `{sha, dirty}`, HEAD at the freeze and

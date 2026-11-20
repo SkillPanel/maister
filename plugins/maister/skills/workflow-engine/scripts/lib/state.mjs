@@ -102,7 +102,7 @@ import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
 import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
-import { ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
+import { GENERATED_WORKFLOW, ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { frozenSubagents } from './subagents.mjs';
 import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
@@ -1076,6 +1076,27 @@ export function definitionPathOf(doc, runDir) {
   return file;
 }
 
+/**
+ * The workflow name the autonomy policy's rows are matched against for this
+ * run: `generated` when the definition it froze is a file in its project's
+ * generated-chain home (`.maister/workflows/generated/`), else the run's own
+ * `workflow.name`. A generated chain is planned under a fresh name each time,
+ * so rows keyed by that name could never reach it; its own name, task
+ * directory and recorded source stay as they are. The definition is found by
+ * `definitionPathOf`, the lookup every other reader of the run uses, so a run
+ * frozen before this rule existed is classed by it too. Without a run
+ * directory there is no project to judge by, and the own name is used.
+ */
+export function policyWorkflowOf(doc, runDir) {
+  const workflow = isPlainObject(doc?.workflow) ? doc.workflow : {};
+  const name = typeof workflow.name === 'string' ? workflow.name : undefined;
+  if (runDir === null || runDir === undefined) return name;
+  const file = definitionPathOf(doc, runDir);
+  if (file === null) return name;
+  const home = path.join(projectRootOf(runDir), '.maister', 'workflows', 'generated');
+  return path.dirname(path.resolve(file)) === home ? GENERATED_WORKFLOW : name;
+}
+
 /** The base definition `locateWorkflow` finds for a name, or null. */
 function located(name, root) {
   const hit = locateWorkflow(name, root);
@@ -1347,7 +1368,7 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   if (runDir !== null && copyDrivenProvenance(doc, typedNow(), runDir, changed, judged, writeWarnings)) typed = null;
   if (stampGateValues(doc, typedNow(), patch, changed)) typed = null;
   if (runDir !== null && stampAnsweredIn(doc, typedNow(), out.before, graphOf, runDir, changed)) typed = null;
-  judgeGates(doc, typedNow, judged, changed, writeWarnings);
+  judgeGates(doc, typedNow, judged, changed, writeWarnings, runDir);
   approveHeld(doc, fresh, graphOf, changed, runDir);
   for (const key of TOP_LEVEL_BLOCKS) {
     if (!Object.hasOwn(patch, key)) continue;
@@ -4117,7 +4138,7 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
     questions: matches ? checked.set.questions : checked.set.questions.map(({ triage: _carried, ...question }) => question),
     reasons,
     policy: matches ? loaded.policy : null,
-    workflow: workflow.name,
+    workflow: policyWorkflowOf(typed, runDir),
     declaredIds: matches ? declaredQuestionIds(runDir === null ? null : definitionPathOf(typed, runDir), node) : [],
     settles: matches ? ceilingOf({ options: orchestrator.options, policy: loaded.policy })?.settles ?? null : null,
     canAsk: canAsk(typed),
@@ -4875,7 +4896,7 @@ function blockSafe(value) {
  * it started under. That is a warning, `policy-hash-mismatch:<gate>`, raised
  * only where the loaded policy would have classed the answer or a value.
  */
-function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
+function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings, runDir = null) {
   // A write that records no answer and closes no index row judges nothing.
   if (judgedIds.size === 0) return;
   const typed = typedNow();
@@ -4895,7 +4916,7 @@ function judgeGates(doc, typedNow, judgedIds, changed, writeWarnings) {
     const answer = gateAnswer(decisions);
     if (answer === null) continue;
     loaded ??= loadPolicy();
-    const ask = { policy: loaded.policy, workflow: workflow.name, id };
+    const ask = { policy: loaded.policy, workflow: policyWorkflowOf(typed, runDir), id };
     const gateTriage = triageFor({ ...ask, kind: 'gate' });
     const sets = isPlainObject(nodes[id].sets) && Object.hasOwn(nodes[id].sets, answer.option) && isPlainObject(nodes[id].sets[answer.option])
       ? nodes[id].sets[answer.option] : {};

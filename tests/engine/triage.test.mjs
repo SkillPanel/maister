@@ -6,6 +6,8 @@ import path from 'node:path';
 import { ENGINE, FIXTURES, OPERATOR, freezePatch, readState, run as runScript, scratch, scratchPlugin, sibling, verb } from '../helpers.mjs';
 import { refreshIndex } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-index.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
+import { GENERATED_WORKFLOW } from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
+import { policyWorkflowOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
 
 // Triage under a classifying policy: the gate request carries the gate's class,
 // the answer item records it, and each classified value the chosen continue
@@ -370,4 +372,90 @@ test('a sub-run is judged under its own workflow name against its own recorded h
   const [answered, settled] = decisionsOf(child);
   assert.deepEqual(answered.triage, GATE_TRIAGE);
   assert.deepEqual(settled.triage, VALUE_TRIAGE);
+});
+
+// A generated chain is planned under a fresh name each time, so its run is
+// classed by the rows under the reserved name `generated` instead of its own:
+// the optional-step definition, renamed, published in a scratch project's
+// generated-chain home and frozen from there.
+
+/** The fixture's rows moved to `workflow`. */
+function policyFor(workflow) {
+  return { ...POLICY, table: POLICY.table.map(row => ({ ...row, workflow })) };
+}
+
+/**
+ * The optional-step run at its first gate, its definition renamed `name` and
+ * written with its prose companion into the project at `home` (relative to
+ * the project root), frozen from there.
+ */
+function chainAtGate(t, { engine, name = 'outcome-7', home = '.maister/workflows/generated' }) {
+  const run = scratch(t);
+  const file = path.join(run.root, home, `${name}.yml`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, fs.readFileSync(OPTIONAL, 'utf8').replace(/^name: optional-step$/m, `name: ${name}`));
+  fs.copyFileSync(OPTIONAL.replace(/\.yml$/, '.md'), file.replace(/\.yml$/, '.md'));
+  const { patch } = freezePatch({ definition: file });
+  assert.equal(patch.workflow.name, name);
+  ok(engine, ['write-state', `--state=${run.state}`], patch);
+  ok(engine, ['write-state', `--state=${run.state}`], {
+    nodes: { specification: { status: 'completed' } },
+    node_summaries: { specification: { summary: 'Wrote the specification.' } },
+  });
+  return run;
+}
+
+test('a generated chain\'s run is classed by the rows under `generated`, its own name kept', t => {
+  assert.equal(GENERATED_WORKFLOW, 'generated');
+  const engine = scratchPlugin(t, { policy: policyFor(GENERATED_WORKFLOW) });
+  const run = chainAtGate(t, { engine });
+  assert.equal(readState(run).workflow.name, 'outcome-7');
+
+  const checkpoint = JSON.parse(ok(engine, ['gate-brief', `--state=${run.state}`, `--node=${GATE}`, '--checkpoint']).stdout);
+  assert.deepEqual(checkpoint.approves, [{ node: GATE, ref: 'audit_enabled', class: 'approve', floor: ['floor-a'] }]);
+
+  const driven = chainAtGate(t, { engine, name: 'outcome-8' });
+  ok(engine, ['write-state', `--state=${driven.state}`], { orchestrator: { driver: { ...COCKPIT, features: ['question-sets'] } } });
+  const request = JSON.parse(ok(engine, ['gate-brief', `--state=${driven.state}`, `--node=${GATE}`, '--request']).stdout);
+  assert.deepEqual(request.triage, GATE_TRIAGE);
+
+  answer(engine, run, 'continue-to-audit');
+  const [answered, settled] = decisionsOf(run);
+  assert.deepEqual(answered.triage, GATE_TRIAGE);
+  assert.deepEqual(settled.triage, VALUE_TRIAGE);
+  assert.equal(readState(run).workflow.name, 'outcome-7');
+});
+
+test('rows under a generated chain\'s own name reach it no longer; `generated` rows reach no other run', t => {
+  const own = scratchPlugin(t, { policy: policyFor('outcome-7') });
+  const chain = chainAtGate(t, { engine: own });
+  answer(own, chain, 'continue-to-audit');
+  assert.deepEqual(decisionsOf(chain).map(item => Object.hasOwn(item, 'triage')), [false]);
+
+  const reserved = scratchPlugin(t, { policy: policyFor(GENERATED_WORKFLOW) });
+  const eject = chainAtGate(t, { engine: reserved, home: '.maister/workflows' });
+  answer(reserved, eject, 'continue-to-audit');
+  assert.deepEqual(decisionsOf(eject).map(item => Object.hasOwn(item, 'triage')), [false]);
+  const builtin = atGate(t, { engine: reserved });
+  answer(reserved, builtin, 'continue-to-audit');
+  assert.deepEqual(decisionsOf(builtin).map(item => Object.hasOwn(item, 'triage')), [false]);
+});
+
+test('policyWorkflowOf reads `generated` only for a definition in the generated-chain home', t => {
+  const chain = chainAtGate(t, { engine: ENGINE });
+  const doc = readState(chain);
+  assert.equal(policyWorkflowOf(doc, chain.dir), GENERATED_WORKFLOW);
+  assert.equal(policyWorkflowOf(doc, null), 'outcome-7');
+
+  // Recorded by its project-relative path, as the lookup prints it.
+  const relative = { ...doc, workflow: { ...doc.workflow, source: '.maister/workflows/generated/outcome-7.yml' } };
+  assert.equal(policyWorkflowOf(relative, chain.dir), GENERATED_WORKFLOW);
+  // Recorded by its bare name: the name lookup finds the generated chain.
+  const named = { ...doc, workflow: { ...doc.workflow, source: 'outcome-7' } };
+  assert.equal(policyWorkflowOf(named, chain.dir), GENERATED_WORKFLOW);
+
+  const eject = chainAtGate(t, { engine: ENGINE, name: 'own-flow', home: '.maister/workflows' });
+  assert.equal(policyWorkflowOf(readState(eject), eject.dir), 'own-flow');
+  const nested = chainAtGate(t, { engine: ENGINE, name: 'deeper', home: '.maister/workflows/generated/more' });
+  assert.equal(policyWorkflowOf(readState(nested), nested.dir), 'deeper');
 });

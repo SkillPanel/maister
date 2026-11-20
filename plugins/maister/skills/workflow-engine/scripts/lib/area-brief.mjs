@@ -93,7 +93,7 @@ import {
   CHECK_TITLE, INVESTIGATE_FIRST_ID, QUESTION_PREFIX, WARNING, addedLines, areasProducer, areaDetails, areaEntry, areaPicker, loadAreas, ordered, relativePath,
 } from './decision-areas.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
-import { projectRootOf } from './state.mjs';
+import { policyWorkflowOf, projectRootOf } from './state.mjs';
 
 /** The question id both convergence nodes declare; each area's own id is it plus `-<area id>`. */
 const DECLARED_ID = QUESTION_PREFIX.replace(/-$/, '');
@@ -305,7 +305,7 @@ function driven({ doc, workflow, node, all, asked, lines, sketchWarnings, runDir
     const entry = areaEntry(area, all, lines.get(area.id) ?? null);
     return entry.options.some(option => option.recommended) && sources.length ? { ...entry, evidence: sources } : entry;
   });
-  const warnings = [...sketchWarnings, ...classify(doc, workflow, node, questions)];
+  const warnings = [...sketchWarnings, ...classify(doc, runDir, node, questions)];
   const file = patchFile ?? path.join(runDir, '.state-patch.json');
   const tmp = `${file}.tmp`;
   let fd = null;
@@ -342,12 +342,12 @@ function driven({ doc, workflow, node, all, asked, lines, sketchWarnings, runDir
  * no entry is classed and one `policy-hash-mismatch:<node>` warning is raised.
  * A refused policy relays its `policy-refused` warning. Returns the warnings.
  */
-function classify(doc, workflow, node, questions) {
+function classify(doc, runDir, node, questions) {
   const { policy, hash, warnings } = loadPolicy();
   const recorded = isPlainObject(doc.orchestrator) ? doc.orchestrator.policy_hash : undefined;
   const matches = typeof recorded === 'string' && recorded === hash;
   const classes = questions.map(question => triageFor({
-    policy, workflow: workflow.name, kind: 'question', id: question.id, declaredIds: [DECLARED_ID],
+    policy, workflow: policyWorkflowOf(doc, runDir), kind: 'question', id: question.id, declaredIds: [DECLARED_ID],
   }));
   const raised = [...warnings];
   if (!classes.some(triage => triage !== null)) return raised;

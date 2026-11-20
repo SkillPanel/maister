@@ -119,7 +119,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, guardTerms, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
-import { SUITE_RUNS, attemptOf, childRootOf, definitionPathOf, htmlOutput, isStalePage, projectRootOf } from './state.mjs';
+import { SUITE_RUNS, attemptOf, childRootOf, definitionPathOf, htmlOutput, isStalePage, policyWorkflowOf, projectRootOf } from './state.mjs';
 import { STORIES_HEADING, approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, riskOf, riskText } from './items.mjs';
@@ -398,7 +398,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   // The autonomy policy, read once and only when a form needs it: what it
   // classes is written only when it is the policy the run recorded at freeze.
   let reading = null;
-  const policyOf = () => (reading ??= policyReading(doc, workflow.name, node, options));
+  const policyOf = () => (reading ??= policyReading(doc, policyWorkflowOf(doc, runDir), node, options));
   const ids = candidates.length ? [...candidates, ...stretch] : [closing.id];
   // A page the checkpoint names that is older than its markdown, on every
   // form: the labels-only call a session passes on carries no Review line, so
