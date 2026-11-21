@@ -28,6 +28,12 @@ import { unmetNeeds } from '../plugins/maister/skills/workflow-engine/scripts/li
  */
 process.env.MAISTER_NO_OPEN = '1';
 
+/**
+ * No child of the suite starts npx: a mockup turn's `begin` probes for
+ * `npx playwright cli` unless this is set. A test of the probe lays '' over it.
+ */
+process.env.MAISTER_NO_NPX_PROBE = '1';
+
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const ENGINE_DIR = path.join(ROOT, 'plugins/maister/skills/workflow-engine');
 export const ENGINE = path.join(ENGINE_DIR, 'scripts/workflow.mjs');
