@@ -629,7 +629,8 @@ the held item is where a person decides.
 **A stricter reading is carried, never a looser one.** A step's own judgement may only make a
 question stricter. It carries `triage: {version: 1, class: <class>}` on the set's question, and
 the writer keeps the stricter of the two. With a policy that classes nothing, the carried
-triage is set aside. It never names a floor id or a family.
+triage is set aside. Floor ids it names are added to the question's floor; it never names a
+family or a band.
 
 **What a node never does here.** It never writes a triage on its own decisions and never
 carries one that lowers a class or proposes a looser reading; it never sends `asking` or

@@ -76,6 +76,39 @@ test('a hand-written answer that leaves out by and decision gains both from the 
   }]);
 });
 
+/** The same fold with the answer written flat on the gate's summary — `answer: <option>` and who answered beside it. */
+function flatFold(run, option) {
+  sessionFold(run, option, []);
+  const flat = `    answer: ${option}\n    answered_by: dana\n    at: "2026-01-05T09:05:00Z"\n    via: cockpit\n`;
+  fs.writeFileSync(run.state, fs.readFileSync(run.state, 'utf8').replace(/^ {4}decisions:\n/m, flat));
+}
+
+test('a hand-written flat answer becomes the gate\'s decision on the re-validation, with by and the label the person read', t => {
+  const run = atGate(t);
+  flatFold(run, 'continue-to-audit');
+  write(run, {});
+  const summary = readState(run).node_summaries[GATE];
+  for (const key of ['answer', 'answered_by', 'at', 'via']) assert.equal(Object.hasOwn(summary, key), false, key);
+  assert.deepEqual(summary.decisions, [{
+    option: 'continue-to-audit',
+    answered_by: 'dana',
+    at: '2026-01-05T09:05:00Z',
+    via: 'cockpit',
+    decision: ASKED_LABEL,
+    by: 'operator',
+  }]);
+});
+
+test('a flat answer on a write that closes no row is left alone', t => {
+  const run = atGate(t);
+  flatFold(run, 'continue-to-audit');
+  refreshIndex(run.dir);
+  write(run, {});
+  const summary = readState(run).node_summaries[GATE];
+  assert.equal(summary.answer, 'continue-to-audit');
+  assert.equal(Object.hasOwn(summary, 'decisions'), false);
+});
+
 test('an option the request does not list takes the definition\'s label', t => {
   const run = atGate(t);
   sessionFold(run, 'continue-to-planning', [`{option: continue-to-planning, ${PERSON}}`]);
