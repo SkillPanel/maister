@@ -13,7 +13,10 @@
  * Navigation links only sibling `<slug>.html` pages and never the gallery, so
  * a page resolves the same inside its version folder and in its flat copy one
  * level up. The gallery is one self-contained page: inline CSS, nothing loaded
- * from outside, each card a sibling page.
+ * from outside, each card linking a sibling page. A card's preview is the
+ * screen alone, unframed: its own css and html in a private frame (`srcdoc`,
+ * `sandbox` with scripts off), never the studio page with its title bar, tabs
+ * and notes around it.
  *
  * Pure: no I/O. Zero dependencies, Node >= 20.
  */
@@ -70,6 +73,11 @@ header a { color: #0066cc; font-size: 0.85rem; }
 .preview iframe { width: 1280px; height: 820px; border: 0; transform: scale(0.27); transform-origin: top left; pointer-events: none; }
 `;
 
+/** The screen's own document, as a card's private frame shows it: no studio chrome, no annotations. */
+function bareScreen(screen) {
+  return `<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0}${screen.css ?? ''}</style></head><body>${screen.html ?? ''}</body></html>`;
+}
+
 /** The version's gallery, `versions/<version>/index.html`. */
 export function renderGallery({ version, note, parent, screens }) {
   const changedCount = screens.filter(screen => screen.changed).length;
@@ -77,7 +85,7 @@ export function renderGallery({ version, note, parent, screens }) {
   const cards = screens.map(screen => [
     `<a class="card" href="${screen.slug}.html">`,
     `<div class="card-title"><span>${escapeHtml(screen.title)}</span>${screen.changed ? '<span class="changed">Changed</span>' : ''}</div>`,
-    `<div class="preview"><iframe src="${screen.slug}.html" loading="lazy" tabindex="-1" title="${escapeHtml(screen.title)}"></iframe></div>`,
+    `<div class="preview"><iframe srcdoc="${escapeHtml(bareScreen(screen))}" sandbox="" loading="lazy" tabindex="-1" title="${escapeHtml(screen.title)}"></iframe></div>`,
     '</a>',
   ].join(''));
   return [

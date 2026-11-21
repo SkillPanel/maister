@@ -17,11 +17,10 @@
  * to the index's `latest` (null on a first turn). It prints
  * `{ok, version, version_dir, against, first, screens: [{slug, title}], shell_browser}`,
  * the screens being `against`'s. `shell_browser` is the shell browser tool the
- * look pass can use, found by the two probes `browser-tools.md` names:
- * `"playwright-cli"` when an executable of that name is on `PATH`, else
- * `"npx playwright cli"` when `npx --no-install playwright cli --help` exits 0,
- * else null. It is handed to the turn as a fact, so the look pass never judges
- * from a tool list alone; a probe that fails reads as null and never refuses.
+ * look pass can use, found by the two probes `browser-tools.md` names
+ * (`lib/browser-probe.mjs`): `"playwright-cli"`, `"npx playwright cli"` or null.
+ * It is handed to the turn as a fact, so the look pass never judges from a tool
+ * list alone; a probe that fails reads as null and never refuses.
  *
  *   node <path to this file> ground-clear  --pack=<dir>
  *   node <path to this file> ground-seal   --pack=<dir> [--root=<project root>]
@@ -100,7 +99,6 @@
  * Every write fault, the write primitives' included, is `folder-unwritable`.
  */
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -114,6 +112,7 @@ import {
   GROUNDING_FILE, compare, digestOf, hashSource, hashesPackage, inside, blobHash, packFiles, readGrounding, touchedSince,
 } from './lib/grounding.mjs';
 import { rewriteIndex } from './lib/index-rows.mjs';
+import { shellBrowser } from './lib/browser-probe.mjs';
 import { mockupsJson, renderGallery, renderPage } from './lib/render.mjs';
 import { FRAMES_FILE, GROUNDING_SCHEMA_VERSION, SOURCES_FILE, TURN_FILE, departures } from './lib/shapes.mjs';
 import { assertSlug, resolveSlugs } from './lib/slugs.mjs';
@@ -203,42 +202,7 @@ function unlinkIfPresent(file) {
 
 // ---------------------------------------------------------------- begin
 
-/** Whether `name` is an executable on `PATH`: a scan of its folders, no shell spawned. */
-function onPath(name, env = process.env) {
-  const windows = process.platform === 'win32';
-  const key = Object.keys(env).find(each => each.toUpperCase() === 'PATH');
-  const dirs = String((key && env[key]) ?? '').split(path.delimiter).filter(Boolean);
-  const exts = windows ? String(env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean) : [''];
-  for (const dir of dirs) {
-    for (const ext of exts) {
-      const file = path.join(dir, `${name}${ext}`);
-      try {
-        if (!fs.statSync(file).isFile()) continue;
-        if (!windows) fs.accessSync(file, fs.constants.X_OK);
-        return true;
-      } catch {
-        // not here, or not executable
-      }
-    }
-  }
-  return false;
-}
-
-/** The shell browser tool the look pass can use, by `browser-tools.md`'s two probes; null when neither answers. */
-function shellBrowser() {
-  if (onPath('playwright-cli')) return 'playwright-cli';
-  try {
-    const probe = spawnSync('npx', ['--no-install', 'playwright', 'cli', '--help'], {
-      stdio: 'ignore', timeout: 15_000, shell: process.platform === 'win32', windowsHide: true,
-    });
-    if (probe.status === 0) return 'npx playwright cli';
-  } catch {
-    // no npx: no shell browser
-  }
-  return null;
-}
-
-function begin(flags) {
+async function begin(flags) {
   const subdir = relativeInside(flags.subdir ?? DEFAULT_SUBDIR, 'subdir');
   const where = layout(flags['task-path'], subdir);
   const index = readIndex(where.index);
@@ -266,7 +230,7 @@ function begin(flags) {
     }
     throw new Refusal('folder-unwritable', `${versionDir} could not be created: ${err.message}. Nothing was written; make the folder writable and begin again.`);
   }
-  return { ok: true, version, version_dir: versionDir, against, first: index.versions.length === 0, screens, shell_browser: shellBrowser() };
+  return { ok: true, version, version_dir: versionDir, against, first: index.versions.length === 0, screens, shell_browser: await shellBrowser() };
 }
 
 // ---------------------------------------------------------------- finish
@@ -841,7 +805,7 @@ function groundStatus(flags) {
 
 // ---------------------------------------------------------------- main
 
-function main() {
+async function main() {
   let parsed;
   try {
     parsed = parseArgs(process.argv.slice(2));
@@ -852,7 +816,7 @@ function main() {
   }
   try {
     const handlers = { begin, finish, 'ground-clear': groundClear, 'ground-seal': groundSeal, 'ground-status': groundStatus };
-    const result = handlers[parsed.verb](parsed.flags);
+    const result = await handlers[parsed.verb](parsed.flags);
     process.stdout.write(json(result));
     if (parsed.verb === 'finish') openGallery(parsed.flags, result);
     return EXIT.OK;
@@ -871,4 +835,4 @@ function main() {
   }
 }
 
-process.exitCode = main();
+process.exitCode = await main();

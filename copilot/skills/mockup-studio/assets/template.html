@@ -76,16 +76,20 @@
       z-index: 1000;
       line-height: 1.3;
     }
+    /* The arrow points at the target from the side the note was placed on. */
     .annotation-tooltip::before {
       content: '';
       position: absolute;
-      top: -4px;
-      left: 10px;
+      left: var(--arrow, 10px);
       width: 8px;
       height: 8px;
       background: rgba(0, 0, 0, 0.75);
       transform: rotate(45deg);
     }
+    .annotation-tooltip[data-side="below"]::before { top: -4px; }
+    .annotation-tooltip[data-side="above"]::before { bottom: -4px; }
+    .annotation-tooltip[data-side="right"]::before { left: -4px; top: 8px; }
+    .annotation-tooltip[data-side="left"]::before { left: auto; right: -4px; top: 8px; }
 
     /* Interactive screen-to-screen navigation */
     [data-screen] { cursor: pointer; }
@@ -119,8 +123,48 @@
   <main id="mockup-container">{{CONTENT}}</main>
 
   <script>
-    // Annotation overlay rendering
+    // Annotation notes. Each note is placed clear of what it describes, so the target stays in view:
+    // above it when there is room under the viewer's own bars, else beside it, else below it, and
+    // always inside the page's width. The layout can still move after the first frame (fonts,
+    // images, the app's own sticky bars), so the notes are placed again on load and on resize.
     const annotations = {{ANNOTATIONS}};
+    // target: the element's box in page coordinates; tip: the note's size;
+    // view: the page width and the top of the container, the highest a note may sit.
+    function placeTooltip(target, tip, view) {
+      var GAP = 8, EDGE = 8;
+      var clampLeft = function(left) { return Math.max(EDGE, Math.min(left, view.width - EDGE - tip.width)); };
+      if (target.top - GAP - tip.height >= view.top) {
+        return { side: 'above', top: target.top - GAP - tip.height, left: clampLeft(target.left) };
+      }
+      if (target.right + GAP + tip.width <= view.width - EDGE) {
+        return { side: 'right', top: Math.max(view.top, target.top), left: target.right + GAP };
+      }
+      if (target.left - GAP - tip.width >= EDGE) {
+        return { side: 'left', top: Math.max(view.top, target.top), left: target.left - GAP - tip.width };
+      }
+      return { side: 'below', top: target.bottom + GAP, left: clampLeft(target.left) };
+    }
+    var placed = [];
+    function placeAnnotations() {
+      var container = document.getElementById('mockup-container');
+      var box = container.getBoundingClientRect();
+      var scrollX = window.scrollX, scrollY = window.scrollY;
+      var view = { top: box.top + scrollY, width: document.documentElement.clientWidth };
+      placed.forEach(function(entry) {
+        // Measured from the container's corner: where it stood before, near an edge, it would wrap narrower.
+        entry.tooltip.style.top = '0px';
+        entry.tooltip.style.left = '0px';
+        var rect = entry.target.getBoundingClientRect();
+        var target = { top: rect.top + scrollY, left: rect.left + scrollX, right: rect.right + scrollX, bottom: rect.bottom + scrollY };
+        var at = placeTooltip(target, { width: entry.tooltip.offsetWidth, height: entry.tooltip.offsetHeight }, view);
+        entry.tooltip.setAttribute('data-side', at.side);
+        entry.tooltip.style.top = (at.top - (box.top + scrollY)) + 'px';
+        entry.tooltip.style.left = (at.left - (box.left + scrollX)) + 'px';
+        var arrow = Math.max(6, Math.min(target.left + Math.min(16, rect.width / 2) - at.left, entry.tooltip.offsetWidth - 14));
+        if (at.side === 'above' || at.side === 'below') entry.tooltip.style.setProperty('--arrow', arrow + 'px');
+        else entry.tooltip.style.removeProperty('--arrow');
+      });
+    }
     function renderAnnotations() {
       const container = document.getElementById('mockup-container');
       annotations.forEach(function(ann) {
@@ -129,17 +173,19 @@
         if (!target) return;
         const text = ann.note || ann.text || '';
         if (!text) return;
-        const rect = target.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
         const tooltip = document.createElement('div');
         tooltip.className = 'annotation-tooltip';
         tooltip.textContent = text;
-        tooltip.style.top = (rect.bottom - containerRect.top + 6) + 'px';
-        tooltip.style.left = (rect.left - containerRect.left) + 'px';
         container.appendChild(tooltip);
+        placed.push({ target: target, tooltip: tooltip });
       });
+      placeAnnotations();
     }
-    if (annotations.length > 0) requestAnimationFrame(renderAnnotations);
+    if (annotations.length > 0) {
+      requestAnimationFrame(renderAnnotations);
+      window.addEventListener('load', placeAnnotations);
+      window.addEventListener('resize', placeAnnotations);
+    }
 
     // Annotation toggle, remembered where the browser allows it
     var toggleBtn = document.getElementById('annotation-toggle');
@@ -151,6 +197,8 @@
       if (annotationsVisible) {
         container.classList.remove('annotations-hidden');
         toggleBtn.classList.add('active');
+        // A hidden note has no size, so the notes are placed again once shown.
+        placeAnnotations();
       } else {
         container.classList.add('annotations-hidden');
         toggleBtn.classList.remove('active');

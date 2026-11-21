@@ -91,12 +91,14 @@
  *   area-brief     --state, --node (the convergence node asking), and one of
  *                  --area --json [--picker=rich|plain], --area --ask
  *                  [--details], --area alone, or --patch-file with --area
- *                  repeated or omitted
+ *                  repeated or omitted; or --check alone, --node then also
+ *                  the brainstorm node itself
  *                                                             one decision
  *                  area of the brainstorm: the picker as JSON, the write-up as
  *                  markdown, or the driven question set written to the patch
- *                  file; a file it cannot use is a warning and nothing to
- *                  paste — reads the run, writes no state
+ *                  file; --check reports whether the file is valid and stamped
+ *                  from the markdown as it stands; a file it cannot use is a
+ *                  warning and nothing to paste — reads the run, writes no state
  *   finding-brief  --state, --node (the reviewing node asking), --findings-file,
  *                  optional --patch-file                     the reviewer's
  *                  findings as the node's question set, one question per
@@ -312,7 +314,9 @@ const VERBS = {
   // node's `with:`; `--area` repeatable for the driven set, which may carry
   // only some areas. `--json` and `--picker` as in `gate-brief`; `--patch-file`
   // is the one place the set is written, so a driver hands it on unchanged.
-  'area-brief': { module: 'area-brief.mjs', flags: ['state', 'node', 'area', 'json', 'picker', 'patch-file', 'ask', 'details'] },
+  // `--check` asks only whether the file still matches its markdown, so a
+  // corrected brainstorm is caught before the convergence asks from it.
+  'area-brief': { module: 'area-brief.mjs', flags: ['state', 'node', 'area', 'json', 'picker', 'patch-file', 'ask', 'details', 'check'] },
   // A reviewer's findings, one question each, rendered from the list it wrote,
   // so a reviewing node pastes its questions instead of composing them.
   // `--findings-file` because the list is the reviewer's own artifact, named
@@ -424,7 +428,7 @@ const REPEATABLE = new Set(['overlay', 'area', 'from']);
 const PICKERS = ['rich', 'plain'];
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open', 'fill']);
+const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open', 'fill', 'check']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -1354,6 +1358,20 @@ async function runAreaBrief(flags) {
   if (!flags.node) throw new UsageError('area-brief needs --node');
   const areas = flags.area || [];
   const set = flags['patch-file'] !== undefined;
+  if (flags.check === true) {
+    const others = ['area', 'json', 'picker', 'patch-file', 'ask', 'details'].filter(flag => flags[flag] !== undefined);
+    if (others.length) {
+      throw new UsageError(`area-brief takes --check alone, without --${others.join(', --')}: it reports whether the areas file is usable, and renders no area`);
+    }
+    const module = await loadModule(VERBS['area-brief'].module);
+    const result = entryOf(module, 'areaBrief', VERBS['area-brief'].module)({ state: flags.state, node: flags.node, form: 'check' });
+    if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning}\n`);
+    report(result.ok
+      ? { ...result, rules: rulesOf('areaBrief') }
+      : { ok: false, errors: result.errors, warnings: result.warnings || [], rules: rulesOf('areaBrief') });
+    return result.ok ? EXIT.OK : EXIT.REJECTED;
+  }
   if (set && flags.json === true) {
     throw new UsageError('area-brief takes --json or --patch-file, not both: --json is the in-session picker, --patch-file the driven question set');
   }
