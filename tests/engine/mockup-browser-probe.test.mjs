@@ -104,15 +104,16 @@ test('browser probe: the command runs from the temp folder, through a shell only
   }
 });
 
-test('browser probe: a timed-out probe leaves nothing it started running', { skip: windows && 'the tree kill is taskkill on Windows, exercised by CI only' }, async t => {
+test('browser probe: a timed-out probe leaves nothing it started running', { skip: windows && 'the fake npx is a POSIX shell script; the Windows tree kill (taskkill) is not exercised here' }, async t => {
   const dir = scratch(t, 'maister-probe-hang-');
   const pidFile = path.join(dir, 'grandchild.pid');
   fs.writeFileSync(path.join(dir, 'npx'), `#!/bin/sh\nsleep 60 &\necho $! > "${pidFile}"\nwait\n`, { mode: 0o755 });
   const { runNpxProbe } = await freshProbe();
   const env = { ...process.env, PATH: `${dir}${path.delimiter}${process.env.PATH}` };
   const started = Date.now();
-  assert.equal(await runNpxProbe({ env, timeout: 500 }), false);
-  assert.ok(Date.now() - started < 5000, 'the probe waited past its timeout');
+  // Long enough for the fake's shell to start its child and write the pid under a loaded suite.
+  assert.equal(await runNpxProbe({ env, timeout: 2000 }), false);
+  assert.ok(Date.now() - started < 8000, 'the probe waited past its timeout');
   const pid = Number(fs.readFileSync(pidFile, 'utf8').trim());
   const alive = () => { try { process.kill(pid, 0); return true; } catch { return false; } };
   for (let waited = 0; alive() && waited < 3000; waited += 50) await new Promise(done => setTimeout(done, 50));
