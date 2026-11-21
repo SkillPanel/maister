@@ -26,20 +26,20 @@
 import { flowLine, markedLabel, unmarked, unrecommended } from './checkpoint.mjs';
 import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
 import { HEADER_MAX } from './display.mjs';
-import { evidenceKey } from './evidence.mjs';
+import { citesKey, evidenceKey } from './evidence.mjs';
 import { attemptNumber, decisionOf, isHostAnswer, oneLine, provenanceOf } from './items.mjs';
 import { FAMILY_NAME } from './policy.mjs';
 
 /**
  * The keys a question may carry; any other is a typo the operator would never
- * see answered. `evidence` is carried as written and never refused here: the
- * brief checks it against the disk (`evidence.mjs`), and a path it drops costs
- * the question nothing. `family` is the policy family the node proposes for
+ * see answered. `evidence` and `cites` are carried as written and never
+ * refused here: the brief checks them against the disk (`evidence.mjs`), and a
+ * path or cite it drops costs the question nothing. `family` is the policy family the node proposes for
  * the question, read only by the classing write (`question-triage.mjs`).
  * `reader` is the verdict a second reader gave on that proposal: an object with
  * exactly `verdict` and `reason`, checked here and read only by the same write.
  */
-const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage', 'family', 'reader', 'details', 'evidence'];
+const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage', 'family', 'reader', 'details', 'evidence', 'cites'];
 
 /** The keys a reader's verdict carries, and the two values its verdict may take. */
 const READER_KEYS = ['verdict', 'reason'];
@@ -171,6 +171,7 @@ export function checkSet(input) {
       ...(Object.hasOwn(question, 'reader') ? { reader: question.reader } : {}),
       ...(isText(question.details) ? { details: question.details } : {}),
       ...(Object.hasOwn(question, 'evidence') ? { evidence: question.evidence } : {}),
+      ...(Object.hasOwn(question, 'cites') ? { cites: question.cites } : {}),
     };
   });
   if (errors.length) return { ok: false, errors };
@@ -391,7 +392,7 @@ function requestOptions(question) {
  * and options repeat the first question, so a reader that knows one question
  * per request still answers it; `questions` carries the whole set, each entry
  * the four keys a request question has and, when it names any, the evidence
- * its recommendation rests on; and `context.checkpoint` carries the
+ * its recommendation rests on and the places it cites; and `context.checkpoint` carries the
  * set with its context — header, why, default — for a reader that renders it.
  * Each question the request carries is one flow-safe line (`flowLine`); the
  * checkpoint keeps the node's own text.
@@ -406,12 +407,14 @@ export function questionRequest(checkpoint, round = 1) {
     options: requestOptions(first),
     multi_select: first.multi_select,
     ...evidenceKey(first.evidence),
+    ...citesKey(first.cites),
     questions: checkpoint.questions.map(question => ({
       id: question.id,
       question: flowLine(question.question),
       options: requestOptions(question),
       multi_select: question.multi_select,
       ...evidenceKey(question.evidence),
+      ...citesKey(question.cites),
     })),
     round,
   };

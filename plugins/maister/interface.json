@@ -901,6 +901,37 @@
   },
   "gate_request": {
     "keys": {
+      "cites": {
+        "items": {
+          "keys": {
+            "lines": {
+              "keys": {
+                "end": {
+                  "required": true,
+                  "type": "integer"
+                },
+                "start": {
+                  "required": true,
+                  "type": "integer"
+                }
+              },
+              "required": false,
+              "type": "object"
+            },
+            "path": {
+              "required": true,
+              "type": "string"
+            },
+            "section": {
+              "required": false,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "required": false,
+        "type": "array"
+      },
       "context": {
         "keys": {
           "artifacts": {
@@ -1012,6 +1043,37 @@
       "questions": {
         "items": {
           "keys": {
+            "cites": {
+              "items": {
+                "keys": {
+                  "lines": {
+                    "keys": {
+                      "end": {
+                        "required": true,
+                        "type": "integer"
+                      },
+                      "start": {
+                        "required": true,
+                        "type": "integer"
+                      }
+                    },
+                    "required": false,
+                    "type": "object"
+                  },
+                  "path": {
+                    "required": true,
+                    "type": "string"
+                  },
+                  "section": {
+                    "required": false,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "required": false,
+              "type": "array"
+            },
             "evidence": {
               "items": {
                 "type": "string"
@@ -1127,7 +1189,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.5",
+  "interface_version": "2.6",
   "mcp": {
     "servers": [],
     "tools": [

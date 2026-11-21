@@ -126,20 +126,108 @@ test('evidence: the repository is the directory holding .maister; a run outside 
   assert.deepEqual(warnings, ['question-evidence-dropped:q:../elsewhere.md:outside-repository']);
 });
 
-test('evidence: finding-brief names the findings list on each finding it recommends on', t => {
+test('cites: finding-brief carries each finding\'s cites typed, its evidence only the report it cites a section of, never the findings list', t => {
   const run = scratch(t);
-  freeze(run, { definition: FINDING_REVIEW });
+  freeze(run, { definition: FINDING_REVIEW, orchestrator: { driver: COCKPIT } });
   write(run, { nodes: { review: { status: 'running' } } });
-  const finding = (id, recommended) => ({
-    id, severity: 'medium', title: `Finding ${id}`, evidence: 'src/a.ts:1',
+  onDisk(run.root, 'src/orders/submit-service.ts');
+  onDisk(run.root, 'src/orders/checks.ts');
+  onDisk(run.dir, 'verification/implementation-verification.md');
+  const LIST = 'verification/verification-findings.json';
+  const finding = (id, recommended, cites) => ({
+    id, severity: 'warning', title: `Finding ${id}`, evidence: 'submit-service.ts:158-197 skips the checks',
+    ...(cites === undefined ? {} : { cites }),
     options: [{ label: 'Fix it', description: 'Change the line' }], recommended, ...(recommended === null ? {} : { reason: 'It is cheap' }),
   });
-  onDisk(run.dir, 'verification/findings.json');
-  fs.writeFileSync(path.join(run.dir, 'verification/findings.json'), JSON.stringify({ findings: [finding('one', 0), finding('two', null)] }));
-  const result = verb(['finding-brief', `--state=${run.state}`, '--node=review', '--findings-file=verification/findings.json']);
+  const findings = [
+    finding('submit-checks', 0, [
+      { path: 'src/orders/submit-service.ts', lines: { start: 158, end: 197 } },
+      { path: 'src/orders/checks.ts', lines: { start: 12, end: 12 } },
+      { path: 'src/orders/checks.ts', lines: { start: 40, end: 40 } },
+      { path: 'verification/implementation-verification.md', section: 'issue-3-submit-checks' },
+      { path: 'src/orders/gone.ts', lines: { start: 9, end: 9 } },
+      { path: LIST },
+      { path: 'src/orders/checks.ts', lines: { start: 12, end: 12 } },
+    ]),
+    finding('code-only', 0, [{ path: 'src/orders/checks.ts' }]),
+    finding('no-view', null, [{ path: 'verification/implementation-verification.md', section: 'issue-5' }]),
+    finding('cites-nothing', 0),
+  ];
+  onDisk(run.dir, LIST);
+  fs.writeFileSync(path.join(run.dir, LIST), JSON.stringify({ findings }));
+  const result = verb(['finding-brief', `--state=${run.state}`, '--node=review', `--findings-file=${LIST}`]);
   assert.equal(result.code, 0, result.stderr);
-  const set = JSON.parse(result.stdout.slice(0, result.stdout.lastIndexOf('}') + 1));
+  assert.deepEqual(result.stderr.trimEnd().split('\n'), [
+    'warning: question-cite-dropped:review-findings-submit-checks:src/orders/gone.ts:missing',
+    `warning: question-cite-dropped:review-findings-submit-checks:${TASK}/${LIST}:findings-list`,
+  ]);
+  const set = JSON.parse(result.stdout);
   const byId = id => set.questions.find(each => each.id === `review-findings-${id}`);
-  assert.deepEqual(byId('one').evidence, ['verification/findings.json']);
-  assert.equal(Object.hasOwn(byId('two'), 'evidence'), false, 'no recommendation, no evidence');
+  const report = `${TASK}/verification/implementation-verification.md`;
+  const submit = byId('submit-checks');
+  assert.deepEqual(submit.cites, [
+    { path: 'src/orders/submit-service.ts', lines: { start: 158, end: 197 } },
+    { path: 'src/orders/checks.ts', lines: { start: 12, end: 12 } },
+    { path: 'src/orders/checks.ts', lines: { start: 40, end: 40 } },
+    { path: report, section: 'issue-3-submit-checks' },
+  ], 'each kept cite once, its path repository-relative');
+  assert.deepEqual(submit.evidence, [report], 'evidence is the report a cite names a section of, as a plain path');
+  assert.deepEqual(byId('code-only').cites, [{ path: 'src/orders/checks.ts' }]);
+  assert.equal(Object.hasOwn(byId('code-only'), 'evidence'), false, 'no report section cited, no evidence');
+  assert.deepEqual(byId('no-view').evidence, [report], 'a finding with no recommendation still carries what it cites');
+  for (const key of ['evidence', 'cites']) assert.equal(Object.hasOwn(byId('cites-nothing'), key), false, `a finding that cites nothing carries no ${key}`);
+  for (const question of set.questions) {
+    assert.ok(!(question.evidence ?? []).some(each => each.endsWith(LIST)), 'the findings list is never evidence');
+    assert.ok(!(question.cites ?? []).some(each => each.path.endsWith(LIST)), 'the findings list is never cited');
+    for (const each of question.evidence ?? []) assert.doesNotMatch(each, /[:#]/, 'evidence is plain paths');
+  }
+
+  // The request built from the set carries the cites through its own check,
+  // the top level repeating the first question's, as evidence does.
+  const patch = path.join(run.dir, '.state-patch.json');
+  fs.writeFileSync(patch, JSON.stringify(set));
+  const request = verb(['gate-brief', `--state=${run.state}`, '--node=review', '--request', `--patch-file=${patch}`]);
+  assert.equal(request.code, 0, request.stderr);
+  assert.equal(request.stderr, '');
+  const sent = JSON.parse(request.stdout);
+  const asked = sent.questions.find(each => each.id === 'review-findings-submit-checks');
+  assert.deepEqual(asked.cites, submit.cites);
+  assert.deepEqual(asked.evidence, [report]);
+  assert.deepEqual(sent.cites, sent.questions[0].cites);
+  assert.deepEqual(sent.context.checkpoint.questions.find(each => each.id === 'review-findings-submit-checks').cites, submit.cites);
+});
+
+test('cites: gate-brief drops a cite that is not the shape or names nothing, with a warning, and asks the question', t => {
+  const run = running(t);
+  onDisk(run.root, 'src/a.ts');
+  const outside = path.join(path.dirname(run.root), 'secret.md');
+  const result = requested(run, { questions: [{ ...question('storage', undefined), cites: [
+    { path: 'src/a.ts', lines: { start: 3, end: 9 }, section: 'top' },
+    { path: 'src/a.ts', lines: { start: 9, end: 3 } },
+    { path: 'src/a.ts', lines: { start: 0, end: 0 } },
+    { path: 'src/a.ts', lines: { start: 2 } },
+    { path: 'src/a.ts', section: '#top' },
+    { path: 'src/a.ts', line: 3 },
+    'src/a.ts:3',
+    { path: 'src/b.ts' },
+    { path: outside },
+  ] }] });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(result.stderr.trimEnd().split('\n'), [
+    'warning: question-cite-dropped:storage:src/a.ts:not-a-cite',
+    'warning: question-cite-dropped:storage:src/a.ts:not-a-cite',
+    'warning: question-cite-dropped:storage:src/a.ts:not-a-cite',
+    'warning: question-cite-dropped:storage:src/a.ts:not-a-cite',
+    'warning: question-cite-dropped:storage:src/a.ts:not-a-cite',
+    'warning: question-cite-dropped:storage:"src/a.ts:3":not-a-cite',
+    'warning: question-cite-dropped:storage:src/b.ts:missing',
+    `warning: question-cite-dropped:storage:${outside}:absolute`,
+  ]);
+  const request = JSON.parse(result.stdout);
+  assert.deepEqual(request.questions[0].cites, [{ path: 'src/a.ts', lines: { start: 3, end: 9 }, section: 'top' }]);
+  assert.equal(Object.hasOwn(request.questions[0], 'evidence'), false);
+
+  const none = requested(run, { questions: [{ ...question('storage', undefined), cites: [{ path: 'src/b.ts' }] }] });
+  assert.equal(Object.hasOwn(JSON.parse(none.stdout).questions[0], 'cites'), false, 'a list left empty is no key');
+  assert.equal(checkSet({ questions: [{ ...question('q'), cites: 'anything' }] }).ok, true, 'the set carries cites as written; the brief judges them');
 });

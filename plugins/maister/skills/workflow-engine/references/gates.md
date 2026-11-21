@@ -294,8 +294,8 @@ came without its note is asked again with (*Revising at a gate*), never beside `
 With a question set (`references/in-node-questions.md` § *In-node questions*), `--checkpoint`
 prints a `kind: question` checkpoint and `--request` a `kind: question` request whose question
 and options repeat the first question's, with every question under `questions`, each folded to
-one line with no `"` and carrying its checked `evidence` when it names any (the top level
-repeats the first question's); the patch file is read and kept, for the request to be written
+one line with no `"` and carrying its checked `evidence` and `cites` when it names any (the
+top level repeats the first question's); the patch file is read and kept, for the request to be written
 over it.
 
 `--node=held-approval` briefs the run's closing checkpoint, in every form (engine § *The ready

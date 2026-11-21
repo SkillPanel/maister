@@ -18,13 +18,16 @@
  * or the classing write to take.
  *
  * The findings list is JSON with closed keys: `{findings: [...]}`, a non-empty
- * list, each finding `{id, severity, title, evidence, options, recommended,
- * reason}`. `id` is a kebab id, unique in the list; `severity` one of
+ * list, each finding `{id, severity, title, evidence, cites?, options,
+ * recommended, reason}`. `id` is a kebab id, unique in the list; `severity` one of
  * `SEVERITIES`; `title` and `evidence` text, the title one line; `options` one
  * to three `{label, description}`, the first the reviewer's proposed fix, the
  * labels one line, unique in the finding and never the accept label;
  * `recommended` an option index, `"accept"`, or null; `reason` the text the
- * recommendation rests on, required when one is made.
+ * recommendation rests on, required when one is made; `cites`, optional, the
+ * places the finding rests on, each `{path, lines?: {start, end}, section?}`
+ * (`evidence.mjs`): the files with the line range it names, and the report
+ * with the anchor of the section that discusses it.
  *
  * Each finding is one question, ordered by severity and otherwise as listed:
  * id `<node>-findings-<finding id>` — the prose's declared id plus the
@@ -34,8 +37,13 @@
  * reviewer's options as `option-1..n`, then `accept-risk`. The recommended
  * option carries `recommended: true` and the reason at the end of its
  * description; with no recommendation nothing is recommended and the set names
- * no default. The verb never classes: no `triage` is written — the classing
- * write classes the set it is sent.
+ * no default. The finding's `cites`, checked as every question's are, are its
+ * question's `cites`; a cite whose file is not on disk is dropped with a
+ * `question-cite-dropped` warning. The question's `evidence` is plain paths:
+ * the file each kept cite names a section of — the report — or none. The
+ * findings list itself is neither: it only restates the question, so a cite
+ * naming it is dropped with the reason `findings-list`. The verb never classes: no
+ * `triage` is written — the classing write classes the set it is sent.
  *
  * Checks run in one order: the state, the node, whether it runs, the declared
  * id, then the file. A file that cannot be used is a fallback, never a refusal: one warning,
@@ -53,6 +61,8 @@
  * `finding-brief-undeclared` (the node's prose declares no `<node>-findings`
  * question id, so the set would carry ids no policy row or prose names).
  *
+ * A dropped cite is a warning beside the set, never a fallback.
+ *
  * Reads only: no state write and no `display/next.json` — the patch file is its
  * one write. Returns `{ok, …, errors, warnings}` and leaves printing to
  * `workflow.mjs`. `node:` builtins and engine libs only, Node >= 20.
@@ -67,6 +77,7 @@ import { definitionPathOf } from './state.mjs';
 import { declaredQuestionIds } from './question-triage.mjs';
 import { clipHeader } from './question-set.mjs';
 import { oneLine } from './items.mjs';
+import { checkCites, citesKey, evidenceKey, isCite, repositoryOf } from './evidence.mjs';
 
 /** The severities a finding may carry, most severe first: the order the questions are asked in. */
 export const SEVERITIES = ['critical', 'high', 'medium', 'low', 'warning', 'info'];
@@ -81,6 +92,9 @@ export const ACCEPT_OPTION = {
 /** The `recommended` value that recommends accepting the risk. */
 const ACCEPT = 'accept';
 
+/** The reason a cite naming the findings list itself is dropped with. */
+const FINDINGS_LIST = 'findings-list';
+
 /** The suffix of the question id a reviewing node's prose declares. */
 const DECLARED_SUFFIX = '-findings';
 
@@ -88,7 +102,7 @@ const DECLARED_SUFFIX = '-findings';
 const OPTIONS_MAX = 3;
 
 const FINDINGS_KEYS = ['findings'];
-const FINDING_KEYS = ['id', 'severity', 'title', 'evidence', 'options', 'recommended', 'reason'];
+const FINDING_KEYS = ['id', 'severity', 'title', 'evidence', 'cites', 'options', 'recommended', 'reason'];
 const OPTION_KEYS = ['label', 'description'];
 const ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -143,14 +157,27 @@ export function findingBrief({ state, node, findingsFile, patchFile = null }) {
 
   const loaded = loadFindings(findingsFile, runDir);
   if (loaded.warning) return fallback(loaded.warning);
-  const questions = order(loaded.findings).map(finding => questionOf(finding, declared, loaded.where));
-  if (patchFile === null) return { ok: true, set: { questions }, errors: [], warnings: [] };
-  return publish({ questions }, patchFile, runDir);
+  const warnings = [];
+  const questions = order(loaded.findings).map(finding => {
+    const question = questionOf(finding, declared);
+    const checked = checkCites(finding.cites, { runDir, where: question.id });
+    warnings.push(...checked.warnings);
+    const cites = checked.cites.filter(cite => {
+      if (cite.path !== loaded.record) return true;
+      warnings.push(`question-cite-dropped:${question.id}:${cite.path}:${FINDINGS_LIST}`);
+      return false;
+    });
+    const sectioned = [...new Set(cites.filter(cite => cite.section !== undefined).map(cite => cite.path))];
+    return { ...question, ...evidenceKey(sectioned), ...citesKey(cites) };
+  });
+  if (patchFile === null) return { ok: true, set: { questions }, errors: [], warnings };
+  const published = publish({ questions }, patchFile, runDir);
+  return published.fallback ? published : { ...published, warnings };
 }
 
 /**
- * The findings list at `given`, checked: `{findings, where}` — `where` its
- * run-relative path — or `{warning}`. The path
+ * The findings list at `given`, checked: `{findings, record}` — `record` its
+ * repository-relative path, as a kept cite's path spells it — or `{warning}`. The path
  * is resolved against the run directory and must stay inside it.
  */
 function loadFindings(given, runDir) {
@@ -174,7 +201,8 @@ function loadFindings(given, runDir) {
     return { warning: `${WARNING.invalid}:${where}:not-json` };
   }
   const fault = shapeFault(data);
-  return fault === null ? { findings: data.findings, where } : { warning: `${WARNING.invalid}:${where}:${fault}` };
+  if (fault !== null) return { warning: `${WARNING.invalid}:${where}:${fault}` };
+  return { findings: data.findings, record: path.relative(repositoryOf(runDir), file).split(path.sep).join('/') };
 }
 
 /** The location of the first shape violation, or null when the list is sound. */
@@ -194,6 +222,11 @@ function shapeFault(data) {
     if (!SEVERITIES.includes(finding.severity)) return `${at}.severity`;
     if (!isLine(finding.title)) return `${at}.title`;
     if (!isText(finding.evidence)) return `${at}.evidence`;
+    if (finding.cites !== undefined && finding.cites !== null) {
+      if (!Array.isArray(finding.cites)) return `${at}.cites`;
+      const bad = finding.cites.findIndex(cite => !isCite(cite));
+      if (bad !== -1) return `${at}.cites[${bad}]`;
+    }
     if (!Array.isArray(finding.options) || finding.options.length === 0 || finding.options.length > OPTIONS_MAX) return `${at}.options`;
     const labels = new Set([ACCEPT_OPTION.label]);
     for (const [i, option] of finding.options.entries()) {
@@ -225,11 +258,8 @@ function order(findings) {
     .map(each => each.finding);
 }
 
-/**
- * One finding as one question of the set. A finding with a recommendation
- * names the findings list as its evidence, run-relative as `where` holds it.
- */
-function questionOf(finding, declared, where) {
+/** One finding as one question of the set; its cites and evidence are added from its cites. */
+function questionOf(finding, declared) {
   const title = finding.title.trim();
   const severity = sentence(finding.severity);
   const evidence = oneLine(finding.evidence);
@@ -252,7 +282,6 @@ function questionOf(finding, declared, where) {
     multi_select: false,
     options,
     details: detailsOf({ title, severity, evidence: finding.evidence.trim(), choices, recommended: recommends ? finding.recommended : null, reason }),
-    ...(recommends && where ? { evidence: [where] } : {}),
   };
 }
 

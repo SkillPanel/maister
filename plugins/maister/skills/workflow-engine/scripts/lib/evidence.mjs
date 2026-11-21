@@ -20,6 +20,14 @@
  * on with what is left. A list left empty is no list: the key is left out,
  * which reads as "no evidence given", as it always has.
  *
+ * Cites. A question may also name the places it rests on, `cites: [{path,
+ * lines?: {start, end}, section?}]`: a file found by the same rule, a line
+ * range in it (whole numbers from 1, `start` <= `end`, one line when they are
+ * equal) and a section, its anchor without the `#`. A cite that is not that
+ * shape, or whose file cannot be kept, is dropped with one warning,
+ * `question-cite-dropped:<where>:<path>:<reason>`, and the rest go on; a list
+ * left empty is no list.
+ *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
 
@@ -68,21 +76,102 @@ export function checkEvidence(raw, { runDir, where }) {
       drop(written, REASON.absolute);
       continue;
     }
-    const segments = written.split(/[\\/]+/);
-    const candidates = [path.resolve(run, ...segments), path.resolve(root, ...segments)];
-    if (candidates.every(file => !inside(root, file))) {
-      drop(written, REASON.outside);
+    const located = locate(written, run, root);
+    if (located.reason) {
+      drop(written, located.reason);
       continue;
     }
-    const found = candidates.find(file => inside(root, file) && fs.existsSync(file));
-    if (!found) {
-      drop(written, REASON.missing);
-      continue;
-    }
-    const relative = path.relative(root, found).split(path.sep).join('/');
-    if (!paths.includes(relative)) paths.push(relative);
+    if (!paths.includes(located.relative)) paths.push(located.relative);
   }
   return { paths, warnings };
+}
+
+/**
+ * `written`, a relative path, found by the rule: `{relative}`, repository-relative
+ * with forward slashes, or `{reason}` when it leaves the repository or names
+ * nothing on disk.
+ */
+function locate(written, run, root) {
+  const segments = written.split(/[\\/]+/);
+  const candidates = [path.resolve(run, ...segments), path.resolve(root, ...segments)];
+  if (candidates.every(file => !inside(root, file))) return { reason: REASON.outside };
+  const found = candidates.find(file => inside(root, file) && fs.existsSync(file));
+  if (!found) return { reason: REASON.missing };
+  return { relative: path.relative(root, found).split(path.sep).join('/') };
+}
+
+/** The keys a cite may carry, and the two its line range carries. */
+const CITE_KEYS = ['path', 'lines', 'section'];
+const LINES_KEYS = ['start', 'end'];
+
+/** Why a cite was dropped when it is not the cite shape. */
+const NOT_A_CITE = 'not-a-cite';
+
+const isLine = value => typeof value === 'string' && value.trim() !== '' && !/[\r\n]/.test(value);
+const isPlain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/** Whether `value` is the cite shape, its path not yet looked up. */
+export function isCite(value) {
+  if (!isPlain(value) || Object.keys(value).some(key => !CITE_KEYS.includes(key))) return false;
+  if (!isLine(value.path)) return false;
+  if (value.lines !== undefined) {
+    const { lines } = value;
+    if (!isPlain(lines) || Object.keys(lines).some(key => !LINES_KEYS.includes(key))) return false;
+    if (!Number.isInteger(lines.start) || !Number.isInteger(lines.end) || lines.start < 1 || lines.end < lines.start) return false;
+  }
+  if (value.section !== undefined && (!isLine(value.section) || /[#\s]/.test(value.section))) return false;
+  return true;
+}
+
+/**
+ * Check `raw` — a question's `cites` as written — as `checkEvidence` checks
+ * evidence. Returns `{cites, warnings}`: the kept cites, each path
+ * repository-relative and each cite once, in the order given; `warnings` one
+ * line per dropped cite.
+ */
+export function checkCites(raw, { runDir, where }) {
+  const warnings = [];
+  if (raw === undefined || raw === null) return { cites: [], warnings };
+  const drop = (given, reason) => warnings.push(`question-cite-dropped:${where}:${given}:${reason}`);
+  if (!Array.isArray(raw)) {
+    drop(JSON.stringify(raw), NOT_A_CITE);
+    return { cites: [], warnings };
+  }
+  const run = path.resolve(runDir);
+  const root = repositoryOf(run);
+  const cites = [];
+  const seen = new Set();
+  for (const given of raw) {
+    if (!isCite(given)) {
+      drop(isPlain(given) && isLine(given.path) ? given.path.trim() : JSON.stringify(given), NOT_A_CITE);
+      continue;
+    }
+    const written = given.path.trim();
+    if (path.isAbsolute(written) || path.win32.isAbsolute(written)) {
+      drop(written, REASON.absolute);
+      continue;
+    }
+    const located = locate(written, run, root);
+    if (located.reason) {
+      drop(written, located.reason);
+      continue;
+    }
+    const cite = {
+      path: located.relative,
+      ...(given.lines ? { lines: { start: given.lines.start, end: given.lines.end } } : {}),
+      ...(given.section !== undefined ? { section: given.section.trim() } : {}),
+    };
+    const key = JSON.stringify(cite);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cites.push(cite);
+  }
+  return { cites, warnings };
+}
+
+/** `{cites}` when the list holds a cite, else nothing. */
+export function citesKey(cites) {
+  return Array.isArray(cites) && cites.length ? { cites } : {};
 }
 
 /** Whether `file` lies under `root`; the root itself names no file. */

@@ -130,7 +130,7 @@ import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked,
 
 // The note question's call, for `gate-brief --ask --note`: the verb loads this module alone.
 export { noteForm } from './checkpoint.mjs';
-import { checkEvidence, evidenceKey } from './evidence.mjs';
+import { checkCites, checkEvidence, citesKey, evidenceKey } from './evidence.mjs';
 import { subjectKey, subjectOf } from './gate-subject.mjs';
 import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
@@ -573,14 +573,17 @@ function questionBrief({ doc, state, workflow, recorded, node, form, questions }
   // Options of one question that open alike are asked as written, with a
   // warning: wording is guidance, never a refusal.
   const warnings = sharedOpenings(set.questions).map(message => ({ code: 'option-openings-shared', message }));
-  // Each question's evidence checked against the disk: a path that cannot be
-  // kept is dropped with a warning, and never keeps the question from being asked.
+  // Each question's evidence and cites checked against the disk: a path or a
+  // cite that cannot be kept is dropped with a warning, and never keeps the
+  // question from being asked.
   set = {
     ...set,
-    questions: set.questions.map(({ evidence: raw, ...question }) => {
+    questions: set.questions.map(({ evidence: raw, cites: rawCites, ...question }) => {
       const checked = checkEvidence(raw, { runDir, where: question.id });
       warnings.push(...checked.warnings.map(message => ({ code: 'question-evidence-dropped', message })));
-      return { ...question, ...evidenceKey(checked.paths) };
+      const cited = checkCites(rawCites, { runDir, where: question.id });
+      warnings.push(...cited.warnings.map(message => ({ code: 'question-cite-dropped', message })));
+      return { ...question, ...evidenceKey(checked.paths), ...citesKey(cited.cites) };
     }),
   };
   const { display } = current;
