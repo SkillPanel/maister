@@ -204,6 +204,9 @@ findings:
     name: "export-scope"        # kebab-case, a few words naming the finding
     title: "[the finding in one plain sentence]"
     evidence: "[spec section and file:line, what is wrong]"
+    cites:                      # the places it rests on: files with their line range, the spec or report section by its anchor (no #)
+      - {path: "src/export.ts", lines: {start: 12, end: 30}}
+      - {path: "implementation/spec.md", section: "export"}
     options:                    # 1-3: your proposed change first, then the alternatives you see
       - {label: "[short choice]", description: "[what choosing it changes in the spec]"}
     recommended: 0 | "accept" | null   # an option's index, accepting the risk, or no view

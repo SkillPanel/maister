@@ -217,7 +217,12 @@ and re-check you can make without asking. Then write `findings_file` in the shap
 `finding-brief` takes (`<plugin_root>/skills/workflow-engine/references/in-node-questions.md`
 § *Findings that need a decision*): one finding per issue still needing a person, `id` its
 kebab-case `name`, most severe first, the proposed fix as its first option; issues with one root
-cause are one finding. An item recommended "leave" that predates the change is not a finding:
+cause are one finding. Its `cites` are what a person opens to judge it, each `{path, lines?:
+{start, end}, section?}`: each issue's `location` as `{path, lines: {start: line, end:
+end_line}}` (`end` equal to `start` for one line, no `lines` when it records none), then the
+report section that discusses it, `{path: "verification/implementation-verification.md",
+section: <its heading's anchor, without the #>}`. Never cite `findings_file` itself: it only
+restates the question. An item recommended "leave" that predates the change is not a finding:
 leave it for the node's `followup` risks. Kind `findings` when only findings are open; `budget`
 or `no_progress` when the stopping point is reached (the findings list may then be absent):
 `no_progress` whenever the last round made no progress, even with the budget spent; `budget`
