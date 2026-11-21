@@ -166,8 +166,8 @@ const RECOMMENDATION_KEYS = { required: ['alternative', 'reason'], optional: [] 
  * Read the decision areas at `file` (absolute) for the run in `taskDir`: one
  * read, the shape check, then — when `sources` lists the markdown paths the
  * producer declares — `source.path` must be one of them, and last the hash of
- * `source.path`'s bytes against the stamp. Returns `{areas}` for a fresh,
- * valid file, else `{warning}` — never both, so no area is ever taken from a
+ * `source.path`'s bytes against the stamp. Returns `{areas, source}` — the
+ * markdown's path — for a fresh, valid file, else `{warning}` — never both, so no area is ever taken from a
  * file that failed.
  */
 export function loadAreas({ file, taskDir, sources = null }) {
@@ -194,7 +194,7 @@ export function loadAreas({ file, taskDir, sources = null }) {
   if (createHash('sha256').update(bytes).digest('hex') !== source.sha256) {
     return { warning: `${WARNING.stale}:${where}:${source.path}` };
   }
-  return { areas };
+  return { areas, source: source.path };
 }
 
 /** `file` as the run names it: relative to the task directory, `/`-separated. */

@@ -250,13 +250,23 @@ satisfies everything downstream and would hide the failure. A re-drive is the
 operator's route back in.
 
 **Writes.** A return with `areas_path: null` is the sanctioned absence, never
-re-driven. Otherwise register the areas file with `role: evidence` beside the
-markdown, and take the summary's count of decision areas from it.
+re-driven. Otherwise check the areas file against the markdown before completing:
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<task path>/orchestrator-state.yml --node=solution-generation --check`.
+A fallback warning re-delegates the brainstormer once, to rebuild the areas file
+from `outputs/solution-exploration.md` as it stands; a second goes in the summary,
+and convergence composes from the markdown. Register the areas file with
+`role: evidence` beside the markdown, and take the summary's count of decision
+areas from the check's `areas`.
 
 **Summary.** For example: "Seven alternatives across three decision areas;
 event sourcing recommended overall". The recommendations go in `summary` and in
 the exploration file, never in `decisions`: the operator decides area by area in
 `solution-convergence`. In `risks`, only what the brainstorm itself raises.
+
+**Re-run.** Hand the brainstormer everything the first run hands it, with
+`output_path` and `areas_output_path`, plus the note and the existing
+`outputs/solution-exploration.md`, to revise in place and rewrite the areas file
+whole from the revised markdown. Then check the pair as above.
 
 **Budget.** The second attempt runs with corrected context.
 
@@ -301,6 +311,15 @@ A composed area's answer is recorded under
 question about one alternative), write the area out in full — each
 alternative's description, pros and cons, the asked-about trade-off, then the
 recommendation and why — and ask the area again, recording nothing.
+
+A correction to the alternatives — an answer or a `revise-convergence` note that
+says an alternative in `outputs/solution-exploration.md` is wrong, missing or
+misdescribed — is not edited here. Re-delegate the brainstormer as
+`solution-generation`'s re-run says, with the correction as the note, as engine
+`references/decision-areas.md` § *A correction* says; then run
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<task path>/orchestrator-state.yml --node=solution-convergence --check`,
+re-delegating once on a fallback, and ask again the areas the correction changed,
+keeping the other answers.
 
 Complete only when every area is in `decision_areas` — chosen, defaulted, or
 recorded open; an area skipped for any reason is resolved first, never papered

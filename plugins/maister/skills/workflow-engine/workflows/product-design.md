@@ -237,6 +237,12 @@ conversation are not anchored on its first idea. Hand the brainstormer:
 Record `visual_areas` from the agent's return. When the return carries none, it is
 true exactly when the areas file marks any area `visual: true`.
 
+When the return names an areas file, check it against the markdown before completing:
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<task path>/orchestrator-state.yml --node=alternatives --check`.
+A fallback warning re-delegates the brainstormer once, to rebuild the areas file from
+`analysis/alternatives.md` as it stands; a second goes in the summary, and the
+convergence composes from the markdown.
+
 A return without alternatives in `analysis/alternatives.md` is re-invoked with
 corrected context. After a second failure, ask *"The brainstorm failed twice:
 <cause>. Try again?"* — *"Try once more (Recommended)"*, saying why it may work
@@ -262,9 +268,11 @@ one), of visual areas and of alternatives, and each area's recommendation, in
 `summary` and **never in `decisions`**: a recommendation is not a decision. The
 node entry adds `alternatives_count`.
 
-**Re-run.** Hand the brainstormer the note and the existing
-`analysis/alternatives.md` to revise in place with fresh alternatives, listing
-the ones already explored as considered.
+**Re-run.** Hand the brainstormer everything the first run hands it, with
+`output_path` and `areas_output_path`, plus the note and the existing
+`analysis/alternatives.md`, to revise in place with fresh alternatives, listing
+the ones already explored as considered, and to rewrite the areas file whole from
+the revised markdown. Then check the pair as above.
 
 ---
 
@@ -357,6 +365,15 @@ On a `decision-areas-*` warning, compose every area from
 `analysis/alternatives.md`, recording each answer as
 `convergence-decisions-<the area's name as a slug>`. Then summarise the chosen
 direction across the areas, naming the sketches, for `direction-approval`.
+
+A correction to the alternatives — an answer or a `revise-direction` note that
+says an alternative in `analysis/alternatives.md` is wrong, missing or misdescribed —
+is not edited here. Re-delegate the brainstormer as the `alternatives` node's
+re-run says, with the correction as the note, as engine
+`references/decision-areas.md` § *A correction* says; then run
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<task path>/orchestrator-state.yml --node=convergence --check`,
+re-delegating once on a fallback, and ask again the areas the correction changed,
+keeping the other answers.
 
 **Asks.**
 
