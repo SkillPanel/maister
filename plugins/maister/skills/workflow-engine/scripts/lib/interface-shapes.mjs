@@ -57,6 +57,21 @@ export const REQUEST_OPTION = {
 
 const options = { type: 'array', required: true, items: { type: 'object', keys: REQUEST_OPTION } };
 
+/** A cited line range: whole numbers from 1, `start` <= `end`; one line when they are equal. */
+export const REQUEST_CITE_LINES = {
+  start: { type: 'integer', required: true },
+  end: { type: 'integer', required: true },
+};
+
+/** One place a question cites: a repository-relative file, a line range in it, a section anchor without the `#`. */
+export const REQUEST_CITE = {
+  path: text,
+  lines: { type: 'object', required: false, keys: REQUEST_CITE_LINES },
+  section: optionalText,
+};
+
+const cites = { type: 'array', required: false, items: { type: 'object', keys: REQUEST_CITE } };
+
 /** One question of a `kind: question` request's set. */
 export const REQUEST_QUESTION = {
   id: text,
@@ -64,6 +79,7 @@ export const REQUEST_QUESTION = {
   options,
   multi_select: flag,
   evidence: paths(false),
+  cites,
 };
 
 /** The request's `context`: the one-line summary, the files to review, and the checkpoint whole. */
@@ -82,6 +98,7 @@ export const GATE_REQUEST = {
   options,
   multi_select: flag,
   evidence: paths(false),
+  cites,
   questions: { type: 'array', required: false, items: { type: 'object', keys: REQUEST_QUESTION } },
   triage: { type: 'object', required: false },
   round: { type: 'integer', required: false },

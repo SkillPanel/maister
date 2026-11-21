@@ -333,14 +333,21 @@ with `finding-brief`:
 {"findings": [{"id": "empty-upload", "severity": "critical",
   "title": "Server crashes on an empty upload",
   "evidence": "src/upload.ts:42 reads body.length of undefined",
+  "cites": [{"path": "src/upload.ts", "lines": {"start": 40, "end": 44}},
+            {"path": "verification/report.md", "section": "empty-upload"}],
   "options": [{"label": "Guard the empty body", "description": "Return 400 before reading it"}],
   "recommended": 0, "reason": "One guard closes the crash"}]}
 ```
 
 `id` is kebab-case and unique; `severity` one of critical, high, medium, low, warning, info;
 `options` one to three, the reviewer's proposed change first, then the alternatives it names;
-`recommended` an option's index, `"accept"`, or null; `reason` required with a recommendation.
-Unknown keys are refused. The verb composes each finding as the question
+`recommended` an option's index, `"accept"`, or null; `reason` required with a recommendation;
+`cites`, optional, the places the finding rests on — each file with the line range it names,
+then the report section that discusses it — in the question's `cites` shape (below), a malformed
+one refusing the list. They become the question's `cites`, and the file each names a section of
+— the report — its `evidence`; a finding that cites nothing carries neither. The findings file is
+never evidence and never cited: it only restates the question, and a cite naming it is dropped
+with a warning. Unknown keys are refused. The verb composes each finding as the question
 `<node>-findings-<id>`, most severe first, its options ending with **"Accept the risk and list
 it"**. The node's prose declares `<node>-findings`, so a policy classes every finding through
 that one id.
@@ -454,6 +461,14 @@ taking their defaults. These rules hold:
   that is absolute, leaves the repository or is not on disk is dropped with a
   `question-evidence-dropped` warning, never refused; with none left the key is left out, which
   reads as no evidence given. `area-brief` and `finding-brief` fill it themselves.
+- **A question may name the places it rests on.** `cites` lists them beside `evidence`, each
+  `{path, lines?: {start, end}, section?}`: a file found as an evidence path is, a line range in
+  it (whole numbers from 1, `start` no greater than `end`, equal for one line) and a section's
+  anchor without the `#` — `[{"path": "src/orders/checks.ts", "lines": {"start": 12, "end": 30}},
+  {"path": "verification/report.md", "section": "issue-3"}]`. `evidence` stays plain paths. A
+  cite that is not that shape, or whose file is absolute, outside the repository or not on disk,
+  is dropped with a `question-cite-dropped` warning, never refused; with none left the key is left
+  out. `finding-brief` fills it from each finding's own.
 
 How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch file, runs
 `gate-brief --request --patch-file=<the patch file>` for itself, and suspends exactly as a gate
