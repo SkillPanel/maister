@@ -189,6 +189,8 @@ validate:
 	@echo "Checking gate markers are not nested inside code spans..."
 	@! grep -rnF '`→ **MANDATORY GATE** — fires ' plugins/maister/skills/ 2>/dev/null || (echo "FAIL: gate marker nested inside a code span" && exit 1)
 	@! grep -nF '→ Pause' plugins/maister/skills/orchestrator-framework/references/orchestrator-creation-checklist.md 2>/dev/null || (echo "FAIL: superseded transition marker in the orchestrator checklist" && exit 1)
+	@echo "Checking the undecided sentence is identical in every copy..."
+	@node tests/undecided-sentence-lint.mjs
 	@echo "Checking the gate-rule sentence is identical in every copy..."
 	@# An exact count, not a floor: a floor would let an extra copy hide a lost
 	@# one. A copy added on purpose updates these numbers together with
