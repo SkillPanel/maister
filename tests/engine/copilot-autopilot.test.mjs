@@ -387,6 +387,9 @@ test('autopilot (variant): an empty answer is never a person\'s, at a checkpoint
     ['a blank answer', { answers: '' }],
     ['a blank answer marked as typed', { answers: '', typed: ['decision'] }],
     ['a form left empty', { answers: { decision: '', note: ' ' } }],
+    ['a blank choice marked as typed beside a filled note', { questions: ['decision', 'note'], answers: { decision: '', note: 'Ship it' }, typed: ['decision'] }],
+    ['a choice of spaces marked as typed beside a filled note', { questions: ['decision', 'note'], answers: { decision: '  ', note: 'Ship it' }, typed: ['decision'] }],
+    ['a choice missing from the map, marked as typed', { questions: ['decision', 'note'], answers: { note: 'Ship it' }, typed: ['decision'] }],
   ];
   for (const [label, fields] of cases) {
     const runDir = atCheckpoint(t);
@@ -462,4 +465,47 @@ test('retireNote clears only the note the write read: a later note the hook wrot
   assert.equal(fs.existsSync(path.join(dir, NOTE)), false, 'the note read is retired');
   assert.equal(fs.readFileSync(path.join(dir, USED), 'utf8'), read);
   assert.deepEqual(warnings, []);
+});
+
+test('retireNote retires the note the write read, never one the hook wrote while it was retiring', t => {
+  const read = `${JSON.stringify({ outcome: 'person', at: '2026-01-05T10:00:00Z', questions: ['scope', 'depth'] })}\n`;
+  const later = `${JSON.stringify({ outcome: 'host', at: '2026-01-05T10:01:00Z', questions: ['decision'] })}\n`;
+  const evidence = { person: true, questions: ['scope', 'depth'], typed: [], bound: false, text: read };
+  const cases = [
+    ['a checkpoint answer', { whole: true }],
+    ['an in-step answer that narrows the note', { steps: ['scope'] }],
+  ];
+  for (const [label, use] of cases) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-retire-'));
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const file = path.join(dir, NOTE);
+    fs.writeFileSync(file, read);
+    // The hook reports the next question right after retireNote first touches the note.
+    let hooked = false;
+    const restore = [];
+    for (const name of ['readFileSync', 'renameSync', 'linkSync', 'openSync']) {
+      const original = fs[name];
+      restore.push(() => { fs[name] = original; });
+      fs[name] = function (...args) {
+        const out = original.apply(this, args);
+        if (!hooked && path.resolve(String(args[0])) === file) {
+          hooked = true;
+          fs.writeFileSync(file, later);
+        }
+        return out;
+      };
+    }
+    const warnings = [];
+    try {
+      retireNote(dir, use, evidence, warnings);
+    } finally {
+      for (const undo of restore) undo();
+    }
+    assert.equal(hooked, true, `${label}: the note was touched`);
+    assert.equal(fs.readFileSync(file, 'utf8'), later, `${label}: the hook's newer note stays in place`);
+    const used = path.join(dir, USED);
+    if (fs.existsSync(used)) assert.equal(fs.readFileSync(used, 'utf8'), read, `${label}: the retired note is the one the write read`);
+    assert.deepEqual(fs.readdirSync(dir).filter(name => ![NOTE, USED].includes(name)), [], `${label}: no scratch file is left`);
+    assert.deepEqual(warnings, [], label);
+  }
 });

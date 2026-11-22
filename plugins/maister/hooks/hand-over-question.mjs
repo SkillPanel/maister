@@ -10,7 +10,10 @@
  * `.ask.json` in the run's directory; this hook puts that record in place of
  * the call's arguments, so what the person reads is what the engine built.
  *
- * It hands a record over only when the record is the call being made:
+ * It looks for records under the project root — the nearest folder at or
+ * above the session's working directory that holds `.maister/tasks`, as the
+ * after-question hook does — and hands one over only when the record is the
+ * call being made:
  *   - the call is the main session's (an agent never asks the person);
  *   - the record is younger than FRESH_MS, since a gate's ids repeat in every
  *     run of a workflow and an old record can match a later question;
@@ -65,6 +68,23 @@ function signature(call) {
   return JSON.stringify(ids);
 }
 
+/**
+ * The project root for a session started in `dir`: the nearest folder, `dir`
+ * itself or one above it, that holds `.maister/tasks`, so a session started in
+ * a subfolder of the project still finds its runs. `dir` when none does.
+ */
+function projectRoot(dir) {
+  let current = path.resolve(dir);
+  for (;;) {
+    try {
+      if (fs.statSync(path.join(current, '.maister', 'tasks')).isDirectory()) return current;
+    } catch { /* not here; look one level up */ }
+    const parent = path.dirname(current);
+    if (parent === current) return dir;
+    current = parent;
+  }
+}
+
 /** Each run directory's fresh record under the project's tasks. */
 function freshRecords(root, now) {
   const tasks = path.join(root, '.maister', 'tasks');
@@ -98,7 +118,7 @@ try {
   const call = argumentsOf(input);
   const wanted = signature(call);
   if (agentType === '' && wanted) {
-    const root = typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd();
+    const root = projectRoot(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
     for (const record of freshRecords(root, Date.now())) {
       let printed;
       try { printed = JSON.parse(fs.readFileSync(record.file, 'utf8')); } catch { continue; }

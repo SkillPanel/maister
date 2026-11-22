@@ -4155,15 +4155,17 @@ export function answerCovered(evidence, answer) {
 
 /**
  * Did the person choose `option` in the checkpoint form? Yes when the note
- * parsed no value (it is judged by the property alone), when the person typed
- * their own answer (the session maps their words to an option), or when the
- * form's value — the note's `answers` for a one-property form, its
- * FORM_PROPERTY entry for a map — is `option`.
+ * parsed no value (it is judged by the property alone), or when the form's
+ * value — the note's `answers` for a one-property form, its FORM_PROPERTY
+ * entry for a map — is `option`, or is the person's own words (`typed`: the
+ * session maps them to an option). A value that is missing or blank is no
+ * answer, typed or not, and covers no option.
  */
 function chose({ answers, typed }, option) {
-  if (answers === undefined || answers === null || typed.includes(FORM_PROPERTY)) return true;
+  if (answers === undefined || answers === null) return true;
   const value = isPlainObject(answers) ? answers[FORM_PROPERTY] : answers;
-  return typeof option === 'string' && value === option;
+  if (typeof value !== 'string' || value.trim() === '') return false;
+  return typed.includes(FORM_PROPERTY) || (typeof option === 'string' && value === option);
 }
 
 /**
@@ -4260,34 +4262,66 @@ function newStepAnswers(prior, typed, patch, isGate) {
  * renamed to ASK_RESULT_USED — or, when the write's new answers were in-step
  * ones answering some but not all of the question ids the note lists, written
  * again with only the ids still unanswered and `bound: true`, so it covers
- * those alone. Only the note the write read is retired: when the file no
- * longer holds the text `answerEvidence` read (`evidence.text`) — the hook
- * reported a later question meanwhile — it is left as it is. A failure is a
- * warning: the write has already landed.
+ * those alone. Only the note the write read is retired: the note is first
+ * taken aside under a name of this process's own, in one rename, and judged
+ * there. When it is not the text `answerEvidence` read (`evidence.text`) —
+ * the hook reported a later question meanwhile — it goes back unless the hook
+ * has written a newer one since, and nothing is retired; a note the hook
+ * writes while this runs is never moved, narrowed or overwritten. A failure
+ * is a warning: the write has already landed.
  */
 export function retireNote(runDir, use, evidence, warnings) {
   const file = path.join(runDir, ASK_RESULT);
+  const taken = `${file}.${process.pid}.taken`;
+  const scratchFile = `${file}.${process.pid}.tmp`;
   try {
-    let current = null;
     try {
-      current = fs.readFileSync(file, 'utf8');
+      fs.renameSync(file, taken);
     } catch (err) {
-      if (err?.code !== 'ENOENT') throw err;
+      if (err?.code === 'ENOENT') return;
+      throw err;
     }
-    if (current === null || current !== evidence.text) return;
+    const current = fs.readFileSync(taken, 'utf8');
+    if (current !== evidence.text) {
+      placeUnlessThere(taken, file);
+      return;
+    }
     const answered = use.whole ? [] : evidence.questions.filter(id => use.steps.includes(id));
     if (answered.length > 0 && answered.length < evidence.questions.length) {
-      const note = JSON.parse(current);
-      const rest = { ...note, questions: evidence.questions.filter(id => !answered.includes(id)), bound: true };
-      const scratchFile = `${file}.${process.pid}.tmp`;
+      const rest = { ...JSON.parse(current), questions: evidence.questions.filter(id => !answered.includes(id)), bound: true };
       fs.writeFileSync(scratchFile, `${JSON.stringify(rest)}\n`, 'utf8');
-      fs.renameSync(scratchFile, file);
+      placeUnlessThere(scratchFile, file);
     } else {
-      fs.renameSync(file, path.join(runDir, ASK_RESULT_USED));
+      fs.renameSync(taken, path.join(runDir, ASK_RESULT_USED));
     }
   } catch (err) {
     warnings.push({ file: ASK_RESULT, code: 'ask-result-unretired', message: err && err.message ? String(err.message) : String(err) });
+  } finally {
+    for (const leftover of [taken, scratchFile]) {
+      try { fs.rmSync(leftover, { force: true }); } catch { /* nothing to clean */ }
+    }
   }
+}
+
+/**
+ * Put `from` at `to` unless a file is already there — the hook's newer note,
+ * which wins — and remove `from` either way. A hard link places it whole in
+ * one step and refuses an existing file; where the file system has no links,
+ * an exclusive copy does the same.
+ */
+function placeUnlessThere(from, to) {
+  try {
+    fs.linkSync(from, to);
+  } catch (err) {
+    if (err?.code !== 'EEXIST') {
+      try {
+        fs.copyFileSync(from, to, fs.constants.COPYFILE_EXCL);
+      } catch (copyErr) {
+        if (copyErr?.code !== 'EEXIST') throw copyErr;
+      }
+    }
+  }
+  fs.rmSync(from, { force: true });
 }
 
 let operatorNameCache = null;
