@@ -190,7 +190,8 @@ The scripts return codes only; the turn writes the sentences into `.turn.json`'s
 The manifest records the digest and the staleness either way.
 
 **The pack is never committed by a turn.** It is written in place and the note asks the person to
-commit it. In a dispatched run's worktree, a pack nobody commits is lost when the worktree goes; the
+commit it. A later close repeats that note only while `git status --porcelain -- <grounding>` still
+lists a path under the pack. In a dispatched run's worktree, a pack nobody commits is lost when the worktree goes; the
 note is the only mitigation, and the next turn elsewhere builds it again. A pack a development run
 refreshed at its end goes into the run's own commit with the change, or, when the run makes none,
 its close says the pack is to be committed with it.
