@@ -149,7 +149,9 @@ resolve each declared entry to its producing node and take the path and the reco
 
 This is the dispatch runtime's rule, not a new one: it re-resolves at every dispatch for the same
 reason and refuses `dispatch-graph-drifted` on a mismatch. Two runtimes that read a definition
-after a freeze must both prove it has not moved underneath them.
+after a freeze must both prove it has not moved underneath them. Neither refusal is lifted by
+re-freezing, because no verb re-freezes a run. The ways on are to put the definition back, or
+to start a new run (engine SKILL.md, *A changed definition never re-freezes an open run*).
 
 **A parent gate the child's answer skipped names that answer.** When a parent gate's guard reads
 a value the node adopted at W4, and the child exposes that value from one of its gates' `sets`,
@@ -280,7 +282,7 @@ Neither family joins the writer's twenty-seven refusal codes: nothing here is a 
 | `subrun-input-unknown` | run-level | the interpolated `with:` names an input the child does not declare |
 | `subrun-output-unmatched` | run-level | the node declares an output the child definition does not expose, or declares a path the child's producing node does not |
 | `subrun-output-reserved` | validate-time error | a `workflow:` node declares an output named `task_path` or `run_id` |
-| `subrun-graph-drifted` | run-level | the child definition was edited while the child ran: the freshly resolved hash disagrees with the one it froze |
+| `subrun-graph-drifted` | run-level | the child definition was edited while the child ran: the freshly resolved hash disagrees with the one it froze. Put the child's definition back and resume the parent, or start again |
 | `subrun-child-foreign` | run-level | the derived child directory holds a run whose parent link names another run or another node |
 | `subrun-state-missing` | run-level | the child directory or state file is absent at the recorded `task_path` |
 
@@ -366,7 +368,7 @@ status: it is mapped from the dispatch's close-out grade (engine § *Recording a
 | A6 | the child fails | the parent node is `failed`; the run ends `RUN-FAILED` unless a downstream node declares `on: failure` or `on: always` |
 | A7 | the child is stopped | the parent node is `stopped`, `task.status` becomes `stopped`, every unexecuted node is recorded `stopped` in one patch, and **no `RUN-FAILED` is printed**. The parent node's own summary is written and mirrors `stopped` to `skipped`; the unexecuted nodes carry none |
 | A8 | a child gate is raised while a parent write is outstanding | cannot happen: W3 completes before the child executes. Verified by reading the write order in the captured state pair |
-| A9 | the child's definition is edited between W2 and W4 | `RUN-FAILED: subrun-graph-drifted`. The parent copies nothing from an interface the child never froze |
+| A9 | the child's definition is edited between W2 and W4 | `RUN-FAILED: subrun-graph-drifted`. The parent copies nothing from an interface the child never froze. With the child's definition put back, a resumed parent adopts the child; nothing re-freezes either run |
 | A10 | a cockpit child raises a gate before the daemon has written `driver.session` | a pending gate with no session holds back **every** session's writes, so the parent's next write would not land — the protection is the write order: every parent write is finished before the turn ends, so there is no write left to hold back. A re-driven parent treats a child pending with no session as non-terminal, re-prints the marker and ends, and **never** writes the child's `driver.session` itself. If the window persists the operator answers the child's gate directly, exactly as for any other pending run |
 | A11 | the parent stops or fails while a cockpit child is frozen but **not yet adopted** | the child is an ordinary frozen run: the sweep still adopts it and it runs to its own terminal status with a dangling parent link. The engine deletes nothing — a frozen run an operator can drive by hand is not garbage to collect |
 

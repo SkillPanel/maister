@@ -805,6 +805,37 @@ test('refusal: a workflow patch after the freeze that changes a frozen scalar', 
   assert.match(result.stderr, /graph_hash/);
 });
 
+test('refusal: a re-freeze names the ways on — put the frozen definition back, or start a new run', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  const { source, graph_hash: frozenHash } = readState(run).workflow;
+  assert.equal(typeof source, 'string');
+  // The shape a re-freeze takes: the new graph's hash, or the frozen hash
+  // beside another definition, with the nodes left to the writer.
+  for (const workflow of [
+    { graph_hash: 'sha256:0000' },
+    { source: `${source}.changed`, graph_hash: frozenHash },
+  ]) {
+    const result = refused(run, { workflow });
+    assert.match(result.stderr, /^state-workflow-frozen\b/, 'the code stays the one a reader words');
+    assert.match(result.stderr, /no verb re-freezes a run/);
+    assert.ok(result.stderr.includes(`put back the definition this run froze (${source})`), 'it names the frozen source');
+    assert.match(result.stderr, /start a new run from the changed one/);
+    assert.doesNotMatch(result.stderr, /top-level `nodes` key/, 'a scalar-only patch is not a misplaced node update');
+  }
+  assert.equal(readState(run).workflow.nodes.analysis.status, 'completed');
+});
+
+test('refusal: a node-only difference after the freeze does not speak of re-freezing', t => {
+  const run = scratch(t);
+  const graph = freeze(run);
+  const result = refused(run, { workflow: { name: 'development', nodes: { ...retyped(graph), ghost: { kind: 'direct' } } } });
+  assert.match(result.stderr, /^state-workflow-frozen\b/);
+  assert.match(result.stderr, /top-level `nodes` key/);
+  assert.doesNotMatch(result.stderr, /re-freeze/);
+});
+
 test('write-state: an identical re-send of the frozen workflow block changes nothing', t => {
   const run = scratch(t);
   const graph = freeze(run);
