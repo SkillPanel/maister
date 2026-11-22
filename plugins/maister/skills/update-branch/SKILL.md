@@ -6,7 +6,7 @@ argument-hint: "[--onto <ref>] [--run <task dir>] [--no-run] [--result <file>]"
 
 # Update Branch
 
-Merge the default branch into the current branch in one command. When the branch carries an unfinished workflow run, the run's start commit moves to the merged tip afterwards, so its next review measures the run's own change and not everything the merge brought in. No task folder and no engine run of its own. Under a driver it asks nothing (*Under a driver*, below), and every call ends by writing one result file a caller can read (Step 9).
+Merge the default branch into the current branch in one command. When the branch carries an unfinished workflow run, the run's start commit moves past the merged-in work afterwards, so its next review measures the run's own change and not everything the merge brought in. No task folder and no engine run of its own. Under a driver it asks nothing (*Under a driver*, below), and every call ends by writing one result file a caller can read (Step 9).
 
 It never pushes, never stashes, never resets and never makes a work-in-progress commit.
 
@@ -78,18 +78,18 @@ Call the chosen ref the *merged ref* and its commit the *merged tip*.
 The search runs once the merged tip is known and before anything is merged.
 
 - `--no-run` means none; skip the search.
-- `--run <task dir>` names it and skips the search, but only when its `task.base_commit.sha` is an ancestor of the merged tip (`git merge-base --is-ancestor <base> <merged tip>`) or already contains it (`git merge-base --is-ancestor <merged tip> <base>`). When neither holds, stop before merging, changing nothing: the run started after the branch had commits of its own, so its start commit cannot move past the merge. Say that `--no-run` updates the branch alone.
+- `--run <task dir>` names it and skips the search, but only when its `task.base_commit.sha` is a commit this branch holds (`git merge-base --is-ancestor <base> HEAD`) or already contains the merged tip (`git merge-base --is-ancestor <merged tip> <base>`). When neither holds, stop before merging, changing nothing: the run was started on another branch, so its start commit is not this branch's to move. Say that `--no-run` updates the branch alone.
 - Otherwise the candidates are the run folders under `.maister/tasks/<type>/`, leaving out the set-aside copies `<run>.moved-<digits>` and `<run>.failed-<digits>` (the rule of `<plugin root>/lib/run-dirs.mjs`, the plugin root being two levels above this skill's base directory), whose `orchestrator-state.yml` has:
   - `task.status` that is not `completed`, `failed` or `stopped`;
   - a `task.base_commit.sha` that this branch can have started a run from: any sha `git rev-list --first-parent --parents HEAD --not <merged tip>` prints, or HEAD itself when it prints nothing. That list holds the branch's own commits on its first-parent line, the fork point where it first left the merged ref (the first parent of the last line), and the second parent of each merge on that line, where an earlier update's move put the base. The run state records no branch, so this is the test that keeps other branches' runs out: a run frozen before this branch left the default branch, or on a default-branch commit an earlier merge only brought in, is not on the list, and its base is never moved by mistake. It replaces any `git merge-base HEAD <merged ref>` test, which after an earlier merge of the default branch (by hand, by `git pull`, by an earlier update) names the last merged commit and would drop a run frozen at the original fork.
-- A run that passes those checks is kept only when its `task.base_commit.sha` is also an ancestor of the merged tip (`git merge-base --is-ancestor <base> <merged tip>`; on an adopted merge the merged tip is `MERGE_HEAD`), or already contains it (`git merge-base --is-ancestor <merged tip> <base>`): that run is past this tip already, the branch is up to date, and Step 4 reports its base as already past the merged tip. A run that fails both checks is skipped: it started after the branch had commits of its own, so its start commit cannot move past the merge, and its next review will still measure from its own start. Keep each skipped run for the report.
+- A run that passes those checks is kept, whether it started where the branch left the merged ref or on a commit of the branch's own: Step 8's `move-base` decides where its base goes. One whose `task.base_commit.sha` already contains the merged tip (`git merge-base --is-ancestor <merged tip> <base>`; on an adopted merge the merged tip is `MERGE_HEAD`) is past this tip already: the branch is up to date, and Step 4 reports its base as already past the merged tip.
 - No candidate kept: the plain branch, no run — merge, check and commit, moving nothing; say that `--run <task dir>` names a run the search did not find. One: that run. Several: ask once, before the merge, with AskUserQuestion — "Several unfinished runs match this branch. Which one moves with the merge?" — one option per run, labelled by its folder name with its title or status, ordered by `orchestrator.updated`, newest first, the first marked (Recommended). A person who wants none uses `--no-run` on a second call. Under a driver — any candidate's `orchestrator.driver.kind` is set and is not `terminal` — ask nothing: stop before the merge, changing nothing, name each candidate, and say that `--run <task dir>` names the one to move. Picking one would be a guess at whose start commit moves.
 
-Before merging, say which run was found, or that none was, and name each skipped run with the reason.
+Before merging, say which run was found, or that none was.
 
 ### Step 4: Merge
 
-If the branch already contains the merged tip (`git merge-base --is-ancestor <merged tip> HEAD`) and no merge is in progress: say it is up to date and merge nothing. With a run whose base already contains the merged tip, there is nothing to move: report the base as already past the merged tip, the same outcome as `move-base`'s `unchanged:`, and call no verb. With any other run, HEAD a merge commit (`git rev-parse -q --verify HEAD^2`) and that merge's second parent an ancestor of the merged tip (`git merge-base --is-ancestor HEAD^2 <merged tip>`), go to Step 8 and call `move-base` with `--to=<HEAD^2's full sha>`. The verb prints `unchanged:` when the base already moved, so a move refused or interrupted after an earlier update's commit is finished by running the skill again. Otherwise — HEAD not a merge, or a merge of something else, such as the branch's own remote or a sub-branch — report that the run's base was left alone: moving it to that merge's second parent could put the run's own commits behind the base. Then the result (Step 9) and the closing report (Step 10).
+If the branch already contains the merged tip (`git merge-base --is-ancestor <merged tip> HEAD`) and no merge is in progress: say it is up to date and merge nothing. With a run whose base already contains the merged tip, there is nothing to move: report the base as already past the merged tip, the same outcome as `move-base`'s `unchanged:`, and call no verb. With any other run, HEAD a merge commit (`git rev-parse -q --verify HEAD^2`) and that merge's second parent an ancestor of the merged tip (`git merge-base --is-ancestor HEAD^2 <merged tip>`), go to Step 8 and call `move-base` without `--to`, as after this skill's own commit. The verb prints `unchanged:` when the base already moved, so a move refused or interrupted after an earlier update's commit is finished by running the skill again. Otherwise — HEAD not a merge, or a merge of something else, such as the branch's own remote or a sub-branch — report that the run's base was left alone: moving it past that merge could put the run's own commits behind the base. Then the result (Step 9) and the closing report (Step 10).
 
 Otherwise (unless adopting) run, as one command:
 
@@ -150,9 +150,9 @@ With a run, after the commit:
 
 `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs move-base --state=<run>/orchestrator-state.yml --reason=<the merged ref and the branch, in words, not opening with a bracket>`
 
-After this skill's own commit, no `--to`: the verb moves the base to the merged tip when HEAD is a merge, to HEAD otherwise. From Step 4's up-to-date path, add the `--to=<HEAD^2's full sha>` that step checked. Its output:
+Never with `--to`: the verb picks the target. With HEAD the merge, that is the merged tip for a run started where the branch left the merged ref, and the merge commit itself for a run started on a commit of the branch's own that has committed nothing since; a run on the branch side with commits of its own since its start is refused, since moving it to the merge would hide those commits from its review. Its output:
 
-- Moved: the changed paths, a blank line, then `moved: <old full sha> → <new full sha> (<rule>)`, the rule being `merged tip: HEAD is a merge` or `--to`. Report the run and the old → new base.
+- Moved: the changed paths, a blank line, then `moved: <old full sha> → <new full sha> (<rule>)`, the rule being `merged tip: HEAD is a merge` or `merge commit: the base is on the branch side`. Report the run and the old → new base.
 - Already there: exactly `unchanged: <base full sha> (<rule>)`, nothing written. Report it as already moved.
 - Refused: exit 1, the code first on stderr, ending "Nothing was written." and the next step. The codes are `move-base-state-unreadable`, `move-base-no-repository`, `move-base-merge-in-progress`, `move-base-no-base`, `move-base-bad-ref`, `move-base-not-ancestor` and `move-base-not-in-head`.
 
@@ -175,7 +175,6 @@ Write the draft with the file tool to `.update-branch-draft.json` in the directo
 | `merged_ref`, `merged_tip` | the merged ref and its commit, once Step 2 chose them |
 | `adopted` | true when Step 2 adopted a merge in progress |
 | `base_status`, `base_refusal` | what Step 8 printed: `moved`, `unchanged`, `refused` with its code, `left-alone` from Step 4, else `none` |
-| `skipped_runs` | each run Step 3 skipped: `{task_path, reason}` |
 | `conflicts` | each conflicting file: `{path, kept, why, resolved}` |
 | `resolutions` | with conflicts: `{decided_by: person or skill, reason}` — `skill` when a driver run accepted its own |
 | `checks_reason` | why the checks did not run, when they did not |
@@ -191,7 +190,6 @@ Close with one report naming:
 - each resolution, file by file, with what was kept and why;
 - the check results, base failures marked as not caused by the branch;
 - the run updated and its old → new base, or that its base was already past the merged tip, or "no run found, no start commit moved" with the pointer to `--run`, or that the run's base was left alone;
-- each run skipped by Step 3, and why: it started after the branch had commits of its own, so its start commit could not move past the merge, and its next review still measures from its own start;
 - any refusal or note: the fetch fallback, an adopted merge, a refused move;
 - the result file, or why none was written;
 - that nothing was pushed.
