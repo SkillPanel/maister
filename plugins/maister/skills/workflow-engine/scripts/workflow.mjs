@@ -50,6 +50,14 @@
  *                  Refused while a merge is in progress, and unless the base
  *                  is an ancestor of the target and the target an ancestor of
  *                  HEAD
+ *   update-branch-result  --state and/or --result, optional --checks,
+ *                  --patch-file (<target dir>/.update-branch-draft.json) or
+ *                  the draft as JSON on stdin                 JSON on stdout
+ *                  (the result `update-branch` leaves: the session's draft
+ *                  checked against its shape, the facts git and the run
+ *                  record added — branch, full shas, the merge commit, the
+ *                  start commit moved, the driver, the runner's checks — and
+ *                  written whole to --result, else <run>/update-branch.json)
  *   prior-context  --state, optional --background, --node     the prior phases'
  *                  decisions and risks as markdown to paste into a delegate
  *                  prompt; with --node, the node's run context first and a
@@ -270,6 +278,12 @@ const VERBS = {
   // `--to` (a commit in place of the base rule) and `--reason` are all a
   // caller can say.
   'move-base': { module: 'move-base.mjs', flags: ['state', 'to', 'reason'] },
+  // The result `update-branch` leaves for a caller to read. `--state` names the
+  // run whose start commit it reports and, without `--result`, where the file
+  // goes; `--result` is for a call that names its own place, with or without a
+  // run. `--checks` is the test-suite runner's findings file, read before its
+  // scratch directory goes. The draft's one file sits beside the result.
+  'update-branch-result': { module: 'update-branch-result.mjs', flags: ['state', 'result', 'checks', 'patch-file'] },
   // Three flags, where the other two state verbs take one: the outbox root and
   // the dispatch id are not derivable from a run directory. They are the
   // dispatch's, not the run's, and the worker already holds both — its seed
@@ -849,6 +863,40 @@ async function runMoveBase(flags) {
     process.stdout.write(`\nmoved: ${from} → ${to} (${rule})\n`);
   }
   return code;
+}
+
+/**
+ * Write the result `update-branch` leaves. Reported like `runner-result`: the
+ * written file and the document as JSON on stdout, a refusal's code first on
+ * stderr at exit 1 with the draft file kept for correcting, and the draft file
+ * deleted once the result landed. The draft comes on stdin or from the one
+ * file beside the result (`DRAFT_FILE`). Without a run the project root is the
+ * working directory, as for `review-brief --task-path`.
+ */
+async function runUpdateBranchResult(flags) {
+  if (flags.state === undefined && flags.result === undefined) {
+    throw new UsageError('update-branch-result needs --state (the run\'s orchestrator-state.yml), --result (the file to write), or both');
+  }
+  const module = await loadModule(VERBS['update-branch-result'].module);
+  const target = entryOf(module, 'targetOf', VERBS['update-branch-result'].module)({ state: flags.state ?? null, result: flags.result ?? null });
+  const expected = path.join(path.dirname(target), module.DRAFT_FILE);
+  const fileOf = given => anchoredFile({
+    given: given['patch-file'],
+    expected,
+    noun: 'the draft file',
+    beside: 'beside the result it becomes',
+    Usage: UsageError,
+  });
+  const input = await readInput(flags, 'the update-branch draft', { fileOf, place: expected });
+  const write = entryOf(module, 'updateBranchResult', VERBS['update-branch-result'].module);
+  const result = write({ state: flags.state ?? null, result: flags.result ?? null, checks: flags.checks ?? null, draft: input.document });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  consume(input);
+  report({ file: result.file, result: result.document });
+  return EXIT.OK;
 }
 
 /**
@@ -1835,6 +1883,7 @@ const RUNNERS = {
   'gate-request': runGateRequest,
   'gate-revise': runGateRevise,
   'move-base': runMoveBase,
+  'update-branch-result': runUpdateBranchResult,
   'run-complete': runRunComplete,
   'prior-context': runPriorContext,
   'run-context': runRunContext,

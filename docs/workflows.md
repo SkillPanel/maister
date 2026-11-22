@@ -349,7 +349,8 @@ Pass `--onto <branch>` when the branch was cut from a branch other than the defa
 /maister:update-branch --onto feature/search
 ```
 
-The flags are listed in [Commands](commands.md).
+Each call leaves a JSON result, `update-branch.json` in the run's task directory, saying what it
+did. The flags and the result are described in [Commands](commands.md).
 
 ---
 
