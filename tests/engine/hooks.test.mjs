@@ -280,6 +280,15 @@ for (const [label, tree] of [['source', SOURCE], ['variant', VARIANT]]) {
     assert.equal(handOver(tree, empty, RETYPED).stdout, '', 'a project with no runs leaves the call alone');
   });
 
+  test(`hand-over (${label}): a session started in a subfolder of the project finds the record from the project root`, t => {
+    const { root, dirs } = project(t, [{ name: '2026-11-03-a' }]);
+    const sub = path.join(root, 'src', 'deep');
+    fs.mkdirSync(sub, { recursive: true });
+    assert.deepEqual(handedArgs(tree, handOver(tree, sub, RETYPED).json), CALL);
+    assert.equal(fs.existsSync(path.join(dirs['2026-11-03-a'], '.ask.used.json')), true, 'the record is used up');
+    assert.equal(fs.existsSync(path.join(sub, '.maister')), false, 'nothing is written in the subfolder');
+  });
+
   test(`hand-over (${label}): of two matching records, the run whose state was written last wins`, t => {
     const older = { ...CALL, message: 'Earlier run.\nApprove specification?' };
     const { root, dirs } = project(t, [
