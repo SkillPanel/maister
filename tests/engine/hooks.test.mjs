@@ -90,6 +90,30 @@ test('post-compact reminder: the exact text in a project holding .maister/tasks,
   }
 });
 
+test('post-compact reminder: it removes the compacted session\'s conventions marker and nothing else, the text unchanged', () => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'maister hooks '));
+  try {
+    const expected = pretty({ systemMessage: COMPACT_MESSAGE, hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: COMPACT_CONTEXT } });
+    const sessions = path.join(project, '.maister', 'display', 'sessions');
+    fs.mkdirSync(path.join(project, '.maister', 'tasks'), { recursive: true });
+    fs.mkdirSync(sessions, { recursive: true });
+    for (const file of ['abc.conventions', 'other.conventions', 'abc.json']) fs.writeFileSync(path.join(sessions, file), '{}\n');
+    for (const payload of [{ source: 'compact', cwd: project }, { source: 'compact', cwd: project, session_id: '../abc' }]) {
+      const result = hook(SOURCE, 'post-compact-reminder.mjs', payload, { CLAUDE_PROJECT_DIR: '' });
+      assert.equal(result.stdout, expected);
+      assert.ok(fs.existsSync(path.join(sessions, 'abc.conventions')), 'no usable session id removes nothing');
+    }
+    const result = hook(SOURCE, 'post-compact-reminder.mjs', { source: 'compact', cwd: project, session_id: 'abc' }, { CLAUDE_PROJECT_DIR: '' });
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stdout, expected);
+    assert.deepEqual(fs.readdirSync(sessions).sort(), ['abc.json', 'other.conventions']);
+    // Already gone, it is not an error.
+    assert.equal(hook(SOURCE, 'post-compact-reminder.mjs', { source: 'compact', cwd: project, session_id: 'abc' }, { CLAUDE_PROJECT_DIR: '' }).code, 0);
+  } finally {
+    fs.rmSync(project, { recursive: true, force: true });
+  }
+});
+
 for (const [tree, dir, decisionOf] of [
   ['source', SOURCE, json => json?.hookSpecificOutput?.permissionDecision],
   ['variant', VARIANT, json => json?.permissionDecision],

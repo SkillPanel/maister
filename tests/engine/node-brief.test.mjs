@@ -684,3 +684,53 @@ test('node-brief: a step that owes a page names the companion writer\'s call wit
   freeze(off, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' }, orchestrator: { options: { html_output: false } } });
   for (const node of ['specification', 'planning']) assert.deepEqual(companionOf(nodeBrief(off.state, node)), [], node);
 });
+
+test('node-brief: a session is shown each convention row whole once, and again after a resume or a compaction', t => {
+  const dev = scratch(t);
+  freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  const as = session => node => verb(['node-brief', `--state=${dev.state}`, `--node=${node}`], undefined, session ? { CLAUDE_CODE_SESSION_ID: session } : {});
+  const header = result => {
+    assert.equal(result.code, 0, result.stderr);
+    return result.stdout.slice(0, result.stdout.indexOf('\n\n')).split('\n');
+  };
+  const STEP_ROWS = ['`agent:` step', 'every step', 'asks', 'feeds a checkpoint'];
+  const whole = (lines, keys) => keys.every(key => lines.includes(row(key)));
+  const named = (lines, keys) => lines.includes(`conventions in force (${keys.join(', ')}): printed whole by an earlier brief of this session; follow them as printed there, or read them at rules`);
+  const one = as('session-one');
+
+  // The session's first brief prints every row whole; the next names them on one line.
+  assert.ok(whole(header(one('gap-analysis')), STEP_ROWS), 'the first brief prints the rows whole');
+  const second = header(one('gap-analysis'));
+  assert.ok(named(second, STEP_ROWS), second.join('\n'));
+  assert.ok(!second.some(line => line.startsWith('convention (`agent:` step): ')), 'no row printed twice in a session');
+  assert.ok(second.includes(LATER), 'a row that applies only later stays named as before');
+  assert.ok(second.includes(RULES), 'the rules pointer stays');
+
+  // A row this session has not met yet is printed whole beside the ones it has.
+  const gate = header(one('gap-approval'));
+  assert.ok(gate.includes(row('gate')), 'the first gate prints its row whole');
+  assert.ok(named(header(one('gap-approval')), ['gate']), 'the next gate names it');
+  const planning = header(one('planning'));
+  assert.ok(named(planning, ['`agent:` step', 'every step', 'feeds a checkpoint']), 'another node names the rows the session was shown');
+
+  // Another session has seen nothing; with no session id every brief is whole.
+  assert.ok(whole(header(as('session-two')('gap-analysis')), STEP_ROWS), 'another session gets the rows whole');
+  for (let i = 0; i < 2; i += 1) assert.ok(whole(header(as(null)('gap-analysis')), STEP_ROWS), 'no session id: whole every time');
+
+  // A resume clears what the session was shown.
+  assert.ok(named(header(one('gap-analysis')), STEP_ROWS));
+  const resumed = verb(['resume-check', `--state=${dev.state}`, '--no-open'], undefined, { CLAUDE_CODE_SESSION_ID: 'session-one' });
+  assert.equal(resumed.code, 0, resumed.stderr);
+  assert.ok(whole(header(one('gap-analysis')), STEP_ROWS), 'the first brief after a resume prints the rows whole');
+  assert.ok(named(header(one('gap-analysis')), STEP_ROWS));
+
+  // So does a compaction: the post-compaction hook removes the session's marker.
+  const marker = path.join(dev.root, '.maister/display/sessions/session-one.conventions');
+  assert.ok(fs.existsSync(marker), 'the marker sits beside the session pointer');
+  const compacted = run(path.join(ROOT, 'plugins/maister/hooks/post-compact-reminder.mjs'), [], { source: 'compact', session_id: 'session-one', cwd: dev.root });
+  assert.equal(compacted.code, 0, compacted.stderr);
+  assert.match(compacted.stdout, /Post-Compaction/, 'the reminder still prints');
+  assert.ok(!fs.existsSync(marker), 'the hook removed the marker');
+  assert.ok(whole(header(one('gap-analysis')), STEP_ROWS), 'the first brief after a compaction prints the rows whole');
+  assert.ok(fs.existsSync(path.join(dev.root, '.maister/display/.gitignore')), 'the marker is ignored by git with the other display files');
+});

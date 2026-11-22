@@ -43,7 +43,7 @@ import { TIMESTAMP, childRootOf, dashboardUrl, legacyMirrorWarning, projectRootO
 import { stamp } from '../../../../lib/canonical.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { isSetAside, runFolders } from '../../../../lib/run-dirs.mjs';
-import { publishPointer } from './display-files.mjs';
+import { forgetConventionsShown, publishPointer } from './display-files.mjs';
 import { openRevision } from './revise.mjs';
 
 /** The 2.x line's install commands, per host. */
@@ -85,7 +85,9 @@ export function writtenBy2x() {
  * resumes all the same; the result then carries `warnings`, the one
  * `legacy-mirror-ignored` line (`legacyMirrorWarning`), which the verb prints
  * on stderr and keeps out of the JSON. A session pointer that could not be
- * written is a line there too.
+ * written is a line there too, and so is a conventions marker that could not
+ * be removed: an accepted resume removes this session's, so the run's next
+ * `node-brief` prints the node conventions whole.
  */
 export function resumeCheck({ state }) {
   const dir = path.dirname(path.resolve(state));
@@ -125,6 +127,9 @@ export function resumeCheck({ state }) {
     ...(mirror === null ? [] : [mirror]),
     ...publishPointer({ runDir: dir, root, now: stamp() })
       .map(({ file, code, message }) => `${file} was not written (${code}: ${message}); the resume check is unaffected`),
+    // A resumed run's next brief prints the node conventions whole again.
+    ...forgetConventionsShown({ root })
+      .map(({ file, code, message }) => `${file} was not removed (${code}: ${message}); the resume check is unaffected`),
   ];
   return {
     ok: true,
