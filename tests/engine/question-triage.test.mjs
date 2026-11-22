@@ -160,7 +160,8 @@ test('raiseTriage keeps the higher class, unions the floor and ignores another v
   const higher = { version: 1, class: 'approve', family: 'signed-family', floor: ['floor-b'], band: 'toss-up', held: true };
   const equal = { version: 1, class: 'record', family: 'other-family' };
 
-  assert.deepEqual(raiseTriage(computed, lower), { version: 1, class: 'record', floor: ['floor-b'], family: 'noted-family' });
+  // A carried floor id raises the class to approve, as a floor does wherever it applies, however low the carried class.
+  assert.deepEqual(raiseTriage(computed, lower), { version: 1, class: 'approve', floor: ['floor-b'], family: 'noted-family', raised_by: 'floor' });
   // A carried winner brings its class and floor only: the family and every other key stay the computed ones.
   assert.deepEqual(raiseTriage(computed, higher), { version: 1, class: 'approve', floor: ['floor-b'], family: 'noted-family' });
   assert.deepEqual(raiseTriage(computed, equal), computed);
@@ -168,9 +169,12 @@ test('raiseTriage keeps the higher class, unions the floor and ignores another v
   // The recorded keys keep their order: the floor sits after the class, the proposal after the family.
   const proposed = { version: 1, class: 'record', family: 'noted-family', proposed: 'quick-family', reader: { verdict: 'raise', reason: 'Why.' } };
   assert.deepEqual(Object.keys(raiseTriage(proposed, higher)), ['version', 'class', 'floor', 'family', 'proposed', 'reader']);
-  // With no computed triage, a carried version-1 one keeps only its version, class and floor.
+  // With no computed triage, a carried version-1 one keeps only its version, class and floor,
+  // and counts only at a class the run never settles: a fact's class is set aside, a floor id reads as approve.
   assert.deepEqual(raiseTriage(null, higher), { version: 1, class: 'approve', floor: ['floor-b'] });
-  assert.deepEqual(raiseTriage(null, equal), { version: 1, class: 'record' });
+  assert.equal(raiseTriage(null, equal), null);
+  assert.deepEqual(raiseTriage(null, { version: 1, class: 'consult' }), { version: 1, class: 'consult' });
+  assert.deepEqual(raiseTriage(null, lower), { version: 1, class: 'approve', floor: ['floor-b'] });
   assert.deepEqual(raiseTriage(computed, null), computed);
   assert.equal(raiseTriage(null, null), null);
   assert.deepEqual(raiseTriage(computed, { ...higher, version: 2 }), computed);
@@ -328,7 +332,7 @@ const proposal = (id, family, reader, extra = {}) => ({
   ...extra,
 });
 const notTaken = (id, applied, proposed, reason) => `classed ${id} under ${applied}, not the proposed ${proposed}: ${reason}`;
-const ignoredVerdict = id => `ignored the reader's verdict on ${id}: it counts only with a proposed family below the first the policy lists for the question`;
+const ignoredVerdict = id => `the reader's agreement on ${id} changed nothing: it counts only with a proposed family below the first the policy lists for the question`;
 
 test('classSet lowers a listed family only with the reader\'s agreement, and notes every reason it did not', () => {
   const policy = mixedPolicy();
@@ -340,9 +344,10 @@ test('classSet lowers a listed family only with the reader\'s agreement, and not
   assert.deepEqual(shape(agreed), [['run', 'quick-family', 'decide-alone', 'quick-family', AGREE]]);
   assert.deepEqual(agreed.notes, []);
 
-  // `raise`: the first family stands, the verdict is recorded and the note quotes the reader's reason.
+  // `raise`: the first family stands, lifted to consult, the verdict is recorded and the note quotes the reader's reason.
   const raised = one(proposal('mixed-choice', 'quick-family', RAISE));
-  assert.deepEqual(shape(raised), [['run', 'noted-family', 'record', 'quick-family', RAISE]]);
+  assert.deepEqual(shape(raised), [['default', 'noted-family', 'consult', 'quick-family', RAISE]]);
+  assert.equal(raised.items[0].triage.raised_by, 'reader');
   assert.deepEqual(raised.notes, [notTaken('mixed-choice', 'noted-family', 'quick-family', 'the reader raised it: "Changes who may publish."')]);
 
   // No verdict: the first family stands, and nothing of a reader is recorded.
@@ -362,31 +367,36 @@ test('classSet lowers a listed family only with the reader\'s agreement, and not
   assert.deepEqual(unknown.notes, [notTaken('loose-choice', 'fallback-family', 'quick-family', 'no policy row for the question')]);
 });
 
-test('classSet ignores a verdict sent with no lowering proposal, with a note after the proposal\'s own', () => {
+test('classSet records a verdict sent with no lowering proposal: a raise lifts, an agreement changes nothing and says so', () => {
   const policy = mixedPolicy();
   const one = question => classSet({ policy, workflow: 'in-node-questions', declaredIds: DECLARED, settles: 'record', canAsk: false, questions: [question] });
 
-  // An equal proposal with a verdict: taken, the verdict ignored and not recorded.
+  // An equal proposal with an agreement: taken, the verdict recorded, and a note that it changed nothing.
   const equal = one(proposal('mixed-choice', 'noted-family', AGREE));
-  assert.deepEqual(equal.items[0].triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'noted-family' });
+  assert.deepEqual(equal.items[0].triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'noted-family', reader: AGREE });
   assert.deepEqual(equal.notes, [ignoredVerdict('mixed-choice')]);
 
-  // A stricter proposal with a verdict: taken as without one.
+  // A stricter proposal with a raise: taken, already above the classes a raise lifts; no note.
   const stricter = one(proposal('mixed-choice', 'asked-family', RAISE));
-  assert.deepEqual(stricter.items[0].triage, { version: 1, class: 'consult', family: 'asked-family', proposed: 'asked-family', advice: 'not_obtained' });
-  assert.deepEqual(stricter.notes, [ignoredVerdict('mixed-choice')]);
+  assert.deepEqual(stricter.items[0].triage, { version: 1, class: 'consult', family: 'asked-family', proposed: 'asked-family', reader: RAISE, advice: 'not_obtained' });
+  assert.deepEqual(stricter.notes, []);
 
-  // A verdict with no proposal at all: classed as today, one note, no new key.
+  // An agreement with no proposal at all: classed as before, the verdict recorded, one note.
   const bare = one(proposal('mixed-choice', undefined, AGREE));
-  assert.deepEqual(bare.items[0].triage, { version: 1, class: 'record', family: 'noted-family' });
+  assert.deepEqual(bare.items[0].triage, { version: 1, class: 'record', family: 'noted-family', reader: AGREE });
   assert.deepEqual(bare.notes, [ignoredVerdict('mixed-choice')]);
+
+  // A raise with no proposal lifts the fact's class to consult.
+  const lifted = one(proposal('mixed-choice', undefined, RAISE));
+  assert.deepEqual(lifted.items[0].triage, { version: 1, class: 'consult', family: 'noted-family', raised_by: 'reader', reader: RAISE, advice: 'not_obtained' });
+  assert.deepEqual(lifted.notes, []);
 
   // An unlisted proposal and one on a question with no row: the proposal's note, then the verdict's.
   const unlisted = one(proposal('mixed-choice', 'signed-family', AGREE));
-  assert.deepEqual(unlisted.items[0].triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'signed-family' });
+  assert.deepEqual(unlisted.items[0].triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'signed-family', reader: AGREE });
   assert.deepEqual(unlisted.notes, [notTaken('mixed-choice', 'noted-family', 'signed-family', 'not listed for the question'), ignoredVerdict('mixed-choice')]);
   const rowless = one(proposal('loose-choice', 'quick-family', AGREE));
-  assert.equal(Object.hasOwn(rowless.items[0].triage, 'reader'), false);
+  assert.deepEqual(rowless.items[0].triage.reader, AGREE);
   assert.deepEqual(rowless.notes, [notTaken('loose-choice', 'fallback-family', 'quick-family', 'no policy row for the question'), ignoredVerdict('loose-choice')]);
 });
 
@@ -419,10 +429,11 @@ test('the classed triage records its keys in order, the proposal and verdict aft
     ['version', 1], ['class', 'approve'], ['floor', ['floor-a']], ['family', 'guarded-family'], ['raised_by', 'floor'],
     ['proposed', 'quick-family'], ['reader', RAISE], ['held', true],
   ]);
-  // A carried floor keeps its place after the class, ahead of the proposal.
+  // A carried floor keeps its place after the class, raises it to approve, and says so ahead of the proposal.
   const carried = one(proposal('mixed-choice', 'quick-family', AGREE, { triage: { version: 1, class: 'consult', floor: ['floor-b'] } }));
-  assert.deepEqual(Object.keys(carried.items[0].triage), ['version', 'class', 'floor', 'family', 'proposed', 'reader', 'advice']);
-  assert.equal(carried.items[0].triage.class, 'consult');
+  assert.deepEqual(Object.keys(carried.items[0].triage), ['version', 'class', 'floor', 'family', 'raised_by', 'proposed', 'reader', 'held']);
+  assert.equal(carried.items[0].triage.class, 'approve');
+  assert.equal(carried.items[0].triage.raised_by, 'floor');
   assert.equal(carried.items[0].triage.family, 'noted-family');
 });
 
@@ -433,7 +444,13 @@ test('a lowered question is still asked when an option needs a person, and a mix
 
   // Lowered to decide-alone, but one option only a person can take: the run settles nothing, the question is asked.
   const act = proposal('mixed-choice', 'quick-family', AGREE, { options: [option('a', { recommended: true, person_act: true }), option('b')] });
-  assert.deepEqual(run([act]), { items: [], asking: ['mixed-choice'], faults: [], notes: [] });
+  assert.deepEqual(run([act]), {
+    items: [],
+    asking: ['mixed-choice'],
+    askedTriage: { 'mixed-choice': { version: 1, class: 'decide-alone', family: 'quick-family', proposed: 'quick-family', reader: AGREE } },
+    faults: [],
+    notes: [],
+  });
 
   // A per-area slug of the declared id lowers under that row, and the item keeps the slug.
   const area = run([proposal('mixed-choice-storage', 'quick-family', AGREE)]);
@@ -470,14 +487,15 @@ test('a question lowered from approve to consult with nobody to ask takes its de
 test('a question the policy leaves unclassified ignores its family and verdict without a note', () => {
   const { unknown_family: _, ...rowsOnly } = mixedPolicy();
   const classed = classSet({ policy: rowsOnly, workflow: 'in-node-questions', declaredIds: DECLARED, settles: 'record', canAsk: false, questions: [proposal('loose-choice', 'quick-family', AGREE)] });
-  assert.deepEqual(classed, { items: [], asking: ['loose-choice'], faults: [], notes: [] });
+  assert.deepEqual(classed, { items: [], asking: ['loose-choice'], askedTriage: {}, faults: [], notes: [] });
   // No policy at all, as a write that classes nothing sends it.
   const none = classSet({ policy: null, workflow: 'in-node-questions', declaredIds: [], settles: null, canAsk: true, questions: [proposal('mixed-choice', 'quick-family', RAISE)] });
-  assert.deepEqual(none, { items: [], asking: ['mixed-choice'], faults: [], notes: [] });
+  assert.deepEqual(none, { items: [], asking: ['mixed-choice'], askedTriage: {}, faults: [], notes: [] });
 });
 
 test('with no proposal and no carried triage, classSet classes exactly as before the second reader', () => {
-  // The expected output was captured from the classing code before the reader existed, for this same set.
+  // The expected output was captured from the classing code before the reader existed, for this same set;
+  // `askedTriage`, the triage of each classed id left to ask, was added since.
   const { unknown_family: _, ...rows } = policyOf('questions.json').policy;
   const policy = { ...rows, table: [...rows.table, { workflow: 'in-node-questions', id: 'mixed-choice', kind: 'question', families: ['noted-family', 'asked-family', 'quick-family'] }] };
   const option = (id, extra = {}) => ({ id, label: `Label ${id}`, description: `Why ${id}.`, ...extra });
@@ -520,12 +538,20 @@ test('with no proposal and no carried triage, classSet classes exactly as before
       item('mixed-choice-act', 'default', { version: 1, class: 'record', family: 'noted-family' }),
     ],
     asking: ['loose-choice', 'mixed-choice-tone'],
+    askedTriage: { 'mixed-choice-tone': { version: 1, class: 'record', family: 'noted-family' } },
     faults: [],
     notes: [],
   });
   same(classSet({ ...common, canAsk: true }), {
     items: [quick, noted, scope],
     asking: ['asked-choice', 'signed-choice', 'guarded-choice', 'loose-choice', 'mixed-choice-tone', 'mixed-choice-act'],
+    askedTriage: {
+      'asked-choice': { version: 1, class: 'consult', family: 'asked-family' },
+      'signed-choice': { version: 1, class: 'approve', family: 'signed-family' },
+      'guarded-choice': { version: 1, class: 'approve', floor: ['floor-a'], family: 'guarded-family', raised_by: 'floor' },
+      'mixed-choice-tone': { version: 1, class: 'record', family: 'noted-family' },
+      'mixed-choice-act': { version: 1, class: 'record', family: 'noted-family' },
+    },
     faults: [],
     notes: [],
   });

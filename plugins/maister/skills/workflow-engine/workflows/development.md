@@ -136,7 +136,7 @@ most and name the rest in the file as unsettled, the analysis's own answer
 standing.
 Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
-**With question sets** (`clarifications`): in this node's first request.
+**With question sets** (clarification, `clarifications`): in this node's first request.
 
 **Without question sets** (`clarifications`): none is asked; the analysis's
 answers stand, and what it could not settle is named in the file as unsettled.

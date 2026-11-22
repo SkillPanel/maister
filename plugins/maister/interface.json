@@ -1189,7 +1189,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.6",
+  "interface_version": "2.7",
   "mcp": {
     "servers": [],
     "tools": [
@@ -1798,7 +1798,97 @@
     "pending_gate_optional_keys": [
       "asked_by_session"
     ],
+    "question_triage": {
+      "keys": {
+        "advice": {
+          "required": false,
+          "type": "string",
+          "values": [
+            "not_obtained"
+          ]
+        },
+        "band": {
+          "required": false,
+          "type": "string"
+        },
+        "class": {
+          "required": true,
+          "type": "string",
+          "values": [
+            "decide-alone",
+            "record",
+            "consult",
+            "approve"
+          ]
+        },
+        "family": {
+          "required": false,
+          "type": "string"
+        },
+        "floor": {
+          "items": {
+            "type": "string"
+          },
+          "required": false,
+          "type": "array"
+        },
+        "held": {
+          "required": false,
+          "type": "boolean"
+        },
+        "proposed": {
+          "required": false,
+          "type": "string"
+        },
+        "raised_by": {
+          "required": false,
+          "type": "string",
+          "values": [
+            "floor",
+            "band",
+            "wording",
+            "reader"
+          ]
+        },
+        "reader": {
+          "keys": {
+            "reason": {
+              "required": true,
+              "type": "string"
+            },
+            "verdict": {
+              "required": true,
+              "type": "string",
+              "values": [
+                "agree",
+                "raise"
+              ]
+            }
+          },
+          "required": false,
+          "type": "object"
+        },
+        "version": {
+          "required": true,
+          "type": "integer"
+        }
+      }
+    },
     "schema_version": 1,
+    "summary_writer_keys": {
+      "asked_triage": {
+        "required": false,
+        "see": "question_triage",
+        "type": "object"
+      },
+      "asking": {
+        "items": {
+          "type": "string"
+        },
+        "required": false,
+        "type": "array"
+      }
+    },
     "top_level_blocks": [
       "project_context",
       "related_tasks",

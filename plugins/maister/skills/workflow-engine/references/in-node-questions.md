@@ -568,6 +568,14 @@ never a fact. The writer takes a listed proposal at least as strict as the first
 otherwise it classes the question under that first family and says so in a note. A carried
 triage, a floor id and a band still raise on top of it.
 
+**The writer holds a choice to that test itself.** A question whose text carries one of the
+choice words — "should", "shall", "ought", "who may", "who can", as whole words — is a choice
+whatever family it reads as: a lower family is never taken for it, and a fact's class (record)
+is lifted to consult, which the run never settles, the triage saying `raised_by: wording`. The
+list is English; a question asked in another language meets this guard only through the reader.
+A class the policy sets below record — its routine choices, such as an opt-in — is left as the
+policy reads it.
+
 Propose a lower family only for a question, never a gate, and only when the answer to that test
 is no for every option: nothing any option would do changes the product or who may do it. The
 families line marks each lower family as needing the reader's agreement. The reader is the agent
@@ -576,16 +584,35 @@ per lowering, in parallel when there are several. Its prompt holds the question 
 option's label and description, and nothing else: never the recommended mark, `why`, `details`,
 `header`, evidence, the node's reasons or a family name. Copy its verdict onto the question as
 `reader: {verdict, reason}`, `verdict` being `agree` or `raise` and `reason` one line. The writer
-takes the lower family only on `agree`, and only when the first family carries no floor and the
-question carries no triage. A `raise`, no `reader`, a floor on the first family or a triage each
-leave the first family in place, with a note naming the cause.
+takes the lower family only on `agree`, and only when the first family carries no floor, the
+question is not worded as a choice and carries no triage. A `raise`, no `reader`, a floor on the
+first family, a choice's wording or a triage each leave the first family in place, with a note
+naming the cause. A `raise` counts with or without a lowering: it lifts any class below consult
+to consult (`raised_by: reader`), so a verdict the reader gave unasked is never ignored. An
+`agree` with nothing to lower changes nothing, and a note says so — except on a clarification.
+
+**A clarification is settled as a fact only with the reader's agreement.** A question-set line
+marks its id as one with the word `clarification` ahead of it —
+``**With question sets** (clarification, `clarifications`)`` — for a question that asks a person
+what the task means, whose answer can read as a fact and still be a choice. A question whose id
+reads as a marked one (a per-area slug, or the node's only declared id, included) and that the
+autonomy ceiling would settle is settled only when it carries the reader's `agree`; with none it
+is asked where a person can be, else defaulted, and a note says why. The brief prints a
+`reader (<id>):` line for each marked id the run could settle: dispatch the reader for each such
+question in the set, the one dispatch serving a lowering too, and copy each verdict on as
+`reader`. Questions their prose does not mark — a fix loop's, a retry's, an opt-in — settle as
+the policy reads them.
 
 Failing safe: when the session cannot dispatch the reader, or it returns no well-formed verdict,
-send no `reader`; the node never writes or edits a verdict itself, and the first family stands.
+send no `reader`; the node never writes or edits a verdict itself, the first family stands, and a
+clarification is asked rather than settled.
 
 A lowered question takes the outcome of its lower class. Under a driver, a question lowered from
 an approval class to a consult class takes its default with advice not obtained, where it would
-have been held. A lowered question that is still asked records nothing of the proposal. A question
+have been held. A question still asked keeps the triage it was classed under: the writer stores
+it on the node's summary under `asked_triage`, by question id, beside `asking`, and puts it on the
+person's answer when that is recorded — so the run's record shows what was proposed, what the
+reader said and which family applied, as it does for a settled question. A question
 that carries a triage, a decision-area question among them, is never lowered: send no lower
 family and dispatch no reader for it. A carried triage only raises the class and adds to the
 floor; it never brings a family or band of its own.
@@ -597,7 +624,7 @@ be asked:
 | Outcome | When | The writer records | The node |
 |---|---|---|---|
 | settled | the class is within what the autonomy ceiling settles — never a consult or approval class; any driver | `by: run`, with the rationale and the triage | takes it; never asks it |
-| asked | above the autonomy ceiling, and somebody can be asked | nothing; the id is printed under `ask:` | asks it, as the sections above say |
+| asked | above the autonomy ceiling, and somebody can be asked | the triage under `asked_triage`, then on the answer; the id is printed under `ask:` | asks it, as the sections above say |
 | defaulted | above it, nobody can be asked; a consult-class one is marked advice not obtained | `by: default`, with the triage | takes it |
 | held | an approval-class question nobody can be asked | `by: default`, its triage `held: true`; with nothing recommended, no choice: `decision: "No choice yet — needs your decision"`, `no_choice: true` | goes on provisionally with it, or without one |
 
@@ -644,13 +671,15 @@ the held item is where a person decides.
 **A stricter reading is carried, never a looser one.** A step's own judgement may only make a
 question stricter. It carries `triage: {version: 1, class: <class>}` on the set's question, and
 the writer keeps the stricter of the two. With a policy that classes nothing, the carried
-triage is set aside. Floor ids it names are added to the question's floor; it never names a
-family or a band.
+triage is set aside, and so is one below consult on a question the policy itself classes not at
+all: it could only settle what nothing classed, so the question is asked. Floor ids it names are
+added to the question's floor; it never names a family or a band.
 
 **What a node never does here.** It never writes a triage on its own decisions and never
-carries one that lowers a class or proposes a looser reading; it never sends `asking` or
-`classes_questions`, and never sends its own `by: run` or `by: default` item for a question the
-writer classed: the writer drops each with a note and keeps its own. It never asks a question the
+carries one that lowers a class or proposes a looser reading; it never sends `asking`,
+`asked_triage` or `classes_questions`, and never sends its own `by: run` or `by: default` item
+for a question the writer classed, nor a `by: run` one for a question it left to ask: the writer
+drops each with a note and keeps its own. It never asks a question the
 writer settled, defaulted or held, and never treats a held choice as approved. A later write may
 re-send the writer's items unchanged or leave them out; they stay either way. A revise's reset
 clears them, so the node's next attempt sends its set again and is classed afresh.

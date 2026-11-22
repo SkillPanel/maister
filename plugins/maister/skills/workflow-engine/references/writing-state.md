@@ -97,11 +97,13 @@ never refusals — the write lands and the exit code does not move:
 A `note:` line says the write dropped something the patch sent and landed without it. Beside the
 clock fields, `policy_hash` and `task.base_commit`, the writer drops, each with its note: an
 `orchestrator.options.ceiling` wider than the run's autonomy ceiling, or one removing it (engine Step 4);
-`orchestrator.classes_questions` and a node's `asking`, which only the writer records; a
-`phase_summaries`, the retired phase-summary mirror, top-level or under `context`; a `workflow`
-block re-sent identical to the frozen one; and, in a run that records `classes_questions`, a
-`by: run` or `by: default` item sent for a question the writer classed, and any `triage` sent on
-a node's decisions. Two more are corrected rather than dropped, each with its note: a `headline`
+`orchestrator.classes_questions` and a node's `asking` and `asked_triage`, which only the writer
+records; a `phase_summaries`, the retired phase-summary mirror, top-level or under `context`; a
+`workflow` block re-sent identical to the frozen one; and, in a run that records
+`classes_questions`, a `by: run` or `by: default` item sent for a question the writer classed, a
+`by: run` item for a question it left to ask, and any `triage` sent on a node's decisions — but
+the triage the writer put on a person's answer, sent back with it, is dropped silently and put
+back. Two more are corrected rather than dropped, each with its note: a `headline`
 that spans lines or runs past 220 characters is folded onto one line and cut at the last
 sentence that fits, and the run's own context block sent as a top-level key (`task_context` in a
 development run) is written as `context`. Correct the prose that sent it rather than re-sending.

@@ -163,7 +163,7 @@ after that is recorded, never retried:
 
 **Asks.** Step 1 asks the clarification it describes. Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
-**With question sets** (`question-clarification`): its sharpened readings
+**With question sets** (clarification, `question-clarification`): its sharpened readings
 generated before it suspends.
 
 **Without question sets** (`question-clarification`): none. Step 1
@@ -479,7 +479,7 @@ dependencies"). After Part B's second failure: *"High-level design failed twice:
 now, or *"Skip the design"*, *"finish with the research and the chosen
 approach"*.
 
-**With question sets** (`design-constraints`): asked through the cockpit, in
+**With question sets** (clarification, `design-constraints`): asked through the cockpit, in
 this node's first request.
 
 **Without question sets** (`design-constraints`): none is

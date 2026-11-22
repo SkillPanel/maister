@@ -12,7 +12,9 @@
  *
  * - `gate_request` and `checkpoint`: the declared shapes the builders are held
  *   to (`lib/interface-shapes.mjs`), and the subject kinds (`lib/gate-subject.mjs`);
- * - `state`: the writer's own vocabulary and schema version (`lib/state.mjs`);
+ * - `state`: the writer's own vocabulary and schema version (`lib/state.mjs`),
+ *   and the in-node question triage and the summary keys only the classing
+ *   write records (`lib/interface-shapes.mjs`);
  * - `grammar.guard_operators`: the operators a `when` guard joins its
  *   references with (`lib/graph.mjs`);
  * - `engine.verbs`: the verb table in `workflow.mjs`, each verb's flags as it
@@ -131,6 +133,8 @@ export async function describe(root) {
       pending_gate_keys: state.PENDING_KEYS,
       pending_gate_optional_keys: state.PENDING_OPTIONAL_KEYS,
       parent_keys: state.PARENT_KEYS,
+      question_triage: { keys: declared(shapes.QUESTION_TRIAGE) },
+      summary_writer_keys: declared(shapes.SUMMARY_WRITER_KEYS),
     },
     grammar: {
       guard_operators: graph.GUARD_OPERATORS,
