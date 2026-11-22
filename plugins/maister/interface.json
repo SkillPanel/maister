@@ -353,13 +353,27 @@
       },
       "gate-request": {
         "flags": [
+          "node",
           "patch-file",
+          "reask",
           "state"
         ],
         "refusals": [
+          "gate-brief-no-graph",
+          "gate-brief-no-summary",
+          "gate-brief-not-a-gate",
+          "gate-brief-not-askable",
+          "gate-brief-nothing-held",
+          "gate-brief-nothing-to-ask",
+          "gate-brief-questions-invalid",
+          "gate-brief-questions-unsupported",
+          "gate-brief-reask-not-revise",
+          "gate-brief-rounds-spent",
+          "gate-brief-unknown-node",
           "gate-brief-value-missing",
           "gate-guard-false",
-          "gate-request-unavailable"
+          "gate-request-unavailable",
+          "state-unreadable"
         ]
       },
       "gate-revise": {
