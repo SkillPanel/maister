@@ -140,6 +140,18 @@ export const HOSTS = ['claude', 'copilot'];
 export const BUILT_IN_AGENTS = ['Explore', 'general-purpose', 'Plan'];
 
 /**
+ * The file base names Claude Code refuses from a subagent. Its Write tool
+ * checks a call a subagent makes (one carrying an agent id) and refuses it when
+ * the base name of the file matches this pattern, telling the agent to return
+ * its findings as text instead; no setting turns the check off. Edit, a shell
+ * write and the main session are not checked, and only the base name counts:
+ * `analysis/gap-analysis.md` is written, `outputs/report.md` and
+ * `summary-notes.md` are refused. Declared artifacts a subagent writes are
+ * named for their subject so none of them matches (`warnSubagentNames`).
+ */
+export const SUBAGENT_REFUSED_NAME = /^(REPORT|SUMMARY|FINDINGS|ANALYSIS).*\.md$/i;
+
+/**
  * Where a `skill:` or `agent:` target is looked for, in the order it is
  * searched; the first hit wins. Exported so a document describing the order
  * can be checked against the order the code actually applies.
@@ -357,6 +369,9 @@ const WARN = {
   ownLeaf: (path, node, position, count, after) => `node-no-dependents:${path}:${node} — nothing needs it and the run `
     + `does not end on it, so it runs at position ${position} of ${count} in the frozen order${after ? `, after ${after}` : ''}; `
     + 'add it to the needs of the node that should wait for it',
+  subagentName: (path, node, file, suggestion) => `subagent-artifact-name:${path}:${node} — ${file} is written by `
+    + 'a subagent, and Claude Code refuses a subagent\'s Write of a file whose name starts with report, summary, '
+    + `findings or analysis and ends in .md; name it for its subject, such as ${suggestion}`,
   skipGuardNotPure: (node) => `skip-guard-not-pure:${node} — its guard reads a value the run itself records, `
     + 'and it is more than a confirmation, so it is asked whatever its guard reads: guard it on an input or a gate\'s value, '
     + 'or make it a single continue with no sets and no grants',
@@ -501,6 +516,7 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
     warnAddedLeaves(graph, warnings);
     warnOwnLeaves(graph, warnings);
     warnSkipGuards(graph, warnings);
+    warnSubagentNames(graph, warnings);
     checkEveryProfile({ definition, overlays, profile, project }, errors);
   }
   return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
@@ -579,6 +595,53 @@ function warnSkipGuards(graph, warnings) {
   for (const id of topological(graph.nodes)) {
     if (skipGuardAsks(graph.nodes.get(id), kindOf)) warnings.push(WARN.skipGuardNotPure(id));
   }
+}
+
+/**
+ * A declared artifact a subagent writes whose base name Claude Code refuses
+ * from a subagent (`SUBAGENT_REFUSED_NAME`). A node is written by a subagent
+ * when it is an `agent:` step, or a `direct:` step whose merged brief names
+ * delegates for Claude Code. It warns rather than errors: the main session
+ * may write the file itself, and the host may change its rule.
+ */
+function warnSubagentNames(graph, warnings) {
+  const delegated = delegatedSteps(graph.briefs);
+  for (const [id, node] of graph.nodes) {
+    const uses = typeof node?.uses === 'string' ? node.uses : '';
+    if (!uses.startsWith('agent:') && !(uses.startsWith('direct:') && delegated.has(id))) continue;
+    const artifacts = isMap(node.outputs) && isMap(node.outputs.artifacts) ? node.outputs.artifacts : {};
+    for (const [key, file] of Object.entries(artifacts)) {
+      if (typeof file !== 'string') continue;
+      const parts = file.replace(/\\/g, '/').split('/');
+      const base = parts.pop();
+      if (!SUBAGENT_REFUSED_NAME.test(base)) continue;
+      const subject = [id, key].find(each => !SUBAGENT_REFUSED_NAME.test(`${each}-${base}`)) ?? '<subject>';
+      const suggestion = [...parts, `${subject}-${base}`].join('/');
+      warnings.push(WARN.subagentName(`nodes.${id}.outputs.artifacts.${key}`, id, file, suggestion));
+    }
+  }
+}
+
+/**
+ * The `direct:` steps whose brief, merged layer by layer as `briefOf` merges
+ * it, names at least one delegate for Claude Code: a list, which holds on both
+ * hosts, or the map's `claude` set.
+ */
+function delegatedSteps(briefs) {
+  const merged = new Map();
+  for (const { block } of briefs) {
+    if (!isMap(block)) continue;
+    for (const [id, entry] of Object.entries(block)) {
+      if (entry === null) merged.delete(id);
+      else if (isMap(entry) && Object.hasOwn(entry, 'delegates')) merged.set(id, entry.delegates);
+    }
+  }
+  const named = new Set();
+  for (const [id, value] of merged) {
+    const set = Array.isArray(value) ? value : isMap(value) ? value.claude : null;
+    if (Array.isArray(set) && set.length > 0) named.add(id);
+  }
+  return named;
 }
 
 /**

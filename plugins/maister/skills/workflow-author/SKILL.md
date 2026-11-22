@@ -108,6 +108,9 @@ questions:
    condition that needs them is turned into one recorded `bool`.
 6. **Artifacts and values** each phase declares (§ 8.2): literal paths relative to the run's task
    directory; values as `bool`, `id` or `enum` rather than `string` where they are handles.
+   Name each file for its subject (`outputs/research-report.md`, `analysis/gap-analysis.md`):
+   Claude Code refuses a subagent's Write of a file whose name starts with report, summary,
+   findings or analysis and ends in `.md`, and the check warns `subagent-artifact-name` on one.
    **Which of those documents should also get an HTML page for people to read?** Offer each
    declared markdown artifact by what it holds; the answer becomes the `html_companions` block
    (§ 3.2), keyed by node id and listing artifact keys. None is a fine answer — a definition
