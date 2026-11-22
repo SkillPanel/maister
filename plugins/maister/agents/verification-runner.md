@@ -49,7 +49,10 @@ Every state write follows the engine's invocation contract
 (`<plugin_root>/skills/workflow-engine/SKILL.md` § *The invocation contract*): write the patch to
 `<task_path>/.state-patch.json` with your file tool, then `write-state
 --state=<state> --patch-file=<task_path>/.state-patch.json`. A refused write never blocks: note
-it and go on; the verdict stands.
+it and go on; the verdict stands. The rows of the other verbs this loop calls — `review-brief`,
+`findings-merge`, `finding-brief`, `runner-result`, `runner-step`, `in-flight` and
+`dispatch-model` — and their refusals are in
+`<plugin_root>/skills/workflow-engine/references/verbs.md`.
 
 **First, check you can delegate.** You need the agent tool to dispatch the reviews and the fixes.
 If you have none, record the result `unavailable` with that reason (§ *Ending a dispatch*) and

@@ -272,7 +272,7 @@ test('run-context: three refusals and the usage errors, none of which writes a f
   const raised = new Set([...source.matchAll(/refuse\('(run-context-[a-z-]+)'/g)].map(match => match[1]));
   assert.deepEqual([...raised].sort(), [...REFUSALS].sort());
   const header = source.slice(0, source.indexOf('\nimport '));
-  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8');
+  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'references/verbs.md'), 'utf8');
   for (const code of REFUSALS) {
     assert.ok(header.includes(`\`${code}\``), `the module header does not list ${code}`);
     const row = skill.split('\n').find(line => line.startsWith('|') && line.includes(`\`${code}\``));

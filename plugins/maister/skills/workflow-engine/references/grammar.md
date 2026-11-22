@@ -735,7 +735,7 @@ whose per-host `tier` does not name the host is passed over there, as a pinned `
 Copilot, and the next level answers. `inherit` in a `claude` or `copilot` cell or an entry's `model` is the
 session's model: it prints as `omit`, and is never refused as an alias nor counted as premium. A rung's effort applies to whatever runs on it unless the
 entry sets its own, and a project's cell is laid over the shipped one, so it keeps `high` unless
-it sets an effort; `effort: inherit` sends none. `dispatch-model` prints what an agent resolves to. A block with an
+it sets an effort; `effort: inherit` sends none. `dispatch-model` prints what an agent resolves to (its row: `references/verbs.md`). A block with an
 error is refused whole and the shipped defaults apply; its findings are warnings, never errors,
 because a refused block stops no run. The block is no graph data, so it moves no hash.
 

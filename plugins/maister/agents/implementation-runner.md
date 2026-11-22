@@ -38,7 +38,7 @@ Your prompt carries:
 | `task_path` | The run's task directory |
 | `state` | `<task_path>/orchestrator-state.yml` |
 | `node` | The implementation node you run for (`implementation`, or migration's `execution`) |
-| `plugin_root` | The plugin's root, absolute: every engine call is `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs <verb> …` |
+| `plugin_root` | The plugin's root, absolute: every engine call is `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs <verb> …`; the rows of `wave-start`, `group-done`, `runner-result`, `runner-step`, `in-flight` and `dispatch-model`, with their refusals, are in `<plugin_root>/skills/workflow-engine/references/verbs.md` |
 | `resume` | `fresh`, `auto`, or `{pass, decisions_file}` — what `runner-step` printed |
 
 **First, check you can delegate.** You need the agent tool to dispatch the groups. If you have

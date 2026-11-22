@@ -211,7 +211,7 @@ back — a group that failed after its escalation, a skipped test step, a wave
 past the model budget — and its summary comes from the summary the hand-off
 returns. A summary whose `stopped` is set is a stop: record it as one.
 
-After the skill returns, run the engine's `sync-plan` verb once against
+After the skill returns, run the engine's `sync-plan` verb (its row: the engine's `references/verbs.md`) once against
 `implementation/implementation-plan.md`: idempotent, and a no-op without a
 companion, it catches a wave whose sync was missed.
 
@@ -254,7 +254,7 @@ The verifier has already recorded `verification_context.last_status`, `suite_run
 schema (`<plugin root>/skills/implementation-verifier/references/review-findings.md`) with the
 cycle the verifier ran; a data integrity issue takes `category:
 data-integrity` and `fixable: false`. Then run `findings-merge --state=<state>`
-again, which records `verification_context.issues_found` itself, so the
+(its row: the engine's `references/verbs.md`) again, which records `verification_context.issues_found` itself, so the
 issues keep their numbers in every later cycle. Then **declare
 `issues_to_resolve`**: true when the
 report carries an open issue the fix loop can fix or needs a decision on,
@@ -301,7 +301,7 @@ and a data integrity issue is never fixed and never a finding (Asks below).
 
 **Asks.** Write the issues still needing a person to
 `verification/issue-resolution-findings.json`, each `id` the verifier's
-`name`, and build the set with `finding-brief` for this node; compose the same
+`name`, and build the set with `finding-brief` for this node (its row: the engine's `references/verbs.md`); compose the same
 questions by hand only when it cannot use the file. At the stopping
 point, recommend "One more round" under `verification-fix-loop` while the last
 round made progress and a fixable warning or critical issue is open. Once there

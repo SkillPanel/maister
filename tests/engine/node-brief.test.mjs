@@ -400,7 +400,7 @@ test('node-brief: three refusals and the usage errors, none of which writes a fi
   assert.deepEqual([...raised].sort(), [...REFUSALS].sort());
   const header = source.slice(0, source.indexOf('\nimport '));
   assert.doesNotMatch(header, /docs\//, 'the header cites no file under docs/');
-  const skill = fs.readFileSync(SKILL, 'utf8');
+  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'references/verbs.md'), 'utf8');
   for (const code of [...REFUSALS, 'node-brief-graph-drift', 'node-brief-definition-unread', 'node-brief-conventions-unread', 'node-brief-start-unrecorded']) {
     assert.ok(header.includes(`\`${code}\``), `the module header does not list ${code}`);
   }

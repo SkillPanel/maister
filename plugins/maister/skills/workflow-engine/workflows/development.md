@@ -19,7 +19,7 @@ and the context ingests the rest of the run reads from.
    them as `project_context.project_doc_paths`, a top-level block of its own.
 4. **Detect research context** — when the invocation named a completed research
    task, as the sole argument or through the research input, bring its report and
-   artifacts under `analysis/research-context/` with `import`. Record
+   artifacts under `analysis/research-context/` with `import` (its row: the engine's `references/verbs.md`). Record
    `task_context.research_reference`: the source path, the copied path, the
    research question, the research type and the confidence level. Research
    **informs** every later node and skips none of them, so a source the verb
@@ -413,7 +413,7 @@ and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.m
 **Asks.** Each finding that needs a decision is its own question (step 5
 there): write the auditor's decision findings to
 `verification/spec-audit-findings.json`, each `id` the auditor's `name`, and
-build the set with `finding-brief` for this node.
+build the set with `finding-brief` for this node (its row: the engine's `references/verbs.md`).
 
 **With question sets** (`spec-audit-findings`): this node's first request, with
 the audit report and every fix written first.
@@ -480,7 +480,7 @@ back — a group that failed after its escalation, a skipped test step, a wave
 past the model budget — and its summary comes from the summary the hand-off
 returns. A summary whose `stopped` is set is a stop: record it as one.
 
-**After the skill returns**, run the engine's `sync-plan` verb once against
+**After the skill returns**, run the engine's `sync-plan` verb (its row: the engine's `references/verbs.md`) once against
 `implementation/implementation-plan.md` — idempotent, a no-op without a
 companion, and it catches a wave whose sync was missed. Then record what landed:
 the groups completed, the files changed and the incremental test results.

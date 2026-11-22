@@ -28,7 +28,8 @@ session* says, then return § *Structured output*.
 ## The hand-off
 
 Each step below is one call. The engine's `runner-step` reads the run and says what to do next;
-never work it out from the files yourself:
+never work it out from the files yourself. Its row, `runner-result`'s and `in-flight`'s, and
+their refusals, are in `<plugin root>/skills/workflow-engine/references/verbs.md`:
 
 ```
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs runner-step --state=<task path>/orchestrator-state.yml --node=<node> --runner=implementation
