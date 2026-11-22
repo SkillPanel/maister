@@ -758,14 +758,14 @@ test('held: the plain and one-line briefs put the held choices first', t => {
   const lines = plain.stdout.split('\n');
   assert.equal(lines[0], 'Scoped the work.');
   assert.equal(lines[1], 'Held for your approval:');
-  assert.equal(lines[2], '- Which signed-choice?: signed-choice A (approve) — scoping');
+  assert.equal(lines[2], '- Which signed-choice?: signed-choice A (needs your approval) — scoping');
   assert.ok(lines.indexOf('Decisions:') > 2 && lines.indexOf('Risks:') > lines.indexOf('Decisions:'), plain.stdout);
-  assert.ok(lines.includes('- quick-choice A (decide-alone)'), plain.stdout);
+  assert.ok(lines.includes('- quick-choice A (the run decides it alone)'), plain.stdout);
   assert.doesNotMatch(plain.stdout, /^- signed-choice A/m, 'a held choice is not listed again among the decisions');
 
   const oneline = gateBriefOf(run, 'review-approval', '--oneline');
   assert.equal(oneline.code, 0, oneline.stderr);
-  assert.match(oneline.stdout, /^Scoped the work\. · Held: approve: signed-choice → signed-choice A — scoping · Risks: open: the layout may change · Decisions: run \(decide-alone\): quick-choice A — A is the safe pick\.; default \(consult\): asked-choice A · /);
+  assert.match(oneline.stdout, /^Scoped the work\. · Held: needs your approval: signed-choice → signed-choice A — scoping · Risks: open: the layout may change · Decisions: run \(the run decides it alone\): quick-choice A — A is the safe pick\.; default \(needs advice\): asked-choice A · /);
 });
 
 test('held: run-complete owes a gate a task guard skipped while a choice is held, and offers no record-skipped recovery', t => {
@@ -882,13 +882,13 @@ test('held: a forced gate whose work was skipped is briefed "Skipped." with the 
   assert.deepEqual(checkpoint.held.map(each => [each.node, each.question_id]), [['drafting', 'signed-choice']]);
   const plain = gateBriefOf(run, 'notes-approval');
   assert.equal(plain.code, 0, plain.stderr);
-  assert.match(plain.stdout, /^Skipped\.\nHeld for your approval:\n- Which signed-choice\?: signed-choice A \(approve\) — drafting\n/);
+  assert.match(plain.stdout, /^Skipped\.\nHeld for your approval:\n- Which signed-choice\?: signed-choice A \(needs your approval\) — drafting\n/);
   // The step holding it is named on every surface, though the gate closes another stretch.
   assert.deepEqual(checkpoint.held.map(each => each.step), ['Drafting']);
-  assert.match(gateBriefOf(run, 'notes-approval', '--oneline').stdout, / · Held: approve: signed-choice → signed-choice A — drafting · /);
+  assert.match(gateBriefOf(run, 'notes-approval', '--oneline').stdout, / · Held: needs your approval: signed-choice → signed-choice A — drafting · /);
   const picked = JSON.parse(gateBriefOf(run, 'notes-approval', '--json', '--picker=rich').stdout);
   assert.match(picked.options[0].preview, /^- Which signed-choice\?: signed-choice A — drafting$/m);
-  assert.match(picked.more_details, /^- Which signed-choice\?: signed-choice A \(approve\) — drafting$/m);
+  assert.match(picked.more_details, /^- Which signed-choice\?: signed-choice A \(needs your approval\) — drafting$/m);
   const listed = JSON.parse(gateBriefOf(run, 'notes-approval', '--json', '--picker=plain').stdout);
   assert.match(listed.question, /^- Which signed-choice\?: signed-choice A — drafting$/m);
 
@@ -1308,13 +1308,13 @@ test('held-approval: every form carries the held list, the stretch, the end of t
   assert.equal(plain.code, 0, plain.stderr);
   const lines = plain.stdout.split('\n');
   assert.ok(lines.indexOf('Held for your approval:') > 0, plain.stdout);
-  assert.ok(lines.includes('- Which choosing-choice?: choosing-choice A (approve) — choosing'), plain.stdout);
+  assert.ok(lines.includes('- Which choosing-choice?: choosing-choice A (needs your approval) — choosing'), plain.stdout);
   assert.deepEqual(checkpoint.held.map(each => each.step), ['Choosing', 'Tidy', 'Closing']);
   assert.match(plain.stdout, /^Next: end of run$/m);
 
   const oneline = heldBrief(run, '--oneline');
   assert.equal(oneline.code, 0, oneline.stderr);
-  assert.match(oneline.stdout, / · Held: approve: choosing-choice → choosing-choice A — choosing; approve: tidy-choice → tidy-choice A — tidy; approve: closing-choice → closing-choice A — closing · /);
+  assert.match(oneline.stdout, / · Held: needs your approval: choosing-choice → choosing-choice A — choosing; needs your approval: tidy-choice → tidy-choice A — tidy; needs your approval: closing-choice → closing-choice A — closing · /);
   assert.match(oneline.stdout, / · Next: end of run · .*Recommended: continue · Run: /);
 
   const request = JSON.parse(heldBrief(run, '--request').stdout);
@@ -1446,7 +1446,7 @@ test('held-approval: with a question held with no choice it offers no continue �
   assert.deepEqual(checkpoint.options.map(each => [each.id, each.recommended]), [['revise-closing', true], ['stop', false]]);
   assert.deepEqual(checkpoint.recommended, { option: 'revise-closing', reason: '"Which closing-choice?" has no choice yet: revise its step with the choice in your note' });
   assert.equal(checkpoint.options[0].suggestions[0].note, 'My choice for "Which closing-choice?" (closing-choice), to send as its recommended option when the step asks it again:');
-  assert.match(heldBrief(run).stdout, /^- Which closing-choice\?: No choice yet — needs your decision \(approve\) — closing$/m);
+  assert.match(heldBrief(run).stdout, /^- Which closing-choice\?: No choice yet — needs your decision \(needs your approval\) — closing$/m);
   assert.match(heldBrief(run, '--oneline').stdout, / · Recommended: revise-closing · /);
   const request = JSON.parse(heldBrief(run, '--request').stdout);
   assert.deepEqual(request.options.map(each => each.id), ['revise-closing', 'stop']);

@@ -1324,7 +1324,7 @@ test('held: every continue says it approves the held choices — label, descript
 test('held: More details opens with the held choices right after Done, each with its class and rationale', () => {
   const blocks = moreDetails(heldCheckpoint()).split('\n\n');
   assert.equal(blocks[0], 'Done: Verification passed with two fixes applied.');
-  assert.equal(blocks[1], '**Held for your approval**\n- Which wave order 1?: Order 1 first (approve) — Order 1 unblocks the rest. — planning');
+  assert.equal(blocks[1], '**Held for your approval**\n- Which wave order 1?: Order 1 first (needs your approval) — Order 1 unblocks the rest. — planning');
   const without = moreDetails(heldCheckpoint({ extra: { headline: undefined } })).split('\n\n');
   assert.match(without[0], /^\*\*Held for your approval\*\*/);
 });
