@@ -264,6 +264,8 @@ When `missing_touchpoints` is non-empty:
 
 The orchestrator asks the user about ALL items in `decisions_needed.critical` and `decisions_needed.important`, so write each with the context the question needs — what was found, the options and the recommended one with its reason. If an issue matters, put it in one of those arrays.
 
+Apply the fact-or-choice test (`<plugin root>/skills/workflow-engine/references/in-node-questions.md`, *A fact is what no answer would change*) to each item before it goes in: a fact the analysis found is stated in the report, not asked, and a choice is never written up as a fact.
+
 **If completeness_score < 100%, there MUST be items in decisions_needed.**
 
 ---

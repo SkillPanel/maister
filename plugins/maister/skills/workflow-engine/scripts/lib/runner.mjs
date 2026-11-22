@@ -84,7 +84,11 @@
  *                                     Verification adds cycle, kind,
  *                                     findings_file and stop_question, and
  *                                     open, {critical, warning}, when the
- *                                     stopping question is put;
+ *                                     stopping question is put, and
+ *                                     stop_triage, {version: 1, class:
+ *                                     approve}, for the question to carry
+ *                                     once the run may grant itself no
+ *                                     more rounds (below);
  *                                     implementation pass, kind and
  *                                     questions_file
  *   {next: close, …}                  verification: verdict, report_path,
@@ -107,8 +111,8 @@
  *
  * A decision is answered into `<folder>/decisions-<cycle or pass>.json`, the
  * one file this verb writes: `{node, attempt, cycle | pass, kind, answers:
- * [{id, answer, by}], stop, rounds_seen}` (`stop` verification's only,
- * `rounds_seen` only under a driver that carries question sets). Each answer is the
+ * [{id, answer, by}], stop, stop_by, rounds_seen}` (`stop` and `stop_by`
+ * verification's only, `rounds_seen` only under a driver that carries question sets). Each answer is the
  * option label the person (or the policy) chose, read off the node summary's
  * decisions in this attempt — verification's under `<node>-findings-<id>`,
  * implementation's under each question's own id — an answer recorded by its
@@ -122,6 +126,14 @@
  * `undecided` while a warning or critical is open (the result's counts, else
  * the findings file's, else a critical read as open with a
  * `runner-counts-unread` warning), and `continue` with nothing above info.
+ * `stop_by` is who the stop is from, the answer's `by`, or `default` when
+ * nobody answered it. A run's own "One more round" — the writer classed it in a
+ * run that classes questions — is taken only at a `budget` stopping point (the
+ * last round made progress) and while fewer than `SELF_ROUNDS_MAX` of the
+ * attempt's files record a `more` by `run`; otherwise it is nobody's answer,
+ * with a `runner-stop-self-bounded` warning. Once those rounds are spent, a
+ * `budget` stopping question in a run that classes questions is printed with
+ * `stop_triage`, so the writer never settles it and a person answers it.
  * When the file is written:
  *
  *   --answered    the node has recorded the answers it just took in session,
@@ -221,6 +233,17 @@ const WORK_LOG = `${IMPLEMENTATION}/work-log.md`;
 export const STOP_QUESTION = 'verification-fix-loop';
 export const GO_ON_QUESTION = 'verification-go-on';
 const STOP_ANSWERS = [[/^one more/i, 'more'], [/^continue/i, 'continue'], [/^stop/i, 'stop']];
+
+/**
+ * The rounds a run may grant itself in one attempt by answering the stopping
+ * question "One more round" under its own policy: as many as the loop's
+ * automatic budget of re-checks, and as the follow-up rounds a node may send
+ * after its first request (`ROUNDS_MAX` less the first). Past them, and
+ * whenever the last round made no progress, a person decides.
+ */
+export const SELF_ROUNDS_MAX = 2;
+/** The triage a stopping question carries once the run may grant itself no more rounds. */
+const PERSON_ONLY = { version: 1, class: 'approve' };
 
 /** The suffix of a reviewing node's declared finding question id. */
 const FINDINGS_SUFFIX = '-findings';
@@ -446,6 +469,9 @@ function verificationStep({ run, node, answered, warnings, ok }) {
   const findings = findingsOf(findingsFile, runDir, warnings);
   const ids = findings.map(item => item.id);
   const classes = doc.orchestrator?.classes_questions === true;
+  // Whether the run may still answer "One more round" for itself: only after
+  // a round that made progress (`budget`), and at most SELF_ROUNDS_MAX times.
+  const selfMore = stopQuestion && kind === 'budget' && selfRounds(dir, node, attempt) < SELF_ROUNDS_MAX;
   // The warnings and criticals still open, read once a call and only when the
   // stopping question is put: `decide()` may collect and then take the defaults.
   let counts = null;
@@ -455,10 +481,14 @@ function verificationStep({ run, node, answered, warnings, ok }) {
   return decide({
     run, node, dir, answered,
     collect: () => {
-      const { answers, stop, stopAnswered } = answersOf(doc, node, attempt, findings, stopQuestion ? { fallback, classes } : null, warnings);
-      return { body: { answers, stop }, back: stopAnswered || answers.some(item => item.answer !== null) };
+      const { answers, stop, stopBy, stopAnswered } = answersOf(doc, node, attempt, findings, stopQuestion ? { fallback, classes, selfMore } : null, warnings);
+      return { body: { answers, stop, ...(stopQuestion ? { stop_by: stopBy } : {}) }, back: stopAnswered || answers.some(item => item.answer !== null) };
     },
-    defaults: () => ({ answers: ids.map(id => ({ id, answer: null, by: 'default' })), stop: stopQuestion ? fallback() : null }),
+    defaults: () => ({
+      answers: ids.map(id => ({ id, answer: null, by: 'default' })),
+      stop: stopQuestion ? fallback() : null,
+      ...(stopQuestion ? { stop_by: 'default' } : {}),
+    }),
     write: body => {
       writeJson(decisionsFile, { node, attempt, cycle, kind, ...body });
       return ok({ next: 'dispatch', resume }, { file: resume.decisions_file });
@@ -466,6 +496,7 @@ function verificationStep({ run, node, answered, warnings, ok }) {
     ask: asking => ok({
       next: 'ask', cycle, kind, findings_file: findingsFile, stop_question: stopQuestion, asking,
       classes_questions: classes, ...(stopQuestion ? { open: open() } : {}),
+      ...(stopQuestion && classes && kind === 'budget' && !selfMore ? { stop_triage: PERSON_ONLY } : {}),
     }),
   });
 }
@@ -492,13 +523,16 @@ function openCounts(result, runDir, warnings) {
   return { critical: 1, warning: 0 };
 }
 
-/** The stop the attempt's latest decisions file records, by cycle; null with none. */
+/**
+ * The stop the attempt's latest decisions file records, by cycle; null with no
+ * file, or when the latest records no stop. Each file is read once.
+ */
 function latestStop(dir, node, attempt) {
   let latest = null;
-  for (const name of attemptDecisions(dir, node, attempt)) {
+  for (const { name, doc } of attemptDecisions(dir, node, attempt)) {
     // By number: a directory lists decisions-10.json before decisions-2.json.
     const cycle = Number(DECISIONS_NAME.exec(name)[1]);
-    if (latest === null || cycle > latest.cycle) latest = { cycle, stop: readJson(path.join(dir, name)).stop ?? null };
+    if (latest === null || cycle > latest.cycle) latest = { cycle, stop: typeof doc.stop === 'string' ? doc.stop : null };
   }
   return latest?.stop ?? null;
 }
@@ -568,6 +602,11 @@ function decide({ run, node, dir, answered, collect, defaults, write, ask }) {
   return rounds >= ROUNDS_MAX ? stamped(defaults()) : ask('suspend');
 }
 
+/** How many stops of this attempt were a round the run granted itself. */
+function selfRounds(dir, node, attempt) {
+  return attemptDecisions(dir, node, attempt).filter(({ doc }) => doc.stop === 'more' && doc.stop_by === 'run').length;
+}
+
 /**
  * The most rounds any decisions file of this attempt saw answered, 0 with no
  * file, or null when a file of the attempt records no `rounds_seen`: written
@@ -575,8 +614,8 @@ function decide({ run, node, dir, answered, collect, defaults, write, ask }) {
  */
 function roundsSeen(dir, node, attempt) {
   let seen = 0;
-  for (const name of attemptDecisions(dir, node, attempt)) {
-    const value = readJson(path.join(dir, name))?.rounds_seen;
+  for (const { doc } of attemptDecisions(dir, node, attempt)) {
+    const value = doc.rounds_seen;
     if (!Number.isInteger(value) || value < 0) return null;
     seen = Math.max(seen, value);
   }
@@ -640,12 +679,14 @@ function labelFor(finding, answer) {
 /**
  * The attempt's answers to the decision's questions, from the node summary.
  * `stopping` is null when no stopping question was put, else `{fallback,
- * classes}`: the stop when nobody answered it, and whether the run's policy
- * classes questions. The stop is the attempt's latest answer under either
- * stopping id, read by its label when a person gave it (or it names no `by`),
- * or when the writer classed it in a run that classes questions; an answer
- * recorded by default, or by the run without that classing, is nobody's and
- * takes the fallback.
+ * classes, selfMore}`: the stop when nobody answered it, whether the run's
+ * policy classes questions, and whether the run may still grant itself a
+ * round. The stop is the attempt's latest answer under either stopping id,
+ * read by its label when a person gave it (or it names no `by`), or when the
+ * writer classed it in a run that classes questions; an answer recorded by
+ * default, or by the run without that classing, is nobody's and takes the
+ * fallback, and so is a run's "One more round" once `selfMore` is false.
+ * `stopBy` is who the stop is from: the answer's `by`, or `default`.
  */
 function answersOf(doc, node, attempt, findings, stopping, warnings) {
   const decisions = attemptAnswers(doc, node, attempt);
@@ -657,6 +698,7 @@ function answersOf(doc, node, attempt, findings, stopping, warnings) {
     return { id: finding.id, answer, by: answer === null ? 'default' : item.by ?? 'operator' };
   });
   let stop = null;
+  let stopBy = null;
   let stopAnswered = false;
   if (stopping !== null) {
     const item = decisions.filter(entry => entry.question_id === STOP_QUESTION || entry.question_id === GO_ON_QUESTION).at(-1) ?? null;
@@ -664,9 +706,17 @@ function answersOf(doc, node, attempt, findings, stopping, warnings) {
     stopAnswered = label !== null;
     const someone = item !== null && item.by !== 'default'
       && (item.by !== 'run' || (isClassedItem(item) && stopping.classes));
-    stop = label !== null && someone ? stopOf(label, stopping.fallback, warnings) : stopping.fallback();
+    stop = label !== null && someone ? stopOf(label, stopping.fallback, warnings) : null;
+    // A label that reads as none of the answers took the fallback: nobody's.
+    stopBy = stop === null || !STOP_ANSWERS.some(([pattern]) => pattern.test(label.trim())) ? 'default' : item.by ?? 'operator';
+    if (stop === 'more' && stopBy === 'run' && !stopping.selfMore) {
+      stop = null;
+      stopBy = 'default';
+      warnings.push(`runner-stop-self-bounded: the run answered "${label}" itself after a round without progress or past its ${SELF_ROUNDS_MAX} rounds; read as nobody's answer`);
+    }
+    if (stop === null) stop = stopping.fallback();
   }
-  return { answers, stop, stopAnswered };
+  return { answers, stop, stopBy, stopAnswered };
 }
 
 /**
@@ -724,7 +774,7 @@ function stopOf(label, fallback, warnings) {
   return stop;
 }
 
-/** The decisions files written for this node's attempt. */
+/** The decisions files written for this node's attempt, each `{name, doc}`, read once. */
 function attemptDecisions(dir, node, attempt) {
   let names;
   try {
@@ -732,10 +782,9 @@ function attemptDecisions(dir, node, attempt) {
   } catch {
     return [];
   }
-  return names.filter(name => DECISIONS_NAME.test(name)).filter(name => {
-    const doc = readJson(path.join(dir, name));
-    return isPlainObject(doc) && doc.node === node && doc.attempt === attempt;
-  });
+  return names.filter(name => DECISIONS_NAME.test(name))
+    .map(name => ({ name, doc: readJson(path.join(dir, name)) }))
+    .filter(({ doc }) => isPlainObject(doc) && doc.node === node && doc.attempt === attempt);
 }
 
 // ---------------------------------------------------------------------------
