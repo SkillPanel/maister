@@ -816,3 +816,341 @@ test('a publish that fails after the index write says the version is published',
   assert.match(refused.json.message, /v002 is published, so do not run finish for it again/);
   assert.deepEqual(readJson(path.join(where.versions, 'index.json')).versions.map(each => each.version), ['v001', 'v002']);
 });
+
+// ---------------------------------------------------------------------------
+// the written scope: format scope, a version that is its scope.md
+// ---------------------------------------------------------------------------
+
+/** One written turn: begin, `scope.md` and `.turn.json`, finish. Returns what begin and finish printed. */
+function scopeTurn(where, text, body = {}, { begin = [], finish = [], expect = 0 } = {}) {
+  const started = turn(where, 'begin', begin);
+  assert.equal(started.code, 0, started.stdout + started.stderr);
+  if (text !== null) fs.writeFileSync(path.join(started.json.version_dir, 'scope.md'), text);
+  writeTurn(started.json.version_dir, { format: 'scope', ...body });
+  const finished = turn(where, 'finish', [`--version=${started.json.version}`, ...finish]);
+  assert.equal(finished.code, expect, finished.stdout + finished.stderr);
+  return { started: started.json, finished: finished.json, dir: started.json.version_dir };
+}
+
+const FIRST_SCOPE = [
+  '# Support inbox',
+  '',
+  'What the first release holds.',
+  '',
+  '## In scope',
+  '- Reply from the inbox',
+  '- Assign a ticket to a teammate',
+  '## Out of scope',
+  '- Bulk export',
+  '',
+].join('\n');
+
+const MARKED_SCOPE = [
+  '# Support inbox',
+  '## In scope',
+  '- [changed] Reply from the ticket view',
+  '  - was: Reply from the inbox',
+  '- Assign a ticket to a teammate',
+  '- [added] Snooze a ticket until a date',
+  '## Out of scope',
+  '- [removed] Bulk export',
+  '',
+].join('\n');
+
+test('a first written round publishes scope.md as the version, its rendered page and the manifest, and no screens', t => {
+  const where = project(t);
+  fs.mkdirSync(where.out, { recursive: true });
+  fs.writeFileSync(path.join(where.out, '.mockups.json'), '{}');
+  const record = path.join(where.root, 'run', 'turn-result.json');
+  const { finished, dir } = scopeTurn(where, FIRST_SCOPE, { fidelity: 'prototype', grounding: { digest: 'abc', stale: true }, screens: [{ slug: 'x', title: 'X' }], drop: ['y'], scope: ['Not A Slug'] }, { finish: [`--record=${record}`] });
+
+  const manifest = readJson(path.join(dir, 'manifest.json'));
+  assert.deepEqual(departures(manifest, { type: 'object', keys: MANIFEST_KEYS }), []);
+  assert.deepEqual(
+    [manifest.format, manifest.fidelity, manifest.screens, manifest.grounding_digest, manifest.grounding_stale, manifest.parent],
+    ['scope', 'sketch', [], null, false, null]);
+  assert.deepEqual(manifest.sections, [
+    { slug: 'in-scope', title: 'In scope', items: 2, added: 0, removed: 0, changed: 0 },
+    { slug: 'out-of-scope', title: 'Out of scope', items: 1, added: 0, removed: 0, changed: 0 },
+  ]);
+
+  const index = readJson(path.join(where.versions, 'index.json'));
+  assert.deepEqual(departures(index, { type: 'object', keys: VERSIONS_INDEX_KEYS }), []);
+  assert.deepEqual([index.versions[0].format, index.versions[0].changed], ['scope', []]);
+
+  assert.deepEqual(tree(dir), ['index.html', 'manifest.json', 'scope.md'], 'no .mockups.json, no pages, the input file consumed');
+  assert.deepEqual(tree(where.out).filter(rel => !rel.startsWith('versions/')), ['scope.md'], 'the flat view holds scope.md only');
+  assert.equal(fs.readFileSync(path.join(where.out, 'scope.md'), 'utf8'), FIRST_SCOPE);
+
+  assert.deepEqual([finished.format, finished.fidelity, finished.screens, finished.changed], ['scope', 'sketch', [], []]);
+  assert.equal(finished.gallery, `${SUBDIR}/versions/v001/index.html`);
+  assert.deepEqual([finished.values.screens, finished.values.changed, finished.values.format, finished.values.fidelity], ['', '', 'scope', 'sketch']);
+  const { ok, values, ...rest } = finished;
+  assert.deepEqual(readJson(record), rest);
+  assert.deepEqual(departures(rest, { type: 'object', keys: TURN_RESULT_KEYS }), []);
+
+  const page = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+  assert.match(page, /Written scope v001/);
+  assert.match(page, /Support inbox/);
+  assert.match(page, /What the first release holds\./);
+  assert.match(page, /<section id="in-scope">/);
+  assert.match(page, /href="scope\.md"/);
+  assert.doesNotMatch(page, /sections changed/, 'no earlier scope, no change count');
+  assert.doesNotMatch(page, /<script\b|<link\b|src=/, 'self-contained, no script');
+});
+
+test('a written round against a written one gets the earlier scope from begin and accepts honest marks', t => {
+  const where = project(t);
+  const first = scopeTurn(where, FIRST_SCOPE);
+  assert.equal(first.started.against_scope, null);
+  const second = scopeTurn(where, MARKED_SCOPE);
+  assert.equal(second.started.against, 'v001');
+  assert.equal(second.started.against_scope, path.join(where.versions, 'v001', 'scope.md'));
+  assert.deepEqual(second.started.screens, []);
+
+  assert.deepEqual(second.finished.changed, ['in-scope', 'out-of-scope']);
+  assert.equal(second.finished.values.changed, 'in-scope,out-of-scope');
+  const manifest = readJson(path.join(second.dir, 'manifest.json'));
+  assert.equal(manifest.parent, 'v001');
+  assert.deepEqual(manifest.sections, [
+    { slug: 'in-scope', title: 'In scope', items: 3, added: 1, removed: 0, changed: 1 },
+    { slug: 'out-of-scope', title: 'Out of scope', items: 0, added: 0, removed: 1, changed: 0 },
+  ]);
+  assert.deepEqual(readJson(path.join(where.versions, 'index.json')).versions[1].changed, ['in-scope', 'out-of-scope']);
+
+  const page = fs.readFileSync(path.join(second.dir, 'index.html'), 'utf8');
+  assert.match(page, /2 of 2 sections changed/);
+  assert.match(page, /href="\.\.\/v001\/index\.html">Previous version: v001</);
+  assert.match(page, /Added<\/span>/);
+  assert.match(page, /Removed<\/span>/);
+  assert.match(page, /was: Reply from the inbox/);
+});
+
+test('a written round from an html or an ascii version publishes unmarked and links the screens it was written from', async t => {
+  for (const [format, link] of [['html', 'index.html'], ['ascii', 'ascii-mockups.md']]) {
+    await t.test(format, () => {
+      const where = project(t);
+      const started = turn(where, 'begin');
+      if (format === 'ascii') fs.writeFileSync(path.join(started.json.version_dir, 'ascii-mockups.md'), '# Mockups\n\n## Home {#home}\n');
+      writeTurn(started.json.version_dir, { format, screens: [{ slug: 'home', title: 'Home', html: '<p>home</p>' }] });
+      assert.equal(turn(where, 'finish', ['--version=v001']).code, 0);
+
+      const written = scopeTurn(where, FIRST_SCOPE);
+      assert.equal(written.started.against_scope, null);
+      assert.deepEqual(written.started.screens, [{ slug: 'home', title: 'Home' }]);
+      const manifest = readJson(path.join(written.dir, 'manifest.json'));
+      assert.deepEqual([manifest.parent, manifest.screens], ['v001', []]);
+      assert.deepEqual(written.finished.changed, []);
+      const page = fs.readFileSync(path.join(written.dir, 'index.html'), 'utf8');
+      assert.ok(page.includes(`href="../v001/${link}">Written from the screens of v001</a>`), page);
+      assert.equal(fs.existsSync(path.join(where.out, 'home.html')), false, 'the screens version\'s flat page is gone');
+      assert.equal(fs.existsSync(path.join(where.out, '.mockups.json')), false);
+      assert.equal(fs.existsSync(path.join(where.out, 'ascii-mockups.md')), false);
+    });
+  }
+});
+
+test('a three-round written chain starts each round from the stripped earlier scope', t => {
+  const where = project(t);
+  scopeTurn(where, FIRST_SCOPE);
+  scopeTurn(where, MARKED_SCOPE);
+  // The earlier round's tags and was line are not part of its text, and the removed item is gone from it.
+  const third = scopeTurn(where, [
+    '## In scope',
+    '- Reply from the ticket view',
+    '- Assign a ticket to a teammate',
+    '- [removed] Snooze a ticket until a date',
+    '## Out of scope',
+    '- [added] Bulk export',
+    '',
+  ].join('\n'));
+  assert.deepEqual(third.finished.changed, ['in-scope', 'out-of-scope']);
+  assert.deepEqual(readJson(path.join(third.dir, 'manifest.json')).sections.map(each => [each.items, each.added, each.removed]), [[2, 0, 1], [1, 1, 0]]);
+
+  // "Bulk export" was removed in v002, so it is not an earlier item to keep unmarked.
+  const refused = scopeTurn(where, '## In scope\n- Reply from the ticket view\n- Assign a ticket to a teammate\n- Snooze a ticket until a date\n## Out of scope\n- Bulk export\n', { against: 'v002' }, { begin: ['--against=v002'], expect: 1 });
+  assert.equal(refused.finished.code, 'scope-marks-invalid');
+  assert.match(refused.finished.message, /"Bulk export"/);
+  assert.doesNotMatch(refused.finished.message, /Snooze|Reply/, 'only the removed item is a problem');
+});
+
+test('finish refuses a dishonest or empty written scope and a missing scope.md, writing nothing and keeping both inputs', async t => {
+  const where = project(t);
+  scopeTurn(where, '## Do\n- One\n- Two\n## Later\n- Three\n');
+  const html = project(t);
+  wholeTurn(html, { screens: [{ slug: 'a', title: 'A', html: '<p>a</p>' }] });
+
+  const cases = [
+    ['an unmarked new item', '## Do\n- One\n- Two\n- New\n## Later\n- Three\n', 'scope-marks-invalid'],
+    ['an [added] item that existed', '## Do\n- One\n- [added] Two\n## Later\n- Three\n', 'scope-marks-invalid'],
+    ['a [removed] item that never existed', '## Do\n- One\n- Two\n- [removed] Ghost\n## Later\n- Three\n', 'scope-marks-invalid'],
+    ['a false was line', '## Do\n- One\n- [changed] Deux\n  - was: Zwei\n## Later\n- Three\n', 'scope-marks-invalid'],
+    ['a [changed] item with no was line', '## Do\n- One\n- [changed] Deux\n## Later\n- Three\n', 'scope-marks-invalid'],
+    ['a was line on an unmarked item', '## Do\n- One\n- Two\n  - was: One\n## Later\n- Three\n', 'scope-marks-invalid'],
+    ['an earlier item gone unmarked', '## Do\n- One\n## Later\n- Three\n', 'scope-marks-invalid'],
+    ['an absent earlier section that held items', '## Do\n- One\n- Two\n', 'scope-marks-invalid'],
+    ['a duplicate heading', '## Do\n- One\n- Two\n## Later\n- Three\n## Do\n- [added] Four\n', 'scope-marks-invalid'],
+    ['a duplicate item text', '## Do\n- One\n- Two\n- [added] One\n## Later\n- Three\n', 'scope-marks-invalid'],
+    ['an empty scope', '## Do\n- [removed] One\n- [removed] Two\n## Later\n- [removed] Three\n', 'scope-empty'],
+    ['a missing scope.md', null, 'turn-file-missing'],
+  ];
+  for (const [what, text, code] of cases) {
+    await t.test(what, () => {
+      const indexBefore = fs.readFileSync(path.join(where.versions, 'index.json'), 'utf8');
+      const flatBefore = tree(where.out).filter(rel => !rel.startsWith('versions/'));
+      const refused = scopeTurn(where, text, {}, { begin: ['--against=v001'], expect: 1 });
+      assert.deepEqual([refused.finished.ok, refused.finished.code], [false, code]);
+      assert.deepEqual(tree(refused.dir), text === null ? ['.turn.json'] : ['.turn.json', 'scope.md'], 'both inputs kept, nothing written');
+      assert.equal(fs.readFileSync(path.join(where.versions, 'index.json'), 'utf8'), indexBefore);
+      assert.deepEqual(tree(where.out).filter(rel => !rel.startsWith('versions/')), flatBefore);
+    });
+  }
+
+  await t.test('a mark against an html version', () => {
+    const refused = scopeTurn(html, '## Do\n- [added] One\n', {}, { expect: 1 });
+    assert.equal(refused.finished.code, 'scope-marks-invalid');
+    assert.deepEqual(tree(refused.dir), ['.turn.json', 'scope.md']);
+  });
+});
+
+test('an html round after a written version carries nothing over and clears the flat scope.md; every entry carries its format', t => {
+  const where = project(t);
+  scopeTurn(where, FIRST_SCOPE);
+  const started = turn(where, 'begin');
+  assert.equal(started.json.against_scope, path.join(where.versions, 'v001', 'scope.md'), 'a screens round gets the scope as context too');
+  writeTurn(started.json.version_dir, { screens: [{ slug: 'inbox', title: 'Inbox', html: '<p>inbox</p>' }] });
+  const finished = turn(where, 'finish', [`--version=${started.json.version}`]);
+  assert.equal(finished.code, 0, finished.stdout + finished.stderr);
+  assert.deepEqual(finished.json.screens, ['inbox']);
+  assert.equal(fs.existsSync(path.join(where.out, 'scope.md')), false, 'the flat scope.md is removed');
+  assert.ok(fs.existsSync(path.join(where.out, 'inbox.html')));
+  assert.ok(fs.existsSync(path.join(where.out, '.mockups.json')));
+
+  const ascii = turn(where, 'begin');
+  fs.writeFileSync(path.join(ascii.json.version_dir, 'ascii-mockups.md'), '# Mockups\n\n## Inbox {#inbox}\n');
+  writeTurn(ascii.json.version_dir, { format: 'ascii', screens: [{ slug: 'inbox', title: 'Inbox' }] });
+  assert.equal(turn(where, 'finish', [`--version=${ascii.json.version}`]).code, 0);
+  assert.deepEqual(readJson(path.join(where.versions, 'index.json')).versions.map(each => each.format), ['scope', 'html', 'ascii']);
+});
+
+test('--index writes one scope row for a written latest, and a screens round after it removes that row', t => {
+  const where = project(t);
+  const indexRel = 'analysis/design-context/INDEX.md';
+  const indexFile = path.join(where.task, indexRel);
+  const args = { finish: [`--index=${indexRel}`] };
+  wholeTurn(where, { screens: [{ slug: 'a', title: 'A', html: '<p>a</p>' }] }, args);
+  scopeTurn(where, FIRST_SCOPE, {}, args);
+  let text = fs.readFileSync(indexFile, 'utf8');
+  assert.match(text, new RegExp(`^\\| scope:v002 \\| scope \\| ${SUBDIR}/scope\\.md \\| Support inbox \\|$`, 'm'));
+  assert.doesNotMatch(text, /screen:a /, 'the owned screen rows are replaced');
+
+  scopeTurn(where, '## In scope\n- [removed] Reply from the inbox\n- [removed] Assign a ticket to a teammate\n## Out of scope\n- Bulk export\n', {}, args);
+  text = fs.readFileSync(indexFile, 'utf8');
+  assert.match(text, new RegExp(`^\\| scope:v003 \\| scope \\| ${SUBDIR}/scope\\.md \\| Written scope \\|$`, 'm'), 'no title, the fallback description');
+  assert.doesNotMatch(text, /scope:v002/);
+
+  wholeTurn(where, { screens: [{ slug: 'b', title: 'B', html: '<p>b</p>' }] }, args);
+  text = fs.readFileSync(indexFile, 'utf8');
+  assert.doesNotMatch(text, /\| scope:/);
+  assert.match(text, new RegExp(`^\\| screen:b \\| screen \\| ${SUBDIR}/b\\.html \\| B \\|$`, 'm'));
+});
+
+test('a written --preview writes index.html and the manifest only, publishes nothing and keeps both inputs', t => {
+  const where = project(t);
+  const started = turn(where, 'begin');
+  fs.writeFileSync(path.join(started.json.version_dir, 'scope.md'), FIRST_SCOPE);
+  writeTurn(started.json.version_dir, { format: 'scope' });
+  const before = tree(where.root).filter(rel => !rel.includes('/versions/v001/'));
+  const preview = turn(where, 'finish', ['--version=v001', '--preview']);
+  assert.equal(preview.code, 0, preview.stdout + preview.stderr);
+  assert.equal(preview.json.preview, true);
+  assert.deepEqual(tree(started.json.version_dir), ['.turn.json', 'index.html', 'manifest.json', 'scope.md']);
+  assert.deepEqual(tree(where.root).filter(rel => !rel.includes('/versions/v001/')), before, 'nothing outside the version folder');
+  assert.equal(fs.existsSync(path.join(where.versions, 'index.json')), false, 'nothing published');
+});
+
+test('a linked or non-UTF-8 scope.md is refused turn-file-malformed, with nothing written', async t => {
+  const cases = [
+    ['non-UTF-8 bytes', where => fs.writeFileSync(path.join(where.dir, 'scope.md'), Buffer.from([0x23, 0x20, 0xff, 0xfe, 0x0a]))],
+    ['a symbolic link', where => {
+      const target = path.join(where.root, 'elsewhere.md');
+      fs.writeFileSync(target, FIRST_SCOPE);
+      fs.symlinkSync(target, path.join(where.dir, 'scope.md'));
+    }],
+  ];
+  for (const [what, place] of cases) {
+    await t.test(what, t2 => {
+      const where = project(t2);
+      const started = turn(where, 'begin');
+      place({ root: where.root, dir: started.json.version_dir });
+      writeTurn(started.json.version_dir, { format: 'scope' });
+      const refused = turn(where, 'finish', ['--version=v001']);
+      assert.equal(refused.code, 1, refused.stdout + refused.stderr);
+      assert.deepEqual([refused.json.ok, refused.json.code], [false, 'turn-file-malformed']);
+      assert.equal(fs.existsSync(path.join(where.versions, 'index.json')), false);
+      assert.equal(fs.existsSync(path.join(started.json.version_dir, 'index.html')), false);
+      assert.ok(fs.existsSync(path.join(started.json.version_dir, '.turn.json')), 'the input file is kept');
+    });
+  }
+});
+
+test('an earlier written version holding a duplicate is refused index-malformed, naming the duplicate', t => {
+  const where = project(t);
+  scopeTurn(where, FIRST_SCOPE);
+  // Damage the published version after the fact: the same item twice.
+  fs.writeFileSync(path.join(where.versions, 'v001', 'scope.md'), '## In scope\n- Reply from the inbox\n- Reply from the inbox\n');
+  const refused = scopeTurn(where, '## In scope\n- Reply from the inbox\n', {}, { begin: ['--against=v001'], expect: 1 });
+  assert.equal(refused.finished.code, 'index-malformed');
+  assert.match(refused.finished.message, /"Reply from the inbox"/);
+  assert.deepEqual(tree(refused.dir), ['.turn.json', 'scope.md'], 'both inputs kept, nothing written');
+});
+
+test('an earlier written version holding an empty item is refused index-malformed, naming its line', t => {
+  const where = project(t);
+  scopeTurn(where, FIRST_SCOPE);
+  // A hand-edited published version: an item with no text left once its mark is taken off.
+  fs.writeFileSync(path.join(where.versions, 'v001', 'scope.md'), '## In scope\n- Reply from the inbox\n- [added]\n');
+  const refused = scopeTurn(where, '## In scope\n- Reply from the inbox\n', {}, { begin: ['--against=v001'], expect: 1 });
+  assert.equal(refused.finished.code, 'index-malformed');
+  assert.match(refused.finished.message, /an empty item of section "In scope" \(line 3\)/);
+  assert.deepEqual(tree(refused.dir), ['.turn.json', 'scope.md'], 'both inputs kept, nothing written');
+});
+
+test('a written round on a written version with no rendered page links that version\'s scope.md', t => {
+  const where = project(t);
+  scopeTurn(where, FIRST_SCOPE);
+  // A written version drawn by hand has its scope.md and manifest, and no index.html.
+  fs.unlinkSync(path.join(where.versions, 'v001', 'index.html'));
+  const second = scopeTurn(where, MARKED_SCOPE);
+  const page = fs.readFileSync(path.join(second.dir, 'index.html'), 'utf8');
+  assert.match(page, /href="\.\.\/v001\/scope\.md">Previous version: v001</);
+  assert.doesNotMatch(page, /href="\.\.\/v001\/index\.html"/);
+});
+
+test('a written page escapes HTML in headings, items, was lines and prose', t => {
+  const where = project(t);
+  const { dir } = scopeTurn(where, [
+    '# Plan <img src=x onerror=alert(1)>',
+    '',
+    'Prose with <script>alert("p")</script> & more.',
+    '',
+    '## Heading <b>bold</b>',
+    '- Item <i>one</i> & "two"',
+    '',
+  ].join('\n'));
+  const page = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+  assert.doesNotMatch(page, /<script\b|<img\b|<b>bold|<i>one/);
+  assert.match(page, /&lt;script&gt;/);
+  assert.match(page, /Heading &lt;b&gt;bold&lt;\/b&gt;/);
+  assert.match(page, /Item &lt;i&gt;one&lt;\/i&gt; &amp; (&quot;|&#34;)two(&quot;|&#34;)/);
+
+  const second = scopeTurn(where, [
+    '## Heading <b>bold</b>',
+    '- [changed] Item <u>new</u>',
+    '  - was: Item <i>one</i> & "two"',
+    '',
+  ].join('\n'));
+  const marked = fs.readFileSync(path.join(second.dir, 'index.html'), 'utf8');
+  assert.doesNotMatch(marked, /<u>new|<i>one/);
+  assert.match(marked, /was: Item &lt;i&gt;one&lt;\/i&gt;/);
+});

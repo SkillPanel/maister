@@ -67,7 +67,7 @@ could pick, never a strawman beside the favourite.
 one sketch turn in this session — never through the workflow, and with no run context: one small
 screen per option, so the options can be compared side by side in one gallery — not a design pass.
 Pass `task_path` the task directory (step 6), `output_subdir: mockups`, `fidelity: sketch`,
-`emit_index_rows: false`, `format` from `.maister/config.yml`'s `mockup_format` (default `html`),
+`emit_index_rows: false`, `format` from `.maister/config.yml`'s `mockup_format` (default `html`; `mockup_format` takes `html` or `ascii`, any other value is `html`, and quick design passes the replaced value to the turn's `notes`),
 `scope` the options' slugs, and as `brief` the options and what each one changes on screen. No
 `record`: quick-design keeps no run record. Each option is one screen, its slug the option's slug
 (its name in kebab case) and its title the option's name, with the area added when two areas share

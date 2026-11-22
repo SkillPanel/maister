@@ -31,8 +31,12 @@ export const TURN_NODE = 'turn';
 /** The version `grounding.json` carries, raised when its shape changes in a way a reader must know. */
 export const GROUNDING_SCHEMA_VERSION = 1;
 
-/** The formats a version can be written in. */
-export const FORMATS = ['html', 'ascii'];
+/**
+ * The formats a version can be written in: drawn screens (`html`, `ascii`), or
+ * a written scope (`scope`), a version that is its `scope.md` and holds no
+ * screens.
+ */
+export const FORMATS = ['html', 'ascii', 'scope'];
 
 /** How far a version goes: still screens, or a working page the screens are exported from. */
 export const FIDELITIES = ['sketch', 'prototype'];
@@ -51,6 +55,7 @@ const text = { type: 'string', required: true };
 const optionalText = { type: 'string', required: false };
 const nullableText = { type: 'string|null', required: true };
 const flag = { type: 'boolean', required: true };
+const count = { type: 'integer', required: true };
 const strings = required => ({ type: 'array', required, items: { type: 'string' } });
 const reasons = required => ({ type: 'array', required, items: { type: 'string', values: DEGRADED_REASONS } });
 
@@ -111,8 +116,10 @@ export const NEXT_TURN = {
 
 /**
  * What a turn returns, and what `turn-result.json` holds: `finish`'s output
- * minus `ok` and `values`. `screens` and `changed` are slug lists; `gallery`
- * is `versions/<version>/index.html` relative to `task_path`, null for ASCII;
+ * minus `ok` and `values`. `screens` and `changed` are slug lists (for a
+ * written version, `screens` is empty and `changed` holds section slugs);
+ * `gallery` is `versions/<version>/index.html` relative to `task_path`, null
+ * for ASCII;
  * `task_path` is the target, relative to the project root.
  */
 export const TURN_RESULT_KEYS = {
@@ -149,6 +156,7 @@ export const LAYOUT = {
       ascii: 'versions/<version>/ascii-mockups.md',
       prototype: 'versions/<version>/prototype.html',
       mockups_json: 'versions/<version>/.mockups.json',
+      scope: 'versions/<version>/scope.md',
     },
     transient: ['versions/<version>/.turn.json', 'versions/<version>/.frames.json'],
   },
@@ -156,18 +164,25 @@ export const LAYOUT = {
     pages: '<slug>.html',
     ascii: 'ascii-mockups.md',
     mockups_json: '.mockups.json',
+    scope: 'scope.md',
   },
   index_rows: '<task_path>/analysis/design-context/INDEX.md',
   note: 'No per-turn design-context/design-resources.md is written: the manifest\'s grounding_digest and grounding_stale record what a turn grounded on, and the grounding pack holds the resolved values.',
+  scope_note: 'A written version (format scope) holds scope.md and its rendered index.html, with screens empty and no pages or .mockups.json; one written without Node holds scope.md alone.',
 };
 
-/** One entry of `versions/index.json`, oldest first. */
+/**
+ * One entry of `versions/index.json`, oldest first. `format` is written on
+ * every new entry; an older entry has none, and a reader falls back to the
+ * version's manifest.
+ */
 const VERSION_ENTRY = {
   version: text,
   created: text,
   note: text,
   parent: nullableText,
   changed: strings(true),
+  format: { type: 'string', required: false, values: FORMATS },
 };
 
 /** `versions/index.json`. `bookmarked` is edited by hand; no verb writes it, and `finish` keeps it as found. */
@@ -186,7 +201,17 @@ const MANIFEST_SCREEN = {
   behaviour: strings(false),
 };
 
-/** `versions/<version>/manifest.json`. */
+/** One section of a written version: its slug, its heading, how many items it holds and how many carry each mark. */
+const MANIFEST_SECTION = {
+  slug: text,
+  title: text,
+  items: count,
+  added: count,
+  removed: count,
+  changed: count,
+};
+
+/** `versions/<version>/manifest.json`. A written version has `screens` empty and its `sections` listed. */
 export const MANIFEST_KEYS = {
   version: text,
   created: text,
@@ -196,6 +221,7 @@ export const MANIFEST_KEYS = {
   fidelity: { type: 'string', required: true, values: FIDELITIES },
   prototype: optionalText,
   screens: { type: 'array', required: true, items: { type: 'object', keys: MANIFEST_SCREEN } },
+  sections: { type: 'array', required: false, items: { type: 'object', keys: MANIFEST_SECTION } },
   grounding_digest: nullableText,
   grounding_stale: flag,
   degraded: reasons(false),

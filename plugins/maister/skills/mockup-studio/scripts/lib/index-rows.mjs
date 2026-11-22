@@ -7,7 +7,11 @@
  * Source is the flat page (`<subdir>/<slug>.html`) or the ASCII anchor
  * (`<subdir>/ascii-mockups.md#<slug>`) of a slug in the previous latest
  * version or the new one; ownership is by slug, never by folder, so an
- * imported page in the same folder keeps its row. Owned rows are replaced in
+ * imported page in the same folder keeps its row. The flat written scope
+ * (`<subdir>/scope.md`) is always the studio's: a written latest version
+ * writes one row for it, `scope:<version>` of Type `scope` described by the
+ * scope's title, in place of the owned screen rows, and a screens latest
+ * version removes that row. Owned rows are replaced in
  * place, where the first of them stood; every other row and all text around
  * the table is kept. With no such table one is appended, and a missing file is
  * created. No Source ever points into `versions/`.
@@ -31,9 +35,15 @@ function row(id, type, source, description) {
   return `| ${cell(id)} | ${cell(type)} | ${cell(source)} | ${cell(description)} |`;
 }
 
-/** The Source a slug's rows carry, by format. */
+/** The Source a slug's rows carry, by format; a written version's one row has no slug. */
 export function sourceOf(subdir, format, slug) {
+  if (format === 'scope') return `${subdir}/scope.md`;
   return format === 'ascii' ? `${subdir}/ascii-mockups.md#${slug}` : `${subdir}/${slug}.html`;
+}
+
+/** The one row of a written version. */
+function scopeRow(subdir, scope) {
+  return row(`scope:${scope.version}`, 'scope', sourceOf(subdir, 'scope'), scope.title ?? 'Written scope');
 }
 
 /** The generated rows of one screen: its screen row, then a row per component. */
@@ -61,24 +71,26 @@ const isHeader = line => cells(line).join('|').toLowerCase() === 'id|type|source
  * `existing` is the file's text, or null when there is none. `owned` is every
  * slug of the previous latest version and the new one. `screens` are the new
  * version's screens in order, each with `carried` true when it came over
- * unchanged from `against`.
+ * unchanged from `against`. `scope` (`{version, title}`, the title null when
+ * the scope has none) is given for a written version, whose screens are none.
  */
-export function rewriteIndex(existing, { subdir, format, owned, screens }) {
-  const ownedSources = new Set();
+export function rewriteIndex(existing, { subdir, format, owned, screens, scope = null }) {
+  const ownedSources = new Set([sourceOf(subdir, 'scope')]);
   for (const slug of owned) {
     ownedSources.add(sourceOf(subdir, 'html', slug));
     ownedSources.add(sourceOf(subdir, 'ascii', slug));
   }
+  const fresh = () => (format === 'scope' ? [scopeRow(subdir, scope)] : screens.flatMap(screen => screenRows(subdir, format, screen)));
 
   if (existing === null) {
-    const rows = screens.flatMap(screen => screenRows(subdir, format, screen));
+    const rows = fresh();
     return ['# Design context index', '', HEADER, SEPARATOR, ...rows, ''].join('\n');
   }
 
   const lines = existing.split('\n');
   const header = lines.findIndex(isHeader);
   if (header === -1) {
-    const rows = screens.flatMap(screen => screenRows(subdir, format, screen));
+    const rows = fresh();
     const body = existing.endsWith('\n') ? existing : `${existing}\n`;
     return `${body}\n${[HEADER, SEPARATOR, ...rows].join('\n')}\n`;
   }
@@ -100,7 +112,7 @@ export function rewriteIndex(existing, { subdir, format, owned, screens }) {
     }
   }
 
-  const rows = screens.flatMap(screen => {
+  const rows = format === 'scope' ? fresh() : screens.flatMap(screen => {
     const previous = existingBySource.get(sourceOf(subdir, format, screen.slug));
     return screen.carried && previous ? previous : screenRows(subdir, format, screen);
   });

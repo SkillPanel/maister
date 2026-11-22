@@ -313,3 +313,50 @@ test('start refuses a missing root and busy ports, and a malformed flag is a usa
   assert.equal(run(SERVER, ['start', '--root=x', '--port=1']).code, 2);
   assert.equal(run(SERVER, ['serve-forever', '--root=x']).code, 2);
 });
+
+/** A published latest version with the given entry format, manifest text and files; `/` is then requested. */
+async function startPage(t, { entry = {}, manifest = null, files = [] }) {
+  const { root } = folder(t);
+  const dir = path.join(root, 'versions', 'v001');
+  fs.rmSync(path.join(dir, 'index.html'));
+  fs.writeFileSync(path.join(root, 'versions', 'index.json'), JSON.stringify({
+    latest: 'v001', versions: [{ version: 'v001', created: '2026-01-01T00:00:00Z', note: '', parent: null, changed: [], ...entry }],
+  }));
+  if (manifest !== null) fs.writeFileSync(path.join(dir, 'manifest.json'), manifest);
+  for (const file of files) fs.writeFileSync(path.join(dir, file), file.endsWith('.md') ? '# page\n' : '<!doctype html>');
+  const { json } = start(root);
+  const redirect = await request(json.port, { target: '/' });
+  assert.equal(redirect.status, 302);
+  const page = await request(json.port, { target: redirect.headers.location });
+  return { location: redirect.headers.location, page };
+}
+
+test('/ redirects to ascii-mockups.md for an ascii latest named by its index entry', { skip: busy(1) }, async t => {
+  const { location, page } = await startPage(t, { entry: { format: 'ascii' }, files: ['ascii-mockups.md'] });
+  assert.equal(location, '/versions/v001/ascii-mockups.md');
+  assert.equal(page.status, 200);
+  assert.match(page.headers['content-type'], /^text\/markdown/);
+});
+
+test('/ reads the manifest when the entry has no format, and an unreadable manifest counts as html', { skip: busy(1) }, async t => {
+  const ascii = await startPage(t, { manifest: JSON.stringify({ format: 'ascii' }), files: ['ascii-mockups.md'] });
+  assert.equal(ascii.location, '/versions/v001/ascii-mockups.md');
+  assert.equal(ascii.page.status, 200);
+  stopHard(started.pop());
+  const broken = await startPage(t, { manifest: '{not json', files: ['index.html'] });
+  assert.equal(broken.location, '/versions/v001/index.html');
+  assert.equal(broken.page.status, 200);
+});
+
+test('/ redirects to index.html for a written latest that has one', { skip: busy(1) }, async t => {
+  const { location, page } = await startPage(t, { entry: { format: 'scope' }, files: ['index.html', 'scope.md'] });
+  assert.equal(location, '/versions/v001/index.html');
+  assert.equal(page.status, 200);
+});
+
+test('/ redirects to scope.md for a written latest with no index.html', { skip: busy(1) }, async t => {
+  const { location, page } = await startPage(t, { entry: { format: 'scope' }, files: ['scope.md'] });
+  assert.equal(location, '/versions/v001/scope.md');
+  assert.equal(page.status, 200);
+  assert.match(page.headers['content-type'], /^text\/markdown/);
+});

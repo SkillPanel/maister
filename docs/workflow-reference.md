@@ -521,7 +521,7 @@ Artifact paths are relative to the run's task directory.
 
 | Step | Artifacts | Values |
 |---|---|---|
-| `turn` | `turn_result`: `turn-result.json` | `against` (id)<br>`changed` (id)<br>`degraded` (bool)<br>`fidelity` (one of sketch, prototype)<br>`format` (one of html, ascii)<br>`notes_count` (id)<br>`screens` (id)<br>`version` (id) |
+| `turn` | `turn_result`: `turn-result.json` | `against` (id)<br>`changed` (id)<br>`degraded` (bool)<br>`fidelity` (one of sketch, prototype)<br>`format` (one of html, ascii, scope)<br>`notes_count` (id)<br>`screens` (id)<br>`version` (id) |
 
 ### What a run hands back
 

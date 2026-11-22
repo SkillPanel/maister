@@ -180,7 +180,7 @@ The project profile and the reviewers' models are set in [Configuration](docs/co
 ## Design before you build
 
 - **`/maister:product-design`** turns a rough idea into a brief. It explores the project, proposes the scope, asks each design decision with sketches of its options, and ends with the final screens.
-- **`/maister:mockup-studio`** draws one new version of a set of mockups each time you call it, and keeps every earlier version. Screens are drawn in your product's own colours, fonts, layout and copy, harvested from the codebase. They come as HTML pages with a gallery, or as ASCII in the terminal.
+- **`/maister:mockup-studio`** draws one new version of a set of mockups each time you call it, and keeps every earlier version. Screens are drawn in your product's own colours, fonts, layout and copy, harvested from the codebase. They come as HTML pages with a gallery, or as ASCII in the terminal; for one turn it can also write a scope as text, a list of what is in and out, with each change marked.
 - **`/maister:quick-design`** settles one small question: the options, a recommendation, your decision, a one-page record.
 
 Product design and quick design feed development. Pass the task with `--design`, and the chosen screens become binding references for the plan, the implementation and the browser checks.

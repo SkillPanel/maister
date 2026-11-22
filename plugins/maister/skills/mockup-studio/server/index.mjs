@@ -30,7 +30,9 @@
  *
  * Routes, GET and HEAD only: `/status` → `{status: "ok", root, port, pid}`;
  * `/` → a redirect to `versions/<latest>/index.html`, `latest` read from
- * `versions/index.json`; any other path → the file at that path under the
+ * `versions/index.json` (`ascii-mockups.md` for an ascii version, `scope.md` for
+ * a scope version with no `index.html`; the format is the index entry's, else
+ * the version's `manifest.json`, and unreadable counts as html); any other path → the file at that path under the
  * root. A path that leaves the root, holds a dot segment or names a dot-file
  * gets 404, and so does a directory. Any other method gets 405. A request
  * whose `Host` is not `127.0.0.1:<port>` or `localhost:<port>` gets 403, which
@@ -56,6 +58,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { commit, Refusal } from '../../../lib/canonical.mjs';
+import { FORMATS } from '../scripts/lib/shapes.mjs';
 
 const EXIT = { OK: 0, REFUSED: 1, INTERNAL: 2 };
 
@@ -263,10 +266,30 @@ function segmentsOf(rawUrl) {
   return segments;
 }
 
+/** The format of one version: the index entry's `format`, else its manifest's; unreadable or unknown is html. */
+function formatOf(root, index, version) {
+  const known = value => (FORMATS.includes(value) ? value : null);
+  const entry = Array.isArray(index.versions) ? index.versions.find(item => item?.version === version) : null;
+  const fromEntry = known(entry?.format);
+  if (fromEntry) return fromEntry;
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'versions', version, 'manifest.json'), 'utf8'));
+    return known(manifest?.format) ?? 'html';
+  } catch {
+    return 'html';
+  }
+}
+
 function latestGallery(root) {
   try {
     const index = JSON.parse(fs.readFileSync(path.join(root, 'versions', 'index.json'), 'utf8'));
-    if (typeof index?.latest === 'string' && /^v\d{3,}$/.test(index.latest)) return `/versions/${index.latest}/index.html`;
+    if (typeof index?.latest === 'string' && /^v\d{3,}$/.test(index.latest)) {
+      const base = `/versions/${index.latest}`;
+      const format = formatOf(root, index, index.latest);
+      if (format === 'ascii') return `${base}/ascii-mockups.md`;
+      if (format === 'scope' && !fs.existsSync(path.join(root, 'versions', index.latest, 'index.html'))) return `${base}/scope.md`;
+      return `${base}/index.html`;
+    }
   } catch {
     // no published version yet
   }

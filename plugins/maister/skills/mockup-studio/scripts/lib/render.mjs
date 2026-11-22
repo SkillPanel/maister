@@ -18,6 +18,12 @@
  * `sandbox` with scripts off), never the studio page with its title bar, tabs
  * and notes around it.
  *
+ * A written version's page is its `scope.md` rendered: self-contained like the
+ * gallery and on its base styles, with no script, every text escaped and no
+ * markdown formatting read. Each section is anchored by its slug; marked items
+ * are highlighted, removed ones struck through, and a changed item shows the
+ * text it replaced.
+ *
  * Pure: no I/O. Zero dependencies, Node >= 20.
  */
 
@@ -126,4 +132,102 @@ export function mockupsJson(screens) {
       annotations: screen.annotations ?? [],
     })),
   };
+}
+
+const SCOPE_CSS = `
+main.scope { max-width: 860px; margin: 0 auto; padding: 1.5rem; }
+.scope section { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+.scope h2 { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.5rem; font-size: 1.05rem; }
+.scope p { margin: 0.5rem 0; color: #444; white-space: pre-wrap; }
+.scope ul { margin: 0.5rem 0; padding-left: 1.25rem; }
+.scope li { margin: 0.25rem 0; padding: 0.15rem 0.35rem; border-radius: 3px; }
+.scope .lead { margin-bottom: 1rem; }
+.added, .removed { font-size: 0.75rem; font-weight: 600; color: #fff; border-radius: 3px; padding: 0.1rem 0.4rem; margin-right: 0.4rem; }
+.added { background: #15803d; }
+.removed { background: #6b7280; }
+li .changed { margin-right: 0.4rem; }
+li.mark-added { background: #f0fdf4; }
+li.mark-changed { background: #eff6ff; }
+li.mark-removed { color: #6b7280; }
+li.mark-removed .text { text-decoration: line-through; }
+.was { display: block; color: #6b7280; font-size: 0.85rem; text-decoration: line-through; }
+`;
+
+const BADGE = { added: 'Added', changed: 'Changed', removed: 'Removed' };
+
+function scopeItem(item) {
+  const badge = item.mark ? `<span class="${item.mark}">${BADGE[item.mark]}</span>` : '';
+  const was = item.mark === 'changed' && item.was !== null ? `<span class="was">was: ${escapeHtml(item.was)}</span>` : '';
+  return `<li${item.mark ? ` class="mark-${item.mark}"` : ''}>${badge}<span class="text">${escapeHtml(item.text)}</span>${was}</li>`;
+}
+
+/** Prose blocks as escaped paragraphs and each run of items as one list, in file order. */
+function scopeBlocks(blocks) {
+  const out = [];
+  let list = [];
+  const close = () => {
+    if (list.length) out.push(`<ul>${list.join('')}</ul>`);
+    list = [];
+  };
+  for (const block of blocks) {
+    if (block.kind === 'item') list.push(scopeItem(block));
+    else {
+      close();
+      out.push(`<p>${escapeHtml(block.text)}</p>`);
+    }
+  }
+  close();
+  return out.join('\n');
+}
+
+/**
+ * A written version's page, `versions/<version>/index.html`. `scope` is the
+ * parsed `scope.md`, `sections` the check's `[{slug, …}]` in the same order,
+ * `changed` the slugs of the sections holding a mark, `parent` and
+ * `parentFormat` the version it was written on (null for none),
+ * `parentPage` whether a written parent has its rendered `index.html` (one
+ * written by hand has only its `scope.md`, which is linked then), and
+ * `earlier` whether that version is a written one the marks were checked
+ * against.
+ */
+export function renderScope({ version, note, parent, parentFormat, parentPage, earlier, scope, sections, changed }) {
+  const marked = new Set(changed);
+  let parentLink = '';
+  if (parent) {
+    parentLink = parentFormat === 'scope'
+      ? `<a href="../${parent}/${parentPage ? 'index.html' : 'scope.md'}">Previous version: ${escapeHtml(parent)}</a>`
+      : `<a href="../${parent}/${parentFormat === 'ascii' ? 'ascii-mockups.md' : 'index.html'}">Written from the screens of ${escapeHtml(parent)}</a>`;
+  }
+  const body = scope.sections.map((section, at) => {
+    const slug = sections[at].slug;
+    return [
+      `<section id="${escapeHtml(slug)}">`,
+      `<h2>${escapeHtml(section.heading)}${marked.has(slug) ? '<span class="changed">Changed</span>' : ''}</h2>`,
+      scopeBlocks(section.blocks),
+      '</section>',
+    ].filter(line => line !== '').join('\n');
+  });
+  const lead = scope.lead.length ? `<div class="lead">${scopeBlocks(scope.lead)}</div>` : '';
+  return [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="UTF-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    `<title>Written scope ${escapeHtml(version)}</title>`,
+    `<style>${GALLERY_CSS}${SCOPE_CSS}</style>`,
+    '</head>',
+    '<body>',
+    '<header>',
+    `<h1>Written scope ${escapeHtml(version)}${earlier ? ` — ${changed.length} of ${sections.length} sections changed` : ''}</h1>`,
+    scope.title !== null ? `<p><strong>${escapeHtml(scope.title)}</strong></p>` : '',
+    note ? `<p>${escapeHtml(note)}</p>` : '',
+    parentLink ? `<p>${parentLink}</p>` : '',
+    '<p><a href="scope.md">scope.md</a></p>',
+    '</header>',
+    `<main class="scope">${lead}${body.join('\n')}</main>`,
+    '</body>',
+    '</html>',
+    '',
+  ].filter(line => line !== '').join('\n');
 }

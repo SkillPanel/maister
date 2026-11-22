@@ -115,3 +115,27 @@ test('turn N+1 is a run of its own: a second record folder over the first run\'s
   assert.equal(done.code, 0, done.stderr);
   assert.equal(done.stdout, 'RUN-COMPLETE\n');
 });
+
+test('a written turn\'s values record format scope, and run-complete accepts them', t => {
+  const run = frozen(t, { note: 'Write the scope', format: 'scope' });
+  const target = run.dir;
+  const call = (name, args) => {
+    const result = runScript(TURN, [name, `--task-path=${target}`, '--subdir=analysis/mockups', ...args], undefined, {}, run.root);
+    assert.equal(result.code, 0, result.stdout + result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const started = call('begin', []);
+  fs.writeFileSync(path.join(started.version_dir, 'scope.md'), '# Inbox\n## In scope\n- Reply to a ticket\n');
+  fs.writeFileSync(path.join(started.version_dir, '.turn.json'), JSON.stringify({
+    note: 'Write the scope', format: 'scope', fidelity: 'sketch', grounding: { digest: null, stale: false },
+  }));
+  const finished = call('finish', [`--version=${started.version}`, `--record=${path.join(run.dir, 'turn-result.json')}`]);
+  assert.equal(finished.values.format, 'scope');
+  assert.equal(finished.values.screens, '');
+
+  write(run, { task: { status: 'completed' }, nodes: { turn: { status: 'completed', values: finished.values } } });
+  assert.equal(readState(run).workflow.nodes.turn.values.format, 'scope');
+  const done = verb(['run-complete', `--state=${run.state}`]);
+  assert.equal(done.code, 0, done.stderr);
+  assert.equal(done.stdout, 'RUN-COMPLETE\n');
+});

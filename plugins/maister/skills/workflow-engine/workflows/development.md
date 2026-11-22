@@ -12,7 +12,9 @@ and the context ingests the rest of the run reads from.
 
 1. **Initialize** as `orchestrator-patterns.md` § 5 says.
 2. **Read the project configuration** for `options.mockup_format` (default
-   `html`, read later by `ui-mockups`).
+   `html`, read later by `ui-mockups`). `mockup_format` takes `html` or `ascii`;
+   any other value is `html`, recorded as `html`, and the intake names the
+   replaced value in one line of its summary.
 3. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation sections, predefined and operator-added alike. Record
