@@ -38,3 +38,17 @@ test('source chip: a host answer reads "Copilot" in a host chip, an unknown host
 test('source chip: the page styles .src.host', () => {
   assert.match(html, /\.src\.host\s*\{[^}]*var\(--/);
 });
+
+test('approval mark: an approval by the operator reads "Approved by you", a named approver as their name', () => {
+  const start = html.indexOf('function onBehalf(');
+  const marks = html.indexOf('function triageMarks(');
+  const stop = html.indexOf('\n}\n', marks) + 3;
+  const context = vm.createContext({});
+  const helpers = html.slice(html.indexOf('function esc('), html.indexOf('\n}\n', html.indexOf('function esc(')) + 3);
+  const labels = html.slice(html.indexOf('const CLASS_WORDS'), html.indexOf('\n', html.indexOf('const CLASS_WORDS')) + 1);
+  vm.runInContext(`${helpers}\n${labels}\n${html.slice(start, html.indexOf('\n}\n', start) + 3)}\n${html.slice(marks, stop)}\nthis.triageMarks = triageMarks;`, context);
+  const held = { triage: { held: true } };
+  assert.equal(context.triageMarks({ ...held, approved: { by: 'operator' } }), '<span class="src approved">Approved by you</span>');
+  assert.equal(context.triageMarks({ ...held, approved: {} }), '<span class="src approved">Approved by you</span>');
+  assert.equal(context.triageMarks({ ...held, approved: { by: 'lee' } }), '<span class="src approved">Approved by lee</span>');
+});
