@@ -73,8 +73,10 @@ or `inline`:
     `verification-go-on` when the recommended answer leaves the loop — "Continue as is" or
     "Stop" — with a warning or critical open; `verification-fix-loop` when it recommends "One
     more round", or when only info is left. With a critical open, the go-on question carries
-    `triage: {version: 1, class: approve}` in the set. The stopping question names no `default`
-    of its own: its recommended option is its default;
+    `triage: {version: 1, class: approve}` in the set, and so does the stopping question under
+    either id when `runner-step` prints `stop_triage`: the run has granted itself all the rounds
+    it may, so a person answers. The stopping question names no `default` of its own: its
+    recommended option is its default;
   - `session` — ask in session (paged as the engine's in-node questions say), record the answers
     on the node summary as the node records any answer, then `runner-step --answered`;
   - `suspend` — a request of the node's attempt, its first or a follow-up round (`runner-step`

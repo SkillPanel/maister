@@ -617,6 +617,74 @@ test('the latest stop answer of either id is read, and a run answer only when th
   }
 });
 
+test('a run grants itself one more round only after progress, and at most twice; then a person answers', t => {
+  // The freeze records whether the run's policy classes questions; no patch
+  // sets it. The writer keeps a classed item only from its own classing
+  // write, so an item stands in for one written while the run classes nothing.
+  const classes = (run, on) => {
+    const text = fs.readFileSync(run.state, 'utf8').replace(/^  classes_questions: true\n/m, '');
+    fs.writeFileSync(run.state, on ? text.replace(/^orchestrator:\n/m, 'orchestrator:\n  classes_questions: true\n') : text);
+  };
+  const own = (label, by = 'run') => ({
+    decision: label, by, question_id: 'verification-fix-loop', question: 'Two re-checks spent. What now?', answer: label,
+    ...(by === 'run' ? { triage: { version: 1, class: 'decide-alone' } } : {}),
+  });
+  const PERSON_ONLY = { version: 1, class: 'approve' };
+  const selfBounded = stderr => (stderr.match(/runner-stop-self-bounded: /g) ?? []).length;
+  /** One stopping point at `cycle`, answered by `item`: the ask, then the answered step's stderr. */
+  const stopAt = (run, cycle, item, kind = 'budget') => {
+    cycleEntry(run, cycle);
+    placeFindings(run);
+    assert.equal(record(run, stopping(cycle, { critical: 0, warning: 1 }, kind)).code, 0);
+    const asked = stepOf(run);
+    assert.equal(asked.next, 'ask');
+    const on = /classes_questions: true/.test(fs.readFileSync(run.state, 'utf8'));
+    classes(run, false);
+    write(run, { node_summaries: { [NODE]: { decisions: [item] } } });
+    classes(run, on);
+    const answered = step(run, ['--answered']);
+    assert.equal(answered.code, 0, answered.stderr);
+    return { asked, stderr: answered.stderr };
+  };
+
+  // Two rounds after progress the run takes itself; the third goes to a person.
+  const run = verifying(t);
+  classes(run, true);
+  for (const cycle of [1, 2]) {
+    const { asked, stderr } = stopAt(run, cycle, own('One more round'));
+    assert.equal(asked.stop_triage, undefined, `cycle ${cycle}`);
+    assert.equal(selfBounded(stderr), 0, stderr);
+    assert.deepEqual([decisionsOf(run, cycle).stop, decisionsOf(run, cycle).stop_by], ['more', 'run']);
+  }
+  const third = stopAt(run, 3, own('One more round'));
+  assert.deepEqual(third.asked.stop_triage, PERSON_ONLY);
+  assert.equal(selfBounded(third.stderr), 1, third.stderr);
+  assert.deepEqual([decisionsOf(run, 3).stop, decisionsOf(run, 3).stop_by], ['undecided', 'default']);
+  // A person's round is never bounded.
+  const person = stopAt(run, 4, own('One more round', 'operator'));
+  assert.deepEqual(person.asked.stop_triage, PERSON_ONLY);
+  assert.deepEqual([decisionsOf(run, 4).stop, decisionsOf(run, 4).stop_by], ['more', 'operator']);
+
+  // After a round without progress the run's own round is nobody's answer.
+  const stuck = verifying(t);
+  classes(stuck, true);
+  const none = stopAt(stuck, 1, own('One more round'), 'no_progress');
+  assert.equal(none.asked.stop_triage, undefined);
+  assert.equal(selfBounded(none.stderr), 1, none.stderr);
+  assert.equal(decisionsOf(stuck, 1).stop, 'undecided');
+  // The run's own continue there is still taken.
+  const settled = stopAt(stuck, 2, { ...own('Continue as is'), question_id: GO_ON }, 'no_progress');
+  assert.equal(selfBounded(settled.stderr), 0, settled.stderr);
+  assert.deepEqual([decisionsOf(stuck, 2).stop, decisionsOf(stuck, 2).stop_by], ['continue', 'run']);
+
+  // A run whose policy classes nothing is never printed the triage.
+  const plain = verifying(t);
+  cycleEntry(plain, 1);
+  placeFindings(plain);
+  assert.equal(record(plain, stopping(1, { critical: 0, warning: 1 })).code, 0);
+  assert.equal(stepOf(plain).stop_triage, undefined);
+});
+
 test('a stop answer that cannot be read ends undecided with a warning open, and as is with info alone', t => {
   for (const [counts, stop] of [[{ critical: 0, warning: 1 }, 'undecided'], [{ critical: 0, warning: 0, info: 2 }, 'continue']]) {
     const run = verifying(t);
