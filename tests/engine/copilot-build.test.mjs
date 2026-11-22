@@ -181,3 +181,32 @@ test('a relative output folder whose parent does not exist is created under the 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(read(path.join(cwd, 'new/parent/copilot'), '.claude-plugin/plugin.json')).name, 'maister');
 });
+
+/** Each entry of the frontmatter `skills:` list of the agent file at `file`. */
+function preloads(file) {
+  const front = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').split('\n---\n')[0];
+  const list = /^skills:\n((?:[ \t]+-[^\n]*\n?)*)/m.exec(front);
+  return list ? list[1].split('\n').map(line => line.replace(/^\s*-\s*/, '').trim()).filter(Boolean) : [];
+}
+
+test('an agent\'s skill preload names the skill as Copilot registers it, and each names a skill of the build', () => {
+  const variant = variantRoot();
+  assert.deepEqual(preloads(path.join(ROOT, 'plugins/maister/agents/docs-operator.md')), ['docs-manager']);
+  assert.deepEqual(preloads(path.join(variant, 'agents/docs-operator.md')), ['maister:docs-manager']);
+  for (const name of fs.readdirSync(path.join(variant, 'agents')).filter(file => file.endsWith('.md'))) {
+    for (const entry of preloads(path.join(variant, 'agents', name))) {
+      assert.match(entry, /^maister:[A-Za-z0-9_-]+$/, `${name} preloads ${entry}`);
+      assert.ok(fs.existsSync(path.join(variant, 'skills', entry.slice('maister:'.length), 'SKILL.md')), `${name} preloads ${entry}, which the build holds no skill for`);
+    }
+  }
+});
+
+test('an agent preloading a skill the build does not hold stops the build', t => {
+  const root = scratchRoot(t);
+  const agent = path.join(root, 'plugins/maister/agents/docs-operator.md');
+  fs.writeFileSync(agent, read(root, 'plugins/maister/agents/docs-operator.md').replace('  - docs-manager', '  - no-such-skill'));
+  const out = path.join(tempDir(t), 'copilot');
+  const result = build(['--out', slash(out)], root);
+  assert.equal(result.code, 1, result.stderr);
+  assert.match(result.stderr, /^build: .*agents\/docs-operator\.md preloads the skill no-such-skill, which the build does not hold$/m);
+});
