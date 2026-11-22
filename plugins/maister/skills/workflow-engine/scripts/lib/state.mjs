@@ -3551,8 +3551,8 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
 function refuseOutside(key, index, field, value, where) {
   throw new Refusal('state-summary-artifact-outside',
     `node_summaries.${key}.artifacts[${index}].${field} is ${JSON.stringify(value)}, which lies outside the task folder `
-    + `${where.taskPath}. Nothing was written. Name the file relative to the task folder (outputs/report.md, not `
-    + `${where.taskPath}/outputs/report.md), or leave it out of the summary: a file outside the task folder is not this run's artifact`);
+    + `${where.taskPath}. Nothing was written. Name the file relative to the task folder (outputs/research-report.md, not `
+    + `${where.taskPath}/outputs/research-report.md), or leave it out of the summary: a file outside the task folder is not this run's artifact`);
 }
 
 /**

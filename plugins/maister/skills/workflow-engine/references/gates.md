@@ -87,7 +87,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     `change`: `{risk: "list(null) now throws", tag: open, change: "keep list(null) returning
     every note"}`.
   - **`artifacts`** name each `path` and `html` relative to the task directory, the way the
-    dashboard beside them links it: `outputs/report.md`. The `writes:` line prints a declared
+    dashboard beside them links it: `outputs/research-report.md`. The `writes:` line prints a declared
     path repository-relative, for the delegate; drop the task path before listing it. Each may
     carry a `role`: `primary`, `review`, `evidence` or `log`. Evidence and
     logs are never offered for review. A node may add `metrics`, a list of
