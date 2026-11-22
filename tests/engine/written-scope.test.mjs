@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 
 import { ROOT } from '../helpers.mjs';
+import { pathToFileURL } from 'node:url';
 
 // The written-scope module of the mockup studio, called directly: it parses a
 // version's `scope.md`, strips it into the earlier scope the next round builds
@@ -10,8 +11,8 @@ import { ROOT } from '../helpers.mjs';
 // scratch folder: every case is a string in, a value or a refusal out.
 
 const LIB = path.join(ROOT, 'plugins/maister/skills/mockup-studio/scripts/lib');
-const { parseScope, stripScope, duplicates, checkScope } = await import(path.join(LIB, 'written-scope.mjs'));
-const { foldTitle } = await import(path.join(LIB, 'slugs.mjs'));
+const { parseScope, stripScope, duplicates, checkScope } = await import(pathToFileURL(path.join(LIB, 'written-scope.mjs')).href);
+const { foldTitle } = await import(pathToFileURL(path.join(LIB, 'slugs.mjs')).href);
 
 const lines = (...each) => each.join('\n');
 const items = section => section.blocks.filter(block => block.kind === 'item');
