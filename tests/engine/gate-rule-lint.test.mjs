@@ -30,15 +30,16 @@ function lintRecipe() {
   return body.map((l) => l.replace(/^\t@?/, '').replace(/\$\$/g, '$')).join('\n');
 }
 
+/** The value the shell assigns to `name`: single-quoted runs, with `\'` between them for an apostrophe. */
 function quoted(recipe, name) {
-  const m = recipe.match(new RegExp(`\\b${name}='([^']*)'`));
+  const m = recipe.match(new RegExp(`\\b${name}=((?:'[^']*'|\\\\')+)`));
   assert.ok(m, `the lint holds ${name} in single quotes`);
-  return m[1];
+  return m[1].replace(/'([^']*)'|\\'/g, (run, inner) => (inner === undefined ? "'" : inner));
 }
 
 function stepZeroSentence() {
   const text = fs.readFileSync(ENGINE_SKILL, 'utf8');
-  const m = text.match(/Invoke `AskUserQuestion` (when `orchestrator\.driver\.kind` is absent[^\n]*?§ E2\.)/);
+  const m = text.match(/Invoke `AskUserQuestion` (when `orchestrator\.driver\.kind` is absent[^\n]*?\*Driver-suspended mode\*\.)/);
   assert.ok(m, 'the engine skill carries the gate-rule sentence in Step 0');
   return m[1];
 }

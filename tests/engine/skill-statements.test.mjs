@@ -39,7 +39,7 @@ const NO_REFREEZE = [
 
 const GATE_RULE = 'Invoke `AskUserQuestion` when `orchestrator.driver.kind` is absent or `terminal`; '
   + 'ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is '
-  + '`cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.';
+  + '`cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine\'s `references/gates.md`, *Driver-suspended mode*.';
 
 const STEP_ZERO = [
   '### Step 0: Session-reminder conflict resolution (decide ONCE)',
@@ -112,7 +112,7 @@ const CONVENTION_KEYS = [
 ];
 
 const GATE_RULE_TAIL = 'ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is '
-  + '`cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.';
+  + '`cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine\'s `references/gates.md`, *Driver-suspended mode*.';
 
 /** The lines of the section headed exactly `heading`, up to the next heading of its level or above. */
 function sectionLines(heading) {
