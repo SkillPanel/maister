@@ -29,6 +29,14 @@ const WRITE_STATE = [
   'forward into the block and nothing is dropped from it.',
 ].join(' ');
 
+// The recovery for a definition changed under an open run. It is the only way
+// on any refusal of that change names, so a re-freeze the engine never offers
+// must not creep back in.
+const NO_REFREEZE = [
+  '**A changed definition never re-freezes an open run.** The graph a run froze is its graph',
+  'for its whole life, and no verb or flag replaces it.',
+].join(' ');
+
 const GATE_RULE = 'Invoke `AskUserQuestion` when `orchestrator.driver.kind` is absent or `terminal`; '
   + 'ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is '
   + '`cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.';
@@ -59,6 +67,17 @@ function skill() {
 
 test('the write-state paragraph stands word for word', () => {
   assert.ok(skill().includes(collapse(WRITE_STATE)), 'SKILL.md carries the write-state paragraph unchanged');
+});
+
+test('the no-re-freeze paragraph stands, with both ways on and the never-revert rule', () => {
+  const text = skill();
+  assert.ok(text.includes(collapse(NO_REFREEZE)), 'SKILL.md says a changed definition never re-freezes an open run');
+  const start = text.indexOf(collapse(NO_REFREEZE));
+  const paragraph = text.slice(start, text.indexOf('---', start));
+  for (const phrase of ['Put back the definition the run froze', 'start a new run from the changed definition',
+    'Never revert a person\'s own edit unasked', '`dispatch-graph-drifted`', '`subrun-graph-drifted`', '`state-workflow-frozen`']) {
+    assert.ok(paragraph.includes(phrase), `the paragraph names: ${phrase}`);
+  }
 });
 
 test('the Step 0 block, gate-rule sentence included, stands word for word', () => {

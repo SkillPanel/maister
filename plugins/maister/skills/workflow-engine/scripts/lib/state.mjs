@@ -1869,11 +1869,20 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
   // the one harmless case: it is dropped, with a note naming where node
   // updates go, and the rest of the patch lands.
   if (doc.has('workflow')) {
-    const differences = frozenDifferences(doc, derived ? { ...workflow, nodes: null } : workflow);
+    const { differences, scalars, nodes: nodeDifferences, source } = frozenDifferences(doc, derived ? { ...workflow, nodes: null } : workflow);
     if (differences.length) {
+      // A changed scalar is an attempt to re-freeze. The graph is the run's
+      // for its whole life, so the message names the two ways on rather than
+      // a write that is never accepted. A node-only difference is the usual
+      // misplaced node update and keeps its own pointer.
+      const ways = [];
+      if (scalars) {
+        ways.push('no verb re-freezes a run: to go on, put back the definition this run froze'
+          + `${typeof source === 'string' && source ? ` (${source})` : ''}, or start a new run from the changed one`);
+      }
+      if (nodeDifferences) ways.push('a later node update goes under the top-level `nodes` key, never under `workflow`');
       throw new Refusal('state-workflow-frozen',
-        `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — `
-        + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
+        `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — ${ways.join('; ')}`);
     }
     notes.push('ignored the supplied workflow block, which matches the frozen one; the freeze is written once, '
       + 'so send node updates under the top-level nodes key and never re-send workflow');
@@ -2148,11 +2157,14 @@ function missingInputs(doc, declared) {
 }
 
 /**
- * How a `workflow` patch differs from the block the file already carries, one
- * phrase per difference; empty when the patch says nothing the file does not.
- * A scalar the patch leaves out is carried forward, so only the ones it sends
- * are compared. A node entry is compared with its `pending` default and its
- * recorded `needs` filled in, because the freeze wrote it that way.
+ * How a `workflow` patch differs from the block the file already carries:
+ * `differences`, one phrase per difference, empty when the patch says nothing
+ * the file does not; whether a scalar differs (`scalars`) and whether a node
+ * entry does (`nodes`); and the frozen `source`, which the refusal of a
+ * re-freeze names. A scalar the patch leaves out is carried forward, so only
+ * the ones it sends are compared. A node entry is compared with its `pending`
+ * default and its recorded `needs` filled in, because the freeze wrote it that
+ * way.
  */
 function frozenDifferences(doc, workflow) {
   let frozen;
@@ -2166,8 +2178,14 @@ function frozenDifferences(doc, workflow) {
   const differences = [];
   const scalars = Object.keys(workflow).filter(key => key !== 'nodes' && !sameValue(workflow[key], held[key]));
   if (scalars.length) differences.push(`changes ${scalars.join(', ')}`);
+  const result = () => ({
+    differences,
+    scalars: scalars.length > 0,
+    nodes: differences.length > (scalars.length ? 1 : 0),
+    source: held.source,
+  });
   // A freeze that left its nodes to the writer says nothing about them.
-  if (workflow.nodes === null) return differences;
+  if (workflow.nodes === null) return result();
   // The reserved closing checkpoint's status entry is the writer's, never the
   // freeze's: a re-sent freeze that lacks it drops nothing.
   const dropped = frozenIds(recorded).filter(id => !Object.hasOwn(workflow.nodes, id));
@@ -2187,7 +2205,7 @@ function frozenDifferences(doc, workflow) {
       ...workflow.nodes[id],
     }, recorded[id]));
   if (rewritten.length) differences.push(`would rewrite the recorded entry of ${rewritten.join(', ')}`);
-  return differences;
+  return result();
 }
 
 /**

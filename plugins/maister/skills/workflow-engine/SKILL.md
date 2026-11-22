@@ -441,6 +441,17 @@ changes nothing, and one that differs in a node or in any scalar beside `workflo
 `graph_hash` among them — is refused with `state-workflow-frozen`. Nothing is carried
 forward into the block and nothing is dropped from it.
 
+**A changed definition never re-freezes an open run.** The graph a run froze is its graph
+for its whole life, and no verb or flag replaces it. Several things report a change: a read
+verb's `…-graph-drift` warning, a parent's `subrun-graph-drifted` and a dispatch's
+`dispatch-graph-drifted` refusal, and `state-workflow-frozen` on a `workflow` patch that
+tries to install the new graph. Each has the same two ways on. Put back the definition the
+run froze (`workflow.source`, with its overlays), and the run goes on where it stopped; an
+edit outside the graph, such as a comment or a `display:` title, never changes the hash.
+Or start a new run from the changed definition; the old run's task directory and its
+artifacts stay where they are. Never revert a person's own edit unasked: name both ways and let the
+person choose.
+
 ---
 
 ## Executing the graph
