@@ -206,7 +206,7 @@ run: the gate's stop option is the route out.
 question (§ 6, step 5): write the auditor's decision findings, as its
 structured result gives them, to `verification/spec-audit-findings.json`, each
 finding's `id` the auditor's `name`, and build the set with `finding-brief` for
-this node.
+this node (its row: the engine's `references/verbs.md`).
 
 **With question sets** (`spec-audit-findings`): asked through the cockpit as
 this node's first request, with the audit report and every fix written first.
@@ -264,7 +264,7 @@ back — a group that failed after its escalation, a skipped test step, a wave
 past the model budget — and its summary comes from the summary the hand-off
 returns. A summary whose `stopped` is set is a stop: record it as one.
 
-**After the skill returns**, run the engine's `sync-plan` verb once against
+**After the skill returns**, run the engine's `sync-plan` verb (its row: the engine's `references/verbs.md`) once against
 `implementation/implementation-plan.md`: idempotent, and a no-op without a
 companion, it catches a wave whose sync was missed. Then record what landed:
 the groups completed, the files changed and the incremental test results.

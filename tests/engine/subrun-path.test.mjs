@@ -136,10 +136,10 @@ test('subrun-path: refuses an unknown node, a node that starts no child, a run t
   assert.equal(JSON.parse(missing.stdout).code, 'subrun-path-state-unreadable');
 });
 
-test('subrun-path: every refusal it owns has a recovery row in the engine skill', () => {
-  const rows = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8').split(/\r?\n/);
+test('subrun-path: every refusal it owns has a recovery row in the engine verb reference', () => {
+  const rows = fs.readFileSync(path.join(ENGINE_DIR, 'references/verbs.md'), 'utf8').split(/\r?\n/);
   for (const code of ['subrun-path-state-unreadable', 'subrun-path-not-a-run', 'subrun-path-unknown-node', 'subrun-path-definition-unread', 'subrun-path-not-a-subrun']) {
-    assert.ok(rows.some(line => line.startsWith(`| \`${code}\` |`)), `SKILL.md has no row for ${code}`);
+    assert.ok(rows.some(line => line.startsWith(`| \`${code}\` |`)), `references/verbs.md has no row for ${code}`);
   }
-  assert.ok(rows.some(line => line.startsWith('| `subrun-path` |')), 'SKILL.md has a verb-table row');
+  assert.ok(rows.some(line => line.startsWith('| `subrun-path` |')), 'references/verbs.md has a verb-table row');
 });

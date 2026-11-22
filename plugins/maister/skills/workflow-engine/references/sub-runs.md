@@ -26,8 +26,8 @@ catches it with `on:`) before anything is created:
 5. a key the node declares under `outputs:` has no entry of that name in the child definition's
    workflow-level `outputs:` → `subrun-output-unmatched`.
 
-**The first three are run by the `subrun-path` verb; the last two by the driver, from this
-prose.** `subrun-path --state=<parent state> --node=<node>` — the call that gives the child its
+**The first three are run by the `subrun-path` verb (its row and refusals: `references/verbs.md`);
+the last two by the driver, from this prose.** `subrun-path --state=<parent state> --node=<node>` — the call that gives the child its
 directory (*The child directory name*) — refuses with the code of the first of checks 1–3 that
 fails, exit `1`, so a driver that has its directory has passed them. Checks 4 and 5 need the
 interpolated `with:` and the child's declared interface, which the driver holds at that moment, so

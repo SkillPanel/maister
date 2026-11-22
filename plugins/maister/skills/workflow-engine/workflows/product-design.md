@@ -52,8 +52,8 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    as `html`, and the intake names the replaced value in one line of its summary.
 2. **Import research** the `research` input names: its report, synthesis and
    solution exploration, where they exist, brought under
-   `context/research-context/` in one `import` call (engine § *The invocation
-   contract*), never a shell copy. Record `design_context.research_reference`
+   `context/research-context/` in one `import` call (its row: the engine's
+   `references/verbs.md`), never a shell copy. Record `design_context.research_reference`
    with the source path. Research is supporting context: a source the verb
    skips becomes `{risk: "research not imported: <each skipped file and its reason>", tag: open, change: "read it at <source path>"}`,
    and the design goes on, citing the research at its source path. Never ask
