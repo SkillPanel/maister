@@ -20,6 +20,8 @@
  *   through every function it can reach (`refusalsByVerb`);
  * - `agents`, `skills`, `commands`: the directories; `hooks`: `hooks/hooks.json`;
  *   `mcp`: the servers the manifest ships and the tool names shipped files name;
+ * - `update_branch.result`: the result file `update-branch` leaves
+ *   (`lib/interface-shapes.mjs`);
  * - `workflow_declarations`: what a definition may declare about itself
  *   (`lib/interface-shapes.mjs`), and what each built-in's definition says.
  *
@@ -162,6 +164,16 @@ export async function describe(root) {
       degraded_reasons: studio.DEGRADED_REASONS,
       formats: studio.FORMATS,
       fidelities: studio.FIDELITIES,
+    },
+    update_branch: {
+      result: {
+        version: shapes.UPDATE_BRANCH_RESULT_VERSION,
+        file: shapes.UPDATE_BRANCH_RESULT_FILE,
+        outcomes: shapes.UPDATE_BRANCH_OUTCOMES,
+        base_statuses: shapes.UPDATE_BRANCH_BASE_STATUSES,
+        deciders: shapes.UPDATE_BRANCH_DECIDERS,
+        keys: declared(shapes.UPDATE_BRANCH_RESULT),
+      },
     },
     workflows: builtins,
     workflow_declarations: {

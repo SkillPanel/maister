@@ -780,6 +780,23 @@
           "plan-unreadable"
         ]
       },
+      "update-branch-result": {
+        "flags": [
+          "checks",
+          "patch-file",
+          "result",
+          "state"
+        ],
+        "refusals": [
+          "update-branch-result-bad-commit",
+          "update-branch-result-base-not-moved",
+          "update-branch-result-checks-unreadable",
+          "update-branch-result-invalid",
+          "update-branch-result-no-repository",
+          "update-branch-result-not-merged",
+          "update-branch-result-state-unreadable"
+        ]
+      },
       "validate": {
         "flags": [
           "definition",
@@ -1189,7 +1206,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.6",
+  "interface_version": "2.7",
   "mcp": {
     "servers": [],
     "tools": [
@@ -1819,6 +1836,270 @@
       "sets",
       "answered_in"
     ]
+  },
+  "update_branch": {
+    "result": {
+      "base_statuses": [
+        "moved",
+        "unchanged",
+        "refused",
+        "left-alone",
+        "none"
+      ],
+      "deciders": [
+        "person",
+        "skill"
+      ],
+      "file": "update-branch.json",
+      "keys": {
+        "adopted": {
+          "required": true,
+          "type": "boolean"
+        },
+        "branch": {
+          "required": true,
+          "type": "string|null"
+        },
+        "checks": {
+          "keys": {
+            "checks": {
+              "items": {
+                "keys": {
+                  "command": {
+                    "required": true,
+                    "type": "string|null"
+                  },
+                  "fails_on_base": {
+                    "required": false,
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "required": true,
+                    "type": "string"
+                  },
+                  "status": {
+                    "required": true,
+                    "type": "string",
+                    "values": [
+                      "passed",
+                      "failed"
+                    ]
+                  }
+                },
+                "type": "object"
+              },
+              "required": true,
+              "type": "array"
+            },
+            "reason": {
+              "required": true,
+              "type": "string|null"
+            },
+            "status": {
+              "required": true,
+              "type": "string",
+              "values": [
+                "ran",
+                "not-run"
+              ]
+            },
+            "tests": {
+              "keys": {
+                "command": {
+                  "required": true,
+                  "type": "string|null"
+                },
+                "errors": {
+                  "required": true,
+                  "type": "integer|null"
+                },
+                "failed": {
+                  "required": true,
+                  "type": "integer|null"
+                },
+                "failed_on_base": {
+                  "required": false,
+                  "type": "integer"
+                },
+                "passed": {
+                  "required": true,
+                  "type": "integer|null"
+                },
+                "skipped": {
+                  "required": true,
+                  "type": "integer|null"
+                },
+                "status": {
+                  "required": true,
+                  "type": "string|null"
+                }
+              },
+              "required": true,
+              "type": "object|null"
+            }
+          },
+          "required": true,
+          "type": "object"
+        },
+        "conflicts": {
+          "items": {
+            "keys": {
+              "kept": {
+                "required": true,
+                "type": "string"
+              },
+              "path": {
+                "required": true,
+                "type": "string"
+              },
+              "resolved": {
+                "required": true,
+                "type": "boolean"
+              },
+              "why": {
+                "required": true,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "required": true,
+          "type": "array"
+        },
+        "driver": {
+          "required": true,
+          "type": "string"
+        },
+        "merge_commit": {
+          "required": true,
+          "type": "string|null"
+        },
+        "merged_ref": {
+          "required": true,
+          "type": "string|null"
+        },
+        "merged_tip": {
+          "required": true,
+          "type": "string|null"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "required": true,
+          "type": "array"
+        },
+        "outcome": {
+          "required": true,
+          "type": "string",
+          "values": [
+            "merged",
+            "merged-with-conflicts-resolved",
+            "up-to-date",
+            "refused",
+            "stopped"
+          ]
+        },
+        "pushed": {
+          "required": true,
+          "type": "boolean"
+        },
+        "reason": {
+          "required": true,
+          "type": "string|null"
+        },
+        "resolutions": {
+          "keys": {
+            "decided_by": {
+              "required": true,
+              "type": "string",
+              "values": [
+                "person",
+                "skill"
+              ]
+            },
+            "reason": {
+              "required": true,
+              "type": "string"
+            }
+          },
+          "required": true,
+          "type": "object|null"
+        },
+        "run": {
+          "keys": {
+            "base_status": {
+              "required": true,
+              "type": "string",
+              "values": [
+                "moved",
+                "unchanged",
+                "refused",
+                "left-alone",
+                "none"
+              ]
+            },
+            "refusal": {
+              "required": true,
+              "type": "string|null"
+            },
+            "start_commit": {
+              "keys": {
+                "from": {
+                  "required": true,
+                  "type": "string"
+                },
+                "to": {
+                  "required": true,
+                  "type": "string"
+                }
+              },
+              "required": true,
+              "type": "object|null"
+            },
+            "task_path": {
+              "required": true,
+              "type": "string"
+            }
+          },
+          "required": true,
+          "type": "object|null"
+        },
+        "skipped_runs": {
+          "items": {
+            "keys": {
+              "reason": {
+                "required": true,
+                "type": "string"
+              },
+              "task_path": {
+                "required": true,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "required": true,
+          "type": "array"
+        },
+        "version": {
+          "required": true,
+          "type": "integer"
+        },
+        "written_at": {
+          "required": true,
+          "type": "string"
+        }
+      },
+      "outcomes": [
+        "merged",
+        "merged-with-conflicts-resolved",
+        "up-to-date",
+        "refused",
+        "stopped"
+      ],
+      "version": 1
+    }
   },
   "workflow_declarations": {
     "builtins": {

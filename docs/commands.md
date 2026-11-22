@@ -413,7 +413,7 @@ pieces of work, with the mockups beside it when they were made.
 research or has more, it recommends `/maister:product-design` or `/maister:research` instead and
 says why.
 
-### `/maister:update-branch [--onto <ref>] [--run <task dir>] [--no-run]`
+### `/maister:update-branch [--onto <ref>] [--run <task dir>] [--no-run] [--result <file>]`
 
 Brings the current branch up to date with its default branch. It merges the default branch without
 committing, resolves any conflict from the branch's own intent, runs the project's checks and
@@ -428,6 +428,17 @@ its own start.
 
 Pass `--onto <branch>` when the branch was cut from a branch other than the default one, so the
 merge brings in that branch instead.
+
+Every call ends by writing one JSON result: the outcome (`merged`,
+`merged-with-conflicts-resolved`, `up-to-date`, `refused` or `stopped`), the merge commit, each
+conflict and how it was resolved, the check results, and the run's start commit before and after
+the move. It goes to `update-branch.json` in the run's task directory, or to the file `--result`
+names; its shape is listed in the plugin's `interface.json`.
+
+In a run that is not driven from the terminal, nobody is asked anything. The command accepts its
+own conflict resolutions when the run's spec, plan or work log, or the branch's own change, settles
+each one. When one is not settled, it stops with the merge still in progress and nothing committed,
+and the result names the files left. A caller that drives it names the run with `--run`.
 
 **When to use**: the branch has fallen behind its default branch, or a run on it is about to be
 reviewed and the merged-in work should not count as its own. See
