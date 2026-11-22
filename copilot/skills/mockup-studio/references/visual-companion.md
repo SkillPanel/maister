@@ -39,6 +39,11 @@ that crashed leaves nothing running for long.
 `<url>/versions/vNNN/<slug>.html`. Never the viewer's `/`: it redirects to the gallery of `latest` in
 `versions/index.json`, which during a preview is still the previous version.
 
+Its `/` redirects by the latest version's format, read from the index entry and else from that
+version's manifest, an unknown or unreadable one counting as html: to `versions/<latest>/ascii-mockups.md`
+for an ascii latest, to `versions/<latest>/scope.md` when it has no `index.html` (a written latest
+made without Node), and otherwise to `versions/<latest>/index.html`.
+
 What it serves: `GET` and `HEAD` only; `/status` reports `{status, root, port, pid}`; any other
 path is a file under the folder. A path that leaves the folder, holds a dot segment or names a
 dot-file gets 404, another method 405, and a request whose `Host` is not its own loopback address

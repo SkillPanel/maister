@@ -72,7 +72,7 @@ operator-added alike. The milestone records `research_type`,
 
 When the context input names a context pack — a file or a directory handed over
 by whatever started the run — bring it under `analysis/work-context/` as it is
-with `import` (engine § *The invocation contract*), never a shell copy, and
+with `import` (its row: the engine's `references/verbs.md`), never a shell copy, and
 record `research_context.work_reference` with its `path` as given. It is
 background for the brief, the plan and the gatherers, never a substitute for
 the question or for evidence they gather themselves. When the path is missing
@@ -352,7 +352,7 @@ decisions", its change "revise this step".
 **Asks.** One question per decision area, in the file's order.
 
 **With question sets** (`convergence-decisions`): one question per area, from
-`area-brief` or, on a `decision-areas-*` warning, from the composed areas; an
+`area-brief` (its row: the engine's `references/verbs.md`) or, on a `decision-areas-*` warning, from the composed areas; an
 area whose choice depends on another names that area in its question. Each
 answer is recorded as an operator decision and as the area's
 `chosen_approach`.

@@ -127,8 +127,8 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   shape by the writer; a question nobody could ask is recorded `by: default`
   (`references/in-node-questions.md` § *When nobody can be asked*). Choosing More details, or
   typing "details", is never recorded.
-- **Run `gate-brief --state=<state> --node=<gate>` in its own call** — with `--request` when a
-  driver suspends on it, and when the gate is asked in session
+- **Run `gate-brief --state=<state> --node=<gate>` in its own call** — `gate-request
+  --node=<gate>` in its place when a driver suspends on it, and when the gate is asked in session
   with `--ask`
   — and only after the closing write (the patch carrying the node's summary and its `completed` status)
   has returned successfully. Never issue the two in parallel: a brief that reads the state
@@ -373,11 +373,10 @@ order, and the order is the contract:
    temp file and a rename, regenerates `gates/index.yml`, and then sets
    `orchestrator.gate_pending` to `{node, request, since}` (plus the optional
    `asked_by_session`, below) **and** the node's `status` to
-   `suspended` through the state writer — one invocation, three writes, in that order. The
-   request document arrives in the patch file as JSON, written before the call, while nothing
-   is pending yet. **That document is `gate-brief --request` output, as it stands.** Write the
-   verb's stdout into the patch file, unchanged; compose nothing and edit nothing in it. The one
-   exception is a gate whose brief is refused `gate-brief-no-graph`, asked from its `ask:` alone (above).
+   `suspended` through the state writer — one invocation, three writes, in that order. **Call it
+   with `--node=<gate>`: it builds the request exactly as `gate-brief --request` prints it**; a
+   refusal of that brief is handled as above. The one exception is a gate refused
+   `gate-brief-no-graph` (above): its request is sent as JSON, by here-string or in the patch file.
    **There is no second call here, and there must not be**: the run is pending from the moment
    the request file lands, and while the gate is pending a host may deny the engine's shell calls.
    **When `gate-request` answers `gate-request-unavailable`, this edition carries no gate
@@ -387,10 +386,9 @@ order, and the order is the contract:
 4. The turn ends. Nothing polls, nothing waits, no session is left idle.
 
 **A running node suspends on a question set the same way** (`references/in-node-questions.md` § *In-node questions*): the node
-writes its set to the patch file, `gate-brief --request` reads it from there and prints a
-`kind: question` request, that output is written over the patch file unchanged, and
-`gate-request` takes it. The node is `suspended` while the operator answers, exactly as a gate
-is.
+writes its set to the patch file, and `gate-request --node=<node> --patch-file=<the patch file>`
+builds the `kind: question` request from it and suspends on it. The node is `suspended` while
+the operator answers, exactly as a gate is.
 
 **Step 1 is the whole mechanism.** While a gate is pending, only the files the answer is
 recorded into can be written, so every write the run needs happens before step 2 — a write
@@ -403,9 +401,9 @@ link (W3) both complete **before** the write that projects the dashboard and bef
 `WAITING-SUBRUN` is printed (`references/sub-runs.md` carries both walks).
 
 **The `gate-request` verb** derives everything from `--state` — the run directory, the `gates/`
-directory and the frozen graph the node id is checked against. Send `{node, kind, question,
-context?, options[], the multi-choice flag, run_id?}`; the verb supplies `version`, `asked_at`
-and `answer: null` itself and **refuses a caller that sends any of the three**. `since` is the
+directory and the frozen graph the node id is checked against. A document sent in place of
+`--node` is `{node, kind, question, context?, options[], the multi-choice flag, run_id?}`; the
+verb supplies `version`, `asked_at` and `answer: null` itself and **refuses a caller that sends any of the three**. `since` is the
 request's own `asked_at`. The marker may carry one more key, `asked_by_session`: the id of the
 session that suspended on the gate, in that session's own word, taken from the host's
 `CLAUDE_CODE_SESSION_ID`. It is optional — written only on a `cockpit` or `dispatch` run whose host
@@ -676,7 +674,7 @@ invented. The request was still answered, so fold it as one, minus the decision:
 by one — the same count a revise's reset raises — then write `gate_pending: null` last and run the
 empty-patch re-validation. Write no `node_summaries` entry, no `completed` and no `gate-revise`:
 nothing is recorded as a revise and nothing is reset. Then ask the same gate again by the driven
-write order, from `gate-brief --request --reask=<the option id>`: a new request for the same node
+write order, with `gate-request --node=<gate> --reask=<the option id>`: a new request for the same node
 in its next attempt — a gate asks once per attempt, which is why the attempt is raised.
 
 **What a driver asks again, and with which flag.** A gate whose stretch a revise re-ran is asked

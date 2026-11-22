@@ -1,7 +1,7 @@
 # In-node questions
 
 The workflow engine's rules for a question a node asks inside itself. `area-brief` names
-*Decision areas from the brainstorm*, and `finding-brief --patch-file` names *Findings that need a decision*.
+*Decision areas from the brainstorm*, and `finding-brief --patch-file` names *Findings that need a decision*. Both verbs' rows, and `import`'s, are in `references/verbs.md`.
 
 A gate is not the only question a run asks. A node's prose may ask its own — a clarification,
 an opt-in that decides whether a later stretch runs, a decision between approaches, or a loop
@@ -208,10 +208,9 @@ line and ends with the recommendation and its reason.
 **Under a driver with question sets**, every area goes in the node's first request. Run the verb
 with `--patch-file=<run>/.state-patch.json` in place of `--area` and `--json` — after a revise,
 `--area` repeated names the areas the note reopens — and it writes the question set to the patch
-file and prints its path. Then run `gate-brief --request
---patch-file=<run>/.state-patch.json` for the node, read the patch file once with the file
-tool, write the printed request over it byte for byte, every question's `details` included,
-and suspend with `gate-request` (*When a question suspends*). A `policy-hash-mismatch` warning
+file and prints its path. Then suspend with `gate-request --node=<node>
+--patch-file=<run>/.state-patch.json`, which builds the request from it, every question's
+`details` included (*When a question suspends*). A `policy-hash-mismatch` warning
 means no area carries `triage`; the request still goes.
 
 **When the node's `with:` names `sketches`**, a mockup folder relative to the task directory, the
@@ -356,9 +355,9 @@ through the classing write, so no policy settles it.
 - **In session** it is asked with the question tool, the same question and the same three
   options.
 - **Under a cockpit whose `features` list `question-sets`** the waiting node writes the set to
-  the patch file, runs `gate-brief --request --patch-file=<the patch file> --node=<node>` — which
-  briefs a `waiting` node only when it carries `dir:` — and suspends with `gate-request` exactly
-  as *When a question suspends* says. The answer is folded as any set's.
+  the patch file and suspends with `gate-request --node=<node> --patch-file=<the patch file>` —
+  whose brief takes a `waiting` node only when it carries `dir:` — exactly as *When a question
+  suspends* says. The answer is folded as any set's.
 - **Under any other driver** nobody can be asked, and the run stops (*When nobody can be asked*).
 
 After the fold, one `write-state` records what the answer decided:
@@ -423,8 +422,8 @@ taking their defaults. These rules hold:
   is dropped with a `question-cite-dropped` warning, never refused; with none left the key is left
   out. `finding-brief` fills it from each finding's own.
 
-How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch file, runs
-`gate-brief --request --patch-file=<the patch file>` for itself, and suspends exactly as a gate
+How it runs: the node writes `{ask?, headline?, questions: [...]}` to the patch file and runs
+`gate-request --node=<itself> --patch-file=<the patch file>`, which suspends exactly as a gate
 does (`references/gates.md` § *Driver-suspended mode — the write order*). The answer is folded as *A question set
 answered* says, and the node carries on `running` with the answers recorded on its summary.
 A node a gate's revise re-ran asks again in its new attempt (`references/gates.md` § *Revising

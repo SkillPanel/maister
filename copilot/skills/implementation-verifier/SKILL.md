@@ -37,7 +37,8 @@ says, then return § *Structured output*.
 ## The hand-off
 
 Each step below is one call. The engine's `runner-step` reads the run and says what to do next;
-never work it out from the files yourself:
+never work it out from the files yourself. Its row, `runner-result`'s and `in-flight`'s, and
+their refusals, are in `<plugin root>/skills/workflow-engine/references/verbs.md`:
 
 ```
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs runner-step --state=<task path>/orchestrator-state.yml --node=<node>
@@ -84,7 +85,7 @@ or `inline`:
   - `session` — ask in session (paged as the engine's in-node questions say), record the answers
     on the node summary as the node records any answer, then `runner-step --answered`;
   - `suspend` — a request of the node's attempt, its first or a follow-up round (`runner-step`
-    asks only while a round is left; `gate-brief --request --patch-file`), and suspend. On the answer the run comes back here, and `runner-step` finds the answers itself;
+    asks only while a round is left; `gate-request --node --patch-file`), which suspends. On the answer the run comes back here, and `runner-step` finds the answers itself;
   - `none` — nobody can be asked and the run's policy classes questions: send the set in the
     classing write as the node's prose says, then `runner-step --answered`. (When nobody can be
     asked and nothing classes, `runner-step` takes the defaults itself — the stop `undecided`

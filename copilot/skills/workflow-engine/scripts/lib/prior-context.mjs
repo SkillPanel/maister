@@ -19,6 +19,13 @@
  * reading state, and a truncation shows up as a number that does not match its
  * own bullets.
  *
+ * A decision is one line: its number in its node's list, what was decided, who
+ * settled it and its question id. The rest of the item — the rationale, the
+ * question, the answer, the recommendation — stays in state, at the path the
+ * passage gives once (`node_summaries.<node>.decisions[n]`), for a delegate to
+ * open when it needs the reasoning. Every decision is still printed, so the
+ * binding rule holds; each is only shorter.
+ *
  * What it does not do. It does not write. It reads the state file, renders, and
  * returns; there is no patch, no temp file, no key introduced. `node_summaries`
  * is a key the state contract already defines and the run already carries.
@@ -32,12 +39,13 @@
  */
 
 import fs from 'node:fs';
+import path from 'node:path';
 // The one state reader (`state-read.mjs`): this module used to carry its own,
 // which is exactly the duplication that reader exists to end.
 import { parse, isPlainObject } from './state-read.mjs';
 // A revise the run is in the middle of is found the way `resume-check` finds it.
 import { openRevision } from './revise.mjs';
-import { PROVENANCE_KEYS, riskOf, riskText } from './items.mjs';
+import { PROVENANCE_KEYS, decisionOf, riskOf, riskText } from './items.mjs';
 import { approvalKey, isOpenHeld, outstandingHeld } from './question-triage.mjs';
 // The run block an artifact writer's prompt opens with, so that one call
 // fetches both passages and the two can never be pasted out of order.
@@ -124,7 +132,7 @@ function priorPhases({ state, background }) {
   const mirror = legacyMirrorWarning(doc);
   return {
     ok: true,
-    text: render(isPlainObject(nodes) ? nodes : {}, background, held) + revisionOf(doc),
+    text: render(isPlainObject(nodes) ? nodes : {}, background, held, path.dirname(path.resolve(state))) + revisionOf(doc),
     errors: [],
     warnings: mirror === null ? [] : [mirror],
   };
@@ -167,7 +175,7 @@ function refuse(code, message) {
  * Markdown, because that is what a delegate prompt already is, and because a
  * bullet is the one form that cannot quietly hold two items.
  */
-function render(summaries, background = false, held = new Map()) {
+function render(summaries, background = false, held = new Map(), taskDir = '.') {
   // Every entry the state writer records is a map — it refuses any other shape —
   // so an entry that is not one was written by hand, and is not read.
   const entries = Object.entries(summaries).filter(([, value]) => isPlainObject(value));
@@ -188,12 +196,12 @@ function render(summaries, background = false, held = new Map()) {
     out.push('');
     out.push(`${counts}These are background for a document written for end users: keep what you write consistent `
       + 'with them, and do not reproduce them. No list of decisions, risks or run history belongs in the document, '
-      + 'and none of their internal codes or wording does either.');
+      + `and none of their internal codes or wording does either. ${recordSentence(taskDir)}`);
   } else {
     out.push('## Prior-phase context — decisions and risks carried forward');
     out.push('');
     out.push(`${counts}These are binding. Every item below is one item in state — do not drop one, `
-      + 'do not merge two, and do not re-word them.');
+      + `do not merge two, and do not re-word them. ${recordSentence(taskDir)}`);
   }
   out.push('');
 
@@ -213,7 +221,7 @@ function render(summaries, background = false, held = new Map()) {
       out.push('');
     }
     const heldNote = item => (held.size > 0 && isPlainObject(item) && typeof item.question_id === 'string' ? held.get(approvalKey(key, item)) ?? '' : '');
-    for (const field of CONTRACT_LISTS) out.push(...section(field, listOf(entry[field]), true, heldNote));
+    for (const field of CONTRACT_LISTS) out.push(...section(field, listOf(entry[field]), true, heldNote, key));
     for (const [field, value] of Object.entries(entry)) {
       if (HEADING_FIELDS.has(field) || WRITER_FIELDS.has(field) || CONTRACT_LISTS.includes(field)) continue;
       if (Array.isArray(value)) out.push(...section(field, listOf(value), false));
@@ -232,12 +240,43 @@ function render(summaries, background = false, held = new Map()) {
  * they are empty — the state said "none", and a delegate that is told nothing
  * cannot tell that apart from a node that forgot.
  */
-function section(field, items, always, heldNote = () => '') {
+function section(field, items, always, heldNote = () => '', node = null) {
   if (!items.length && !always) return [];
   if (!items.length) return [`${label(field)} (0): none recorded.`, ''];
   const note = item => (field === 'decisions' ? heldNote(item) : '');
-  const line = item => `- ${listItemText(field, item)}${note(item) ? ` ${note(item)}` : ''}`;
+  const text = (item, index) => (field === 'decisions' && node !== null ? decisionLine(index, item) : listItemText(field, item));
+  const line = (item, index) => `- ${text(item, index)}${note(item) ? ` ${note(item)}` : ''}`;
   return [`${label(field)} (${items.length}):`, ...items.map(line), ''];
+}
+
+/** The state file every decision's record is in, by its name in the task directory. */
+const STATE_FILE = 'orchestrator-state.yml';
+
+/**
+ * The sentence after the rule: where each decision's full record is. A decision
+ * is printed as one line — its number, what was decided, who settled it and its
+ * question id — and its record holds the rest, which a delegate opens only when
+ * it needs the reasoning; every decision is still printed. The path is given
+ * once, with the number and the section heading filling it in, because a path
+ * repeated on every line cost more than the fields it replaced.
+ */
+function recordSentence(taskDir) {
+  return 'Each decision is one line: its number `[n]`, what was decided, who settled it (`by`) and its question `id` when it has one. '
+    + `Its full record — the rationale, the question and the answer — is \`node_summaries.<node>.decisions[n]\` in ${path.join(taskDir, STATE_FILE)}, `
+    + '`<node>` being the heading of its section; open it when you need the reasoning behind a decision.';
+}
+
+/**
+ * One decision as one line: its number in its node's list, which with the
+ * section heading is the path of its full record, its text, who settled it and
+ * its question id when it has one. An item that holds no decision text keeps
+ * its own rendering after the number.
+ */
+function decisionLine(index, item) {
+  const decision = decisionOf(item);
+  if (decision === null) return `[${index}] ${listItemText('decisions', item)}`;
+  const id = typeof decision.question_id === 'string' && decision.question_id !== '' ? ` — id: ${scalarText(decision.question_id)}` : '';
+  return `[${index}] ${scalarText(decision.decision)} — by: ${decision.by}${id}`;
 }
 
 /**

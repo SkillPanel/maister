@@ -44,6 +44,12 @@
  *   project would be shared by two sessions running two workflows there, and each
  *   would draw the other's run. Without a session id — no host that sets one —
  *   none is written.
+ * - `<project>/.maister/display/sessions/<session id>.conventions`, from
+ *   `node-brief`: the node convention rows this session's briefs printed whole,
+ *   so a later brief names them instead of printing them again. `resume-check`
+ *   and the post-compaction hook remove it, so the next brief prints them whole
+ *   again. Without a session id none is written, and every brief prints them
+ *   whole.
  *
  * Every write here is a projection of something that already landed, so a
  * failure is a warning and never a refusal, on the dashboard's terms: the state
@@ -204,6 +210,44 @@ export function publishPointer({ runDir, root, now, session = hostSession() }) {
   const file = `${session}.json`;
   attempt(warnings, path.join(SESSIONS_DIR, file).split(path.sep).join('/'),
     () => publish(path.join(root, SESSIONS_DIR), file, { version: VERSION, run_dir: runDir, updated: now }, path.dirname(path.join(root, SESSIONS_DIR))));
+  return warnings;
+}
+
+/** The suffix of a session's conventions marker, beside its pointer. */
+export const CONVENTIONS_SHOWN = '.conventions';
+
+/**
+ * The convention rows this session's briefs have printed whole since its last
+ * resume or compaction, as a Set of their first cells; null without a session
+ * id that can name a file, which means none counts as shown. A marker that
+ * cannot be read counts as empty: the rows print whole again.
+ */
+export function conventionsShown({ root, session = hostSession() }) {
+  if (typeof session !== 'string' || !SESSION_ID.test(session)) return null;
+  try {
+    const doc = JSON.parse(fs.readFileSync(path.join(root, SESSIONS_DIR, `${session}${CONVENTIONS_SHOWN}`), 'utf8'));
+    return new Set(Array.isArray(doc?.rows) ? doc.rows.filter(row => typeof row === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Record `rows` as printed whole in this session. Returns the warnings, as `publishPointer` does. */
+export function markConventionsShown({ root, rows, session = hostSession() }) {
+  const warnings = [];
+  if (typeof session !== 'string' || !SESSION_ID.test(session)) return warnings;
+  const file = `${session}${CONVENTIONS_SHOWN}`;
+  attempt(warnings, path.join(SESSIONS_DIR, file).split(path.sep).join('/'),
+    () => publish(path.join(root, SESSIONS_DIR), file, { version: VERSION, rows: [...rows] }, path.dirname(path.join(root, SESSIONS_DIR))));
+  return warnings;
+}
+
+/** Forget what this session was shown, so its next brief prints every row whole. Returns the warnings. */
+export function forgetConventionsShown({ root, session = hostSession() }) {
+  const warnings = [];
+  if (typeof session !== 'string' || !SESSION_ID.test(session)) return warnings;
+  const file = `${session}${CONVENTIONS_SHOWN}`;
+  attempt(warnings, path.join(SESSIONS_DIR, file).split(path.sep).join('/'), () => remove(path.join(root, SESSIONS_DIR, file)));
   return warnings;
 }
 
