@@ -196,8 +196,8 @@ validate:
 	@# one. A copy added on purpose updates these numbers together with
 	@# CLAUDE.md's list of copies (The gate rule). The Copilot build lands
 	@# outside plugins/, so none of its copies is counted.
-	@full='when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.'; \
-	tail='ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.'; \
+	@full='when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine'\''s `references/gates.md`, *Driver-suspended mode*.'; \
+	tail='ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine'\''s `references/gates.md`, *Driver-suspended mode*.'; \
 	want_full=8; want_tail=10; \
 	nf=$$(grep -rlF -- "$$full" CLAUDE.md plugins/ | wc -l | tr -d ' '); \
 	nt=$$(grep -rlF -- "$$tail" CLAUDE.md plugins/ | wc -l | tr -d ' '); \
