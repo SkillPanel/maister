@@ -26,8 +26,10 @@
  *                  <node> <path>` line per file, followed on a write that
  *                  completes a node by one `companion-stale: <node> <path>`
  *                  line per companion of the run older than its markdown)
- *   gate-request   --state, --patch-file (or the request as JSON on stdin)
- *                                                             the files written
+ *   gate-request   --state, --patch-file (or the request as JSON on stdin);
+ *                  or --state, --node [--reask | --patch-file holding the
+ *                  node's question set], the request built as gate-brief
+ *                  --request builds it                        the files written
  *                  (the request file, the gate index and the pending marker);
  *                  a gate its guard skips is refused `gate-guard-false`, as
  *                  `gate-brief` refuses it, before anything is written
@@ -259,7 +261,10 @@ const VERBS = {
   // needs — the run directory, the `gates/` directory and the frozen graph — is
   // derived from the state file, so there is no second path a caller could get
   // wrong or point at another run.
-  'gate-request': { module: 'gate.mjs', flags: ['state', 'patch-file'] },
+  // `--node` (with `--reask`, or a question set in the patch file) has the
+  // verb build the request itself, as `gate-brief --request` builds it, so
+  // the document never passes through the caller.
+  'gate-request': { module: 'gate.mjs', flags: ['state', 'patch-file', 'node', 'reask'] },
   // A gate's revise option, carried out. `--node` and `--option` because the
   // state records no "current" gate and no chosen option until this write
   // records it; the note travels in the patch file for `write-state`'s reason.
@@ -952,7 +957,11 @@ function reportWrite(result, input, rules) {
  */
 async function runGateRequest(flags) {
   if (!flags.state) throw new UsageError('gate-request needs --state');
-  const input = await readInput(flags, 'the request document');
+  if (flags.reask !== undefined && flags.node === undefined) {
+    throw new UsageError('gate-request takes --reask only with --node: it builds the request a revise without its note is asked again with');
+  }
+  const input = flags.node === undefined ? await readInput(flags, 'the request document') : await builtRequest(flags);
+  if (input === null) return EXIT.REJECTED;
   // A gate its guard skips is refused before anything else, in every edition:
   // the skip is the write a run makes there, never a suspension. Nothing is
   // written and the request file is kept.
@@ -984,6 +993,35 @@ async function runGateRequest(flags) {
   }
   for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
   return EXIT.REJECTED;
+}
+
+/**
+ * `gate-request --node`: the request `gate-brief --request` prints, built in
+ * this process with the same render, warnings and panel, as `{document, file}`
+ * — the document as a parse of the printed JSON yields it, so the gate module
+ * writes the bytes the two-call form writes. `file` is the patch file when it
+ * holds the node's question set, deleted once the request lands, as the
+ * two-call form's patch file is. A refusal of the brief is reported as
+ * `gate-brief` reports it and returns null: nothing is written, the set kept.
+ */
+async function builtRequest(flags) {
+  let questions;
+  let file = null;
+  if (flags['patch-file'] !== undefined) {
+    if (flags.reask !== undefined) {
+      throw new UsageError('gate-request takes --reask or --patch-file, not both: --reask asks a gate again for the note its revise lacked, and a question set asked again in a new attempt takes --patch-file alone');
+    }
+    file = patchFileOf(flags);
+    questions = parseDocument(readFileText(file, 'the question set', UsageError), 'the question set in the patch file');
+  }
+  const module = await loadModule(VERBS['gate-brief'].module);
+  const render = entryOf(module, 'gateBrief', VERBS['gate-brief'].module);
+  const result = render({ state: flags.state, node: flags.node, form: 'request', picker: 'rich', reask: flags.reask, questions });
+  if (!result.ok) for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+  for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning.message ?? warning}\n`);
+  if (!result.ok) return null;
+  if (result.panel) await publishPanel(flags.state, result.panel);
+  return { document: JSON.parse(JSON.stringify(result.request)), file };
 }
 
 /** The one name a patch file may carry: beside the state file it patches. */
