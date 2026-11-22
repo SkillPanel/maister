@@ -154,7 +154,9 @@ questions:
   step has something of its own to say there. **Asks.** carries one
   ``**With question sets** (`<id>`): …`` line and one ``**Without question sets** (`<id>`): …``
   line per question id, each at the start of its line, the Without line stating the default — the
-  one place it is written; **Budget.** says what each further attempt does differently, the
+  one place it is written; a question that asks the person what the task means is marked
+  ``(clarification, `<id>`)``, so the run settles it as a fact only with the question reader's
+  agreement; **Budget.** says what each further attempt does differently, the
   number staying in `brief:`.
   Each section is a short, honest stub the author will finish. It never restates a convention —
   checking the declared artifacts, handing a page to `html-companion-writer` before the completing

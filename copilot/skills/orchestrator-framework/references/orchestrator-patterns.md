@@ -475,8 +475,12 @@ answers travel to the next runner dispatch in `verification/decisions-<cycle>.js
    `verification-go-on` when its recommended answer leaves the loop ("Continue as is" or "Stop")
    with a warning or critical issue open, and under `verification-fix-loop` when it recommends "One
    more round", or when only info is left. With a critical issue open, the `verification-go-on`
-   question carries `triage: {version: 1, class: approve}`, so only a person answers it. The
-   stopping question names no `default` of its own: its recommended option is its default.
+   question carries `triage: {version: 1, class: approve}`, so only a person answers it. A run
+   whose policy classes questions may answer "One more round" for itself only after a round that
+   made progress, and at most twice in an attempt — the loop's own budget of re-checks; past
+   that the engine reads its answer as nobody's and prints the approve triage for the question
+   to carry, so a person answers it. The stopping question names no `default` of its own: its
+   recommended option is its default.
 9. **What the gate is handed.** Issues still needing a decision become `open` risks, with the
    fix as their `change`; items left for later stay `followup` risks; accepted ones `tradeoff`
    risks; a spent budget with critical issues still open is a `stop` risk, which makes Stop the

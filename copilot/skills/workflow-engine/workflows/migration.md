@@ -55,7 +55,7 @@ the rollback expectations and downtime tolerance, the data specifics, the
 dual-run requirements and the code or configuration to preserve are confirmed
 there, after the gap analysis has proposed them. Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
-**With question sets** (`clarifications`): asked through the cockpit, in this
+**With question sets** (clarification, `clarifications`): asked through the cockpit, in this
 node's first request.
 
 **Without question sets** (`clarifications`): none is asked, and

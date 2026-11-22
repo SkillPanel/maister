@@ -106,7 +106,8 @@ import { GENERATED_WORKFLOW, ceilingOf, effectiveCeiling, loadPolicy, narrowerLe
 import { frozenSubagents } from './subagents.mjs';
 import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
-import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
+import { SUMMARY_WRITER_KEYS, keysOf } from './interface-shapes.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredClarificationIds, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
 import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
@@ -1869,11 +1870,20 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
   // the one harmless case: it is dropped, with a note naming where node
   // updates go, and the rest of the patch lands.
   if (doc.has('workflow')) {
-    const differences = frozenDifferences(doc, derived ? { ...workflow, nodes: null } : workflow);
+    const { differences, scalars, nodes: nodeDifferences, source } = frozenDifferences(doc, derived ? { ...workflow, nodes: null } : workflow);
     if (differences.length) {
+      // A changed scalar is an attempt to re-freeze. The graph is the run's
+      // for its whole life, so the message names the two ways on rather than
+      // a write that is never accepted. A node-only difference is the usual
+      // misplaced node update and keeps its own pointer.
+      const ways = [];
+      if (scalars) {
+        ways.push('no verb re-freezes a run: to go on, put back the definition this run froze'
+          + `${typeof source === 'string' && source ? ` (${source})` : ''}, or start a new run from the changed one`);
+      }
+      if (nodeDifferences) ways.push('a later node update goes under the top-level `nodes` key, never under `workflow`');
       throw new Refusal('state-workflow-frozen',
-        `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — `
-        + 'a later node update goes under the top-level `nodes` key, never under `workflow`');
+        `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — ${ways.join('; ')}`);
     }
     notes.push('ignored the supplied workflow block, which matches the frozen one; the freeze is written once, '
       + 'so send node updates under the top-level nodes key and never re-send workflow');
@@ -2148,11 +2158,14 @@ function missingInputs(doc, declared) {
 }
 
 /**
- * How a `workflow` patch differs from the block the file already carries, one
- * phrase per difference; empty when the patch says nothing the file does not.
- * A scalar the patch leaves out is carried forward, so only the ones it sends
- * are compared. A node entry is compared with its `pending` default and its
- * recorded `needs` filled in, because the freeze wrote it that way.
+ * How a `workflow` patch differs from the block the file already carries:
+ * `differences`, one phrase per difference, empty when the patch says nothing
+ * the file does not; whether a scalar differs (`scalars`) and whether a node
+ * entry does (`nodes`); and the frozen `source`, which the refusal of a
+ * re-freeze names. A scalar the patch leaves out is carried forward, so only
+ * the ones it sends are compared. A node entry is compared with its `pending`
+ * default and its recorded `needs` filled in, because the freeze wrote it that
+ * way.
  */
 function frozenDifferences(doc, workflow) {
   let frozen;
@@ -2166,8 +2179,14 @@ function frozenDifferences(doc, workflow) {
   const differences = [];
   const scalars = Object.keys(workflow).filter(key => key !== 'nodes' && !sameValue(workflow[key], held[key]));
   if (scalars.length) differences.push(`changes ${scalars.join(', ')}`);
+  const result = () => ({
+    differences,
+    scalars: scalars.length > 0,
+    nodes: differences.length > (scalars.length ? 1 : 0),
+    source: held.source,
+  });
   // A freeze that left its nodes to the writer says nothing about them.
-  if (workflow.nodes === null) return differences;
+  if (workflow.nodes === null) return result();
   // The reserved closing checkpoint's status entry is the writer's, never the
   // freeze's: a re-sent freeze that lacks it drops nothing.
   const dropped = frozenIds(recorded).filter(id => !Object.hasOwn(workflow.nodes, id));
@@ -2187,7 +2206,7 @@ function frozenDifferences(doc, workflow) {
       ...workflow.nodes[id],
     }, recorded[id]));
   if (rewritten.length) differences.push(`would rewrite the recorded entry of ${rewritten.join(', ')}`);
-  return differences;
+  return result();
 }
 
 /**
@@ -3406,13 +3425,14 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
     if (classing !== null) {
       recorded ??= recordedNodes(doc);
       const isGate = isGateSummary(recorded, key);
-      if (Object.hasOwn(entry, 'asking')) {
-        delete entry.asking;
-        classing.notes.push(`ignored the supplied node_summaries.${key}.asking; the writer records it from the question set it classed, so no patch sets it`);
+      for (const own of WRITER_SUMMARY_KEYS) {
+        if (!Object.hasOwn(entry, own)) continue;
+        delete entry[own];
+        classing.notes.push(`ignored the supplied node_summaries.${key}.${own}; the writer records it from the question set it classed, so no patch sets it`);
       }
       // On the raw patch, before the answer fold: what the fold produces is never touched.
       if (!isGate && Array.isArray(entry.decisions) && classes()) {
-        entry.decisions = sentDecisions(entry.decisions, heldOf(key)?.decisions, key, classing.notes);
+        entry.decisions = sentDecisions(entry.decisions, heldOf(key), key, classing.notes);
       }
       if (Object.hasOwn(entry, 'question_set') || Object.hasOwn(entry, 'reasons')) {
         ({ entry, dropAsking } = classQuestions(entry, key, { recorded, typedNow, held: heldOf(key), runDir, writeWarnings, classing }));
@@ -3477,6 +3497,10 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
             needsApproval: item => classes() && approvalClassed(item, key, typedNow(), runDir, classing.policyNow),
           });
         entry.decisions = stampAnswers(keepRounds(prior, keepProvenance(prior, keepAttempts(prior, settled))), runDir, via);
+        if (classing !== null && classes()) {
+          const asked = Object.hasOwn(entry, 'asked_triage') ? entry.asked_triage : heldOf(key)?.asked_triage;
+          entry.decisions = withAskedTriage(prior, entry.decisions, asked, attemptOf(Object.hasOwn(recorded, key) ? recorded[key] : null));
+        }
         const kept = classing !== null && classes() ? writerKept(prior, entry.decisions) : [];
         entry.decisions = [...earlierAnswers(prior, entry.decisions), ...kept, ...entry.decisions];
       }
@@ -3494,7 +3518,7 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
       const { status: _status, ...kept } = prior;
       entry = { ...kept, ...entry };
     }
-    if (dropAsking) delete entry.asking;
+    if (dropAsking) for (const own of WRITER_SUMMARY_KEYS) delete entry[own];
     if (!('status' in entry)) {
       const nodeId = key;
       // Both reads are own-property reads for the reason `contextBlock` gives:
@@ -4155,15 +4179,17 @@ export function answerCovered(evidence, answer) {
 
 /**
  * Did the person choose `option` in the checkpoint form? Yes when the note
- * parsed no value (it is judged by the property alone), when the person typed
- * their own answer (the session maps their words to an option), or when the
- * form's value — the note's `answers` for a one-property form, its
- * FORM_PROPERTY entry for a map — is `option`.
+ * parsed no value (it is judged by the property alone), or when the form's
+ * value — the note's `answers` for a one-property form, its FORM_PROPERTY
+ * entry for a map — is `option`, or is the person's own words (`typed`: the
+ * session maps them to an option). A value that is missing or blank is no
+ * answer, typed or not, and covers no option.
  */
 function chose({ answers, typed }, option) {
-  if (answers === undefined || answers === null || typed.includes(FORM_PROPERTY)) return true;
+  if (answers === undefined || answers === null) return true;
   const value = isPlainObject(answers) ? answers[FORM_PROPERTY] : answers;
-  return typeof option === 'string' && value === option;
+  if (typeof value !== 'string' || value.trim() === '') return false;
+  return typed.includes(FORM_PROPERTY) || (typeof option === 'string' && value === option);
 }
 
 /**
@@ -4260,34 +4286,66 @@ function newStepAnswers(prior, typed, patch, isGate) {
  * renamed to ASK_RESULT_USED — or, when the write's new answers were in-step
  * ones answering some but not all of the question ids the note lists, written
  * again with only the ids still unanswered and `bound: true`, so it covers
- * those alone. Only the note the write read is retired: when the file no
- * longer holds the text `answerEvidence` read (`evidence.text`) — the hook
- * reported a later question meanwhile — it is left as it is. A failure is a
- * warning: the write has already landed.
+ * those alone. Only the note the write read is retired: the note is first
+ * taken aside under a name of this process's own, in one rename, and judged
+ * there. When it is not the text `answerEvidence` read (`evidence.text`) —
+ * the hook reported a later question meanwhile — it goes back unless the hook
+ * has written a newer one since, and nothing is retired; a note the hook
+ * writes while this runs is never moved, narrowed or overwritten. A failure
+ * is a warning: the write has already landed.
  */
 export function retireNote(runDir, use, evidence, warnings) {
   const file = path.join(runDir, ASK_RESULT);
+  const taken = `${file}.${process.pid}.taken`;
+  const scratchFile = `${file}.${process.pid}.tmp`;
   try {
-    let current = null;
     try {
-      current = fs.readFileSync(file, 'utf8');
+      fs.renameSync(file, taken);
     } catch (err) {
-      if (err?.code !== 'ENOENT') throw err;
+      if (err?.code === 'ENOENT') return;
+      throw err;
     }
-    if (current === null || current !== evidence.text) return;
+    const current = fs.readFileSync(taken, 'utf8');
+    if (current !== evidence.text) {
+      placeUnlessThere(taken, file);
+      return;
+    }
     const answered = use.whole ? [] : evidence.questions.filter(id => use.steps.includes(id));
     if (answered.length > 0 && answered.length < evidence.questions.length) {
-      const note = JSON.parse(current);
-      const rest = { ...note, questions: evidence.questions.filter(id => !answered.includes(id)), bound: true };
-      const scratchFile = `${file}.${process.pid}.tmp`;
+      const rest = { ...JSON.parse(current), questions: evidence.questions.filter(id => !answered.includes(id)), bound: true };
       fs.writeFileSync(scratchFile, `${JSON.stringify(rest)}\n`, 'utf8');
-      fs.renameSync(scratchFile, file);
+      placeUnlessThere(scratchFile, file);
     } else {
-      fs.renameSync(file, path.join(runDir, ASK_RESULT_USED));
+      fs.renameSync(taken, path.join(runDir, ASK_RESULT_USED));
     }
   } catch (err) {
     warnings.push({ file: ASK_RESULT, code: 'ask-result-unretired', message: err && err.message ? String(err.message) : String(err) });
+  } finally {
+    for (const leftover of [taken, scratchFile]) {
+      try { fs.rmSync(leftover, { force: true }); } catch { /* nothing to clean */ }
+    }
   }
+}
+
+/**
+ * Put `from` at `to` unless a file is already there — the hook's newer note,
+ * which wins — and remove `from` either way. A hard link places it whole in
+ * one step and refuses an existing file; where the file system has no links,
+ * an exclusive copy does the same.
+ */
+function placeUnlessThere(from, to) {
+  try {
+    fs.linkSync(from, to);
+  } catch (err) {
+    if (err?.code !== 'EEXIST') {
+      try {
+        fs.copyFileSync(from, to, fs.constants.COPYFILE_EXCL);
+      } catch (copyErr) {
+        if (copyErr?.code !== 'EEXIST') throw copyErr;
+      }
+    }
+  }
+  fs.rmSync(from, { force: true });
 }
 
 let operatorNameCache = null;
@@ -4378,17 +4436,24 @@ function classedKey(item) {
 
 /**
  * A task node's `decisions` as a patch sent them, in a run whose policy
- * classes questions, read before any answer fold. In order: an item equal to
- * a writer-classed item the node carries (`sameValue`, triage included) is
- * an identical re-send and stays where it is, silently — a closing write
- * re-sending the whole list prints nothing; a `by: run` or `by: default` item
- * for a question the writer classed is dropped with a note, since only the
- * classing write records one; and any other item's `triage` is dropped with a
- * note, since only the writer records a triage.
+ * classes questions, read before any answer fold. `held` is the node's summary
+ * as recorded. In order: an item equal to a writer-classed item the node
+ * carries (`sameValue`, triage included) is an identical re-send and stays
+ * where it is, silently — a closing write re-sending the whole list prints
+ * nothing; a `by: run` or `by: default` item for a question the writer classed
+ * is dropped with a note, since only the classing write records one; a
+ * `by: run` item for a question the writer left to ask (`asked_triage`) is
+ * dropped with a note, since a person answers it — unless it is one the node
+ * already holds, sent again, or a host's pick (it names an `actor`); and any
+ * other item's `triage` is dropped, with a note unless it is the triage the
+ * writer gave an answer to the same question, sent back with it, since only
+ * the writer records a triage.
  */
-function sentDecisions(decisions, prior, node, notes) {
-  const writer = Array.isArray(prior) ? prior.filter(isClassedItem) : [];
+function sentDecisions(decisions, held, node, notes) {
+  const prior = Array.isArray(held?.decisions) ? held.decisions.filter(isPlainObject) : [];
+  const writer = prior.filter(isClassedItem);
   const classed = new Set(writer.map(item => item.question_id));
+  const asked = isPlainObject(held?.asked_triage) ? held.asked_triage : {};
   const out = [];
   for (const item of decisions) {
     if (!isPlainObject(item) || writer.some(own => own.question_id === item.question_id && sameValue(item, own))) {
@@ -4400,18 +4465,61 @@ function sentDecisions(decisions, prior, node, notes) {
         + 'the writer classed that question, so its own item stays');
       continue;
     }
+    if (item.by === 'run' && typeof item.question_id === 'string' && Object.hasOwn(asked, item.question_id)
+      && !Object.hasOwn(item, 'actor') && !prior.some(other => sameValue(item, other))) {
+      notes.push(`ignored the run decision node_summaries.${node} sent for ${item.question_id}; `
+        + 'the writer left that question to ask, so a person answers it');
+      continue;
+    }
     if (!Object.hasOwn(item, 'triage')) {
       out.push(item);
       continue;
     }
     const { triage, ...bare } = item;
-    if (triage !== null && triage !== undefined) {
+    const returned = prior.some(other => other.question_id === item.question_id && sameValue(other.triage, triage));
+    if (triage !== null && triage !== undefined && !returned) {
       notes.push(`ignored the triage sent on node_summaries.${node}.decisions; in a run whose policy classes questions, `
         + 'only the writer records a triage, from the question set the node sends it');
     }
     out.push(bare);
   }
   return out;
+}
+
+/**
+ * The summary keys only the classing write records (`SUMMARY_WRITER_KEYS`):
+ * `asking`, the ids it left to ask, and `asked_triage`, the triage each
+ * classed one of them was classed under. A patch that sends either has it
+ * dropped with a note.
+ */
+const WRITER_SUMMARY_KEYS = keysOf(SUMMARY_WRITER_KEYS);
+
+/**
+ * `decisions` with each person's answer to a question the writer left to ask
+ * given the triage it was classed under, so the run's record shows what was
+ * proposed, what the second reader said and which family applied — the same
+ * triage a settled question records. `asked` is the node's `asked_triage`, the
+ * current attempt's alone (a revise reset clears it); an answer of this
+ * attempt (no `attempt`, or `attempt`) with no triage takes the entry for its
+ * `question_id`. Any other answer with no triage keeps the triage of the held
+ * answer it repeats: the same question, attempt and answer (`sameAnswer`). Only
+ * a `by: operator` answer is given one: a run's or a default's item with a
+ * triage reads as one the writer classed.
+ */
+function withAskedTriage(prior, decisions, asked, attempt) {
+  const map = isPlainObject(asked) ? asked : {};
+  const held = Array.isArray(prior) ? prior.filter(isPlainObject) : [];
+  return decisions.map(item => {
+    if (!isPlainObject(item) || Object.hasOwn(item, 'triage') || typeof item.question_id !== 'string') return item;
+    if (decisionOf(item)?.by !== 'operator') return item;
+    const given = attemptNumber(item);
+    if ((given === null || given === attempt) && Object.hasOwn(map, item.question_id) && isPlainObject(map[item.question_id])) {
+      return { ...item, triage: map[item.question_id] };
+    }
+    const same = held.find(other => other.question_id === item.question_id && isPlainObject(other.triage)
+      && decisionOf(other)?.by === 'operator' && (attemptNumber(other) ?? 1) === (given ?? 1) && sameAnswer(other, item));
+    return same ? { ...item, triage: same.triage } : item;
+  });
 }
 
 /**
@@ -4432,9 +4540,11 @@ function sentDecisions(decisions, prior, node, notes) {
  * writer-classed item for the same question in this attempt, and the ids
  * still to ask are stored as `asking`. Otherwise nothing is recorded, a hash
  * mismatch warns `policy-hash-mismatch:<node>`, every id is still to ask, and
- * an `asking` an earlier write stored is removed. Returns `{entry,
+ * an `asking` an earlier write stored is removed. Each classed id still to
+ * ask has its triage stored under `asked_triage`, merged over an earlier
+ * round's, for its answer (`withAskedTriage`). Returns `{entry,
  * dropAsking}`: the entry to record in the set's place, and whether the
- * node's recorded `asking` goes.
+ * node's recorded `asking` and `asked_triage` go.
  * The ids still to ask are added to `classing.out.asking` either way; a
  * classed set's notes — one per proposed family not taken — join the write's.
  */
@@ -4466,6 +4576,7 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
     policy: matches ? loaded.policy : null,
     workflow: policyWorkflowOf(typed, runDir),
     declaredIds: matches ? declaredQuestionIds(runDir === null ? null : definitionPathOf(typed, runDir), node) : [],
+    clarificationIds: matches ? declaredClarificationIds(runDir === null ? null : definitionPathOf(typed, runDir), node) : [],
     settles: matches ? ceilingOf({ options: orchestrator.options, policy: loaded.policy })?.settles ?? null : null,
     canAsk: canAsk(typed),
     attempt: attemptOf(own),
@@ -4474,10 +4585,15 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
   classing.out.asking = [...(classing.out.asking ?? []), ...classed.asking];
   // Nothing classed: an `asking` an earlier classing write stored would filter
   // the next request by a remainder this set never had, so it goes.
-  if (!matches) return { entry: rest, dropAsking: isPlainObject(held) && Object.hasOwn(held, 'asking') };
+  if (!matches) return { entry: rest, dropAsking: isPlainObject(held) && WRITER_SUMMARY_KEYS.some(key => Object.hasOwn(held, key)) };
   classing.notes.push(...classed.notes.map(note => `node_summaries.${node}: ${note}`));
 
   const next = { ...rest, asking: classed.asking };
+  // What each id left to ask was classed under, kept for its answer: a
+  // follow-up round adds its own ids to the ones an earlier round left.
+  const askedBefore = isPlainObject(held?.asked_triage) ? held.asked_triage : {};
+  const asked = { ...askedBefore, ...classed.askedTriage };
+  if (Object.keys(asked).length) next.asked_triage = asked;
   if (classed.items.length || Array.isArray(rest.decisions)) {
     const fresh = new Set(classed.items.map(classedKey));
     const base = Array.isArray(rest.decisions) ? rest.decisions : Array.isArray(held?.decisions) ? held.decisions : [];
@@ -4488,7 +4604,8 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
 
 /**
  * The reset write of a revise, in a run whose policy classes questions: each
- * reset task node loses its writer-classed items and its `asking`, so its next
+ * reset task node loses its writer-classed items, its `asking` and its
+ * `asked_triage`, so its next
  * attempt classes its questions afresh. Operator answers stay as history, and
  * a gate's summary — approvals included — is never touched.
  */
@@ -4500,10 +4617,10 @@ function clearClassed(doc, regress, changed) {
   for (const id of regress) {
     if (!Object.hasOwn(summaries, id) || !isPlainObject(summaries[id])) continue;
     if (Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) && nodes[id].kind === 'gate') continue;
-    const { asking, ...summary } = summaries[id];
+    const { asking, asked_triage: askedTriage, ...summary } = summaries[id];
     const decisions = Array.isArray(summary.decisions) ? summary.decisions : null;
     const kept = decisions === null ? null : decisions.filter(item => !isClassedItem(item));
-    if (asking === undefined && (decisions === null || kept.length === decisions.length)) continue;
+    if (asking === undefined && askedTriage === undefined && (decisions === null || kept.length === decisions.length)) continue;
     if (kept !== null) summary.decisions = kept;
     doc.set(['node_summaries', id], block(id, summary, 2));
     if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);

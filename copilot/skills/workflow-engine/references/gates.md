@@ -197,7 +197,9 @@ What a gate asks is built by the engine, never written by hand. The engine reads
 - **A `gate-brief-graph-drift` warning** means the definition changed since the freeze. Relay
   the warning as it is. The brief still renders, *Next* says the next node is unknown, and the
   gate is still asked. A `gate-brief-needs-unknown` warning beside it says the summary is the
-  nearest recorded one, because what the gate closes is unknown; relay it too.
+  nearest recorded one, because what the gate closes is unknown; relay it too. The run keeps
+  the graph it froze; the ways on are in the engine SKILL.md, *A changed definition never
+  re-freezes an open run*.
 
 **The checkpoint covers the whole stretch the gate closes**: every node the gate needs and every
 other node back to the previous gate that recorded a summary, an overlay's included, their

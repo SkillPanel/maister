@@ -328,6 +328,8 @@ const TAG_LABEL = { stop: "stop", open: "open", tradeoff: "trade-off", followup:
 const SOURCE_LABEL = { run: "Analysis", audit: "Audit", default: "Default", operator: "You" };
 /* A question a host answered while nobody was there: the host's own name, by its actor id. */
 const HOST_LABEL = { copilot: "Copilot" };
+/* A triage class as a reader names it, by the policy's class id; an unknown id reads as itself. */
+const CLASS_WORDS = { "decide-alone": "the run decides it alone", record: "recorded for you", consult: "needs advice", approve: "needs your approval" };
 function byTag(risks) {
   return risks.map(riskOf).sort((a, b) => TAG_ORDER.indexOf(a.tag) - TAG_ORDER.indexOf(b.tag));
 }
@@ -362,7 +364,7 @@ function triageMarks(x) {
   let html = "";
   if (x.approved && typeof x.approved === "object") html += '<span class="src approved">Approved by ' + esc(onBehalf(x.approved.on_behalf_of, x.approved.by) || x.approved.by || "operator") + '</span>';
   else if (t.held === true) html += '<span class="src held">' + (x.no_choice === true ? "Held — no choice yet" : "Held") + '</span>';
-  if (typeof t.class === "string" && t.class) html += '<span class="src cls">' + esc(t.class) + '</span>';
+  if (typeof t.class === "string" && t.class) html += '<span class="src cls">' + esc(Object.prototype.hasOwnProperty.call(CLASS_WORDS, t.class) ? CLASS_WORDS[t.class] : t.class) + '</span>';
   return html;
 }
 

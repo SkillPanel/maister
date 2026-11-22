@@ -336,7 +336,7 @@ Before writing the report file, walk this checklist and only save once every ite
 - `analysis/design-context/mockups/` — source mockup files (HTML, screenshots, ASCII)
 - `verification/screenshots/` — screenshots captured during Steps 3-6
 
-**Capture the mockups first.** Every comparison is between two screenshots taken the same way, so the judgment is like for like. A saved studio mockup (`<slug>.html`) is the whole studio page — header, Annotations toggle, annotation tooltips, the screen inside a padded, width-capped panel — so it is never compared, shown or embedded as it is. For each screen, by the mockup's kind:
+**Capture the mockups first.** Every comparison is between two screenshots taken the same way, so the judgment is like for like. A saved studio mockup (`<slug>.html`) is the whole studio page — the title bar with its Annotations toggle, the screen tabs and the annotation tooltips around the screen, which it shows unframed at the app's own width — so it is never compared, shown or embedded as it is. For each screen, by the mockup's kind:
 
 - **HTML mockup** — render the screen's own markup bare and screenshot that, the same way every run:
   1. Take the screen's `html` and `css`. The studio's manifest beside the mockups, `.mockups.json`, holds them in its `mockups` list under the entry whose `id` is the file's slug. Without the manifest or that entry, take them from the saved `<slug>.html`: inside `<main id="mockup-container">`, the `<style>` element is the css and the `<div id="mockup-content">` the html. A mockup the studio did not write (no `mockup-content` element) is used whole as the html.

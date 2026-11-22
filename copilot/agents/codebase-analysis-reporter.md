@@ -85,6 +85,8 @@ Tailor recommendations based on what the analysis reveals:
 **If modifying existing code** (existing implementations found): Implementation strategy, backward compatibility, testing requirements
 **If creating new capability** (no existing implementation): Recommended architecture, integration approach, patterns to follow
 
+**Open questions are choices, not facts.** The clarifications the analysis node asks come from them, so apply the fact-or-choice test (`<plugin root>/skills/workflow-engine/references/in-node-questions.md`, *A fact is what no answer would change*) to each: a fact the code settles is stated under Key Decisions or the findings, and only a choice is left open.
+
 ### 6. Write Report
 
 Create the report at `{task_path}/analysis/{artifact_name}`.

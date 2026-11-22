@@ -97,11 +97,13 @@ never refusals — the write lands and the exit code does not move:
 A `note:` line says the write dropped something the patch sent and landed without it. Beside the
 clock fields, `policy_hash` and `task.base_commit`, the writer drops, each with its note: an
 `orchestrator.options.ceiling` wider than the run's autonomy ceiling, or one removing it (engine Step 4);
-`orchestrator.classes_questions` and a node's `asking`, which only the writer records; a
-`phase_summaries`, the retired phase-summary mirror, top-level or under `context`; a `workflow`
-block re-sent identical to the frozen one; and, in a run that records `classes_questions`, a
-`by: run` or `by: default` item sent for a question the writer classed, and any `triage` sent on
-a node's decisions. Two more are corrected rather than dropped, each with its note: a `headline`
+`orchestrator.classes_questions` and a node's `asking` and `asked_triage`, which only the writer
+records; a `phase_summaries`, the retired phase-summary mirror, top-level or under `context`; a
+`workflow` block re-sent identical to the frozen one; and, in a run that records
+`classes_questions`, a `by: run` or `by: default` item sent for a question the writer classed, a
+`by: run` item for a question it left to ask, and any `triage` sent on a node's decisions — but
+the triage the writer put on a person's answer, sent back with it, is dropped silently and put
+back. Two more are corrected rather than dropped, each with its note: a `headline`
 that spans lines or runs past 220 characters is folded onto one line and cut at the last
 sentence that fits, and the run's own context block sent as a top-level key (`task_context` in a
 development run) is written as `context`. Correct the prose that sent it rather than re-sending.
@@ -334,7 +336,7 @@ thirty-eight, each with its response below; two more are raised before the write
 | `state-entry-unserializable` | A node entry **already in the file** cannot be re-serialised. The patch is fine; the file needs repair. Stop with `RUN-FAILED: state-entry-unserializable` and report the message verbatim. This is **not** the `value-not-flow-safe` recovery — shortening the value the patch carries changes nothing here, and trying it loops. |
 | `state-temp-exists` | The temp twin is on disk and less than a minute old, so another writer holds it — a write takes milliseconds. Nothing was written. **Do not delete anything**: wait a minute and issue the same write again. A temp older than a minute is a crashed writer's leftover, and the next write reclaims it itself. |
 | `state-gate-pending-form` | The pending-gate marker has two legal spellings and this was neither. It is written as the literal `null`, or as `{node, request, since}` — `request` being `gates/<node>.request.yml` for that same `node`, and `since` a measured UTC timestamp — with an optional `asked_by_session` that, when present, is a session id (left out, never null or empty, when there is none), which the writer puts on one line itself. Send the marker as an object, never as pre-spelled text: text carrying a trailing comment or a quote reaches the file with its own bytes and the reader throws on it. Stop with `RUN-FAILED: state-gate-pending-form` and report the message verbatim. |
-| `state-workflow-frozen` | A `workflow` patch after the freeze differs from the frozen block — a node left out, added or re-typed, or a scalar changed. Nothing was written. The freeze is written once; send node updates under the top-level `nodes` key, never under `workflow`, and never re-type the graph. A re-send identical to the frozen block is dropped with a `note:` line, and the rest of its patch lands. |
+| `state-workflow-frozen` | A `workflow` patch after the freeze differs from the frozen block — a node left out, added or re-typed, or a scalar changed. Nothing was written. The freeze is written once; send node updates under the top-level `nodes` key, never under `workflow`, and never re-type the graph. A changed scalar is an attempt to re-freeze, which no verb does: the message names the frozen `workflow.source`, and the ways on are to put that definition back or start a new run (engine SKILL.md, *A changed definition never re-freezes an open run*). A re-send identical to the frozen block is dropped with a `note:` line, and the rest of its patch lands. |
 | `state-freeze-unproven` | The freeze's `workflow` block does not re-resolve to its own `graph_hash` — no hash, a source that is not found, an overlay or a profile left out or changed, or a re-spelled hash. Nothing was written. Run `resolve` again with the `--definition`, `--overlay` and `--profile` the run was started with, and freeze with its output copied through (engine Step 4). When `resolve` itself fails, or the message says the definition cannot be read from the run's directory, stop with `RUN-FAILED: state-freeze-unproven` and report the message verbatim. |
 | `state-freeze-name-mismatch` | `workflow.name` is absent, or is not the name of the definition the freeze resolves. Nothing was written. Send the `name` `resolve` printed and freeze again. Never relabel a run to borrow another workflow's context block: every reader keyed by the name would then read it as that workflow. |
 | `state-freeze-nodes-mismatch` | The freeze's nodes are not exactly the nodes `resolve` printed — one added, one left out, or one recorded under a kind its node cannot have; the message names each. Nothing was written. Send one entry per resolved node with the kind engine Step 4 gives it, and freeze again. |

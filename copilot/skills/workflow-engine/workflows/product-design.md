@@ -130,7 +130,7 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
 
 **Asks.** Each answer is recorded under its id with the topic after it.
 
-**With question sets** (`scope-questions`): every gap question in this node's
+**With question sets** (clarification, `scope-questions`): every gap question in this node's
 first request. A follow-up round only for a question an answer raised, at most
 two rounds.
 
