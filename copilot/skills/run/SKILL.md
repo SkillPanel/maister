@@ -222,6 +222,7 @@ report says so.
 | `project-profile:` | correct the named field of the `project:` key in `.maister/config.yml` to one of the values the message lists, or delete the line; the run starts either way, with that field left out of the profile its reviewers read |
 | `undecidable-value-type:` | declare the value `bool`, `id` or an `enum` when it is a handle rather than prose |
 | `skip-guard-not-pure:` | guard the gate on an input or on a gate's value, or make it a single continue with no `sets` and no `grants`; until then it is asked whatever its guard reads |
+| `subagent-artifact-name:` | rename the artifact for its subject, as the message suggests — a name that does not start with report, summary, findings or analysis — and the prose that names it |
 | `workflow-undescribed:` | open the companion with a `# Title` line and a paragraph saying what the workflow is for, or add a one-line `description:` |
 | `reserved-key:` | remove the key; it does nothing yet |
 

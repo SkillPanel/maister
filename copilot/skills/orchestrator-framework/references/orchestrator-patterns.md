@@ -58,7 +58,7 @@ For all analysis, planning, implementation, and verification phases: **ALWAYS DE
 
 ## 2. Phase Gate Behavior
 
-**The gate rule is qualified by the run's driver, not by the orchestrator**: the ask_user rule below applies when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2.
+**The gate rule is qualified by the run's driver, not by the orchestrator**: the ask_user rule below applies when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine's `references/gates.md`, *Driver-suspended mode*.
 
 **`→ MANDATORY GATE` means STOP and USE ask_user.** This is NOT optional. You MUST invoke the `ask_user` tool and WAIT for user response. Proceeding without it is a protocol violation.
 
@@ -70,7 +70,7 @@ All orchestrators pause at `→ MANDATORY GATE` transitions for user review and 
 
 A host's autonomous setting — Claude Code's `auto` permission mode, GitHub Copilot CLI's autopilot mode or its `allow-all` permissions — instructs the model to execute immediately and minimize clarifying questions. The `→ MANDATORY GATE` checkpoints in this framework are an explicit stated boundary that overrides that instruction.
 
-You MUST invoke `ask_user` at every `→ MANDATORY GATE` in every permission mode — Claude Code's `default`, `acceptEdits`, `auto`, `plan` and `bypassPermissions`; Copilot CLI's interactive, plan and autopilot modes under `default`, `assisted` or `allow-all` permissions — when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the pro register § E2. "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
+You MUST invoke `ask_user` at every `→ MANDATORY GATE` in every permission mode — Claude Code's `default`, `acceptEdits`, `auto`, `plan` and `bypassPermissions`; Copilot CLI's interactive, plan and autopilot modes under `default`, `assisted` or `allow-all` permissions — when `orchestrator.driver.kind` is absent or `terminal`; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine's `references/gates.md`, *Driver-suspended mode*. "Minimize clarifying questions" applies to the model's own discretionary asks; it does not override workflow checkpoints the orchestrator has been instructed to enforce.
 
 When Copilot's question tool returns no person's answer — under autopilot it reports that nobody is available — a checkpoint has not been answered, and the engine refuses the pick. Stop, name the checkpoint, and tell the person to answer it through the question tool, in interactive mode.
 

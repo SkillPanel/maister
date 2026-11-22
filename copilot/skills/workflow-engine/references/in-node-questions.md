@@ -286,7 +286,7 @@ with `finding-brief`:
   "title": "Server crashes on an empty upload",
   "evidence": "src/upload.ts:42 reads body.length of undefined",
   "cites": [{"path": "src/upload.ts", "lines": {"start": 40, "end": 44}},
-            {"path": "verification/report.md", "section": "empty-upload"}],
+            {"path": "verification/implementation-verification.md", "section": "empty-upload"}],
   "options": [{"label": "Guard the empty body", "description": "Return 400 before reading it"}],
   "recommended": 0, "reason": "One guard closes the crash"}]}
 ```
@@ -408,7 +408,7 @@ taking their defaults. These rules hold:
   matching policy classes the area.
 - **A recommendation names its evidence.** A question with a recommended option whose reason
   rests on an artifact lists it in `evidence`: paths relative to the task directory, or to the
-  repository when no such file is in the task directory — `["analysis/findings.md",
+  repository when no such file is in the task directory — `["analysis/gap-analysis.md",
   "src/storage/schema.sql"]`. The request carries each path repository-relative. A path
   that is absolute, leaves the repository or is not on disk is dropped with a
   `question-evidence-dropped` warning, never refused; with none left the key is left out, which
@@ -417,7 +417,7 @@ taking their defaults. These rules hold:
   `{path, lines?: {start, end}, section?}`: a file found as an evidence path is, a line range in
   it (whole numbers from 1, `start` no greater than `end`, equal for one line) and a section's
   anchor without the `#` — `[{"path": "src/orders/checks.ts", "lines": {"start": 12, "end": 30}},
-  {"path": "verification/report.md", "section": "issue-3"}]`. `evidence` stays plain paths. A
+  {"path": "verification/implementation-verification.md", "section": "issue-3"}]`. `evidence` stays plain paths. A
   cite that is not that shape, or whose file is absolute, outside the repository or not on disk,
   is dropped with a `question-cite-dropped` warning, never refused; with none left the key is left
   out. `finding-brief` fills it from each finding's own.
