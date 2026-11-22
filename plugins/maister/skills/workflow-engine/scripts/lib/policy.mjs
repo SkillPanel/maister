@@ -65,6 +65,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { canonicalValue } from './graph.mjs';
+import { TRIAGE_CLASSES } from './interface-shapes.mjs';
 
 /** The policy applied when no file is found or a file is refused. It classes nothing. */
 export const DEFAULT_POLICY = Object.freeze({ version: 1 });
@@ -78,8 +79,8 @@ export const GENERATED_WORKFLOW = 'generated';
 /** What `source` reads when no file was applied. */
 export const BUILT_IN = 'built-in';
 
-/** The triage classes, lowest first: a raise moves an item rightwards, never back. */
-export const CLASSES = ['decide-alone', 'record', 'consult', 'approve'];
+/** The triage classes, lowest first: a raise moves an item rightwards, never back. Declared with the interface. */
+export const CLASSES = TRIAGE_CLASSES;
 
 /** The bands an item can carry. */
 export const BANDS = ['clear', 'leaning', 'toss-up'];
@@ -96,8 +97,26 @@ const FLOOR_CLASS = 'approve';
 /** The item kinds a table row can name. A value is read off its gate's row. */
 const ROW_KINDS = ['gate', 'question'];
 
-/** What set the final class when it ended above the family's own. */
-const RAISED_BY = { floor: 'floor', band: 'band' };
+/**
+ * What set the final class when it ended above the family's own: a floor id, a
+ * band, a choice's own wording, or the second reader's raise.
+ */
+export const RAISED_BY = Object.freeze({ floor: 'floor', band: 'band', wording: 'wording', reader: 'reader' });
+
+/**
+ * What a choice lifts a question to: the lowest class the run never settles.
+ * A choice may be asked or defaulted with its advice not obtained, never settled
+ * as a fact.
+ */
+const CHOICE_CLASS = 'consult';
+
+/**
+ * The classes each lift raises from, to `CHOICE_CLASS`. A choice's wording lifts
+ * the class the run settles as a fact, `record`, and leaves `decide-alone` —
+ * the routine choices a policy lets the run take on purpose — as the policy
+ * reads it. The reader's raise lifts every class below `CHOICE_CLASS`.
+ */
+const LIFTS = { [RAISED_BY.wording]: ['record'], [RAISED_BY.reader]: ['decide-alone', 'record'] };
 
 /**
  * Why a file was refused — the last segment of a `policy-refused` warning. A
@@ -387,14 +406,22 @@ export function triageFor({ policy, workflow, kind, id, declaredIds, key, family
   return triageUnder({ policy, family: name, floorIds, band, evidence });
 }
 
+/** The second reader's verdicts: `agree` lets a question take a lower family, `raise` keeps the first. */
+export const VERDICT = Object.freeze({ agree: 'agree', raise: 'raise' });
+
 /**
  * The `triage` v1 of an item read as `family` — a family `familyChoice`
  * already chose — or null when `family` is null or not one the policy
  * defines. The class rules are `triageFor`'s; a caller that needs the choice
  * itself (its reason, whether the proposal was a lowering) calls
  * `familyChoice` once and passes its family here.
+ *
+ * `lifts` names what marks the item as a choice — `wording` (its question is
+ * worded as one), `reader` (the second reader raised it) — each lifting the
+ * classes `LIFTS` lists to `consult` before the floor and the band apply,
+ * `raised_by` naming the first lift that moved it. Raise-only, like the rest.
  */
-export function triageUnder({ policy, family: name, floorIds, band, evidence } = {}) {
+export function triageUnder({ policy, family: name, floorIds, band, evidence, lifts = [] } = {}) {
   // The policy is one `loadPolicy` accepted (or the built-in default), so its
   // shape is not re-checked here: every family a row or `unknown_family`
   // names exists, and each class is a known one.
@@ -403,6 +430,13 @@ export function triageUnder({ policy, family: name, floorIds, band, evidence } =
   let level = rank(own.class);
   const start = level;
   let raisedBy = null;
+
+  for (const lift of Array.isArray(lifts) ? lifts : []) {
+    if (Object.hasOwn(LIFTS, lift) && LIFTS[lift].includes(CLASSES[level])) {
+      level = rank(CHOICE_CLASS);
+      raisedBy = lift;
+    }
+  }
 
   const floor = [...new Set([...ids(own.floor), ...ids(floorIds)])];
   if (floor.length > 0 && rank(FLOOR_CLASS) > level) {
@@ -435,13 +469,11 @@ export const FAMILY_REASON = Object.freeze({
   noRow: 'no-row',
   unlisted: 'unlisted',
   flooredFirst: 'floored-first',
+  choice: 'choice',
   carriesTriage: 'carries-triage',
   noVerdict: 'no-verdict',
   raised: 'raised',
 });
-
-/** The second reader's verdicts: `agree` lets a question take a lower family, `raise` keeps the first. */
-const VERDICT = { agree: 'agree', raise: 'raise' };
 
 /**
  * The one rule for the family an item reads as, and why a proposal was not
@@ -458,13 +490,15 @@ const VERDICT = { agree: 'agree', raise: 'raise' };
  * - A proposal the row lists that is at least as strict as the first family
  *   (`strictness`) is applied, with no verdict needed.
  * - A lower one the row lists is applied only to a question, only when the
- *   first family carries no floor, the question carries no version-1 triage of
- *   its own (`carried`) and the second reader agreed (`reader.verdict` is
- *   `agree`). A gate is never lowered: its `reader` is not read.
+ *   first family carries no floor, the question is not worded as a choice
+ *   (`choice`), carries no version-1 triage of its own (`carried`) and the
+ *   second reader agreed (`reader.verdict` is `agree`). A gate is never
+ *   lowered: its `reader` is not read.
  * - Otherwise the first family, with the first reason that holds, in order:
- *   `unlisted`, `floored-first`, `carries-triage`, `no-verdict`, `raised`.
+ *   `unlisted`, `floored-first`, `choice`, `carries-triage`, `no-verdict`,
+ *   `raised`.
  */
-export function familyChoice({ policy, workflow, kind, id, declaredIds, key, proposed, reader, carried } = {}) {
+export function familyChoice({ policy, workflow, kind, id, declaredIds, key, proposed, reader, carried, choice = false } = {}) {
   const proposal = typeof proposed === 'string' ? proposed : null;
   const fallback = policy?.unknown_family ?? null;
   const row = rowOf({ policy, workflow, kind, id, declaredIds });
@@ -481,6 +515,7 @@ export function familyChoice({ policy, workflow, kind, id, declaredIds, key, pro
   if (carriesFloor(policy, first)) return keep(FAMILY_REASON.flooredFirst);
   // Only a question has a second reader; a gate's lowering reads as one with no verdict.
   if (kind !== 'question') return keep(FAMILY_REASON.noVerdict);
+  if (choice === true) return keep(FAMILY_REASON.choice);
   if (isMap(carried) && carried.version === 1) return keep(FAMILY_REASON.carriesTriage);
   const verdict = isMap(reader) ? reader.verdict : undefined;
   if (verdict === VERDICT.agree) return { family: proposal, reason: null, lower };

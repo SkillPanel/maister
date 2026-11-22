@@ -121,7 +121,7 @@ import { STYLE_GUIDE } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
-import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
+import { CHOICE_WORDS, HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
 import { loadPolicy, questionFamilies } from './policy.mjs';
 import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
@@ -573,7 +573,8 @@ function askLines(origin, resolved, { doc, state, runDir }, node) {
  * classes nothing, so there is nothing to propose. A family below the first is
  * marked as needing the reader's agreement, and a line that offers one ends
  * with the reader's call — its dispatch name, model and effort, as the
- * `companion writer:` line prints the writer's; a line with none ends as it
+ * `companion writer:` line prints the writer's, and the words that keep a
+ * question from being lowered (`CHOICE_WORDS`); a line with none ends as it
  * always did.
  */
 function familyLines(doc, ids, node) {
@@ -587,7 +588,7 @@ function familyLines(doc, ids, node) {
     if (offered.length < 2) return [];
     const list = offered.map(({ name, description, lower }) => `${name} — ${oneLine(description)}${lower ? ' (needs the reader\'s agreement)' : ''}`).join('; ');
     const reader = offered.some(({ lower }) => lower)
-      ? ` — a family marked as needing the reader's agreement is taken only with the verdict of ${dispatchName(QUESTION_READER)}, ${modelText(QUESTION_READER, node, doc)}`
+      ? ` — a family marked as needing the reader's agreement is taken only with the verdict of ${dispatchName(QUESTION_READER)}, ${modelText(QUESTION_READER, node, doc)}; never for a question worded as a choice (${CHOICE_WORDS.map(word => `"${word}"`).join(', ')})`
       : '';
     return [`families (${id}): ${list}${reader}`];
   });

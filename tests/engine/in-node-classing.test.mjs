@@ -598,13 +598,17 @@ test('a lowering with the reader agreeing is settled under the lower family; the
   assert.doesNotMatch(checkpoint, /"reader"|"family"|"proposed"/);
 });
 
-test('a raise verdict keeps the first family and quotes the reader; under a hash mismatch family and reader are ignored without notes', t => {
+test('a raise verdict keeps the first family, quotes the reader and lifts it to consult; under a hash mismatch family and reader are ignored without notes', t => {
   const reader = { verdict: 'raise', reason: 'Option B changes who may publish.' };
   const run = started(t, PROPOSING.engine);
   const raised = classing(PROPOSING.engine, run, [], { questions: [{ ...question('scope-choice'), family: 'quick-family', reader }] });
   assert.equal(raised.code, 0, raised.stderr);
   assert.match(raised.stderr, /^note: node_summaries\.scoping: classed scope-choice under noted-family, not the proposed quick-family: the reader raised it: "Option B changes who may publish\."$/m);
-  assert.deepEqual(byId(summaryOf(run).decisions, 'scope-choice').triage, { version: 1, class: 'record', family: 'noted-family', proposed: 'quick-family', reader });
+  // The raise marks a choice, which the run never settles: it is asked, its triage kept for the answer.
+  assert.equal(askLine(raised.stdout), 'ask: scope-choice');
+  assert.equal(summaryOf(run).decisions, undefined);
+  assert.deepEqual(summaryOf(run).asked_triage['scope-choice'],
+    { version: 1, class: 'consult', family: 'noted-family', raised_by: 'reader', proposed: 'quick-family', reader });
 
   const drifted = started(t, PROPOSING.engine);
   const result = classing(OTHER.engine, drifted, [], { questions: [{ ...question('scope-choice'), family: 'quick-family', reader: { verdict: 'agree', reason: 'Nothing changes.' } }] });

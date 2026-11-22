@@ -23,9 +23,12 @@
  *   no companion.
  * - `classesQuestions(policy, workflow)` — whether the policy classes in-node
  *   questions for the workflow at all.
+ * - `CHOICE_WORDS`, `choiceWorded(question)` — the words that mark a question
+ *   as asking what should be, and whether a question's text carries one.
  * - `classSet({...})` — every question of a checked set classed: the items to
- *   record, the ids still to ask, the faults that refuse the write, and the
- *   notes of the proposals and verdicts it did not take.
+ *   record, the ids still to ask and the triage each of those was classed
+ *   under, the faults that refuse the write, and the notes of the proposals
+ *   and verdicts it did not take.
  * - `raiseTriage(computed, carried)` — the raise-only merge of a triage the
  *   question already carried with the one computed for it: the carried one
  *   raises the class and adds to the floor, nothing else.
@@ -55,7 +58,7 @@
 
 import fs from 'node:fs';
 
-import { CLASSES, FAMILY_REASON, familyChoice, questionOutcome, triageUnder } from './policy.mjs';
+import { CLASSES, FAMILY_REASON, RAISED_BY, VERDICT, familyChoice, questionOutcome, triageUnder } from './policy.mjs';
 import { guideRows } from './graph.mjs';
 import { attemptNumber, oneLine } from './items.mjs';
 
@@ -185,6 +188,28 @@ export function classesQuestions(policy, workflow) {
 }
 
 /**
+ * The words that mark a question as a choice: one that asks what should be, or
+ * who may do something, has an answer that changes what the product does or who
+ * may do it, so it is never a fact. Matched as whole words in the question's
+ * text, without regard to case. The list is English: a question in another
+ * language is caught by the second reader's raise alone.
+ */
+export const CHOICE_WORDS = Object.freeze(['should', 'shall', 'ought', 'who may', 'who can']);
+
+const CHOICE_PATTERN = new RegExp(`\\b(?:${CHOICE_WORDS.map(word => word.replace(/ /g, '\\s+')).join('|')})\\b`, 'i');
+
+/** Whether a question's text is worded as a choice (`CHOICE_WORDS`). */
+export function choiceWorded(question) {
+  return isMap(question) && typeof question.question === 'string' && CHOICE_PATTERN.test(question.question);
+}
+
+/** The lowest class a carried triage counts at when the policy itself classes the question not at all. */
+const CARRIED_ALONE_FROM = 'consult';
+
+/** The class a floor id sets, as the policy reads it. */
+const FLOOR_CLASS = 'approve';
+
+/**
  * The raise-only merge of the triage computed for a question with one it
  * already carried. The carried triage raises the class and adds to the floor,
  * and nothing else: the result is the computed triage, its `class` replaced
@@ -192,7 +217,10 @@ export function classesQuestions(policy, workflow) {
  * and its `floor` the union of both. Every other key — the family, a band, a
  * proposal and its verdict — is the computed one's, so a carried triage never
  * records a family the policy did not give the question. With no computed
- * triage, a carried version-1 one gives `{version, class, floor?}`. A carried
+ * triage, a carried version-1 one gives `{version, class, floor?}` only when
+ * its class is consult or above — one the run never settles — a floor id it
+ * names reading as the approval class; a lower one is set aside, so the
+ * question stays unclassed and is asked. A carried
  * triage of another version is ignored. A carried triage only ever raises, so
  * it can hold or ask more, never settle more. Neither side is changed; the
  * floor keeps its place after the class.
@@ -202,8 +230,11 @@ export function raiseTriage(computed, carried) {
   const kept = isMap(carried) && carried.version === 1 ? carried : null;
   if (kept === null) return own === null ? null : { ...own };
   if (own === null) {
-    const bare = { version: kept.version, class: kept.class };
     const floor = floorOf(kept);
+    // A floor id sets the approval class however low the carried class is.
+    const carriedClass = floor.length > 0 && CLASSES.indexOf(kept.class) < CLASSES.indexOf(FLOOR_CLASS) ? FLOOR_CLASS : kept.class;
+    if (CLASSES.indexOf(carriedClass) < CLASSES.indexOf(CARRIED_ALONE_FROM)) return null;
+    const bare = { version: kept.version, class: carriedClass };
     if (floor.length > 0) bare.floor = floor;
     return bare;
   }
@@ -224,29 +255,35 @@ function floorOf(triage) {
  * `workflow` name, the node's `declaredIds`, the autonomy ceiling's `settles`,
  * whether a person can be asked (`canAsk`) and the node's `attempt`.
  *
- * Returns `{items, asking, faults, notes}`: the decision items to record, in
- * set order; the ids still to ask, in set order; every reason the write is
- * refused — a `reasons` entry naming no question of the set or carrying
- * another key; and the notes of the proposals and verdicts it did not take.
- * When `faults` is non-empty nothing is to be recorded.
+ * Returns `{items, asking, askedTriage, faults, notes}`: the decision items to
+ * record, in set order; the ids still to ask, in set order; the triage each
+ * classed id still to ask was classed under, by id, for the answer it gets
+ * later; every reason the write is refused — a `reasons` entry naming no
+ * question of the set or carrying another key; and the notes of the proposals
+ * and verdicts it did not take. When `faults` is non-empty nothing is to be
+ * recorded.
  *
  * A question's `family` is the family the node proposes for it, and its
  * `reader` the second reader's `{verdict, reason}` on a proposal below the
  * first family. Which family applies is the policy's family rule
  * (`familyChoice`): a listed family at least as strict as the first is taken;
- * a listed lower one only with `agree`, an unfloored first family and no
- * triage carried on the question; anything else leaves the first family, and
- * the note `classed <id> under <applied>, not the proposed <proposed>:
- * <reason>` says why. A verdict sent with no lowering proposal — none at all,
- * an equal or stricter one, an unlisted one, or a question with no row — is
- * ignored with a note of its own, printed after the proposal's.
+ * a listed lower one only with `agree`, an unfloored first family, a question
+ * not worded as a choice (`choiceWorded`) and no triage carried on the
+ * question; anything else leaves the first family, and the note `classed <id>
+ * under <applied>, not the proposed <proposed>: <reason>` says why.
+ *
+ * A choice is never settled as a fact. A question worded as one has its
+ * `record` class lifted to `consult`; a `raise` from the reader lifts any class
+ * below `consult` to it, with a lowering proposed or none; `raised_by` names
+ * the lift (`triageUnder`). An `agree` sent with no lowering proposal changes
+ * nothing, and says so in a note printed after the proposal's.
  *
  * A classed question's triage records `proposed` whenever a family was
- * proposed, and `reader`, as sent, whenever the verdict came with a lowering
- * proposal, taken or not. Both are added before the carried triage is merged
- * (`raiseTriage`), which raises only the class and the floor. A question the
- * policy leaves unclassified ignores both keys without a note, and a question
- * with neither is classed under its row's first family, with neither key.
+ * proposed, and `reader`, as sent, whenever a verdict was sent. Both are added
+ * before the carried triage is merged (`raiseTriage`), which raises only the
+ * class and the floor. A question the policy leaves unclassified ignores both
+ * keys without a note, and a question with neither is classed under its row's
+ * first family, with neither key.
  *
  * A question offering an option marked `person_act` is never settled: it
  * needs a person, so it is classed as if the ceiling settled nothing.
@@ -268,24 +305,28 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
   const sent = isMap(reasons) ? reasons : {};
   const items = [];
   const asking = [];
+  const askedTriage = {};
   const notes = [];
   const round = Number(attempt);
   for (const question of list) {
     const proposed = typeof question.family === 'string' ? question.family : undefined;
     const reader = isMap(question.reader) ? question.reader : undefined;
+    const choice = choiceWorded(question);
     const asked = { policy, workflow, kind: 'question', id: question.id, declaredIds };
-    const { family, reason, lower: lowering } = familyChoice({ ...asked, proposed, reader, carried: question.triage });
-    const computed = triageUnder({ policy, family });
+    const { family, reason, lower: lowering } = familyChoice({ ...asked, proposed, reader, carried: question.triage, choice });
+    // What marks the question a choice, the wording first: each lifts the class it lists, never lowers one.
+    const lifts = [...(choice ? [RAISED_BY.wording] : []), ...(reader?.verdict === VERDICT.raise ? [RAISED_BY.reader] : [])];
+    const computed = triageUnder({ policy, family, lifts });
     // Nothing classed, nothing noted: a proposal and a verdict count only where the policy classes the question.
     if (computed !== null) {
       if (proposed !== undefined) computed.proposed = proposed;
       // Added before the carried merge, which keeps them as computed: a carried triage never writes either.
-      if (lowering && reader !== undefined) computed.reader = { verdict: reader.verdict, reason: reader.reason };
+      if (reader !== undefined) computed.reader = { verdict: reader.verdict, reason: reader.reason };
       if (reason !== null) {
         notes.push(`classed ${question.id} under ${computed.family}, not the proposed ${proposed}: ${notTakenBecause(reason, reader)}`);
       }
-      if (reader !== undefined && !lowering) {
-        notes.push(`ignored the reader's verdict on ${question.id}: it counts only with a proposed family below the first `
+      if (reader?.verdict === VERDICT.agree && !lowering) {
+        notes.push(`the reader's agreement on ${question.id} changed nothing: it counts only with a proposed family below the first `
           + 'the policy lists for the question');
       }
     }
@@ -298,6 +339,8 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
     const chosen = defaultOf(question);
     if (outcome === 'ask' || outcome === 'unclassed' || (chosen === null && outcome !== 'hold')) {
       asking.push(question.id);
+      // Kept for the answer: a reader of the run sees what an asked question was classed under.
+      if (recorded !== null) askedTriage[question.id] = outcome === 'default' ? withoutAdvice(recorded) : recorded;
       continue;
     }
     const why = isMap(sent[question.id]) ? sent[question.id] : {};
@@ -322,7 +365,15 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
     if (Number.isInteger(round) && round > 1) item.attempt = round;
     items.push(item);
   }
-  return faults.length ? { items: [], asking: [], faults, notes: [] } : { items, asking, faults, notes };
+  return faults.length
+    ? { items: [], asking: [], askedTriage: {}, faults, notes: [] }
+    : { items, asking, askedTriage, faults, notes };
+}
+
+/** A triage without the `advice` a default adds: a question left to ask has not been defaulted. */
+function withoutAdvice(triage) {
+  const { advice: _advice, ...rest } = triage;
+  return rest;
 }
 
 /** Why a proposed family was not applied, in the words of the classing note. */
@@ -331,6 +382,7 @@ function notTakenBecause(reason, reader) {
     case FAMILY_REASON.unlisted: return 'not listed for the question';
     case FAMILY_REASON.noRow: return 'no policy row for the question';
     case FAMILY_REASON.flooredFirst: return 'the first family carries a floor';
+    case FAMILY_REASON.choice: return 'the question is worded as a choice, which is never a fact';
     case FAMILY_REASON.carriesTriage: return 'the question carries a triage';
     case FAMILY_REASON.raised: return `the reader raised it: "${reader?.reason ?? ''}"`;
     default: return 'no verdict sent, and a lower family needs the reader\'s agreement';

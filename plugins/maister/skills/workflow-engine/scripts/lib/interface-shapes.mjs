@@ -147,6 +147,47 @@ export const CHECKPOINT_KEYS = {
   },
 };
 
+/** The triage classes, lowest first, as the autonomy policy names them. */
+export const TRIAGE_CLASSES = ['decide-alone', 'record', 'consult', 'approve'];
+
+/** What may raise a triage's class above its family's own. */
+export const TRIAGE_RAISED_BY = ['floor', 'band', 'wording', 'reader'];
+
+/** The second reader's verdict on a question, as the question set carries it and the triage records it. */
+export const READER_VERDICT = {
+  verdict: { type: 'string', required: true, values: ['agree', 'raise'] },
+  reason: text,
+};
+
+/**
+ * The triage the state writer records on an in-node question: on a settled,
+ * defaulted or held decision, on a person's answer to a question it left to
+ * ask, and under the node summary's `asked_triage`. `family` is the family
+ * applied, `proposed` the one the node proposed, `reader` the second reader's
+ * verdict as sent.
+ */
+export const QUESTION_TRIAGE = {
+  version: { type: 'integer', required: true },
+  class: { type: 'string', required: true, values: TRIAGE_CLASSES },
+  floor: paths(false),
+  family: optionalText,
+  band: optionalText,
+  raised_by: { type: 'string', required: false, values: TRIAGE_RAISED_BY },
+  proposed: optionalText,
+  reader: { type: 'object', required: false, keys: READER_VERDICT },
+  advice: { type: 'string', required: false, values: ['not_obtained'] },
+  held: optionalFlag,
+};
+
+/**
+ * The keys of a task node's summary only the classing write records: the ids it
+ * left to ask, and the triage each classed one was classed under, by id.
+ */
+export const SUMMARY_WRITER_KEYS = {
+  asking: paths(false),
+  asked_triage: { type: 'object', required: false, see: 'question_triage' },
+};
+
 /** What a workflow definition declares about itself for a reader, not for a run. */
 export const WORKFLOW_DECLARATIONS = {
   changes_code: { type: 'boolean', required: false, default: false },
