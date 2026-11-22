@@ -4,9 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ENGINE, ENGINE_DIR, freeze, git, gitScratch, readState, run, verb } from '../helpers.mjs';
+import { pathToFileURL } from 'node:url';
 
-const { UPDATE_BRANCH_RESULT, UPDATE_BRANCH_RESULT_FILE } = await import(path.join(ENGINE_DIR, 'scripts/lib/interface-shapes.mjs'));
-const { validate } = await import(path.join(ENGINE_DIR, 'scripts/lib/update-branch-result.mjs'));
+const { UPDATE_BRANCH_RESULT, UPDATE_BRANCH_RESULT_FILE } = await import(pathToFileURL(path.join(ENGINE_DIR, 'scripts/lib/interface-shapes.mjs')).href);
+const { validate } = await import(pathToFileURL(path.join(ENGINE_DIR, 'scripts/lib/update-branch-result.mjs')).href);
 
 // `update-branch` ends every call by writing one result a caller reads instead
 // of its closing prose. The session sends what only it knows; the verb adds
