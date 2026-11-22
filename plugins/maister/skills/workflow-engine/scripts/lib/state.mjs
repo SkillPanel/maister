@@ -3961,6 +3961,12 @@ function runSettled(decisions, via, prior = null) {
  *   (`state-answer-needs-person`): a person must answer it;
  * - any other is the host's pick (`asHostAnswer`).
  *
+ * An item sent as taken by default (`by: default`) is the host's too when it
+ * gives the answer a held host answer gave, or when a `host` note asked its
+ * `question_id`: the host answered that question, so the pick is recorded as
+ * the host's (refused first, as above, when it reads as approval-class). Any
+ * other default is left as it is.
+ *
  * An answer block the writer folded gets no exemption of its own here. Items
  * already recorded as the run's, a host's included, are left as they are.
  */
@@ -3970,6 +3976,7 @@ function hostSettled(decisions, prior, { evidence, needsApproval = () => false }
   const heldLike = (item, isHeld) => held.find(other => isHeld(other) && other.question_id === item.question_id
     && (attemptNumber(other) ?? 1) === (attemptNumber(item) ?? 1) && sameAnswer(other, item));
   return decisions.map(item => {
+    if (isPlainObject(item) && decisionOf(item)?.by === 'default') return hostDefault(item);
     if (!isPlainObject(item) || decisionOf(item)?.by !== 'operator') return item;
     if (typeof item.question_id === 'string') {
       const host = heldLike(item, isHostAnswer);
@@ -3984,6 +3991,17 @@ function hostSettled(decisions, prior, { evidence, needsApproval = () => false }
     }
     return asHostAnswer(item);
   });
+
+  function hostDefault(item) {
+    if (typeof item.question_id !== 'string' || item.question_id === '') return item;
+    const host = heldLike(item, isHostAnswer);
+    if (host) return host;
+    if (evidence?.host !== true || !evidence.questions.includes(item.question_id)) return item;
+    if (needsApproval(item)) {
+      throw needsPerson(`an answer to ${item.question_id}, which the run's policy classes for approval`, { subject: 'question' });
+    }
+    return asHostAnswer(item);
+  }
 }
 
 /**
@@ -4116,9 +4134,11 @@ export const ASK_RESULT_USED = '.ask.result.used.json';
  * question asked, `answers` the parsed value(s) or undefined, `typed` the
  * properties the person answered in their own words, `text` the note as read,
  * which `retireNote` retires only while the file still holds it — and
- * `{person: false}` for anything else: a `host` or `none` note, a `person`
- * note whose answer is empty (`emptyAnswer`), one that cannot be read, or only
- * a retired one.
+ * `{person: false, host, questions}` for anything else: a `host` or `none`
+ * note, a `person` note whose answer is empty (`emptyAnswer`), one that cannot
+ * be read, or only a retired one. `host` is true for a current `host` note
+ * (the host answered, nobody was there), and `questions` the property ids that
+ * note asked; for anything else `host` is false and `questions` empty.
  */
 export function answerEvidence(runDir, state) {
   if (SHIPPED_HOST !== 'copilot' || runDir === null || runDir === undefined) return null;
@@ -4137,8 +4157,9 @@ export function answerEvidence(runDir, state) {
   } catch {
     note = null;
   }
-  if (!isPlainObject(note) || note.outcome !== 'person' || emptyAnswer(note.answers)) return { person: false };
   const ids = list => (Array.isArray(list) ? list.filter(id => typeof id === 'string') : []);
+  if (isPlainObject(note) && note.outcome === 'host') return { person: false, host: true, questions: ids(note.questions) };
+  if (!isPlainObject(note) || note.outcome !== 'person' || emptyAnswer(note.answers)) return { person: false, host: false, questions: [] };
   return { person: true, questions: ids(note.questions), answers: note.answers, typed: ids(note.typed), bound: note.bound === true, text };
 }
 
