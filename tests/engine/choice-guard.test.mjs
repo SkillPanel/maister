@@ -1,10 +1,11 @@
-import { test } from 'node:test';
+import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
-import { FIXTURES, freezePatch, readState, run as runScript, scratch, sharedPlugin } from '../helpers.mjs';
-import { CHOICE_WORDS, choiceWorded, classSet } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
+import { FIXTURES, ROOT, freezePatch, readState, run as runScript, scratch, sharedPlugin } from '../helpers.mjs';
+import { CHOICE_WORDS, choiceWorded, classSet, inNodeClarifications, raiseTriage } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
 import { QUESTION_TRIAGE, TRIAGE_CLASSES, TRIAGE_RAISED_BY } from '../../plugins/maister/skills/workflow-engine/scripts/lib/interface-shapes.mjs';
 import { CLASSES, RAISED_BY } from '../../plugins/maister/skills/workflow-engine/scripts/lib/policy.mjs';
 
@@ -347,4 +348,120 @@ test('every key a classed triage carries is declared in the interface\'s questio
   // The policy's own names are the declared ones.
   assert.deepEqual(Object.values(RAISED_BY), TRIAGE_RAISED_BY);
   assert.deepEqual(CLASSES, TRIAGE_CLASSES);
+});
+
+// ---------------------------------------------------------------------------
+// A clarification settles as a fact only with the reader's agreement
+// ---------------------------------------------------------------------------
+
+// The in-node fixture with its prose marking `review-wanted` a clarification;
+// `drafting-tone`, a routine fact question, stays unmarked. Both read a record
+// family first, so the run would settle either at advice.
+let MARKED = null;
+before(() => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maister-clarification-')));
+  MARKED = path.join(dir, 'in-node-questions.yml');
+  fs.copyFileSync(DEFINITION, MARKED);
+  const prose = fs.readFileSync(DEFINITION.replace(/\.yml$/, '.md'), 'utf8')
+    .replace('**With question sets** (`review-wanted`)', '**With question sets** (clarification, `review-wanted`)');
+  fs.writeFileSync(MARKED.replace(/\.yml$/, '.md'), prose);
+});
+after(() => {
+  if (MARKED) fs.rmSync(path.dirname(MARKED), { recursive: true, force: true });
+});
+
+const DISPATCH = { kind: 'dispatch', cwd: '/work' };
+const markedRun = (t, extra = {}) => started(t, GUARD.engine, { definition: MARKED, ...extra });
+
+test('the clarification mark is the word ahead of the id on a question-set line, read from either line', () => {
+  const prose = [
+    '## `asking`', '',
+    '**With question sets** (clarification, `first-id`): asked.', '',
+    '**Without question sets** (`first-id`): none.', '',
+    '**With question sets** (`second-id`): asked.', '',
+    '**Without question sets** (a clarification, `second-id`): none.', '',
+    '**With question sets** (`clarifications`): the id alone marks nothing.', '',
+  ].join('\n');
+  assert.deepEqual(inNodeClarifications(prose), [{ node: 'asking', id: 'first-id' }, { node: 'asking', id: 'second-id' }]);
+  const builtIns = Object.fromEntries(['development', 'migration', 'performance', 'research', 'product-design'].map(name => [name,
+    inNodeClarifications(fs.readFileSync(path.join(ROOT, 'plugins/maister/skills/workflow-engine/workflows', `${name}.md`), 'utf8')).map(each => each.id)]));
+  assert.deepEqual(builtIns, {
+    development: ['clarifications'],
+    migration: ['clarifications'],
+    performance: ['clarifications'],
+    research: ['question-clarification', 'design-constraints'],
+    'product-design': ['scope-questions'],
+  });
+});
+
+test('a clarification the run would settle with no reader verdict is asked; with agree it settles; a raise asks it', t => {
+  for (const ceiling of ['advice', 'decide']) {
+    const silent = classOne(t, GUARD.engine, question('review-wanted', FACT), { run: markedRun(t, { ceiling }) });
+    reachesPerson(silent, 'review-wanted');
+    assert.match(silent.result.stderr, /^note: node_summaries\.scoping: did not settle review-wanted: a clarification is settled as a fact only with the reader's agreement, and no verdict was sent$/m);
+    assert.deepEqual(silent.summary.asked_triage['review-wanted'], { version: 1, class: 'record', family: 'noted-family' });
+
+    const agreed = classOne(t, GUARD.engine, question('review-wanted', FACT, { reader: AGREE }), { run: markedRun(t, { ceiling }) });
+    settledByRun(agreed, 'review-wanted');
+    assert.doesNotMatch(agreed.result.stderr, /changed nothing/, 'a clarification\'s agreement is what lets it settle');
+    assert.deepEqual(agreed.item.triage, { version: 1, class: 'record', family: 'noted-family', reader: AGREE });
+
+    reachesPerson(classOne(t, GUARD.engine, question('review-wanted', FACT, { reader: RAISE }), { run: markedRun(t, { ceiling }) }), 'review-wanted');
+  }
+  // A per-area slug of the marked id is a clarification too.
+  reachesPerson(classOne(t, GUARD.engine, question('review-wanted-storage', FACT), { run: markedRun(t) }), 'review-wanted-storage');
+});
+
+test('a routine fact question its prose does not mark settles as before, reader or none', t => {
+  const run = markedRun(t, { node: 'drafting' });
+  settledByRun(classOne(t, GUARD.engine, question('drafting-tone', FACT), { run, node: 'drafting' }), 'drafting-tone');
+  // The same id unmarked, in the fixture as shipped.
+  settledByRun(classOne(t, GUARD.engine, question('review-wanted', FACT), { ceiling: 'advice' }), 'review-wanted');
+});
+
+test('nobody to ask: a clarification with no verdict takes its default by default, never by the run', t => {
+  const classed = classOne(t, GUARD.engine, question('review-wanted', FACT), { run: markedRun(t, { driver: DISPATCH }) });
+  assert.equal(classed.item.by, 'default');
+  assert.equal(classed.item.decision, 'Option A');
+  const agreed = classOne(t, GUARD.engine, question('review-wanted', FACT, { reader: AGREE }), { run: markedRun(t, { driver: DISPATCH }) });
+  assert.equal(agreed.item.by, 'run');
+});
+
+test('a clarification read under a routine decide-alone family needs the agreement too; an unmarked one does not', () => {
+  const policy = { ...GUARD_POLICY, table: [...GUARD_POLICY.table, { workflow: 'in-node-questions', id: 'quick-clarify', kind: 'question', families: ['quick-family'] }] };
+  const one = (asked, clarificationIds) => classSet({
+    questions: [{ ...asked, default: 'a' }], policy, workflow: 'in-node-questions', declaredIds: ['quick-clarify', 'other'],
+    clarificationIds, settles: 'decide-alone', canAsk: true, attempt: 1,
+  });
+  assert.deepEqual(one(question('quick-clarify', FACT), ['quick-clarify']).asking, ['quick-clarify']);
+  assert.equal(one(question('quick-clarify', FACT, { reader: AGREE }), ['quick-clarify']).items[0].by, 'run');
+  assert.equal(one(question('quick-clarify', FACT), []).items[0].by, 'run');
+});
+
+test('the brief tells the node to dispatch the reader for each clarification the run could settle', t => {
+  const brief = run => runScript(GUARD.engine, ['node-brief', `--state=${run.state}`, '--node=scoping']);
+  const line = /^reader \(review-wanted\): a clarification is settled as a fact only with the verdict of maister:question-reader, model haiku, effort high \(source: shipped agents\.question-reader, tier light\) — dispatch it for each question of the set the run may settle, copy its verdict on as reader, and send none you could not get: the question is then asked$/m;
+  for (const ceiling of ['advice', 'decide']) {
+    const result = brief(markedRun(t, { ceiling }));
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, line);
+    assert.doesNotMatch(result.stdout, /^reader \(scope-choice\)/m, 'an unmarked id prints no reader line');
+  }
+  // At approve the run settles no fact family, so there is nothing to dispatch for.
+  assert.doesNotMatch(brief(markedRun(t, { ceiling: 'approve' })).stdout, /^reader \(/m);
+  // Unmarked prose prints none either.
+  assert.doesNotMatch(brief(started(t, GUARD.engine)).stdout, /^reader \(/m);
+});
+
+test('a carried floor id merged onto a computed triage raises its class to approve, as a floor does elsewhere', t => {
+  assert.deepEqual(raiseTriage({ version: 1, class: 'record', family: 'noted-family' }, { version: 1, class: 'record', floor: ['floor-a'] }),
+    { version: 1, class: 'approve', floor: ['floor-a'], family: 'noted-family', raised_by: 'floor' });
+  // Through the writer: a fact question carrying a floor id is never settled; asked here, held where nobody can be asked.
+  const floored = { triage: { version: 1, class: 'record', floor: ['floor-a'] } };
+  const asked = classOne(t, GUARD.engine, question('drafting-tone', FACT, floored), { ceiling: 'advice', node: 'drafting' });
+  reachesPerson(asked, 'drafting-tone');
+  assert.deepEqual(asked.summary.asked_triage['drafting-tone'], { version: 1, class: 'approve', floor: ['floor-a'], family: 'noted-family', raised_by: 'floor' });
+  const held = classOne(t, GUARD.engine, question('drafting-tone', FACT, floored), { ceiling: 'decide', node: 'drafting', driver: DISPATCH });
+  assert.equal(held.item.by, 'default');
+  assert.equal(held.item.triage.held, true);
 });

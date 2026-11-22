@@ -121,8 +121,8 @@ import { STYLE_GUIDE } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, questionSets } from './driver.mjs';
-import { CHOICE_WORDS, HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
-import { loadPolicy, questionFamilies } from './policy.mjs';
+import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestionIds } from './question-triage.mjs';
+import { CLASSES, ceilingOf, loadPolicy, questionFamilies } from './policy.mjs';
 import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
 
@@ -558,7 +558,8 @@ function typeText(type) {
 function askLines(origin, resolved, { doc, state, runDir }, node) {
   const ids = origin === null ? [] : declaredQuestionIds(origin, sectionNameOf(resolved));
   if (!ids.length) return [];
-  const families = familyLines(doc, ids, node);
+  const clarifications = declaredClarificationIds(origin, sectionNameOf(resolved));
+  const families = [...familyLines(doc, ids, node), ...readerLines(doc, ids, clarifications, node)];
   if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}`, ...families];
   if (!canAsk(doc)) return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies`, ...families];
   const lines = [`asks (in session): ${ids.join(', ')}`, ...families];
@@ -591,6 +592,35 @@ function familyLines(doc, ids, node) {
       ? ` — a family marked as needing the reader's agreement is taken only with the verdict of ${dispatchName(QUESTION_READER)}, ${modelText(QUESTION_READER, node, doc)}; never for a question worded as a choice (${CHOICE_WORDS.map(word => `"${word}"`).join(', ')})`
       : '';
     return [`families (${id}): ${list}${reader}`];
+  });
+}
+
+/**
+ * One `reader (<id>):` line per declared id its prose marks as a clarification
+ * that the run could settle as a fact: one whose row lists — or, with no row,
+ * whose unknown family is — a family of a class within what the autonomy
+ * ceiling settles, under the policy the freeze recorded. Such a question is
+ * settled only with the reader's agreement, so the line names the reader's
+ * call and says to dispatch it for each question the node sends that the run
+ * may settle; without one, the question is asked.
+ */
+function readerLines(doc, ids, clarifications, node) {
+  const orchestrator = isPlainObject(doc.orchestrator) ? doc.orchestrator : {};
+  if (orchestrator.classes_questions !== true || !clarifications.length) return [];
+  const { policy, hash } = loadPolicy();
+  if (orchestrator.policy_hash !== hash) return [];
+  const settles = ceilingOf({ options: orchestrator.options, policy })?.settles ?? null;
+  if (settles === null) return [];
+  const workflow = typeof doc.workflow?.name === 'string' ? doc.workflow.name : null;
+  const families = isPlainObject(policy.families) ? policy.families : {};
+  const settled = name => Object.hasOwn(families, name) && CLASSES.indexOf(families[name].class) <= CLASSES.indexOf(settles)
+    && !(Array.isArray(families[name].floor) && families[name].floor.length > 0);
+  return clarifications.filter(id => ids.includes(id)).flatMap(id => {
+    const offered = questionFamilies({ policy, workflow, id, declaredIds: ids }).map(each => each.name);
+    const names = offered.length ? offered : typeof policy.unknown_family === 'string' ? [policy.unknown_family] : [];
+    if (!names.some(settled)) return [];
+    return [`reader (${id}): a clarification is settled as a fact only with the verdict of ${dispatchName(QUESTION_READER)}, ${modelText(QUESTION_READER, node, doc)} — `
+      + 'dispatch it for each question of the set the run may settle, copy its verdict on as reader, and send none you could not get: the question is then asked'];
   });
 }
 

@@ -107,7 +107,7 @@ import { frozenSubagents } from './subagents.mjs';
 import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
 import { SUMMARY_WRITER_KEYS, keysOf } from './interface-shapes.mjs';
-import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
+import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredClarificationIds, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
 import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
@@ -4524,6 +4524,7 @@ function classQuestions(entry, node, { recorded, typedNow, held, runDir, writeWa
     policy: matches ? loaded.policy : null,
     workflow: policyWorkflowOf(typed, runDir),
     declaredIds: matches ? declaredQuestionIds(runDir === null ? null : definitionPathOf(typed, runDir), node) : [],
+    clarificationIds: matches ? declaredClarificationIds(runDir === null ? null : definitionPathOf(typed, runDir), node) : [],
     settles: matches ? ceilingOf({ options: orchestrator.options, policy: loaded.policy })?.settles ?? null : null,
     canAsk: canAsk(typed),
     attempt: attemptOf(own),

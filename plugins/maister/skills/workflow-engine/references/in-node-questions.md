@@ -589,10 +589,23 @@ question is not worded as a choice and carries no triage. A `raise`, no `reader`
 first family, a choice's wording or a triage each leave the first family in place, with a note
 naming the cause. A `raise` counts with or without a lowering: it lifts any class below consult
 to consult (`raised_by: reader`), so a verdict the reader gave unasked is never ignored. An
-`agree` with nothing to lower changes nothing, and a note says so.
+`agree` with nothing to lower changes nothing, and a note says so — except on a clarification.
+
+**A clarification is settled as a fact only with the reader's agreement.** A question-set line
+marks its id as one with the word `clarification` ahead of it —
+``**With question sets** (clarification, `clarifications`)`` — for a question that asks a person
+what the task means, whose answer can read as a fact and still be a choice. A question whose id
+reads as a marked one (a per-area slug, or the node's only declared id, included) and that the
+autonomy ceiling would settle is settled only when it carries the reader's `agree`; with none it
+is asked where a person can be, else defaulted, and a note says why. The brief prints a
+`reader (<id>):` line for each marked id the run could settle: dispatch the reader for each such
+question in the set, the one dispatch serving a lowering too, and copy each verdict on as
+`reader`. Questions their prose does not mark — a fix loop's, a retry's, an opt-in — settle as
+the policy reads them.
 
 Failing safe: when the session cannot dispatch the reader, or it returns no well-formed verdict,
-send no `reader`; the node never writes or edits a verdict itself, and the first family stands.
+send no `reader`; the node never writes or edits a verdict itself, the first family stands, and a
+clarification is asked rather than settled.
 
 A lowered question takes the outcome of its lower class. Under a driver, a question lowered from
 an approval class to a consult class takes its default with advice not obtained, where it would

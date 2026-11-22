@@ -21,6 +21,10 @@
  * - `declaredQuestionIds(definitionFile, node)` — the ids one node's prose
  *   declares, read from the companion `.md` beside the definition; `[]` with
  *   no companion.
+ * - `CLARIFICATION_MARK`, `inNodeClarifications(text)`,
+ *   `declaredClarificationIds(definitionFile, node)` — the ids a question-set
+ *   line marks as a clarification, which the run settles as a fact only with
+ *   the second reader's agreement.
  * - `classesQuestions(policy, workflow)` — whether the policy classes in-node
  *   questions for the workflow at all.
  * - `CHOICE_WORDS`, `choiceWorded(question)` — the words that mark a question
@@ -58,7 +62,7 @@
 
 import fs from 'node:fs';
 
-import { CLASSES, FAMILY_REASON, RAISED_BY, VERDICT, familyChoice, questionOutcome, triageUnder } from './policy.mjs';
+import { CLASSES, FAMILY_REASON, RAISED_BY, VERDICT, declaredIdOf, familyChoice, questionOutcome, triageUnder } from './policy.mjs';
 import { guideRows } from './graph.mjs';
 import { attemptNumber, oneLine } from './items.mjs';
 
@@ -123,6 +127,18 @@ const QUESTION_LINE = /\*\*(With|Without) question sets\*\*(?:\s*\(([^)]*)\))?/;
 const QUESTION_ID = /`([a-z0-9-]+)`/;
 
 /**
+ * The qualifier that marks a declared id as a clarification: the word
+ * `clarification` ahead of the id in a question-set line's parenthesis —
+ * ``**With question sets** (clarification, `clarifications`)``. A
+ * clarification asks a person what the task means; its answer may look like a
+ * fact and still be a choice, so the run settles one as a fact only when the
+ * second reader agreed it is one. Read from either line of the id.
+ */
+export const CLARIFICATION_MARK = 'clarification';
+
+const CLARIFICATION_WORD = new RegExp(`\\b${CLARIFICATION_MARK}\\b`, 'i');
+
+/**
  * Every `{node, id}` a node-prose file names on its With/Without question-set
  * lines, in file order, each pair counted once. A line with no parenthesis — the
  * file's preamble, or a `With` line whose `Without` partner carries the id —
@@ -131,8 +147,18 @@ const QUESTION_ID = /`([a-z0-9-]+)`/;
  * declares nothing.
  */
 export function inNodeQuestions(text) {
+  return questionLines(text).map(({ node, id }) => ({ node, id }));
+}
+
+/** Every `{node, id}` the prose marks as a clarification (`CLARIFICATION_MARK`), in file order, each once. */
+export function inNodeClarifications(text) {
+  return questionLines(text).filter(each => each.clarification).map(({ node, id }) => ({ node, id }));
+}
+
+/** The question-set lines' `{node, id, clarification}`, each pair once, marked when any of its lines carries the mark. */
+function questionLines(text) {
   const found = [];
-  const seen = new Set();
+  const seen = new Map();
   let node = null;
   for (const { text: line, fenced } of guideRows(text)) {
     if (fenced) continue;
@@ -145,10 +171,15 @@ export function inNodeQuestions(text) {
     if (!match || match[2] === undefined) continue;
     const id = QUESTION_ID.exec(match[2])?.[1];
     if (!id || node === null) continue;
+    const marked = CLARIFICATION_WORD.test(match[2].slice(0, match[2].indexOf(`\`${id}\``)));
     const key = `${node}\0${id}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    found.push({ node, id });
+    if (seen.has(key)) {
+      if (marked) seen.get(key).clarification = true;
+      continue;
+    }
+    const entry = { node, id, clarification: marked };
+    seen.set(key, entry);
+    found.push(entry);
   }
   return found;
 }
@@ -161,6 +192,15 @@ export function inNodeQuestions(text) {
  * question then reads as its own id.
  */
 export function declaredQuestionIds(definitionFile, node) {
+  return companionLines(definitionFile).filter(each => each.node === node).map(each => each.id);
+}
+
+/** The declared ids of `node` its companion marks as clarifications, in file order; `[]` with no companion. */
+export function declaredClarificationIds(definitionFile, node) {
+  return companionLines(definitionFile).filter(each => each.node === node && each.clarification).map(each => each.id);
+}
+
+function companionLines(definitionFile) {
   if (typeof definitionFile !== 'string' || definitionFile === '') return [];
   let text;
   try {
@@ -168,7 +208,7 @@ export function declaredQuestionIds(definitionFile, node) {
   } catch {
     return [];
   }
-  return inNodeQuestions(text).filter(each => each.node === node).map(each => each.id);
+  return questionLines(text);
 }
 
 // ---------------------------------------------------------------------------
@@ -214,7 +254,8 @@ const FLOOR_CLASS = 'approve';
  * already carried. The carried triage raises the class and adds to the floor,
  * and nothing else: the result is the computed triage, its `class` replaced
  * by the carried one only when that is higher (a tie keeps the computed one)
- * and its `floor` the union of both. Every other key — the family, a band, a
+ * and its `floor` the union of both — a floor that way set reading as the
+ * approval class, `raised_by: floor`, as a floor does wherever it applies. Every other key — the family, a band, a
  * proposal and its verdict — is the computed one's, so a carried triage never
  * records a family the policy did not give the question. With no computed
  * triage, a carried version-1 one gives `{version, class, floor?}` only when
@@ -238,10 +279,17 @@ export function raiseTriage(computed, carried) {
     if (floor.length > 0) bare.floor = floor;
     return bare;
   }
-  const { version, class: ownClass, floor: _floor, ...rest } = own;
-  const merged = { version, class: CLASSES.indexOf(kept.class) > CLASSES.indexOf(ownClass) ? kept.class : ownClass };
+  const { version, class: ownClass, floor: _floor, family, band, raised_by: raisedBy, ...rest } = own;
+  const higher = CLASSES.indexOf(kept.class) > CLASSES.indexOf(ownClass) ? kept.class : ownClass;
   const floor = [...new Set([...floorOf(own), ...floorOf(kept)])];
+  // A floor id sets the approval class, here as wherever else a floor applies.
+  const floored = floor.length > 0 && CLASSES.indexOf(higher) < CLASSES.indexOf(FLOOR_CLASS);
+  const merged = { version, class: floored ? FLOOR_CLASS : higher };
   if (floor.length > 0) merged.floor = floor;
+  if (family !== undefined) merged.family = family;
+  if (band !== undefined) merged.band = band;
+  if (floored) merged.raised_by = RAISED_BY.floor;
+  else if (raisedBy !== undefined) merged.raised_by = raisedBy;
   return { ...merged, ...rest };
 }
 
@@ -288,6 +336,13 @@ function floorOf(triage) {
  * A question offering an option marked `person_act` is never settled: it
  * needs a person, so it is classed as if the ceiling settled nothing.
  *
+ * A clarification — a question whose id reads as one of `clarificationIds`,
+ * the declared ids its node's prose marks so — is settled as a fact only on
+ * the reader's `agree`. With no verdict one that would be settled is classed
+ * as if the ceiling settled nothing too — asked where a person can be, else
+ * defaulted — and the note `did not settle <id>: …` says so; a `raise` has
+ * already lifted it past settling.
+ *
  * The ids still to ask are the unclassed and asked questions, and every
  * classed one with no default — no recommended option and no `default` —
  * whose outcome would settle or default it: nothing is invented for it, so it
@@ -299,7 +354,7 @@ function floorOf(triage) {
  * The caller decides whether to class at all (the run records that its policy
  * classes questions, and the policy hash matches): this function always does.
  */
-export function classSet({ questions, reasons, policy, workflow, declaredIds, settles, canAsk, attempt } = {}) {
+export function classSet({ questions, reasons, policy, workflow, declaredIds, clarificationIds = [], settles, canAsk, attempt } = {}) {
   const list = Array.isArray(questions) ? questions : [];
   const faults = reasonFaults(reasons, new Set(list.map(question => question.id)));
   const sent = isMap(reasons) ? reasons : {};
@@ -312,6 +367,7 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
     const proposed = typeof question.family === 'string' ? question.family : undefined;
     const reader = isMap(question.reader) ? question.reader : undefined;
     const choice = choiceWorded(question);
+    const clarification = isClarification(question.id, declaredIds, clarificationIds);
     const asked = { policy, workflow, kind: 'question', id: question.id, declaredIds };
     const { family, reason, lower: lowering } = familyChoice({ ...asked, proposed, reader, carried: question.triage, choice });
     // What marks the question a choice, the wording first: each lifts the class it lists, never lowers one.
@@ -325,7 +381,8 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
       if (reason !== null) {
         notes.push(`classed ${question.id} under ${computed.family}, not the proposed ${proposed}: ${notTakenBecause(reason, reader)}`);
       }
-      if (reader?.verdict === VERDICT.agree && !lowering) {
+      // A clarification's agreement is what lets it settle, so it changes something.
+      if (reader?.verdict === VERDICT.agree && !lowering && !clarification) {
         notes.push(`the reader's agreement on ${question.id} changed nothing: it counts only with a proposed family below the first `
           + 'the policy lists for the question');
       }
@@ -334,8 +391,15 @@ export function classSet({ questions, reasons, policy, workflow, declaredIds, se
     // A question offering an option only a person can take needs that person:
     // the run never settles it, whatever its class, so it is asked where
     // somebody can be and otherwise takes its default as a default.
-    const own = needsPerson(question) ? null : settles;
-    const { outcome, triage: recorded } = questionOutcome({ triage, settles: own, canAsk });
+    let own = needsPerson(question) ? null : settles;
+    let { outcome, triage: recorded } = questionOutcome({ triage, settles: own, canAsk });
+    // A clarification settles as a fact only once the second reader agreed it
+    // is one. A raise never gets here: it has lifted the class past settling.
+    if (outcome === 'settle' && clarification && reader?.verdict !== VERDICT.agree) {
+      own = null;
+      ({ outcome, triage: recorded } = questionOutcome({ triage, settles: own, canAsk }));
+      notes.push(`did not settle ${question.id}: a clarification is settled as a fact only with the reader's agreement, and no verdict was sent`);
+    }
     const chosen = defaultOf(question);
     if (outcome === 'ask' || outcome === 'unclassed' || (chosen === null && outcome !== 'hold')) {
       asking.push(question.id);
@@ -387,6 +451,12 @@ function notTakenBecause(reason, reader) {
     case FAMILY_REASON.raised: return `the reader raised it: "${reader?.reason ?? ''}"`;
     default: return 'no verdict sent, and a lower family needs the reader\'s agreement';
   }
+}
+
+/** Whether question `id` reads as a declared id its prose marks as a clarification. */
+function isClarification(id, declaredIds, clarificationIds) {
+  const marked = Array.isArray(clarificationIds) ? clarificationIds : [];
+  return marked.length > 0 && marked.includes(declaredIdOf(id, declaredIds));
 }
 
 /** Whether a question offers an option marked `person_act` (`question-set.mjs`). */

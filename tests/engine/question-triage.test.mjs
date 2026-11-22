@@ -160,7 +160,8 @@ test('raiseTriage keeps the higher class, unions the floor and ignores another v
   const higher = { version: 1, class: 'approve', family: 'signed-family', floor: ['floor-b'], band: 'toss-up', held: true };
   const equal = { version: 1, class: 'record', family: 'other-family' };
 
-  assert.deepEqual(raiseTriage(computed, lower), { version: 1, class: 'record', floor: ['floor-b'], family: 'noted-family' });
+  // A carried floor id raises the class to approve, as a floor does wherever it applies, however low the carried class.
+  assert.deepEqual(raiseTriage(computed, lower), { version: 1, class: 'approve', floor: ['floor-b'], family: 'noted-family', raised_by: 'floor' });
   // A carried winner brings its class and floor only: the family and every other key stay the computed ones.
   assert.deepEqual(raiseTriage(computed, higher), { version: 1, class: 'approve', floor: ['floor-b'], family: 'noted-family' });
   assert.deepEqual(raiseTriage(computed, equal), computed);
@@ -428,10 +429,11 @@ test('the classed triage records its keys in order, the proposal and verdict aft
     ['version', 1], ['class', 'approve'], ['floor', ['floor-a']], ['family', 'guarded-family'], ['raised_by', 'floor'],
     ['proposed', 'quick-family'], ['reader', RAISE], ['held', true],
   ]);
-  // A carried floor keeps its place after the class, ahead of the proposal.
+  // A carried floor keeps its place after the class, raises it to approve, and says so ahead of the proposal.
   const carried = one(proposal('mixed-choice', 'quick-family', AGREE, { triage: { version: 1, class: 'consult', floor: ['floor-b'] } }));
-  assert.deepEqual(Object.keys(carried.items[0].triage), ['version', 'class', 'floor', 'family', 'proposed', 'reader', 'advice']);
-  assert.equal(carried.items[0].triage.class, 'consult');
+  assert.deepEqual(Object.keys(carried.items[0].triage), ['version', 'class', 'floor', 'family', 'raised_by', 'proposed', 'reader', 'held']);
+  assert.equal(carried.items[0].triage.class, 'approve');
+  assert.equal(carried.items[0].triage.raised_by, 'floor');
   assert.equal(carried.items[0].triage.family, 'noted-family');
 });
 

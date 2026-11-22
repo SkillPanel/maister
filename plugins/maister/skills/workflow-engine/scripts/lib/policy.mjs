@@ -583,7 +583,7 @@ export function questionFamilies({ policy, workflow, id, declaredIds } = {}) {
  * only declared id. With several declared ids and none it extends, it reads as
  * itself and so finds no row of its own.
  */
-function declaredIdOf(id, declaredIds) {
+export function declaredIdOf(id, declaredIds) {
   const declared = Array.isArray(declaredIds) ? declaredIds.filter(each => typeof each === 'string') : [];
   if (declared.length === 0 || declared.includes(id)) return id;
   const extended = declared.filter(each => typeof id === 'string' && id.startsWith(`${each}-`));

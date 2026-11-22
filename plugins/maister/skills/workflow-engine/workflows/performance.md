@@ -56,7 +56,7 @@ the files are there before this node completes.
 
 Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
 
-**With question sets** (`clarifications`): asked through the cockpit, in this
+**With question sets** (clarification, `clarifications`): asked through the cockpit, in this
 node's first request.
 
 **Without question sets** (`clarifications`): none is asked, and
