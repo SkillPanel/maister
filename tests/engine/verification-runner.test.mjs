@@ -569,6 +569,28 @@ test('close reports a loop that ended undecided, from the attempt\'s latest deci
   assert.deepEqual(stepOf(run), { next: 'close', ...rest, undecided: true });
 });
 
+test('close with no stop recorded yet reads no undecided ending and never throws', t => {
+  // A verdict on the first cycle: no decisions file at all.
+  const run = verifying(t);
+  cycleEntry(run, 1);
+  assert.equal(record(run, VERDICT).code, 0);
+  const { result: _r, ...rest } = VERDICT;
+  assert.deepEqual(stepOf(run), { next: 'close', ...rest });
+
+  // Decisions files that record no stop — a findings-only decision, one with
+  // the key left out, one whose stop is not a word — and one that is not JSON.
+  const attempt = Number(readState(run).workflow.nodes[NODE].attempt ?? 1);
+  const place = (cycle, body) => fs.writeFileSync(path.join(run.verification, `decisions-${cycle}.json`), body);
+  place(1, JSON.stringify({ node: NODE, attempt, cycle: 1, kind: 'findings', answers: [], stop: null }));
+  assert.deepEqual(stepOf(run), { next: 'close', ...rest });
+  place(2, JSON.stringify({ node: NODE, attempt, cycle: 2, kind: 'findings', answers: [] }));
+  assert.deepEqual(stepOf(run), { next: 'close', ...rest });
+  place(3, JSON.stringify({ node: NODE, attempt, cycle: 3, kind: 'budget', answers: [], stop: { undecided: true } }));
+  assert.deepEqual(stepOf(run), { next: 'close', ...rest });
+  place(4, '{ not json');
+  assert.deepEqual(stepOf(run), { next: 'close', ...rest });
+});
+
 test('the latest stop answer of either id is read, and a run answer only when the run classes it', t => {
   const fixLoop = label => ({ decision: label, by: 'operator', question_id: 'verification-fix-loop', question: 'Two re-checks spent. What now?', answer: label });
   const goOn = (label, extra = {}) => ({ decision: label, by: 'operator', question_id: GO_ON, question: 'Go on with a warning open?', answer: label, ...extra });

@@ -492,13 +492,16 @@ function openCounts(result, runDir, warnings) {
   return { critical: 1, warning: 0 };
 }
 
-/** The stop the attempt's latest decisions file records, by cycle; null with none. */
+/**
+ * The stop the attempt's latest decisions file records, by cycle; null with no
+ * file, or when the latest records no stop. Each file is read once.
+ */
 function latestStop(dir, node, attempt) {
   let latest = null;
-  for (const name of attemptDecisions(dir, node, attempt)) {
+  for (const { name, doc } of attemptDecisions(dir, node, attempt)) {
     // By number: a directory lists decisions-10.json before decisions-2.json.
     const cycle = Number(DECISIONS_NAME.exec(name)[1]);
-    if (latest === null || cycle > latest.cycle) latest = { cycle, stop: readJson(path.join(dir, name)).stop ?? null };
+    if (latest === null || cycle > latest.cycle) latest = { cycle, stop: typeof doc.stop === 'string' ? doc.stop : null };
   }
   return latest?.stop ?? null;
 }
@@ -575,8 +578,8 @@ function decide({ run, node, dir, answered, collect, defaults, write, ask }) {
  */
 function roundsSeen(dir, node, attempt) {
   let seen = 0;
-  for (const name of attemptDecisions(dir, node, attempt)) {
-    const value = readJson(path.join(dir, name))?.rounds_seen;
+  for (const { doc } of attemptDecisions(dir, node, attempt)) {
+    const value = doc.rounds_seen;
     if (!Number.isInteger(value) || value < 0) return null;
     seen = Math.max(seen, value);
   }
@@ -724,7 +727,7 @@ function stopOf(label, fallback, warnings) {
   return stop;
 }
 
-/** The decisions files written for this node's attempt. */
+/** The decisions files written for this node's attempt, each `{name, doc}`, read once. */
 function attemptDecisions(dir, node, attempt) {
   let names;
   try {
@@ -732,10 +735,9 @@ function attemptDecisions(dir, node, attempt) {
   } catch {
     return [];
   }
-  return names.filter(name => DECISIONS_NAME.test(name)).filter(name => {
-    const doc = readJson(path.join(dir, name));
-    return isPlainObject(doc) && doc.node === node && doc.attempt === attempt;
-  });
+  return names.filter(name => DECISIONS_NAME.test(name))
+    .map(name => ({ name, doc: readJson(path.join(dir, name)) }))
+    .filter(({ doc }) => isPlainObject(doc) && doc.node === node && doc.attempt === attempt);
 }
 
 // ---------------------------------------------------------------------------
