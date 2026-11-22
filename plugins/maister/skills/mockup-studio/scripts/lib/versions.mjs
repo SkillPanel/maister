@@ -8,8 +8,8 @@
  * leaves a gap rather than a folder the next turn would write into.
  *
  * Refusals owned: `index-malformed` (the index, a published version's
- * manifest, or a published html version's `.mockups.json`, cannot be read as
- * its shape).
+ * manifest, a published html version's `.mockups.json`, or a published written
+ * version's `scope.md`, cannot be read as its shape).
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -18,7 +18,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { Refusal } from '../../../../lib/canonical.mjs';
+import { anchoredFile } from '../../../../lib/input-file.mjs';
 import { VERSION_PATTERN } from './shapes.mjs';
+import { duplicates, itemsOf, parseScope, stripScope } from './written-scope.mjs';
 
 const VERSION = new RegExp(VERSION_PATTERN);
 
@@ -115,17 +117,17 @@ export function readManifest(versionDir) {
 /**
  * A published version's screens with their content, for carry-over: its
  * `.mockups.json` joined with the manifest's behaviour lines. `format` is the
- * turn's own: content is carried only between versions of one format, so only
- * an html turn on an html version needs that file. There a `.mockups.json`
- * that is missing, unreadable or lacks one of its screens is refused
- * `index-malformed`, so no screen is ever carried forward blank. Anywhere else
- * (an ascii version, which may lack the file on the hand-written ASCII path,
- * or a turn switching format) an unusable file gives the manifest's screens
- * with empty content.
+ * turn's own: content is carried only between html versions, so only an html
+ * turn on an html version needs that file. There a `.mockups.json` that is
+ * missing, unreadable or lacks one of its screens is refused `index-malformed`,
+ * so no screen is ever carried forward blank. Anywhere else (an ascii version,
+ * which may lack the file on the hand-written ASCII path, a written version,
+ * which never has it, or a turn switching format) an unusable file gives the
+ * manifest's screens with empty content.
  */
 export function readScreens(versionDir, format) {
   const manifest = readManifest(versionDir);
-  const carried = manifest.format !== 'ascii' && manifest.format === format;
+  const carried = manifest.format === 'html' && format === 'html';
   const file = path.join(versionDir, '.mockups.json');
   const unusable = why => new Refusal('index-malformed',
     `${file} ${why}, and it holds the screen sources of a published html version this turn builds on. Nothing was written and the input file is kept; restore that file from version control, or build on another version (set against in .turn.json), and run finish again.`);
@@ -155,4 +157,69 @@ export function readScreens(versionDir, format) {
     return out;
   });
   return { manifest, screens };
+}
+
+/** Text that must be UTF-8, decoded strictly; null when it is not. */
+export function utf8(bytes) {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+/** A published written version's `scope.md` is not what a next round can build on. */
+class UnusableScope extends Refusal {
+  constructor(message) {
+    super('index-malformed', `${message}, and it is the written scope of a published version this turn builds on. Nothing was written and the input files are kept; repair or restore that file, or build on another version (set against in .turn.json), and run finish again.`);
+  }
+}
+
+/**
+ * A `scope.md`'s text, read and decoded strictly as UTF-8. `refuse(reason)`
+ * makes the refusal thrown for a file that cannot be read (`reason` the
+ * error's message) or is not UTF-8 text (`reason` null).
+ */
+export function scopeText(file, refuse) {
+  let bytes;
+  try {
+    bytes = fs.readFileSync(file);
+  } catch (err) {
+    throw refuse(err.message);
+  }
+  const text = utf8(bytes);
+  if (text === null) throw refuse(null);
+  return text;
+}
+
+/**
+ * The earlier scope a written round is checked against: the published written
+ * version's `scope.md`, read by the input-file rule (never a link), parsed and
+ * stripped. A file that is missing, a link, not a file or not UTF-8 text is
+ * refused `index-malformed`, and so is one in which two sections share a
+ * heading, two items of one section share a text or an item is empty (a
+ * version written or edited by hand never passed the check), since a mark
+ * could not be matched against it; each one is named with its line.
+ */
+export function readScope(versionDir) {
+  const expected = path.join(versionDir, 'scope.md');
+  const file = anchoredFile({ given: expected, expected, noun: 'the written scope', beside: 'in the version folder', Usage: UnusableScope });
+  const text = scopeText(file, reason => new UnusableScope(reason === null
+    ? `the written scope ${file} is not UTF-8 text`
+    : `the written scope ${file} could not be read: ${reason}`));
+  const parsed = parseScope(text);
+  const twice = duplicates(parsed);
+  if (twice.length) {
+    const named = twice.map(each => (each.text === null
+      ? `the heading ${JSON.stringify(each.heading)} (line ${each.line})`
+      : `the item ${JSON.stringify(each.text)} of section ${JSON.stringify(each.heading)} (line ${each.line})`));
+    throw new UnusableScope(`the written scope ${file} repeats ${named.join('; ')}, so a mark cannot be matched against it`);
+  }
+  const empty = parsed.sections.flatMap(section => itemsOf(section)
+    .filter(item => item.text === '')
+    .map(item => `an empty item of section ${JSON.stringify(section.heading)} (line ${item.line})`));
+  if (empty.length) {
+    throw new UnusableScope(`the written scope ${file} holds ${empty.join('; ')}, so a mark cannot be matched against it`);
+  }
+  return stripScope(parsed);
 }

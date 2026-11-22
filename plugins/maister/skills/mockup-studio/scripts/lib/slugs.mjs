@@ -37,8 +37,11 @@ export function assertSlug(value, where) {
     `${where} is ${JSON.stringify(value)}, which is not a slug (lowercase letters and digits joined by single hyphens).${reserved} Nothing was written and the input file is kept; correct the slug in .turn.json, or leave it out to have one made from the title, and run finish again.`);
 }
 
-/** The fresh slug a title folds to, before any suffix. */
-export function foldTitle(title) {
+/**
+ * The fresh slug a title folds to, before any suffix; `fallback` when nothing
+ * is left (`screen` for a screen, `section` for a written scope's section).
+ */
+export function foldTitle(title, fallback = 'screen') {
   const folded = String(title)
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
@@ -47,7 +50,7 @@ export function foldTitle(title) {
     .replace(/^-+|-+$/g, '')
     .slice(0, MAX)
     .replace(/-+$/, '');
-  return folded === '' ? 'screen' : folded;
+  return folded === '' ? fallback : folded;
 }
 
 /** `base`, or `base-2`, `base-3` … — the first not in `taken` and not reserved. */

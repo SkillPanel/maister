@@ -46,6 +46,7 @@ versions/
     index.html          # the version's gallery: open this file
     <screen>.html       # one page per screen
     prototype.html      # prototype fidelity only
+    scope.md            # a written scope only; index.html renders it
   v002/
     ...
 <screen>.html           # the latest version's pages
@@ -53,22 +54,35 @@ versions/
 ```
 
 An ASCII version holds `ascii-mockups.md` instead of the pages, and the latest view is
-`ascii-mockups.md` beside `versions/`. A version is never changed after it is written. The pages
+`ascii-mockups.md` beside `versions/`. A written scope holds `scope.md` and its rendered
+`index.html`, with no pages, and the latest view is `scope.md` beside `versions/`. A version is never changed after it is written. The pages
 beside `versions/` are always the latest version's.
 
-## HTML or ASCII
+## HTML, ASCII or a written scope
 
-Mockups come in two formats:
+Mockups come in three kinds:
 
 - **HTML** (the default): one page per screen and a gallery page per version. When you run a turn
   in your terminal, it opens that version's gallery, `versions/vNNN/index.html`, in your default
   browser. The closing message names the path too, so you can open it by hand.
 - **ASCII**: the screens as text in `ascii-mockups.md`, readable in the terminal. ASCII shows layout
   and placement, nothing about style.
+- **Written scope**: no screens, only text. The version is `versions/vNNN/scope.md`: a title, `##`
+  sections and `- ` items saying what is in and out. Finish renders it into
+  `versions/vNNN/index.html`, with the marks highlighted. Written against an earlier written
+  version, each changed item is marked `[added]`, `[removed]` or `[changed]`, and a `[changed]`
+  item carries a `was:` line quoting the earlier text; the studio refuses marks that do not match
+  the earlier scope. Built on a screens version, or first, the scope has no marks. A written scope
+  is chosen per turn with the format `scope`, never as the project's `mockup_format`.
 
 Set the project's default with `mockup_format` in `.maister/config.yml` (`html` or `ascii`; see
-[Configuration](configuration.md)). `--format` overrides it for one turn. Every workflow step that
+[Configuration](configuration.md)). `--format` overrides it for one turn, and is the only way to
+ask for a written scope. Every workflow step that
 draws mockups reads the same setting.
+
+When the studio's viewer is running, its start page opens the latest version: `ascii-mockups.md` for
+an ASCII version, `scope.md` for a written scope that has no `index.html` (one written without
+Node), and `index.html` otherwise.
 
 **Looking at the gallery needs no browser tool.** The gallery is a file: open it in any browser.
 A browser tool in the session is only used for the turn's own look pass, where it opens the new

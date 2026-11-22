@@ -1,6 +1,6 @@
 ---
 name: maister:mockup-studio
-description: Draws one new version of a set of UI mockups per call — a turn — under a folder it is given, as HTML pages with a gallery or as terminal ASCII, bound to the project's design language through its grounding pack. Never asks a question, under any driver; run it again with the same folder for the next version, and every earlier version stays. Reachable as the `mockup-studio` workflow, from a workflow node (development's and product-design's mockup steps) or another skill (quick-design's sketches), and from the terminal with `--turn` and `--ground`.
+description: Draws one new version of a set of UI mockups per call — a turn — under a folder it is given, as HTML pages with a gallery, as terminal ASCII or as a written scope, bound to the project's design language through its grounding pack. Never asks a question, under any driver; run it again with the same folder for the next version, and every earlier version stays. Reachable as the `mockup-studio` workflow, from a workflow node (development's and product-design's mockup steps) or another skill (quick-design's sketches), and from the terminal with `--turn` and `--ground`.
 user-invocable: true
 ---
 
@@ -45,9 +45,9 @@ by name; a terminal entry builds them from its flags.
 | `output_subdir` | Relative to `task_path`. Default `analysis/mockups` |
 | `note` | The person's words for this turn. On a caller's re-run, the revise note from `prior-context` |
 | `against` | The `vNNN` to build on. Absent: the latest, or none on a first turn |
-| `scope` | Comma-separated slugs to change or add; the rest carry over. Absent: decided from the note |
+| `scope` | Comma-separated slugs to change or add; the rest carry over. Absent: decided from the note. Ignored for a written turn, which has no screens |
 | `fidelity` | `sketch` (default) or `prototype` |
-| `format` | `html` or `ascii`; *Format* below |
+| `format` | `html`, `ascii` or `scope` (a written scope); *Format and fidelity* below |
 | `brief` | Context for the screens — never pasted ticket text |
 | `grounding` | The pack directory, relative to the project root. Default `.maister/docs/design-context` |
 | `emit_index_rows` | Default `false`. When true, `finish` writes the screen and component rows to `<task_path>/analysis/design-context/INDEX.md` |
@@ -63,7 +63,13 @@ ignored: each call is one turn", and nothing else changes.
 ### Format and fidelity
 
 The format is the first of: the `format` input (or `--format`); `mockup_format` in
-`.maister/config.yml`; `html`.
+`.maister/config.yml`; `html`. The config read is guarded: `mockup_format` takes html or ascii, so
+any other value counts as `html`, with the note "`mockup_format` takes html or ascii; `<value>` was
+read as html". A written scope is asked for per turn, never by the config.
+
+A written scope is the format of a turn that settles what is in and out of scope in words, with no
+screens: it is always a sketch, takes no grounding pack and runs no look pass. `fidelity: prototype`
+with `scope` runs as `sketch`, and the notes say so.
 
 A prototype is HTML: `fidelity: prototype` with the `ascii` format runs as `sketch`, and the notes
 say so. A prototype also needs Node, which the export runs on.
@@ -82,7 +88,8 @@ The steps say what each one does; the references say how.
 
 1. **Resolve** the target root `<task_path>/<output_subdir>`, the format and the fidelity, and
    capture the clock once (`date -u +"%Y-%m-%dT%H:%M:%SZ"`). Check that Node 20 or newer runs; when
-   it does not, the turn takes *The no-Node path* below instead of steps 2–6.
+   it does not, the turn takes *The no-Node path* below instead of steps 2–6. A written turn goes
+   on to step 3.
 2. **Ground.** Run
    `node <plugin root>/skills/mockup-studio/scripts/turn.mjs ground-status --pack=<project root>/<grounding> --root=<project root>`,
    `<grounding>` the input above; the verb takes no other flag here.
@@ -103,14 +110,19 @@ The steps say what each one does; the references say how.
 
    Then read the pack and the standards by *The per-turn read* in `references/grounding-pack.md`,
    and add one note line naming what the screens were bound to.
+
+   A written turn skips this step and the per-turn read: it records a null digest, not stale, with
+   no degraded code, and adds one note line saying the written scope used no grounding pack.
 3. **Begin.** `turn.mjs begin --task-path=<task_path> --subdir=<output_subdir>`, with
    `--against=<against>` when one was given. It prints the new `version`, its `version_dir`, the
-   `against` it resolved, that version's `screens`, and `shell_browser`: the shell browser tool on
+   `against` it resolved, that version's `screens`, `against_scope` (the absolute `scope.md` of
+   `against` when that is a written version, else null, whatever this turn's format), and `shell_browser`: the shell browser tool on
    this machine, found by the probes of `browser-tools.md`, or null. A refusal from `begin` is not degradation:
    no version is written, and the turn ends with the refusal's message — in node mode the node
    fails with it.
-4. **Draw the screens** into the version folder.
-   - Carry `against`'s screens forward unless the note or `scope` changes them: send only the
+4. **Draw the screens** into the version folder — or, for a written turn, the scope.
+   - When `begin` printed an `against_scope`, a screens round reads that scope as what the screens
+     must show; nothing carries over from a written version. Otherwise carry `against`'s screens forward unless the note or `scope` changes them: send only the
      screens that change or are new. Remove a screen only by listing its slug in `drop`.
    - A changed screen keeps its slug from `against`; a new one may leave its slug out and gets one
      from its title. Slugs are lowercase words joined by single hyphens; `index` and `prototype`
@@ -118,6 +130,13 @@ The steps say what each one does; the references say how.
    - **sketch:** write `vNNN/.turn.json` with the file tool: the note, format and fidelity,
      `against` exactly as `begin` printed it, `scope`, the grounding digest and staleness, the
      screens, `drop`, any degraded codes and the notes. Its keys are in `references/turn-contract.md`.
+   - **scope:** write `vNNN/scope.md` by the grammar in `references/turn-contract.md` (*The written
+     scope*): the first round has no marks, and a round on a written version starts from the
+     earlier scope, `against_scope`, with its marks removed, and marks each difference. Then write
+     `vNNN/.turn.json` with no screens: the note, `format: scope`, `fidelity: sketch`, `against`
+     exactly as `begin` printed it, `grounding: {digest: null, stale: false}`, the notes and
+     `degraded`. The notes say that a requested prototype ran as sketch, and that a `scope` slug
+     input was ignored, when either happened.
    - **prototype:** write `vNNN/prototype.html` by `references/prototype-page.md`, then run
      `frames.mjs export --version-dir=<version_dir>`. On success, `.turn.json` carries no screens.
      On a refusal, map it (`render-touches-dom` to the degraded code of that name, every other code
@@ -128,7 +147,7 @@ The steps say what each one does; the references say how.
      prints just before (inside a workflow run add `--state=<run's orchestrator-state.yml>
      --node=<the node under way>`). Its `Output Target` is the absolute
      `<version_dir>/ascii-mockups.md`; pass `against`'s `ascii-mockups.md` when `against` is an
-     ASCII version, the note, the scope, the context and what the pack bound. Write `.turn.json`
+     ASCII version, or `against_scope` when `against` is written, the note, the scope, the context and what the pack bound. Write `.turn.json`
      from what it returns: each screen marked changed, with its slug, title and description, and
      every slug it left out in `drop`.
    - Screens are **user-facing**: one per view the note and context imply, each titled for what it
@@ -142,7 +161,7 @@ The steps say what each one does; the references say how.
      headings, numbered "01/02/03" labels, monospace labels or pill buttons unless the context asks.
    - A screen the note asked for that could not be drawn adds the degraded code `incomplete`, and
      the notes name it.
-5. **Look and fix** — one pass, HTML only, and only when the session has a browser tool. A
+5. **Look and fix** — one pass, HTML only (never for a written turn), and only when the session has a browser tool. A
    `shell_browser` that `begin` printed is one, used through the shell, whatever the session's
    tool list shows; when it is null, the session's own browser tools decide. Without Node, run the
    two probes of `browser-tools.md` by hand first:
@@ -168,7 +187,7 @@ The steps say what each one does; the references say how.
    recovered by its row in `references/turn-contract.md` and `finish` run again — except a
    `folder-unwritable` that says the version is already published, which is never finished twice.
 
-   Publishing an `html` version also opens its gallery once, as a file in the person's default
+   Publishing an `html` or a written version also opens its page once, as a file in the person's default
    browser, when a person is at the terminal: no run at all, or a run with no driver or a terminal
    one. Never under a cockpit or dispatch driver. The script reads that and does this, so no step
    here or in a caller opens it again (`references/turn-contract.md`). Opening is best effort: a
@@ -178,7 +197,7 @@ The steps say what each one does; the references say how.
 ### What a turn returns
 
 The object `finish` prints, minus `ok` and `values`: `version`, `against`, `screens` and `changed`
-(slug lists), `notes`, `degraded` when there is any, `format`, `fidelity`, `gallery` (the version's
+(slug lists; for a written version `screens` is empty and `changed` holds the slugs of the sections that carry a mark), `notes`, `degraded` when there is any, `format`, `fidelity`, `gallery` (the version's
 `index.html` relative to `task_path`, null for ASCII), `task_path` and `output_subdir`. A caller
 puts these facts in its own summary. In node mode with `record` set, the `values` block goes to the
 node unchanged for its completing write.
@@ -190,7 +209,7 @@ waits. The codes are a closed set:
 
 | Code | When | What the version holds |
 |---|---|---|
-| `no-node` | Node is unavailable, which happens only outside an engine run | `ascii-mockups.md`, with a hand-written manifest and index entry |
+| `no-node` | Node is unavailable, which happens only outside an engine run | `ascii-mockups.md`, or `scope.md` for a written turn, with a hand-written manifest and index entry |
 | `render-touches-dom` | `frames.mjs` refused a DOM access | sketch pages from the same scenes; `prototype.html` kept; `fidelity: sketch` |
 | `render-failed` | any other `frames.mjs` refusal | as above |
 | `grounding-unavailable` | no usable pack, and building one was tried and failed | pages drawn from the codebase alone; a null grounding digest |
@@ -199,13 +218,20 @@ waits. The codes are a closed set:
 ### The no-Node path
 
 Reachable only from a terminal inline turn or an inline call: an engine run always has Node. The
-turn writes ASCII by hand, in the shapes `references/turn-contract.md` spells:
+turn writes by hand, in the shapes `references/turn-contract.md` spells: a written turn writes
+`scope.md`, and any other format writes ASCII. A written turn never falls back to ASCII.
 
 - the version is one above the highest number among the `versions/` folders and the
   `versions/index.json` entries; create its folder;
-- dispatch the ASCII agent to `versions/vNNN/ascii-mockups.md`, as in step 4;
-- write `vNNN/manifest.json` and append the `index.json` entry, setting `latest`;
-- copy `ascii-mockups.md` to the flat `<output_subdir>/ascii-mockups.md`;
+- dispatch the ASCII agent to `versions/vNNN/ascii-mockups.md`, as in step 4; for a written turn,
+  write `versions/vNNN/scope.md` yourself, by the grammar;
+- write `vNNN/manifest.json` and append the `index.json` entry, setting `latest`; every hand-written
+  entry carries `format`: `ascii` for the ASCII fallback, `scope` for a written version, whose
+  `changed` lists the sections holding a mark;
+- copy `ascii-mockups.md` to the flat `<output_subdir>/ascii-mockups.md` and remove a flat
+  `scope.md` a written latest version left; for a written version copy
+  `scope.md` flat and remove the flat `.mockups.json` and `ascii-mockups.md`. No `index.html` is
+  rendered: the viewer opens such a version at its `scope.md`;
 - add the degraded code `no-node` and the note "Node is unavailable: the version's bookkeeping was
   written by hand and no script checked it".
 
@@ -222,12 +248,13 @@ turn writes ASCII by hand, in the shapes `references/turn-contract.md` spells:
 | `/maister:mockup-studio "<text>"` | Read as `--turn "<text>"` |
 | `/maister:mockup-studio --ground` | Rebuilds the grounding pack from scratch, whatever its status: it clears the pack's generated files, harvests every value again from the sources and writes each file new, never by editing the old pack's files (`references/grounding-pack.md` § *Building afresh*), and touches no task folder. The build runs in a fresh agent: dispatch the `maister:grounding-pack-builder` agent with the Task tool, with the model and effort `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:grounding-pack-builder --host=claude` prints, and a prompt that carries only the absolute pack path (`<project root>/<grounding>`), the project root and the plugin root — nothing this session saw of the old pack. This session neither reads nor writes the pack's files itself. From the agent's result it closes with the digest, what was recorded, and the commit note; when the agent reports a failure, the close says the pack may be left cleared or partly built, and is restored from version control or by running `--ground` again. A workflow step that runs it (development's finalization) takes that close as its result and handles the commit itself |
 
-The flags are `--format`, `--fidelity`, `--scope`, `--against`, `--subdir` and `--task`. Any other
+The flags are `--format` (`html`, `ascii` or `scope`), `--fidelity`, `--scope`, `--against`, `--subdir` and `--task`. Any other
 flag is named as not taken, in one line, and the turn runs without it. A call with no note and no
 `--ground` draws nothing: say a note is needed and show the command.
 
-**The closing message** of a terminal turn names the version, the changed screens, the notes and
-the path to `versions/vNNN/index.html` (for ASCII, `ascii-mockups.md`). It ends with the exact next
+**The closing message** of a terminal turn names the version, the changed screens (the changed sections, for a written scope), the notes and
+the path to `versions/vNNN/index.html` (for ASCII, `ascii-mockups.md`; for a written scope made
+without Node, `scope.md`). It ends with the exact next
 command, `/maister:mockup-studio --turn "<note>" --task=<folder>`, with `<folder>` the task folder
 relative to the project root and `--subdir=<output_subdir>` added when it is not
 `analysis/mockups` — because a bare second `--turn` from the project root starts a new run at
@@ -285,7 +312,7 @@ return codes only: every sentence a person reads in the notes is written by this
 
 | File | When to read | Purpose |
 |---|---|---|
-| `references/turn-contract.md` | Steps 3–6, the no-Node path, any refusal | The folder layout, `.turn.json`, every file's keys, one refusal table with recoveries |
+| `references/turn-contract.md` | Steps 3–6, the no-Node path, any refusal | The folder layout, `.turn.json`, the written scope's grammar and check, every file's keys, one refusal table with recoveries |
 | `references/grounding-pack.md` | Step 2, `--ground` | What the pack holds, how it is built and sealed, the per-turn read |
 | `references/prototype-page.md` | Step 4, prototype fidelity | The prototype page contract and how its scenes become screens |
 | `references/visual-companion.md` | Step 5, when `file://` is not available | The per-turn read-only viewer: start, stop, reuse |

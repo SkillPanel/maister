@@ -109,3 +109,30 @@ test('a missing grounding pack is always built; grounding-unavailable needs a fa
   assert.match(quick, /the turn builds one and uses it, however small the sketch and\s+however little UI the project has/);
   assert.match(quick, /`grounding-unavailable` is only for a build that was tried and\s+failed/);
 });
+
+test('the skill names the written scope format, its guarded config read and its skipped grounding', () => {
+  const text = fs.readFileSync(SKILL, 'utf8');
+  assert.match(text, /`html`, `ascii` or `scope`/, 'the format input names scope');
+  assert.match(text, /`mockup_format` takes html or ascii; `<value>` was\s+read as html/);
+  assert.match(text, /the written scope used no\s+grounding pack/);
+  assert.match(text, /`against_scope`/);
+  assert.ok(!text.includes('AskUserQuestion'), 'still names no question tool');
+});
+
+test('the turn contract refuses a written scope by its own rows and keeps the grammar to itself', () => {
+  const text = fs.readFileSync(path.join(PLUGIN, 'skills/mockup-studio/references/turn-contract.md'), 'utf8');
+  assert.match(text, /^\| `scope-marks-invalid` \| `finish` \|/m);
+  assert.match(text, /^\| `scope-empty` \| `finish` \|/m);
+  const row = text.split('\n').find(line => line.startsWith('| `index-malformed`'));
+  assert.ok(row.trimEnd().endsWith('Only an html version needs `.mockups.json` |'), 'the index-malformed row ends on the html rule');
+  assert.match(text, /^## The written scope/m, 'the grammar section lives here');
+  const skill = fs.readFileSync(SKILL, 'utf8');
+  assert.ok(!skill.includes('Stripping rule'), 'SKILL.md does not restate the grammar');
+});
+
+test('the visual companion names the three start-page targets', () => {
+  const text = fs.readFileSync(path.join(PLUGIN, 'skills/mockup-studio/references/visual-companion.md'), 'utf8');
+  assert.match(text, /versions\/<latest>\/ascii-mockups\.md/);
+  assert.match(text, /versions\/<latest>\/scope\.md` when it has no `index\.html`/);
+  assert.match(text, /and otherwise to `versions\/<latest>\/index\.html`/);
+});

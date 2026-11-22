@@ -230,3 +230,18 @@ test('open-gallery: Windows opens through cmd with start\'s empty title', () => 
     options: { windowsVerbatimArguments: true },
   });
 });
+
+test('open-gallery: a published written version opens its page, a written preview opens nothing', async t => {
+  const where = project(t);
+  const opener = fakeOpener(t, where);
+  const verb = (name, args) => run(TURN, [name, `--task-path=${where.task}`, ...args], undefined, opener.env, where.root);
+  const started = verb('begin', []);
+  const { version_dir: versionDir, version } = JSON.parse(started.stdout);
+  fs.writeFileSync(path.join(versionDir, 'scope.md'), '# Plan\n## In scope\n- One\n');
+  fs.writeFileSync(path.join(versionDir, '.turn.json'), JSON.stringify({ note: 'n', format: 'scope', fidelity: 'sketch', grounding: { digest: null, stale: false } }));
+  assert.equal(verb('finish', [`--version=${version}`, '--preview']).code, 0);
+  assert.deepEqual(await opener.opened({ expect: false }), []);
+  const published = verb('finish', [`--version=${version}`]);
+  assert.equal(published.code, 0, published.stdout + published.stderr);
+  assert.deepEqual(await opener.opened({ expect: true }), [[gallery(where)]]);
+});

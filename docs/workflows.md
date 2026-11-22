@@ -327,7 +327,7 @@ outside a development or product-design run, or to iterate on a set you already 
 /maister:mockup-studio --turn "Draw the settings page"
 ```
 
-Versions, the gallery, the grounding pack and the HTML and ASCII formats are covered in
+Versions, the gallery, the grounding pack and the HTML and ASCII formats, and the written scope the studio can write for one turn, are covered in
 [Mockups](mockups.md).
 
 ---

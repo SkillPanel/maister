@@ -1189,7 +1189,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.6",
+  "interface_version": "2.7",
   "mcp": {
     "servers": [],
     "tools": [
@@ -1212,7 +1212,8 @@
     ],
     "formats": [
       "html",
-      "ascii"
+      "ascii",
+      "scope"
     ],
     "grounding": {
       "keys": {
@@ -1317,6 +1318,7 @@
         "values": [
           "html",
           "ascii",
+          "scope",
           null
         ]
       },
@@ -1357,11 +1359,13 @@
       "flat": {
         "ascii": "ascii-mockups.md",
         "mockups_json": ".mockups.json",
-        "pages": "<slug>.html"
+        "pages": "<slug>.html",
+        "scope": "scope.md"
       },
       "index_rows": "<task_path>/analysis/design-context/INDEX.md",
       "note": "No per-turn design-context/design-resources.md is written: the manifest's grounding_digest and grounding_stale record what a turn grounded on, and the grounding pack holds the resolved values.",
       "root": "<task_path>/<output_subdir>",
+      "scope_note": "A written version (format scope) holds scope.md and its rendered index.html, with screens empty and no pages or .mockups.json; one written without Node holds scope.md alone.",
       "slug": "^[a-z0-9]+(-[a-z0-9]+)*$",
       "version_id": "^v\\d{3,}$",
       "versions": {
@@ -1372,7 +1376,8 @@
           "manifest": "versions/<version>/manifest.json",
           "mockups_json": "versions/<version>/.mockups.json",
           "pages": "versions/<version>/<slug>.html",
-          "prototype": "versions/<version>/prototype.html"
+          "prototype": "versions/<version>/prototype.html",
+          "scope": "versions/<version>/scope.md"
         },
         "index": "versions/index.json",
         "lock": "versions/.lock",
@@ -1414,7 +1419,8 @@
         "type": "string",
         "values": [
           "html",
-          "ascii"
+          "ascii",
+          "scope"
         ]
       },
       "grounding_digest": {
@@ -1467,6 +1473,39 @@
           "type": "object"
         },
         "required": true,
+        "type": "array"
+      },
+      "sections": {
+        "items": {
+          "keys": {
+            "added": {
+              "required": true,
+              "type": "integer"
+            },
+            "changed": {
+              "required": true,
+              "type": "integer"
+            },
+            "items": {
+              "required": true,
+              "type": "integer"
+            },
+            "removed": {
+              "required": true,
+              "type": "integer"
+            },
+            "slug": {
+              "required": true,
+              "type": "string"
+            },
+            "title": {
+              "required": true,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "required": false,
         "type": "array"
       },
       "version": {
@@ -1563,7 +1602,8 @@
         "type": "string",
         "values": [
           "html",
-          "ascii"
+          "ascii",
+          "scope"
         ]
       },
       "gallery": {
@@ -1642,12 +1682,14 @@
           "value_type": {
             "enum": [
               "html",
-              "ascii"
+              "ascii",
+              "scope"
             ]
           },
           "values": [
             "html",
-            "ascii"
+            "ascii",
+            "scope"
           ]
         },
         "notes_count": {
@@ -1689,6 +1731,15 @@
             "created": {
               "required": true,
               "type": "string"
+            },
+            "format": {
+              "required": false,
+              "type": "string",
+              "values": [
+                "html",
+                "ascii",
+                "scope"
+              ]
             },
             "note": {
               "required": true,

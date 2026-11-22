@@ -269,7 +269,7 @@ the version folder, the gallery and the grounding pack are explained in [Mockups
 | `--against=<vNNN>` | Build on that version instead of the latest |
 | `--scope=<slugs>` | Comma-separated screens to change or add; the rest carry over |
 | `--fidelity=<sketch\|prototype>` | `sketch` (default) draws static pages; `prototype` also writes a working `prototype.html` whose scenes become the version's screens (HTML only) |
-| `--format=<html\|ascii>` | Overrides `mockup_format` in `.maister/config.yml`; without either, `html` |
+| `--format=<html\|ascii\|scope>` | Overrides `mockup_format` in `.maister/config.yml` for one turn; without either, `html`. `scope` writes a written scope instead of screens, and is never the project default |
 
 Any other flag is named as not taken and the turn runs without it. A call with no note and no
 `--ground` draws nothing and shows the command to use. Run from inside a task folder that already

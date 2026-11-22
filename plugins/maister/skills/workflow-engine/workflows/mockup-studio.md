@@ -40,6 +40,7 @@ outbox, and the skill's closing message is what the user gets instead.
 
 **Summary.** The headline names the version, the folder and the changed count,
 for example "v003 of analysis/mockups — 2 of 5 screens changed; open
-versions/v003/index.html". Each `degraded` reason goes in `risks` as `open`.
+versions/v003/index.html", or, for a written version, "v004 of analysis/mockups — written
+scope, 2 of 4 sections changed; open versions/v004/index.html". Each `degraded` reason goes in `risks` as `open`.
 The note to commit the grounding pack, and the note to run `--ground`, go in
 as `followup`.

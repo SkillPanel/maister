@@ -15,8 +15,12 @@
  * gap and is never reused. It creates `versions/` when missing, then the
  * version folder with an exclusive, non-recursive mkdir. `--against` defaults
  * to the index's `latest` (null on a first turn). It prints
- * `{ok, version, version_dir, against, first, screens: [{slug, title}], shell_browser}`,
- * the screens being `against`'s. `shell_browser` is the shell browser tool the
+ * `{ok, version, version_dir, against, against_scope, first, screens: [{slug, title}], shell_browser}`,
+ * the screens being `against`'s (none for a written version). `against_scope`
+ * is the absolute path of `against`'s `scope.md` when `against` is a written
+ * version (format scope), and null otherwise, whatever the new turn's format:
+ * a written round starts from it, a screens round reads it as what the
+ * screens must show. `shell_browser` is the shell browser tool the
  * look pass can use, found by the two probes `browser-tools.md` names
  * (`lib/browser-probe.mjs`): `"playwright-cli"`, `"npx playwright cli"` or null.
  * It is handed to the turn as a fact, so the look pass never judges from a tool
@@ -30,7 +34,9 @@
  * (the `TURN_FILE` shape in `lib/shapes.mjs`), with its own file tool — and,
  * for prototype fidelity, `frames.mjs export` writes `.frames.json` beside it.
  * Both are read by the input-file rule: one fixed name in one fixed place,
- * never a link. The model writes no other bookkeeping.
+ * never a link. The model writes no other bookkeeping. A written version
+ * (format scope) is the `scope.md` the turn writes beside `.turn.json`, read
+ * by the same rule and kept, since it is the version.
  *
  * `finish` resolves the version's screens — `against`'s, when it has the same
  * format, minus `drop`, with each sent screen replacing the one of the same
@@ -38,14 +44,26 @@
  * renders the pages, the gallery and the manifest into the version folder
  * only and keeps the input files. Otherwise, holding the lock
  * `versions/.lock`, it writes in this order: the pages, gallery, manifest and
- * `.mockups.json`; the index entry and `latest`; the flat latest view; the
- * INDEX rows (with `--index`); the run record (with `--record`); then it
- * deletes the input files. It prints the turn result plus `values`, the run
- * record ready to record: lists comma-joined, `notes_count` a decimal string.
+ * `.mockups.json`; the index entry (with its `format`) and `latest`; the flat
+ * latest view; the INDEX rows (with `--index`); the run record (with
+ * `--record`); then it deletes the input files. It prints the turn result plus
+ * `values`, the run record ready to record: lists comma-joined, `notes_count`
+ * a decimal string. Entries already in the index are never rewritten.
  *
- * Once a publishing `finish` of an html version has printed its result, it
- * opens that version's gallery for a person at the terminal: `openGallery`
- * below says when. A preview and an ascii version open nothing. This is best
+ * For a written version `finish` reads `scope.md`, ignores `screens`, `drop`
+ * and `scope` in `.turn.json`, and checks the scope's marks against
+ * `against`'s stripped `scope.md` when `against` is a written version, or
+ * refuses any mark otherwise (`lib/written-scope.mjs`). It records
+ * `fidelity: sketch`, a null grounding digest, not stale, `screens: []` and the
+ * manifest's `sections`, whatever `.turn.json` holds; `changed` holds the slugs
+ * of the sections holding a mark. It renders `index.html` and writes no
+ * `.mockups.json`. The flat view then holds `scope.md` alone: the previous
+ * latest's pages, the flat `.mockups.json` and `ascii-mockups.md` are removed.
+ * A screens version removes a flat `scope.md`.
+ *
+ * Once a publishing `finish` of an html or a written version has printed its
+ * result, it opens that version's page for a person at the terminal:
+ * `openGallery` below says when. A preview and an ascii version open nothing. This is best
  * effort and records nothing; whatever happens to the opener, the turn's result
  * and exit code are the ones already decided.
  *
@@ -90,8 +108,9 @@
  * Refusals owned:
  *   begin   against-unknown, version-exists, index-malformed, folder-unwritable
  *   finish  version-unknown, version-published, turn-file-missing,
- *           turn-file-malformed, slug-invalid, screens-empty, index-locked,
- *           index-malformed, folder-unwritable
+ *           turn-file-malformed, slug-invalid, screens-empty, scope-empty,
+ *           scope-marks-invalid, index-locked, index-malformed,
+ *           folder-unwritable
  *   ground-clear   not-a-pack, folder-unwritable
  *   ground-seal    sources-file-missing, sources-file-malformed, source-missing,
  *                  pack-not-cleared, pack-not-rebuilt, folder-unwritable
@@ -113,10 +132,13 @@ import {
 } from './lib/grounding.mjs';
 import { rewriteIndex } from './lib/index-rows.mjs';
 import { shellBrowser } from './lib/browser-probe.mjs';
-import { mockupsJson, renderGallery, renderPage } from './lib/render.mjs';
+import { mockupsJson, renderGallery, renderPage, renderScope } from './lib/render.mjs';
 import { FRAMES_FILE, GROUNDING_SCHEMA_VERSION, SOURCES_FILE, TURN_FILE, departures } from './lib/shapes.mjs';
 import { assertSlug, resolveSlugs } from './lib/slugs.mjs';
-import { isVersion, layout, nextVersion, published, readIndex, readManifest, readScreens } from './lib/versions.mjs';
+import {
+  isVersion, layout, nextVersion, published, readIndex, readManifest, readScope, readScreens, scopeText,
+} from './lib/versions.mjs';
+import { checkScope, parseScope } from './lib/written-scope.mjs';
 
 const EXIT = { OK: 0, REFUSED: 1, INTERNAL: 2 };
 const DEFAULT_SUBDIR = 'analysis/mockups';
@@ -212,7 +234,9 @@ async function begin(flags) {
       `${flags.against} is not a published version of ${where.root} (versions/index.json lists ${index.versions.map(each => each.version).join(', ') || 'none'}). Nothing was written; begin again with one of those, or without --against to build on the latest.`);
   }
   const against = flags.against ?? index.latest;
-  const screens = against === null ? [] : readManifest(where.dir(against)).screens.map(({ slug, title }) => ({ slug, title }));
+  const manifest = against === null ? null : readManifest(where.dir(against));
+  const screens = manifest === null ? [] : manifest.screens.map(({ slug, title }) => ({ slug, title }));
+  const againstScope = manifest?.format === 'scope' ? path.join(where.dir(against), 'scope.md') : null;
   const version = nextVersion(where.versions, index);
   const versionDir = where.dir(version);
 
@@ -230,7 +254,9 @@ async function begin(flags) {
     }
     throw new Refusal('folder-unwritable', `${versionDir} could not be created: ${err.message}. Nothing was written; make the folder writable and begin again.`);
   }
-  return { ok: true, version, version_dir: versionDir, against, first: index.versions.length === 0, screens, shell_browser: await shellBrowser() };
+  return {
+    ok: true, version, version_dir: versionDir, against, against_scope: againstScope, first: index.versions.length === 0, screens, shell_browser: await shellBrowser(),
+  };
 }
 
 // ---------------------------------------------------------------- finish
@@ -268,13 +294,16 @@ function plan(flags, where, subdir, index, version) {
   const inputs = [turnInput.file];
   const { format, fidelity } = turnFile;
 
-  if (fidelity === 'prototype' && format !== 'html') {
+  // A written scope is always a sketch: a prototype asked for with it is
+  // recorded as one, and the skill says so in a note.
+  if (fidelity === 'prototype' && format === 'ascii') {
     throw new MalformedInput(`${turnInput.file} asks for prototype fidelity in the ${format} format; a prototype is html`);
   }
   const against = turnFile.against === undefined ? index.latest : turnFile.against;
   if (against !== null && !published(index, against)) {
     throw new MalformedInput(`${turnInput.file} builds on ${against}, which is not a published version of this folder`);
   }
+  if (format === 'scope') return planScope(flags, where, subdir, version, turnInput, against);
 
   let sent;
   if (fidelity === 'prototype') {
@@ -342,8 +371,21 @@ function plan(flags, where, subdir, index, version) {
     ...(degraded.length ? { degraded } : {}),
   };
 
-  const screens = resolved.map(screen => screen.slug);
-  const changed = resolved.filter(screen => screen.changed).map(screen => screen.slug);
+  const { result, values } = outcome(flags, subdir, turnFile, {
+    version,
+    against,
+    screens: resolved.map(screen => screen.slug),
+    changed: resolved.filter(screen => screen.changed).map(screen => screen.slug),
+    format,
+    fidelity,
+    gallery: format === 'html' ? `${subdir}/versions/${version}/index.html` : null,
+  });
+  return { versionDir, inputs, resolved, manifest, result, values, created };
+}
+
+/** The turn result and the run record's values, from what the version holds. */
+function outcome(flags, subdir, turnFile, { version, against, screens, changed, format, fidelity, gallery }) {
+  const degraded = turnFile.degraded ?? [];
   const notes = turnFile.notes ?? [];
   const result = {
     version,
@@ -356,7 +398,7 @@ function plan(flags, where, subdir, index, version) {
     fidelity,
     task_path: projectRelative(flags['task-path']),
     output_subdir: subdir,
-    gallery: format === 'html' ? `${subdir}/versions/${version}/index.html` : null,
+    gallery,
   };
   const values = {
     version,
@@ -368,7 +410,75 @@ function plan(flags, where, subdir, index, version) {
     format,
     fidelity,
   };
-  return { versionDir, inputs, resolved, manifest, result, values, created };
+  return { result, values };
+}
+
+/**
+ * A written version's publish, worked out before anything is written: its
+ * `scope.md` read and checked against `against`'s stripped scope when that is
+ * a written version, else held to carry no mark. `screens`, `drop` and `scope`
+ * in `.turn.json` are ignored, and the fidelity and grounding it records are
+ * fixed: a written scope is a sketch and grounds on nothing.
+ */
+function planScope(flags, where, subdir, version, turnInput, against) {
+  const versionDir = where.dir(version);
+  const turnFile = turnInput.document;
+  const expected = path.join(versionDir, 'scope.md');
+  try {
+    fs.lstatSync(expected);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      throw new Refusal('turn-file-missing',
+        `${expected} does not exist, and a written version is that document. Nothing was written and the input file is kept; write it and run finish again.`);
+    }
+    throw new MalformedInput(`${expected} could not be read (${err.message})`);
+  }
+  const file = anchoredFile({ given: expected, expected, noun: 'the written scope scope.md', beside: 'in the version folder', Usage: MalformedInput });
+  const text = scopeText(file, reason => new MalformedInput(reason === null
+    ? `${file} is not UTF-8 text`
+    : `${file} could not be read (${reason})`));
+
+  const parentFormat = against === null ? null : readManifest(where.dir(against)).format;
+  const earlier = parentFormat === 'scope' ? readScope(where.dir(against)) : null;
+  // A written parent drawn by hand (no Node) has no rendered page; link its scope.md then.
+  const parentPage = parentFormat === 'scope' && fs.existsSync(path.join(where.dir(against), 'index.html'));
+  const scope = parseScope(text);
+  const checked = checkScope(scope, earlier);
+
+  const created = stamp();
+  const degraded = turnFile.degraded ?? [];
+  const manifest = {
+    version,
+    created,
+    note: turnFile.note,
+    parent: against,
+    format: 'scope',
+    fidelity: 'sketch',
+    screens: [],
+    sections: checked.sections,
+    grounding_digest: null,
+    grounding_stale: false,
+    ...(degraded.length ? { degraded } : {}),
+  };
+  const { result, values } = outcome(flags, subdir, turnFile, {
+    version,
+    against,
+    screens: [],
+    changed: checked.changed,
+    format: 'scope',
+    fidelity: 'sketch',
+    gallery: `${subdir}/versions/${version}/index.html`,
+  });
+  return {
+    versionDir,
+    inputs: [turnInput.file],
+    resolved: [],
+    manifest,
+    result,
+    values,
+    created,
+    scope: { parsed: scope, sections: checked.sections, parentFormat, parentPage, earlier: earlier !== null },
+  };
 }
 
 /** The task path relative to the project root (the working directory), `/`-separated. */
@@ -393,6 +503,21 @@ function projectRelative(taskPath) {
 function writeVersion(work, { preview }) {
   const { versionDir, resolved, manifest } = work;
   const pages = new Map();
+  if (manifest.format === 'scope') {
+    put(path.join(versionDir, 'index.html'), renderScope({
+      version: manifest.version,
+      note: manifest.note,
+      parent: manifest.parent,
+      parentFormat: work.scope.parentFormat,
+      parentPage: work.scope.parentPage,
+      earlier: work.scope.earlier,
+      scope: work.scope.parsed,
+      sections: work.scope.sections,
+      changed: work.result.changed,
+    }));
+    put(path.join(versionDir, 'manifest.json'), json(manifest));
+    return pages;
+  }
   if (manifest.format === 'html') {
     const template = fs.readFileSync(TEMPLATE, 'utf8');
     const nav = resolved.map(({ slug, title }) => ({ slug, title }));
@@ -450,7 +575,9 @@ function publish(flags, where, subdir, work) {
     const pages = writeVersion(work, { preview: false });
     landed.push(`the version's files in ${versionDir}`);
 
-    const entry = { version, created: work.created, note: work.manifest.note, parent: work.manifest.parent, changed: work.result.changed };
+    const entry = {
+      version, created: work.created, note: work.manifest.note, parent: work.manifest.parent, changed: work.result.changed, format: work.manifest.format,
+    };
     put(where.index, json({ ...index, latest: version, versions: [...index.versions, entry] }));
     indexLanded = true;
     landed.push(`the index entry, with ${version} as latest`);
@@ -458,10 +585,17 @@ function publish(flags, where, subdir, work) {
     const before = previousSlugs(where, index.latest);
     const now = new Set(work.result.screens);
     for (const slug of before) if (!now.has(slug)) unlinkIfPresent(path.join(where.root, `${slug}.html`));
-    for (const [slug, text] of pages) put(path.join(where.root, `${slug}.html`), text);
-    put(path.join(where.root, '.mockups.json'), fs.readFileSync(path.join(versionDir, '.mockups.json'), 'utf8'));
-    if (work.manifest.format === 'ascii') {
-      put(path.join(where.root, 'ascii-mockups.md'), fs.readFileSync(path.join(versionDir, 'ascii-mockups.md'), 'utf8'));
+    if (work.manifest.format === 'scope') {
+      unlinkIfPresent(path.join(where.root, '.mockups.json'));
+      unlinkIfPresent(path.join(where.root, 'ascii-mockups.md'));
+      put(path.join(where.root, 'scope.md'), fs.readFileSync(path.join(versionDir, 'scope.md'), 'utf8'));
+    } else {
+      for (const [slug, text] of pages) put(path.join(where.root, `${slug}.html`), text);
+      put(path.join(where.root, '.mockups.json'), fs.readFileSync(path.join(versionDir, '.mockups.json'), 'utf8'));
+      if (work.manifest.format === 'ascii') {
+        put(path.join(where.root, 'ascii-mockups.md'), fs.readFileSync(path.join(versionDir, 'ascii-mockups.md'), 'utf8'));
+      }
+      unlinkIfPresent(path.join(where.root, 'scope.md'));
     }
     landed.push('the flat latest view');
 
@@ -478,6 +612,7 @@ function publish(flags, where, subdir, work) {
         format: work.manifest.format,
         owned: new Set([...before, ...now]),
         screens: work.resolved,
+        scope: work.scope ? { version, title: work.scope.parsed.title } : null,
       }));
       landed.push('the INDEX rows');
     }
@@ -554,7 +689,7 @@ function personAtTerminal(flags) {
 }
 
 /**
- * Open a published html version's gallery, once, as a file in the default
+ * Open a published html version's gallery, or a written version's page, once, as a file in the default
  * browser; a version is published once, so this runs once for it. Never under a
  * cockpit or a dispatch driver. Silent: a failed open leaves the turn as it was,
  * and the close still names the path.

@@ -440,14 +440,35 @@ test('the files real turn.mjs runs write depart from nothing the file declares',
     turn(['finish', `--task-path=${task}`, `--version=${started.version}`, ...(index === 1 ? [`--record=${record}`] : [])]);
   }
 
+  // a written turn, and a marked written turn on top of it
+  const scopeRecord = path.join(root, '.maister', 'tasks', 'mockup-studio', 'scope-run', 'turn-result.json');
+  fs.mkdirSync(path.dirname(scopeRecord), { recursive: true });
+  for (const [index, text] of [
+    [0, '# Inbox\n## In scope\n- Reply from the inbox\n- Bulk export\n'],
+    [1, '# Inbox\n## In scope\n- [changed] Reply from the ticket view\n  - was: Reply from the inbox\n- [removed] Bulk export\n- [added] Snooze a ticket\n'],
+  ]) {
+    const started = turn(['begin', `--task-path=${task}`]);
+    fs.writeFileSync(path.join(started.version_dir, 'scope.md'), text);
+    fs.writeFileSync(path.join(started.version_dir, '.turn.json'), JSON.stringify({
+      note: 'a written scope', format: 'scope', fidelity: 'sketch', grounding: { digest: null, stale: false },
+    }));
+    turn(['finish', `--task-path=${task}`, `--version=${started.version}`, ...(index === 1 ? [`--record=${scopeRecord}`] : [])]);
+  }
+
   const declaredFile = (keys, label) => ({ type: 'object', keys, label });
   const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
   const studio = INTERFACE.mockup_studio;
+  const written = read(path.join(out, 'versions', 'v004', 'manifest.json'));
+  assert.equal(written.format, 'scope');
+  assert.ok(written.sections.length > 0, 'the written manifest carries its sections');
+  assert.deepEqual(read(path.join(out, 'versions', 'index.json')).versions.map(each => each.format), ['html', 'html', 'scope', 'scope']);
   const checks = [
     ['versions/index.json', read(path.join(out, 'versions', 'index.json')), studio.versions_index],
     ['manifest.json', read(path.join(out, 'versions', 'v002', 'manifest.json')), studio.manifest],
     ['.mockups.json', read(path.join(out, 'versions', 'v002', '.mockups.json')), studio.mockups_json],
     ['turn-result.json', read(record), studio.returns],
+    ['written manifest.json', written, studio.manifest],
+    ['written turn-result.json', read(scopeRecord), studio.returns],
   ];
 
   // grounding.json, sealed over a project holding one source
@@ -462,4 +483,25 @@ test('the files real turn.mjs runs write depart from nothing the file declares',
     assert.deepEqual(departures(value, declaredFile(keys), label), [], label);
   }
   assert.equal(read(path.join(pack, 'grounding.json')).schema_version, studio.grounding.schema_version);
+});
+
+test('the file declares the written scope as additions: the scope format, the optional entry format and manifest sections, and its layout', () => {
+  const studio = INTERFACE.mockup_studio;
+  assert.deepEqual(studio.formats, ['html', 'ascii', 'scope']);
+  assert.deepEqual(studio.run_record.values.format.values, ['html', 'ascii', 'scope']);
+  assert.deepEqual(studio.inputs.format.values, ['html', 'ascii', 'scope', null]);
+  assert.deepEqual(studio.versions_index.versions.items.keys.format, { type: 'string', required: false, values: ['html', 'ascii', 'scope'] });
+  const sections = studio.manifest.sections;
+  assert.deepEqual([sections.type, sections.required], ['array', false]);
+  assert.deepEqual(sections.items.keys, {
+    slug: { type: 'string', required: true },
+    title: { type: 'string', required: true },
+    items: { type: 'integer', required: true },
+    added: { type: 'integer', required: true },
+    removed: { type: 'integer', required: true },
+    changed: { type: 'integer', required: true },
+  });
+  assert.equal(studio.layout.versions.files.scope, 'versions/<version>/scope.md');
+  assert.equal(studio.layout.flat.scope, 'scope.md');
+  assert.match(studio.layout.scope_note, /scope\.md/);
 });

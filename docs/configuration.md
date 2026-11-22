@@ -36,7 +36,7 @@ any other key that is missing. Four keys are read:
 | Key | Type | Default | Effect |
 |---|---|---|---|
 | `html_output` | `true` or `false` | `true` | With `false`, runs write no dashboard (`dashboard.html`, `dashboard-data.js`), open nothing in a browser and write no HTML companion pages and no explainer page. The Markdown documents and the run's state file are written either way. |
-| `mockup_format` | `html` or `ascii` | `html` | How UI mockups are drawn when a run makes them: HTML pages with a gallery, or ASCII in the terminal, which needs no browser. Details: [Mockups](mockups.md). |
+| `mockup_format` | `html` or `ascii` | `html` | How UI mockups are drawn when a run makes them: HTML pages with a gallery, or ASCII in the terminal, which needs no browser. A written scope is chosen per turn, never here. Details: [Mockups](mockups.md). |
 | `subagents` | map | Maister's own table | Which model and effort each subagent runs on, per host. See [Subagent models](#subagent-models). |
 | `project` | map | none | What the project is, so the reviewers check what applies to it. See [The project profile](#the-project-profile). |
 

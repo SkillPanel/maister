@@ -31,7 +31,8 @@ inputs:
   scope: {type: string, required: false}
   # `sketch` or `prototype`.
   fidelity: {type: string, required: false, default: sketch}
-  # No default: absent means the project's configured format, else html.
+  # No default: absent means the project's configured format, else html. A
+  # written scope (`scope`) is chosen per turn, never by the configured format.
   format: {type: string, required: false}
   brief: {type: string, required: false}
   grounding: {type: path, required: false, default: .maister/docs/design-context}
@@ -79,5 +80,5 @@ nodes:
         changed: id
         degraded: bool
         notes_count: id
-        format: {enum: [html, ascii]}
+        format: {enum: [html, ascii, scope]}
         fidelity: {enum: [sketch, prototype]}
