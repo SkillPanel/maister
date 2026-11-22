@@ -158,7 +158,7 @@ test('terminal: the writer settles what the ceiling allows, records it, and prin
   // A delegate never reads the record-only keys.
   const context = verb(['prior-context', `--state=${run.state}`]);
   assert.equal(context.code, 0, context.stderr);
-  assert.match(context.stdout, /question_id: noted-choice/);
+  assert.match(context.stdout, / — id: noted-choice$/m);
   assert.doesNotMatch(context.stdout, /assumption|reversal|triage/);
 
   // A set the writer settles whole prints `ask: none` and stores an empty remainder.
@@ -903,8 +903,8 @@ test('prior-context: the asking remainder is never printed; an unapproved held c
 
   const run = heldRun(t);
   const text = runScript(QUESTIONS.engine, ['prior-context', `--state=${run.state}`]).stdout;
-  assert.match(text, /^- decision: signed-choice A — by: default — question_id: signed-choice — .* \(held — awaiting approval\)$/m);
-  assert.match(text, /^- decision: quick-choice A — by: run — .*[^)]$/m, 'a settled choice carries no note');
+  assert.match(text, /^- \[\d+\] signed-choice A — by: default — id: signed-choice \(held — awaiting approval\)$/m);
+  assert.match(text, /^- \[\d+\] quick-choice A — by: run[^)]*$/m, 'a settled choice carries no note');
   assert.equal(text.match(/awaiting approval/g).length, 1);
 
   // Approved by a continue: the note goes.
@@ -916,7 +916,7 @@ test('prior-context: a question held with no choice is marked so, and its no_cho
   const run = started(t, QUESTIONS.engine, { driver: DISPATCH });
   assert.equal(askLine(classing(QUESTIONS.engine, run, [], { questions: [{ ...unrecommended('signed-choice') }] }).stdout), 'ask: none');
   const text = runScript(QUESTIONS.engine, ['prior-context', `--state=${run.state}`]).stdout;
-  assert.match(text, /^- decision: No choice yet — needs your decision — by: default — .* \(held — no choice yet\)$/m);
+  assert.match(text, /^- \[\d+\] No choice yet — needs your decision — by: default.* \(held — no choice yet\)$/m);
   assert.doesNotMatch(text, /no_choice/);
 });
 

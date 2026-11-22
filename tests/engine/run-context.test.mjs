@@ -31,12 +31,13 @@ function runContext(run, node) {
 }
 
 /** The block the verb prints, built line by line from its parts. */
-function block({ taskPath, html, docs = [], pack = null, companions = [] }) {
+function block({ taskPath, html, docs = [], pack = null, companions = [], contract = true }) {
   const lines = ['## Run context', '', `task_path: ${taskPath}`, `html: ${html}`];
   if (docs.length) lines.push('docs (read-only):', ...docs.map(doc => `- ${doc}`));
   else lines.push('docs: none');
   if (pack) lines.push(groundingPackLine(pack));
-  lines.push(SCRATCH, CONTRACT);
+  lines.push(SCRATCH);
+  if (contract) lines.push(CONTRACT);
   if (typeof companions === 'string') lines.push(`companions: ${companions}`);
   else if (companions.length) lines.push('companions:', ...companions.map(each => `- ${each}`));
   else lines.push('companions: none');
@@ -78,11 +79,12 @@ test('run-context: the exact block, HTML on, for a node owing two companions', t
 test('run-context: a node owing nothing, and a gate, print html off and no companions', t => {
   const run = scratch(t);
   freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
-  for (const node of ['intake', 'gap-approval']) {
+  for (const node of ['finalization', 'gap-approval']) {
     const result = runContext(run, node);
     assert.equal(result.code, 0, result.stderr);
-    // No task_path recorded: the run directory itself.
-    assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off' }), node);
+    // No task_path recorded: the run directory itself. Neither declares a
+    // markdown artifact, so neither is handed the summary contract.
+    assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', contract: false }), node);
   }
 });
 
@@ -143,12 +145,12 @@ test('run-context: docs in order, deduplicated, with the standards index only wh
   ];
   let result = runContext(run, 'completion');
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: expected }));
+  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: expected, contract: false }));
 
   fs.mkdirSync(docs, { recursive: true });
   fs.writeFileSync(path.join(docs, 'INDEX.md'), '# Index\n');
   result = runContext(run, 'completion');
-  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: [...expected, path.join(docs, 'INDEX.md')] }));
+  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: [...expected, path.join(docs, 'INDEX.md')], contract: false }));
 
   // Listed already, the index is not printed twice.
   write(run, { project_context: { project_doc_paths: ['.maister/docs/INDEX.md'] } });
@@ -157,6 +159,7 @@ test('run-context: docs in order, deduplicated, with the standards index only wh
     taskPath: run.dir,
     html: 'off',
     docs: [path.join(docs, 'INDEX.md'), path.join(docs, 'standards/global/style.md'), path.join(docs, 'project/tech-stack.md')],
+    contract: false,
   }));
 
   // Imported by the project's instructions, the index is already in every
@@ -167,6 +170,7 @@ test('run-context: docs in order, deduplicated, with the standards index only wh
     taskPath: run.dir,
     html: 'off',
     docs: [path.join(docs, 'standards/global/style.md'), path.join(docs, 'project/tech-stack.md')],
+    contract: false,
   }));
   fs.rmSync(path.join(run.root, 'CLAUDE.md'));
   fs.mkdirSync(path.join(run.root, '.claude'));
@@ -184,25 +188,25 @@ test('run-context: docs in order, deduplicated, with the standards index only wh
 });
 
 test('run-context: a project with a grounding pack gets one line after the docs, saying the change leaves it alone', t => {
-  const run = scratch(t, { type: 'research', name: '2026-01-05-research' });
-  freeze(run, { definition: RESEARCH, inputs: { question: 'What?' } });
+  const run = scratch(t);
+  freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
   const docs = path.join(run.root, '.maister/docs');
   const pack = path.join(docs, 'design-context');
 
   // No pack: no line, as every exact block above shows.
-  assert.doesNotMatch(runContext(run, 'completion').stdout, /grounding pack/);
+  assert.doesNotMatch(runContext(run, 'finalization').stdout, /grounding pack/);
 
   // A file of that name is not a pack.
   fs.mkdirSync(docs, { recursive: true });
   fs.writeFileSync(pack, 'not a folder\n');
-  assert.doesNotMatch(runContext(run, 'completion').stdout, /grounding pack/);
+  assert.doesNotMatch(runContext(run, 'finalization').stdout, /grounding pack/);
   fs.rmSync(pack);
 
   fs.mkdirSync(pack);
   fs.writeFileSync(path.join(docs, 'INDEX.md'), '# Index\n');
-  const result = runContext(run, 'completion');
+  const result = runContext(run, 'finalization');
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: [path.join(docs, 'INDEX.md')], pack }));
+  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: [path.join(docs, 'INDEX.md')], pack, contract: false }));
   const line = result.stdout.split('\n').find(each => each.startsWith('grounding pack'));
   assert.match(line, /^grounding pack \(not this change's to edit\): \S+design-context — /);
   assert.match(line, /rebuilt only from the sources it records by the studio's --ground, which a development run runs once, at finalization, when its change touched one of them/);
@@ -363,5 +367,49 @@ test('run-context: a recorded path holding a line break is skipped, never printe
   fs.writeFileSync(run.state, edited);
   const result = runContext(run, 'completion');
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: [path.join(docs, 'b.md')] }));
+  assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: [path.join(docs, 'b.md')], contract: false }));
+});
+
+test('run-context: the grounding pack line is only for a run whose workflow changes code', t => {
+  // The line keeps a change's gaps, requirements, task groups and edits off the
+  // pack; a run that changes no code makes none, so it is not handed the line.
+  const research = scratch(t, { type: 'research', name: '2026-01-05-research' });
+  freeze(research, { definition: RESEARCH, inputs: { question: 'What?' } });
+  fs.mkdirSync(path.join(research.root, '.maister/docs/design-context'), { recursive: true });
+  assert.doesNotMatch(runContext(research, 'completion').stdout, /grounding pack/);
+
+  const development = scratch(t);
+  freeze(development, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  fs.mkdirSync(path.join(development.root, '.maister/docs/design-context'), { recursive: true });
+  for (const node of ['intake', 'gap-analysis', 'implementation', 'gap-approval']) {
+    assert.match(runContext(development, node).stdout, /^grounding pack \(not this change's to edit\): /m, node);
+  }
+});
+
+test('run-context: the summary contract is only for a node that declares a markdown artifact', t => {
+  const run = scratch(t);
+  freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  const has = node => runContext(run, node).stdout.split('\n').includes(CONTRACT);
+  assert.ok(has('gap-analysis'), 'gap-analysis writes markdown');
+  assert.ok(has('intake'), 'intake writes markdown');
+  assert.ok(!has('finalization'), 'finalization declares no markdown artifact');
+  assert.ok(!has('gap-approval'), 'a gate writes nothing');
+
+  // A copy of the fixture, frozen and then removed: what a node declares is
+  // unknown, so the contract is printed rather than left out — and so is a
+  // pack's line, since whether the workflow changes code is unknown too.
+  const copied = scratch(t, { type: 'run-context', name: '2026-01-05-run-context' });
+  for (const name of ['run-context.yml', 'run-context.md', 'run-context-child.yml', 'run-context-child.md']) {
+    fs.copyFileSync(path.join(DEFINITIONS, name), path.join(copied.root, name));
+  }
+  const definition = path.join(copied.root, 'run-context.yml');
+  freeze(copied, { definition });
+  fs.mkdirSync(path.join(copied.root, '.maister/docs/design-context'), { recursive: true });
+  const read = runContext(copied, 'wrap-up').stdout.split('\n');
+  assert.ok(!read.includes(CONTRACT), 'wrap-up declares no artifact');
+  assert.ok(!read.some(line => line.startsWith('grounding pack')), 'the fixture changes no code');
+  fs.rmSync(definition);
+  const unread = runContext(copied, 'wrap-up').stdout.split('\n');
+  assert.ok(unread.includes(CONTRACT), 'unknown declarations print the contract');
+  assert.ok(unread.some(line => line.startsWith('grounding pack')), 'unknown sources print the pack line');
 });

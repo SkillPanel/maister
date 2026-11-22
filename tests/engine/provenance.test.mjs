@@ -271,7 +271,8 @@ test('prior-context hides the five provenance keys, as it hides when and how an 
   });
   const result = verb(['prior-context', `--state=${run.state}`]);
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /Proceed\?/);
+  // One line: what was decided, by whom, its id; the question stays in the record.
+  assert.match(result.stdout, /^- \[0\] Yes — by: operator — id: a$/m);
   for (const key of [...PROVENANCE, 'via']) assert.doesNotMatch(result.stdout, new RegExp(`\\b${key}\\b`), key);
   assert.doesNotMatch(result.stdout, /helper|sample-policy|notes\.md/);
 });

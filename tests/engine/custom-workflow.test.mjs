@@ -698,7 +698,7 @@ test('prior-context: a custom run\'s node summaries render for the next delegate
   const result = verb(['prior-context', `--state=${run.state}`]);
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /Pasted from `node_summaries`/);
-  assert.match(result.stdout, /^- audit the lockfile, not the manifest$/m);
+  assert.match(result.stdout, /^- \[\d+\] audit the lockfile, not the manifest — by: run$/m);
   assert.match(result.stdout, /^- the inventory tool is new$/m);
 });
 

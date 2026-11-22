@@ -14,7 +14,7 @@
  *
  * What it leaves out. The header is read before every step, so a line that
  * would only say the default is not printed, and a convention row is printed
- * whole only while it applies:
+ * only while it applies — whole, or named once the session was shown it:
  * - `when:` only for a guarded node; `attempt:` only past the first attempt or
  *   once the node has a status other than `pending`.
  * - `recommends:` only for an input that is set; unset, the section decides
@@ -75,13 +75,26 @@
  * table of the `SKILL.md` beside this module, found from its own location so a
  * generated variant reads its own copy.
  *
- * What it writes. One thing: the start of a step it briefs (`recordStart`).
- * The brief is what every step is run from, so a step cannot be begun without
- * it, and the start it records is what the status line and the dashboard read
- * as the step under way. A `skill:` step hands the session to a skill whose own
- * instructions take over, and the start the prose asked for was the write runs
- * dropped. Nothing else — a refusal, a gate, a step not ready to run — writes
- * anything. It returns `{ok, text, errors, warnings}`.
+ * Each convention row is printed whole once per session. The rows are fixed
+ * text, the same on every node, and printed on every brief they made up much
+ * of a run's briefs. So a session's briefs print a row whole the first
+ * time it applies, and a later brief names it on one `conventions in force
+ * (…)` line. What a session was shown is kept in its conventions marker
+ * (`display-files.mjs`), keyed by the host's session id. `resume-check` and the
+ * post-compaction hook remove the marker, so the first brief after a resume or
+ * a compaction prints every row whole again, and a session never works from a
+ * row it no longer has in view. Without a session id, every row prints whole
+ * on every brief.
+ *
+ * What it writes. The start of a step it briefs (`recordStart`), and the
+ * session's conventions marker when it printed a row whole. The brief is what
+ * every step is run from, so a step cannot be begun without it, and the start
+ * it records is what the status line and the dashboard read as the step under
+ * way. A `skill:` step hands the session to a skill whose own instructions take
+ * over, and the start the prose asked for was the write runs dropped. Nothing
+ * else — a refusal, a step not ready to run — writes anything; a gate writes
+ * only the marker. A marker that cannot be written is not a warning: the next
+ * brief prints the rows whole again. It returns `{ok, text, errors, warnings}`.
  *
  * Refusals, each with a recovery row in the engine skill:
  * - `node-brief-state-unreadable` — `--state` cannot be read or parsed.
@@ -125,6 +138,8 @@ import { HELD_APPROVAL, declaredQuestionIds } from './question-triage.mjs';
 import { loadPolicy, questionFamilies } from './policy.mjs';
 import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
+import { conventionsShown, markConventionsShown } from './display-files.mjs';
+import { runRoot } from './resume-check.mjs';
 
 /** The engine's entry script, which the `ask with:` line names by its absolute path. */
 const ENGINE = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
@@ -196,6 +211,10 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
 
   const table = conventionsOf();
   if (table === null) warnings.push(`node-brief-conventions-unread: ${SKILL}`);
+  // The rows this session was already shown whole; null prints every one whole.
+  const root = runRoot(doc, runDir);
+  const shown = table === null ? null : conventionsShown({ root });
+  const printedWhole = new Set();
 
   const nodes = current.graph?.nodes ?? [];
   const byId = new Map(nodes.map(entry => [entry.id, entry]));
@@ -222,7 +241,7 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
   const origin = sources ? originOf(sources, node) : null;
   const section = origin === null ? null : proseSection(origin, sectionNameOf(resolved));
   const printed = section === null ? null : sliced(section.text);
-  const convention = keys => conventionLines(table, keys);
+  const convention = keys => conventionLines(table, keys, shown, printedWhole);
   const askIt = `ask it: gate-brief --state=${quoted(path.resolve(state))} --node=${node}`;
 
   const lines = gate
@@ -234,6 +253,8 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
     if (started.ok) lines.splice(2, 0, STARTED);
     else warnings.push(`node-brief-start-unrecorded: ${started.errors.map(error => error.code).join(', ')}`);
   }
+  // A marker that cannot be written only means the next brief prints the rows whole again.
+  if (shown !== null && printedWhole.size) markConventionsShown({ root, rows: new Set([...shown, ...printedWhole]) });
   lines.push('');
   if (resolved === null) {
     lines.push(gate ? askIt : current.graph === null ? UNKNOWN_SECTION : GONE_SECTION);
@@ -753,11 +774,28 @@ function conventionsOf() {
   return rows.size ? rows : null;
 }
 
-/** One `convention (<key>): <row>` line per key the table holds, or the one pointer line without a table. */
-function conventionLines(table, keys) {
+/**
+ * The convention lines for `keys`: one `convention (<key>): <row>` line per key
+ * the table holds that this session has not been shown whole yet — each one it
+ * prints is added to `printed` — and one `conventions in force (…)` line naming
+ * the ones it has. `shown` null (no session to remember them for) prints every
+ * row whole. Without a table, the one pointer line.
+ */
+function conventionLines(table, keys, shown = null, printed = new Set()) {
   if (table === null) return ['convention: see rules'];
-  return keys.filter(key => table.has(key)).map(key => `convention (${key}): ${table.get(key)}`);
+  const present = keys.filter(key => table.has(key));
+  const named = shown === null ? [] : present.filter(key => shown.has(key));
+  const whole = present.filter(key => !named.includes(key));
+  for (const key of whole) printed.add(key);
+  return [
+    ...(named.length ? [`${IN_FORCE} (${named.join(', ')}): ${IN_FORCE_TAIL}`] : []),
+    ...whole.map(key => `convention (${key}): ${table.get(key)}`),
+  ];
 }
+
+/** The line that names the rows a session was already shown whole. */
+const IN_FORCE = 'conventions in force';
+const IN_FORCE_TAIL = 'printed whole by an earlier brief of this session; follow them as printed there, or read them at rules';
 
 // ---------------------------------------------------------------------------
 // interpolation (SKILL.md § Interpolating)

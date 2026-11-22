@@ -584,6 +584,8 @@
           "state"
         ],
         "refusals": [
+          "display-temp-exists",
+          "display-unwritable",
           "gate-brief-value-missing",
           "gate-temp-exists",
           "gate-unwritable",
@@ -1189,7 +1191,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.6",
+  "interface_version": "2.7",
   "mcp": {
     "servers": [],
     "tools": [

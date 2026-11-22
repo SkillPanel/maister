@@ -5,7 +5,11 @@
  * the same handful of run facts: where the task directory is, whether it owes
  * HTML companions and which guide writes them, the project documentation to
  * read, the grounding pack it must leave alone, how to make a scratch copy,
- * what a markdown artifact opens with, and which pages this node owes. Left to the orchestrating model, each of those is
+ * what a markdown artifact opens with, and which pages this node owes. Each
+ * paragraph is printed only where it is used: the summary contract for a node
+ * that declares a markdown artifact, the grounding pack in a run whose workflow
+ * changes code. When the definition the run froze cannot be re-read, both are
+ * printed. Left to the orchestrating model, each of those is
  * a sentence it must remember to compose into every prompt, and the one that
  * is forgotten is never noticed — the delegate does its work without it. So the
  * facts are fetched, the way `prior-context` fetches the prior phases'
@@ -43,8 +47,9 @@ import { parse, isPlainObject } from './state-read.mjs';
 // the project root is and what the run owes; this module asks it rather than
 // keeping a second answer that could drift from the checks that hold a node to
 // the same companions.
-import { companionsOfRun, htmlOutput, isContextBlock, projectRootOf } from './state.mjs';
-import { owedCompanions } from './companions.mjs';
+import { companionsOfRun, htmlOutput, isContextBlock, projectRootOf, sourcesOf } from './state.mjs';
+import { isMarkdown, owedCompanions } from './companions.mjs';
+import { changesCodeOf } from './graph.mjs';
 import { HELD_APPROVAL } from './question-triage.mjs';
 
 /**
@@ -76,7 +81,9 @@ const INDEX_IMPORT = /(?:^|\s)@\.maister\/docs\/INDEX\.md(?=\s|$)/m;
  * as project docs a change has to keep true. They are not: the studio's
  * `--ground` rebuilds the pack from the sources it records, and a development
  * run does that once, at finalization, when its change touched one. So when a
- * project has a pack, the block says so in one line.
+ * project has a pack, and the run's workflow declares that it changes code, the
+ * block says so in one line: a run that changes no code makes no edit the line
+ * could keep off the pack.
  */
 const GROUNDING_PACK = path.join('.maister', 'docs', 'design-context');
 
@@ -130,13 +137,19 @@ export function runContext({ state, node }) {
   const entry = isPlainObject(nodes[node]) ? nodes[node] : {};
   const warnings = [];
 
+  // The definition the run froze, read once: what the node declares decides the
+  // contract line, the workflow's changes_code the pack line, and the owed pages
+  // the companions. Unreadable, both lines print.
+  const sources = readSources(doc, runDir);
+  const owing = sources === null ? null : companionsOfRun(doc, runDir, sources);
+  const declared = owing === null ? null : declaredNode(owing.definition, node);
+
   let html = 'off';
   let companions = ['companions: none'];
   // A gate asks; it never delegates a file, so it owes nothing whatever a block
   // says. Nor does a `dir:` node, whose work lands in another repository: the
   // write-state and run-complete checks skip it, so the block says the same.
   if (htmlOutput(doc) && entry.kind !== 'gate' && !isDispatch(entry)) {
-    const owing = companionsOfRun(doc, runDir);
     if (owing === null) {
       html = STYLE_GUIDE;
       companions = [UNKNOWN];
@@ -158,12 +171,41 @@ export function runContext({ state, node }) {
     `task_path: ${taskPathOf(doc, runDir, root)}`,
     `html: ${html}`,
     ...(docs.length ? ['docs (read-only):', ...docs.map(file => `- ${file}`)] : ['docs: none']),
-    ...(isDirectory(pack) ? [groundingPackLine(pack)] : []),
+    ...(isDirectory(pack) && (sources === null || changesCode(sources)) ? [groundingPackLine(pack)] : []),
     SCRATCH,
-    CONTRACT,
+    ...(declared === null || writesMarkdown(declared) ? [CONTRACT] : []),
     ...companions,
   ];
   return { ok: true, text: `${text.join('\n')}\n`, errors: [], warnings };
+}
+
+/** The run's sources (`sourcesOf`), or null when they, or the definition among them, cannot be read. */
+function readSources(doc, runDir) {
+  try {
+    const sources = sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
+    return isPlainObject(sources?.definition?.doc) ? sources : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether the run's workflow, over its overlays and profile, declares that it changes code. */
+function changesCode(sources) {
+  return changesCodeOf({ ...sources, overlays: sources.overlays.filter(overlay => overlay.doc) });
+}
+
+/** The node as the folded definition declares it, or null when it does not. */
+function declaredNode(definition, node) {
+  return isPlainObject(definition?.nodes) && isPlainObject(definition.nodes[node]) ? definition.nodes[node] : null;
+}
+
+/**
+ * Whether a declared node writes a markdown artifact, the only kind the summary
+ * contract governs: a node that writes none has no artifact to open with it.
+ */
+function writesMarkdown(declared) {
+  const artifacts = isPlainObject(declared.outputs?.artifacts) ? declared.outputs.artifacts : {};
+  return Object.values(artifacts).some(value => typeof value === 'string' && isMarkdown(value));
 }
 
 /** Whether a node entry, recorded or declared, carries `dir:`. */
