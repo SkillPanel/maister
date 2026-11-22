@@ -123,7 +123,7 @@ import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
 import { SUITE_RUNS, attemptOf, childRootOf, definitionPathOf, htmlOutput, isStalePage, policyWorkflowOf, projectRootOf } from './state.mjs';
 import { STORIES_HEADING, approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
-import { artifactOf, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, isHostAnswer, riskOf, riskText } from './items.mjs';
+import { artifactOf, classWords, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, isHostAnswer, riskOf, riskText } from './items.mjs';
 import { questionSets } from './driver.mjs';
 import { areasProducer } from './decision-areas.mjs';
 import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked, setForm, sharedOpenings } from './question-set.mjs';
@@ -2960,9 +2960,9 @@ const DRIVEN = {
     const decision = decisionOf(item);
     if (!decision) return '';
     const kind = classOf(decision);
-    return `${decision.by}${kind ? ` (${kind})` : ''}: ${decisionText(decision)}`;
+    return `${decision.by}${kind ? ` (${classWords(kind)})` : ''}: ${decisionText(decision)}`;
   },
-  held: entry => `${entry.class ? `${entry.class}: ` : ''}${entry.question_id} → ${entry.decision}${entry.step ? ` — ${lowered(entry.step)}` : ''}`,
+  held: entry => `${entry.class ? `${classWords(entry.class)}: ` : ''}${entry.question_id} → ${entry.decision}${entry.step ? ` — ${lowered(entry.step)}` : ''}`,
   risk: item => {
     const risk = riskOf(item);
     return risk ? `${risk.tag}: ${riskText(risk)}` : '';
@@ -2981,9 +2981,9 @@ const READABLE = {
   decision: item => {
     const text = headlineOf(item);
     const kind = text === '' ? null : classOf(decisionOf(item));
-    return kind ? `${text} (${kind})` : text;
+    return kind ? `${text} (${classWords(kind)})` : text;
   },
-  held: entry => `${entry.question ? `${entry.question}: ` : ''}${entry.decision}${entry.class ? ` (${entry.class})` : ''}${entry.step ? ` — ${lowered(entry.step)}` : ''}`,
+  held: entry => `${entry.question ? `${entry.question}: ` : ''}${entry.decision}${entry.class ? ` (${classWords(entry.class)})` : ''}${entry.step ? ` — ${lowered(entry.step)}` : ''}`,
   risk: headlineOf,
   fix: item => {
     const fix = fixOf(item);

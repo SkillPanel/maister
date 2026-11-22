@@ -44,7 +44,7 @@
 import path from 'node:path';
 import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { REQUEST_SUGGESTION, keysOf } from './interface-shapes.mjs';
-import { hostLabel } from './items.mjs';
+import { classWords, hostLabel } from './items.mjs';
 
 /** Most lines, and characters, of the continue option's preview. */
 export const FOCUS_LINES = 16;
@@ -362,7 +362,7 @@ function decisionLine(item) {
   const suffix = item.source ? ` — ${item.source}` : '';
   if (!item.class) return `- ${item.decision}${suffix}`;
   const lead = item.rationale ? `: ${leadOf(item.rationale)}` : '';
-  return `- ${item.decision} (${item.class})${lead}${suffix}`;
+  return `- ${item.decision} (${classWords(item.class)})${lead}${suffix}`;
 }
 
 /** A text's first sentence, or the whole text when it has no sentence end. */
@@ -713,7 +713,7 @@ export function moreDetails(checkpoint) {
   if (checkpoint.headline) blocks.push(`Done: ${checkpoint.headline}`);
   const held = heldOf(checkpoint);
   if (held.length) {
-    blocks.push([`**${HELD_HEADING}**`, ...held.map(item => `- ${item.question ? `${item.question}: ` : ''}${item.decision}${item.class ? ` (${item.class})` : ''}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
+    blocks.push([`**${HELD_HEADING}**`, ...held.map(item => `- ${item.question ? `${item.question}: ` : ''}${item.decision}${item.class ? ` (${classWords(item.class)})` : ''}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
   }
   const stories = storiesOf(checkpoint);
   if (stories.length) blocks.push([`**${STORIES_HEADING}**`, ...stories.map(story => `- ${story}`)].join('\n'));
@@ -722,7 +722,7 @@ export function moreDetails(checkpoint) {
   if (fixes.length) blocks.push([`**${FIXED_HEADING}**`, ...fixes.map(fix => `- ${fixText(fix)}`)].join('\n'));
   const items = decided(checkpoint);
   if (items.length) {
-    blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.class ? ` (${item.class})` : ''}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
+    blocks.push([`**${decidedHeading(items)}**`, ...items.map(item => `- ${item.decision}${item.class ? ` (${classWords(item.class)})` : ''}${item.rationale ? ` — ${item.rationale}` : ''}${item.source ? ` — ${item.source}` : ''}`)].join('\n'));
   }
   const hosted = hostAnswers(checkpoint);
   if (hosted.length) {

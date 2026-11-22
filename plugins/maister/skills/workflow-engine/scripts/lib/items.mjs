@@ -52,6 +52,23 @@ export function hostLabel(id) {
   return Object.hasOwn(HOST_LABELS, id) ? HOST_LABELS[id] : id;
 }
 
+/**
+ * A triage class as a reader names it, keyed by the policy's class ids
+ * (`policy.mjs` `CLASSES`). The id stays the policy's word in every record;
+ * only what is printed for a person reads this.
+ */
+export const CLASS_WORDS = {
+  'decide-alone': 'the run decides it alone',
+  record: 'recorded for you',
+  consult: 'needs advice',
+  approve: 'needs your approval',
+};
+
+/** A class's words for its id; an id this build does not know reads as itself. */
+export function classWords(id) {
+  return Object.hasOwn(CLASS_WORDS, id) ? CLASS_WORDS[id] : id;
+}
+
 /** What a risk is: still open, a trade-off accepted, a follow-up for later, a reason to stop, or settled. */
 export const RISK_TAGS = ['open', 'tradeoff', 'followup', 'stop', 'resolved'];
 

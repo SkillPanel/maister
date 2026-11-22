@@ -546,7 +546,7 @@ the set it would ask to the writer, in one `write-state` patch on its own summar
 `node_summaries.<node>.question_set` — the same `{ask?, headline?, questions}` object the cockpit
 form takes — and, optionally, `node_summaries.<node>.reasons`, `{<question id>: {rationale?,
 assumption?, reversal?}}`, each one line. The writer consumes both and stores neither as sent. It
-classes each question under the policy and the run's autonomy ceiling, records the outcome on the
+classes each question under the policy and the run's autonomy ceiling (its ask level), records the outcome on the
 node's `decisions`, stores the ids still to ask as the node's `asking`, and prints them last:
 
 ```
@@ -600,6 +600,11 @@ be asked:
 | asked | above the autonomy ceiling, and somebody can be asked | nothing; the id is printed under `ask:` | asks it, as the sections above say |
 | defaulted | above it, nobody can be asked; a consult-class one is marked advice not obtained | `by: default`, with the triage | takes it |
 | held | an approval-class question nobody can be asked | `by: default`, its triage `held: true`; with nothing recommended, no choice: `decision: "No choice yet — needs your decision"`, `no_choice: true` | goes on provisionally with it, or without one |
+
+A class shown to a person reads in words, never as its id: `decide-alone` is "the run decides it
+alone", `record` "recorded for you", `consult` "needs advice", `approve` "needs your approval".
+The checkpoint, the gate brief and the dashboard print these; a session naming a class in its own
+sentence uses the same words. Records keep the ids.
 
 Under a terminal driver ask in session only the ids printed under `ask:`; under a cockpit with
 question sets the request carries only those (*When a question suspends*); under any other
