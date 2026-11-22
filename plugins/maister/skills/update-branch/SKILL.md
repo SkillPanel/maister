@@ -146,7 +146,7 @@ Never `-a`, so unstaged run work stays uncommitted. Never push. When the commit 
 
 ### Step 8: Move the run's base
 
-With a run, after the commit:
+With a run, after the commit, this call always runs. The verb decides whether the base can move, never the session: no ancestry check made by hand replaces it or skips it, and a refusal is the verb's to print.
 
 `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs move-base --state=<run>/orchestrator-state.yml --reason=<the merged ref and the branch, in words, not opening with a bracket>`
 
@@ -160,7 +160,7 @@ On a refusal the merge commit stays. Quote the refusal and warn that the run's n
 
 ### Step 9: Write the result
 
-Every call ends here, whatever step it stopped at: each stop in Steps 1–4, a stop at Steps 5 or 7, an up-to-date branch or a committed merge. The result goes to `--result <file>` when given, else to `update-branch.json` in the run's task directory. With no run known and no `--result`, no file is written and the report says so.
+Every call ends here, whatever step it stopped at: each stop in Steps 1–4, a stop at Steps 5 or 7, an up-to-date branch or a committed merge. The result goes to `--result <file>` when given, else to `update-branch.json` in the run's task directory. A known run always gets its result file, whatever Step 8 printed — a move, `unchanged:` or a refusal — and whatever step the call stopped at. Only with no run known and no `--result` is no file written, and the report says so.
 
 Write the draft with the file tool to `.update-branch-draft.json` in the directory the result goes to (the verb names that place when the path is wrong), then:
 
