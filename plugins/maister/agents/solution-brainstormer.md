@@ -115,7 +115,7 @@ For product design, the evidence is the scope, the explore briefs, the problem s
 
 Always group by decision area. For each area:
 
-1. **Name the area and its question** - a short name, and the one-line question the user answers, in the task's own words
+1. **Name the area and its question** - a short name, and the one-line question the user answers, in the task's own words. An area is a choice: apply the fact-or-choice test (`<plugin root>/skills/workflow-engine/references/in-node-questions.md`, *A fact is what no answer would change*), and state a fact the research settles in the exploration instead of making it an area
 2. **Say why it matters** - what the choice fixes or rules out downstream
 3. **Note dependencies** - when this area's answer only makes sense after another area is decided, list that area first and record the dependency
 4. **Generate 3-5 genuine alternatives** - each should be a defensible approach to this area's question
