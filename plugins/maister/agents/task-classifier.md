@@ -99,7 +99,7 @@ Combine fetched details with user-provided context:
 ### Phase 2: Context Analysis
 
 **Read Project Documentation**:
-- Read `.maister/docs/INDEX.md` for project context
+- Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it. It gives the project context.
 - Check standards for relevant patterns
 - Review roadmap if exists
 
@@ -248,7 +248,7 @@ A description too thin to tell the types apart ("Work on dashboard", "Work on th
 
 ## Tool Usage
 
-**Read**: Read `.maister/docs/INDEX.md`, project documentation, specifications
+**Read**: project documentation and specifications. Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it.
 
 **Grep**: Search for component definitions, error patterns, imports/exports
 

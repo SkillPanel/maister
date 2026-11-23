@@ -19,6 +19,7 @@ and the context ingests the rest of the run reads from.
    the project's docs directory if one exists and extract every path from its
    project-documentation sections, predefined and operator-added alike. Record
    them as `project_context.project_doc_paths`, a top-level block of its own.
+   The recorded paths never include `INDEX.md` itself or any file under `standards/`: those reach every delegate through the index.
 4. **Detect research context** — when the invocation named a completed research
    task, as the sole argument or through the research input, bring its report and
    artifacts under `analysis/research-context/` with `import` (its row: the engine's `references/verbs.md`). Record

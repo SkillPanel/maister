@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, ROOT, SAMPLE, freeze, scratch, sibling, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, ROOT, SAMPLE, freeze, run as runScript, scratch, sibling, variantRoot, verb, write } from '../helpers.mjs';
 import { groundingPackLine } from '../../plugins/maister/skills/workflow-engine/scripts/lib/run-context.mjs';
 
 // The run-scoped context a delegate prompt carries, fetched rather than
@@ -173,18 +173,39 @@ test('run-context: docs in order, deduplicated, with the standards index only wh
     contract: false,
   }));
   fs.rmSync(path.join(run.root, 'CLAUDE.md'));
+
+  // `.claude/CLAUDE.md` resolves its relative import under `.claude/`, so it
+  // never puts the project's index in context: the index stays listed.
   fs.mkdirSync(path.join(run.root, '.claude'));
   fs.writeFileSync(path.join(run.root, '.claude', 'CLAUDE.md'), '@.maister/docs/INDEX.md\n');
-  assert.doesNotMatch(runContext(run, 'completion').stdout, /INDEX\.md/);
+  assert.match(runContext(run, 'completion').stdout, /^- .*INDEX\.md$/m);
 
   // A path that only mentions the index, without importing it, keeps it listed.
-  fs.writeFileSync(path.join(run.root, '.claude', 'CLAUDE.md'), 'The map is `.maister/docs/INDEX.md`.\n');
+  fs.writeFileSync(path.join(run.root, 'CLAUDE.md'), 'The map is `.maister/docs/INDEX.md`.\n');
   assert.match(runContext(run, 'completion').stdout, /^- .*INDEX\.md$/m);
 
   // Nothing listed and no index: one line.
   const bare = scratch(t);
   freeze(bare, { definition: SAMPLE });
   assert.match(runContext(bare, 'analysis').stdout, /^docs: none$/m);
+});
+
+test('run-context: on the Copilot build the standards index is listed even when CLAUDE.md imports it', t => {
+  // A Copilot subagent is given no repository instructions, so the import in
+  // CLAUDE.md never reaches it: the listing is its one route to the index.
+  const run = scratch(t, { type: 'research', name: '2026-01-05-research' });
+  freeze(run, { definition: RESEARCH, inputs: { question: 'What?' } });
+  const docs = path.join(run.root, '.maister/docs');
+  fs.mkdirSync(docs, { recursive: true });
+  fs.writeFileSync(path.join(docs, 'INDEX.md'), '# Index\n');
+  fs.writeFileSync(path.join(run.root, 'CLAUDE.md'), '# Project\n\n1. Read @.maister/docs/INDEX.md first.\n');
+  const variantEngine = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
+  const result = runScript(variantEngine, ['run-context', `--state=${run.state}`, '--node=completion']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(`^docs \\(read-only\\):\\n- ${path.join(docs, 'INDEX.md').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
+  // The same project on the Claude Code build leaves it out: the import has
+  // already put it in every delegate's context.
+  assert.doesNotMatch(runContext(run, 'completion').stdout, /INDEX\.md/);
 });
 
 test('run-context: a project with a grounding pack gets one line after the docs, saying the change leaves it alone', t => {

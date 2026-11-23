@@ -71,7 +71,7 @@ The Task prompt MUST include:
 
 1. **Read `analysis/requirements.md`** — gathered user requirements, Q&A, scope boundaries, and its User stories section when it has one: each story by its id, as the run settled it
 2. **Read project context** from `project_context_paths`:
-   - `.maister/docs/INDEX.md` — project documentation and standards index
+   - The project documentation and standards index. Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it.
    - **ALL** project docs from paths provided — this includes predefined docs (vision.md, roadmap.md, tech-stack.md, architecture.md) AND any user-added project documentation. Do NOT skip files you don't recognize — users add custom project docs that are equally important.
    - Standards files referenced in INDEX.md (relevant to this task)
 3. **Read prior analysis** (paths from accumulated context):

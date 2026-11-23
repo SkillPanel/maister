@@ -1,6 +1,6 @@
 # CLAUDE.md Documentation Section Template
 
-Add this section to the project's `CLAUDE.md` file. Place it prominently near the top. Verify the INDEX.md path is correct and the file exists before adding.
+Add this section to the project's `CLAUDE.md` file. Place it prominently near the top. Verify the INDEX.md path is correct and the file exists before adding, reading the path from the folder the instructions file sits in.
 
 ```markdown
 ## Project Documentation & Standards

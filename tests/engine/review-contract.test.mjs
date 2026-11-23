@@ -89,7 +89,8 @@ test('review contract: reviewers review the range; nothing points them at a patc
 test('review contract: code risk takes its standards from INDEX.md and the run\'s claims together, and owns CI and operational hygiene', () => {
   const risk = agentText('code-risk-review');
   assert.match(risk, /\*\*Standards, from two sources\.\*\*/);
-  assert.match(risk, /one full read of\s+`\.maister\/docs\/INDEX\.md`/);
+  assert.match(risk, /from\s+every\s+entry\s+of\s+the\s+standards\s+index/);
+  assert.match(risk, /Read\s+`\.maister\/docs\/INDEX\.md`\s+only\s+if\s+it\s+is\s+not\s+already\s+in\s+your\s+context/);
   assert.match(risk, /never decide by matching words in paths/);
   assert.match(risk, /A relevant standard the code follows is not a finding,\s+claimed or not/);
   assert.match(risk, /\*\*CI and build:\*\*/);
