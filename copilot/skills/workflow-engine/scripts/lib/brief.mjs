@@ -120,7 +120,8 @@ export function delegatesFor(entry, host) {
  * The host a run is on, as its freeze recorded it: `copilot` when the
  * delegation was frozen on Copilot (`frozenOnCopilot`), `claude` when a
  * delegation was frozen otherwise, and the host this plugin ships for when
- * the freeze recorded none — a terminal freeze naming no host.
+ * the run records none. Every freeze records one, on the host it names or
+ * else the one the build ships for.
  */
 export function runHost(doc) {
   const options = isMap(doc?.orchestrator) && isMap(doc.orchestrator.options) ? doc.orchestrator.options : {};

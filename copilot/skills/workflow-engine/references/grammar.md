@@ -94,7 +94,7 @@ companion's `# Title` line (§ 11).
 | Key | Shape |
 |---|---|
 | `icons` | Node id → one icon hint from the table below |
-| `titles` | Node id → a one-line title; a node without one is shown as its id in title case. A gate's title is also the question its brief asks when its `ask` asks to continue ("Approve the specification?"), so give every gate its own; without one the brief asks the lead of the `ask` |
+| `titles` | Node id → a one-line title; a node without one is shown as its id in sentence case, a known acronym in capitals. A gate's title is also the question its brief asks when its `ask` asks to continue ("Approve the specification?"), so give every gate its own; without one the brief asks the lead of the `ask` |
 | `option_labels` | Gate id → option id → a one-line label the operator picks; an option without one is shown as its id in sentence case. A continue option labelled `Continue` alone — or with no label, an option id of `continue` — is completed with where the run actually goes once guards are read ("Continue to implementation planning", "Finish the run"), so a gate whose next step a guard decides never names two destinations. In a run another run started, the end of this run is named by the parent's next step ("Continue to release notes"), and a stop labelled `Stop here` names the parent it also stops. The recorded answer is still the option id. Each label opens with what sets it apart from the gate's other options (`references/in-node-questions.md`, *Each option opens with what sets it apart*) |
 | `headers` | Gate id → a one-line chip of at most 12 characters shown above the gate's question; without one, the title of the node the gate closes when it fits |
 
@@ -207,7 +207,7 @@ state, which is why the set is closed. An `id:` written inside a node is refused
 | `with` | task | Free-form context handed to whatever runs the node; may interpolate (§ 9) |
 | `outputs` | task | The artifacts and values the node declares (§ 8.2). A gate may not carry it |
 | `type` | gate | `gate` — the only node type; everything else is a task node |
-| `ask` | gate | The question the gate asks; may interpolate. A task node may not carry it |
+| `ask` | gate | The question the gate asks, shown as written: a `${…}` in it is refused. A task node may not carry it |
 | `options` | gate | The gate's answers and their effects (§ 6). A task node may not carry it |
 | `on` | both | Which endings of the node's needs let it run (§ 7) |
 | `dir` | task | A member repository this node dispatches into, which makes the definition a chain; may interpolate |
@@ -390,7 +390,7 @@ clears them. The brief walks each continue on its own answer, so each option nam
 and the closing node may say which one it recommends and why (`references/gates.md`). `sets` is part of
 the graph's identity, its keys in sorted order, so adopting it moves the definition's hash.
 
-When the question needs a value from earlier in the run, interpolate it into `ask` (§ 9). The
+A question is shown as written, so a value from earlier in the run does not go into `ask`; a node the gate needs names it in its summary. The
 gate brief — the closing node's summary, decisions, risks and a recommended option — is rendered
 beside the question by the engine; the node prose feeds it through its summary (`references/gates.md` § *Before every gate — the gate brief*).
 
@@ -452,8 +452,8 @@ set takes it as ready once its needs are met, the brief walks to it, and `run-co
 owed and never offers to record it skipped. Validation warns `skip-guard-not-pure:<node>`; nothing
 is refused. A write that records such a gate `skipped` lands and warns `skip-guard-skipped:<node>`.
 The fix is a guard on an input or a gate's value, or a gate reduced to a single plain continue.
-A gate whose guard reads false and that neither this rule nor a held choice asks (engine
-§ *The ready set*) is never asked: `gate-brief` and `gate-request` refuse it `gate-guard-false`,
+A gate whose guard reads false and that neither this rule nor a held choice asks
+(`references/in-node-questions.md` § *When the policy classes a question*) is never asked: `gate-brief` and `gate-request` refuse it `gate-guard-false`,
 naming the write that records it skipped.
 
 <!-- vocabulary: ON_VALUES -->
@@ -509,7 +509,7 @@ path (a leading `/` or `\`, or a drive letter such as `C:`), no `..` segment. It
 a directory.
 A node that does not produce a declared artifact has not completed — unless its `brief:` `absent`
 sanctions the absence by name (§ 3.3), and the node then records it on its summary under `absent`,
-keyed by the artifact's declared key (engine § *Recording an outcome*).
+keyed by the artifact's declared key (`references/writing-state.md` § *Recording an outcome — the detail*).
 
 | Value type | Recorded as |
 |---|---|
@@ -541,8 +541,8 @@ definition only and is part of the recorded identity: adding one changes the def
 
 ## 9. Interpolation
 
-`${…}` is substituted in three keys only — `with`, `dir` and `ask` — however deeply nested inside
-`with`. Every reference is one of:
+`${…}` is substituted in two keys only — `with` and `dir` — however deeply nested inside
+`with`. A gate's `ask` is shown as written, and `validate` refuses a reference there. Every reference is one of:
 
 | Reference | Is |
 |---|---|
@@ -555,12 +555,26 @@ transitively — because nothing else has run by then. A reference to anything e
 outside the closure, and a `${` that never closes are all errors. There is nothing to substitute
 in an artifact path, a `when` (which has its own form) or `uses`.
 
-How the engine substitutes, including what a skipped node's value becomes and how a child run's
-outputs are joined back, is engine § *Interpolating `${…}`*. The rule an author needs from it:
-a string that is exactly one reference takes the value as it is, while a reference inside longer
-text becomes text and a null becomes empty. **Do not interpolate a value a skipped node may have
-left null** into a node that still runs — have that node's prose read the value from state
-instead, where its absence is visible.
+**How the engine substitutes.** Before a node runs, the driver fills in every `${…}` of its
+`with:` and `dir:` from the run's state, never from a recollection of it, and `node-brief` prints
+both filled in:
+
+| Reference | Resolves to |
+|---|---|
+| `${inputs.<name>}` | `orchestrator.options.inputs.<name>`; else the input's declared `default`; else null |
+| `${<node>.values.<key>}` | the value the node recorded in `workflow.nodes.<node>.values`. A skipped node recorded its bools false and its strings and enums null |
+| `${<node>.artifacts.<key>}` | the path the node declares, joined onto the task directory of the run that wrote it and spelled repository-root-relative (`references/writing-state.md` § *Recording an outcome — the detail*). A node with `dir:` declares a member repository's path: a dispatch envelope reads it in that dispatch's worktree once its close-out is published; one that also runs a `workflow:` is read at the path its worker's close-out lists for the key, in that worktree (the umbrella skill, `seed`) |
+
+**A value keeps its type when the reference is the whole string.** `with: {deep:
+"${intake.values.deep}"}` hands over the bool `true`, and a null stays null. A reference inside
+longer text becomes text, and a null there becomes empty. **Do not interpolate a value a skipped
+node may have left null** into a node that still runs — have that node's prose read the value
+from state instead, where its absence is visible.
+
+**The sub-run join.** A `workflow:` node's own `with:` is interpolated first, and the result is
+what the child freezes as its inputs (W2, `references/sub-runs.md`). Once the parent has adopted
+the child's outcome (W4), `${<node>.values.<key>}` is the value W4 copied onto the node, and
+`${<node>.artifacts.<key>}` the child's declared path joined onto the node's `values.task_path`.
 
 ## 10. Reserved and retired keys
 
@@ -611,8 +625,8 @@ word, every `` ## `x` `` heading outside a fence must name a section some node f
 after `direct:` for a `direct:` node, the node id for any other node or gate. One that names none
 warns `orphan-prose-section` (§ 14).
 
-**The section is the node's own part of its brief.** The engine's node conventions (engine
-`SKILL.md` § *Node conventions*) already say how each scheme runs, how a gate is asked, what every
+**The section is the node's own part of its brief.** The engine's node conventions (the engine skill's
+`references/node-conventions.md`) already say how each scheme runs, how a gate is asked, what every
 step checks before it completes, what a closing summary carries and how a re-run works; a section
 states only what is the node's own and never restates them. `node-brief` prints the node's
 header, the conventions that apply to it and then its section, and the engine reads that before

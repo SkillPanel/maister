@@ -4,7 +4,7 @@ description: Shared orchestration patterns for all workflow orchestrators. NOT a
 user-invocable: false
 ---
 
-**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first.
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a subfolder of a run, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first. A run's own folder is never one: the freeze creates it.
 
 **Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
 
@@ -16,15 +16,16 @@ This skill provides **shared reference documentation** for all orchestrator skil
 
 Reduce duplication across orchestrators by documenting common patterns once:
 
-- **Delegation**: Skill tool for skills, Task tool for agents — § 1
+- **Delegation**: Skill tool for skills, Task tool for agents — the workflow engine's § *Delegation by scheme*
 - **Gates**: Pause behavior, the driver rule and in-node question defaults — § 2
-- **State Management**: `orchestrator-state.yml` schema and the context blocks — § 4
-- **Initialization**: Task directory setup and naming — § 5
+- **State Management**: `orchestrator-state.yml` and the context blocks — the workflow engine's `references/writing-state.md`
+- **Initialization**: Task directory setup and naming — the workflow engine's § *Starting a run*
 
 ## How Orchestrators Use This
 
-The workflow engine reads the framework reference file at initialization (its Step 1), and each
-workflow's node prose cites it by section:
+The workflow engine's Step 1 reads `../workflow-engine/references/node-summaries.md`, the shape
+of every step's summary. The framework file holds § 2, the gate rule, and § 7, the artifact
+summary contract, and its index names where each of its other former sections now lives:
 
 1. `../orchestrator-framework/references/orchestrator-patterns.md`
 
@@ -32,7 +33,7 @@ workflow's node prose cites it by section:
 
 | File | Purpose |
 |------|---------|
-| `references/orchestrator-patterns.md` | Delegation rules, phase gates, state schema, initialization, context passing, issue resolution — the normative shapes for this edition |
+| `references/orchestrator-patterns.md` | The gate rule (§ 2, § 2.1, § 2.2) and the artifact summary contract (§ 7), with an index of where the other shared rules went |
 | `references/orchestrator-creation-checklist.md` | Authoring checklist for a new built-in workflow definition (not loaded at runtime) |
 | `references/html-report-style.md` | Style guide for HTML companion reports (delegates take its path from the `html:` line of `run-context`) |
 | `scripts/check-explainer.mjs` | Checks an explainer page against its sources: every figure traces, every section links to an existing heading, nothing loads from outside (exit 0 clean, 1 findings, 2 could not run) |

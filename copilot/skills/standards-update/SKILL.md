@@ -4,7 +4,7 @@ description: Update or create project standards, or record project knowledge (a 
 argument-hint: "[standard, convention or project fact] [--from=PATH] [--refresh-index]"
 ---
 
-**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first.
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a subfolder of a run, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first. A run's own folder is never one: the freeze creates it.
 
 **Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
 
@@ -30,7 +30,7 @@ Every write goes through the `docs-operator` subagent, which preloads docs-manag
 
 For a project whose INDEX.md has grown long, been hand-edited or been merged badly — one command, run once, by the operator or for them.
 
-1. Invoke `docs-operator` via Task tool (agent_type: `maister:docs-operator`, model and effort from `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=copilot`, run just before — `../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*, for every `docs-operator` call here):
+1. Invoke `docs-operator` via Task tool (agent_type: `maister:docs-operator`, model and effort from `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=copilot`, run just before — `../workflow-engine/references/verbs.md` § *Model and effort on every agent call*, for every `docs-operator` call here):
    > "Refresh INDEX.md with reshape. Check: [check path]. Rewrite every entry the check warns on and every structural failure, keep the entries that already follow the rules, bring the layout to the template, and return the check's result."
 2. Show what changed — entries rewritten, added and removed — and the check's result: no failures, and any warnings left. A `standards-file-over-guide` warning names a file to split: offer `/maister:standards-update "split <path>"` for each, and never split one here.
 

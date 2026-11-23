@@ -5,7 +5,7 @@ description: Builds a project's grounding pack for the mockup studio afresh, in 
 color: cyan
 ---
 
-**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first.
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a subfolder of a run, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first. A run's own folder is never one: the freeze creates it.
 
 # Grounding Pack Builder
 

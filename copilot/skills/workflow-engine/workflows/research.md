@@ -367,8 +367,8 @@ area with no recommendation is not guessed at — it is recorded with
 `chosen_approach` unset and as a `{risk, tag: open, change}` risk naming the
 alternatives to choose between, which the gate's revise offers. Word it to
 whoever reads the gate ("<area>: you have not yet chosen between <A> and
-<B>"), never naming a role as the one who decides (`orchestrator-patterns.md`
-§ 7).
+<B>"), never naming a role as the one who decides (the engine's *Speaking to
+the user*).
 
 **Writes.** When the refresh wrote the page, the closing write registers
 `outputs/research-explainer.html` as this node's first artifact,
@@ -531,7 +531,7 @@ own.
 
 No close-out while a choice is held: when the freeze recorded
 `orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
-closing patch and before any close-out, as the engine's *Ending a dispatched run* says, and
+closing patch and before any close-out, as the engine's `references/gates.md` § *Ending a dispatched run* says, and
 closes as that section's outcomes direct.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out

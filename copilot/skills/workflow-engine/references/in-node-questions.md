@@ -19,6 +19,10 @@ started the run (a sub-run's freeze copies its parent's); the engine only reads 
 `question-sets` in it the driver cannot carry a question set. Decide this once, when the run
 starts, like the gate mode.
 
+**A decision a delegate returns is asked.** It is never skipped, never accepted on your behalf
+because the recommendation looks clear or the task simple, and never logged without asking:
+documentation is not consent.
+
 **Asked in session, a question offers answers, never their categories.** A question that
 invites a correction or an addition offers the corrections and additions themselves: concrete
 candidates generated from what the node found — its open gaps and its weakest inferences — each
@@ -311,6 +315,31 @@ accepted risk is a `tradeoff` risk, a finding nobody could be asked about stays 
 unless the policy settled, defaulted or held it, and a held choice goes on provisionally until a
 continue approves it.
 
+**An item whose recommendation is to leave it is not a decision.** A pre-existing info item
+that predates the change, recommended "leave", is not asked: record it in the node summary's
+`risks` as `{risk: <item and the fix, if wanted>, tag: followup}`, so the end of the run lists
+it. When such items arrive beside real decisions, the page carries at most one "Leave all N
+for later (Recommended)" choice for them, never one tab each.
+
+**Triage first when more than about eight issues need a decision**: one question showing the
+counts by severity and offering "Go through them, most severe first", "Only the critical ones
+now — the rest become open risks for the checkpoint", and "Continue as is".
+
+When the fix loop's stopping point ends undecided (§ *When nobody can be asked*), the go-on
+choice is recorded as not taken. The not-taken record is
+
+```
+{decision: "Not taken: the loop ended undecided", by: default, question_id: verification-go-on}
+```
+
+When the classing writer already recorded an item for the stopping question in this attempt,
+under either id (`verification-go-on` or `verification-fix-loop`), that item is the record and
+the node sends none, and the summary's `recommends` reason says the loop ended undecided and
+that the default or held choice listed under that id was not taken — a held or default "One
+more round" included, so the checkpoint never reads it as a round approved. Under a driver
+without question sets nothing is asked: the findings stay `open` risks, or take what the policy's
+class gives them.
+
 A file the verb cannot use is a fallback, never a refusal — compose the same questions from the
 reviewer's findings and say which warning made you: `finding-list-missing:<path>` (no file, or
 `:outside-run`), `finding-list-invalid:<path>:<where>` (not JSON, or the first field that breaks the
@@ -324,12 +353,55 @@ after a minute). Its refusals leave nothing written:
 | `finding-brief-not-running` | The node's status is not `running`, and only a running node asks. Nothing was written. Name the node that is asking, or start it first through `write-state`, then run the verb again. |
 | `finding-brief-undeclared` | The node's prose declares no `<node>-findings` question id, so no policy could class its findings. Nothing was written. Ask the findings as the node's prose says without the verb, or add the declaration to a workflow you own, then run it again. |
 
+## The specification audit's fix pass
+
+The verification fix loop's idea, scaled down, before any code exists. The workflow engine's `spec-audit` node
+prose (development and performance) carries it. The spec auditor grades each finding
+*fixable* — one clear change, no scope or behaviour change beyond what the spec, the
+requirements or an earlier answer already implies — or *needs decision*, and names the change.
+
+1. **Apply without asking** every fixable finding, in **one fix pass**: the specification
+   creator in its amend mode, called with the model and effort `dispatch-model`
+   prints for it (`references/verbs.md` § *Model and effort on every agent call*), applies exactly those changes to `implementation/spec.md` (and to
+   `analysis/requirements.md` where a fix reaches it). The audit report stays the auditor's —
+   the run never edits or annotates it.
+2. **Re-audit once, and only when a fix changed a requirement.** A fix that adds a planned test
+   case, a limit or a sentence stating an existing requirement more precisely needs no
+   re-audit. The re-audit rewrites the report; its new fixable findings are not fixed again.
+3. **No progress stops it**: a fixed finding coming back, or a fix the creator could not apply,
+   stays open.
+4. **Record the fixes**: each in the node summary's `fixes_applied` as `{finding, change}` (and
+   the re-audits in `reaudit_count`), never as a decision, so the gate lists it as fixed by the
+   run.
+5. **Ask each finding that needs a decision on its own**, as § *Findings that need a decision* says: the
+   auditor's decision findings become one question set through `finding-brief`. The chosen
+   changes go to the specification creator in one more amend pass, with no re-audit; an accepted
+   risk becomes a `tradeoff` risk; a finding nobody could be asked about stays open unless the
+   policy classes it.
+6. **What the gate is handed**: only the findings still open — undecided, not applied, or found
+   by the re-audit — as `open` risks with their `change`, the critical ones first; a finding
+   about something outside the change as a `followup`. The gate's revise suggestions come from
+   those alone, never from a fix already made.
+
 ## A dispatch closed out partial
+
+**A dispatched node's outcome is its close-out grade, mapped rather than judged.** A node carrying
+`dir:` is recorded `waiting` while its dispatch runs, and its outcome is the grade the dispatch's
+close-out carries — `success`, `partial` or `failed`, given by the worker, or by whatever closed
+a dispatch the worker never closed. The engine never grades on a worker's behalf:
+
+| Close-out grade | Dispatched node | Run |
+|---|---|---|
+| `success` | `completed` | continues its walk; the declared outputs are exposed |
+| `partial` | unchanged, stays `waiting`; `completed` when the held item is already resolved | asks the held-dispatch question, and its answer decides (below), unless the dispatch's ledger entry records its pull request in `closeout.prs` or its `needs: [permission]` follow-up is `resolved`; then nothing is asked |
+| `failed` | `failed` | ends `RUN-FAILED: dispatch <dispatch-id> failed`, unless a downstream node declares `on: failure` or `on: always` |
+| a stopped dispatch | `stopped` | stops outright, as for a stopped child run |
+| no close-out yet | unchanged, stays `waiting` | nothing is recorded |
 
 A dispatched node — a `workflow:` node carrying `dir:` — waits while its worker runs in the
 member repository. When the dispatch's close-out is graded `partial`, the work was done but
-something is still held, and the node asks one question while still `waiting` (engine
-§ *Recording an outcome*). It asks only while the hold is live: when the dispatch's ledger entry
+something is still held, and the node asks one question while still `waiting` (the grade
+table above). It asks only while the hold is live: when the dispatch's ledger entry
 records its pull request in `closeout.prs`, or its `needs: [permission]` follow-up is
 `resolved`, the node is recorded `completed` with a `by: run` decision naming what resolved it,
 and nothing below is asked. A pull request is recorded there as `{repo, number, url}`, and the
@@ -351,6 +423,15 @@ summary in one line:
 No option is recommended and the set names no default, so nothing continues on its own. More
 details is never offered: the question carries what is held in its own text. It is never sent
 through the classing write, so no policy settles it.
+
+**A held item already resolved is not asked about.** Before asking, read the dispatch's ledger
+entry (the umbrella runtime's `ledger` verb, op `query`). When its `closeout.prs` records the
+dispatch's pull request, or its `needs: [permission]` follow-up is `resolved`, what was held has
+happened: record the node `completed` with one decision naming what resolved it, `by: run` —
+`{decision: "Held item resolved: pull request <url> recorded", by: run}`, `<url>` being the `url`
+of the pull request's `{repo, number, url}` entry, or `{decision: "Held
+item resolved: follow-up <id> resolved by <resolved_by>", by: run}` — and ask nothing. Never
+`by: operator`: nobody answered. Otherwise the question is asked exactly as above.
 
 - **In session** it is asked with the question tool, the same question and the same three
   options.
@@ -449,7 +530,7 @@ takes:
 | A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
 | A finding that needs a decision (a review step's finding questions) | nothing is asked; each finding stays open as an `open` risk for the gate, unless the policy classes it |
 | The automatic fix loop's stopping point | When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is". |
-| An exhausted recovery budget | the node is recorded `failed`, per engine § *Recording an outcome* |
+| An exhausted recovery budget | the node is recorded `failed`, per the engine's *Node conventions*, `has a budget` row |
 | A dispatch closed out partial (*A dispatch closed out partial*) | "Stop the run" — the node, every unexecuted node and the run are recorded `stopped`, and the summary carries what is held as an `open` risk; the work is never accepted and never dispatched again unasked |
 
 `(Recommended)` appears once per question, on the recommended option, whose description (or,
@@ -480,17 +561,20 @@ answer the writer folded from a recorded answer block or one it already holds, s
 on a person's behalf (`references/gates.md` § *Provenance*). The older string form,
 `defaulted: <id> -> <taken>`, is still read as `by: default`.
 
-**A run started under a driver has its inputs** (`orchestrator.options.inputs`, engine Step 4):
-if one is missing, print `RUN-FAILED: <code>` and stop — never invent one. **Defaulting never
-waives** an unresolved critical issue or a decision the node owes
-(`orchestrator-patterns.md` § 2.2, *Two things this never defaults past*): the remainder
-becomes `open` risks for the next gate, and a node is never marked complete with an unasked,
-unrecorded decision outstanding.
+**A run started under a driver has its inputs** (`orchestrator.options.inputs`, engine Step 4),
+so a task description or research question is never invented: if one is genuinely missing, stop
+with `RUN-FAILED: <code>` rather than inventing one.
+
+**Two things this never defaults past.** It settles who answers, not what may be waived: an
+unresolved critical issue is not proceeded past — the default fixes what is fixable and carries
+the remainder into the following gate (the verification loop's exit, § *Findings that need a
+decision*) — and a decision the phase owes is still *resolved* rather than skipped, since a
+defaulted decision satisfies a completeness self-check and an unasked, unrecorded one does not.
 
 ## When the policy classes a question
 
-**The fact.** When the freeze recorded `orchestrator.classes_questions: true` (engine Step 4),
-the autonomy policy the run applies classes in-node questions too, and one step comes first.
+**The fact.** When the freeze recorded `orchestrator.classes_questions: true`
+(`references/writing-state.md` § *What the freeze write adds*), the autonomy policy the run applies classes in-node questions too, and one step comes first.
 Without it — always under the built-in default — skip this subsection.
 
 **The classing write.** At its asking point, before it asks anything or suspends, the node sends
@@ -616,13 +700,16 @@ and ask it, or take its default, exactly as the sections above say.
 
 **A held choice is provisional.** It may shape the steps after it, but nothing irreversible is
 done on its strength — nothing pushed, published, sent or deleted — before a person approves it.
-It forces the next checkpoint that runs, whose continue approves it; a person who disagrees
+**The held rule:** while a choice is held for approval, a gate whose guard reads a step's value
+is asked whatever its guard reads, and its continue approves the held choices; a gate guarded
+only by inputs or other gates' values is still skipped (`gate-guard-false`). So the next
+checkpoint the held rule asks approves it; a person who disagrees
 sends its step back with a revise and a note (`references/gates.md` § *Revising at a gate*,
 *For a held choice*). When no checkpoint follows, the closing node asks `held-approval` before
 it closes (`references/gates.md` § *The closing checkpoint `held-approval`*). Say this when you
 present the checkpoint in session: continuing approves what is listed as held. At the fix
 loop's stopping point, with a warning or critical issue open, a held or defaulted answer is not
-gone on with: the loop ends undecided (framework § 6 step 10), and the checkpoint that lists
+gone on with: the loop ends undecided (§ *Findings that need a decision*), and the checkpoint that lists
 the held item is where a person decides.
 
 **A stricter reading is carried, never a looser one.** A step's own judgement may only make a

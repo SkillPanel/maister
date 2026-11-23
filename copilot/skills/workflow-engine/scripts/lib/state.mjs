@@ -94,7 +94,7 @@ import * as dashboard from './dashboard.mjs';
 // the reason `locateWorkflow` is exported at all: the prose resolved four homes
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
-import { KNOWN_VERSION, readDefinition } from './definition.mjs';
+import { KNOWN_VERSION, parseDefinition, readDefinition } from './definition.mjs';
 import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardOperands, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { companionsOf, owedCompanions } from './companions.mjs';
 import { placedArtifacts, whereOf } from './artifact-paths.mjs';
@@ -112,7 +112,7 @@ import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
 import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
-import { atClose, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
+import { atClose, dueNext, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, SESSION_ID, hostSession, publishRun } from './display-files.mjs';
@@ -534,6 +534,11 @@ const WORKFLOW_CONTEXT = {
  * of a completed node that is older than its markdown, checked on every write
  * that completes a node (`staleCheck`); one `companion-stale:` line each.
  *
+ * `next`, present only on a write that completed or skipped a node, is
+ * `{id, title}` for the node due next or `{id: null}` when only the closing
+ * patch is left (`nextCheck`); absent when nothing is due yet and the run is
+ * not done. `workflow.mjs` prints it as the write's last `next:` line.
+ *
  * The clock is read once, here, and handed to everything downstream. It used to be
  * read inside `apply`, which `writeState` never saw — so the projection would have
  * had to read a second one and a write could be stamped a second apart from the
@@ -609,12 +614,14 @@ export function writeState({ state, patch, regress = null, host = null, moveBase
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
     const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings, notes: [...new Set(notes)] };
-    if (freeze) result.banner = [BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
+    if (freeze) result.banner = [hasParentLink(text) ? BANNER_CHILD : `${BANNER_RELAY}.`, ...banner.lines].map(line => `${line}\n`).join('');
     if (out.asking !== null) result.asking = out.asking;
     const companionMissing = companionCheck(text, path.dirname(path.resolve(state)), before);
     if (companionMissing.length) result.companionMissing = companionMissing;
     const companionStale = staleCheck(text, path.dirname(path.resolve(state)), before);
     if (companionStale.length) result.companionStale = companionStale;
+    const next = nextCheck(text, path.dirname(path.resolve(state)), before);
+    if (next !== null) result.next = next;
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -684,8 +691,58 @@ function bannerOf(state, text) {
   };
 }
 
-/** The banner's first line, read by the orchestrating model rather than shown. */
-export const BANNER_RELAY = 'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below.';
+/**
+ * The startup banner's lines for the run whose state file is `state`, as the
+ * freeze printed them, without the line addressed to the model; null when the
+ * file cannot be read. `node-brief` repeats them on a run's first brief, so a
+ * banner the session kept in its thinking still reaches the person.
+ */
+export function startBanner(state) {
+  try {
+    return bannerOf(state, fs.readFileSync(state, 'utf8')).lines;
+  } catch {
+    return null;
+  }
+}
+
+/** The banner's first line, read by the orchestrating model rather than shown: it asks for a message the person sees. */
+export const BANNER_RELAY = 'Show the person the lines below now, as a visible message of your own — the next thing you write, before any other call, never only in your thinking — each line copied as printed';
+/**
+ * The relay line's tail, by what the write-state verb's opener did after the
+ * freeze: it is told only once the opener has run, so it never says the
+ * dashboard is open when it did not open.
+ */
+export const BANNER_OPENED = '; the dashboard is already open: run no opener';
+export const BANNER_UNOPENED = '; the dashboard did not open: tell the person to open its Dashboard link in a browser, and run no opener';
+
+/**
+ * The relay line with the opener's outcome told: `opened` is `'opened'`,
+ * `'failed'`, or null when nothing was opened (`--no-open`, an opted-out
+ * environment, a run with no page to open). `banner` is the freeze's printed
+ * banner; a child's, whose first line relays nothing, comes back as it is.
+ */
+export function bannerAfterOpen(banner, opened) {
+  const relay = `${BANNER_RELAY}.\n`;
+  if (typeof banner !== 'string' || !banner.startsWith(relay) || opened === null) return banner;
+  return `${BANNER_RELAY}${opened === 'opened' ? BANNER_OPENED : BANNER_UNOPENED}.\n${banner.slice(relay.length)}`;
+}
+/**
+ * Does this state text carry a parent link — is it a child run's? Decided from
+ * the parsed `orchestrator.parent`, never from the text alone: the freeze writes
+ * `workflow.nodes` one indented line per node, so a node named `parent` puts the
+ * same indented key in a top-level run's file. The text match only spares the
+ * parse when no such key appears at all.
+ */
+function hasParentLink(text) {
+  if (!/^ +parent:/m.test(text)) return false;
+  try {
+    return isPlainObject(parseState(text).orchestrator?.parent);
+  } catch {
+    return false;
+  }
+}
+/** The first line of a child run's banner: the parent's walk goes on, so nothing is relayed. */
+export const BANNER_CHILD = 'A sub-run\'s banner: do not relay it to the user; the parent\'s walk goes on.';
 
 /**
  * Does the state this write produces have no gate pending?
@@ -1256,6 +1313,8 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   out.evidence = prior === null ? null : answerEvidence(runDir, prior);
   // A child run is written where its parent recorded it, or not at all.
   assertSubrunPath(doc, patch.orchestrator, runDir);
+  // A top-level run is frozen only in a run folder, or not at all.
+  if (Boolean(patch.workflow) && !doc.has('workflow')) assertRunFolder(doc, patch, runDir);
 
   // `updated` is this write's own stamp, set last below; a patch value for it
   // is dropped here, before it can land and before its spelling is judged.
@@ -1303,7 +1362,9 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
     orchestrator = seedFeatures(orchestrator, parentNow, writeWarnings);
     orchestrator = seedSubagents(orchestrator, patch.workflow, runDir, writeWarnings);
     orchestrator = seedProject(orchestrator, runDir, writeWarnings);
+    orchestrator = seedConfigOptions(orchestrator, runDir, writeWarnings);
     orchestrator = seedDelegation(orchestrator, host);
+    orchestrator = seedTaskPath(orchestrator, runDir, notes);
   } else {
     orchestrator = clampCeiling(doc, orchestrator, policyNow, notes);
   }
@@ -1334,8 +1395,9 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
     intended.add('task');
   }
   if (patch.workflow) {
-    applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored, notes);
+    const frozen = applyWorkflow(doc, patch.workflow, now, changed, runDir, ignored, notes);
     intended.add('workflow');
+    if (freezing && seedTaskKey(doc, frozen, changed)) intended.add('task');
   }
   // Each gate answer the patch sends, as the run held it before this write:
   // what tells a newly recorded continue from one re-sent (`approveHeld`).
@@ -1878,19 +1940,20 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
       // misplaced node update and keeps its own pointer.
       const ways = [];
       if (scalars) {
-        ways.push('no verb re-freezes a run: to go on, put back the definition this run froze'
-          + `${typeof source === 'string' && source ? ` (${source})` : ''}, or start a new run from the changed one`);
+        ways.push('no verb re-freezes: put back the definition this run froze'
+          + `${typeof source === 'string' && source ? ` (${source})` : ''} or start a new run from the changed one; never revert a person's edit unasked`);
       }
       if (nodeDifferences) ways.push('a later node update goes under the top-level `nodes` key, never under `workflow`');
       throw new Refusal('state-workflow-frozen',
         `this workflow patch differs from the frozen block (${differences.join('; ')}); the freeze is written once — ${ways.join('; ')}`);
     }
     notes.push('ignored the supplied workflow block, which matches the frozen one; the freeze is written once, '
-      + 'so send node updates under the top-level nodes key and never re-send workflow');
-    return;
+      + 'so send node updates under the top-level nodes key and never re-send workflow — '
+      + 'the run\'s directory, its dashboard and its first phase are read off orchestrator-state.yml, never from memory');
+    return null;
   }
 
-  const entries = provenNodes(doc, workflow, runDir);
+  const { entries, graph } = provenNodes(doc, workflow, runDir);
   const lines = ['workflow:'];
   for (const key of WORKFLOW_KEYS) {
     if (!Object.hasOwn(workflow, key)) continue;
@@ -1909,6 +1972,7 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
   }
   doc.set(['workflow'], lines);
   changed.push('workflow');
+  return graph;
 }
 
 /**
@@ -1948,7 +2012,7 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
  * dispatched; a node without one records no `dir` at all.
  */
 function provenNodes(doc, workflow, runDir) {
-  const proof = provenGraph(workflow, runDir);
+  const proof = provenGraph(workflow, runDir, { reread: false });
   if (!proof.graph) {
     throw new Refusal('state-freeze-unproven',
       `this freeze cannot be proven against its definition: ${proof.reason}. Nothing was written. `
@@ -1980,6 +2044,17 @@ function provenNodes(doc, workflow, runDir) {
       + 'Nothing was written. Start the chain from maister cockpit; a run a chain dispatches records its driver in this same freeze');
   }
 
+  // A node that hands its work to another repository makes the graph a chain,
+  // and only a driver that dispatches a chain can start one: the terminal
+  // session has no repository to hand the node to.
+  const handed = graph.nodes.filter(node => dirOf(node) !== null).map(node => node.id);
+  if (handed.length && isTerminalDriver(currentState(doc))) {
+    throw new Refusal('state-freeze-chain-only',
+      `"${graph.name ?? workflow.name}" hands ${handed.join(', ')} to another repository (dir:), which makes it a chain, `
+      + 'and a chain starts only under a driver that dispatches it; this run has no such driver. Nothing was written. '
+      + 'Name those nodes to the user and stop');
+  }
+
   const missing = missingInputs(doc, inputs);
   if (missing.length) {
     throw new Refusal('state-freeze-input-missing',
@@ -2001,7 +2076,7 @@ function provenNodes(doc, workflow, runDir) {
     const sets = setsOf(byId.get(id));
     if (sets) filled[id].sets = sets;
   }
-  return filled;
+  return { entries: filled, graph };
 }
 
 /** A node's `dir:` as a non-empty string, or null when it carries none. */
@@ -2061,8 +2136,12 @@ function rerunsOf(node) {
  * Never throws: a definition that cannot be read or resolved is a reason, and
  * what that costs is the caller's to decide. Exported so that a reader which
  * re-resolves a frozen run can prove it by this rule rather than a copy of it.
+ *
+ * `reread` is true for every reader of a run already frozen, and false only for
+ * the freeze (`provenNodes`), which holds the definition to the checks an author
+ * answers; a re-read leaves those out, as `resolve` describes.
  */
-export function provenGraph(workflow, runDir) {
+export function provenGraph(workflow, runDir, { reread = true } = {}) {
   const recorded = typeof workflow.graph_hash === 'string' && workflow.graph_hash !== '' ? workflow.graph_hash : null;
   if (recorded === null) return { reason: 'it records no graph_hash' };
   try {
@@ -2077,7 +2156,7 @@ export function provenGraph(workflow, runDir) {
     }
     const version = definition.doc.version;
     const degraded = version !== undefined && version !== null && version !== KNOWN_VERSION ? [NEWER_FORMAT] : [];
-    const graph = resolveGraph({ definition, overlays, profile, degraded, project: projectRootOf(runDir) });
+    const graph = resolveGraph({ definition, overlays, profile, degraded, project: projectRootOf(runDir), reread });
     if (!graph.ok) return { reason: `its definition does not resolve (${graph.errors[0]?.message ?? 'no graph'})` };
     if (graph.graph_hash !== recorded) {
       return { reason: `it resolves to ${graph.graph_hash}, not to the recorded ${recorded}` };
@@ -3052,6 +3131,143 @@ function dropProject(orchestrator, notes) {
 }
 
 /**
+ * `orchestrator.options.html_output` and `orchestrator.options.mockup_format`,
+ * read at the freeze from the top-level keys of the project's `config.yml`,
+ * each only when the freeze patch sends none: a value the patch sends stands as
+ * sent, so a driver keeps control of both. With no file or no key the defaults
+ * are written, `true` and `html`, so every run records both and no reader falls
+ * back to the file. `html_output` is off only for a literal `false`. A
+ * `mockup_format` other than `html` or `ascii` is recorded `html`, with one
+ * `mockup-format-replaced:<value>` warning: a written scope is chosen per turn,
+ * never in the file.
+ */
+function seedConfigOptions(orchestrator, runDir, writeWarnings) {
+  if (runDir === null) return orchestrator;
+  const base = isPlainObject(orchestrator) ? orchestrator : {};
+  const options = isPlainObject(base.options) ? base.options : {};
+  const seeded = {};
+  if (!Object.hasOwn(options, 'html_output')) {
+    seeded.html_output = configValue(runDir, 'html_output') !== false;
+  }
+  if (!Object.hasOwn(options, 'mockup_format')) {
+    const format = configValue(runDir, 'mockup_format');
+    seeded.mockup_format = MOCKUP_FORMATS.includes(format) ? format : 'html';
+    if (format !== undefined && format !== null && !MOCKUP_FORMATS.includes(format)) {
+      writeWarnings.push(`mockup-format-replaced:${oneLine(String(typeof format === 'object' ? JSON.stringify(format) : format))}`);
+    }
+  }
+  if (!Object.keys(seeded).length) return orchestrator;
+  return { ...base, options: { ...options, ...seeded } };
+}
+
+/** The two values `mockup_format` takes in the project's `config.yml`. */
+const MOCKUP_FORMATS = ['html', 'ascii'];
+
+/**
+ * One top-level scalar key of the project's `config.yml`, or undefined when the
+ * file or the key is absent or its line cannot be read. Only the key's own line
+ * is cut out and read, so the rest of the file can never refuse it.
+ */
+function configValue(runDir, key) {
+  const file = path.join(runRootOf(runDir), '.maister', 'config.yml');
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {
+    return undefined;
+  }
+  const line = text.replace(/\r\n?/g, '\n').split('\n').find(candidate => candidate.startsWith(`${key}:`));
+  if (line === undefined) return undefined;
+  const parsed = parseDefinition(line, file);
+  return isPlainObject(parsed.doc) ? parsed.doc[key] ?? undefined : undefined;
+}
+
+/**
+ * `orchestrator.task_path`, the run's folder relative to the project root,
+ * written by the freeze from where its state file is. A value the freeze patch
+ * sends is dropped, with a note; a later write of the key is taken as sent.
+ */
+function seedTaskPath(orchestrator, runDir, notes) {
+  if (runDir === null) return orchestrator;
+  const base = isPlainObject(orchestrator) ? orchestrator : {};
+  if (Object.hasOwn(base, 'task_path')) notes.push(TASK_PATH_NOTE);
+  const own = path.relative(runRootOf(runDir), runDir).split(path.sep).join('/');
+  return { ...base, task_path: own };
+}
+
+const TASK_PATH_NOTE = 'ignored the supplied orchestrator.task_path; the freeze records it from the run\'s own folder, so no freeze patch sends it';
+
+/**
+ * `task.key`, the ticket the run was started from: the value of the input the
+ * resolved graph marks as its tracker key (`tracker_key` in `resolve`'s
+ * output), written at the freeze when that input carries a value and the patch
+ * sent no key of its own. Returns whether it wrote one.
+ */
+function seedTaskKey(doc, graph, changed) {
+  const name = isPlainObject(graph) && typeof graph.tracker_key === 'string' ? graph.tracker_key : null;
+  if (name === null) return false;
+  const state = typedOf(doc);
+  if (isPlainObject(state.task) && Object.hasOwn(state.task, 'key')) return false;
+  const inputs = isPlainObject(state.orchestrator?.options?.inputs) ? state.orchestrator.options.inputs : {};
+  const value = inputs[name];
+  if ((typeof value !== 'string' || value.trim() === '') && typeof value !== 'number') return false;
+  doc.set(['task', 'key'], [`  key: ${flow(String(value).trim(), 'task.key')}`]);
+  changed.push('task.key');
+  return true;
+}
+
+/**
+ * Whether `runDir` is a chain's own run, `.maister/umbrella/runs/<id>/runs/<child>/`,
+ * the third shape `lib/run-dirs.mjs`'s `runFolders` lists.
+ */
+function isMemberRun(runDir) {
+  const up = count => path.basename(path.resolve(runDir, ...Array(count).fill('..')));
+  return up(1) === 'runs' && up(3) === 'runs' && up(4) === 'umbrella' && up(5) === '.maister';
+}
+
+/**
+ * The project root a run's folder belongs to: `projectRootOf`'s four levels up,
+ * six for a chain's own run (`isMemberRun`), which sits two levels deeper.
+ */
+function runRootOf(runDir) {
+  return isMemberRun(runDir) ? path.resolve(runDir, '..', '..', '..', '..', '..', '..') : projectRootOf(runDir);
+}
+
+/**
+ * A top-level run — one whose freeze carries no parent link — is frozen only
+ * in a run folder: `.maister/tasks/<type>/<name>/`,
+ * `.maister/umbrella/runs/<id>/` or a chain's own run under it,
+ * `.maister/umbrella/runs/<id>/runs/<child>/`, under the project root. Every
+ * reader that lists runs looks there and nowhere else (`lib/run-dirs.mjs`), so a run frozen
+ * at another depth is one nobody finds again, and the project root it would
+ * read its configuration from is the wrong folder. Refused
+ * `state-run-folder-misplaced`, nothing written, with the folder it belongs in.
+ * A child run is held to its own rule instead (`assertSubrunPath`).
+ */
+function assertRunFolder(doc, patch, runDir) {
+  if (runDir === null) return;
+  const sent = isPlainObject(patch.orchestrator) && Object.hasOwn(patch.orchestrator, 'parent');
+  if (sent || hasParentLink(doc.text())) return;
+  const parent = path.dirname(runDir);
+  const above = path.dirname(parent);
+  const placed = path.basename(path.dirname(above)) === '.maister'
+    && (path.basename(above) === 'tasks' || (path.basename(above) === 'umbrella' && path.basename(parent) === 'runs'));
+  if (placed || isMemberRun(runDir)) return;
+  const parts = path.resolve(runDir).split(path.sep);
+  const at = parts.lastIndexOf('.maister');
+  const root = at > 0 ? parts.slice(0, at).join(path.sep) || path.sep : null;
+  const name = isPlainObject(patch.workflow) && typeof patch.workflow.name === 'string' && patch.workflow.name !== '' ? patch.workflow.name : null;
+  // migration's runs live under `migrations/`, as `subrun-path` names them.
+  const type = name === null ? '<type>' : name === 'migration' ? 'migrations' : name;
+  const own = path.basename(runDir);
+  const folder = `.maister/tasks/${type}/${/^\d{4}-\d{2}-\d{2}-/.test(own) ? own : '<YYYY-MM-DD-slug>'}/`;
+  throw new Refusal('state-run-folder-misplaced',
+    `this run's state file is in ${runDir}, which is not a run folder: a top-level run lives at .maister/tasks/<type>/<YYYY-MM-DD-slug>/ `
+    + 'or .maister/umbrella/runs/<id>/ (a chain\'s own run in its runs/<child>/) under the project root. Nothing was written. '
+    + `Freeze it in ${root === null ? folder : path.join(root, ...folder.split('/'))}${root === null ? ' under the project root' : ''}; the freeze creates the folder`);
+}
+
+/**
  * `orchestrator.options.delegation`, `{mode, depth, source}`: whether the run's
  * subagents can dispatch subagents of their own, recorded at the freeze for a
  * step that would hand its loop to one (`mode: nested`) or keep it in the
@@ -3063,7 +3279,7 @@ function dropProject(orchestrator, notes) {
  *   copilot   the host's own 4; the variable is Claude Code's and is not read
  *
  * The host is the `--host` the freeze names, the one `dispatch-model` takes,
- * which the generated variant spells `copilot`. `mode` is `nested` at a depth
+ * else the host this build ships for. `mode` is `nested` at a depth
  * of two or more — a subagent and the subagents it dispatches — and `inline`
  * below it, except on Copilot, which is always `inline` with the reason
  * `COPILOT_REASON`: there every subagent level runs under a session of its
@@ -3071,18 +3287,19 @@ function dropProject(orchestrator, notes) {
  * keep their loops in the main session. A cockpit or dispatch driver, which the freeze patch carries,
  * follows the same rule, its `source` naming the SDK release nesting was
  * checked under (`SDK_CHECKED`); the cockpit strips the depth variable from a
- * session's environment, so its depth is the host's own. A terminal freeze
- * naming no host records nothing, which reads as `inline`.
+ * session's environment, so its depth is the host's own. A freeze naming no
+ * host records the host this build ships for (`SHIPPED_HOST`), which the
+ * Copilot build switches to `copilot`.
  * No write after the freeze widens it (`narrowDelegation`).
  */
 function seedDelegation(orchestrator, host) {
   const kind = isPlainObject(orchestrator) && isPlainObject(orchestrator.driver) ? orchestrator.driver.kind : undefined;
   const driven = DRIVEN_VIA.has(kind);
-  if (host === null && !driven) return orchestrator;
-  const { depth, source } = hostDepth(host ?? 'claude');
-  const nests = depth >= NESTED_DEPTH && host !== 'copilot';
+  const on = host ?? SHIPPED_HOST;
+  const { depth, source } = hostDepth(on);
+  const nests = depth >= NESTED_DEPTH && on !== 'copilot';
   const delegation = { mode: nests ? 'nested' : 'inline', depth, source: driven ? `${kind} driver: ${SDK_CHECKED} (${source})` : source };
-  if (host === 'copilot') delegation.reason = COPILOT_REASON;
+  if (on === 'copilot') delegation.reason = COPILOT_REASON;
   const base = isPlainObject(orchestrator) ? orchestrator : {};
   const options = isPlainObject(base.options) ? base.options : {};
   return { ...base, options: { ...options, delegation } };
@@ -4231,6 +4448,21 @@ export function needsPerson(what, { subject = 'checkpoint', skip = false } = {})
 }
 
 /**
+ * The refusal for a write that completes the checkpoint `id` after a person
+ * answered it, but carries no answer item: the answer sent flat on the node,
+ * or not at all. Refused as an item out of shape, never as a pick with no
+ * person behind it, which would tell the session to stop the run.
+ */
+function answerItemMissing(id) {
+  const node = JSON.stringify(id);
+  return new Refusal('state-summary-item-invalid',
+    `this write records ${id} completed with no answer among node_summaries.${id}.decisions, so the person's answer is not in it. `
+    + `Nothing was written. A checkpoint's answer is one decisions item holding the chosen option's id, sent with the completion: `
+    + `{"nodes": {${node}: {"status": "completed"}}, "node_summaries": {${node}: {"decisions": [{"option": "<chosen id>"}]}}} — `
+    + 'never an answer key on the node. Send the write again in that shape; the person\'s answer still stands');
+}
+
+/**
  * Refuse a write that passes a checkpoint without a person's answer to it,
  * under `evidence` (`answerEvidence`, not null), before anything records,
  * approves or triages a gate's answer. `typed` is the document with the patch
@@ -4239,7 +4471,9 @@ export function needsPerson(what, { subject = 'checkpoint', skip = false } = {})
  * - A gate or `held-approval` whose answer this write newly records (`fresh`)
  *   — or, on a write carrying a revise reset, any it judges — must be covered
  *   as a checkpoint answer, as a send-back answer under the reset.
- * - A frozen gate the patch moves to `completed` must be one of those.
+ * - A frozen gate the patch moves to `completed` must be one of those; after
+ *   a person's answer, one with no answer item at all is refused for its
+ *   shape (`state-summary-item-invalid`), not as a pick nobody made.
  * - A frozen gate the patch moves to `skipped` must be off the run's path by
  *   the walk at the close (`atClose`, its `skipped`), read on `prior`.
  *
@@ -4265,7 +4499,12 @@ function assertPersonAnswered({ typed, prior, patch, evidence, judged, fresh, re
   let offPath = null;
   for (const [id, entry] of Object.entries(nodes)) {
     if (id === HELD_APPROVAL || !isGate(id) || !isPlainObject(entry) || entry.status === before[id]) continue;
-    if (entry.status === 'completed' && !answered.includes(id)) throw needsPerson(`an answer at ${id}`);
+    if (entry.status === 'completed' && !answered.includes(id)) {
+      // A person answered, but the write carries no answer item to hold it:
+      // the shape is wrong, not the answer, so the refusal names the shape.
+      if (evidence.person && gateAnswer(isPlainObject(summaries[id]) ? summaries[id].decisions : null) === null) throw answerItemMissing(id);
+      throw needsPerson(`an answer at ${id}`);
+    }
     if (entry.status !== 'skipped') continue;
     offPath ??= new Set(atClose({ doc: prior, runDir }).skipped);
     if (!offPath.has(id)) throw needsPerson(`${id} skipped while it is still on the run's path`, { skip: true });
@@ -5057,6 +5296,31 @@ function staleCheck(text, runDir, before) {
     return staleCompanions({ companions: companionsOfRun(doc, runDir), nodes, ids: completed, runDir, absences: sanctionedAbsences(doc) });
   } catch {
     return [];
+  }
+}
+
+/**
+ * The write-state `next:` check: on a write that completed or skipped a node,
+ * the node due next as `{id, title}`, `{id: null}` when only the closing patch
+ * is left, or null — no node ended here, or nothing is due yet and the run is
+ * not done (`dueNext`). Read from the committed text and the definition only.
+ *
+ * It exists because the write that ends a node is the moment a session picks
+ * the next one, and the ready-set rule it would otherwise apply by itself is
+ * the engine's: the line names the node, and `node-brief` takes it from there.
+ *
+ * Never a refusal and never a failure of the write: a state or definition that
+ * cannot be read yields null.
+ */
+function nextCheck(text, runDir, before) {
+  try {
+    const doc = parseState(text);
+    const nodes = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+    const ended = Object.keys(nodes).some(id => isPlainObject(nodes[id])
+      && (nodes[id].status === 'completed' || nodes[id].status === 'skipped') && before[id] !== nodes[id].status);
+    return ended ? dueNext({ doc, runDir }) : null;
+  } catch {
+    return null;
   }
 }
 

@@ -5,7 +5,7 @@ description: Runs an implementation node's whole loop for a workflow run — the
 color: green
 ---
 
-**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first.
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a subfolder of a run, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first. A run's own folder is never one: the freeze creates it.
 
 # Implementation Runner
 
@@ -103,8 +103,8 @@ from it greedily, in plan order: a group joins when its files overlap no group a
 ### The model per group
 
 Each group runs on the cheapest model the project allows for its planner tier, resolved just
-before each wave's fan-out (`<plugin_root>/skills/orchestrator-framework/references/orchestrator-patterns.md`
-§ 1, *Model and Effort on Every Agent Call*):
+before each wave's fan-out (`<plugin_root>/skills/workflow-engine/references/verbs.md`
+§ *Model and effort on every agent call*):
 
 - **One call per tier in the wave**: `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs
   dispatch-model --agent=maister:task-group-implementer --tier=<the group's Tier> --host=copilot

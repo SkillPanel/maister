@@ -25,7 +25,11 @@
  *                  not on disk, a blank line and one `companion-missing:
  *                  <node> <path>` line per file, followed on a write that
  *                  completes a node by one `companion-stale: <node> <path>`
- *                  line per companion of the run older than its markdown)
+ *                  line per companion of the run older than its markdown,
+ *                  then the `rules:` line naming their recovery; last, on a
+ *                  write that completed or skipped a node, a blank line and
+ *                  `next: <id> (<title>) — run node-brief for it`, or
+ *                  `next: none — …` when only the closing patch is left)
  *   gate-request   --state, --patch-file (or the request as JSON on stdin);
  *                  or --state, --node [--reask | --patch-file holding the
  *                  node's question set], the request built as gate-brief
@@ -415,8 +419,17 @@ const RULES = {
   findingBrief: ['references/in-node-questions.md', 'Findings that need a decision'],
   writeRefused: ['references/writing-state.md', 'When a write is refused'],
   completeRefused: ['references/writing-state.md', 'When `run-complete` refuses'],
-  nodeBrief: ['SKILL.md', 'Node conventions'],
+  nodeBrief: ['references/node-conventions.md', 'Node conventions'],
+  companion: ['references/writing-state.md', 'A missing or stale companion'],
 };
+
+/**
+ * The line a top-level run's successful close prints on stderr under a
+ * terminal driver: the wrap-up's six sections by name, in order, inline. A
+ * session that skipped a pointer to them wrote a wrap-up without them; the
+ * detail of each stays in writing-state.md § *Ending the run — the wrap-up*.
+ */
+const WRAP_UP = 'wrap-up sections: Done, Needs you, Follow-ups, Next, Files, Dashboard — one last message, these six labelled in this order and nothing else; a missing- line goes under Needs you in words, never raw';
 
 /** One pointer's value: the file's absolute path, then `§` and the heading. */
 function rulesOf(moment) {
@@ -744,6 +757,22 @@ async function runDiagram(flags) {
 }
 
 /**
+ * The entry check of the two verbs a start and a resume run first, `locate`
+ * and `resume-check`: on a Node.js older than the engine needs, the
+ * `RUN-FAILED: node-unavailable` marker on stdout, the install lines on
+ * stderr, and true, so the verb exits 1 having read and written nothing
+ * (`nodeUnavailable`). A marker, never a refusal code.
+ */
+async function nodeTooOld() {
+  const { nodeUnavailable } = await loadModule(VERBS['resume-check'].module);
+  const unavailable = nodeUnavailable();
+  if (unavailable === null) return false;
+  process.stdout.write(`${unavailable.marker}\n`);
+  process.stderr.write(`${unavailable.message}\n`);
+  return true;
+}
+
+/**
  * Find a workflow by the name it is run by, or list the project's own.
  *
  * Reported like `validate` — the whole JSON result on stdout, exit 1 when the
@@ -751,6 +780,7 @@ async function runDiagram(flags) {
  * caller reads the reasons from the same place whatever the outcome.
  */
 async function runLocate(flags) {
+  if (await nodeTooOld()) return EXIT.REJECTED;
   if (!flags.name && ((flags.overlay || []).length || flags.profile)) {
     throw new UsageError('locate takes --overlay and --profile only with --name');
   }
@@ -775,11 +805,25 @@ async function runWriteState(flags) {
   if (refusedForEditions(module, flags)) return EXIT.REJECTED;
   const input = await readInput(flags, 'the patch');
   const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null });
-  const code = reportWrite(result, input, 'writeRefused');
   // Only the freeze prints a banner, and a retried freeze prints none, so the
-  // dashboard opens once per run start and never on a later write.
-  if (result.ok && result.banner) await openAfter(flags);
+  // dashboard opens once per run start and never on a later write. It opens
+  // before the banner prints, so the relay line tells what the opener did.
+  if (result.ok && result.banner) result.banner = module.bannerAfterOpen(result.banner, await openAfter(flags));
+  const code = reportWrite(result, input, 'writeRefused');
+  if (result.ok && result.next) printNext(result.next);
   return code;
+}
+
+/**
+ * The last stdout paragraph of a write that completed or skipped a node: the
+ * node due next, which the session briefs before anything else, or, with
+ * nothing left, the closing patch and the close. A write that leaves nothing
+ * due while the run is not done — a step waiting on its child run — has none.
+ */
+function printNext(next) {
+  process.stdout.write(next.id === null
+    ? '\nnext: none — write the closing patch with task.status, then run run-complete\n'
+    : `\nnext: ${next.id} (${next.title}) — run node-brief for it\n`);
 }
 
 /**
@@ -787,23 +831,25 @@ async function runWriteState(flags) {
  * `--no-open` or the environment opts out (`open-dashboard.mjs`). The state is
  * read as it now stands; a run that opens nothing prints nothing, and an opener
  * that did not start is one `warning:` line naming the page, the exit code
- * unmoved.
+ * unmoved. Resolves to `'opened'`, `'failed'`, or null when nothing was opened.
  */
 async function openAfter(flags) {
-  if (flags['no-open']) return;
+  if (flags['no-open']) return null;
   const opener = await loadModule('open-dashboard.mjs');
-  if (opener.optedOut()) return;
+  if (opener.optedOut()) return null;
   const { parse } = await loadModule('state-read.mjs');
   let doc;
   try {
     doc = parse(fs.readFileSync(flags.state, 'utf8'));
   } catch {
-    return;
+    return null;
   }
   const file = opener.dashboardToOpen(doc, path.dirname(path.resolve(flags.state)));
-  if (file === null) return;
+  if (file === null) return null;
   const reason = await opener.openDashboard(file);
-  if (reason !== null) process.stderr.write(`warning: the dashboard did not open (${reason}); open ${file} in a browser\n`);
+  if (reason === null) return 'opened';
+  process.stderr.write(`warning: the dashboard did not open (${reason}); open ${file} in a browser\n`);
+  return 'failed';
 }
 
 /** `edition-collision` for a verb that writes state, reported before anything is read. */
@@ -923,14 +969,17 @@ function reportWrite(result, input, rules) {
   }
   // The HTML companions the nodes this write completed owe and did not write,
   // then the run's companions older than their markdown, after one blank line,
-  // one per line. On stdout and never stderr: the write landed, and each line
-  // asks for a file, not for a different write.
+  // one per line, then the `rules:` line naming their recovery. On stdout and
+  // never stderr: the write landed, and each line asks for a file, not for a
+  // different write.
   const missing = result.ok && Array.isArray(result.companionMissing) ? result.companionMissing : [];
   const stale = result.ok && Array.isArray(result.companionStale) ? result.companionStale : [];
   if (missing.length || stale.length) {
     process.stdout.write('\n');
     for (const { node, path: file } of missing) process.stdout.write(`companion-missing: ${node} ${file}\n`);
     for (const { node, path: file } of stale) process.stdout.write(`companion-stale: ${node} ${file}\n`);
+    // The recovery, in the same paragraph: the lines name the pages, the section how to write them.
+    process.stdout.write(`rules: ${rulesOf('companion')}\n`);
   }
   // A warning is not a refusal and must not read like one: the refusal contract
   // puts the code as the first stderr token, so these lines open with `warning:`
@@ -1195,6 +1244,8 @@ async function runRunComplete(flags) {
   for (const line of result.missing || []) process.stdout.write(`${line}\n`);
   if (result.notice) process.stdout.write(`${result.notice}\n`);
   process.stdout.write(`${result.marker}\n`);
+  if (result.wrap_up === 'run') process.stderr.write(`${WRAP_UP}\n`);
+  else if (result.wrap_up === 'child') process.stderr.write('child run: no wrap-up — the parent\'s walk goes on\n');
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
@@ -1659,6 +1710,7 @@ function reportProgress(result) {
  * written. The same verb, because a host classifies a read-only call by its name.
  */
 async function runResumeCheck(flags) {
+  if (await nodeTooOld()) return EXIT.REJECTED;
   const module = await loadModule(VERBS['resume-check'].module);
   if (!flags.state) {
     report(entryOf(module, 'findWaiting', VERBS['resume-check'].module)({ root: process.cwd() }));

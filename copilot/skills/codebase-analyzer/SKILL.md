@@ -4,7 +4,7 @@ description: Analyzes codebase using adaptive parallel Explore subagents based o
 user-invocable: false
 ---
 
-**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first.
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a subfolder of a run, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first. A run's own folder is never one: the freeze creates it.
 
 **Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
 
@@ -98,7 +98,7 @@ If combining roles into one agent, also read `references/combined.md` for mergin
 
 **3c. Launch agents** — Use the Task tool with `agent_type="explore"` — one call per selected role, all in ONE message.
 
-**Model and effort:** just before the launch, run `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=Explore --host=copilot` once — inside a workflow run add `--state=<task_path>/orchestrator-state.yml --node=<the node under way>` — and give every call the model and effort it prints (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
+**Model and effort:** just before the launch, run `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=Explore --host=copilot` once — inside a workflow run add `--state=<task_path>/orchestrator-state.yml --node=<the node under way>` — and give every call the model and effort it prints (`../workflow-engine/references/verbs.md` § *Model and effort on every agent call*).
 
 **IMPORTANT**: Every Explore agent prompt MUST include this instruction:
 > IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.

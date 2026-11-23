@@ -4,7 +4,7 @@ description: Execute implementation plans by delegating each task group to the t
 user-invocable: false
 ---
 
-**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first.
+**Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a subfolder of a run, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first. A run's own folder is never one: the freeze creates it.
 
 **Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
 
@@ -45,7 +45,7 @@ or `inline`:
 - **`dispatch`** — dispatch the runner. First run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs
   dispatch-model --agent=maister:implementation-runner --host=copilot --state=<task path>/orchestrator-state.yml
   --node=<node>` and copy its `model` and `reasoning_effort` into the call
-  (`../orchestrator-framework/references/orchestrator-patterns.md` § 1). One agent call, the only
+  (`../workflow-engine/references/verbs.md` § *Model and effort on every agent call*). One agent call, the only
   one in its message:
   - `agent_type: maister:implementation-runner`, `description: Run the implementation waves`;
   - **`run_in_background: false`, set explicitly on every host.** Where the agent tool takes a
