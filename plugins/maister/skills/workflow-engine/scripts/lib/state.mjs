@@ -4407,6 +4407,20 @@ export function needsPerson(what, { subject = 'checkpoint', skip = false } = {})
 }
 
 /**
+ * The refusal for a write that skips the checkpoint `id`, still on the run's
+ * path before the write, in the same write as the answer at `answered` that
+ * may take it off: the path is judged on the state before the write, so the
+ * skip is refused for its order, never as a pick nobody made.
+ */
+function skipBeforeAnswer(id, answered) {
+  const gates = answered.join(', ');
+  return new Refusal('state-skip-before-answer',
+    `this write records ${id} skipped in the same write as the answer at ${gates}, and ${id} is still on the run's path until that answer is recorded. `
+    + 'Nothing was written. Record the checkpoint\'s answer first, then skip what its answer takes off the path: '
+    + `send the answer at ${gates} alone, then each skip in a write of its own, after the next node's brief`);
+}
+
+/**
  * The refusal for a write that completes the checkpoint `id` after a person
  * answered it, but carries no answer item: the answer sent flat on the node,
  * or not at all. Refused as an item out of shape, never as a pick with no
@@ -4466,7 +4480,11 @@ function assertPersonAnswered({ typed, prior, patch, evidence, judged, fresh, re
     }
     if (entry.status !== 'skipped') continue;
     offPath ??= new Set(atClose({ doc: prior, runDir }).skipped);
-    if (!offPath.has(id)) throw needsPerson(`${id} skipped while it is still on the run's path`, { skip: true });
+    if (offPath.has(id)) continue;
+    // The skip may follow from a checkpoint answer this same write records:
+    // the path is read before the write, so the order is wrong, not the answer.
+    if (answered.length > 0) throw skipBeforeAnswer(id, answered);
+    throw needsPerson(`${id} skipped while it is still on the run's path`, { skip: true });
   }
   if (!evidence.person) return null;
   if (answered.length > 0) return { whole: true };
