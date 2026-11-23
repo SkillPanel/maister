@@ -251,3 +251,44 @@ test('an absent section is null, and a direct: node resolves from its section wh
   assert.deepEqual(accepted.errors, []);
   assert.equal(accepted.resolved.find(entry => entry.node === 'analysis').from, 'companion');
 });
+
+test('a reference in a checkpoint question is refused, naming the file, the node, the field and the fix', () => {
+  const definition = path.join(FIXTURES, 'definitions/ask-reference.yml');
+  const result = verb(['validate', `--definition=${definition}`]);
+  assert.equal(result.code, 1, 'validate exits 1');
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.ok, false);
+  const error = report.errors.find(item => item.node === 'approval');
+  assert.ok(error, `an error names the gate: ${result.stdout}`);
+  assert.equal(path.resolve(error.file), definition, 'the error names the definition file');
+  assert.equal(error.path, 'nodes.approval.ask', 'the error names the ask field');
+  assert.ok(error.message.startsWith('ask is shown to the person as written'), error.message);
+  assert.match(error.message, /with:/, 'the message names where a value goes instead');
+  assert.ok(!report.errors.some(item => item.node === 'implementation'), 'a reference in with: is still accepted');
+});
+
+test('a reference in an overlay gate question is refused once, at the overlay file', t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-ask-overlay-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.copyFileSync(SAMPLE, path.join(dir, 'sample.yml'));
+  const overlay = path.join(dir, 'ask.overlay.yml');
+  fs.writeFileSync(overlay, [
+    'extends: sample.yml',
+    'add:',
+    '  sign-off:',
+    '    type: gate',
+    '    needs: [implementation]',
+    '    ask: "Ship ${inputs.x}?"',
+    '    options:',
+    '      continue: continue',
+    '      stop-here: stop',
+    '',
+  ].join('\n'));
+  const result = verb(['validate', `--definition=${path.join(dir, 'sample.yml')}`, `--overlay=${overlay}`]);
+  assert.equal(result.code, 1, result.stdout);
+  const errors = JSON.parse(result.stdout).errors.filter(item => item.node === 'sign-off');
+  assert.equal(errors.length, 1, result.stdout);
+  assert.equal(path.resolve(errors[0].file), overlay);
+  assert.equal(errors[0].path, 'nodes.sign-off.ask');
+  assert.ok(errors[0].message.startsWith('ask is shown to the person as written'), errors[0].message);
+});

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-import { FIXTURES, freeze, freezePatch, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { FIXTURES, freeze, freezePatch, readState, scratch, sibling, verb, withoutDelegation, write } from '../helpers.mjs';
 import { PANEL_ROWS, questionPanelOf, rowsOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
 // The display files are what a screen beside the session draws — a status
@@ -76,6 +76,8 @@ test('display: the status counts phases, not gates, and composes the line', t =>
 test('display: a later write moves the phase; the gate never counts, a skipped node keeps its place', t => {
   const run = scratch(t);
   freeze(run);
+  // The line read below is the one a run that recorded no delegation shows.
+  withoutDelegation(run);
   write(run, { nodes: { analysis: { status: 'running' } } });
   assert.deepEqual(display(run, 'status.json').phase, { index: 1, total: 3, title: 'Scope analysis', skipped: [], started: startOf(run, 'analysis') });
 
@@ -94,6 +96,13 @@ test('display: a later write moves the phase; the gate never counts, a skipped n
   const done = display(run, 'status.json');
   assert.deepEqual(done.phase, { index: 2, total: 3, title: 'Implementation', skipped: [3], started: null });
   assert.equal(done.line, 'Development · phase 2/3 · Implementation · Sample run');
+});
+
+test('display: a freeze naming no host records the shipped host\'s delegation, so the executor\'s phase shows nested', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'running' } } });
+  assert.equal(display(run, 'status.json').line, 'Development · phase 2/3 · Implementation · nested · Sample run');
 });
 
 test('display: a run whose first phase was skipped starts at the first one it runs', t => {

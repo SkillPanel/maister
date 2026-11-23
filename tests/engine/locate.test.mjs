@@ -390,3 +390,11 @@ test('locate takes --name, --overlay and --profile and no other flag', () => {
   assert.equal(result.code, 2);
   assert.match(result.stderr, /the verb locate takes no --definition flag/);
 });
+
+test('locate runs on this Node.js: the entry check lets a supported release through to the lookup', t => {
+  const root = project(t, { [home('onboarding.yml')]: CUSTOM });
+  const { code, stdout, report } = inProject(root, ['locate', '--name=onboarding']);
+  assert.equal(code, 0);
+  assert.ok(!stdout.includes('RUN-FAILED'), stdout);
+  assert.equal(report.name, 'onboarding');
+});

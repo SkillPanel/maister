@@ -55,6 +55,39 @@ const INSTALL_2X = {
     + 'for example `copilot plugin uninstall maister@maister-plugins`). ',
 };
 
+/** The oldest Node.js major release the engine runs on. */
+export const NODE_MAJOR = 20;
+
+/** The marker a run that cannot start for want of Node.js ends on. */
+export const NODE_UNAVAILABLE = 'RUN-FAILED: node-unavailable';
+
+/**
+ * Whether the Node.js running the engine is too old for it: null when it is
+ * `NODE_MAJOR` or newer, else `{marker, message}` — the marker for stdout and
+ * the message, with the 2.x line's install commands for this host, for stderr.
+ * `locate` and `resume-check`, the first verbs a start and a resume run, print
+ * it in place of their result and exit 1, before anything is read or written.
+ * It is a marker and not a refusal: the run never began, so there is no code
+ * for a driver to recover from, only an install to change.
+ *
+ * `version` is `process.versions.node` unless given, which is how a test fakes
+ * an older one; no flag takes it. A version that cannot be read is let through:
+ * the check only refuses a release it knows is too old.
+ */
+export function nodeUnavailable(version = process.versions.node) {
+  const major = Number.parseInt(String(version).replace(/^v/, ''), 10);
+  if (!Number.isFinite(major) || major >= NODE_MAJOR) return null;
+  return {
+    marker: NODE_UNAVAILABLE,
+    message: [
+      `This workflow needs Node.js ${NODE_MAJOR} or newer, and this is Node.js ${String(version).replace(/^v/, '')}. `,
+      `Nothing was written. Install Node.js ${NODE_MAJOR} or newer and run the command again; an install that cannot run it `,
+      'stays on the 2.x line: ',
+      (INSTALL_2X[SHIPPED_HOST] ?? INSTALL_2X.claude).trimEnd(),
+    ].join(''),
+  };
+}
+
 /**
  * What an operator reads when a 2.x directory is offered for resume, with the
  * install line for the host this copy ships for.
@@ -79,7 +112,7 @@ export function writtenBy2x() {
  * the kind its driver records, or null — `revision` only while a gate's revise is open
  * (`openRevision`) — `gate` only while a gate is pending (`waitingGate`) — `dashboard`
  * the `file://` link a resume shows the operator once, or null when the run has none —
- * or `{ok: false, code, message}` for one it does not resume.
+ * or `{ok: false, code, message, next}` for one it does not resume; both carry `next`, one string saying what to do now.
  *
  * A run whose context block still carries the retired phase-summary mirror
  * resumes all the same; the result then carries `warnings`, the one
@@ -131,6 +164,14 @@ export function resumeCheck({ state }) {
     ...forgetConventionsShown({ root })
       .map(({ file, code, message }) => `${file} was not removed (${code}: ${message}); the resume check is unaffected`),
   ];
+  const dashboard = dashboardUrl(doc, dir);
+  const next = [
+    ...(revision && revision.applied === false
+      ? [`run gate-revise --node=${revision.gate} --option=${revision.option} with the note before anything else`] : []),
+    ...(dashboard === null || dashboard === undefined ? [] : [`show Dashboard: ${dashboard} once; run no opener`]),
+    gate ? 'a gate is pending: take the first line through references/gates.md § Driver-suspended mode — resume'
+      : 'resume the ready set from the frozen graph',
+  ].join('; ');
   return {
     ok: true,
     workflow: {
@@ -143,11 +184,12 @@ export function resumeCheck({ state }) {
     driver_kind: driverKindOf(doc),
     task_path: dir,
     root,
-    dashboard: dashboardUrl(doc, dir),
+    dashboard,
     // Additive, and only while a gate's revise is open: a resume that finds it
     // not yet applied runs `gate-revise` before it walks the ready set.
     ...(revision ? { revision: { gate: revision.gate, option: revision.option, reruns: revision.reruns, revision: revision.revision, applied: revision.applied } } : {}),
     ...(gate ? { gate } : {}),
+    next,
     ...(warnings.length ? { warnings } : {}),
   };
 }
@@ -311,5 +353,5 @@ export function runRoot(doc, dir) {
 }
 
 function refuse(code, message) {
-  return { ok: false, code, message };
+  return { ok: false, code, message, next: 'relay the message verbatim and stop; write nothing, create no task directory, print no marker' };
 }

@@ -445,3 +445,18 @@ test('resume-check find: starts no dashboard opener, where naming the same run d
 test('resume-check find: an unknown flag is still a usage error', () => {
   assert.equal(verb(['resume-check', '--node=y']).code, 2);
 });
+
+test('resume-check gate: a pending gate closes `next` with the driver-suspended clause, after the dashboard clause', t => {
+  const run = suspended(scratch(t));
+  const { next } = check(run);
+  assert.match(next, /^show Dashboard: file:\/\/\S+ once; run no opener; a gate is pending: take the first line through references\/gates\.md § Driver-suspended mode — resume$/);
+  fs.rmSync(path.join(run.dir, 'dashboard.html'), { force: true });
+  assert.equal(check(run).next, 'a gate is pending: take the first line through references/gates.md § Driver-suspended mode — resume');
+});
+
+test('resume-check gate: the listing form carries no `next`, on the report or on a run it lists', t => {
+  const run = suspended(scratch(t));
+  const report = find(run.root);
+  assert.ok(!Object.hasOwn(report, 'next'));
+  assert.ok(report.waiting.every(entry => !Object.hasOwn(entry, 'next')));
+});

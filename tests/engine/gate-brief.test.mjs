@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, legacyMirror, readState, scratch, verb, delegating, write as writeState } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, legacyMirror, readState, scratch, sibling, verb, delegating, write as writeState } from '../helpers.mjs';
 import { scalar } from '../../plugins/maister/lib/canonical.mjs';
 import { FOCUS_BUDGET, FOCUS_LINES, PREVIEW_BUDGET } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
@@ -429,6 +429,9 @@ test('refusal: the value-missing patch re-sends the values already recorded besi
   assert.ok(result.stderr.includes('{"nodes":{"gap-analysis":{"values":{"has_reproducible_defect":false,"mockups_needed":<true|false>}}}}'), result.stderr);
 });
 
+// The ways on a drift warning names, whichever verb prints it.
+const driftClause = run => ` — no verb re-freezes: put back ${readState(run).workflow.source} or start a new run; never revert a person's edit unasked`;
+
 test('gate-brief: a definition changed since the freeze degrades the Next line and still exits 0', t => {
   const run = atApproval(t);
   const text = fs.readFileSync(run.state, 'utf8').replace(/graph_hash: "?sha256:[0-9a-f]+"?/, 'graph_hash: "sha256:' + '0'.repeat(64) + '"');
@@ -439,6 +442,7 @@ test('gate-brief: a definition changed since the freeze degrades the Next line a
   assert.match(result.stdout, /^Next: unknown — the definition changed since the freeze$/m);
   assert.equal(recommendedOf(run, 'approval'), 'continue');
   assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
+  assert.ok(result.stderr.includes(driftClause(run)), 'the drift warning ends with the no-re-freeze clause');
 });
 
 test('gate-brief: --oneline folds the brief onto one flow-safe line', t => {
@@ -571,6 +575,7 @@ test('gate-brief: an unreadable definition with no frozen needs degrades to the 
   assert.match(oneline(run, 'approval').stdout, / · Recommended: the continue option · /);
   assert.deepEqual(picker(run, 'approval').options, [], 'without the definition the picker names no option it cannot know');
   assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
+  assert.ok(result.stderr.includes(driftClause(run)), 'the drift warning ends with the no-re-freeze clause');
   assert.match(result.stderr, /^warning: gate-brief-needs-unknown: .*analysis/m);
 });
 
@@ -635,6 +640,7 @@ test('refusal: a drift warning is kept beside a no-summary refusal, the code fir
   assert.equal(result.code, 1);
   assert.match(result.stderr, /^gate-brief-no-summary: /);
   assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
+  assert.ok(result.stderr.includes(driftClause(run)), 'the drift warning ends with the no-re-freeze clause');
 });
 
 test('refusal: the no-summary patch names the node that closed, not a placeholder', t => {
@@ -826,14 +832,19 @@ test('gate-brief: with html_output false a trimmed brief points at the state fil
 
 test('gate-brief --oneline: when the closing lines nearly fill the budget the brief still keeps inside it', t => {
   // A run directory long enough that Next, Recommended and the run line leave
-  // about twenty characters for everything else.
+  // about twenty characters for everything else. The length sits in the
+  // project's own path, above .maister, so the run is still in a run folder.
   const rootLength = path.join(os.tmpdir(), 'maister-engine-XXXXXX').length;
   const fixed = 'Next: Implementation\nRecommended: continue\n'.length + 1;
   const dirLength = Math.floor((BUDGET - 20 - fixed - runLineLength(0)) / 2);
-  const nameLength = dirLength - rootLength - '/.maister/tasks/development/'.length;
+  const left = dirLength - rootLength - '/.maister/tasks/development/'.length;
+  const name = 'n'.repeat(Math.min(200, left));
+  const upperLength = left - name.length - 1;
   const segments = [];
-  for (let left = nameLength; left > 0; left -= 201) segments.push('n'.repeat(Math.min(200, left)));
-  const run = scratch(t, { name: segments.join('/').slice(0, nameLength) });
+  for (let rest = upperLength; rest > 0; rest -= 201) segments.push('p'.repeat(Math.min(200, rest)));
+  const upper = segments.join('/').slice(0, upperLength).replace(/\/$/, 'p');
+  const run = sibling({ root: path.join(scratch(t).root, upper) }, { type: 'development', name });
+  assert.equal(run.dir.length, dirLength, 'the run directory is as long as the budget needs');
   freeze(run);
   write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: LONG } });
   const result = oneline(run, 'approval');

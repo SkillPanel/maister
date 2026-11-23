@@ -79,6 +79,17 @@ test('subrun-path: the parent link it prints is the one a child freeze lands', t
   assert.deepEqual(readState(child).orchestrator.parent, report.parent);
 });
 
+test('subrun-path: a drifted definition warns, and the warning says no verb re-freezes', t => {
+  const parent = scratch(t);
+  freeze(parent);
+  const text = fs.readFileSync(parent.state, 'utf8').replace(/graph_hash: "?sha256:[0-9a-f]+"?/, 'graph_hash: "sha256:' + '0'.repeat(64) + '"');
+  fs.writeFileSync(parent.state, text);
+  const { code, stderr } = subrunPath(parent);
+  assert.equal(code, 0, stderr);
+  assert.match(stderr, /^warning: subrun-path-graph-drift: /m);
+  assert.ok(stderr.includes(` — no verb re-freezes: put back ${readState(parent).workflow.source} or start a new run; never revert a person's edit unasked`), stderr);
+});
+
 test('subrun-path: the derived directory says whether to create, freeze into or adopt it', t => {
   const parent = scratch(t);
   freeze(parent);

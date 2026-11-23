@@ -209,26 +209,24 @@ test('partial with the follow-up still open and no pull request: the question is
   assert.equal(readState(run).workflow.nodes.remote.status, 'waiting');
 });
 
-test('the engine skill and the reference state when a partial close-out is not asked about', () => {
-  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8').split(/\r?\n/);
-  const row = skill.find(line => line.startsWith('| `partial` |'));
+test('the reference states when a partial close-out is not asked about', () => {
+  const lines = fs.readFileSync(path.join(ENGINE_DIR, 'references/in-node-questions.md'), 'utf8').split(/\r?\n/);
+  const row = lines.find(line => line.startsWith('| `partial` |'));
   assert.match(row, /`closeout\.prs`/);
   assert.match(row, /`needs: \[permission\]` follow-up is `resolved`/);
-  const text = skill.join(' ').replace(/\s+/g, ' ');
+  const text = lines.join(' ').replace(/\s+/g, ' ');
   assert.match(text, /\*\*A held item already resolved is not asked about\.\*\*/);
   assert.match(text, /Never `by: operator`: nobody answered/);
-  const reference = fs.readFileSync(path.join(ENGINE_DIR, 'references/in-node-questions.md'), 'utf8').replace(/\s+/g, ' ');
-  assert.match(reference, /It asks only while the hold is live: when the dispatch's ledger entry records its pull request in `closeout\.prs`, or its `needs: \[permission\]` follow-up is `resolved`/);
-  assert.match(reference, /A pull request is recorded there as `\{repo, number, url\}`, and the decision names its `url`\./);
+  assert.match(text, /It asks only while the hold is live: when the dispatch's ledger entry records its pull request in `closeout\.prs`, or its `needs: \[permission\]` follow-up is `resolved`/);
+  assert.match(text, /A pull request is recorded there as `\{repo, number, url\}`, and the decision names its `url`\./);
   assert.match(text, /`<url>` being the `url` of the pull request's `\{repo, number, url\}` entry/);
 });
 
-test('the engine skill maps every close-out grade, and the reference fixes the question\'s three options', () => {
-  const skill = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8').split(/\r?\n/);
-  for (const grade of ['success', 'partial', 'failed']) {
-    assert.ok(skill.some(line => line.startsWith(`| \`${grade}\` |`)), `the outcome table has a row for ${grade}`);
-  }
+test('the reference maps every close-out grade and fixes the question\'s three options', () => {
   const reference = fs.readFileSync(path.join(ENGINE_DIR, 'references/in-node-questions.md'), 'utf8').split(/\r?\n/);
+  for (const grade of ['success', 'partial', 'failed']) {
+    assert.ok(reference.some(line => line.startsWith(`| \`${grade}\` |`)), `the outcome table has a row for ${grade}`);
+  }
   for (const label of heldSet().questions[0].options.map(option => option.label)) {
     assert.ok(reference.some(line => line.includes(`"label": "${label}"`)), `the reference fixes the option ${label}`);
   }

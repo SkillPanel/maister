@@ -38,7 +38,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { checkSubrunStart } from './graph.mjs';
-import { reread } from './gate-brief.mjs';
+import { driftClause, reread } from './gate-brief.mjs';
 import { projectRootOf } from './state.mjs';
 import { HELD_APPROVAL } from './question-triage.mjs';
 
@@ -92,7 +92,7 @@ export function subrunPath({ state, node }) {
     return refuse('subrun-path-definition-unread',
       `the definition this run froze cannot be re-read, so the workflow ${node} starts is unknown. Restore the definition the state's workflow.source names, then run the verb again.`);
   }
-  if (current.drift) warnings.push(`subrun-path-graph-drift: the definition now resolves to ${current.digest}, not the graph this run froze; the folder follows the definition as it reads now`);
+  if (current.drift) warnings.push(`subrun-path-graph-drift: the definition now resolves to ${current.digest}, not the graph this run froze; the folder follows the definition as it reads now${driftClause(workflow)}`);
   const declared = current.graph.nodes.find(entry => entry.id === node) ?? null;
   const uses = typeof declared?.uses === 'string' ? declared.uses : '';
   if (!uses.startsWith('workflow:')) {

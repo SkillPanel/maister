@@ -6,8 +6,8 @@ per-node context in `with:` to whatever the node names.
 
 ## `intake`
 
-**Does.** Validates the invocation, establishes the task directory and the
-state file, and settles the HTML output option later nodes read.
+**Does.** Validates the invocation and settles the HTML output option later
+nodes read.
 
 1. **Capture the clock** through the shell, not from context. Every timestamp
    written this turn uses that one value.
@@ -17,18 +17,14 @@ state file, and settles the HTML output option later nodes read.
    `RUN-FAILED` with no further node run. A valid value is written to
    `migration_context.migration_type` and carried unchanged into the gap
    analysis.
-3. **Create and initialize** the task directory under the `migrations/` type
-   directory and its state file, with the task description.
-4. **Read the project configuration** and set `options.html_output` (default
-   true when the file or the key is absent). When `html_output` is false, skip
-   the dashboard entirely — no dashboard asset, no data projection. Otherwise
-   the freeze installed `dashboard.html` in the task root and opened it — copy
-   nothing and run no opener.
-5. **Make sure the user has seen the start banner** (engine Step 4). If your
+3. **Create no task directory.** The freeze made it under the `migrations/`
+   type directory, with its state file inside, and recorded
+   `options.html_output` itself (engine Step 4).
+4. **Make sure the user has seen the start banner** (engine Step 4). If your
    messages since the freeze do not name the workflow and task, the checkpoints,
    the directory and the dashboard link the engine opened, write them now, from the freeze's
    output, the paths copied as printed.
-6. **Discover the project documentation** — from the documentation index under
+5. **Discover the project documentation** — from the documentation index under
    the project's docs directory, if one exists, extract every path in its
    project-documentation sections, predefined and operator-added alike, into
    `project_context.project_doc_paths`: a top-level key of the patch, never
@@ -274,7 +270,7 @@ an `open` risk with the fix as its `change`; a breaking change the
 specification chose is a `tradeoff` risk; an issue that predates the migration
 is a `followup` risk. **When the verdict failed and nothing in it is fixable,
 add a `stop` risk** saying why. Unchecked work recommends no way on
-(`orchestrator-patterns.md` § 6 step 9): each done-when line of the task the
+(the engine's `references/gates.md` § *Before every gate — the gate brief*): each done-when line of the task the
 verification could not confirm with evidence is an `open` risk naming it, and
 `recommends` is `{option: null, reason}` saying how many; whether the suite ran
 the gate reads from `verification_context.suite_run` itself.
@@ -287,7 +283,7 @@ on it.
 
 ## `issue-resolution`
 
-**Does.** Runs the fix loop of `orchestrator-patterns.md` § 6 on the
+**Does.** Runs the fix loop (`<plugin root>/agents/verification-runner.md` § *The fix pass*) on the
 verifier's issues, after showing the verdict, the counts by severity and the
 report's path from the project root. Once the data integrity question below is
 settled, invoke the verifier's hand-off (Skill tool,
@@ -349,7 +345,7 @@ two re-checks — nothing is asked and no extra round is taken. Every issue that
 needs a decision, and every risky fix, stays open as an `open` risk in this
 node's summary, and the loop ends as the `verification-go-on` line says. An
 issue still critical is **not** proceeded past: it is an `open` risk and a
-`stop` risk (§ 6 step 9), which the gate brief shows at `resolution-approval` — where a person
+`stop` risk (the engine's `references/gates.md` § *Before every gate — the gate brief*), which the gate brief shows at `resolution-approval` — where a person
 answers.
 
 **With question sets** (`verification-go-on`): the stopping question when its
@@ -367,7 +363,7 @@ state, never leave a side file to carry the truth.
 run recommends stopping; the issues found, fixed and remaining by severity in
 `summary`; an accepted data risk as a `tradeoff` risk, and the `stop` risk when
 the user chose to stop and roll back. When the loop ended undecided, the go-on
-choice is recorded as not taken (§ 6 step 10) and `recommends` is
+choice is recorded as not taken (the engine's `references/in-node-questions.md` § *Findings that need a decision*) and `recommends` is
 `{option: null, reason}`; with a critical issue left, the `stop` risk names the
 issue and `analysis/rollback-plan.md`, as "Stop here" does. Nothing rolls back
 automatically: the `stop` risk is the rollback recommendation, and
@@ -408,8 +404,9 @@ candidates file, and **always runs**.
    compatibility results. The migration guide is there only when the run was
    asked for one, and the dual-run plan only for a dual-run strategy — name each
    absent one as skipped rather than as missing, and every other absence as a
-   defect. Take the inventory from disk, not from state, as
-   `orchestrator-patterns.md` § 10 says.
+   defect. Take the inventory from disk, not from state: `run-complete` names a
+   declared artifact or page that never reached it, and any path a summary lists
+   beyond the declarations is checked too (the engine's *Recording an outcome*).
 2. **Present the executive summary**: what was migrated and to what, the
    strategy used, the verification verdict with any issues left open, whether
    the rollback procedure was tested and whether it is still available.
@@ -423,7 +420,7 @@ candidates file, and **always runs**.
    and effort
    `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude --state=<task path>/orchestrator-state.yml --node=finalization`
    prints,
-   `orchestrator-patterns.md` § 1): "Consolidate standard candidates.
+   the engine's `references/verbs.md` § *Model and effort on every agent call*): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]." It
    merges duplicates, matches each against what the project's standards and
    documents already hold, suggests a destination and returns each with its
@@ -442,8 +439,8 @@ candidates file, and **always runs**.
    the old system, or the dual-run configuration, only once both have been true
    for a while. Suggest a fresh session for whatever comes next.
 
-**Close for whoever reads the end**, as the engine's *Operator visibility*
-says. **Next** holds every one of step 6's next steps, a line each — all four,
+**Close for whoever reads the end**, as `references/writing-state.md` § *Ending the run —
+the wrap-up* says. **Next** holds every one of step 6's next steps, a line each — all four,
 then the fresh-session suggestion, none dropped or merged.
 
 **Standard candidates in the close**: when step 4 wrote the candidates file,
@@ -456,7 +453,7 @@ candidate; with no candidates there is no such line.
 
 **No close-out while a choice is held**: when the freeze recorded
 `orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
-closing patch and before any close-out, as the engine's *Ending a dispatched run* says, and
+closing patch and before any close-out, as the engine's `references/gates.md` § *Ending a dispatched run* says, and
 closes as that section's outcomes direct.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out

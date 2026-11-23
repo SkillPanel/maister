@@ -138,7 +138,7 @@ test('banner: the freeze prints the task, its directory, the dashboard and the f
   const [banner, paths] = result.stdout.split('\n\n');
   assert.match(paths, /^orchestrator\.completed_phases$/m, 'the changed paths follow the banner, unchanged');
   assert.equal(banner, [
-    'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below.',
+    'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below — paths and links copied as printed.',
     'Maister run started: Development',
     'Task: Fix the parser',
     'Checkpoints: up to 11 where you decide',
@@ -819,7 +819,8 @@ test('refusal: a re-freeze names the ways on — put the frozen definition back,
   ]) {
     const result = refused(run, { workflow });
     assert.match(result.stderr, /^state-workflow-frozen\b/, 'the code stays the one a reader words');
-    assert.match(result.stderr, /no verb re-freezes a run/);
+    assert.match(result.stderr, /no verb re-freezes: put back /);
+    assert.match(result.stderr, /start a new run from the changed one; never revert a person's edit unasked/);
     assert.ok(result.stderr.includes(`put back the definition this run froze (${source})`), 'it names the frozen source');
     assert.match(result.stderr, /start a new run from the changed one/);
     assert.doesNotMatch(result.stderr, /top-level `nodes` key/, 'a scalar-only patch is not a misplaced node update');
@@ -1458,4 +1459,48 @@ test('write-state: a double quote in a state value is still refused — prose is
   const result = verb(['write-state', `--state=${run.state}`], { orchestrator: { options: { note: 'the "Save" button' } } });
   assert.equal(result.code, 1);
   assert.match(result.stdout + result.stderr, /value-not-flow-safe/);
+});
+
+// The `next:` line: a write that completes or skips a node ends with the node
+// due next, or with the closing patch once nothing is left.
+
+/** The `next:` lines a write printed on stdout. */
+const nextLines = stdout => stdout.split('\n').filter(line => line.startsWith('next: '));
+
+test('next: a completing write ends with the node due next, by its title, after a blank line', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = verb(['write-state', `--state=${run.state}`], { nodes: { analysis: { status: 'completed' } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /\n\nnext: approval \(Approve the scope\) — run node-brief for it\n$/);
+  assert.equal(nextLines(result.stdout).length, 1);
+  // A node with no display title is named by its humanized id.
+  write(run, { nodes: { approval: { status: 'completed' } } });
+  const after = verb(['write-state', `--state=${run.state}`], { nodes: { implementation: { status: 'completed' } } });
+  assert.deepEqual(nextLines(after.stdout), ['next: research (Research) — run node-brief for it']);
+});
+
+test('next: none once the last node ends, and no line on the closing patch or on a write that ends no node', t => {
+  const run = scratch(t);
+  freeze(run);
+  const started = verb(['write-state', `--state=${run.state}`], { nodes: { analysis: { status: 'running' } } });
+  assert.deepEqual(nextLines(started.stdout), [], 'a start ends no node');
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  write(run, { nodes: { approval: { status: 'completed' } } });
+  write(run, { nodes: { implementation: { status: 'completed' } } });
+  const last = verb(['write-state', `--state=${run.state}`], { nodes: { research: { status: 'skipped' } } });
+  assert.equal(last.code, 0, last.stderr);
+  assert.match(last.stdout, /\n\nnext: none — write the closing patch with task.status, then run run-complete\n$/);
+  const closing = verb(['write-state', `--state=${run.state}`], { task: { status: 'completed' } });
+  assert.deepEqual(nextLines(closing.stdout), [], 'the closing patch is the write the line asked for');
+});
+
+test('next: a write that leaves only a waiting step prints no next line', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { nodes: { analysis: { status: 'completed' } } });
+  write(run, { nodes: { approval: { status: 'completed' } } });
+  const result = verb(['write-state', `--state=${run.state}`], { nodes: { implementation: { status: 'completed' }, research: { status: 'waiting' } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(nextLines(result.stdout), [], result.stdout);
 });

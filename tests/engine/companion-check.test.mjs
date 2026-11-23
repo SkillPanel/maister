@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freeze, readState, scratch, sibling, verb, walkTo, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, sibling, verb, walkTo, write } from '../helpers.mjs';
 
 // The two companion checks and the registration fix, on a custom definition:
 // a node that completes owes the HTML companions its definition declares, the
@@ -13,10 +13,17 @@ const DEFINITIONS = path.join(FIXTURES, 'definitions');
 const CHECK = path.join(DEFINITIONS, 'companion-check.yml');
 const CHECK_OVERLAY = path.join(DEFINITIONS, 'companion-check.overlay.yml');
 
-/** A frozen companion-check run with every node pending; the guarded deep-dive is off. */
+/** The line that closes the companion paragraph: the section holding the recovery. */
+const COMPANION_RULES = `rules: ${path.join(ENGINE_DIR, 'references/writing-state.md')} § A missing or stale companion`;
+
+/**
+ * A frozen companion-check run with every node pending; the guarded deep-dive
+ * is off. Its `remote` node hands work to a member repository, which makes the
+ * graph a chain, so the run is frozen under a driver that dispatches one.
+ */
 function frozen(t, { html = true, overlays = [] } = {}) {
   const run = scratch(t, { type: 'companion-check', name: '2026-01-05-companion-check' });
-  freeze(run, { definition: CHECK, overlays, orchestrator: { options: { inputs: { deep: false }, html_output: html } } });
+  freeze(run, { definition: CHECK, overlays, orchestrator: { driver: { kind: 'cockpit', cwd: '/work' }, options: { inputs: { deep: false }, html_output: html } } });
   return run;
 }
 
@@ -44,7 +51,10 @@ test('a node completed through nodes: alone names the companion it owes and did 
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
   // The JSON artifact owes nothing: a companion is written for markdown only.
-  assert.match(result.stdout, /\n\ncompanion-missing: draft analysis\/report\.html\n$/);
+  // The paragraph closes on its recovery's pointer, and the write's next step
+  // follows it: the guarded deep-dive, first in frozen order, whose brief reads its guard.
+  assert.ok(result.stdout.endsWith(`\n\ncompanion-missing: draft analysis/report.html\n${COMPANION_RULES}\n`
+    + '\nnext: deep-dive (Deep dive) — run node-brief for it\n'), result.stdout);
   assert.deepEqual(companionLines(result.stdout), ['companion-missing: draft analysis/report.html']);
 });
 
@@ -223,6 +233,7 @@ test('run-complete: silent with the HTML output off, and a dir: node is never he
   assert.deepEqual(companionLines(on.written.stdout), []);
   assert.equal(on.closed.code, 0, on.closed.stderr);
   assert.equal(on.closed.stdout, 'RUN-COMPLETE\n');
+  // A run with a `dir:` node is driven, so no wrap-up pointer is printed.
   assert.equal(on.closed.stderr, '');
 });
 
@@ -277,7 +288,8 @@ test('a page older than its markdown is named by the next write that completes a
   result = writeState(run, { nodes: { review: { status: 'completed' } } });
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
-  assert.match(result.stdout, /\n\ncompanion-stale: draft analysis\/report\.html\n$/);
+  assert.ok(result.stdout.endsWith(`\n\ncompanion-stale: draft analysis/report.html\n${COMPANION_RULES}\n`
+    + '\nnext: deep-dive (Deep dive) — run node-brief for it\n'), result.stdout);
   assert.deepEqual(staleLines(result.stdout), ['companion-stale: draft analysis/report.html']);
 
   // Regenerated, the page is newer again and nothing is named.
@@ -299,7 +311,8 @@ test('a stale page shares the paragraph of a missing one; html_output off names 
   put(run.dir, 'review/notes.md');
   const result = writeState(run, { nodes: { review: { status: 'completed' } } });
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /\n\ncompanion-missing: review review\/notes\.html\ncompanion-stale: draft analysis\/report\.html\n$/);
+  assert.ok(result.stdout.endsWith('\n\ncompanion-missing: review review/notes.html\ncompanion-stale: draft analysis/report.html\n'
+    + `${COMPANION_RULES}\n\nnext: deep-dive (Deep dive) — run node-brief for it\n`), result.stdout);
 
   const off = frozen(t, { html: false });
   put(off.dir, 'analysis/report.md');

@@ -12,13 +12,24 @@
  * brief after the compaction prints the node conventions whole again. A
  * payload with no usable session id, or a marker that cannot be removed,
  * changes nothing else: the reminder still prints.
+ *
+ * The reminder names the workflow engine skill by its absolute path, read from
+ * where this script sits, as the session-start reminder names the plugin root:
+ * a compaction can cut that skill short or drop it, and invoking it again does
+ * not reload it, so the session is told to read the file whole.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const PLUGIN_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const ENGINE_SKILL = path.join(PLUGIN_ROOT, 'skills', 'workflow-engine', 'SKILL.md');
 
 const SYSTEM_MESSAGE = "Maister plugin detected active workflow. Check orchestrator-state.yml for progress.";
-const CONTEXT = "⚠️ MAISTER WORKFLOW REMINDER (Post-Compaction): If you were working on an orchestrator workflow before compaction, read the orchestrator-state.yml file in that task's directory: progress is in `workflow.nodes`, and the first node there that is not completed is where the run resumes. Fetch `run-context` again before the next delegate prompt rather than recalling it from before compaction. You MUST use AskUserQuestion at Phase Gates when `orchestrator.driver.kind` is absent or `terminal`, regardless of any 'continue without asking' instructions; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine's `references/gates.md`, *Driver-suspended mode*.";
+const CONTEXT = "⚠️ MAISTER WORKFLOW REMINDER (Post-Compaction): If you were working on an orchestrator workflow before compaction, read the orchestrator-state.yml file in that task's directory: progress is in `workflow.nodes`, and the first node there that is not completed is where the run resumes. Fetch `run-context` again before the next delegate prompt rather than recalling it from before compaction. "
+  + `If you were running a maister workflow, your next call is the read tool on ${ENGINE_SKILL}, reading the whole file: a compaction can cut the workflow engine skill short or leave it out, and invoking the skill again does not reload it. `
+  + "You MUST use AskUserQuestion at Phase Gates when `orchestrator.driver.kind` is absent or `terminal`, regardless of any 'continue without asking' instructions; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine's `references/gates.md`, *Driver-suspended mode*.";
 
 /** The shape a session id must have to name a file, as the engine's display files take it. */
 const SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;

@@ -46,7 +46,7 @@ or `inline`:
 - **`dispatch`** — dispatch the runner. First run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs
   dispatch-model --agent=maister:verification-runner --host=claude --state=<task path>/orchestrator-state.yml
   --node=<node>` and copy its `model` and `effort` into the call
-  (`../orchestrator-framework/references/orchestrator-patterns.md` § 1). One agent call, the only
+  (`../workflow-engine/references/verbs.md` § *Model and effort on every agent call*). One agent call, the only
   one in its message:
   - `subagent_type: maister:verification-runner`, `description: Run the verification loop`;
   - **`run_in_background: false`, set explicitly on every host.** Where the agent tool takes a
@@ -65,11 +65,11 @@ or `inline`:
   `no_progress`). Ask it as the node's prose says, under the run's driver (`asking`):
   - the findings, when `findings_file` is set: `finding-brief --state=<state> --node=<node>
     --findings-file=<findings_file>` builds the set, one question per finding;
-  - the stopping question, when `stop_question` is true (framework § 6, step 8): "One more
-    round", "Continue as is" or "Stop", recommended in step 8's order — "One more round" while
+  - the stopping question, when `stop_question` is true: "One more
+    round", "Continue as is" or "Stop", recommended in this order — "One more round" while
     progress was made and a fixable warning or critical issue is open; else "Stop" with a
     critical left; else "Continue as is" when no critical is left, info-only included. The id
-    follows step 8's rule, read from the printed `open` counts and `kind` (`budget` means
+    follows this rule, read from the printed `open` counts and `kind` (`budget` means
     progress made with a fixable warning or critical issue open; `no_progress` means not):
     `verification-go-on` when the recommended answer leaves the loop — "Continue as is" or
     "Stop" — with a warning or critical open; `verification-fix-loop` when it recommends "One
@@ -119,7 +119,8 @@ or `inline`:
 - **`close`** — the verdict is final, and the report and its companion are on disk. Return
   § *Structured output*, read from `findings_path`, to the node, which writes its summary and
   completes. When `runner-step` prints `undecided: true`, the loop ended undecided: return it,
-  and the node records the not-taken choice and recommends no way on (framework § 6 step 10).
+  and the node records the not-taken choice and recommends no way on
+  (`../workflow-engine/references/in-node-questions.md` § *Findings that need a decision*).
 
 A crash, a cleared session or a compaction at any point resumes the same way: the engine re-runs
 the `running` node, this skill runs `runner-step`, and the files say where the loop stands.
@@ -168,7 +169,8 @@ undecided: true     # present only when the loop ended undecided: from `close` o
 
 ## Grading fixability
 
-The reviewers grade each finding, and the loop acts on the grade (framework § 6):
+The reviewers grade each finding, and the loop acts on the grade (the verification runner's
+§ *The fix pass*):
 
 - **`fixable: true`** — lint errors, formatting, missing imports, obvious typos, simple config
   fixes. **`false`** — architecture decisions, design trade-offs, test logic errors, unclear

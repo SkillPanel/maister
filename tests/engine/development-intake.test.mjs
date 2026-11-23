@@ -45,55 +45,55 @@ function agent(name) {
 
 test('the intake names four design sources, a quick-design task among them', () => {
   const section = intake();
-  assert.match(step(section, 5), /Ingest design context from four sources/);
+  assert.match(step(section, 4), /Ingest design context from four sources/);
   assert.doesNotMatch(section, /three (design )?sources|of the three/);
-  assert.match(step(section, 5), /quick-design task path, `\.maister\/tasks\/design\/<YYYY-MM-DD-name>\/`/);
+  assert.match(step(section, 4), /quick-design task path, `\.maister\/tasks\/design\/<YYYY-MM-DD-name>\/`/);
   assert.match(section, /a product-design task directory, a quick-design task directory,/, 'the design-location table');
-  assert.match(step(section, 8), /which of the four sources supplied it/);
-  assert.match(step(section, 8), /quick-design task path/);
+  assert.match(step(section, 7), /which of the four sources supplied it/);
+  assert.match(step(section, 7), /quick-design task path/);
 });
 
 test('the decision comes in as the design context\'s decision.md, and the design input may name it', () => {
   const section = intake();
-  assert.match(step(section, 5), /`decision\.md` as `analysis\/design-context\/decision\.md`/);
+  assert.match(step(section, 4), /`decision\.md` as `analysis\/design-context\/decision\.md`/);
   // The input takes the task directory or the decision inside it.
   assert.match(section, /a quick-design task directory, or the `decision\.md` inside one, whose task directory is one level up/);
   assert.match(section, /resolves to neither kind of task/);
-  assert.match(step(section, 8), /whether a brief or a decision came with them/);
+  assert.match(step(section, 7), /whether a brief or a decision came with them/);
 });
 
 test('only the chosen options\' flat pages are imported, never the version folders', () => {
-  const fifth = step(intake(), 5);
-  assert.match(fifth, /only the flat pages of the chosen options/);
-  assert.match(fifth, /`mockups\/<slug>\.html`/);
-  assert.match(fifth, /never `versions\/`, never `\.mockups\.json`/);
-  assert.match(fifth, /Rejected options' pages are never imported/);
+  const fourth = step(intake(), 4);
+  assert.match(fourth, /only the flat pages of the chosen options/);
+  assert.match(fourth, /`mockups\/<slug>\.html`/);
+  assert.match(fourth, /never `versions\/`, never `\.mockups\.json`/);
+  assert.match(fourth, /Rejected options' pages are never imported/);
   // ASCII holds every option in one file: only the index keeps a rejected one from binding.
-  assert.match(fifth, /`mockups\/ascii-mockups\.md`/);
-  assert.match(fifth, /unindexed and not binding/);
-  assert.match(step(intake(), 7), /only for the imported slugs/);
+  assert.match(fourth, /`mockups\/ascii-mockups\.md`/);
+  assert.match(fourth, /unindexed and not binding/);
+  assert.match(step(intake(), 6), /only for the imported slugs/);
 });
 
 test('nothing is imported when the decision says the mockups were skipped, whatever the folder holds', () => {
   const section = intake();
-  const fifth = step(section, 5);
-  assert.match(fifth, /"Skip the mockups"/);
-  assert.match(fifth, /"no" without "Show me mockups first"/);
-  assert.match(fifth, /the line decides, not the folder/);
+  const fourth = step(section, 4);
+  assert.match(fourth, /"Skip the mockups"/);
+  assert.match(fourth, /"no" without "Show me mockups first"/);
+  assert.match(fourth, /the line decides, not the folder/);
   // A decision alone has no screens: no index, and the reference names none.
-  assert.match(step(section, 7), /no index when no page was imported/i);
-  assert.match(step(section, 8), /the index path when there is an index/);
+  assert.match(step(section, 6), /no index when no page was imported/i);
+  assert.match(step(section, 7), /the index path when there is an index/);
 });
 
 test('a chosen option\'s slug is read from its link anywhere in the decision', () => {
-  const fifth = step(intake(), 5);
-  assert.match(fifth, /\*\*Decision\*\* section/, 'the choice is read from the Decision section');
-  assert.match(fifth, /the link `decision\.md` gives that option's screen, anywhere in the file/);
+  const fourth = step(intake(), 4);
+  assert.match(fourth, /\*\*Decision\*\* section/, 'the choice is read from the Decision section');
+  assert.match(fourth, /the link `decision\.md` gives that option's screen, anywhere in the file/);
   // Without a link it falls back to quick-design's own naming.
-  assert.match(fifth, /the option's name in kebab case, with the area added when two areas share an option name/);
+  assert.match(fourth, /the option's name in kebab case, with the area added when two areas share an option name/);
   // A chosen option with no page is said, and a page the verb skips fails the node.
-  assert.match(fifth, /chosen slug with no page on disk is said in one line/);
-  assert.match(fifth, /a mockup the verb skips fails the node/);
+  assert.match(fourth, /chosen slug with no page on disk is said in one line/);
+  assert.match(fourth, /a mockup the verb skips fails the node/);
 });
 
 test('both agents read the decision, and the import leaves development\'s graph hash alone', () => {

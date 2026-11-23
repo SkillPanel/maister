@@ -59,21 +59,42 @@
  *   `feeds a checkpoint` and `gate` print whole wherever they apply: each
  *   carries a hand-over or a recording rule a step skips silently without it.
  * An unread definition prints every row its scheme meets, whole.
+ *
+ * The lines that carry a rule the session would otherwise hold from the
+ * engine skill, each printed only where it applies:
+ * - `start: yours` on a step ready to start whose start the brief did not
+ *   record — a `workflow:` step, or one whose start write was refused — never
+ *   beside `started:` and never for a dispatched (`dir:`) node.
+ * - `waiting:` on a node recorded `waiting`, which is never run again.
+ * - `say:` on an `agent:` step and a step with `delegates:`: the one line the
+ *   session prints while the delegate runs.
+ * - `missing:` for each `with:` reference that finds nothing recorded yet,
+ *   which is re-driven or recorded, never guessed.
+ * - `held:` at a gate a held choice asks, with the count still waiting.
+ * - `close-out:` at the closing node of a dispatched or classing run: the
+ *   `held-approval` brief and the outbox publish its outcome waits on.
+ * - `engine skill:` on every brief, directly before `rules:`: the skill's
+ *   absolute path, to be read whole when the session no longer holds it — a
+ *   compaction can leave none of it in view.
+ * - The gate's `ask it:` line, the whole call by the run's driver and the host
+ *   this plugin ships for: `gate-request` where a driver suspends, else
+ *   `gate-brief` in the form the host's question tool takes.
  * Paths stay repository-root-relative rather than task-relative: a delegate
  * is handed them as printed, and its working directory is the project root —
  * all but an `output_path` agent, which joins a path to `task_path` itself and
  * so is handed the declared one (the `agent:` row says so).
- * The `with:` values and a `dir:` are printed filled in, by the rules of the
- * engine skill's *Interpolating*. A path the header names for a shell — the
- * `rules:` line, the `gate-brief` call — goes in single quotes when it holds
- * whitespace, as the engine's invocation contract writes one.
+ * The `with:` values and a `dir:` are printed filled in, by the rules of
+ * `references/grammar.md` § 9. A path the header names for a shell — the
+ * `rules:` line, the `engine skill:` line, the `ask it:` call — goes in single
+ * quotes when it holds whitespace, as the engine's invocation contract writes
+ * one.
  *
  * What it reads. The state file; the definition the run froze, re-read and
  * re-resolved through `gate-brief`'s `reread`; its overlays and profile; the
  * guide beside the file a node comes from — the base definition's, or the
- * adding overlay's for a node an overlay added; and the `### Node conventions`
- * table of the `SKILL.md` beside this module, found from its own location so a
- * generated variant reads its own copy.
+ * adding overlay's for a node an overlay added; and the `# Node conventions`
+ * table of `references/node-conventions.md` in the skill beside this module,
+ * found from its own location so a generated variant reads its own copy.
  *
  * Each convention row is printed whole once per session. The rows are fixed
  * text, the same on every node, and printed on every brief they made up much
@@ -125,16 +146,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse, isPlainObject } from './state-read.mjs';
-import { BUILT_IN_AGENTS, guideRows, proseSection, readerRows, sectionNameOf } from './graph.mjs';
-import { closingCandidates, evaluate, readinessOf, reread } from './gate-brief.mjs';
+import { BUILT_IN_AGENTS, guardReadsTask, guideRows, nodeKindIn, proseSection, readerRows, sectionNameOf } from './graph.mjs';
+import { driftClause, atClose, closingCandidates, evaluate, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
 import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, writeState } from './state.mjs';
 import { owedCompanions } from './companions.mjs';
 import { STYLE_GUIDE } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { openRevision } from './revise.mjs';
-import { canAsk, questionSets } from './driver.mjs';
-import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestionIds } from './question-triage.mjs';
+import { canAsk, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
+import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestionIds, outstandingHeld } from './question-triage.mjs';
 import { CLASSES, ceilingOf, loadPolicy, questionFamilies } from './policy.mjs';
 import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
@@ -144,11 +165,24 @@ import { runRoot } from './resume-check.mjs';
 /** The engine's entry script, which the `ask with:` line names by its absolute path. */
 const ENGINE = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
 
-/** The engine skill beside this module, whose conventions table the brief prints rows of. */
-const SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
+/** The engine skill's conventions reference, whose table the brief prints rows of. */
+const CONVENTIONS_FILE = fileURLToPath(new URL('../../references/node-conventions.md', import.meta.url));
 
 /** The heading the conventions table sits under, exactly. */
-const CONVENTIONS = '### Node conventions';
+const CONVENTIONS = '# Node conventions';
+
+/**
+ * The engine skill itself, which the `engine skill:` line names: found from
+ * this module's location, as the conventions reference is, so a generated
+ * variant names its own copy.
+ */
+const ENGINE_SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
+
+/** The gates reference, which the `close-out:` line points into. */
+const GATES_FILE = fileURLToPath(new URL('../../references/gates.md', import.meta.url));
+
+/** The `engine skill:` line every brief prints directly before its `rules:` line. */
+const ENGINE_SKILL_LINE = `engine skill: ${quoted(ENGINE_SKILL)} — if this skill is not in your context in full, as after a compaction, read the whole file with the read tool before acting on this brief`;
 
 /** How each scheme runs, and the convention row that applies to it. */
 const SCHEMES = {
@@ -183,7 +217,7 @@ const MISSING = Symbol('not recorded');
  *
  * Returns `{ok, text, errors, warnings}`; `text` ends with a newline.
  */
-export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` }) {
+export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node conventions` }) {
   const pointer = quotedPointer(rules);
   let doc;
   try {
@@ -207,10 +241,10 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
   const warnings = [];
   const current = reread(doc, workflow, runDir);
   if (current.graph === null) warnings.push(`node-brief-definition-unread: ${state}`);
-  else if (current.drift) warnings.push(`node-brief-graph-drift: the definition now resolves to ${current.digest}, not the graph this run froze; the brief follows the definition as it reads now`);
+  else if (current.drift) warnings.push(`node-brief-graph-drift: the definition now resolves to ${current.digest}, not the graph this run froze; the brief follows the definition as it reads now${driftClause(workflow)}`);
 
   const table = conventionsOf();
-  if (table === null) warnings.push(`node-brief-conventions-unread: ${SKILL}`);
+  if (table === null) warnings.push(`node-brief-conventions-unread: ${CONVENTIONS_FILE}`);
   // The rows this session was already shown whole; null prints every one whole.
   const root = runRoot(doc, runDir);
   const shown = table === null ? null : conventionsShown({ root });
@@ -242,16 +276,25 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
   const section = origin === null ? null : proseSection(origin, sectionNameOf(resolved));
   const printed = section === null ? null : sliced(section.text);
   const convention = keys => conventionLines(table, keys, shown, printedWhole);
-  const askIt = `ask it: gate-brief --state=${quoted(path.resolve(state))} --node=${node}`;
+  const askIt = askItLine(state, node, doc);
 
   const lines = gate
     ? gateLines({ node, title, resolved, context, convention, rules: pointer })
     : stepLines({ node, title, resolved, entry, context, convention, table, rules: pointer, origin, section, sources });
   // After the header is rendered, so it reads the statuses the brief found.
-  if (!gate && startable(node, resolved, nodes, context)) {
-    const started = writeState({ state, patch: { nodes: { [node]: { status: 'running' } } } });
-    if (started.ok) lines.splice(2, 0, STARTED);
-    else warnings.push(`node-brief-start-unrecorded: ${started.errors.map(error => error.code).join(', ')}`);
+  // A ready step the engine runs here has its start recorded; any other ready
+  // step, or one whose start was refused, is told the start is its own write.
+  if (!gate && readyToStart(node, resolved, nodes, context)) {
+    if (RECORDED_SCHEMES.includes(schemeOf(resolved))) {
+      const started = writeState({ state, patch: { nodes: { [node]: { status: 'running' } } } });
+      if (started.ok) lines.splice(2, 0, STARTED);
+      else {
+        warnings.push(`node-brief-start-unrecorded: ${started.errors.map(error => error.code).join(', ')}`);
+        lines.splice(2, 0, startYours(node));
+      }
+    } else {
+      lines.splice(2, 0, startYours(node));
+    }
   }
   // A marker that cannot be written only means the next brief prints the rows whole again.
   if (shown !== null && printedWhole.size) markConventionsShown({ root, rows: new Set([...shown, ...printedWhole]) });
@@ -259,7 +302,9 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
   if (resolved === null) {
     lines.push(gate ? askIt : current.graph === null ? UNKNOWN_SECTION : GONE_SECTION);
   } else if (gate) {
-    lines.push(/^\*\*Exception\.\*\*/m.test(printed ?? '') ? printed : askIt);
+    // An exception still asks the gate: the call comes first, the exception after it.
+    lines.push(askIt);
+    if (/^\*\*Exception\.\*\*/m.test(printed ?? '')) lines.push('', printed);
   } else {
     lines.push(printed ?? NO_SECTION);
   }
@@ -268,24 +313,40 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
 
 const STARTED = 'started: recorded running by this brief — the start needs no write of its own';
 
+/** The line a ready step whose start the brief did not record prints in its place. */
+function startYours(node) {
+  return `start: yours — send {"nodes": {${JSON.stringify(node)}: {"status": "running"}}}`;
+}
+
 /** The terminal task statuses, after which nothing starts. */
 const RUN_ENDED = new Set(['completed', 'failed', 'stopped']);
 
 /**
- * Whether the brief records this step's start: a step the engine runs here —
- * `agent:`, `skill:` or `direct:`, never a dispatch, whose `waiting` is the
- * close-out's, nor a `workflow:` step, whose start brackets its child's
- * freeze — still `pending`, in a run neither ended nor waiting on a gate, and
- * ready by the ready-set rule: its needs settled and its guard true. And the
- * step the walk reaches next: while an earlier node in frozen order is pending
- * and not waiting on its needs, that node is due first — run, asked, or
- * recorded skipped, which must land before a later start. Otherwise the brief
- * writes nothing and the start is the session's own write, as it always was.
+ * The schemes whose start the brief records: the steps the engine runs here.
+ * A `workflow:` step's start brackets its child's freeze, so it is the
+ * session's own write.
  */
-function startable(node, resolved, nodes, context) {
+const RECORDED_SCHEMES = ['agent', 'skill', 'direct'];
+
+/** The scheme a resolved node's `uses` names, or '' without one. */
+function schemeOf(resolved) {
+  const uses = typeof resolved?.uses === 'string' ? resolved.uses : '';
+  return uses.slice(0, Math.max(uses.indexOf(':'), 0));
+}
+
+/**
+ * Whether this step may start now: never a dispatch, whose `waiting` is the
+ * close-out's; still `pending`, in a run neither ended nor waiting on a gate,
+ * and ready by the ready-set rule: its needs settled and its guard true. And
+ * the step the walk reaches next: while an earlier node in frozen order is
+ * pending and not waiting on its needs, that node is due first — run, asked,
+ * or recorded skipped, which must land before a later start. The brief records
+ * the start of such a step of a scheme it runs here (`RECORDED_SCHEMES`), and
+ * tells the session the start is its own write for any other; otherwise it
+ * writes and says nothing.
+ */
+function readyToStart(node, resolved, nodes, context) {
   if (resolved === null || context.status.get(node) !== 'pending') return false;
-  const uses = typeof resolved.uses === 'string' ? resolved.uses : '';
-  if (!['agent', 'skill', 'direct'].includes(uses.slice(0, uses.indexOf(':')))) return false;
   if (typeof resolved.dir === 'string' && resolved.dir !== '') return false;
   const orchestrator = isPlainObject(context.doc.orchestrator) ? context.doc.orchestrator : {};
   if (isPlainObject(orchestrator.gate_pending)) return false;
@@ -297,6 +358,18 @@ function startable(node, resolved, nodes, context) {
   }
   const earlier = nodes.slice(0, nodes.findIndex(entry => entry.id === node));
   return !earlier.some(entry => context.status.get(entry.id) === 'pending' && readinessOf(entry, context.status) !== 'waiting');
+}
+
+/**
+ * The gate's `ask it:` line: the whole call. A driver that suspends on its
+ * gates takes `gate-request`; a run asked in session takes `gate-brief` in the
+ * form the shipped host's question tool takes — the `rich` profile's JSON on
+ * Claude Code, the question tool's arguments on Copilot.
+ */
+function askItLine(state, node, doc) {
+  const target = `--state=${quoted(path.resolve(state))} --node=${node}`;
+  if (!isTerminalDriver(doc)) return `ask it: gate-request ${target}`;
+  return `ask it: gate-brief ${target} ${shippedHost() === 'copilot' ? '--ask' : '--json --picker=rich'}`;
 }
 
 /** A path as a shell reads it: bare, or in single quotes when it holds whitespace. */
@@ -350,25 +423,30 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   const dispatched = typeof resolved?.dir === 'string' && resolved.dir !== '';
   const how = dispatched ? `dispatched to ${shown(interpolate(resolved.dir, context))}` : known?.how ?? 'unknown';
 
-  const model = scheme === 'agent' && uses && !dispatched ? `, ${modelText(uses.slice(uses.indexOf(':') + 1), node, context.doc)}` : '';
+  const agent = scheme === 'agent' && uses && !dispatched ? uses.slice(uses.indexOf(':') + 1) : null;
+  const model = agent ? ` as ${dispatchName(agent)}, ${modelText(agent, node, context.doc)}` : '';
   const lines = [`## Node: ${node} — ${title}`, `runs: ${uses ?? scheme} — ${how}${model}`];
   if (resolved && typeof resolved.when === 'string') lines.push(whenLine(resolved.when, context));
   const attempt = attemptOf(entry);
   const status = entry.status ?? 'pending';
   if (attempt > 1 || status !== 'pending') lines.push(`attempt: ${attempt} — ${status}`);
+  if (status === 'waiting') lines.push(WAITING);
   if (resolved === null) {
-    lines.push(...convention(known ? [known.row, 'every step'] : ['every step']), `rules: ${rules}`);
+    lines.push(...convention(known ? [known.row, 'every step'] : ['every step']), ENGINE_SKILL_LINE, `rules: ${rules}`);
     return lines;
   }
   const brief = (sources ? briefOfRun(context.doc, context.runDir, sources) : null)?.[node] ?? {};
   const delegates = scheme === 'direct' && !dispatched ? delegatesFor(brief, runHost(context.doc)) : [];
   if (delegates.length) {
     lines[1] = `runs: ${uses} — inline, its delegates dispatched through the Task tool`;
-    lines.push(DELEGATES, ...delegates.map(agent => `- ${dispatchName(agent)}: ${modelText(agent.slice(agent.indexOf(':') + 1), node, context.doc)}`));
+    lines.push(delegatesLine(node), ...delegates.map(each => `- ${dispatchName(each)}: ${modelText(each.slice(each.indexOf(':') + 1), node, context.doc)}`));
   }
+  if (agent || delegates.length) lines.push(sayLine(title));
   const withs = isPlainObject(resolved.with) ? resolved.with : {};
-  const filled = Object.fromEntries(Object.entries(withs).map(([key, value]) => [key, interpolate(value, context)]));
+  const missing = [];
+  const filled = Object.fromEntries(Object.entries(withs).map(([key, value]) => [key, interpolate(value, { ...context, missing })]));
   if (Object.keys(filled).length) lines.push('with:', ...Object.entries(filled).map(([key, value]) => `- ${key}: ${shown(value)}`));
+  lines.push(...missingLines(missing));
 
   const { lines: writes, pages } = writeLines(node, resolved, entry, brief, context, sources);
   if (writes.length) lines.push('writes:', ...writes);
@@ -414,8 +492,54 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
 
   if (section !== null) lines.push(...seeLines(section));
   if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues, delegates));
-  lines.push(`rules: ${rules}`);
+  const closeOut = closeOutLine(node, context);
+  if (closeOut) lines.push(closeOut);
+  lines.push(ENGINE_SKILL_LINE, `rules: ${rules}`);
   return lines;
+}
+
+/** The line on a node recorded `waiting`: its child or its dispatch is still out. */
+const WAITING = 'waiting: its child run or dispatch has not ended — do not run it again';
+
+/** The line a session prints, in the user's words, once it has launched the step's delegate. */
+function sayLine(title) {
+  return `say: "${title} is running. Nothing needed from you; I'll continue when it finishes."`;
+}
+
+/**
+ * One `missing:` line per reference of the step's `with:` that found nothing
+ * recorded, each owner and key once: such a value is the owner's to record,
+ * never a plausible one the session fills in.
+ */
+function missingLines(missing) {
+  const seen = new Set();
+  const lines = [];
+  for (const { owner, key } of missing) {
+    const id = JSON.stringify([owner, key]);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    lines.push(`missing: ${key} from ${owner} — re-drive ${owner} or record the value; never substitute one`);
+  }
+  return lines;
+}
+
+/**
+ * The `close-out:` line at the closing node of a dispatched or a classing run,
+ * or null: the step nothing else the run still owes follows (`atClose`). A
+ * classing run asks `held-approval` from it first; a dispatched one publishes
+ * its close-out before the step's outcome is recorded; a run that is both
+ * does the two in that order.
+ */
+function closeOutLine(node, { doc, runDir }) {
+  const dispatched = isDispatchedRun(doc);
+  const classing = isPlainObject(doc.orchestrator) && doc.orchestrator.classes_questions === true;
+  if (!dispatched && !classing) return null;
+  if (atClose({ doc, runDir }).owed.at(-1)?.id !== node) return null;
+  const held = 'gate-brief --node=held-approval first';
+  const rules = heading => `rules: ${quoted(GATES_FILE)} § ${heading}`;
+  if (!dispatched) return `close-out: ${held}, before recording this step's outcome — ${rules('The closing checkpoint `held-approval`')}`;
+  const publish = "publish through the outbox verb before recording this step's outcome";
+  return `close-out: ${classing ? `${held}, then ${publish}` : publish} — ${rules('Ending a dispatched run')}`;
 }
 
 /**
@@ -469,7 +593,10 @@ const COMPANION_WRITER = 'html-companion-writer';
  * dispatched rather than done in the session. Printed whole, because a step
  * run inline from its section reads the delegate's work as its own to do.
  */
-const DELEGATES = 'delegates: dispatch each agent below through the Task tool, on the model and effort beside it, whatever the size of the project or the task — never do its work in this session. The closing write lists each in "delegated" and is refused without it';
+function delegatesLine(node) {
+  return 'delegates: dispatch each agent below through the Task tool, on the model and effort beside it, whatever the size of the project or the task — never do its work in this session. '
+    + `The closing write lists each in "delegated" and is refused without it — each prompt carries run-context --node=${node} pasted unedited`;
+}
 
 /**
  * An agent as the Task tool takes it: a built-in agent type bare, another
@@ -581,12 +708,15 @@ function askLines(origin, resolved, { doc, state, runDir }, node) {
   if (!ids.length) return [];
   const clarifications = declaredClarificationIds(origin, sectionNameOf(resolved));
   const families = [...familyLines(doc, ids, node), ...readerLines(doc, ids, clarifications, node)];
-  if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}`, ...families];
-  if (!canAsk(doc)) return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies`, ...families];
-  const lines = [`asks (in session): ${ids.join(', ')}`, ...families];
+  if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}${ASKS_TAIL}`, ...families];
+  if (!canAsk(doc)) return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies${ASKS_TAIL}`, ...families];
+  const lines = [`asks (in session): ${ids.join(', ')}${ASKS_TAIL}`, ...families];
   if (runHost(doc) === 'copilot') lines.push(askWithLine(state, runDir, node));
   return lines;
 }
+
+/** The asks line's tail: the reference a node reads before it asks, or defaults, its first question. */
+const ASKS_TAIL = ' — read references/in-node-questions.md before the first';
 
 /**
  * One `families (<id>): <name> — <description>; …` line per declared id whose
@@ -724,8 +854,24 @@ function gateLines({ node, title, resolved, context, convention, rules }) {
       return `${id} (${effect === 'revise' ? `revise → ${option.reruns}` : effect})`;
     }).join(', ')}`);
   }
-  lines.push(...convention(['gate']), `rules: ${rules}`);
+  const held = heldLine(resolved, context);
+  if (held) lines.push(held);
+  lines.push(...convention(['gate']), ENGINE_SKILL_LINE, `rules: ${rules}`);
   return lines;
+}
+
+/**
+ * The `held:` line at a gate the held rule asks while choices wait for
+ * approval: an unguarded gate, or one whose guard reads a step's value. A gate
+ * guarded only by inputs or other gates' values is still skipped by its guard,
+ * so it prints none.
+ */
+function heldLine(resolved, { doc, byId }) {
+  const count = outstandingHeld(doc).length;
+  if (!count || resolved === null) return null;
+  if (typeof resolved.when === 'string' && !guardReadsTask(resolved, nodeKindIn(byId))) return null;
+  const choices = count === 1 ? '1 choice waits' : `${count} choices wait`;
+  return `held: ${choices} for approval — asked whatever its guard reads; its continue approves ${count === 1 ? 'it' : 'them'}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -779,13 +925,13 @@ function sliced(text) {
 // ---------------------------------------------------------------------------
 
 /**
- * The rows under `### Node conventions` in the skill beside this module, by
+ * The rows under `# Node conventions` in `references/node-conventions.md` of the skill beside this module, by
  * their first cell; null when the file, the heading or every row is missing.
  */
 function conventionsOf() {
   let text;
   try {
-    text = fs.readFileSync(SKILL, 'utf8');
+    text = fs.readFileSync(CONVENTIONS_FILE, 'utf8');
   } catch {
     return null;
   }
@@ -829,14 +975,15 @@ const IN_FORCE = 'conventions in force';
 const IN_FORCE_TAIL = 'printed whole by an earlier brief of this session; follow them as printed there, or read them at rules';
 
 // ---------------------------------------------------------------------------
-// interpolation (SKILL.md § Interpolating)
+// interpolation (references/grammar.md § 9)
 // ---------------------------------------------------------------------------
 
 /**
  * A `with:` value with every `${…}` filled in from state. A reference that is
  * the whole string keeps its type; one inside longer text becomes text, a null
  * empty. A reference that finds nothing yields `MISSING`, printed as
- * `(not recorded yet)` wherever it stands.
+ * `(not recorded yet)` wherever it stands; with a `missing` list in the
+ * context, each such reference's owner and key is added to it.
  */
 function interpolate(value, context) {
   if (Array.isArray(value)) return value.map(each => interpolate(each, context));
@@ -851,6 +998,15 @@ function interpolate(value, context) {
 }
 
 function lookup(reference, context) {
+  const found = recordedValue(reference, context);
+  const parts = reference.split('.');
+  if (found === MISSING && context.missing && parts.length === 3 && ['values', 'artifacts'].includes(parts[1])) {
+    context.missing.push({ owner: parts[0], key: parts[2] });
+  }
+  return found;
+}
+
+function recordedValue(reference, context) {
   const parts = reference.split('.');
   if (parts[0] === 'inputs' && parts.length === 2) {
     if (Object.hasOwn(context.inputs, parts[1])) return context.inputs[parts[1]];

@@ -483,7 +483,7 @@ export function validate({ definition, overlays = [], profile = null, mode = 're
  * report was made about, so `resolve` hashes exactly what was validated rather
  * than building a second graph whose own findings nothing would ever look at.
  */
-function inspect({ definition, overlays, profile, mode, project = null }) {
+function inspect({ definition, overlays, profile, mode, project = null, reread = false }) {
   const errors = [];
   const warnings = [];
   const resolved = [];
@@ -512,12 +512,12 @@ function inspect({ definition, overlays, profile, mode, project = null }) {
   warnings.push(...orphanSections(definition, overlays));
   const graph = buildGraph({ definition, overlays, profile, errors });
   if (graph) {
-    checkGraph(graph, errors, warnings, resolved, project);
+    checkGraph(graph, errors, warnings, resolved, project, { reread });
     warnAddedLeaves(graph, warnings);
     warnOwnLeaves(graph, warnings);
     warnSkipGuards(graph, warnings);
     warnSubagentNames(graph, warnings);
-    checkEveryProfile({ definition, overlays, profile, project }, errors);
+    checkEveryProfile({ definition, overlays, profile, project, reread }, errors);
   }
   return { report: { ok: errors.length === 0, errors, warnings, resolved, counts: countsOf(graph), degraded: [] }, graph };
 }
@@ -651,8 +651,13 @@ function delegatedSteps(briefs) {
  * that cannot run would be a value callers could compare and act on, and the
  * whole point of the hash is that two things carrying the same one are the same
  * executable graph.
+ *
+ * `reread` is for a reader of a run already frozen, never for an author or the
+ * freeze: it leaves out the checks only an author acts on (`checkAskReference`),
+ * which move no hash, so a run an older engine froze still proves against its
+ * unchanged definition.
  */
-export function resolve({ definition, overlays = [], profile = null, degraded = [], project = null }) {
+export function resolve({ definition, overlays = [], profile = null, degraded = [], project = null, reread = false }) {
   const provenance = {
     name: definition?.doc?.name ?? null,
     source: definition?.file ?? null,
@@ -696,7 +701,7 @@ export function resolve({ definition, overlays = [], profile = null, degraded = 
     };
   }
 
-  const { report, graph } = inspect({ definition, overlays, profile, mode: 'resolved', project });
+  const { report, graph } = inspect({ definition, overlays, profile, mode: 'resolved', project, reread });
   if (!report.ok) {
     // Where each target resolved, and how many nodes and gates it holds, are
     // `validate`'s findings to report; this verb's output is the graph and its
@@ -1709,13 +1714,13 @@ function checkProfileChoice(overlays, profile, file, errors) {
  * profile produces is prefixed with the profile's name, because the file and
  * path it names may be the base's, which is correct without the profile.
  */
-function checkEveryProfile({ definition, overlays, profile, project }, errors) {
+function checkEveryProfile({ definition, overlays, profile, project, reread = false }, errors) {
   const seen = new Set(errors.map(findingKey));
   for (const name of declaredProfiles(overlays)) {
     if (name === profile) continue;
     const found = [];
     const graph = buildGraph({ definition, overlays, profile: name, errors: found });
-    if (graph) checkGraph(graph, found, [], [], project);
+    if (graph) checkGraph(graph, found, [], [], project, { reread });
     for (const error of found) {
       const key = findingKey(error);
       if (seen.has(key)) continue;
@@ -2683,7 +2688,7 @@ function isPresent(value) {
   return value !== undefined && value !== null;
 }
 
-function checkGraph(graph, errors, warnings, resolved = [], project = null) {
+function checkGraph(graph, errors, warnings, resolved = [], project = null, { reread = false } = {}) {
   const { file, inputs, outputs, displays, companions, briefs, nodes, origins, removed } = graph;
 
   checkInputs(inputs, file, errors);
@@ -2726,6 +2731,7 @@ function checkGraph(graph, errors, warnings, resolved = [], project = null) {
     const origin = origins.get(id) ?? file;
     checkWhen(node, id, `nodes.${id}`, origin, errors, { inputs, nodes, closure: closures.get(id) });
     checkInterpolations(node, id, `nodes.${id}`, origin, errors, { inputs, nodes, closure: closures.get(id) });
+    if (!reread) checkAskReference(node, id, `nodes.${id}`, origin, errors);
     checkRevise(node, id, `nodes.${id}`, origin, errors, { nodes, closures });
   }
 
@@ -3413,16 +3419,33 @@ function checkWhenReference(operand, id, dotted, file, errors, scope) {
  * referencing node's `needs` closure — nothing else can have been produced by
  * the time the node runs, so nothing else can be interpolated into it.
  *
- * `with` is the bulk of it, but not the whole: `dir` reaches a file path and
- * `ask` is read aloud to the operator. A reference left unchecked in any of
- * them interpolates to nothing at run time, which is a silent wrong answer
- * rather than a rejection. (`on` is not among them: it is one of three words.)
+ * `with` is the bulk of it, but not the whole: `dir` reaches a file path. A
+ * reference left unchecked in either interpolates to nothing at run time,
+ * which is a silent wrong answer rather than a rejection. (`on` is not among
+ * them: it is one of three words. Nor is `ask`: it is shown to the person as
+ * written, so a reference there is refused by its own rule below.)
  *
  * A `${` that never closes is not a reference at all, so the pattern never
  * matches it and it used to pass as literal text — an author who wrote
  * `${inputs.version` meant a reference and got the characters.
  */
-const INTERPOLATED_KEYS = ['with', 'dir', 'ask'];
+const INTERPOLATED_KEYS = ['with', 'dir'];
+
+/**
+ * A gate's `ask` reaches the person as written, so a `${…}` in it would show
+ * as those characters. The refusal names the reference and what to do instead.
+ *
+ * An author's check: `validate` and the freeze make it, and the re-read of a
+ * run already frozen leaves it out (`resolve`'s `reread`). It moves no hash, and
+ * a run frozen by an engine that did not yet make it would otherwise read as
+ * drifted, its definition unresolvable, though no file changed.
+ */
+function checkAskReference(node, id, at, file, errors) {
+  if (node.type !== 'gate' || typeof node.ask !== 'string' || !node.ask.includes('${')) return;
+  const ref = node.ask.match(/\$\{[^}]*\}/)?.[0] ?? node.ask;
+  fail(errors, file, `${at}.ask`,
+    `ask is shown to the person as written, so ${ref} would reach them as those characters: word the question without it and have a node the gate needs name the value in its summary, which the gate brief shows beside the question; a reference belongs in with: or dir:`, id);
+}
 
 function checkInterpolations(node, id, at, file, errors, scope) {
   for (const key of INTERPOLATED_KEYS) visit(node[key], `${at}.${key}`);

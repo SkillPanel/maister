@@ -10,8 +10,8 @@ cause and the fix. Problems specific to GitHub Copilot CLI are in
 needs Node.js 20 or newer, and the run ends with `RUN-FAILED: node-unavailable`.
 
 **Cause.** Every workflow runs on the workflow engine, which is a Node.js program. Before it writes
-anything, the engine runs `node --version`. When that fails, or reports a version below 20, it
-stops. The plugin's hooks also run on Node.js.
+anything, the engine checks the version of Node.js it runs on. When `node` does not run at all, or
+its version is below 20, the workflow stops. The plugin's hooks also run on Node.js.
 
 **Fix.** Install Node.js 20 or newer where you run Claude Code or Copilot CLI. Check it with
 `node --version` in the same shell you start the session from, then start a new session and run

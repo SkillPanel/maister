@@ -1,0 +1,22 @@
+# A project definition whose checkpoint question carries a reference. An `ask:`
+# is shown to the person as written, so `validate` refuses the reference there,
+# naming the file, the node and the field, and what to do instead.
+name: ask-reference
+version: 1
+inputs:
+  topic: {type: string, required: false}
+
+nodes:
+  implementation:
+    uses: skill:implementation-plan-executor
+    needs: []
+    with:
+      topic: "${inputs.topic}"
+
+  approval:
+    type: gate
+    needs: [implementation]
+    ask: "Approve the plan for ${inputs.topic}?"
+    options:
+      continue: continue
+      stop-here: stop

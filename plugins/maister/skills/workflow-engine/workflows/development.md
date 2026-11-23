@@ -7,20 +7,17 @@ The engine executes every `direct:` node from its section below.
 
 ## `intake`
 
-**Does.** Establishes, before any analysis, the task directory, the state file
-and the context ingests the rest of the run reads from.
+**Does.** Establishes, before any analysis, the context ingests the rest of the
+run reads from.
 
-1. **Initialize** as `orchestrator-patterns.md` § 5 says.
-2. **Read the project configuration** for `options.mockup_format` (default
-   `html`, read later by `ui-mockups`). `mockup_format` takes `html` or `ascii`;
-   any other value is `html`, recorded as `html`, and the intake names the
-   replaced value in one line of its summary.
-3. **Discover the project documentation** — read the documentation index under
+1. **Create no task directory.** The freeze made it, with the state file, and
+   recorded `options.mockup_format` itself, which `ui-mockups` reads.
+2. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation sections, predefined and operator-added alike. Record
    them as `project_context.project_doc_paths`, a top-level block of its own.
    The recorded paths never include `INDEX.md` itself or any file under `standards/`: those reach every delegate through the index.
-4. **Detect research context** — when the invocation named a completed research
+3. **Detect research context** — when the invocation named a completed research
    task, as the sole argument or through the research input, bring its report and
    artifacts under `analysis/research-context/` with `import` (its row: the engine's `references/verbs.md`). Record
    `task_context.research_reference`: the source path, the copied path, the
@@ -28,7 +25,7 @@ and the context ingests the rest of the run reads from.
    **informs** every later node and skips none of them, so a source the verb
    skips becomes an `open` risk naming each skipped file and the source path
    the later nodes read it at, and the node goes on.
-5. **Ingest design context from four sources** and unify them under
+4. **Ingest design context from four sources** and unify them under
    `analysis/design-context/`: a product-design task path, named in the
    description or supplied through the design input, whose brief is imported
    as `brief.md` and whose mockups under `mockups/` — its flat latest view
@@ -89,7 +86,7 @@ and the context ingests the rest of the run reads from.
    table does not judge it. When it resolves to neither kind of task — nothing
    there, or neither a brief nor a decision — say so in one line in the node
    summary and continue without it.
-6. **Ingest the architecture** when the architecture input names one: a
+5. **Ingest the architecture** when the architecture input names one: a
    high-level design document, or a research task directory whose
    `outputs/high-level-design.md` is that document. Import it into
    `analysis/architecture-context/` as `high-level-design.md`, and
@@ -100,19 +97,19 @@ and the context ingests the rest of the run reads from.
    file, say so in one line in the node summary and continue without it; when
    the verb skips a file that exists, record an `open` risk naming it and its
    source path, which the specification and the plan then read instead.
-7. **Generate the design index** when a mockup page was imported or a
+6. **Generate the design index** when a mockup page was imported or a
    design-tool link recorded — one row per screen or component with a stable id,
    its source mockup and a one-line description. For a quick-design task the
    rows are only for the imported slugs (for ASCII, the chosen anchors). There
    is no index when no page was imported and no link recorded: a decision or a
    brief alone has no screens to index.
    Downstream nodes reference screens by those ids and by nothing else.
-8. **Record `task_context.design_reference`** whenever a design ingest happened
+7. **Record `task_context.design_reference`** whenever a design ingest happened
    — which of the four sources supplied it, the product-design or quick-design
    task path when that was the source, how many pages were copied, whether a
    brief or a decision came with them, and the index path when there is an
    index. It stays unset when no source existed.
-9. **Ingest a context pack** when the context input names one — a file or a
+8. **Ingest a context pack** when the context input names one — a file or a
    directory handed over by whatever started the run. Import it under
    `analysis/work-context/` as it is, and record `task_context.work_reference`
    with its `path` as given. The pack has no shape the run may assume: read it
@@ -407,8 +404,8 @@ report is the auditor's: if it returns the report as text and the file does not
 exist, write that text to the path verbatim, once; never append to, edit or
 annotate it. Record the verdict in state.
 
-**The fix pass follows `orchestrator-patterns.md` § 6**, *The Specification
-Audit's Fix Pass*, step by step; the amend passes go to the
+**The fix pass is the specification audit's** (the engine's
+`references/in-node-questions.md` § *The specification audit's fix pass*), step by step; the amend passes go to the
 `maister:specification-creator` agent through the Task tool, each with the model
 and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:specification-creator
 --host=claude --state=<task path>/orchestrator-state.yml --node=spec-audit` prints.
@@ -433,7 +430,7 @@ the findings still open in plain words; when no re-audit ran, say that the
 report still lists the findings the run fixed. In `decisions`, only a point the
 spec left open that the audit resolved against the codebase, `by: audit`; a
 check that merely confirmed the spec goes in the summary. In `risks`, the
-findings still open as § 6 step 6 hands them, their `change` what a revise of
+findings still open as that fix pass's step 6 hands them, their `change` what a revise of
 the specification would do. The entry carries the verdict as `verdict`.
 
 **Budget.** None: an audit that returns is an audit, whatever its verdict; a
@@ -572,7 +569,7 @@ the same rule, recorded as `user_docs_enabled`.
 gates its own companion on the HTML output option.
 
 **The loop runs in the verifier's hand-off**: with `work_log: true`, it hands
-the cycles and the fix passes of `orchestrator-patterns.md` § 6 to the
+the cycles and the fix passes (`<plugin root>/agents/verification-runner.md` § *The fix pass*) to the
 verification runner when the run records `nested` delegation, and runs them
 here otherwise. Either way this node asks only the decisions the loop hands
 back, as below. What this node adds: **each fix is also logged in the work
@@ -618,14 +615,13 @@ round. With a critical issue open it carries `triage: {version: 1, class: approv
 `tdd-green` ran, it also says the failing test now passes. In `summary`, the
 total issues found, how many were fixed and how many remain by severity. In
 `decisions`, each review finding the verifier itself settled, `by: audit`. In
-`risks`, what § 6 step 9 hands the gate, the critical ones first; when the user
+`risks`, what a verification loop hands its gate (the engine's `references/gates.md` § *Before every gate — the gate brief*), the critical ones first; when the user
 chose "Stop", one `stop` risk saying why the run should not go on. When the
-loop ended undecided, the go-on choice is recorded as not taken (§ 6 step 10).
+loop ended undecided, the go-on choice is recorded as not taken (the engine's `references/in-node-questions.md` § *Findings that need a decision*).
 `verification_context.last_status`, `suite_run`, `issues_found` and `reviews`,
 which the verifier records every cycle, are not repeated.
 
-**Unchecked work recommends no way on** (`orchestrator-patterns.md` § 6 step
-9). Whether the suite ran the gate reads from `verification_context.suite_run`
+**Unchecked work recommends no way on** (the engine's `references/gates.md` § *Before every gate — the gate brief*). Whether the suite ran the gate reads from `verification_context.suite_run`
 itself: `not_run`, or not recorded, and it recommends neither continue. Each
 done-when line of the task the verification could not confirm with evidence is
 an `open` risk naming the line ("Not confirmed: <the line>"); with any such
@@ -681,7 +677,8 @@ corrupts both sessions.
 Read the verifier's structured result, never its prose: `verdict` is the
 verdict the summary reports; `status: failed`, with `verdict: null`, means the
 verification could not run, which is a finding (the budget below). Its
-`companion` follows `orchestrator-patterns.md` § 9.
+`companion` is the page's own status: a `failed` one, or a `companion-missing:` line, is
+recovered as the engine's `references/writing-state.md` § *A missing or stale companion* says.
 
 **Summary.** The `headline` gives the verdict and the scenario counts ("Browser
 checks pass: 9 of 10 scenarios, one failing on the empty board"). In `summary`,
@@ -748,7 +745,9 @@ than retried.
    report always; the TDD gate artifacts, the mockups and their index, the
    audit, the browser reports and the user guide when the stretches that produce
    them ran. Say plainly which stretches were skipped and why. Take the
-   inventory from disk as `orchestrator-patterns.md` § 10 says.
+   inventory from disk: `run-complete` names a declared artifact or page that never reached it,
+   and any path a summary lists beyond the declarations is checked too (the engine's *Recording
+   an outcome*).
 2. **Present the executive summary**: what was built, which task groups landed,
    the verification verdict with any issues left open, and the risk level the
    gap analysis recorded.
@@ -762,7 +761,7 @@ than retried.
    and effort
    `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude --state=<task path>/orchestrator-state.yml --node=finalization`
    prints,
-   `orchestrator-patterns.md` § 1): "Consolidate standard candidates.
+   the engine's `references/verbs.md` § *Model and effort on every agent call*): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]." It
    merges duplicates, matches each against what the project's standards and
    documents already hold, suggests a destination and returns each with its
@@ -856,7 +855,7 @@ candidate; with no candidates there is no such line.
 **No close-out while a choice is held**: when the freeze recorded
 `orchestrator.classes_questions`, this node runs
 `gate-brief --node=held-approval` before its closing patch and before any
-close-out, and acts on its outcome as the engine's *Ending a dispatched run*
+close-out, and acts on its outcome as the engine's `references/gates.md` § *Ending a dispatched run*
 says.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out

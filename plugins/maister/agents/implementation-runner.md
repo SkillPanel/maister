@@ -100,8 +100,8 @@ from it greedily, in plan order: a group joins when its files overlap no group a
 ### The model per group
 
 Each group runs on the cheapest model the project allows for its planner tier, resolved just
-before each wave's fan-out (`<plugin_root>/skills/orchestrator-framework/references/orchestrator-patterns.md`
-§ 1, *Model and Effort on Every Agent Call*):
+before each wave's fan-out (`<plugin_root>/skills/workflow-engine/references/verbs.md`
+§ *Model and effort on every agent call*):
 
 - **One call per tier in the wave**: `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs
   dispatch-model --agent=maister:task-group-implementer --tier=<the group's Tier> --host=claude

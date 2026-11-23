@@ -53,10 +53,10 @@ Send the answer only**: never compose provenance stamps, triage, settlement or a
     `default` that carries it is refused with `state-on-behalf-of-not-operator`.
   - The dashboard shows such an answer as "<on_behalf_of> (via <answered_by>)".
   - An answer without `on_behalf_of` is recorded as it always was.
-- **Triage**, under a policy that classifies the gate (engine Step 4) and whose hash is the run's
-  recorded `policy_hash`: the writer adds `triage` to the answer item, and right after it one
-  settlement item per value the chosen continue `sets`; the gate's answer is still its last
-  decision with an `option`.
+- **Triage**, under a policy that classifies the gate (`references/writing-state.md` § *What
+  the freeze write adds*) and whose hash is the run's recorded `policy_hash`: the writer adds
+  `triage` to the answer item, and right after it one settlement item per value the chosen
+  continue `sets`; the gate's answer is still its last decision with an `option`.
 - **Approvals.** A continue at a gate — or at `held-approval` — while choices are held for
   approval (`references/in-node-questions.md` § *When the policy classes a question*) approves
   every one of them: the writer records one approval item per held choice. A held question with
@@ -71,7 +71,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
 - **Every node a gate needs writes a non-empty `summary`** in its closing `node_summaries`
   entry, in the same patch that marks it `completed`. The fields beside it — `headline`,
   `decisions` and their `by`, `fixes_applied`, `risks` and their tags — mean what the summary
-  contract says (`orchestrator-patterns.md` § 4, *Shared: node_summaries entry shape*), and
+  contract says (`references/node-summaries.md`), and
   every one is written for the user, by engine § *Speaking to the user*. What the gate adds:
   - **`headline`**, at most 220 characters, opens the checkpoint as *Done*; without it, *Done*
     is the summary's first sentence.
@@ -109,6 +109,13 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     `not_run`, or is not recorded for that node's current attempt, the brief marks no option, and
     each continue's consequence says why. The checkpoint then carries `recommended: {option:
     null, reason}`, the driven line reads `Recommended: none`, and no picker marks an option.
+  - **What a verification loop hands its gate**: an issue still needing a decision is an `open`
+    risk with the fix as its `change`; an item left for later a `followup` risk; an accepted one a
+    `tradeoff` risk; a spent budget with a critical issue still open a `stop` risk, which makes
+    Stop the gate's recommended answer. Each done-when line of the task — its acceptance criteria
+    or "done when" lines — that the verification could not confirm with evidence (a passing test,
+    a review's finding that it is built) is an `open` risk naming the line ("Not confirmed: <the
+    line>"), and the node's `recommends` is `{option: null, reason}` naming how many.
 
   Items written as strings are still read (`open:`, `tradeoff:`, `followup:`, `left for later:`,
   `recommend stop:` prefixes; untagged reads as `open`); write new items typed. The writer
@@ -203,8 +210,8 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   the warning as it is. The brief still renders, *Next* says the next node is unknown, and the
   gate is still asked. A `gate-brief-needs-unknown` warning beside it says the summary is the
   nearest recorded one, because what the gate closes is unknown; relay it too. The run keeps
-  the graph it froze; the ways on are in the engine SKILL.md, *A changed definition never
-  re-freezes an open run*.
+  the graph it froze; the ways on are in `writing-state.md` § *When a write is refused*,
+  *A changed definition never re-freezes an open run*.
 
 **The checkpoint covers the whole stretch the gate closes**: every node the gate needs and every
 other node back to the previous gate that recorded a summary, an overlay's included, their
@@ -214,7 +221,7 @@ asked the decision areas of a node behind it, that node's `open` risks are left 
 written before any answer, and the asking node's own risks, written after the answers, say what
 is still open. A summary further back never stands in for
 the closing node's own, and neither does a skipped node: without one, the brief is refused
-`gate-brief-no-summary` — unless a held choice is why the gate is asked (engine § *The ready set*), when
+`gate-brief-no-summary` — unless a held choice is why the gate is asked (`references/in-node-questions.md` § *When the policy classes a question*), when
 its *Done* reads `Skipped.` and the held choices lead.
 
 **What the checkpoint shows is the verb's to compose.** The one-line ask (`<what finished> Ready
@@ -300,8 +307,8 @@ one line with no `"` and carrying its checked `evidence` and `cites` when it nam
 top level repeats the first question's); the patch file is read and kept, for the request to be written
 over it.
 
-`--node=held-approval` briefs the run's closing checkpoint, in every form (engine § *The ready
-set*). When the asking node recorded `asking` (`references/in-node-questions.md` § *When the
+`--node=held-approval` briefs the run's closing checkpoint, in every form
+(`references/in-node-questions.md` § *When the policy classes a question*). When the asking node recorded `asking` (`references/in-node-questions.md` § *When the
 policy classes a question*), a question set's `--checkpoint` and `--request` carry only those
 questions.
 
@@ -557,7 +564,7 @@ A refusal at step 3 is `state-question-answer-invalid` (`references/writing-stat
 answer, its status written `completed`. The suspend left the closing node `running`, and a
 running node is never in the ready set, so do not take the ready set first:
 - after a continue — the empty-patch re-validation records the approvals — or a stop, carry on
-  with the closing node at its close-out step (engine § *Ending a dispatched run*);
+  with the closing node at its close-out step (*Ending a dispatched run*);
 - after a revise, run `gate-revise --node=held-approval` with the note, as *Revising at a gate*
   says; it resets the stretch, the closing node included, and then the ready set is taken.
   `resume-check` reports such a revise `applied: false` until it has run.
@@ -633,10 +640,10 @@ its note is asked again for it (*Revising at a gate*).
 ## The closing checkpoint `held-approval`
 
 When no checkpoint follows a held choice, the run raises one of its own before it closes, under
-the held rule (engine § *The ready set*). `held-approval` is a reserved id, never a node of the
+the held rule (`references/in-node-questions.md` § *When the policy classes a question*). `held-approval` is a reserved id, never a node of the
 frozen graph, so no definition and no `graph_hash` changes. In a run that records
 `classes_questions`, the closing node runs `gate-brief --node=held-approval` before its closing
-patch and, in a dispatched run, before its close-out (engine § *Ending a dispatched run*):
+patch and, in a dispatched run, before its close-out (*Ending a dispatched run*):
 - `gate-brief-nothing-held` — nothing waits: close the run as usual;
 - otherwise it is asked like a gate, by the run's driver: in session with the picker, or suspended
   with `gate-request` — the writer accepts its `status` writes for exactly this. The brief
@@ -659,6 +666,30 @@ checkpoint has such a revise — a sub-run ready to start after the step counts 
 and the writer refuses to start it (`state-subrun-held-open`) — `held-approval` is asked at that
 point instead, and its revise, with the choice in the note, re-runs the step and everything
 after it.
+
+## Ending a dispatched run
+
+**A dispatched run's close-out publishes through the outbox close-out verb** — carrying the
+grade and the summary the seed's close-out contract asks for — **and the closing node records
+its outcome value only after that publish succeeded.** The outbox is the chain's only way to learn a dispatch is over, so `run-complete` refuses a run that never
+published. If the outbox cannot be written, the outbox verb hands back a `DISPATCH-RESULT:` line
+instead; that line is then the turn's last line and no `RUN-COMPLETE` is owed. A run that is
+not dispatched has no outbox. Omitting `run-complete`'s `--outbox` and `--dispatch-id` is refused like an unpublished close-out.
+
+**No close-out while a choice is held.** In a run that records `classes_questions`, the closing
+node runs `gate-brief --node=held-approval` before it publishes anything, and publishes only
+after one of these:
+- `gate-brief-nothing-held`: publish as usual;
+- a continue: the approvals are recorded, then publish as usual;
+- a stop: publish the close-out a stopped dispatch owes;
+- the driver's request writer refusing the `held-approval` request: publish the close-out graded
+  `failed`, its summary naming each held choice — node, question, choice — as awaiting approval;
+  then write the closing patch recording `task.status: completed`, never `failed`, and run
+  `run-complete`, which ends the run `RUN-FAILED: run-held-unapproved`. Only a completed run is
+  judged for held choices; a failed one would end on a failed-node marker and hide them.
+
+`run-complete` judges held choices before the close-out, so a close-out published too early
+never ends such a run `RUN-COMPLETE`.
 
 ## Revising at a gate
 
@@ -744,8 +775,8 @@ had been continue.
 **For a held choice.** While choices are held for approval, a frozen gate offers, beside its own
 options, one `revise-<node>` for each node holding a choice that sits behind it (in its needs
 closure) and that none of its own revises already re-runs — its note required, never
-recommended except under the no-choice rule (engine § *The ready set*). Its stretch, count and
-ceiling are the gate's own; it is not offered at the ceiling, when its id is one of the gate's
+recommended except under the no-choice rule (*The closing checkpoint `held-approval`*). Its
+stretch, count and ceiling are the gate's own; it is not offered at the ceiling, when its id is one of the gate's
 own options, or when its stretch holds a sub-run that has started. `gate-revise
 --node=<gate> --option=revise-<node>` applies it like any revise. It approves nothing; the other
 held choices stay held for the next continue.
@@ -753,7 +784,8 @@ held choices stay held for the next continue.
 **At `held-approval`.** The closing checkpoint has a revise rule of its own: `revise-<node>` names a
 node that holds a choice, and its stretch is that node and every frozen node downstream of it,
 the closing node included, all reset in one write; a run already recorded `completed` goes back to
-`in_progress`, and the checkpoint back to `pending`. Its revision count is the revises already
+`in_progress`, and the checkpoint back to `pending`. In a dispatched run a revise publishes nothing:
+the stretch, the closing node included, runs again. Its revision count is the revises already
 recorded on `node_summaries.held-approval`, plus one, against the same safety ceiling of ten. The note
 reaches the re-run node through `prior-context`, as any revise's does. The refusals below hold
 for it too: an option naming no node that holds a choice, the checkpoint not current — another
@@ -772,4 +804,4 @@ holding a sub-run, a missing note.
 
 `stopped` is not only a status for unexecuted nodes: a `workflow:` node whose child run stopped
 ran, waited and adopted that outcome, so it is recorded `stopped` **with** a summary, mirrored to
-`skipped` per engine § *Recording an outcome*. The unexecuted nodes carry none, which tells the two apart.
+`skipped` per `references/writing-state.md` § *Recording an outcome — the detail*. The unexecuted nodes carry none, which tells the two apart.

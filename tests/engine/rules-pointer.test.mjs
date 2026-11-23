@@ -22,7 +22,9 @@ const AREAS = pointer('in-node-questions.md', 'Decision areas from the brainstor
 const FINDINGS = pointer('in-node-questions.md', 'Findings that need a decision');
 const WRITE_REFUSED = pointer('writing-state.md', 'When a write is refused');
 const COMPLETE_REFUSED = pointer('writing-state.md', 'When `run-complete` refuses');
-const NODE_BRIEF = `${path.join(ENGINE_DIR, 'SKILL.md')} § Node conventions`;
+const WRAP_UP = pointer('writing-state.md', 'Ending the run — the wrap-up');
+const COMPANION = pointer('writing-state.md', 'A missing or stale companion');
+const NODE_BRIEF = `${path.join(ENGINE_DIR, 'references/node-conventions.md')} § Node conventions`;
 
 const BUDGET = 1600;
 
@@ -279,7 +281,7 @@ test('gate-brief: the brief before the pointer keeps within the budget at a gate
 // ---------------------------------------------------------------------------
 
 test('every pointer names a reference that exists and a heading of that reference, spelled exactly', () => {
-  for (const rules of [GATE_BRIEF, REVISING, AREAS, FINDINGS, WRITE_REFUSED, COMPLETE_REFUSED, NODE_BRIEF]) {
+  for (const rules of [GATE_BRIEF, REVISING, AREAS, FINDINGS, WRITE_REFUSED, COMPLETE_REFUSED, NODE_BRIEF, WRAP_UP, COMPANION]) {
     const [file, heading] = rules.split(' § ');
     assert.ok(fs.existsSync(file), `${path.relative(ENGINE_DIR, file)} exists`);
     const headings = fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n').split('\n')
@@ -304,7 +306,7 @@ test('the frozen-workflow refusal and an unfinished close each name the writing-
 
 test('every existing pointer keeps its printed path, byte for byte, under the engine skill\'s references', t => {
   // The pointer table names files relative to the engine skill directory, so it
-  // can point at SKILL.md too; the six pointers the verbs printed before stay
+  // can point at SKILL.md too, and the conventions pointer names its own reference; the six pointers the verbs printed before stay
   // spelled exactly as they were.
   const spelled = (file, heading) => `${ENGINE_DIR}${path.sep}references${path.sep}${file} § ${heading}`;
   const run = atApproval(t);
@@ -349,4 +351,41 @@ test('node-brief: the one verb whose pointer is not the last paragraph — a hea
   const refused = verb(['node-brief', `--state=${run.state}`, '--node=nowhere']);
   assert.equal(refused.code, 1);
   assert.doesNotMatch(refused.stderr, /rules:/);
+});
+
+test('run-complete: a successful close under a terminal driver names the wrap-up section, on stderr only', t => {
+  const run = scratch(t);
+  freeze(run);
+  fs.mkdirSync(path.join(run.dir, 'analysis'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, 'analysis/report.md'), '');
+  write(run, {
+    task: { status: 'completed' },
+    nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'completed' }, research: { status: 'completed' } },
+    node_summaries: { analysis: SUMMARY },
+  });
+  const result = verb(['run-complete', `--state=${run.state}`]);
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  assert.deepEqual(linesOf(result.stderr), [`rules: ${WRAP_UP}`]);
+});
+
+test('write-state: the companion lines close on one pointer to their recovery, on stdout, and a write that names none prints none', t => {
+  const run = scratch(t, { type: 'companion-check', name: '2026-01-05-companion-check' });
+  freeze(run, {
+    definition: path.join(FIXTURES, 'definitions/companion-check.yml'),
+    orchestrator: { driver: { kind: 'cockpit', cwd: '/work' }, options: { inputs: { deep: false }, html_output: true } },
+  });
+  fs.mkdirSync(path.join(run.dir, 'analysis'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, 'analysis/report.md'), '# Page\n');
+  const result = verb(['write-state', `--state=${run.state}`], { nodes: { draft: { status: 'completed' } } });
+  assert.equal(result.code, 0, result.stderr);
+  const paragraph = result.stdout.split('\n\n').find(block => block.startsWith('companion-missing: '));
+  assert.deepEqual(paragraph.split('\n'), ['companion-missing: draft analysis/report.html', `rules: ${COMPANION}`]);
+  assert.equal(result.stdout.split('\n').filter(line => line.startsWith('rules: ')).length, 1);
+  assert.equal(result.stderr, '');
+
+  fs.writeFileSync(path.join(run.dir, 'analysis/report.html'), '<p>Page</p>\n');
+  const quiet = verb(['write-state', `--state=${run.state}`], { nodes: { review: { status: 'running' } } });
+  assert.equal(quiet.code, 0, quiet.stderr);
+  assert.ok(!quiet.stdout.includes('rules: '), quiet.stdout);
 });

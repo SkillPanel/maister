@@ -151,6 +151,12 @@ const NO_VALUES = new Set(['skipped', 'stopped', 'failed']);
 /** One operand of a `when` guard: an optional `!`, then `${inputs.k}` or `${node.values.k}`. */
 const WHEN = /^(!?)\$\{([a-z][a-z0-9-]*)\.(?:(values)\.)?([a-z_]+)\}$/;
 
+/** What every graph-drift warning ends with: the two ways on, with the run's recorded `workflow.source` filled in. */
+export function driftClause(workflow) {
+  const source = typeof workflow?.source === 'string' && workflow.source !== '' ? workflow.source : null;
+  return ` — no verb re-freezes: put back ${source ?? 'the definition the state\'s workflow.source names'} or start a new run; never revert a person\'s edit unasked`;
+}
+
 /** The drift form of the Next line, and the recommendation when no option is known. */
 const NEXT_UNKNOWN = 'Next: unknown — the definition changed since the freeze';
 
@@ -267,7 +273,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   if (current.drift) {
     warnings.push({
       code: 'gate-brief-graph-drift',
-      message: `gate-brief-graph-drift: ${digest(workflow.graph_hash) ?? 'none recorded'} vs ${current.digest ?? 'unresolvable'} — the Next line is unknown`,
+      message: `gate-brief-graph-drift: ${digest(workflow.graph_hash) ?? 'none recorded'} vs ${current.digest ?? 'unresolvable'} — the Next line is unknown${driftClause(workflow)}`,
     });
   }
   const graph = current.graph;
@@ -693,7 +699,7 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   if (current.drift) {
     warnings.push({
       code: 'gate-brief-graph-drift',
-      message: `gate-brief-graph-drift: ${digest(workflow.graph_hash) ?? 'none recorded'} vs ${current.digest ?? 'unresolvable'} — the Next line is unknown`,
+      message: `gate-brief-graph-drift: ${digest(workflow.graph_hash) ?? 'none recorded'} vs ${current.digest ?? 'unresolvable'} — the Next line is unknown${driftClause(workflow)}`,
     });
   }
   const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
@@ -2025,7 +2031,8 @@ export function reread(doc, workflow, runDir) {
   // the hash comparison is what still has to hold.
   const version = definition.doc.version;
   const degraded = version !== undefined && version !== null && version !== KNOWN_VERSION ? [NEWER_FORMAT] : [];
-  const graph = resolve({ definition, overlays, profile: workflow.profile ?? null, degraded });
+  // A re-read of a frozen run: the checks only an author acts on stay out.
+  const graph = resolve({ definition, overlays, profile: workflow.profile ?? null, degraded, reread: true });
   const defaults = defaultsOf(definition.doc);
   const display = displayOf({ definition, overlays, profile: workflow.profile ?? null });
   if (!graph.ok) return drifted(null, defaults, display);
@@ -2656,6 +2663,41 @@ export function atClose({ doc, runDir }) {
   const skipped = ids.filter(id => recordedStatus(id) === 'pending' && status.get(id) === 'skipped');
   return { owed: ids.filter(id => owed.has(id)).map(id => owed.get(id)), skipped, graph, drift: current.drift };
 }
+
+/**
+ * What a write that completed or skipped a node leaves to do, for the state
+ * writer's `next:` line: `{id, title}` for the node due next, `{id: null}` when
+ * nothing is left for the run but its closing patch, or null when nothing is
+ * due yet and the run is not done — a step waiting on its child run, or one
+ * started and not ended.
+ *
+ * The node due next is the one `node-brief` holds every later start behind:
+ * the first pending node in frozen order whose needs settle by the ready-set
+ * rule. Its guard is not read here: a guard that reads false is the brief's to
+ * report, and the session records the step skipped from it. Nothing is left
+ * when no node is pending and due and none started without ending, and also
+ * when the task already records how it ended, since the closing patch is then
+ * the write just made. The edges are the freeze's and `on` the re-read
+ * definition's, trusted only when it hashes to the freeze, as for `atClose`.
+ */
+export function dueNext({ doc, runDir }) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const ids = frozenIds(recorded);
+  if (!ids.length) return null;
+  const task = isPlainObject(doc.task) ? doc.task : {};
+  if (RUN_ENDINGS.has(task.status)) return null;
+  const current = reread(doc, workflow, runDir);
+  const byId = new Map((current.drift ? [] : current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
+  const status = new Map(ids.map(id => [id, entryOf(recorded, id).status ?? 'pending']));
+  const due = ids.find(id => status.get(id) === 'pending'
+    && readiness(needsOf(recorded, byId, id).map(need => status.get(need)), byId.get(id)?.on) !== 'waiting');
+  if (due !== undefined) return { id: due, title: titleOf(current.display?.titles, due) };
+  return ids.some(id => status.get(id) !== 'pending' && !ENDED.has(status.get(id))) ? null : { id: null };
+}
+
+/** The `task.status` values a run's closing patch records. */
+const RUN_ENDINGS = new Set(['completed', 'failed', 'stopped']);
 
 /**
  * The needs a starting or completing node finds unsettled, for the state
