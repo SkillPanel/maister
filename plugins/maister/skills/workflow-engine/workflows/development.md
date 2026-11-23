@@ -818,7 +818,9 @@ than retried.
    message covering the change; a review of the diff; a pull request; and
    deployment as the project's own process has it. Suggest a fresh session for
    whatever comes next. **Write the commit message to `commit-message.txt` in
-   the task directory** and name the file; never print the message itself.
+   the task directory** and name the file; never print the message itself. The
+   message carries no attribution trailer — no `Co-Authored-By`, no "Generated
+   with" line — unless the project's own instructions ask for one.
 8. **Publish when the plan gate granted it.** Only when `planning-approval-publish`
    completed on its continue — read from state; under the plain plan gate this
    step does not exist. Commit what the run changed on its own branch if any of

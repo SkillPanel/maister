@@ -176,7 +176,7 @@ If any section is missing, add it before calling ExitPlanMode.
 - **Standards applied**: Which standards from INDEX.md were followed
 - **Docs index**: the check's result (below)
 - **Tests**: Which tests were run and their results (including the TDD red→green transition)
-- **Commit suggestion**: Propose a commit message
+- **Commit suggestion**: Propose a commit message, with no attribution trailer (no `Co-Authored-By`, no "Generated with" line) unless the project's own instructions ask for one
 
 **Post-implementation standards check (mandatory):** after the test is green, go through the `## Standards Compliance Checklist` from the plan file and verify each item as the reference's *Verifying the checklist* says — mark pass/fail and report it in the summary. Address any failure before marking the task complete.
 
