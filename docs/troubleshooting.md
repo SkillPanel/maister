@@ -37,6 +37,25 @@ Checkpoints are asked whatever your permission mode, so allowing these takes no 
 from you. On Copilot CLI, see
 [Approving the engine's commands](copilot.md#approving-the-engines-commands).
 
+## Claude Code asks to allow a read outside the working directories
+
+**Symptom.** In auto mode, Claude Code stops and asks "Allow this read outside the working
+directories?", with "Yes, and keep allowing" as the first answer.
+
+**Cause.** Since Claude Code 2.1.257, auto mode asks once, at the first read outside the folders
+the session works in. The Maister plugin is installed outside your project, so a session can reach
+that question when it opens one of the plugin's files. Maister prints its own rules through its
+engine and keeps the files it reads back inside the project, under `.maister/`, so a run should
+not ask; another tool or skill still can. One "No" writes
+`permissions.blockReadsOutsideWorkingDirectories: true` to your settings, and from then on every
+read outside those folders is refused, with no way to approve it.
+
+**Fix.** Answer "Yes, and keep allowing". If you chose to block, either:
+
+- run `/add-dir <the plugin folder>` in the session, the folder the line "The maister plugin is
+  installed at …" names at session start, or
+- remove `blockReadsOutsideWorkingDirectories` from your settings and start a new session.
+
 ## The session stops progressing
 
 **Symptom.** After a long step, often implementation, or after the context was compacted, the
