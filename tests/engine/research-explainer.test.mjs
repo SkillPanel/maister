@@ -163,11 +163,12 @@ test('completion lists the explainer first, and embedded mode names the output a
   assert.match(embedded, /own `brief:`/);
 });
 
-test('convergence and the design pass their decisions as a file from a mktemp -d directory', () => {
+test('convergence and the design pass their decisions as a file from a scratch-dir directory inside the run', () => {
   const guide = researchGuide();
   for (const node of ['solution-convergence', 'high-level-design']) {
     const body = section(guide, `\`${node}\``).replace(/\s+/g, ' ');
-    assert.ok(body.includes('`mktemp -d`'), `${node}: makes the directory with mktemp -d`);
+    assert.ok(body.includes('scratch-dir --for=decisions'), `${node}: makes the directory with scratch-dir`);
+    assert.ok(!body.includes('mktemp'), `${node}: never the system temp directory`);
     assert.match(body, /`stage: (convergence|design)`/, `${node}: names its stage`);
     assert.match(body, /`sources`[^`]*(`[^`]*`[^`]*){0,6}the decisions file/, `${node}: the decisions file is one of the writer's sources`);
     assert.match(body, /`--source` for the decisions file/, `${node}: its own check reads the decisions file`);

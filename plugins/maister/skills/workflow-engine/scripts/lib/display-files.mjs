@@ -413,7 +413,7 @@ function publish(dir, name, document, home = dir) {
 }
 
 /** `dir/.gitignore` holding `*`, written once and never over a file already there. */
-function ignoreAll(dir) {
+export function ignoreAll(dir) {
   const file = path.join(dir, '.gitignore');
   if (fs.existsSync(file)) return;
   fs.mkdirSync(dir, { recursive: true });

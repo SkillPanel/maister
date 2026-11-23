@@ -78,7 +78,7 @@ Launch all applicable subagents in one message so they run in parallel.
 
 **Step 1: Determine which phases to run** based on scope and flags.
 
-**Step 1.5: Create temp output directory** — Run `mktemp -d` via Bash to create a unique temp directory for this invocation; it uses `$TMPDIR`, the system temp directory. Store the path exactly as it prints — it differs per host and per run, so never assume `/tmp` or write a fixed path in its place: a literal `/tmp` path can stop the run for a permission prompt. Each subagent will write its results to a dedicated file in this directory: `{tmpdir}/config.yml`, `{tmpdir}/code.yml`, `{tmpdir}/docs.yml`, `{tmpdir}/external.yml`.
+**Step 1.5: Create the output directory** — Run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=standards-discover` from the project root, as a command of its own. It makes a fresh directory under the project's `.maister/scratch/`, which git ignores, and prints its absolute path: store that path exactly as printed, as `{tmpdir}`. The files in it are read back, so it is never the system temp directory: a read outside the project can stop the run for a permission prompt. Each subagent will write its results to a dedicated file in this directory: `{tmpdir}/config.yml`, `{tmpdir}/code.yml`, `{tmpdir}/docs.yml`, `{tmpdir}/external.yml`.
 
 **Step 2: Name the phase briefs**
 
@@ -94,7 +94,7 @@ Each phase's brief is a template under this skill's base directory: which source
 **Step 3: Launch subagents in parallel** — Use the Task tool with `subagent_type: maister:standards-scanner` for each phase. Its prompt is these lines, each filled in, and no part of the brief itself — never pasted, reworded or summed up:
 - `brief:` the phase brief's absolute path
 - `project_root:` the project root's absolute path
-- `output_file:` the phase's temp file
+- `output_file:` the phase's file in `{tmpdir}`
 - `scope:` the discovery scope, and `confidence:` the threshold
 - `groups:` the group list, each table group as `<id> (<title>)` and each folder of the project's own by name, comma-separated
 - `files:` for a group scope, that group's filter joined with `; `, sent to the config and code scanners only; omitted for `full`, `quick`, `global` (empty filter) and a folder of the project's own. The docs and external scanners never get a `files:` line
@@ -105,7 +105,7 @@ The scanner carries the rest itself — read-only, absolute paths, one file writ
 
 Every applicable phase is a subagent of its own, whatever the size of the repository: a small repository, one commit or no linter config is no reason to run a phase's discovery in this session or to write its file yourself. The phases read different sources than this session has in view, which is what makes their findings worth scoring.
 
-**Step 4: Wait** for ALL subagents to complete, then check each temp file with `node <checker> <file>` — one command per file — and read each one that passes using the Read tool to collect findings. The checker needs only Node; never check a file with `python` or an inline script of your own. A phase whose file is missing or fails the check did not run: dispatch it once more, and report it as not run if it is still missing or failing.
+**Step 4: Wait** for ALL subagents to complete, then check each output file with `node <checker> <file>` — one command per file — and read each one that passes using the Read tool to collect findings. The checker needs only Node; never check a file with `python` or an inline script of your own. A phase whose file is missing or fails the check did not run: dispatch it once more, and report it as not run if it is still missing or failing.
 
 **Step 5: Display progress** — Show count of findings per phase.
 

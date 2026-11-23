@@ -779,6 +779,17 @@
           "runner-step-unknown-node"
         ]
       },
+      "scratch-dir": {
+        "flags": [
+          "for",
+          "state"
+        ],
+        "refusals": [
+          "scratch-dir-bad-label",
+          "scratch-dir-no-run",
+          "scratch-dir-unwritable"
+        ]
+      },
       "subrun-path": {
         "flags": [
           "node",
@@ -1236,7 +1247,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.10",
+  "interface_version": "2.11",
   "mcp": {
     "servers": [],
     "tools": [

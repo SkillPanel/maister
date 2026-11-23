@@ -199,6 +199,10 @@
  *                  session before each is sent, its stale output cleared;
  *                  the host's agent ids attached; or marked ended without
  *                  their output)
+ *   scratch-dir    --for, optional --state       the new directory's path
+ *                  (a fresh directory inside the project, ignored by git,
+ *                  for a file read back later: <run>/scratch/<for>-… with
+ *                  --state, else .maister/scratch/<for>-…)
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -392,6 +396,9 @@ const VERBS = {
   // The agents a runner's loop sent, recorded before they act, so a resume
   // waits for one still out instead of sending a second onto its work.
   'in-flight': { module: 'runner.mjs', flags: ['state', 'node', 'runner', 'record', 'agents', 'ended'] },
+  // A directory inside the project for a file read back later: the run's
+  // `scratch/` with `--state`, else `.maister/scratch/`, either ignored by git.
+  'scratch-dir': { module: 'scratch-dir.mjs', flags: ['for', 'state'] },
 };
 
 /** This plugin's root, three levels above this file: what the edition check locates. */
@@ -1861,6 +1868,26 @@ async function runProjectProfile(flags) {
 }
 
 /**
+ * `scratch-dir` prints the new directory's absolute path as its one stdout
+ * line, so the caller copies it as printed; a refusal's code first on stderr
+ * at exit 1.
+ */
+async function runScratchDir(flags) {
+  if (typeof flags.for !== 'string' || flags.for === '') throw new UsageError('scratch-dir needs --for: what the directory holds, a kebab label');
+  const module = await loadModule(VERBS['scratch-dir'].module);
+  const make = entryOf(module, 'scratchDir', VERBS['scratch-dir'].module);
+  const graph = await loadModule(VERBS.validate.module);
+  const root = entryOf(graph, 'projectRoot', VERBS.validate.module)();
+  const result = make({ label: flags.for, state: flags.state ?? null, root });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(`${result.path}\n`);
+  return EXIT.OK;
+}
+
+/**
  * `runner-result` reports like `findings-merge`: the written result as JSON on
  * stdout, a refusal's code first on stderr at exit 1 with the patch file kept
  * for correcting, and the patch file deleted once the result landed.
@@ -1992,6 +2019,7 @@ const RUNNERS = {
   'runner-result': runRunnerResult,
   'runner-step': runRunnerStep,
   'in-flight': runInFlight,
+  'scratch-dir': runScratchDir,
 };
 
 // ---------------------------------------------------------------------------

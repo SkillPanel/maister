@@ -20,9 +20,11 @@ once, and write `decision.md`. No engine run, no state file, no phases.
 - **Keep it light.** No research phase, no personas, no HTML companions, no gates beyond the one
   decision step.
 - **Files go straight to their place.** Every file this skill writes is written with the file
-  tool at its path in the task directory. A throwaway file — a probe, a draft, a copy — goes in a
-  directory `mktemp -d` makes (it uses `$TMPDIR`) or under `"${TMPDIR:-/tmp}"`, never at a literal
-  `/tmp` path, which can stop the run for a permission prompt.
+  tool at its path in the task directory. A throwaway file — a probe, a draft, a copy — goes in the
+  directory `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs scratch-dir
+  --for=quick-design` makes and prints, under the project's `.maister/scratch/`, which git
+  ignores; never the system temp directory or a literal `/tmp` path, which can stop the run for a
+  permission prompt when the file is read back.
 
 ## Usage
 

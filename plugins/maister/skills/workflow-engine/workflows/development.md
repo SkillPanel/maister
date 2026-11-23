@@ -786,8 +786,9 @@ than retried.
      close. The run is exactly what it would be without this step.
    - **A refusal**: no re-ground; record one `open` risk naming the code and its
      message, and the pack stays as it is.
-   - **Sources touched**: copy the pack folder to a fresh `mktemp -d` directory,
-     then invoke `maister:mockup-studio` with the Skill tool and `--ground` — the
+   - **Sources touched**: copy the pack folder into the fresh directory
+     `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=grounding-pack-backup --state=<task path>/orchestrator-state.yml`
+     makes and prints, inside the run and ignored by git, then invoke `maister:mockup-studio` with the Skill tool and `--ground` — the
      pack's one builder, which rebuilds and seals it in place, draws no mockup
      and touches no task folder. It builds every file afresh from the sources,
      never by editing the old pack's files, in a fresh agent that never saw the

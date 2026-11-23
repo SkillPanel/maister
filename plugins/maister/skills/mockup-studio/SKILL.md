@@ -174,9 +174,9 @@ The steps say what each one does; the references say how.
    - fix what looks wrong in `.turn.json`, then preview once more at most. A fix keeps the app's
      frame (its header, navigation and page width); a frame a screen drew twice loses only its
      inner copy;
-   - keep the browser tool's own output out of the project, as
-     `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` says for the tool
-     in use (*Which tool*).
+   - keep the browser tool's own output, and any screenshot taken to look at, in the scratch
+     directory `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` names for
+     the tool in use (*Which tool*), never the system temp directory.
 
    The notes record what was looked at and what was fixed, or "no browser tool: pages not looked
    at" — only when `shell_browser` is null and the session has no browser tool of its own.
@@ -272,8 +272,9 @@ pack is never repeated without that check: the person may have committed it sinc
 - The legacy `.maister/tasks/mockups/` is a folder run readers skip. Nothing new is written there.
 - The skill writes nothing outside the target folder, the INDEX file (`emit_index_rows`), the
   grounding pack (when a turn builds it, or `--ground`) and, in node mode with `record` set,
-  `turn-result.json` in the run folder. A browser tool's snapshots and logs from the look pass go
-  to a scratch directory, never the project.
+  `turn-result.json` in the run folder. A browser tool's snapshots, logs and look-only
+  screenshots from the look pass go to the scratch directory `scratch-dir` makes, which git
+  ignores, never elsewhere in the project.
 
 ### Turn N+1, and the record folder
 
