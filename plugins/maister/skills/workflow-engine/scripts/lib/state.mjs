@@ -111,7 +111,6 @@ import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, decl
 import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
 import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
-import { optedOut } from '../../../../lib/open-file.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
 import { atClose, dueNext, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
@@ -549,11 +548,8 @@ const WORKFLOW_CONTEXT = {
  * `{sha, dirty, reason}`: the commit the run's base moves to, the paths dirty
  * now and why (a string or null). The writer replaces `task.base_commit` from
  * the record the document holds (`applyMoveBase`).
- *
- * `noOpen`, the verb's `--no-open`, only shapes the freeze banner's relay line:
- * the verb opens no dashboard then, so the line does not say one is open.
  */
-export function writeState({ state, patch, regress = null, host = null, moveBase = null, noOpen = false }) {
+export function writeState({ state, patch, regress = null, host = null, moveBase = null }) {
   const warnings = [];
   // What `apply` reports back about the record it built. `changed`: the dotted
   // paths it wrote. `ignored`: the clock fields the patch carried and the
@@ -618,7 +614,7 @@ export function writeState({ state, patch, regress = null, host = null, moveBase
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
     const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings, notes: [...new Set(notes)] };
-    if (freeze) result.banner = [hasParentLink(text) ? BANNER_CHILD : relayLine(text, banner, noOpen), ...banner.lines].map(line => `${line}\n`).join('');
+    if (freeze) result.banner = [hasParentLink(text) ? BANNER_CHILD : `${BANNER_RELAY}.`, ...banner.lines].map(line => `${line}\n`).join('');
     if (out.asking !== null) result.asking = out.asking;
     const companionMissing = companionCheck(text, path.dirname(path.resolve(state)), before);
     if (companionMissing.length) result.companionMissing = companionMissing;
@@ -695,22 +691,40 @@ function bannerOf(state, text) {
   };
 }
 
-/** The banner's first line, read by the orchestrating model rather than shown. */
-export const BANNER_RELAY = 'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below — paths and links copied as printed';
-/** The relay line's tail when the freeze opens the dashboard itself. */
+/**
+ * The startup banner's lines for the run whose state file is `state`, as the
+ * freeze printed them, without the line addressed to the model; null when the
+ * file cannot be read. `node-brief` repeats them on a run's first brief, so a
+ * banner the session kept in its thinking still reaches the person.
+ */
+export function startBanner(state) {
+  try {
+    return bannerOf(state, fs.readFileSync(state, 'utf8')).lines;
+  } catch {
+    return null;
+  }
+}
+
+/** The banner's first line, read by the orchestrating model rather than shown: it asks for a message the person sees. */
+export const BANNER_RELAY = 'Show the person the lines below now, as a visible message of your own — the next thing you write, before any other call, never only in your thinking — each line copied as printed';
+/**
+ * The relay line's tail, by what the write-state verb's opener did after the
+ * freeze: it is told only once the opener has run, so it never says the
+ * dashboard is open when it did not open.
+ */
 export const BANNER_OPENED = '; the dashboard is already open: run no opener';
+export const BANNER_UNOPENED = '; the dashboard did not open: tell the person to open its Dashboard link in a browser, and run no opener';
 
 /**
- * The relay line for `banner`: `BANNER_RELAY`, with `BANNER_OPENED` when the
- * write-state verb opens the dashboard after this freeze — a run driven from
- * the terminal, its page on disk, the environment not opted out — the rule
- * `open-dashboard.mjs`'s `dashboardToOpen` keeps — and the verb was not
- * given `--no-open` (`noOpen`).
+ * The relay line with the opener's outcome told: `opened` is `'opened'`,
+ * `'failed'`, or null when nothing was opened (`--no-open`, an opted-out
+ * environment, a run with no page to open). `banner` is the freeze's printed
+ * banner; a child's, whose first line relays nothing, comes back as it is.
  */
-function relayLine(text, banner, noOpen) {
-  const opens = !noOpen && banner.dashboard !== null && isTerminalDriver(parseState(text)) && !optedOut()
-    && fs.existsSync(path.join(banner.run_dir, VIEWER));
-  return `${BANNER_RELAY}${opens ? BANNER_OPENED : ''}.`;
+export function bannerAfterOpen(banner, opened) {
+  const relay = `${BANNER_RELAY}.\n`;
+  if (typeof banner !== 'string' || !banner.startsWith(relay) || opened === null) return banner;
+  return `${BANNER_RELAY}${opened === 'opened' ? BANNER_OPENED : BANNER_UNOPENED}.\n${banner.slice(relay.length)}`;
 }
 /**
  * Does this state text carry a parent link — is it a child run's? Decided from
@@ -4434,6 +4448,21 @@ export function needsPerson(what, { subject = 'checkpoint', skip = false } = {})
 }
 
 /**
+ * The refusal for a write that completes the checkpoint `id` after a person
+ * answered it, but carries no answer item: the answer sent flat on the node,
+ * or not at all. Refused as an item out of shape, never as a pick with no
+ * person behind it, which would tell the session to stop the run.
+ */
+function answerItemMissing(id) {
+  const node = JSON.stringify(id);
+  return new Refusal('state-summary-item-invalid',
+    `this write records ${id} completed with no answer among node_summaries.${id}.decisions, so the person's answer is not in it. `
+    + `Nothing was written. A checkpoint's answer is one decisions item holding the chosen option's id, sent with the completion: `
+    + `{"nodes": {${node}: {"status": "completed"}}, "node_summaries": {${node}: {"decisions": [{"option": "<chosen id>"}]}}} — `
+    + 'never an answer key on the node. Send the write again in that shape; the person\'s answer still stands');
+}
+
+/**
  * Refuse a write that passes a checkpoint without a person's answer to it,
  * under `evidence` (`answerEvidence`, not null), before anything records,
  * approves or triages a gate's answer. `typed` is the document with the patch
@@ -4442,7 +4471,9 @@ export function needsPerson(what, { subject = 'checkpoint', skip = false } = {})
  * - A gate or `held-approval` whose answer this write newly records (`fresh`)
  *   — or, on a write carrying a revise reset, any it judges — must be covered
  *   as a checkpoint answer, as a send-back answer under the reset.
- * - A frozen gate the patch moves to `completed` must be one of those.
+ * - A frozen gate the patch moves to `completed` must be one of those; after
+ *   a person's answer, one with no answer item at all is refused for its
+ *   shape (`state-summary-item-invalid`), not as a pick nobody made.
  * - A frozen gate the patch moves to `skipped` must be off the run's path by
  *   the walk at the close (`atClose`, its `skipped`), read on `prior`.
  *
@@ -4468,7 +4499,12 @@ function assertPersonAnswered({ typed, prior, patch, evidence, judged, fresh, re
   let offPath = null;
   for (const [id, entry] of Object.entries(nodes)) {
     if (id === HELD_APPROVAL || !isGate(id) || !isPlainObject(entry) || entry.status === before[id]) continue;
-    if (entry.status === 'completed' && !answered.includes(id)) throw needsPerson(`an answer at ${id}`);
+    if (entry.status === 'completed' && !answered.includes(id)) {
+      // A person answered, but the write carries no answer item to hold it:
+      // the shape is wrong, not the answer, so the refusal names the shape.
+      if (evidence.person && gateAnswer(isPlainObject(summaries[id]) ? summaries[id].decisions : null) === null) throw answerItemMissing(id);
+      throw needsPerson(`an answer at ${id}`);
+    }
     if (entry.status !== 'skipped') continue;
     offPath ??= new Set(atClose({ doc: prior, runDir }).skipped);
     if (!offPath.has(id)) throw needsPerson(`${id} skipped while it is still on the run's path`, { skip: true });

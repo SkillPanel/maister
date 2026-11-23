@@ -62,20 +62,26 @@
  *
  * The lines that carry a rule the session would otherwise hold from the
  * engine skill, each printed only where it applies:
- * - `start: yours` on a step ready to start whose start the brief did not
- *   record — a `workflow:` step, or one whose start write was refused — never
- *   beside `started:` and never for a dispatched (`dir:`) node.
+ * - `start: yours` on a step ready to start whose start the brief does not
+ *   record — a `workflow:` step — never beside `started:` and never for a
+ *   dispatched (`dir:`) node; where the brief's start write was refused, a
+ *   `start: refused` line with the refusal's code and message and its
+ *   `rules:` line in its place, since the same write would be refused again.
  * - `waiting:` on a node recorded `waiting`, which is never run again.
  * - `say:` on an `agent:` step and a step with `delegates:`: the one line the
  *   session prints while the delegate runs.
+ * - `say:` over the start banner's lines, first, on a top-level run's brief
+ *   of its first node while no node has started: the freeze's banner, which sessions kept in
+ *   their thinking, as a printed step.
  * - `missing:` for each `with:` reference that finds nothing recorded yet,
  *   which is re-driven or recorded, never guessed.
  * - `held:` at a gate a held choice asks, with the count still waiting.
  * - `close-out:` at the closing node of a dispatched or classing run: the
  *   `held-approval` brief and the outbox publish its outcome waits on.
- * - `engine skill:` on every brief, directly before `rules:`: the skill's
- *   absolute path, to be read whole when the session no longer holds it — a
- *   compaction can leave none of it in view.
+ * - `engine skill:` first on every brief, then `commands:`: the skill's
+ *   absolute path, to be read whole now unless read in this context — a
+ *   compaction can leave none of it in view — and the one-command form every
+ *   call takes.
  * - The gate's `ask it:` line, the whole call by the run's driver and the host
  *   this plugin ships for: `gate-request` where a driver suspends, else
  *   `gate-brief` in the form the host's question tool takes.
@@ -135,8 +141,8 @@
  * - `node-brief-conventions-unread` — the conventions table cannot be read;
  *   one `convention: see rules` line stands for its rows.
  * - `node-brief-start-unrecorded` — the state writer refused the step's start;
- *   the brief prints without its `started:` line and the start is the session's
- *   own write.
+ *   the brief prints the refusal and its recovery where its `started:` line
+ *   would be.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -149,7 +155,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { BUILT_IN_AGENTS, guardReadsTask, guideRows, nodeKindIn, proseSection, readerRows, sectionNameOf } from './graph.mjs';
 import { driftClause, atClose, closingCandidates, evaluate, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
-import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, writeState } from './state.mjs';
+import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, startBanner, writeState } from './state.mjs';
 import { owedCompanions } from './companions.mjs';
 import { STYLE_GUIDE } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
@@ -181,8 +187,14 @@ const ENGINE_SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
 /** The gates reference, which the `close-out:` line points into. */
 const GATES_FILE = fileURLToPath(new URL('../../references/gates.md', import.meta.url));
 
-/** The `engine skill:` line every brief prints directly before its `rules:` line. */
-const ENGINE_SKILL_LINE = `engine skill: ${quoted(ENGINE_SKILL)} — if this skill is not in your context in full, as after a compaction, read the whole file with the read tool before acting on this brief`;
+/**
+ * The two lines every brief opens with. A session left with none of the skill
+ * after a compaction — Copilot keeps none and has no hook to say so — did not
+ * act on a condition at the foot of the brief, so the read is an instruction at
+ * its head, and beside it the one command-form rule its drifting calls broke.
+ */
+const ENGINE_SKILL_LINE = `engine skill: read ${quoted(ENGINE_SKILL)} whole now, unless you have read it in this context`;
+const COMMANDS_LINE = 'commands: one per call, from the project root — no cd, chain or pipe; a patch as a here-string';
 
 /** How each scheme runs, and the convention row that applies to it. */
 const SCHEMES = {
@@ -290,12 +302,20 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
       if (started.ok) lines.splice(2, 0, STARTED);
       else {
         warnings.push(`node-brief-start-unrecorded: ${started.errors.map(error => error.code).join(', ')}`);
-        lines.splice(2, 0, startYours(node));
+        // The same write would be refused again: print the refusal and its recovery, never `start: yours`.
+        lines.splice(2, 0, ...startRefused(started.errors));
       }
     } else {
       lines.splice(2, 0, startYours(node));
     }
   }
+  // A run's first brief, before any node started, repeats the start banner as a
+  // `say:` step: a banner kept in the session's thinking never reached the person.
+  if (firstBrief(doc, node, context)) {
+    const banner = startBanner(state);
+    if (banner !== null) lines.unshift(BANNER_SAY, ...banner);
+  }
+  lines.unshift(ENGINE_SKILL_LINE, COMMANDS_LINE);
   // A marker that cannot be written only means the next brief prints the rows whole again.
   if (shown !== null && printedWhole.size) markConventionsShown({ root, rows: new Set([...shown, ...printedWhole]) });
   lines.push('');
@@ -313,9 +333,35 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
 
 const STARTED = 'started: recorded running by this brief — the start needs no write of its own';
 
+/** The line over the start banner a run's first brief repeats. */
+const BANNER_SAY = 'say: the run\'s start, a visible message of its own before this node\'s work, unless your last message showed these lines — each copied as printed:';
+
+/**
+ * Is this the first brief of a top-level run — its first node, with no node
+ * started yet, as the statuses read before this brief's own start write? A
+ * child run's banner is never relayed: the parent's walk goes on.
+ */
+function firstBrief(doc, node, context) {
+  if (isPlainObject(doc.orchestrator) && isPlainObject(doc.orchestrator.parent)) return false;
+  if ([...context.status.keys()][0] !== node) return false;
+  return [...context.status.values()].every(status => status === 'pending');
+}
+
 /** The line a ready step whose start the brief did not record prints in its place. */
 function startYours(node) {
   return `start: yours — send {"nodes": {${JSON.stringify(node)}: {"status": "running"}}}`;
+}
+
+/** The writing-state section holding a refused write's recovery. */
+const WRITE_REFUSED = `${quoted(fileURLToPath(new URL('../../references/writing-state.md', import.meta.url)))} § When a write is refused`;
+
+/**
+ * The lines a ready step whose start write the writer refused prints instead
+ * of `start: yours`: the refusal, code and message, then its `rules:` line.
+ */
+function startRefused(errors) {
+  const [error] = errors;
+  return [`start: refused — ${error.code}: ${error.message}`, `rules: ${WRITE_REFUSED}`];
 }
 
 /** The terminal task statuses, after which nothing starts. */
@@ -432,7 +478,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (attempt > 1 || status !== 'pending') lines.push(`attempt: ${attempt} — ${status}`);
   if (status === 'waiting') lines.push(WAITING);
   if (resolved === null) {
-    lines.push(...convention(known ? [known.row, 'every step'] : ['every step']), ENGINE_SKILL_LINE, `rules: ${rules}`);
+    lines.push(...convention(known ? [known.row, 'every step'] : ['every step']), `rules: ${rules}`);
     return lines;
   }
   const brief = (sources ? briefOfRun(context.doc, context.runDir, sources) : null)?.[node] ?? {};
@@ -494,7 +540,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues, delegates));
   const closeOut = closeOutLine(node, context);
   if (closeOut) lines.push(closeOut);
-  lines.push(ENGINE_SKILL_LINE, `rules: ${rules}`);
+  lines.push(`rules: ${rules}`);
   return lines;
 }
 
@@ -856,7 +902,7 @@ function gateLines({ node, title, resolved, context, convention, rules }) {
   }
   const held = heldLine(resolved, context);
   if (held) lines.push(held);
-  lines.push(...convention(['gate']), ENGINE_SKILL_LINE, `rules: ${rules}`);
+  lines.push(...convention(['gate']), `rules: ${rules}`);
   return lines;
 }
 

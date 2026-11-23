@@ -39,7 +39,7 @@ closing write has returned — and ask what it prints; never write a gate questi
 
 **Every delegate prompt carries the run's context, fetched**, in the turn that writes it:
 `run-context --state=<state> --node=<node>`, or `prior-context --node=<node>` where the delegate
-needs the earlier phases, pasted unedited — whole, never sliced, never a path or an earlier
+needs the earlier phases, pasted unedited — whole, never piped or sliced, never a path or an earlier
 delegate's copy; `--background` for a document written for end users.
 
 **Every state change goes through `write-state`** — never an editor tool on
@@ -151,8 +151,9 @@ Every verb's flags, output and refusals are in `references/verbs.md`. Each step 
 
 - **Under an absent or `terminal` driver a person reads it.** Write the closing patch, call
   `run-complete` and settle any refusal (`references/writing-state.md` § *When `run-complete`
-  refuses*); on success it prints the wrap-up's `rules:` line — follow it. Never show the raw
-  `missing-artifact:`, `missing-companion:`, `run stopped:` or `RUN-` lines.
+  refuses*); on success it prints the wrap-up's six sections on a `wrap-up sections:` line —
+  write exactly those. Never show the raw `missing-artifact:`, `missing-companion:`, `run stopped:`
+  or `RUN-` lines.
 - **Under a `cockpit` or `dispatch` driver tooling reads it.** Print everything the operator
   should read — the executive summary, the next steps, the dashboard link — before
   `run-complete`, and echo its lines, its marker last; never type a marker it did not print. A
@@ -188,7 +189,7 @@ beyond the declarations, and a non-null `.html` beside it, is checked on disk to
 
 A `started:` line in a node's brief means the brief recorded the step's start, and a
 `start: yours` line that the start is your write (`references/writing-state.md` § *One write per
-moment*). Dispatch an agent by the name its brief prints, the provider prefix applied
+moment*); a `start: refused` line is a refusal, settled by its `rules:` line first. Dispatch an agent by the name its brief prints, the provider prefix applied
 (`references/grammar.md` § 5.1).
 
 **While a delegate runs, say so.** Right after launching one, print the line its brief's `say:`
@@ -219,7 +220,7 @@ stamped line.
 
 **Every resume starts with `resume-check --state=<run directory>/orchestrator-state.yml`**, which
 checks the Node.js version first (Step 2). Its `next` says what to do first: relay a `warning:`
-line once, then do it.
+line once, then do it. A node update goes under the patch's top-level `nodes`, never `workflow`.
 
 ---
 
@@ -272,8 +273,9 @@ The writer adds the rest (`references/writing-state.md` § *What the freeze writ
 a key it owns with a `note:`; relay any `warning:`; a refusal names its recovery under `rules:`.
 The run creates no task items.
 
-**The freeze prints the startup banner first; your next message, before any other call, tells
-the user what it says**, as its first line asks.
+**The freeze prints the startup banner first; the next thing you write, before any other call, is a
+visible message to the user with its lines copied as printed** — never only in your thinking. The
+first node's brief repeats them under `say:` until a node starts.
 
 > **SELF-CHECK before the call after the freeze**: does your message name the workflow and
 > task, the checkpoints, the directory and the dashboard link? If not, STOP and write it first.

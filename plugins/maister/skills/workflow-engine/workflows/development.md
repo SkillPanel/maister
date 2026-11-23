@@ -480,9 +480,10 @@ back — a group that failed after its escalation, a skipped test step, a wave
 past the model budget — and its summary comes from the summary the hand-off
 returns. A summary whose `stopped` is set is a stop: record it as one.
 
-**After the skill returns**, run the engine's `sync-plan` verb (its row: the engine's `references/verbs.md`) once against
-`implementation/implementation-plan.md` — idempotent, a no-op without a
-companion, and it catches a wave whose sync was missed. Then record what landed:
+**After the skill returns**, run the engine's `sync-plan` verb once,
+`node <plugin root>/skills/workflow-engine/scripts/workflow.mjs sync-plan --plan=<task path>/implementation/implementation-plan.md`
+— idempotent, a no-op without a companion, and it catches a wave whose sync
+was missed. Then record what landed:
 the groups completed, the files changed and the incremental test results.
 
 **Summary.** The `headline` gives what landed and how the tests stand ("All

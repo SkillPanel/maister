@@ -230,3 +230,13 @@ test('the Copilot build\'s docs-manager reads the import path from the instructi
   assert.ok(squash(read(ROOT, 'plugins/maister/skills/docs-manager/SKILL.md')).includes(phrase), 'the source existence check names the instructions file\'s folder');
   assert.ok(squash(read(variantRoot(), 'skills/docs-manager/SKILL.md')).includes(phrase), 'the variant existence check names the instructions file\'s folder');
 });
+
+test('the directory rule never has a run folder made before its freeze: the freeze creates it', () => {
+  const variant = variantRoot();
+  for (const file of ['skills/workflow-engine/SKILL.md', 'agents/implementation-runner.md']) {
+    const text = fs.readFileSync(path.join(variant, file), 'utf8');
+    assert.match(text, /\*\*Create a file's directory before the file\.\*\*/, file);
+    assert.ok(text.includes('A run\'s own folder is never one: the freeze creates it.'), file);
+    assert.doesNotMatch(text, /a new task or sub-run directory/, file);
+  }
+});

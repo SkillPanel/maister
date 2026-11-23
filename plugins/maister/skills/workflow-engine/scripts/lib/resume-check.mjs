@@ -170,7 +170,7 @@ export function resumeCheck({ state }) {
       ? [`run gate-revise --node=${revision.gate} --option=${revision.option} with the note before anything else`] : []),
     ...(dashboard === null || dashboard === undefined ? [] : [`show Dashboard: ${dashboard} once; run no opener`]),
     gate ? 'a gate is pending: take the first line through references/gates.md § Driver-suspended mode — resume'
-      : 'resume the ready set from the frozen graph',
+      : 'resume the ready set from the frozen graph; a node update goes under the patch\'s top-level nodes, never under workflow',
   ].join('; ');
   return {
     ok: true,

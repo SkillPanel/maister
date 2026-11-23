@@ -138,7 +138,7 @@ test('banner: the freeze prints the task, its directory, the dashboard and the f
   const [banner, paths] = result.stdout.split('\n\n');
   assert.match(paths, /^orchestrator\.completed_phases$/m, 'the changed paths follow the banner, unchanged');
   assert.equal(banner, [
-    'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below — paths and links copied as printed.',
+    'Show the person the lines below now, as a visible message of your own — the next thing you write, before any other call, never only in your thinking — each line copied as printed.',
     'Maister run started: Development',
     'Task: Fix the parser',
     'Checkpoints: up to 11 where you decide',

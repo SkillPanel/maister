@@ -247,7 +247,7 @@ function flatten(node: any): string {
 
 describe('start card', () => {
   const freeze = (stderr = ''): Shell => ({
-    stdout: 'Tell the user...\nMaister run started: Development\n',
+    stdout: 'Show the person...\nMaister run started: Development\n',
     stderr,
     files: { [POINTER]: pointer, [STATUS]: statusDoc({ updated: FROZEN, phase: { index: 1, total: 12, title: 'Intake' } }), [BANNER]: bannerDoc },
   })
@@ -953,7 +953,7 @@ describe('quiet bookkeeping', () => {
 
   test('a folded run holding the freeze draws the start card', async ($: any, on: any) => {
     const seen = beneath(on, {}, { shells: [{
-      stdout: 'Tell the user...\n',
+      stdout: 'Show the person...\n',
       files: { [POINTER]: pointer, [STATUS]: statusDoc({ updated: FROZEN }), [BANNER]: bannerDoc },
     }] })
     await $.tool.call({ tool: 'Bash', command: WRITE })

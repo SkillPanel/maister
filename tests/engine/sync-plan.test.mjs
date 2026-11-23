@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { freeze, scratch, verb } from '../helpers.mjs';
+import { ENGINE_DIR, freeze, scratch, verb } from '../helpers.mjs';
 
 function planned(t) {
   const run = scratch(t, { fixture: 'plan' });
@@ -159,4 +159,13 @@ test('an unreadable plan is refused, exit 1', t => {
   assert.equal(result.code, 1);
   assert.equal(JSON.parse(result.stdout).errors[0].code, 'plan-unreadable');
   assert.match(result.stderr, /^plan-unreadable: /);
+});
+
+test('sync-plan: each guide whose implementation step runs it spells the whole call, so a run reads no verb row for it', () => {
+  const call = 'node <plugin root>/skills/workflow-engine/scripts/workflow.mjs sync-plan --plan=<task path>/implementation/implementation-plan.md';
+  for (const name of ['development', 'performance', 'migration']) {
+    const text = fs.readFileSync(path.join(ENGINE_DIR, 'workflows', `${name}.md`), 'utf8').replace(/\r\n?/g, '\n');
+    assert.ok(text.includes(`\`${call}\``), `${name}.md spells the sync-plan call`);
+    assert.doesNotMatch(text, /`sync-plan` verb \(its row:/, `${name}.md points at no verb row for sync-plan`);
+  }
 });

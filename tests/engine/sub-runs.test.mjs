@@ -446,7 +446,7 @@ test('refusal: a bare run id says to send the link subrun-path prints', t => {
 test('a child freeze\'s banner tells the session not to relay it; a top-level freeze still asks for the relay', t => {
   const parent = scratch(t);
   const top = writeState(parent, freezePatch().patch);
-  assert.match(top.stdout.split('\n')[0], /^Tell the user, in your own message before any other call/, 'the top-level banner is still relayed');
+  assert.match(top.stdout.split('\n')[0], /^Show the person the lines below now, as a visible message of your own/, 'the top-level banner is still relayed');
   const child = sibling(parent, { type: 'research', name: '2026-01-05-open-questions' });
   const result = writeState(child, freezePatch({
     definition: RESEARCH,
@@ -455,7 +455,14 @@ test('a child freeze\'s banner tells the session not to relay it; a top-level fr
     orchestrator: { driver: { kind: 'terminal' }, parent: { run: parent.path, node: 'research' } },
   }).patch);
   const first = result.stdout.split('\n')[0];
-  assert.doesNotMatch(first, /^Tell the user/, `a child banner never asks for the relay: ${first}`);
+  assert.doesNotMatch(first, /^Show the person/, `a child banner never asks for the relay: ${first}`);
   assert.match(first, /\b(do not|never)\b.*\brelay\b/i, `a child banner says not to relay it: ${first}`);
   assert.match(result.stdout, /^Maister run started: /m, 'the child banner still prints its lines');
+
+  // Nor does the child's first brief repeat it: the parent's walk goes on.
+  const firstNode = Object.keys(readState(child).workflow.nodes)[0];
+  const brief = verb(['node-brief', `--state=${child.state}`, `--node=${firstNode}`]);
+  assert.equal(brief.code, 0, brief.stderr);
+  assert.doesNotMatch(brief.stdout, /^say: the run's start/m, 'a child run\'s first brief carries no banner');
+  assert.doesNotMatch(brief.stdout, /^Maister run started: /m);
 });

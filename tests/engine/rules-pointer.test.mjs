@@ -22,7 +22,6 @@ const AREAS = pointer('in-node-questions.md', 'Decision areas from the brainstor
 const FINDINGS = pointer('in-node-questions.md', 'Findings that need a decision');
 const WRITE_REFUSED = pointer('writing-state.md', 'When a write is refused');
 const COMPLETE_REFUSED = pointer('writing-state.md', 'When `run-complete` refuses');
-const WRAP_UP = pointer('writing-state.md', 'Ending the run — the wrap-up');
 const COMPANION = pointer('writing-state.md', 'A missing or stale companion');
 const NODE_BRIEF = `${path.join(ENGINE_DIR, 'references/node-conventions.md')} § Node conventions`;
 
@@ -281,7 +280,7 @@ test('gate-brief: the brief before the pointer keeps within the budget at a gate
 // ---------------------------------------------------------------------------
 
 test('every pointer names a reference that exists and a heading of that reference, spelled exactly', () => {
-  for (const rules of [GATE_BRIEF, REVISING, AREAS, FINDINGS, WRITE_REFUSED, COMPLETE_REFUSED, NODE_BRIEF, WRAP_UP, COMPANION]) {
+  for (const rules of [GATE_BRIEF, REVISING, AREAS, FINDINGS, WRITE_REFUSED, COMPLETE_REFUSED, NODE_BRIEF, COMPANION]) {
     const [file, heading] = rules.split(' § ');
     assert.ok(fs.existsSync(file), `${path.relative(ENGINE_DIR, file)} exists`);
     const headings = fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n').split('\n')
@@ -353,7 +352,7 @@ test('node-brief: the one verb whose pointer is not the last paragraph — a hea
   assert.doesNotMatch(refused.stderr, /rules:/);
 });
 
-test('run-complete: a successful close under a terminal driver names the wrap-up section, on stderr only', t => {
+test('run-complete: a successful close under a terminal driver prints the wrap-up\'s sections inline, on stderr only, and no pointer', t => {
   const run = scratch(t);
   freeze(run);
   fs.mkdirSync(path.join(run.dir, 'analysis'), { recursive: true });
@@ -366,7 +365,9 @@ test('run-complete: a successful close under a terminal driver names the wrap-up
   const result = verb(['run-complete', `--state=${run.state}`]);
   assert.equal(result.code, 0, result.stdout + result.stderr);
   assert.equal(result.stdout, 'RUN-COMPLETE\n');
-  assert.deepEqual(linesOf(result.stderr), [`rules: ${WRAP_UP}`]);
+  const lines = linesOf(result.stderr);
+  assert.equal(lines.length, 1, result.stderr);
+  assert.match(lines[0], /^wrap-up sections: Done, Needs you, Follow-ups, Next, Files, Dashboard — /);
 });
 
 test('write-state: the companion lines close on one pointer to their recovery, on stdout, and a write that names none prints none', t => {

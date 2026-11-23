@@ -280,7 +280,7 @@ test('freeze: the proven freeze lands under the custom task type, every node pen
 
   const banner = result.stdout.split('\n\n')[0];
   assert.equal(banner, [
-    'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below — paths and links copied as printed.',
+    'Show the person the lines below now, as a visible message of your own — the next thing you write, before any other call, never only in your thinking — each line copied as printed.',
     'Maister run started: Release audit',
     'Task: Audit v2.4.0',
     'Checkpoints: one where you decide',
@@ -845,7 +845,7 @@ test('sectionless: node-brief prints the conventions for a step with no section,
   const result = verb(['node-brief', `--state=${run.state}`, '--node=review']);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
-  assert.match(result.stdout, /^## Node: review — Review\nruns: direct:review — inline\n/);
+  assert.match(result.stdout, /^## Node: review — Review\nruns: direct:review — inline\n/m);
   assert.match(result.stdout, /^convention \(`direct:` step\): /m);
   assert.doesNotMatch(result.stdout, /^convention \(every step\): /m, 'a step that declares nothing has no artifact to check');
   assert.ok(result.stdout.endsWith('\n\nsection: none — the conventions above apply\n'), result.stdout);

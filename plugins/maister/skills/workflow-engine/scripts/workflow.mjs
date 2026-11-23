@@ -420,9 +420,16 @@ const RULES = {
   writeRefused: ['references/writing-state.md', 'When a write is refused'],
   completeRefused: ['references/writing-state.md', 'When `run-complete` refuses'],
   nodeBrief: ['references/node-conventions.md', 'Node conventions'],
-  wrapUp: ['references/writing-state.md', 'Ending the run — the wrap-up'],
   companion: ['references/writing-state.md', 'A missing or stale companion'],
 };
+
+/**
+ * The line a top-level run's successful close prints on stderr under a
+ * terminal driver: the wrap-up's six sections by name, in order, inline. A
+ * session that skipped a pointer to them wrote a wrap-up without them; the
+ * detail of each stays in writing-state.md § *Ending the run — the wrap-up*.
+ */
+const WRAP_UP = 'wrap-up sections: Done, Needs you, Follow-ups, Next, Files, Dashboard — one last message, these six labelled in this order and nothing else; a missing- line goes under Needs you in words, never raw';
 
 /** One pointer's value: the file's absolute path, then `§` and the heading. */
 function rulesOf(moment) {
@@ -797,12 +804,13 @@ async function runWriteState(flags) {
   // session-start warning is never read. Before stdin, so nothing is written.
   if (refusedForEditions(module, flags)) return EXIT.REJECTED;
   const input = await readInput(flags, 'the patch');
-  const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null, noOpen: Boolean(flags['no-open']) });
+  const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null });
+  // Only the freeze prints a banner, and a retried freeze prints none, so the
+  // dashboard opens once per run start and never on a later write. It opens
+  // before the banner prints, so the relay line tells what the opener did.
+  if (result.ok && result.banner) result.banner = module.bannerAfterOpen(result.banner, await openAfter(flags));
   const code = reportWrite(result, input, 'writeRefused');
   if (result.ok && result.next) printNext(result.next);
-  // Only the freeze prints a banner, and a retried freeze prints none, so the
-  // dashboard opens once per run start and never on a later write.
-  if (result.ok && result.banner) await openAfter(flags);
   return code;
 }
 
@@ -823,23 +831,25 @@ function printNext(next) {
  * `--no-open` or the environment opts out (`open-dashboard.mjs`). The state is
  * read as it now stands; a run that opens nothing prints nothing, and an opener
  * that did not start is one `warning:` line naming the page, the exit code
- * unmoved.
+ * unmoved. Resolves to `'opened'`, `'failed'`, or null when nothing was opened.
  */
 async function openAfter(flags) {
-  if (flags['no-open']) return;
+  if (flags['no-open']) return null;
   const opener = await loadModule('open-dashboard.mjs');
-  if (opener.optedOut()) return;
+  if (opener.optedOut()) return null;
   const { parse } = await loadModule('state-read.mjs');
   let doc;
   try {
     doc = parse(fs.readFileSync(flags.state, 'utf8'));
   } catch {
-    return;
+    return null;
   }
   const file = opener.dashboardToOpen(doc, path.dirname(path.resolve(flags.state)));
-  if (file === null) return;
+  if (file === null) return null;
   const reason = await opener.openDashboard(file);
-  if (reason !== null) process.stderr.write(`warning: the dashboard did not open (${reason}); open ${file} in a browser\n`);
+  if (reason === null) return 'opened';
+  process.stderr.write(`warning: the dashboard did not open (${reason}); open ${file} in a browser\n`);
+  return 'failed';
 }
 
 /** `edition-collision` for a verb that writes state, reported before anything is read. */
@@ -1234,7 +1244,7 @@ async function runRunComplete(flags) {
   for (const line of result.missing || []) process.stdout.write(`${line}\n`);
   if (result.notice) process.stdout.write(`${result.notice}\n`);
   process.stdout.write(`${result.marker}\n`);
-  if (result.wrap_up === 'run') refuseRules('wrapUp');
+  if (result.wrap_up === 'run') process.stderr.write(`${WRAP_UP}\n`);
   else if (result.wrap_up === 'child') process.stderr.write('child run: no wrap-up — the parent\'s walk goes on\n');
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }

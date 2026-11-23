@@ -49,7 +49,7 @@ test('display: the freeze writes the banner it prints, without the line addresse
 
   const banner = display(run, 'banner.json');
   const printed = result.stdout.split('\n');
-  assert.match(printed[0], /^Tell the user/);
+  assert.match(printed[0], /^Show the person the lines below now/);
   assert.deepEqual(banner.lines, printed.slice(1, 1 + banner.lines.length));
   assert.equal(banner.lines[0], 'Maister run started: Development');
   assert.ok(banner.lines.every(line => !line.includes('\n')));
