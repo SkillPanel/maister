@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, readState, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, write } from '../helpers.mjs';
 
@@ -498,7 +499,9 @@ test('node-brief: a CRLF guide gives the same brief as its LF copy, see: line in
     const [a, b] = [nodeBrief(lf.state, node), nodeBrief(crlf.state, node)];
     assert.equal(b.code, 0, b.stderr);
     assert.ok(!b.stdout.includes('\r'), node);
-    assert.equal(b.stdout.split(crlf.root).join('<root>'), a.stdout.split(lf.root).join('<root>'), node);
+    // The dashboard line names the root as a file URL too, which is not the path's own spelling on Windows.
+    const mask = (text, root) => text.split(pathToFileURL(root).href).join('<root-url>').split(root).join('<root>');
+    assert.equal(mask(b.stdout, crlf.root), mask(a.stdout, lf.root), node);
   }
   assert.match(nodeBrief(crlf.state, 'draft').stdout, /^see: .+ § Embedded mode$/m);
 });
