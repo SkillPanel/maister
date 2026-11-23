@@ -2031,7 +2031,8 @@ export function reread(doc, workflow, runDir) {
   // the hash comparison is what still has to hold.
   const version = definition.doc.version;
   const degraded = version !== undefined && version !== null && version !== KNOWN_VERSION ? [NEWER_FORMAT] : [];
-  const graph = resolve({ definition, overlays, profile: workflow.profile ?? null, degraded });
+  // A re-read of a frozen run: the checks only an author acts on stay out.
+  const graph = resolve({ definition, overlays, profile: workflow.profile ?? null, degraded, reread: true });
   const defaults = defaultsOf(definition.doc);
   const display = displayOf({ definition, overlays, profile: workflow.profile ?? null });
   if (!graph.ok) return drifted(null, defaults, display);

@@ -1998,7 +1998,7 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
  * dispatched; a node without one records no `dir` at all.
  */
 function provenNodes(doc, workflow, runDir) {
-  const proof = provenGraph(workflow, runDir);
+  const proof = provenGraph(workflow, runDir, { reread: false });
   if (!proof.graph) {
     throw new Refusal('state-freeze-unproven',
       `this freeze cannot be proven against its definition: ${proof.reason}. Nothing was written. `
@@ -2122,8 +2122,12 @@ function rerunsOf(node) {
  * Never throws: a definition that cannot be read or resolved is a reason, and
  * what that costs is the caller's to decide. Exported so that a reader which
  * re-resolves a frozen run can prove it by this rule rather than a copy of it.
+ *
+ * `reread` is true for every reader of a run already frozen, and false only for
+ * the freeze (`provenNodes`), which holds the definition to the checks an author
+ * answers; a re-read leaves those out, as `resolve` describes.
  */
-export function provenGraph(workflow, runDir) {
+export function provenGraph(workflow, runDir, { reread = true } = {}) {
   const recorded = typeof workflow.graph_hash === 'string' && workflow.graph_hash !== '' ? workflow.graph_hash : null;
   if (recorded === null) return { reason: 'it records no graph_hash' };
   try {
@@ -2138,7 +2142,7 @@ export function provenGraph(workflow, runDir) {
     }
     const version = definition.doc.version;
     const degraded = version !== undefined && version !== null && version !== KNOWN_VERSION ? [NEWER_FORMAT] : [];
-    const graph = resolveGraph({ definition, overlays, profile, degraded, project: projectRootOf(runDir) });
+    const graph = resolveGraph({ definition, overlays, profile, degraded, project: projectRootOf(runDir), reread });
     if (!graph.ok) return { reason: `its definition does not resolve (${graph.errors[0]?.message ?? 'no graph'})` };
     if (graph.graph_hash !== recorded) {
       return { reason: `it resolves to ${graph.graph_hash}, not to the recorded ${recorded}` };
