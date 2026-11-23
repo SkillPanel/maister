@@ -367,6 +367,15 @@ try {
     check(`${script}: exit 0 with additional context`, reminder.code === 0 && typeof out?.hookSpecificOutput?.additionalContext === 'string', show(reminder));
   }
 
+  // After a compaction the reminder names the engine skill by its absolute
+  // path in this plugin copy, whose path holds a space. The host may start the
+  // script through the copy's real path, so either spelling of it is the copy.
+  const compacted = hook('post-compact-reminder.mjs', JSON.stringify({ hook_event_name: 'SessionStart', source: 'compact' }));
+  const compactContext = json(compacted.stdout)?.hookSpecificOutput?.additionalContext ?? '';
+  const skillPaths = [...new Set([pluginRoot, fs.realpathSync(pluginRoot), fs.realpathSync.native(pluginRoot)])]
+    .map(root => path.join(root, 'skills', 'workflow-engine', 'SKILL.md'));
+  check('post-compact-reminder.mjs: names the engine skill\'s absolute path', skillPaths.some(skill => compactContext.includes(skill)), show(compacted));
+
   const guard = (agent, command) => hook('block-destructive-commands.mjs', JSON.stringify({
     hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, ...(agent ? { agent_type: agent } : {}),
   }));

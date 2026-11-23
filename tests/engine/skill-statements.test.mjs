@@ -207,3 +207,49 @@ test('Interpolating no longer says an ask: is substituted', () => {
   const text = section('Interpolating');
   assert.ok(!text.includes('substitutes the ones in its `ask:`'), 'no claim that ask: is interpolated');
 });
+
+// --- The compaction head -----------------------------------------------------
+// After a compaction Claude Code re-attaches a skill this long cut to 20,000
+// characters, its truncation marker included: 19,902 characters of text. A
+// short loader header comes first, then 19,745 characters of the skill's body
+// after its frontmatter, which is not counted. The rules a run needs mid-run
+// therefore come first, and the last of them ends under 19,500 characters of
+// that body, about 245 characters short of the cut. Lengths are the string
+// length of the file read as UTF-8 (UTF-16 code units), never bytes.
+
+const HEAD = [
+  '## Before anything else',
+  '## Initialization',
+  '## Speaking to the user',
+  '## The invocation contract',
+  '## Operator visibility',
+  '### The ready set',
+  '### Gates and in-node questions',
+];
+const HEAD_LIMIT = 19_500;
+
+/** SKILL.md's body: everything after the frontmatter's closing `---` line, the blank lines after it skipped. */
+function body() {
+  const raw = fs.readFileSync(SKILL, 'utf8');
+  const close = raw.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/);
+  assert.ok(close, 'SKILL.md opens with a frontmatter block');
+  return raw.slice(close[0].length).replace(/^(?:[ \t]*\r?\n)+/, '');
+}
+
+test('the rules a run needs mid-run come first, in order, and end inside what a compaction keeps', () => {
+  const text = body();
+  const starts = HEAD.map(heading => {
+    const match = new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\r?$`, 'm').exec(text);
+    assert.ok(match, `SKILL.md has a heading ${heading}`);
+    return match.index;
+  });
+  for (let at = 1; at < starts.length; at += 1) {
+    assert.ok(starts[at] > starts[at - 1], `${HEAD[at]} comes after ${HEAD[at - 1]}`);
+  }
+  const last = starts.at(-1);
+  // The section ends where the next heading of level one to three begins.
+  const next = /\n#{1,3} /.exec(text.slice(last));
+  const end = next ? last + next.index + 1 : text.length;
+  assert.ok(end > last + HEAD.at(-1).length, 'the last head section has a body');
+  assert.ok(end < HEAD_LIMIT, `the head ends at body character ${end}, at or past ${HEAD_LIMIT}`);
+});
