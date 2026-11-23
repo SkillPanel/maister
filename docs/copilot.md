@@ -11,7 +11,7 @@ Copilot.
 
 ### Requirements
 
-- **GitHub Copilot CLI 1.0.100 or newer.** That release is the first whose hook input names the
+- **GitHub Copilot CLI at the minimum version the [README](../README.md#quick-start) gives, or newer.** That release is the first whose hook input names the
   subagent that made a call, which the destructive-command guard needs.
 - **Node.js 20 or newer.** Every workflow runs on the workflow engine, which needs it. Without
   Node, a workflow command stops before it creates a task folder and says why. The plugin's hooks

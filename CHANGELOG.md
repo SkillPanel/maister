@@ -91,10 +91,10 @@ before you install over a project with work in flight.
 - **Quick design.** `/maister:quick-design` settles one small design question: the options, a
   recommendation, your decision and a one-page record, with a sketch per option when sketches
   help.
-- **GitHub Copilot CLI.** The `maister-copilot` plugin runs the same six workflows on the same
-  engine. Every command now carries the plugin's name: type `/maister-copilot:<name>`, not a bare
-  `/development`. The plugin now ships hooks there too: a reminder at session start and the guard
-  that stops subagents from running commands that throw work away. See
+- **GitHub Copilot CLI.** The `maister` plugin runs the same six workflows on the same engine,
+  and its commands are typed as on Claude Code: `/maister:<name>`, not a bare `/development`.
+  The plugin now ships hooks there too: a reminder at session start and the guard that stops
+  subagents from running commands that throw work away. See
   [Maister on GitHub Copilot CLI](https://github.com/SkillPanel/maister/blob/master/docs/copilot.md).
 - **Hooks on Node.js.** Every hook is a Node.js script with no dependencies. None needs bash or jq,
   so they run on Windows too.
@@ -156,7 +156,8 @@ has every step in detail.
    ```
 
    Then run `/reload-plugins` or start a new session. On Copilot CLI:
-   `copilot plugin update maister-copilot@maister-plugins`.
+   reinstall once under the new plugin name, as [Maister on GitHub Copilot CLI](https://github.com/SkillPanel/maister/blob/master/docs/copilot.md)
+   shows; after that, `copilot plugin update maister@maister-plugins`.
 4. **Expect one new permission prompt.** The engine records each step of a run with a command of
    its own. Approve it with "don't ask again", or allow it in your permission settings.
 5. **Add a browser tool** if you use browser checks, user documentation with screenshots or the

@@ -7,7 +7,7 @@ to a finished change, checkpoint by checkpoint.
 
 You need:
 
-- Claude Code 2.1.233 or newer, or GitHub Copilot CLI 1.0.100 or newer;
+- Claude Code or GitHub Copilot CLI at the minimum version the [README](../README.md#quick-start) gives, or newer;
 - Node.js 20 or newer. Every workflow needs it; without it a workflow command stops before it
   creates anything and says why.
 
