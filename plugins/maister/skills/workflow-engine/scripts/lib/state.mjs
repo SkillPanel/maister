@@ -1904,8 +1904,8 @@ function applyWorkflow(doc, workflow, now, changed, runDir, ignored, notes = [])
       // misplaced node update and keeps its own pointer.
       const ways = [];
       if (scalars) {
-        ways.push('no verb re-freezes a run: to go on, put back the definition this run froze'
-          + `${typeof source === 'string' && source ? ` (${source})` : ''}, or start a new run from the changed one`);
+        ways.push('no verb re-freezes: put back the definition this run froze'
+          + `${typeof source === 'string' && source ? ` (${source})` : ''} or start a new run from the changed one; never revert a person's edit unasked`);
       }
       if (nodeDifferences) ways.push('a later node update goes under the top-level `nodes` key, never under `workflow`');
       throw new Refusal('state-workflow-frozen',

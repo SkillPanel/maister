@@ -72,11 +72,12 @@ test('the write-state paragraph stands word for word in the writing-state refere
   assert.ok(!skill().includes('checks the document it wrote structurally'), 'SKILL.md no longer carries the paragraph: it has one home');
 });
 
-test('the no-re-freeze paragraph stands, with both ways on and the never-revert rule', () => {
-  const text = skill();
-  assert.ok(text.includes(collapse(NO_REFREEZE)), 'SKILL.md says a changed definition never re-freezes an open run');
+test('the no-re-freeze paragraph stands in writing-state.md, with both ways on and the never-revert rule', () => {
+  const text = collapse(fs.readFileSync(WRITING_STATE, 'utf8'));
+  assert.ok(text.includes(collapse(NO_REFREEZE)), 'writing-state.md says a changed definition never re-freezes an open run');
+  assert.ok(!skill().includes(collapse(NO_REFREEZE)), 'SKILL.md no longer carries the paragraph: it has one home');
   const start = text.indexOf(collapse(NO_REFREEZE));
-  const paragraph = text.slice(start, text.indexOf('---', start));
+  const paragraph = text.slice(start, start + 800);
   for (const phrase of ['Put back the definition the run froze', 'start a new run from the changed definition',
     'Never revert a person\'s own edit unasked', '`dispatch-graph-drifted`', '`subrun-graph-drifted`', '`state-workflow-frozen`']) {
     assert.ok(paragraph.includes(phrase), `the paragraph names: ${phrase}`);

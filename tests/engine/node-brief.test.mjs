@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, readState, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, write } from '../helpers.mjs';
 
 // The brief a step reads before it runs: the facts the engine derives for it —
 // how it runs, its guard, its attempt, its inputs filled in, the files it
@@ -338,6 +338,9 @@ test('node-brief: a section-less step runs from the conventions; an added step i
   assert.match(polish.stdout, /^feeds: approval — continues: continue-to-audit, continue-to-wrap-up; revise: revise-draft → draft$/m);
 });
 
+// The ways on a drift warning names, whichever verb prints it.
+const driftClause = run => ` — no verb re-freezes: put back ${readState(run).workflow.source} or start a new run; never revert a person's edit unasked`;
+
 test('node-brief: graph drift and an unread definition warn and still print; unread conventions point at the rules', t => {
   // A copy of the fixture, frozen, then changed: the header follows the definition as it now reads.
   const drifted = scratch(t, { type: 'node-brief', name: '2026-01-05-drift' });
@@ -348,6 +351,7 @@ test('node-brief: graph drift and an unread definition warn and still print; unr
   const drift = nodeBrief(drifted.state, 'audit');
   assert.equal(drift.code, 0, drift.stderr);
   assert.match(drift.stderr, /^warning: node-brief-graph-drift: [^\n]+\n$/);
+  assert.ok(drift.stderr.includes(driftClause(drifted) + '\n'), 'the warning ends with the no-re-freeze clause');
   assert.match(drift.stdout, /^- strict: true$/m);
 
   fs.rmSync(definition);

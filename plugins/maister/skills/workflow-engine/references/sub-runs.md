@@ -153,7 +153,7 @@ This is the dispatch runtime's rule, not a new one: it re-resolves at every disp
 reason and refuses `dispatch-graph-drifted` on a mismatch. Two runtimes that read a definition
 after a freeze must both prove it has not moved underneath them. Neither refusal is lifted by
 re-freezing, because no verb re-freezes a run. The ways on are to put the definition back, or
-to start a new run (engine SKILL.md, *A changed definition never re-freezes an open run*).
+to start a new run (`writing-state.md` § *When a write is refused*, *A changed definition never re-freezes an open run*).
 
 **A parent gate the child's answer skipped names that answer.** When a parent gate's guard reads
 a value the node adopted at W4, and the child exposes that value from one of its gates' `sets`,

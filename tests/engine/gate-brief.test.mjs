@@ -429,6 +429,9 @@ test('refusal: the value-missing patch re-sends the values already recorded besi
   assert.ok(result.stderr.includes('{"nodes":{"gap-analysis":{"values":{"has_reproducible_defect":false,"mockups_needed":<true|false>}}}}'), result.stderr);
 });
 
+// The ways on a drift warning names, whichever verb prints it.
+const driftClause = run => ` — no verb re-freezes: put back ${readState(run).workflow.source} or start a new run; never revert a person's edit unasked`;
+
 test('gate-brief: a definition changed since the freeze degrades the Next line and still exits 0', t => {
   const run = atApproval(t);
   const text = fs.readFileSync(run.state, 'utf8').replace(/graph_hash: "?sha256:[0-9a-f]+"?/, 'graph_hash: "sha256:' + '0'.repeat(64) + '"');
@@ -439,6 +442,7 @@ test('gate-brief: a definition changed since the freeze degrades the Next line a
   assert.match(result.stdout, /^Next: unknown — the definition changed since the freeze$/m);
   assert.equal(recommendedOf(run, 'approval'), 'continue');
   assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
+  assert.ok(result.stderr.includes(driftClause(run)), 'the drift warning ends with the no-re-freeze clause');
 });
 
 test('gate-brief: --oneline folds the brief onto one flow-safe line', t => {
@@ -571,6 +575,7 @@ test('gate-brief: an unreadable definition with no frozen needs degrades to the 
   assert.match(oneline(run, 'approval').stdout, / · Recommended: the continue option · /);
   assert.deepEqual(picker(run, 'approval').options, [], 'without the definition the picker names no option it cannot know');
   assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
+  assert.ok(result.stderr.includes(driftClause(run)), 'the drift warning ends with the no-re-freeze clause');
   assert.match(result.stderr, /^warning: gate-brief-needs-unknown: .*analysis/m);
 });
 
@@ -635,6 +640,7 @@ test('refusal: a drift warning is kept beside a no-summary refusal, the code fir
   assert.equal(result.code, 1);
   assert.match(result.stderr, /^gate-brief-no-summary: /);
   assert.match(result.stderr, /^warning: gate-brief-graph-drift/m);
+  assert.ok(result.stderr.includes(driftClause(run)), 'the drift warning ends with the no-re-freeze clause');
 });
 
 test('refusal: the no-summary patch names the node that closed, not a placeholder', t => {

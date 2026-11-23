@@ -151,6 +151,12 @@ const NO_VALUES = new Set(['skipped', 'stopped', 'failed']);
 /** One operand of a `when` guard: an optional `!`, then `${inputs.k}` or `${node.values.k}`. */
 const WHEN = /^(!?)\$\{([a-z][a-z0-9-]*)\.(?:(values)\.)?([a-z_]+)\}$/;
 
+/** What every graph-drift warning ends with: the two ways on, with the run's recorded `workflow.source` filled in. */
+export function driftClause(workflow) {
+  const source = typeof workflow?.source === 'string' && workflow.source !== '' ? workflow.source : null;
+  return ` — no verb re-freezes: put back ${source ?? 'the definition the state\'s workflow.source names'} or start a new run; never revert a person\'s edit unasked`;
+}
+
 /** The drift form of the Next line, and the recommendation when no option is known. */
 const NEXT_UNKNOWN = 'Next: unknown — the definition changed since the freeze';
 
@@ -267,7 +273,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   if (current.drift) {
     warnings.push({
       code: 'gate-brief-graph-drift',
-      message: `gate-brief-graph-drift: ${digest(workflow.graph_hash) ?? 'none recorded'} vs ${current.digest ?? 'unresolvable'} — the Next line is unknown`,
+      message: `gate-brief-graph-drift: ${digest(workflow.graph_hash) ?? 'none recorded'} vs ${current.digest ?? 'unresolvable'} — the Next line is unknown${driftClause(workflow)}`,
     });
   }
   const graph = current.graph;
@@ -693,7 +699,7 @@ function heldApprovalBrief({ doc, state, workflow, recorded, form, picker, reask
   if (current.drift) {
     warnings.push({
       code: 'gate-brief-graph-drift',
-      message: `gate-brief-graph-drift: ${digest(workflow.graph_hash) ?? 'none recorded'} vs ${current.digest ?? 'unresolvable'} — the Next line is unknown`,
+      message: `gate-brief-graph-drift: ${digest(workflow.graph_hash) ?? 'none recorded'} vs ${current.digest ?? 'unresolvable'} — the Next line is unknown${driftClause(workflow)}`,
     });
   }
   const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));

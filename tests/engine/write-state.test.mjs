@@ -819,7 +819,8 @@ test('refusal: a re-freeze names the ways on — put the frozen definition back,
   ]) {
     const result = refused(run, { workflow });
     assert.match(result.stderr, /^state-workflow-frozen\b/, 'the code stays the one a reader words');
-    assert.match(result.stderr, /no verb re-freezes a run/);
+    assert.match(result.stderr, /no verb re-freezes: put back /);
+    assert.match(result.stderr, /start a new run from the changed one; never revert a person's edit unasked/);
     assert.ok(result.stderr.includes(`put back the definition this run froze (${source})`), 'it names the frozen source');
     assert.match(result.stderr, /start a new run from the changed one/);
     assert.doesNotMatch(result.stderr, /top-level `nodes` key/, 'a scalar-only patch is not a misplaced node update');

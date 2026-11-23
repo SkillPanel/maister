@@ -149,13 +149,6 @@ node <plugin root>/skills/workflow-engine/scripts/workflow.mjs write-state --sta
 
 Every verb's flags, output and refusals are in `references/verbs.md`. Each step here spells the whole call of the verbs every run makes, where its moment is. Read a verb's row there only for a call no step spells.
 
-**A changed definition never re-freezes an open run.** The graph a run froze is its graph
-for its whole life, and no verb or flag replaces it. A read verb's `…-graph-drift` warning,
-`subrun-graph-drifted`, `dispatch-graph-drifted` and `state-workflow-frozen` share two ways on:
-Put back the definition the run froze (`workflow.source`, with its overlays) and the run goes
-on where it stopped, or start a new run from the changed definition. Never revert a person's
-own edit unasked: name both ways and let the person choose.
-
 ---
 
 ## Operator visibility

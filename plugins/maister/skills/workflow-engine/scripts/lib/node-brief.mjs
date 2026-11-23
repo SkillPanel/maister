@@ -147,7 +147,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parse, isPlainObject } from './state-read.mjs';
 import { BUILT_IN_AGENTS, guardReadsTask, guideRows, nodeKindIn, proseSection, readerRows, sectionNameOf } from './graph.mjs';
-import { atClose, closingCandidates, evaluate, readinessOf, reread } from './gate-brief.mjs';
+import { driftClause, atClose, closingCandidates, evaluate, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
 import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, writeState } from './state.mjs';
 import { owedCompanions } from './companions.mjs';
@@ -241,7 +241,7 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
   const warnings = [];
   const current = reread(doc, workflow, runDir);
   if (current.graph === null) warnings.push(`node-brief-definition-unread: ${state}`);
-  else if (current.drift) warnings.push(`node-brief-graph-drift: the definition now resolves to ${current.digest}, not the graph this run froze; the brief follows the definition as it reads now`);
+  else if (current.drift) warnings.push(`node-brief-graph-drift: the definition now resolves to ${current.digest}, not the graph this run froze; the brief follows the definition as it reads now${driftClause(workflow)}`);
 
   const table = conventionsOf();
   if (table === null) warnings.push(`node-brief-conventions-unread: ${CONVENTIONS_FILE}`);
