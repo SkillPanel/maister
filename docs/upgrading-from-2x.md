@@ -53,6 +53,29 @@ copilot plugin install maister@maister-plugins
 
 Then start a new session.
 
+### From the 2.x line
+
+If you installed the 2.x maintenance line (`maister-plugins-2x`), uninstall it, then add the
+channel you want. The stable channel:
+
+```bash
+/plugin uninstall maister@maister-plugins-2x
+/plugin marketplace add SkillPanel/maister
+/plugin install maister@maister-plugins
+```
+
+For the beta channel, add `SkillPanel/maister#beta` and install `maister@maister-plugins-beta`
+instead. On Copilot CLI:
+
+```bash
+copilot plugin uninstall maister-copilot@maister-plugins-2x
+copilot plugin marketplace add SkillPanel/maister
+copilot plugin install maister@maister-plugins
+```
+
+For the beta channel there, add `'SkillPanel/maister#beta'` (quoted) and install
+`maister@maister-plugins-beta`. Then start a new session.
+
 ## After you upgrade
 
 - **Expect a new permission prompt.** The engine records each step of a run with a command of its
@@ -194,7 +217,7 @@ one Maister channel can be enabled at a time, so uninstall the other first:
 On Copilot CLI:
 
 ```bash
-copilot plugin uninstall maister@maister-plugins
+copilot plugin uninstall maister-copilot@maister-plugins
 copilot plugin marketplace add SkillPanel/maister#release/2.x
 copilot plugin install maister-copilot@maister-plugins-2x
 ```

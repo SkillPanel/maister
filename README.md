@@ -319,6 +319,14 @@ Pre-release versions install from the `beta` branch. Only one Maister channel ca
 /plugin install maister@maister-plugins-beta
 ```
 
+From the 2.x line, uninstall that plugin instead, then add the channel:
+
+```bash
+/plugin uninstall maister@maister-plugins-2x
+/plugin marketplace add SkillPanel/maister#beta
+/plugin install maister@maister-plugins-beta
+```
+
 On Claude Code, if two channels are enabled together, a warning at session start names both and the command that disables each, and workflows do not start or resume until only one is enabled and the session restarted. [Troubleshooting](docs/troubleshooting.md) has the fix.
 
 </details>
