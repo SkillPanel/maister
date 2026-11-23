@@ -183,6 +183,25 @@ test('autopilot (variant): every way past a checkpoint without a person\'s answe
   assert.equal(readState(optional).workflow.nodes['audit-approval'].status, 'skipped');
 });
 
+test('autopilot (variant): a checkpoint a person answered but the write carries no answer item for is refused for its shape, never as a pick nobody made', t => {
+  const runDir = atCheckpoint(t);
+  note(runDir.dir, 'person', ['decision']);
+  const before = fs.readFileSync(runDir.state, 'utf8');
+  // The answer sent flat on the node, as a session did right after the person answered.
+  const flat = writeVia(variantEngine(), runDir, { nodes: { 'review-approval': { status: 'completed', answer: 'publish-draft' } } });
+  assert.equal(flat.code, 1, flat.stdout + flat.stderr);
+  assert.match(flat.stderr, /^state-summary-item-invalid: /m);
+  assert.doesNotMatch(flat.stderr, /state-answer-needs-person|Stop here/);
+  assert.ok(flat.stderr.includes('{"nodes": {"review-approval": {"status": "completed"}}, "node_summaries": {"review-approval": {"decisions": [{"option": "<chosen id>"}]}}}'), flat.stderr);
+  assert.equal(fs.readFileSync(runDir.state, 'utf8'), before, 'nothing is written');
+  assert.equal(fs.existsSync(path.join(runDir.dir, NOTE)), true, 'the person\'s note stays for the write in shape');
+
+  // Sent again in shape, the answer is the person's.
+  wrote(variantEngine(), runDir, CONTINUE);
+  const [kept] = readState(runDir).node_summaries['review-approval'].decisions;
+  assert.deepEqual([kept.option, kept.by], ['publish-draft', 'operator']);
+});
+
 test('autopilot (variant): a person\'s note covers only the checkpoint answer it chose, unless the person typed their own', t => {
   const covered = atCheckpoint(t);
   noteWith(covered.dir, { answers: 'publish-draft' });

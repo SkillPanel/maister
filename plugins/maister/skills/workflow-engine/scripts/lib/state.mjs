@@ -4448,6 +4448,21 @@ export function needsPerson(what, { subject = 'checkpoint', skip = false } = {})
 }
 
 /**
+ * The refusal for a write that completes the checkpoint `id` after a person
+ * answered it, but carries no answer item: the answer sent flat on the node,
+ * or not at all. Refused as an item out of shape, never as a pick with no
+ * person behind it, which would tell the session to stop the run.
+ */
+function answerItemMissing(id) {
+  const node = JSON.stringify(id);
+  return new Refusal('state-summary-item-invalid',
+    `this write records ${id} completed with no answer among node_summaries.${id}.decisions, so the person's answer is not in it. `
+    + `Nothing was written. A checkpoint's answer is one decisions item holding the chosen option's id, sent with the completion: `
+    + `{"nodes": {${node}: {"status": "completed"}}, "node_summaries": {${node}: {"decisions": [{"option": "<chosen id>"}]}}} — `
+    + 'never an answer key on the node. Send the write again in that shape; the person\'s answer still stands');
+}
+
+/**
  * Refuse a write that passes a checkpoint without a person's answer to it,
  * under `evidence` (`answerEvidence`, not null), before anything records,
  * approves or triages a gate's answer. `typed` is the document with the patch
@@ -4456,7 +4471,9 @@ export function needsPerson(what, { subject = 'checkpoint', skip = false } = {})
  * - A gate or `held-approval` whose answer this write newly records (`fresh`)
  *   — or, on a write carrying a revise reset, any it judges — must be covered
  *   as a checkpoint answer, as a send-back answer under the reset.
- * - A frozen gate the patch moves to `completed` must be one of those.
+ * - A frozen gate the patch moves to `completed` must be one of those; after
+ *   a person's answer, one with no answer item at all is refused for its
+ *   shape (`state-summary-item-invalid`), not as a pick nobody made.
  * - A frozen gate the patch moves to `skipped` must be off the run's path by
  *   the walk at the close (`atClose`, its `skipped`), read on `prior`.
  *
@@ -4482,7 +4499,12 @@ function assertPersonAnswered({ typed, prior, patch, evidence, judged, fresh, re
   let offPath = null;
   for (const [id, entry] of Object.entries(nodes)) {
     if (id === HELD_APPROVAL || !isGate(id) || !isPlainObject(entry) || entry.status === before[id]) continue;
-    if (entry.status === 'completed' && !answered.includes(id)) throw needsPerson(`an answer at ${id}`);
+    if (entry.status === 'completed' && !answered.includes(id)) {
+      // A person answered, but the write carries no answer item to hold it:
+      // the shape is wrong, not the answer, so the refusal names the shape.
+      if (evidence.person && gateAnswer(isPlainObject(summaries[id]) ? summaries[id].decisions : null) === null) throw answerItemMissing(id);
+      throw needsPerson(`an answer at ${id}`);
+    }
     if (entry.status !== 'skipped') continue;
     offPath ??= new Set(atClose({ doc: prior, runDir }).skipped);
     if (!offPath.has(id)) throw needsPerson(`${id} skipped while it is still on the run's path`, { skip: true });
