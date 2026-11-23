@@ -1258,7 +1258,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.12",
+  "interface_version": "2.10",
   "mcp": {
     "servers": [],
     "tools": [
