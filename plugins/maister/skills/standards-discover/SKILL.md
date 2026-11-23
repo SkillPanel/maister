@@ -22,7 +22,7 @@ Analyzes multiple project sources in parallel to discover coding standards, conv
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `--scope` | `full` | Discovery scope: `full`, `quick`, or any category name (baseline: `global`, `frontend`, `backend`, `testing`; custom categories also supported) |
+| `--scope` | `full` | Discovery scope: `full`, `quick`, a group the group table holds (Phase 1 lists them), or a folder already under `.maister/docs/standards/` |
 | `--confidence` | `60` | Minimum confidence threshold (0-100) for displaying findings |
 | `--auto-apply` | `false` | Auto-apply standards with confidence >= 90% without asking |
 | `--skip-external` | `false` | Skip GitHub PR analysis and CI/CD sources |
@@ -33,14 +33,11 @@ Analyzes multiple project sources in parallel to discover coding standards, conv
 | Scope | Config (P1) | Code (P2) | Docs (P3) | External (P4) |
 |-------|-------------|-----------|-----------|----------------|
 | `full` | Yes | Yes | Yes | Yes |
-| `global` | Yes | Yes (limited) | Yes | Yes |
-| `frontend` | FE configs | FE files | Yes | Yes |
-| `backend` | BE configs | BE files | Yes | Yes |
-| `testing` | Test configs | Test files | Yes | Yes |
 | `quick` | Yes | No | No | No |
-| `[custom]` | Relevant configs | Filtered files | Yes | Yes |
+| `<group>` | Configs bearing on the group | Files its filter names | Yes | Yes |
+| `<folder of the project's own>` | Relevant configs | Files matching the folder's subject | Yes | Yes |
 
-Custom scope values are matched against existing `.maister/docs/standards/*/` directories and filter analysis to relevant files.
+Any other `--scope` value is refused in Phase 1, before any scan, naming the valid values.
 
 ---
 
@@ -68,6 +65,7 @@ Custom scope values are matched against existing `.maister/docs/standards/*/` di
 
 1. **Parse options** from command arguments
 2. **Check prerequisites**: Verify `.maister/docs/` exists. If not, ask once — "Set up Maister first? (runs the setup, then this)": "Set it up (Recommended)" runs `maister:init` with the Skill tool, which ends by running a full discovery; "Not now" stops here, and so does any other answer
+2.5. **Read the groups** with `node <plugin root>/skills/docs-manager/scripts/standards.mjs groups` from the project root, the plugin root two levels above this skill's base directory, as a command of its own. Its `groups` list (each id, title and filter) and the `custom` entries of its `present` list are the group list. A `--scope` that is neither `full`, `quick`, one of those groups nor one of those folders stops here, naming the valid values. A failure of the call stops discovery with its message.
 3. **Read existing standards** from `.maister/docs/INDEX.md` to identify updates vs creates and avoid duplicates; Phase 6 reads the rules of the files a finding lands in, to find the ones it contradicts
 4. **Check the external sources** — unless `--skip-external` is set or the scope is `quick` — with `node <base directory>/scripts/external-sources.mjs` from the project root (this skill's base directory, as an absolute path). Its JSON says whether the external phase has anything to read (`scan`): pull requests through a signed-in `gh` and a git remote, CI configuration, or pre-commit hooks, and why pull requests are or are not readable. A missing or signed-out `gh` is a reported state, not an error. With `scan` false, Phase 5 is skipped, and Phase 9 names it with the reason
 5. **Print the plan as one progress line** — scope and sources, a skipped external phase with its reason — and go on: the user asked for the discovery, so there is nothing to confirm
@@ -98,6 +96,8 @@ Each phase's brief is a template under this skill's base directory: which source
 - `project_root:` the project root's absolute path
 - `output_file:` the phase's temp file
 - `scope:` the discovery scope, and `confidence:` the threshold
+- `groups:` the group list, each table group as `<id> (<title>)` and each folder of the project's own by name, comma-separated
+- `files:` for a group scope, that group's filter joined with `; `, sent to the config and code scanners only; omitted for `full`, `quick`, `global` (empty filter) and a folder of the project's own. The docs and external scanners never get a `files:` line
 - `checker:` the absolute path of `scripts/check-findings.mjs` under this skill's base directory, which the scanner runs on its file
 - `pr_count:` the number of pull requests, and `github:` `available` when the external sources check found pull requests readable, otherwise its reason — for the external phase only
 
@@ -118,8 +118,8 @@ Every applicable phase is a subagent of its own, whatever the size of the reposi
 1. **Combine** all findings from Phases 2-5
 2. **Deduplicate** by grouping on `category + standard_name` — merge evidence and sources
 3. **Calculate final confidence** using multi-factor scoring from the reference
-4. **Detect conflicts** — flag contradictory standards (e.g., ESLint says semicolons, Prettier says no)
-   - **Against the standards already written.** Read the rules in each existing standards file a finding lands in, starter rules copied at setup included. A finding that says the opposite of a rule there is a conflict too, even with no second finding against it: "Implement versioning (URL path or headers)" in `backend/api.md` against discovered plural, unversioned paths is one. Writing the finding beside the rule, or merging it in, would leave two rules that cannot both hold, and nothing later reports them.
+4. **Detect conflicts** — flag contradictory standards (e.g., the contributing guide asks for default exports while the code uses named exports throughout)
+   - **Against the standards already written.** Read the rules in each existing standards file a finding lands in, starter rules copied at setup included. A finding that says the opposite of a rule there is a conflict too, even with no second finding against it: "Use plural nouns for resources" in `backend/api.md` against discovered singular resource paths (`/user/{id}`) is one. Writing the finding beside the rule, or merging it in, would leave two rules that cannot both hold, and nothing later reports them.
 5. **Categorize** into High (>= 80%), Medium (60-79%), Low (< 60%)
 6. **Filter** by `--confidence` threshold
 7. **Write the list once**, as `{tmpdir}/findings.yml`: every finding after the merge, numbered, each with its tier — high, medium, conflict or below the threshold, exactly one — its plain name, what it says and its sources. A finding in a conflict is listed once, as the conflict. This list is the one count from here to the close: every number Phases 7 to 9 print is read from it, never recounted from memory, and nothing is asked, written or reported that it does not hold.
@@ -155,7 +155,7 @@ If `--auto-apply` is set, automatically approve findings with confidence >= 90% 
 
 Write standard files through the docs-operator subagent rather than Write/Edit, so INDEX.md and CLAUDE.md stay consistent with the files.
 
-1. **Prepare content** for every approved standard, and for every conflict with a written rule settled for the discovered side, the replacement: the written rule's section rewritten as the discovered rule, never a second section beside it — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. A rule cites at most one example path — never an inventory of call sites, a date or a ticket reference. Note create vs update for each target file, and prefer a new topic file (or a sub-folder for a topic with several) over appending to a file already past about 12 KB or 15 rules. A rule already written — a starter rule or the project's own — is replaced or removed only through a conflict the user settled for the discovered side. A finding that overlaps one without contradicting it is written beside it, or added to it with its heading and its text kept; it is never folded into a new section that takes the written one's place.
+1. **Prepare content** for every approved standard, and for every conflict with a written rule settled for the discovered side, the replacement: the written rule's section rewritten as the discovered rule, never a second section beside it — standard name, description, examples (preferred/avoid), rationale from evidence, source citations. Format each as a `###` heading with a 1-10 line description (excluding code snippets); group related standards into one topic file; add brief code examples only where they clarify. A rule cites at most one example path — never an inventory of call sites, a date or a ticket reference. Note create vs update for each target file; a finding's target folder is the group it landed in, and the docs operator creates the folder when it is absent, and prefer a new topic file (or a sub-folder for a topic with several) over appending to a file already past about 12 KB or 15 rules. A rule already written — a starter rule or the project's own — is replaced or removed only through a conflict the user settled for the discovered side. A finding that overlaps one without contradicting it is written beside it, or added to it with its heading and its text kept; it is never folded into a new section that takes the written one's place.
 2. **Invoke the `docs-operator` subagent once** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before) with all prepared standards, instructing it to apply each create/update — adding to existing content, every section the call does not name for replacement kept as it is, and naming each written rule a settled conflict replaces — then refresh INDEX.md with every written path as changed — `check` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, as an absolute path — and confirm CLAUDE.md references the standards directory.
 
 Display the application summary in findings, read from the list: "N findings applied, in F files (c created, u updated)". A finding added to a rule already written is still one applied finding. An approved finding that was not written is named here, once, with the reason, and counted as not applied.
@@ -166,7 +166,7 @@ Display the application summary in findings, read from the list: "N findings app
 
 Display final results. Every count is read from the list, and the counts add up to the count line's total: applied, skipped, below the threshold, and conflicts settled or left unsettled. Nothing merged or dropped is said again here; it was said where it happened.
 - Sources analyzed (config files, code files sampled, docs parsed, PRs reviewed), and each source skipped with its reason — no `gh`, `gh` not signed in, no remote, nothing external to read
-- Findings applied, by category
+- Findings applied, by group
 - Findings skipped (user declined, or skipped with the rest) and below the threshold, each named
 - Conflicts with written rules: each settled one, with the rule that now holds, and each skipped one, both rules named with their files, for the user to settle
 - Next steps (review, commit, re-run schedule)

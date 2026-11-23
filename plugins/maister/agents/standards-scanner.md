@@ -22,6 +22,8 @@ You scan one source of a project for the conventions it already keeps, and write
 | `project_root` | Absolute path of the project. Every path you read is under it |
 | `output_file` | Absolute path of the one file you write |
 | `scope` and `confidence` | The discovery scope (which files are in play) and the minimum consistency or confidence to report |
+| `groups` | The group list: every finding's `category` is one of them, or a new group named in one word |
+| `files` | For a group scope, the config and code scanners only: the files in play |
 | `checker` | Absolute path of the findings check you run on `output_file` once it is written |
 | `pr_count` and `github` | The number of merged pull requests to read, and whether they can be read (`available`, or the reason not); the external sources brief only |
 

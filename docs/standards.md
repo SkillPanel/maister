@@ -10,21 +10,37 @@ are in the [Command Reference](commands.md).
 .maister/docs/
 ├── INDEX.md             # one short entry per document; workflows read this first
 ├── project/             # what the project is: vision, roadmap, tech stack, architecture, and your own
-├── standards/           # how code is written here, one folder per category
-│   ├── global/
-│   ├── frontend/
-│   ├── backend/
-│   └── testing/
+├── standards/           # how code is written here, one folder per group
+│   ├── global/          # every project
+│   ├── testing/         # every project
+│   └── <group>/         # the groups that fit the code: frontend, backend, data, cli, mobile, jobs, infra, or your own
 ├── <any folder>/        # any other Markdown you keep here
 └── design-context/      # the mockup studio's grounding pack (see Mockups); not indexed
 ```
 
 **Standards** are short rules about how code is written in this project. Each file is one topic,
-`standards/<category>/<topic>.md`, with a `###` heading per rule and a few lines under it, and at
-most a short example. A category is just a folder: the four above are the starting set, and you can
-add your own, or group a large topic into a sub-folder (`standards/backend/storage/locking.md`).
-A file reads best under about 12 KB or 15 rules; past that, Maister suggests splitting it, but
-never refuses a larger one.
+`standards/<group>/<topic>.md`, with a `###` heading per rule and a few lines under it, and at
+most a short example. A group is just a folder. Maister ships nine, below, and init copies the ones
+that fit the code; you can add your own, or group a large topic into a sub-folder
+(`standards/backend/storage/locking.md`). A file reads best under about 12 KB or 15 rules; past
+that, Maister suggests splitting it, but never refuses a larger one.
+
+### The groups Maister ships
+
+| Group | What it holds | Init recommends it when |
+|---|---|---|
+| `global` | coding style, conventions, error handling, minimal implementation, validation | always |
+| `testing` | test writing | always |
+| `frontend` | web UI: accessibility, components and styling | the profile's `ui` is `web`, or a web UI framework is found; a React Native, Expo or Flutter app gets it only as a web view in a native shell (Capacitor, Ionic) |
+| `backend` | HTTP service: API design | the profile's `kind` is `service` or `daemon`, or a server framework or full-stack server routes are found |
+| `data` | database: schema and migrations, queries | the profile's `data` names a database, or an ORM, a migrations folder or a SQL schema is found |
+| `cli` | command-line output | `kind` is `cli` or `ui` is `tui`, or a command entry point is found |
+| `mobile` | native mobile app | `kind` is `mobile`, or an Xcode or Android project, Flutter, React Native or Expo is found |
+| `jobs` | jobs and message handlers | `kind` is `data-pipeline`, or a job, pipeline or queue framework is found |
+| `infra` | infrastructure as code | `kind` is `infra`, or Terraform, Pulumi, CloudFormation, CDK, Helm, Kubernetes or Ansible files are found |
+
+In a monorepo every group any of its apps calls for is recommended. `backend` means a service's HTTP
+side; database rules live in `data`.
 
 **Project documents** say what the project is and why it is that way: the vision, the roadmap, the
 tech stack, the architecture, and whatever else your team writes, such as a decision log or a
@@ -48,10 +64,11 @@ on Copilot reads `@.maister/docs/INDEX.md`, which never loaded the index; change
 
 - **Project documents** under `.maister/docs/project/`, filled in from the analysis: the tech
   stack always, and the vision, roadmap and architecture unless you choose otherwise.
-- **Starter standards** under `.maister/docs/standards/`, in the categories that fit the code it
-  found: global and testing always recommended, frontend and backend when the code has them. You
-  can choose the categories, or add one of your own. A recommended category you leave out
-  gets no section in INDEX.md; init's closing summary names it with the command that adds it later.
+- **Starter standards** under `.maister/docs/standards/`, in the groups that fit the code it found:
+  global and testing always, and each other group with the reason it is recommended, the profile
+  field or what the analysis found (`mobile — kind: mobile; Expo in package.json`). Take them, or
+  choose group by group. A recommended group you leave out gets no section in INDEX.md; init's
+  closing summary names it with the command that adds it later.
 - **INDEX.md** for everything it wrote, and the pointer in `CLAUDE.md` (it creates the file when
   there is none).
 - **`.maister/config.yml`**, with the project profile; the keys are in
@@ -62,8 +79,10 @@ checked against what your code really does. Where a discovered rule contradicts 
 asks which one holds.
 
 **Starting from another project's standards.** `/maister:init --standards-from=../other-project`
-copies the categories from that project's `.maister/docs/standards/` instead of the built-in set.
-Use it when a new project should follow the same conventions as an existing one.
+copies from that project's `.maister/docs/standards/` instead of the built-in set: its folders that
+are among the nine groups are recommended by the same rules, and each folder of its own (a
+`payments/`, say) is included as coming from that project. Use it when a new project should follow
+the same conventions as an existing one.
 
 **Running init again.** On a project that already has `.maister/`, init asks what to do:
 
@@ -72,9 +91,10 @@ Use it when a new project should follow the same conventions as an existing one.
   finds, and asks one question listing every proposed change. Only additions are recommended:
   missing config keys, missing profile fields, missing documents. A value or a passage that
   differs is offered one line or one file at a time, and kept unless you take the change.
-  Standards are never changed; a category your stack needs and `standards/` lacks is named with
-  its `/maister:standards-discover --scope=<category>` command. Your other documents are never
-  rewritten; they only get an index entry when they have none. Whatever you choose, INDEX.md is
+  Standards are never changed; a group your project's profile or code calls for and `standards/`
+  lacks is named with its `/maister:standards-discover --scope=<group>` command. Database rules an
+  older setup keeps in `backend/` count as the `data` group, so they are not named missing. Your other
+  documents are never rewritten; they only get an index entry when they have none. Whatever you choose, INDEX.md is
   refreshed and the pointer repaired.
 - **Start over.** The existing `.maister/` is moved to a dated backup,
   `.maister.backup-<date and time>/`, and init runs as on a new project.
@@ -86,7 +106,9 @@ Leaving without changes is the free-text answer.
 Standards discovery reads your project and proposes the rules it already follows. It looks at
 four sources:
 
-- **configuration files**: linter, formatter, compiler, editor and package settings;
+- **configuration files**: compiler, package and CI settings, and the commands your formatter and
+  linter configs are enforced by (`npm run lint`, `prettier --check .`), never a rule per formatter
+  setting;
 - **code**: patterns that recur across the source files;
 - **documentation**: conventions your README, contributing guide, architecture notes and other
   docs state outright;
@@ -110,7 +132,7 @@ Nothing is written until you approve it:
   `--confidence` can pick them up.
 
 Approved rules are written into the matching topic files, existing rules are kept unless you
-settled a conflict against them, and INDEX.md is refreshed. Use `--scope` to look at one category
+settled a conflict against them, and INDEX.md is refreshed. Use `--scope` to look at one group,
 or only at configuration files, and `--skip-external` to leave pull requests and CI out. On a
 project with no `.maister/docs/` yet, it offers to run `/maister:init` first.
 

@@ -132,17 +132,89 @@ test('standards prompts: the plan template and its checklist name standards file
   assert.match(planner, /Standards Compliance names files for every group, never a folder/, 'the checklist says files, never a folder');
 });
 
-test('standards prompts: init\'s summary names each deselected recommended category with its discover command', () => {
+test('standards prompts: init\'s summary names each recommended group that was not copied with its discover command', () => {
   const init = read(INIT);
-  assert.match(init, /Store the selection for Phase 5, and the categories the defaults recommended for Phase 7's summary\./, 'Phase 4 keeps the recommended set');
+  assert.ok(init.includes('Store the selection for Phase 5, and the groups the resolver recommended for Phase 7\'s summary.'), 'Phase 4 keeps the recommended set');
   const summary = slice(init, 'Standards not copied:', 'Project config:', 'init');
-  assert.ok(summary.includes('each category Phase 4 recommended that the person deselected, one line each with the command that adds it later, `/maister:standards-discover --scope=<category>`'), 'the summary names each deselected category with its command');
-  assert.ok(summary.includes('a category Phase 4 never recommended is not named'), 'a category never recommended is not named');
-  assert.ok(summary.includes('the line is left out when every recommended category was kept'), 'the line is left out when nothing was deselected');
+  assert.ok(summary.includes('each group Phase 4 recommended that was not copied'), 'the summary names each recommended group not copied');
+  assert.ok(summary.includes('deselected, or not held by the referenced project'), 'the summary says why a group was not copied');
+  assert.ok(summary.includes('one line each with the command that adds it later, `/maister:standards-discover --scope=<group>`'), 'each line carries the discover command');
+  assert.ok(summary.includes('a group Phase 4 never recommended is not named'), 'a group never recommended is not named');
+  assert.ok(summary.includes('the line is left out when every recommended group was copied'), 'the line is left out when every recommended group was copied');
+});
+
+// Every reader of the standards groups asks the resolver, never a list of
+// its own: each site below names the resolver call. A reader added later
+// adds its row here.
+const RESOLVER = 'skills/docs-manager/scripts/standards.mjs groups';
+const RESOLVER_READERS = [
+  { rel: INIT, from: '## PHASE 4', to: '## PHASE 5', label: 'init Phase 4' },
+  { rel: INIT, from: 'Step 1 — Survey', to: 'Step 2 — One decision', label: 'init update survey' },
+  { rel: 'skills/standards-discover/SKILL.md', label: 'standards-discover' },
+];
+
+test('standards prompts: every reader of the standards groups runs the resolver', () => {
+  for (const { rel, from, to, label } of RESOLVER_READERS) {
+    const text = from ? slice(read(rel), from, to, label) : read(rel);
+    assert.ok(text.includes(RESOLVER), `${label} names \`${RESOLVER}\``);
+  }
 });
 
 test('standards prompts: docs-manager Refresh removes the placeholder and keeps every other entry', () => {
   const refresh = slice(read(DOCS_MANAGER), '### 2. Refresh', '### 3.', 'docs-manager');
   assert.ok(refresh.includes('Keep everything else byte for byte'), 'Refresh keeps every other entry byte for byte');
   assert.ok(refresh.includes('is removed, with its heading when no entry sits under it'), 'the placeholder goes with its heading only when no entry sits under it');
+});
+
+test('standards prompts: docs-manager Initialize copies each selected folder by name, with no copy-all fallback', () => {
+  const initialize = slice(read(DOCS_MANAGER), '### 1. Initialize', '### 2. Refresh', 'docs-manager');
+  assert.ok(initialize.includes('by name'), 'Initialize copies by name');
+  assert.ok(initialize.includes('docs/standards-groups.json'), 'Initialize names the group table');
+  assert.doesNotMatch(initialize, /Copy ALL/, 'Initialize has no copy-all fallback');
+  assert.doesNotMatch(initialize, /backward compatible/, 'Initialize has no backward-compatible clause');
+});
+
+// The guards' key phrases, folded the way the spec says (lowercase, no bold
+// markers, no double quotes, no backticks, one space between words), must
+// appear in the prompt steps and in the bundled standard that states the rule.
+const foldPhrases = text => text.toLowerCase().replace(/\*\*|["\u201c\u201d`]/g, '').replace(/\s+/g, ' ');
+const G1_PHRASES = [
+  'fix the code, not the test',
+  'fix the code under test',
+  'weakening an assertion, skipping or deleting a test',
+  'silencing a check',
+  'special-casing the test\'s inputs is not a fix',
+  'if the test itself is wrong, say why',
+  'change it as its own named step',
+];
+const G2_PHRASES = [
+  'change only what the task needs',
+  'no renames, reformatting, refactors or improvements to neighbouring code',
+  'no tests, docs or files the task did not call for',
+];
+
+function standardSection(rel, heading) {
+  const raw = fs.readFileSync(path.join(PLUGIN, rel), 'utf8');
+  const start = raw.indexOf(heading);
+  assert.notEqual(start, -1, `${rel}: "${heading}" is present`);
+  const next = raw.indexOf('###', start + heading.length);
+  return foldPhrases(raw.slice(start, next === -1 ? undefined : next));
+}
+
+test('standards prompts: each guard\'s key phrases appear in both prompt steps and in the bundled standard', () => {
+  const impl = foldPhrases(fs.readFileSync(path.join(PLUGIN, IMPLEMENTER), 'utf8'));
+  const fix = slice(foldPhrases(fs.readFileSync(path.join(PLUGIN, BUGFIX), 'utf8')), '### step 6', '### step 7', 'quick-bugfix');
+  const g1 = [
+    ['implementer Phase 4', slice(impl, '### phase 4', '### phase 5', 'implementer')],
+    ['implementer Test Failures', slice(impl, '### test failures', '### implementation errors', 'implementer')],
+    ['quick-bugfix Step 6', fix],
+    ['test-writing.md', standardSection('skills/docs-manager/docs/standards/testing/test-writing.md', '### Fix the Code, Not the Test')],
+  ];
+  const g2 = [
+    ['implementer Phase 5', slice(impl, '### phase 5', '## output format', 'implementer')],
+    ['quick-bugfix Step 6', fix],
+    ['minimal-implementation.md', standardSection('skills/docs-manager/docs/standards/global/minimal-implementation.md', '### Change Only What the Task Needs')],
+  ];
+  for (const [where, text] of g1) for (const phrase of G1_PHRASES) assert.ok(text.includes(phrase), `${where} carries "${phrase}"`);
+  for (const [where, text] of g2) for (const phrase of G2_PHRASES) assert.ok(text.includes(phrase), `${where} carries "${phrase}"`);
 });

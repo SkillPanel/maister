@@ -31,8 +31,9 @@ Init analyzes the codebase, then asks:
    Each has a recommended answer, and goals and team context can be skipped.
 3. Which project documents to write: vision, roadmap, tech stack and architecture, or the tech stack
    only, or a choice of them.
-4. Which standards categories to start with (global, frontend, backend, testing), recommended from
-   the stack.
+4. Which standards groups to start with: global and testing always, plus the groups that fit the
+   stack (frontend, backend, data, cli, mobile, jobs, infra), each named with the reason it is
+   recommended.
 5. Then it scans the project for the coding standards it already follows and asks which to keep.
 
 It writes:

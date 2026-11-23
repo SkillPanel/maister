@@ -94,6 +94,8 @@ validate:
 	@node tests/dispatch-command-lint.mjs --variant="$(VARIANT)"
 	@echo "Checking every agent and workflow guide names a plugin file under the plugin root..."
 	@node tests/plugin-path-lint.mjs --variant="$(VARIANT)"
+	@echo "Checking no prose lists the old four standards folders without the groups added beside them..."
+	@node tests/group-list-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."
 	@test $$(find "$(VARIANT)"/commands -mindepth 2 -name "*.md" 2>/dev/null | wc -l) -eq 0 || (echo "FAIL: nested command directories found" && exit 1)
 	@echo "Checking every source agent carries the containment sentence..."

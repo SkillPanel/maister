@@ -30,25 +30,10 @@ Every operation below takes its choices from the caller's prompt. When an operat
 │   ├── tech-stack.md            # Technology choices and rationale
 │   └── architecture.md          # System architecture (optional)
 ├── <any folder>/                # Any other Markdown, copied in as it is (indexed as project docs)
-└── standards/                    # Technical standards and conventions
-    ├── global/                  # Language-agnostic standards
-    │   ├── error-handling.md
-    │   ├── validation.md
-    │   ├── conventions.md
-    │   ├── coding-style.md
-    │   └── commenting.md
-    ├── frontend/                # Frontend-specific standards
-    │   ├── css.md
-    │   ├── components.md
-    │   ├── accessibility.md
-    │   └── responsive.md
-    ├── backend/                 # Backend-specific standards
-    │   ├── api.md
-    │   ├── models.md
-    │   ├── queries.md
-    │   └── migrations.md
-    └── testing/                 # Testing standards
-        └── test-writing.md
+└── standards/                    # Technical standards and conventions, one folder per group
+    ├── global/                  # In every project
+    ├── testing/                 # In every project
+    └── <group>/                 # The groups that fit the code, or the project's own (the table: docs/standards-groups.json)
 ```
 
 `design-context/` at the top of `.maister/docs/` is the mockup studio's grounding pack, outside the index: its files need no INDEX entry and the docs check skips them.
@@ -56,7 +41,7 @@ Every operation below takes its choices from the caller's prompt. When an operat
 ## Standard File Conventions
 
 Standard files follow the structure `standards/[category]/[topic].md`:
-- **Category** = domain folder (global, frontend, backend, testing, or custom)
+- **Category** = a group: a folder under `standards/`, one of the groups in `docs/standards-groups.json` or the project's own
 - **Topic file** = contains multiple related standards
 
 **Format**: Each file uses `## Topic` as the file heading, with `### Standard Name` for each individual standard. Each standard has a 1-10 line description (excluding code snippets) and an optional brief code example (under 10 lines).
@@ -73,14 +58,12 @@ Standard files follow the structure `standards/[category]/[topic].md`:
 
 This skill bundles the following resources within the plugin:
 
-- **Standards Directory**: Contains baseline technical standards organized by category:
-  - `global/` - Global standards (error handling, validation, conventions, etc.)
-  - `frontend/` - Frontend-specific standards (CSS, components, accessibility, etc.)
-  - `backend/` - Backend-specific standards (API design, database, queries, etc.)
-  - `testing/` - Testing standards (test writing, coverage, etc.)
+- **Standards directory**: `docs/standards/`, the baseline standards, one folder per group
+- **Group table**: `docs/standards-groups.json`, one entry per group with its folder, files, the profile conditions that select it and its discovery file filter. `scripts/standards.mjs groups` applies it; prose never restates it
 - **INDEX.md Template**: Master template for documentation index
 - **Standard candidates**: `references/standard-candidates.md` — the one description of a standard candidate: what it is, how one is written, where it belongs, and how finalization consolidates them
 - **Index check**: `scripts/docs-check.mjs` — reports whether INDEX.md still maps the documents (see Refresh INDEX.md)
+- **Group resolver**: `scripts/standards.mjs`, beside the index check, answers which groups fit a project (`groups`)
 
 ## Location Reference
 
@@ -94,31 +77,20 @@ This skill bundles the following resources within the plugin:
 
 Use this when a project doesn't have `.maister/docs/` or needs documentation for the first time. This is a **one-time baseline setup** that gives the project a starting point.
 
-**IMPORTANT**: This operation accepts an optional `standards_selection` parameter (array of standard categories) to control which standards to initialize. If not provided, all standards are copied (backward compatible). It also accepts an optional `standards_source_path` parameter to copy standards from an external project instead of the bundled defaults.
+**IMPORTANT**: This operation requires a `standards_selection` parameter (array of folder names) that says which standards to initialize. It also accepts an optional `standards_source_path` parameter to copy standards from an external project instead of the bundled defaults.
 
 **What to do:**
 1. Check if `.maister/docs/` exists in the project root
 2. If it exists, proceed only when the caller's prompt says so (init asks before re-initializing); otherwise return the overwrite as a decision needed
-3. Create the directory structure based on standards_selection:
+3. Create the directory structure:
    ```
    .maister/docs/
    ├── project/
-   └── standards/
-       ├── global/      (if 'global' in standards_selection or no selection provided)
-       ├── frontend/    (if 'frontend' in standards_selection or no selection provided)
-       ├── backend/     (if 'backend' in standards_selection or no selection provided)
-       └── testing/     (if 'testing' in standards_selection or no selection provided)
+   └── standards/<folder>/    for each selected folder
    ```
-4. Copy standards to the project's `.maister/docs/standards/` directory. **Source selection**: If `standards_source_path` is provided, copy from that external path. Otherwise, copy from this skill's bundled `docs/standards/` directory:
+4. Copy each selected folder by name — a group of the group table (`docs/standards-groups.json`) or the project's own — whole (its files and sub-folders), from `standards_source_path`, or else from this skill's bundled `docs/standards/`. A selected name the source does not hold is created empty, as the project's own group. Example: `['global', 'testing', 'cli', 'data']` copies those four folders.
    - **Project documentation**: Do NOT copy project templates — only create the `project/` directory. Project documentation files (vision, roadmap, tech-stack, architecture) are generated by the calling skill (e.g., maister:init) using analyzer data, not copied as placeholder templates.
-   - **Standards**: Only copy selected standard categories based on standards_selection parameter:
-     - If `standards_selection` is empty or not provided: Copy ALL standards (backward compatible)
-     - If `standards_selection` is provided: Only copy specified categories
-     - Examples:
-       - `['global', 'frontend', 'testing']` → Copy only these three categories
-       - `['global', 'backend', 'testing']` → Skip frontend standards
-       - `['global', 'testing']` → Only global and testing standards
-5. Write INDEX.md with Refresh INDEX.md — every copied file is new. A category that was not copied gets no section: the index maps only what the project holds.
+5. Write INDEX.md with Refresh INDEX.md — every copied file is new — one `## Standards: <folder>` section per copied folder; a folder that was not copied gets no section: the index maps only what the project holds.
 6. **MANDATORY - Update CLAUDE.md:**
    - Check if `CLAUDE.md` exists in the project root; if not, create it — the integration is mandatory — and name it in the result
    - Add the documentation reference section (see "Manage CLAUDE.md Integration" operation)
@@ -126,21 +98,20 @@ Use this when a project doesn't have `.maister/docs/` or needs documentation for
 7. Inform the caller about the documentation structure created
 
 **Parameters:**
-- `standards_selection` (optional, array of strings): Standard categories to initialize
-  - Array of category names (e.g., `['global', 'frontend', 'backend', 'testing']`). Baseline categories: global, frontend, backend, testing. Custom categories are also supported.
-  - If omitted or empty: Initialize all baseline standards (backward compatible)
-  - If provided: Only initialize specified categories (creates directories for custom ones)
+- `standards_selection` (required, array of strings): Folder names to initialize
+  - Folder names under `standards/` (e.g., `['global', 'testing', 'data']`): a group of the group table or the project's own
+  - If omitted or empty: no standards are copied, and the selection is returned as a decision needed
 - `standards_source_path` (optional, string): Absolute path to an external standards directory (e.g., `/path/to/other-project/.maister/docs/standards/`); the bundled `docs/standards/` tree's own absolute path is a valid value too, and copies the defaults
   - If provided: Copy standards from this path instead of the bundled defaults
   - If omitted: Copy from this skill's bundled `docs/standards/` directory (default behavior)
 
-**Result:** The project now has baseline documentation in `.maister/docs/`, an INDEX.md that maps it, and CLAUDE.md integration that ensures AI assistance is documentation-aware. Only selected standard categories are initialized.
+**Result:** The project now has baseline documentation in `.maister/docs/`, an INDEX.md that maps it, and CLAUDE.md integration that ensures AI assistance is documentation-aware. Only the selected folders are initialized.
 
 **Important:** After this initial setup, the project's documentation becomes the source of truth. Teams should customize it for their specific needs.
 
-**Note on Skipped Standards**: If standard categories are skipped during initialization, teams can add them later using:
+**Note on Skipped Standards**: If groups are skipped during initialization, teams can add them later using:
 - "Add Documentation File" operation to add specific standards
-- `/maister:standards-discover` command to auto-discover standards from codebase
+- `/maister:standards-discover --scope=<group>` command to auto-discover a group's standards from the codebase
 
 ---
 
@@ -220,7 +191,7 @@ Use this to help the user update or modify existing project documentation.
 Use this when a team wants to see the plugin's baseline documentation for reference, or reset specific docs to plugin defaults.
 
 **What to do:**
-1. Compare the documentation in this skill's bundled `docs/` directory with the project's `.maister/docs/` directory to identify differences
+1. Compare the documentation in this skill's bundled `docs/` directory with the project's `.maister/docs/` directory to identify differences; only the Markdown documents under `docs/` count, and `docs/standards-groups.json` is data, never listed or copied
 2. Return which documents differ and how, in a few words each
 3. Unless the caller already chose, return the choice as a decision needed — "Keep your documentation (Recommended): the baseline is reference only", "Reset these files to the baseline", "Reset everything to the baseline" — the question saying that a reset overwrites the project's own edits
 4. When the caller's prompt chooses a reset:
@@ -239,7 +210,7 @@ Use this when a team wants to see the plugin's baseline documentation for refere
 Use this to show what documentation is bundled with this plugin and their installation status in the project.
 
 **What to do:**
-1. List all documentation in this skill's bundled `docs/` directory, organized by category
+1. List all documentation in this skill's bundled `docs/` directory, organized by category; only the Markdown documents under `docs/` count, and `docs/standards-groups.json` is data, never listed or copied
 2. For each bundled document:
    - Show the category and name
    - Check if it exists in the project at `.maister/docs/[category]/[name].md`

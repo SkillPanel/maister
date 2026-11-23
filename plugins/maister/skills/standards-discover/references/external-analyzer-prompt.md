@@ -45,6 +45,10 @@ Extract: mandatory checks, formatting enforcement, commit message validation.
 | PR review patterns (5+ PRs) | 70-80% | Strong team consensus |
 | PR review patterns (3-4 PRs) | 60-70% | Emerging pattern |
 
+## Groups
+
+Your prompt's `groups:` line lists the groups this project's standards use, each with its title, and any folder of the project's own. Begin each finding's `category` with the id of the group it fits, chosen by what the group's title says it holds, then `/` and the topic as before (`data/migrations`, `cli/output`), whether or not that folder exists yet. A finding that fits no listed group goes to `global` when it holds for all code, or names a new group in one word.
+
 ## Output Format
 
 Write this YAML to `[output_file]` (the `output_file` your prompt names):

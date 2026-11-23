@@ -81,25 +81,33 @@ Store selections for Phase 6.
 
 ## PHASE 4: Select Standards to Initialize
 
-**Determine available categories:**
-- **If `--standards-from` was provided**: Scan `PATH/.maister/docs/standards/*/` to discover all available categories from the external project (may include custom categories beyond the baseline global/frontend/backend/testing).
-- **Otherwise**: Use built-in baseline categories (global, frontend, backend, testing).
+The standards come in groups, one folder each. Which groups fit the project is the resolver's answer, from its group table: this phase never keeps a list of its own.
 
-Calculate smart defaults based on analysis:
-- **Global**: Always recommended (if available)
-- **Frontend**: If frontend framework detected or projectArchitectureType includes frontend (if available)
-- **Backend**: If backend framework detected or projectArchitectureType includes backend (if available)
-- **Testing**: Always recommended (if available)
+**Step 1 — Build the profile.** Build now the object Phase 5 Step 3 writes: its fields, filled by Step 3's table and evidence rules from Phase 2's analysis with Phase 3's corrections applied. A field nothing settles is left out. This is the one profile: the resolver reads it here, and Step 3 writes it as it stands.
 
-Also scan `.maister/docs/standards/*/` for any existing custom categories to include.
+**Step 2 — Run the resolver.** From the project root, run `node <plugin root>/skills/docs-manager/scripts/standards.mjs groups`, the plugin root two levels above this skill's base directory, written as an absolute path, with:
+- each profile field the resolver takes, as its flag: `--kind`, `--ui`, `--deploy`, and `--data` as a list (`--data=""` for `[]`); a field the profile leaves out gets no flag
+- `--signals` with the ids the analyzer reported found, after Phase 3's corrections; only ids of its eight signals
+- `--monorepo` when the analyzer's architecture type or a correction says monorepo or umbrella
+- with `--standards-from`, `--standards-dir` set to the source path Phase 1 stored
 
-Ask once with AskUserQuestion, the defaults and their source in the question — "Start with these standards: \<categories\>? They come from \<the referenced project | Maister's built-in set\> and can be edited later.":
-- "Use them (Recommended)" → proceed with the calculated defaults
-- "Choose individually" → a multi-select of all discovered categories (a new category is the Other answer), none marked recommended
+Write every list value in double quotes (`--signals="native-mobile,database"`); bash, PowerShell and cmd.exe all read that the same way. Paths follow init's convention for its other commands, which is the engine's invocation rule: a path holding a space, such as a `--standards-from` source, goes in single quotes.
 
-Custom categories: if user adds a new category, create the directory and include it in the selection.
+- **A refusal** (exit 1): correct the input its error names and run once more.
+- **An internal failure** (exit 2): ask as *Error Handling Principles* asks for a failed tool, with the cause in the question: "Retry (Recommended)" or "Continue with manual input". The latter offers the nine groups, the folders of the built-in standards (`<plugin root>/skills/docs-manager/docs/standards/`), paged as "Choose individually" pages them, with no option marked recommended.
 
-Store the selection for Phase 5, and the categories the defaults recommended for Phase 7's summary.
+**Step 3 — The defaults.** The defaults are the `recommended` ids. With `--standards-from`, they are the recommended ids the source holds plus its `custom` folders, as the resolver's `present` list reports them, leaving out one marked `empty`, which holds no standards to copy. A recommended group held there only through pre-change files (`via: "pre-change"`) is taken as the folder holding them.
+
+**Step 4 — One question.** Ask once with AskUserQuestion, the groups, their reasons and their source in the question, such as: "Start with these standards? Always: global and testing. Recommended: mobile (kind: mobile; expo in package.json), data (data: sqlite; a migrations folder). They come from \<the referenced project | Maister's built-in set\> and can be edited later." Each recommended group is named with its `reasons`: a profile field as `field: value`, a signal as the evidence the analyzer gave for it. With `--standards-from`, the question also names a recommended group the source lacks, and each source folder of its own. With `--standards-from`, global and testing are stated as always given only when the source holds them; one the source lacks is named as not held there, like any recommended group, and Phase 7 names it.
+- "Use them (Recommended)": takes the defaults
+- "Choose individually": offers every group except global and testing, plus the source's own folders, in multi-select questions of at most four options, as one page. Split the options evenly so every question holds two to four (nine as 3, 3, 3); past four questions, a further page follows in the same turn. Each option is labelled with the group's title, and its description says why it was or was not recommended: its reasons, or, for a group in `not_recommended`, that nothing in the profile or the analysis calls for it, or the `outranked` signal precedence set aside. A source folder of its own says it comes from the referenced project. No option is marked recommended. Global and testing stay in the selection as the defaults hold them.
+
+A group of the project's own is the Other answer: its name joins the selection, and Phase 5 creates its folder.
+<!-- plain-picker
+A page is one form of up to four properties, one per question, each `"type": "array"` — the question tool refuses a property without its type — whose items are a choice of its options: `anyOf` entries of `const` (the folder name) and `title` (the group's title), none marked "(Recommended)"; why each group was or was not recommended goes in the property's description, since the form shows titles only.
+-->
+
+Nothing is written in this phase. Store the selection for Phase 5, and the groups the resolver recommended for Phase 7's summary.
 
 ---
 
@@ -107,7 +115,7 @@ Store the selection for Phase 5, and the categories the defaults recommended for
 
 **Invoke `docs-operator` subagent** via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before) with prompt — here and in Phase 7, `[check path]` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path. `[standards path]` is `<plugin root>/skills/docs-manager/docs/standards/`, the built-in standards, written the same way as an absolute path, or with `--standards-from` the `[resolved path]/.maister/docs/standards/` Phase 1 stored:
 
-> "Initialize documentation structure. Standards selection: [array from Phase 4]. Standards source path: [standards path]. Copy only the selected standard categories, from that path. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Write no INDEX.md section for a category that was not copied. Check: [check path]."
+> "Initialize documentation structure. Standards selection: [folder names from Phase 4]. Standards source path: [standards path]. Copy each selected folder by name, whole, from that path, and no other. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Write one INDEX.md section per copied folder and none for a folder that was not copied. Check: [check path]."
 
 Wait for docs-operator to complete, then continue with Steps 2 and 3 and go on to Phase 6.
 
@@ -204,7 +212,7 @@ with `LARGE_CODEBASE_FILES`'s value as the number in the comment. Otherwise writ
 | `scale` | who uses it, from what the code shows — per-user accounts or sessions, tenant or organisation keys on its data — or the user's answer: `single-user`, `team` or `multi-tenant` |
 | `ui` | `none`, `web`, `tui` or `native` |
 
-Leave out any field the analysis or a correction does not settle; a guess is worse than a gap, because a field rules checks out. `deploy`, `exposure` and `scale` are settled only by something found — a deploy configuration, a container or infrastructure file, a bind address, a public route, accounts or tenant keys in the data model — or by the user's answer; finding nothing settles nothing, so `none`, `local` or `single-user` is never written for lack of evidence, and the team context, which says who builds the project, never settles `scale`. A field Step 1 named as not found stays out unless a correction settled it, as that question told the user. Write the fields as one JSON object, with the file tool, to `.maister/.project-profile.json` beside `config.yml`, and hand it to the workflow engine's `project-profile` verb, from the project root: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs project-profile --patch-file=.maister/.project-profile.json`. The file carries the JSON so no shell has to quote it — PowerShell and cmd.exe have no here-string — and the verb deletes it once the block is written; a refusal keeps it, to correct and send again. It writes the block only when `config.yml` has no top-level `project:` key — appended after one blank line, every other line unchanged — and leaves an existing key alone; a field left out, or one with a value it does not take, is written commented out with the values it takes, the latter with a `warning:` line. Its JSON reply says what it did (`action`: `created`, `appended` or `kept`) and the block it wrote; keep both for Phase 7's summary.
+Leave out any field the analysis or a correction does not settle; a guess is worse than a gap, because a field rules checks out. `deploy`, `exposure` and `scale` are settled only by something found — a deploy configuration, a container or infrastructure file, a bind address, a public route, accounts or tenant keys in the data model — or by the user's answer; finding nothing settles nothing, so `none`, `local` or `single-user` is never written for lack of evidence, and the team context, which says who builds the project, never settles `scale`. A field Step 1 named as not found stays out unless a correction settled it, as that question told the user. The fields are the object Phase 4 built; write it as it stands, never built again. Write the fields as one JSON object, with the file tool, to `.maister/.project-profile.json` beside `config.yml`, and hand it to the workflow engine's `project-profile` verb, from the project root: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs project-profile --patch-file=.maister/.project-profile.json`. The file carries the JSON so no shell has to quote it — PowerShell and cmd.exe have no here-string — and the verb deletes it once the block is written; a refusal keeps it, to correct and send again. It writes the block only when `config.yml` has no top-level `project:` key — appended after one blank line, every other line unchanged — and leaves an existing key alone; a field left out, or one with a value it does not take, is written commented out with the values it takes, the latter with a `warning:` line. Its JSON reply says what it did (`action`: `created`, `appended` or `kept`) and the block it wrote; keep both for Phase 7's summary.
 
 ---
 
@@ -239,7 +247,7 @@ Wait for docs-operator to complete, then immediately continue with Step 2.
 - Project analysis results (type, language, framework, architecture), and the project description as written when Phase 3 did not ask it
 - Structure created (tree with check marks for created items)
 - Documentation status (which docs generated, which standards initialized)
-- Standards not copied: each category Phase 4 recommended that the person deselected, one line each with the command that adds it later, `/maister:standards-discover --scope=<category>`; a category Phase 4 never recommended is not named, and the line is left out when every recommended category was kept
+- Standards not copied: each group Phase 4 recommended that was not copied — deselected, or not held by the referenced project — one line each with the command that adds it later, `/maister:standards-discover --scope=<group>`; a group Phase 4 never recommended is not named, and the line is left out when every recommended group was copied
 - Project config: whether `.maister/config.yml` was created, had the `subagents` block appended, or already held a `subagents` block and was left alone; the file count and the `Explore` tier it chose; and the `subagents` block written or appended, as written. Note that the block governs the agent calls maister makes; the explore agents a host's own plan mode starts are outside it
 - Project profile: whether the `project:` block was written or appended, or an existing one was left alone; the block written, as written, with each field it left commented out and any `warning:` line, and a line asking the user to fill in those fields, since they decide which checks the reviewers apply; and that a run freezes the profile when it starts, so a correction reaches the next run
 - Key findings (strengths, opportunities)
@@ -266,7 +274,7 @@ After completion, display a brief summary of how many findings were discovered a
 
 For a project that already has `.maister/`. It brings the config, the project profile and the four project documents init writes — vision, roadmap, tech stack and architecture — up to date with the code and with what this version of init writes, without losing the team's edits. Three rules hold throughout:
 - **Only additions are recommended**: a missing key, block, profile field or project document. An existing config value, profile field or document changes only through a choice made for that one line or file.
-- **Standards are never touched.** A category the stack needs and `standards/` lacks is pointed at `/maister:standards-discover --scope=<category>`; nothing under `standards/` is copied or rewritten.
+- **Standards are never touched.** A group the resolver recommends and `standards/` lacks is pointed at `/maister:standards-discover --scope=<group>`; nothing under `standards/` is copied or rewritten.
 - **Other documents are only indexed.** Markdown the team added under `.maister/docs/` beyond the four is never rewritten, refreshed or called stale; Step 4 gives an unindexed one its entry. The index is never built from the documents' own metadata.
 
 **Step 1 — Survey.** Read-only: nothing is written in this step.
@@ -279,10 +287,10 @@ For a project that already has `.maister/`. It brings the config, the project pr
    A key the file sets that the shipped blocks do not hold is the team's, and is left alone. Then run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs validate --definition=<plugin root>/skills/workflow-engine/workflows/development.yml` from the project root and keep its `subagents-` and `project-profile:` warnings: one on a line the shipped block or the analysis gives a replacement for is offered like a differing value; any other is a finding.
 3. **Profile.** Compare the `project:` block with the profile the analysis supports, by Phase 5 Step 3's table and its evidence rules. A field the block lacks, leaves empty or holds commented out, and the analysis settles, is an addition. A field the block sets and the analysis contradicts is offered, never recommended. A field the analysis cannot settle is a finding naming what it asks.
 4. **Project documents.** Vision, roadmap, tech stack and architecture under `.maister/docs/project/`. A missing one is an addition, recommended — for a monorepo or umbrella only the tech stack, the others offered, as in Phase 3 Step 3. A present one is read against the analysis, and each statement the analysis contradicts — a framework replaced, a version moved, a component gone — is collected as the passage and its correction; a document with any is a refresh offer, never recommended. No other document is compared.
-5. **Standards.** The categories Phase 4's defaults pick for this stack, against the folders under `.maister/docs/standards/`: each one missing is a finding, with its `/maister:standards-discover --scope=<category>` command.
+5. **Standards.** Run `node <plugin root>/skills/docs-manager/scripts/standards.mjs groups` from the project root, as Phase 4 does, with this analysis's `--signals` and `--monorepo` and no profile flag, so it reads the `project:` block as written. Each group in its `absent` list is a finding, with its `/maister:standards-discover --scope=<group>` command. A group whose rules an older setup keeps elsewhere counts as present, as the resolver reports it: data held in `backend/models.md`, `migrations.md` or `queries.md`. It passes only ids of the eight signals, and handles a refusal and an internal failure as Phase 4 Step 2 does.
 6. **Index.** Run the check (Phase 5's `[check path]`) from the project root. Its failures — unindexed documents, dead or duplicate entries, conflict markers, no index — are findings Step 4 repairs.
 
-**Step 2 — One decision.** One AskUserQuestion, carrying the whole survey in the question: every proposed change by area (config, profile, project documents), one line each, marked recommended or offered, each offer saying what it would change; then the findings with nothing to choose, stated, not asked — the index check's failures, the missing standards categories, the validate warnings with no replacement and the profile fields the analysis could not settle; then whatever the analyzer was unsure of that a proposal rests on; and that INDEX.md and the CLAUDE.md pointer are repaired whatever the answer. Options:
+**Step 2 — One decision.** One AskUserQuestion, carrying the whole survey in the question: every proposed change by area (config, profile, project documents), one line each, marked recommended or offered, each offer saying what it would change; then the findings with nothing to choose, stated, not asked — the index check's failures, the missing standards groups, the validate warnings with no replacement and the profile fields the analysis could not settle; then whatever the analyzer was unsure of that a proposal rests on; and that INDEX.md and the CLAUDE.md pointer are repaired whatever the answer. Options:
 - "Apply the recommended changes (Recommended)": the additions, nothing else
 - "Choose change by change": the pages below
 - "Leave everything as it is": nothing from the survey is applied; Step 4 still runs
@@ -309,7 +317,7 @@ A page is one form of up to four properties, each `"type": "string"` and a choic
 - Kept: each offer declined or not taken, and each change given as text to paste
 - Remaining drift: the validate warnings with no replacement, and the profile fields the analysis could not settle
 - INDEX.md: what the refresh changed, and the check's result
-- Each missing standards category with its `/maister:standards-discover --scope=<category>` command
+- Each missing standards group with its `/maister:standards-discover --scope=<group>` command
 - That a run freezes the config and the profile when it starts, so a change reaches the next run
 
 ---
