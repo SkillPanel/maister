@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 import { FIXTURES, freeze, freezePatch, readState, scratch, sibling, verb, withoutDelegation, write } from '../helpers.mjs';
 import { PANEL_ROWS, questionPanelOf, rowsOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+import { displayStamp } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display-files.mjs';
 
 // The display files are what a screen beside the session draws — a status
 // line, the start banner, a gate's panel — written by the engine so a reader
@@ -307,6 +308,41 @@ test('display: the display files are not among the changed paths a write reports
   const frozen = verb(['write-state', `--state=${run.state}`], patch, { CLAUDE_CODE_SESSION_ID: 'session-a' });
   const later = writeAs(run, 'session-a', { nodes: { analysis: { status: 'completed' } } });
   for (const result of [frozen, later]) assert.doesNotMatch(result.stdout, /display/);
+});
+
+test('display: every write moves the status stamp, two writes in the same second included', t => {
+  const run = scratch(t);
+  const { patch } = freezePatch();
+  writeAs(run, 'session-a', patch);
+  const stamps = [display(run, 'status.json').updated];
+  assert.match(stamps[0], /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, 'to the millisecond');
+  assert.equal(display(run, 'banner.json').frozen, stamps[0], 'the freeze is the write the status describes');
+  assert.equal(display(run, 'status.json').started, stamps[0], 'the run started at the freeze');
+  // Back to back, as a session sends a write and a step's brief in one message.
+  writeAs(run, 'session-a', { nodes: { analysis: { status: 'running' } } });
+  stamps.push(display(run, 'status.json').updated);
+  writeAs(run, 'session-a', { nodes: { analysis: { status: 'completed' } } });
+  stamps.push(display(run, 'status.json').updated);
+  for (let i = 1; i < stamps.length; i += 1) assert.ok(stamps[i] > stamps[i - 1], `write ${i} moved the stamp: ${stamps[i - 1]} → ${stamps[i]}`);
+  assert.equal(pointer(run, 'session-a').updated, stamps.at(-1), 'the pointer carries the write\'s stamp');
+  assert.equal(display(run, 'status.json').started, stamps[0], 'later writes keep the run\'s start');
+  // The state's own clock stays at the second.
+  assert.match(readState(run).orchestrator.updated, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+});
+
+test('display: the stamp is never at or before the status it replaces, nor before the write\'s clock', t => {
+  const run = scratch(t);
+  const dir = path.join(run.dir, 'display');
+  fs.mkdirSync(dir, { recursive: true });
+  // A status stamped ahead of the clock, as a write a moment ago in the same millisecond, or another machine's.
+  const ahead = new Date(Date.now() + 60_000).toISOString();
+  fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ version: 1, updated: ahead }));
+  assert.equal(displayStamp(dir), new Date(Date.parse(ahead) + 1).toISOString());
+  // An older status, written in the one-second form: the clock wins.
+  fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ version: 1, updated: '2026-01-05T10:00:00Z' }));
+  assert.ok(Date.parse(displayStamp(dir)) >= Date.now() - 1000);
+  const future = new Date(Date.now() + 120_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  assert.ok(displayStamp(dir, future) >= future.replace(/Z$/, '.000Z'), 'never before the write\'s own clock');
 });
 
 // ---------------------------------------------------------------------------
