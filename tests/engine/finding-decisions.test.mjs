@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, briefOf, freeze, freezePatch, readState, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, briefOf, freeze, freezePatch, readState, run as runScript, scratch, sharedPlugin, verb, write } from '../helpers.mjs';
 import { checkSet } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-set.mjs';
 import { ACCEPT_OPTION, findingBrief } from '../../plugins/maister/skills/workflow-engine/scripts/lib/finding-brief.mjs';
 import { outstandingHeld } from '../../plugins/maister/skills/workflow-engine/scripts/lib/question-triage.mjs';
@@ -230,6 +230,28 @@ test('finding-brief: a missing list, or one outside the run, warns missing and p
   fellBack(brief(run, { file: '../elsewhere.json' }), 'finding-list-missing:../elsewhere.json:outside-run');
   fellBack(brief(run, { patch: true }), `finding-list-missing:${FINDINGS}`);
   assert.equal(fs.existsSync(run.patch), false);
+});
+
+test('finding-brief: the list path is read from the run directory or from the project root', t => {
+  const run = reviewing(t);
+  place(run, findingsList());
+  const fromRun = printed(brief(run));
+  // The project root is the folder holding the run's `.maister/`.
+  const root = path.resolve(run.dir, '..', '..', '..', '..');
+  const fromRoot = path.relative(root, path.join(run.dir, FINDINGS)).split(path.sep).join('/');
+  assert.match(fromRoot, /^\.maister\/tasks\/[^/]+\/[^/]+\/verification\/findings\.json$/);
+  assert.deepEqual(printed(brief(run, { file: fromRoot })), fromRun, 'a project-root path builds the same set');
+  // A project-root path that leaves the run is still outside it.
+  fellBack(brief(run, { file: 'src/findings.json' }), 'finding-list-missing:src/findings.json');
+  fellBack(brief(run, { file: '../elsewhere.json' }), 'finding-list-missing:../elsewhere.json:outside-run');
+});
+
+test('the specification audit spells its whole finding-brief call', () => {
+  for (const guide of ['development.md', 'performance.md']) {
+    const text = fs.readFileSync(path.join(ENGINE_DIR, 'workflows', guide), 'utf8');
+    const section = text.slice(text.indexOf('## `spec-audit`'));
+    assert.ok(section.includes('`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`'), guide);
+  }
 });
 
 /** One change to a parsed copy of the list, beside the detail it must be refused with. */

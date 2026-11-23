@@ -413,7 +413,8 @@ and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.m
 **Asks.** Each finding that needs a decision is its own question (step 5
 there): write the auditor's decision findings to
 `verification/spec-audit-findings.json`, each `id` the auditor's `name`, and
-build the set with `finding-brief` for this node (its row: the engine's `references/verbs.md`).
+build the set with
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set.
 
 **With question sets** (`spec-audit-findings`): this node's first request, with
 the audit report and every fix written first.

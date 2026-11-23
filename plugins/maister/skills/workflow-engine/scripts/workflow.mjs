@@ -1581,7 +1581,7 @@ async function runFindingBrief(flags) {
   if (!flags.state) throw new UsageError('finding-brief needs --state');
   if (!flags.node) throw new UsageError('finding-brief needs --node');
   if (typeof flags['findings-file'] !== 'string' || flags['findings-file'] === '') {
-    throw new UsageError('finding-brief needs --findings-file: the reviewer\'s findings list, inside the run directory');
+    throw new UsageError('finding-brief needs --findings-file: the reviewer\'s findings list, inside the run directory, spelled from the run directory or the project root');
   }
   // The set is the verb's own write, so nothing need be there yet.
   const patchFile = flags['patch-file'] !== undefined ? patchFileOf(flags, { absentOk: true }) : null;
