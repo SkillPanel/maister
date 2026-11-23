@@ -317,8 +317,8 @@ When you can't find information:
 - Note limitations in report
 
 **Optimization strategies**:
-- Use Glob for file discovery
-- Use Grep for pattern matching
+- Find files with `find` (or `rg --files` when present) through the shell
+- Match patterns with `grep` (or `rg` when present) through the shell
 - Read config files first (high information density)
 - Sample source files (10-20 representative files)
 
