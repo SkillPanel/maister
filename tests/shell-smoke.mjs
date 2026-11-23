@@ -198,7 +198,7 @@ try {
 
   // --- node-brief -----------------------------------------------------------
   const nodeBriefed = call('node-brief', [flag('state', statePath), '--node=analysis']);
-  check('node-brief prints the brief of a node, from a path holding a space', nodeBriefed.code === 0 && nodeBriefed.stdout.startsWith('## Node: analysis') && /^rules: .+ § Node conventions$/m.test(nodeBriefed.stdout), show(nodeBriefed));
+  check('node-brief prints the brief of a node, from a path holding a space', nodeBriefed.code === 0 && /^engine skill: read '.+' whole now/.test(nodeBriefed.stdout) && /^## Node: analysis/m.test(nodeBriefed.stdout) && /^rules: .+ § Node conventions$/m.test(nodeBriefed.stdout), show(nodeBriefed));
 
   // --- node writes ----------------------------------------------------------
   const route = HERE_STRING ? 'here-string' : 'patch file';
