@@ -39,7 +39,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
-import { TIMESTAMP, childRootOf, dashboardUrl, legacyMirrorWarning, projectRootOf } from './state.mjs';
+import { TIMESTAMP, dashboardUrl, legacyMirrorWarning, projectRootOf } from './state.mjs';
 import { stamp } from '../../../../lib/canonical.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { isSetAside, runFolders } from '../../../../lib/run-dirs.mjs';
@@ -340,16 +340,14 @@ function whyUnusable(answer, askedAt) {
 /**
  * The run's checkout, from where its state file is and from nothing else:
  * `orchestrator.driver.cwd` names the directory the run was started in, which a
- * run moved to another machine no longer has. A child run's root is found
- * through its parent link (`childRootOf`), every other run's four levels up
- * (`projectRootOf`), under either run root. The umbrella's run listing reports
- * the same root through the facade.
+ * run moved to another machine no longer has. The root is the one the freeze
+ * took (`projectRootOf`): the folder holding the `.maister/` the run sits in,
+ * whichever run folder that is, with the run's parent link for a child placed
+ * outside any. The umbrella's run listing reports the same root through the facade.
  */
 export function runRoot(doc, dir) {
   const parent = isPlainObject(doc.orchestrator) ? doc.orchestrator.parent : null;
-  return isPlainObject(parent) && typeof parent.run === 'string' && parent.run !== ''
-    ? childRootOf(dir, parent)
-    : projectRootOf(dir);
+  return projectRootOf(dir, isPlainObject(parent) ? parent : null);
 }
 
 function refuse(code, message) {

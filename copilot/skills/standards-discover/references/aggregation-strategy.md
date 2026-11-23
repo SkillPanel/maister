@@ -41,7 +41,7 @@ Calculate final confidence using these factors:
 
 Flag conflicts when two findings for the same aspect give contradictory guidance:
 
-- Same tool, different settings (e.g., ESLint vs Prettier disagreeing on semicolons)
+- Same rule, different settings (e.g., the root `tsconfig.json` turns `strict` on and a package's own config turns it off)
 - Documentation says one thing, config enforces another
 - Code patterns don't match documented standards
 - A finding says the opposite of a rule already in `.maister/docs/standards/` — a starter rule copied at setup included — even when no second finding disagrees with it

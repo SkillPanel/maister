@@ -1,31 +1,13 @@
 ## Development Conventions
 
-### Predictable Structure
-Organize files and directories in a logical, navigable layout.
+### Docs Follow the Change
+When a change makes a project document wrong (a setup step, a command, a setting, an environment variable), fix that document in the same change: it is part of the task even when the task does not mention docs.
 
-### Up-to-Date Documentation
-Keep README files current with setup steps, architecture overview, and contribution guidelines.
+### No Secrets in the Repository
+Keep real keys, passwords, tokens and connection strings out of committed code, configuration, tests and logs: read them at runtime, and put a placeholder in example configuration. A value built into a browser or mobile bundle is public.
 
-### Clean Version Control
-Write clear commit messages, use feature branches, and add meaningful descriptions to pull requests.
+### Adding a Dependency
+Add a package only when the standard library and the project's existing dependencies cannot do the job. Check that the exact name on the registry is the package you mean: a plausible name may not exist, or may belong to someone else. Add it with the package manager, so the lock file changes with the manifest.
 
-### Environment Variables
-Store configuration in environment variables; never commit secrets or API keys.
-
-### Minimal Dependencies
-Keep dependencies lean and up-to-date; document why major ones are included.
-
-### Consistent Reviews
-Follow a defined code review process with clear expectations for reviewers and authors.
-
-### Testing Standards
-Define required test coverage (unit, integration, etc.) before merging.
-
-### Feature Flags
-Use flags for incomplete features instead of long-lived branches.
-
-### Changelog Updates
-Maintain a changelog or release notes for significant changes.
-
-### Build What's Needed
-Avoid speculative code and "just in case" additions (see minimal-implementation.md).
+### Generated Files
+Change a generated file through its source and its generator (a lock file through the package manager, code through its schema, build output through the build), never by hand.

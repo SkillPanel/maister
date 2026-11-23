@@ -87,7 +87,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { isPlainObject, parse } from './state-read.mjs';
-import { projectRootOf } from './state.mjs';
+import { projectRootOf, runPlace } from './state.mjs';
 import { readPlan } from './plan-sync.mjs';
 import { projectProfile } from './project-profile.mjs';
 import { changedBetween, commitOf, generatedPaths, hasObject, ownDirOf, repoOf, shortstat, snapshot, untrackedPaths } from './git-tree.mjs';
@@ -268,11 +268,10 @@ function runOf({ state, taskPath }) {
   return { ok: true, runDir, doc: null, projectRoot: projectRootOfTask(runDir) };
 }
 
-/** A task directory's project root: above `.maister/tasks/` when it sits there, else the working directory. */
+/** A task directory's project root: the run rule's (`runPlace`) when it sits under `.maister/`, else the working directory. */
 export function projectRootOfTask(runDir) {
-  const marker = `${path.sep}.maister${path.sep}tasks${path.sep}`;
-  const at = runDir.lastIndexOf(marker);
-  return at > 0 ? runDir.slice(0, at) : process.cwd();
+  const place = runPlace(runDir);
+  return place.shape === null ? process.cwd() : place.root;
 }
 
 /** The cycle numbers that have a brief, ascending. */

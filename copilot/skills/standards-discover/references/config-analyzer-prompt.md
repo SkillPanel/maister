@@ -8,32 +8,25 @@ Find and analyze configuration files, extract standards, write the findings to t
 
 ## Configuration Files to Analyze
 
-1. **Linter configs**: `.eslintrc.*`, `.prettierrc*`, `pylintrc`, `.pylintrc`, `.rubocop.yml`, `biome.json`
+1. **Formatter and linter configs**: `.eslintrc.*`, `eslint.config.*`, `.prettierrc*`, `biome.json`, `.editorconfig`, `pylintrc`, `.pylintrc`, `.rubocop.yml`, `ruff.toml`
 2. **Compiler configs**: `tsconfig.json`, `jsconfig.json`
 3. **Package managers**: `package.json` (scripts, conventions), `requirements.txt`, `Gemfile`, `pom.xml`, `go.mod`
-4. **Editor configs**: `.editorconfig` (indentation, line endings, charset)
-5. **Container configs**: `Dockerfile`, `docker-compose.yml`
+4. **Container configs**: `Dockerfile`, `docker-compose.yml`
+5. **Group configs**: for a group scope, the configs its `files:` line names (Terraform, `Chart.yaml`, `app.json`, `dbt_project.yml`)
 
 ## What to Extract
 
 For each config file found, extract rules/settings that indicate coding standards:
 
-- **ESLint**: Naming conventions, code style (quotes, semicolons, indentation), framework patterns, import rules
-- **Prettier**: Formatting rules (semi, singleQuote, trailingComma, tabWidth, printWidth)
+- **Formatters and linters** (Prettier, ESLint, Biome, EditorConfig, Pylint, RuboCop, Ruff): one finding that names the commands that enforce them, as the project runs them — `npm run lint`, `prettier --check .`, `ruff check` — taken from `package.json` scripts, a Makefile, pre-commit hooks or CI. Each setting (quotes, semicolons, indentation, line length, line endings) is the tool's to enforce: record the commands, never one standard per setting.
 - **TypeScript**: Compiler strictness (strict, noImplicitAny), module resolution, path aliases
 - **Package.json**: Script patterns, testing conventions, pre-commit hooks (husky/lint-staged)
-- **EditorConfig**: Indentation style/size, charset, line endings, trailing whitespace
-- **Biome**: Combined lint + format rules
 
-## Categorization
+## Groups
 
-Discover existing categories from `.maister/docs/standards/*/`. Baseline categories:
-- `global/` — Language-agnostic (indentation, line endings, general error handling)
-- `frontend/` — UI-specific (React rules, CSS conventions, component patterns)
-- `backend/` — Server-specific (API rules, database conventions)
-- `testing/` — Test-related (test frameworks, coverage requirements)
+Your prompt's `groups:` line lists the groups this project's standards use, each with its title, and any folder of the project's own. Begin each finding's `category` with the id of the group it fits, chosen by what the group's title says it holds, then `/` and the topic as before (`data/migrations`, `cli/output`), whether or not that folder exists yet. A finding that fits no listed group goes to `global` when it holds for all code, or names a new group in one word.
 
-Propose new categories if findings don't fit existing ones.
+With a `files:` line, also read the configs it names, beside the formatter, linter and compiler configs above.
 
 ## Confidence Range
 
@@ -59,7 +52,7 @@ findings:
 ## Rules
 
 - Only include findings with clear evidence from actual config files
-- Be specific in descriptions (not "follow ESLint rules" but "use single quotes for strings")
+- Be specific in descriptions (not "follow the TypeScript config" but "TypeScript runs in strict mode: no implicit any")
 - Include exact file paths in evidence
 - Write an empty findings list if no config files found
 - Focus on actionable, verifiable standards

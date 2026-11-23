@@ -120,7 +120,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, guardTerms, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
-import { SUITE_RUNS, attemptOf, childRootOf, definitionPathOf, htmlOutput, isStalePage, policyWorkflowOf, projectRootOf } from './state.mjs';
+import { SUITE_RUNS, attemptOf, definitionPathOf, htmlOutput, isStalePage, policyWorkflowOf, projectRootOf } from './state.mjs';
 import { STORIES_HEADING, approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { artifactOf, classWords, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, isHostAnswer, riskOf, riskText } from './items.mjs';
@@ -1886,7 +1886,7 @@ const STOP_HERE = 'Stop here';
 function parentOf(doc, runDir) {
   const link = isPlainObject(doc.orchestrator) ? doc.orchestrator.parent : null;
   if (!isPlainObject(link) || typeof link.run !== 'string' || link.run === '' || typeof link.node !== 'string') return null;
-  const dir = path.join(childRootOf(runDir, link), ...link.run.split('/'));
+  const dir = path.join(projectRootOf(runDir, link), ...link.run.split('/'));
   let parentDoc;
   try {
     parentDoc = parse(fs.readFileSync(path.join(dir, 'orchestrator-state.yml'), 'utf8'));

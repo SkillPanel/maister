@@ -27,9 +27,9 @@ Look for explicit standard statements:
 
 **Only extract explicitly stated standards** — do not infer from code examples alone.
 
-## Categorization
+## Groups
 
-Discover existing categories from `.maister/docs/standards/*/`. Baseline categories: `global/`, `frontend/`, `backend/`, `testing/`. Propose new categories if patterns don't fit existing ones.
+Your prompt's `groups:` line lists the groups this project's standards use, each with its title, and any folder of the project's own. Begin each finding's `category` with the id of the group it fits, chosen by what the group's title says it holds, then `/` and the topic as before (`data/migrations`, `cli/output`), whether or not that folder exists yet. A finding that fits no listed group goes to `global` when it holds for all code, or names a new group in one word.
 
 ## Confidence Range
 

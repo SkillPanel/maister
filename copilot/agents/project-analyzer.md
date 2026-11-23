@@ -83,7 +83,7 @@ Examine git history, file system, and dependency versions to classify project ma
 #### Frontend vs Backend Detection
 
 **Frontend Indicators**:
-- UI frameworks in dependencies (React, Vue, Angular, Svelte)
+- UI frameworks in dependencies (react-dom, Vue, Angular, Svelte); React Native, Expo and Flutter count as native mobile, never as frontend
 - Frontend-specific files (index.html, public/, src/components/)
 - Build tools (Vite, Webpack, Parcel)
 
@@ -91,6 +91,7 @@ Examine git history, file system, and dependency versions to classify project ma
 - Backend frameworks (Express, Django, Spring Boot, etc.)
 - Database clients in dependencies
 - Server files (server.ts, app.ts) and API directories (api/, routes/, controllers/)
+- Server routes of full-stack frameworks (Next `app/**/route.*` and `pages/api/`, Nuxt `server/`, SvelteKit `+server.*`)
 
 **Classification Logic**:
 - **Frontend-only**: 3+ frontend indicators, 0 backend
@@ -141,6 +142,21 @@ Examine git history, file system, and dependency versions to classify project ma
 #### Code Quality & Linting
 - Linters: ESLint, Prettier, Pylint configs
 - Type checkers: TypeScript, MyPy configs
+
+#### Group signals
+
+Report every signal below, found or not, from file presence and manifests. Signals describe the repository as a whole, and the caller decides which standards follow from them. React Native, Expo and Flutter apps are native mobile, never web UI.
+
+| Signal | Found when (examples) |
+|---|---|
+| `web-ui` | react-dom, Next, Nuxt, Angular, Vue, Svelte, or Vite with an `index.html`. Never from React Native, Expo or `react-native-web`, which an Expo template carries beside react-dom |
+| `web-shell` | Capacitor, Ionic or Cordova wrapping a web app in a native shell |
+| `server` | Express, Fastify, Nest, Django, Flask, FastAPI, Rails, Spring, Gin; or a full-stack framework's server routes: Next `app/**/route.*` or `pages/api/`, Nuxt `server/`, SvelteKit `+server.*` |
+| `database` | an ORM (Prisma, TypeORM, Sequelize, SQLAlchemy, Room, Core Data), a migrations folder, a SQL schema file |
+| `command-entry` | a package.json `bin`, `console_scripts` or `[project.scripts]`, or a CLI framework (commander, yargs, oclif, click, typer, cobra, clap) |
+| `native-mobile` | an Xcode project, `AndroidManifest.xml`, Flutter (`pubspec.yaml` with the Flutter SDK), React Native or Expo |
+| `job-queue` | Airflow, Dagster, Prefect, dbt, Celery, Sidekiq, BullMQ, RQ, Temporal, a queue consumer |
+| `infra-files` | `*.tf`, Pulumi, CloudFormation, SAM, CDK, `Chart.yaml`, Kubernetes manifests, Ansible playbooks |
 
 **Output**: Comprehensive tech stack with versions, confidence scores, and evidence
 
@@ -256,7 +272,9 @@ Combine all phase outputs:
 
 **Output Delivery**:
 Return your analysis in the conversation response (do NOT create files):
-1. **Structured JSON block**: Machine-readable analysis for downstream phases
+1. **Structured JSON block**: Machine-readable analysis for downstream phases. Besides the findings above it carries:
+   - `project_architecture_type`: `standard | monorepo | frontend-only | backend-only | mixed`, the Phase 1.5 classification
+   - `group_signals`: an object holding all eight signal ids (`web-ui`, `web-shell`, `server`, `database`, `command-entry`, `native-mobile`, `job-queue`, `infra-files`), each `{found: boolean, evidence: string}`. Evidence is one line naming the file and what was found (`expo and react-native in package.json`), and empty when the signal was not found. Every key is present, found or not.
 2. **Markdown summary**: Human-readable overview for user review
 
 **IMPORTANT**: Do NOT write any files to disk. The init command will use your returned analysis to generate proper documentation in `.maister/docs/`.
@@ -336,6 +354,7 @@ Before returning your analysis, verify:
 - Primary language detected with confidence score
 - Frameworks identified with versions
 - Database detected (if present)
+- Every one of the eight group signals is reported, found or not, with evidence for each one found
 - Build tools identified
 - Architecture pattern recognized
 - Key components listed with purposes

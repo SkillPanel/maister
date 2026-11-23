@@ -10,9 +10,12 @@ Sample code files, detect consistent patterns in naming/imports/structure, write
 
 For performance, sample rather than exhaustive analysis:
 
-- **Frontend files**: Sample up to 50 files (`*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.vue`, `*.svelte`)
-- **Backend files**: Sample up to 50 files (`*.py`, `*.rb`, `*.java`, `*.go`, `*.rs`)
-- **Test files**: Sample up to 30 files (`*.test.*`, `*.spec.*`, `*_test.*`)
+- **With a `files:` line**: sample up to 50 of the files it names
+- **Otherwise**, sample as follows:
+  - **Frontend files**: Sample up to 50 files (`*.ts`, `*.tsx`, `*.js`, `*.jsx`, `*.vue`, `*.svelte`)
+  - **Backend files**: Sample up to 50 files (`*.py`, `*.rb`, `*.java`, `*.go`, `*.rs`)
+  - **Test files**: Sample up to 30 files (`*.test.*`, `*.spec.*`, `*_test.*`)
+  - **Also, wherever the repository has them**, up to 20 each of command entry modules, migrations and `*.sql`, `ios/` and `android/` sources, job and DAG modules, and `*.tf` and manifest files
 
 ## Patterns to Detect
 
@@ -23,6 +26,7 @@ For performance, sample rather than exhaustive analysis:
 5. **API Patterns** (backend): Endpoint naming, resource naming (plural/singular), versioning
 6. **Function Style**: Arrow functions vs declarations, async/await vs promises
 7. **Type Patterns**: TypeScript strictness, type vs interface usage, generics patterns
+8. Command output (cli): stdout against stderr, exit codes; migrations (data): one change per file, naming
 
 ## Consistency Threshold
 
@@ -30,9 +34,11 @@ Only report patterns with **>= 60% consistency** across sampled files.
 
 Calculate: `(files following pattern / total files sampled) * 100`
 
-## Categorization
+## Groups
 
-Discover existing categories from `.maister/docs/standards/*/`. Baseline categories: `global/`, `frontend/`, `backend/`, `testing/`. Propose new categories if patterns don't fit existing ones.
+Your prompt's `groups:` line lists the groups this project's standards use, each with its title, and any folder of the project's own. Begin each finding's `category` with the id of the group it fits, chosen by what the group's title says it holds, then `/` and the topic as before (`data/migrations`, `cli/output`), whether or not that folder exists yet. A finding that fits no listed group goes to `global` when it holds for all code, or names a new group in one word.
+
+With a `files:` line, read only the files it names.
 
 ## Confidence Range
 

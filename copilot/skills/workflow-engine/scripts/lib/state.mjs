@@ -109,7 +109,7 @@ import { baseAtFreeze } from './git-tree.mjs';
 import { SUMMARY_WRITER_KEYS, keysOf } from './interface-shapes.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredClarificationIds, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
-import { projectRootOf } from '../../../../lib/run-dirs.mjs';
+import { projectRootOf, runPlace } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
 import { atClose, dueNext, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
@@ -1167,7 +1167,7 @@ function located(name, root) {
 }
 
 // The project root, derived from the run directory alone (`run-dirs.mjs`).
-export { projectRootOf };
+export { projectRootOf, runPlace };
 
 function isFile(file) {
   try {
@@ -3169,7 +3169,7 @@ const MOCKUP_FORMATS = ['html', 'ascii'];
  * is cut out and read, so the rest of the file can never refuse it.
  */
 function configValue(runDir, key) {
-  const file = path.join(runRootOf(runDir), '.maister', 'config.yml');
+  const file = path.join(projectRootOf(runDir), '.maister', 'config.yml');
   let text;
   try {
     text = fs.readFileSync(file, 'utf8');
@@ -3191,7 +3191,7 @@ function seedTaskPath(orchestrator, runDir, notes) {
   if (runDir === null) return orchestrator;
   const base = isPlainObject(orchestrator) ? orchestrator : {};
   if (Object.hasOwn(base, 'task_path')) notes.push(TASK_PATH_NOTE);
-  const own = path.relative(runRootOf(runDir), runDir).split(path.sep).join('/');
+  const own = path.relative(projectRootOf(runDir), runDir).split(path.sep).join('/');
   return { ...base, task_path: own };
 }
 
@@ -3217,28 +3217,11 @@ function seedTaskKey(doc, graph, changed) {
 }
 
 /**
- * Whether `runDir` is a chain's own run, `.maister/umbrella/runs/<id>/runs/<child>/`,
- * the third shape `lib/run-dirs.mjs`'s `runFolders` lists.
- */
-function isMemberRun(runDir) {
-  const up = count => path.basename(path.resolve(runDir, ...Array(count).fill('..')));
-  return up(1) === 'runs' && up(3) === 'runs' && up(4) === 'umbrella' && up(5) === '.maister';
-}
-
-/**
- * The project root a run's folder belongs to: `projectRootOf`'s four levels up,
- * six for a chain's own run (`isMemberRun`), which sits two levels deeper.
- */
-function runRootOf(runDir) {
-  return isMemberRun(runDir) ? path.resolve(runDir, '..', '..', '..', '..', '..', '..') : projectRootOf(runDir);
-}
-
-/**
  * A top-level run — one whose freeze carries no parent link — is frozen only
  * in a run folder: `.maister/tasks/<type>/<name>/`,
  * `.maister/umbrella/runs/<id>/` or a chain's own run under it,
  * `.maister/umbrella/runs/<id>/runs/<child>/`, under the project root. Every
- * reader that lists runs looks there and nowhere else (`lib/run-dirs.mjs`), so a run frozen
+ * reader that lists runs looks there and nowhere else (`lib/run-dirs.mjs`'s `runPlace`), so a run frozen
  * at another depth is one nobody finds again, and the project root it would
  * read its configuration from is the wrong folder. Refused
  * `state-run-folder-misplaced`, nothing written, with the folder it belongs in.
@@ -3248,14 +3231,9 @@ function assertRunFolder(doc, patch, runDir) {
   if (runDir === null) return;
   const sent = isPlainObject(patch.orchestrator) && Object.hasOwn(patch.orchestrator, 'parent');
   if (sent || hasParentLink(doc.text())) return;
-  const parent = path.dirname(runDir);
-  const above = path.dirname(parent);
-  const placed = path.basename(path.dirname(above)) === '.maister'
-    && (path.basename(above) === 'tasks' || (path.basename(above) === 'umbrella' && path.basename(parent) === 'runs'));
-  if (placed || isMemberRun(runDir)) return;
-  const parts = path.resolve(runDir).split(path.sep);
-  const at = parts.lastIndexOf('.maister');
-  const root = at > 0 ? parts.slice(0, at).join(path.sep) || path.sep : null;
+  const place = runPlace(runDir);
+  if (place.legal) return;
+  const root = place.shape === null ? null : place.root;
   const name = isPlainObject(patch.workflow) && typeof patch.workflow.name === 'string' && patch.workflow.name !== '' ? patch.workflow.name : null;
   // migration's runs live under `migrations/`, as `subrun-path` names them.
   const type = name === null ? '<type>' : name === 'migration' ? 'migrations' : name;
@@ -3378,28 +3356,8 @@ function ceilingIn(options) {
 }
 
 /**
- * A child run's project root. Four levels up is right for a child in its own
- * task directory, but not for one placed deeper — inside its parent's
- * directory, say — where four levels up lands inside `.maister/` and the
- * parent can no longer be found. The link names where the parent lives,
- * relative to the root, so the root is the nearest ancestor of the run
- * directory under which `parent.run` holds a state file: four levels up when
- * it does there, and four levels up as well when no ancestor does, so a
- * parent that genuinely does not exist is handled as it always was.
- */
-export function childRootOf(runDir, parent) {
-  const fourUp = projectRootOf(runDir);
-  const holdsParent = root => isFile(path.join(root, parent.run, 'orchestrator-state.yml'));
-  if (holdsParent(fourUp)) return fourUp;
-  for (let dir = path.dirname(runDir); ; dir = path.dirname(dir)) {
-    if (holdsParent(dir)) return dir;
-    if (path.dirname(dir) === dir) return fourUp;
-  }
-}
-
-/**
  * A child run's parent state: read from the state file `parent.run` names,
- * relative to the child's project root (`childRootOf`), or null when that file
+ * relative to the child's project root (`projectRootOf` given the link), or null when that file
  * cannot be read or parsed. Its `orchestrator:` block is what a child's freeze
  * inherits from; its node entries are what the child's directory is held to.
  * The link is judged before the path is built from it, exactly as
@@ -3408,7 +3366,7 @@ export function childRootOf(runDir, parent) {
 function readParentState(parent, runDir) {
   assertParent(parent);
   try {
-    const file = path.join(childRootOf(runDir, parent), parent.run, 'orchestrator-state.yml');
+    const file = path.join(projectRootOf(runDir, parent), parent.run, 'orchestrator-state.yml');
     const state = parseState(fs.readFileSync(file, 'utf8'));
     return { ...state, orchestrator: state.orchestrator ?? {} };
   } catch {
@@ -3431,8 +3389,9 @@ function readParentState(parent, runDir) {
  * child is held to the shape every task directory has instead:
  * `.maister/tasks/<type>/<name>` under the project root. A child frozen beside
  * another kind of run, or inside its parent's own directory, is refused at the
- * freeze, nothing written; the root is found from the link (`childRootOf`), so
- * a child placed too deep still reads its parent and is judged.
+ * freeze, nothing written; the root is the folder holding the `.maister/` the
+ * child sits in (`projectRootOf`), so a child placed too deep still reads its
+ * parent and is judged.
  *
  * Nothing is refused that cannot be judged: a parent whose state cannot be
  * read, or a node it does not carry, leaves the write as it was.
@@ -3465,7 +3424,7 @@ function assertSubrunPath(doc, sent, runDir) {
   if (!isPlainObject(parent?.workflow?.nodes) || !Object.hasOwn(parent.workflow.nodes, link.node)) return;
   const node = parent.workflow.nodes[link.node];
   const recorded = isPlainObject(node?.values) ? node.values.task_path : undefined;
-  const own = path.relative(childRootOf(runDir, link), runDir).split(path.sep).join('/');
+  const own = path.relative(projectRootOf(runDir, link), runDir).split(path.sep).join('/');
   if (typeof recorded !== 'string' || recorded === '') {
     if (/^\.maister\/tasks\/[^/]+\/[^/]+$/.test(own)) return;
     throw new Refusal('state-subrun-path-mismatch',
