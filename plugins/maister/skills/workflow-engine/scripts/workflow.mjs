@@ -136,7 +136,9 @@
  *                  optional --as                            JSON on stdout
  *                  (each source copied into the run byte for byte, a
  *                  directory recursively, and each one it could not copy
- *                  with its reason) — writes the copies and no state
+ *                  with its reason, also a `warning:` line when another was
+ *                  copied; exit 1 only when none was) — writes the copies
+ *                  and no state
  *   wave-start     --plan, --wave, --groups                   JSON on stdout
  *                  (the wave's start heading appended to the work log beside
  *                  the plan, then the run's displays re-projected)
@@ -1811,9 +1813,12 @@ async function runSubrunPath(flags) {
 }
 
 /**
- * `import` reports like `subrun-path`: the whole result as JSON on stdout, exit
- * 1 on a refusal or when any source was not copied. One source is all `--as`
- * can rename, and a name, never a path: anything else is a usage error.
+ * `import` reports like `subrun-path`: the whole result as JSON on stdout. A
+ * call that copied at least one source succeeded, exit 0, each source it
+ * skipped still listed under `skipped` and also one `warning:` line on stderr,
+ * so a partial import does not read as a failure; exit 1 only on a refusal or
+ * when nothing was copied. One source is all `--as` can rename, and a name,
+ * never a path: anything else is a usage error.
  */
 async function runImport(flags) {
   if (!flags.state) throw new UsageError('import needs --state');
@@ -1829,7 +1834,9 @@ async function runImport(flags) {
   const copy = entryOf(module, 'importContext', VERBS.import.module);
   const result = copy({ state: flags.state, to: flags.to, from: flags.from, as: flags.as ?? null });
   report(result);
-  return result.ok ? EXIT.OK : EXIT.REJECTED;
+  if (!result.ok) return EXIT.REJECTED;
+  for (const skipped of result.skipped) process.stderr.write(`warning: ${skipped.code}: ${skipped.message}\n`);
+  return EXIT.OK;
 }
 
 /**
