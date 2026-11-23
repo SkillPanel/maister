@@ -361,9 +361,20 @@ test('a profile selected with no overlay is refused rather than recorded as appl
   const error = errorAt(report, 'profiles.lean');
   assert.equal(error.file, file);
   assert.match(error.message, /selected with no overlay/);
+  assert.match(error.message, /Leave --profile out when no overlay declares profiles\.$/);
   const resolved = verb(['resolve', `--definition=${file}`, '--profile=lean']);
   assert.equal(resolved.code, 1);
   assert.equal(JSON.parse(resolved.stdout).graph_hash, null);
+});
+
+test('a profile selected from overlays that declare none says to leave --profile out', t => {
+  const file = definition(t);
+  const lay = overlay(file, ['extends: acme']);
+  const { code, report } = validate(file, `--overlay=${lay}`, '--profile=default');
+  assert.equal(code, 1);
+  const error = errorAt(report, 'profiles.default');
+  assert.equal(error.file, lay);
+  assert.match(error.message, /none of the overlays declares a profile\. Leave --profile out when no overlay declares profiles\.$/);
 });
 
 test('a misspelt profile names the declared one it probably meant', t => {

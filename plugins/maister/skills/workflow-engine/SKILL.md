@@ -256,7 +256,8 @@ exactly as given. When `locate` reports an overlay `ignored`, say it is not in e
 ### Step 4: Freeze the graph before executing anything
 
 Three calls, in this order: `validate --definition=<path> [--overlay=<path>…] [--profile=<name>]`,
-then `resolve` with the same flags, then the freeze's `write-state`. If `validate` rejects the
+then `resolve` with the same flags, then the freeze's `write-state`. Pass `--profile` only when the
+invocation or `locate` names one; otherwise leave it out. If `validate` rejects the
 definition, stop with `RUN-FAILED:` and its first error; relay its warnings
 (`references/grammar.md` § 14).
 

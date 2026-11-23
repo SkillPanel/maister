@@ -1682,6 +1682,9 @@ function declaredProfiles(overlays) {
   return names;
 }
 
+/** What a caller does when no overlay declares profiles: name no profile at all. */
+const LEAVE_PROFILE_OUT = 'Leave --profile out when no overlay declares profiles.';
+
 /**
  * A selected profile that no overlay declares is an error, including when no
  * overlay was given at all. It used to be recorded as the run's profile while
@@ -1693,7 +1696,7 @@ function checkProfileChoice(overlays, profile, file, errors) {
   if (declared.includes(profile)) return;
   if (overlays.length === 0) {
     fail(errors, file, `profiles.${profile}`,
-      `the profile "${profile}" was selected with no overlay; profiles are declared in an overlay and selected from it`, null);
+      `the profile "${profile}" was selected with no overlay; profiles are declared in an overlay and selected from it. ${LEAVE_PROFILE_OUT}`, null);
     return;
   }
   const near = closest(profile, declared);
@@ -1701,7 +1704,7 @@ function checkProfileChoice(overlays, profile, file, errors) {
   const missing = `no overlay declares a profile named "${profile}"`;
   fail(errors, where.file, `profiles.${profile}`, near
     ? `${missing}; did you mean "${near}"? The declared profiles are ${declared.join(', ')}`
-    : `${missing}; ${declared.length ? `the declared profiles are ${declared.join(', ')}` : 'none of the overlays declares a profile'}`,
+    : `${missing}; ${declared.length ? `the declared profiles are ${declared.join(', ')}` : `none of the overlays declares a profile. ${LEAVE_PROFILE_OUT}`}`,
   null);
 }
 
