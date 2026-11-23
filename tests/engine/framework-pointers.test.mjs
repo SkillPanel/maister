@@ -120,6 +120,7 @@ function indexTarget(name) {
 test('every section the stub\'s index names exists in the file it names', () => {
   const lines = indexLines();
   assert.equal(lines.length, 8, 'the index has an entry for each of the eight sections that went');
+  assert.ok(lines.find(line => line.startsWith('- **§ 10 ')).includes('`references/writing-state.md` § *Ending the run — the wrap-up* (missing files go under **Needs you**)'), 'the § 10 entry sends the Needs-you rule to the wrap-up');
   const missing = [];
   let checked = 0;
   for (const line of lines) {

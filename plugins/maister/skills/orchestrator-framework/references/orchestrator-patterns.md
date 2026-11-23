@@ -11,7 +11,7 @@ What is left of the shared orchestrator rules, kept because something still name
 - **§ 6 Issue Resolution** → `agents/verification-runner.md` (the fix loop and the documents a fix may touch), `references/in-node-questions.md` § *Findings that need a decision* and § *The specification audit's fix pass*, and the `implementation-verifier` skill (the stopping question).
 - **§ 8 Operator Dashboard** → engine `SKILL.md` § *Operator visibility*. Copying decisions and risks verbatim → `references/node-summaries.md` § *Lifting an artifact's summary block*.
 - **§ 9 HTML Companion Reports** → `references/grammar.md` § 3.2 (which artifacts owe a page) and `references/writing-state.md` § *A missing or stale companion* (the recovery and the registration).
-- **§ 10 Finalization: Artifact Reconciliation** → engine `SKILL.md` § *Recording an outcome* (a path a summary lists is checked too) and § *Operator visibility* (missing files go under **Needs you**).
+- **§ 10 Finalization: Artifact Reconciliation** → engine `SKILL.md` § *Recording an outcome* (a path a summary lists is checked too), and `references/writing-state.md` § *Ending the run — the wrap-up* (missing files go under **Needs you**).
 
 ---
 
