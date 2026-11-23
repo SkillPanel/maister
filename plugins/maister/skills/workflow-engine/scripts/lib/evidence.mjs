@@ -33,19 +33,19 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { runPlace } from '../../../../lib/run-dirs.mjs';
 
 /** Why a path was dropped, as the warning's last field names it. */
 const REASON = { text: 'not-a-path', absolute: 'absolute', outside: 'outside-repository', missing: 'missing' };
 
 /**
- * The repository a run belongs to: the directory holding the first `.maister`
- * folder on the run directory's path. A run directory outside any `.maister`
- * folder is its own repository, so nothing above it is ever named.
+ * The repository a run belongs to: its project root (`runPlace`), the directory
+ * holding the `.maister` folder it sits in. A run directory outside any
+ * `.maister` folder is its own repository, so nothing above it is ever named.
  */
 export function repositoryOf(runDir) {
-  const parts = path.resolve(runDir).split(path.sep);
-  const at = parts.indexOf('.maister');
-  return at > 0 ? parts.slice(0, at).join(path.sep) || path.sep : path.resolve(runDir);
+  const place = runPlace(runDir);
+  return place.shape === null ? path.resolve(runDir) : place.root;
 }
 
 /**
