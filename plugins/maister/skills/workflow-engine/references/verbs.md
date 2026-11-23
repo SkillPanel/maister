@@ -6,7 +6,9 @@ and effort every agent call carries (§ *Model and effort on every agent call*),
 refusals of every verb. The invocation — one command starting with the engine path, the
 here-string or the patch file, the exit codes — is the engine skill's § *The invocation
 contract*. An italic section name below is the engine skill's, unless a file is named. Each
-refusal is also printed by the verb that refuses.
+refusal is also printed by the verb that refuses. A usage error (exit `2`) prints its own `usage:`
+line, then the verb's whole usage line — every flag it takes, the optional ones in brackets — so
+one retry can fix every flag.
 
 ## The verbs every run calls
 

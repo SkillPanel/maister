@@ -210,7 +210,8 @@
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
- * failed. The separation is what lets a caller distinguish "your definition is
+ * failed. A usage error's own `usage:` line comes first, then the verb's whole
+ * usage line (`USAGE`), so one retry can fix every flag. The separation is what lets a caller distinguish "your definition is
  * wrong" from "the engine is broken" without parsing prose.
  *
  * The verbs that brief a moment or refuse a state change — `gate-brief`,
@@ -408,6 +409,48 @@ const VERBS = {
   reference: { module: 'reference.mjs', flags: ['at'] },
 };
 
+/**
+ * Each verb's whole invocation, printed after a usage error's own line so a
+ * caller corrects every flag in one retry instead of meeting them one refusal
+ * at a time. Required flags bare, optional ones in brackets, a repeatable one
+ * followed by `…`, alternatives split by `|`, and what each takes in angle
+ * brackets. Values a host build rewrites in prose (the picker profile, the
+ * host) are spelled as placeholders here, so the line reads the same on both.
+ */
+const USAGE = {
+  validate: '[--definition=<definition file>] [--overlay=<overlay file>…] [--profile=<name>], at least one of --definition and --overlay',
+  resolve: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>]',
+  diagram: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>] [--out=<file>]',
+  locate: '[--name=<workflow name> [--overlay=<overlay file>…] [--profile=<name>]]',
+  'wave-start': '--plan=<implementation-plan.md> --wave=<wave number> --groups=<N>[,<M>…]',
+  'group-done': '--plan=<implementation-plan.md> --groups=<N>[,<M>…] --entry-file=<plan folder>/.work-log-entry.md',
+  'write-state': '--state=<orchestrator-state.yml> [--patch-file=<patch file> | the patch as JSON on stdin] [--host=<claude or copilot>, at the freeze] [--no-open]',
+  'gate-request': '--state=<orchestrator-state.yml> (--patch-file=<request file> | the request as JSON on stdin | --node=<gate or running node> (--reask=<revise option> | --patch-file=<the node\'s question set>))',
+  'gate-revise': '--state=<orchestrator-state.yml> --node=<gate> --option=<revise option> [--patch-file=<note file> | the note as JSON on stdin]',
+  'move-base': '--state=<orchestrator-state.yml> [--to=<commit>] [--reason=<text>]',
+  'update-branch-result': '[--state=<orchestrator-state.yml>] [--result=<result file>], at least one of them, [--checks=<findings file>] [--patch-file=<target dir>/.update-branch-draft.json | the draft as JSON on stdin]',
+  'run-complete': '--state=<orchestrator-state.yml> [--outbox=<outbox root> --dispatch-id=<dispatch id>, in a dispatched run]',
+  'prior-context': '--state=<orchestrator-state.yml> [--background] [--node=<node>]',
+  'run-context': '--state=<orchestrator-state.yml> --node=<node about to delegate>',
+  'node-brief': '--state=<orchestrator-state.yml> --node=<node about to run>',
+  'gate-brief': '--state=<orchestrator-state.yml> --node=<gate, held-approval or running node> [--oneline | --json [--picker=<rich or plain>] | --checkpoint | --request [--reask=<revise option>] | --ask [--note=<revise option> | --details]] [--patch-file=<the node\'s question set>, with --checkpoint, --request or --ask]',
+  'area-brief': '--state=<orchestrator-state.yml> --node=<convergence node> (--area=<area id> [--json [--picker=<rich or plain>] | --ask [--details]] | --patch-file=<patch file> [--area=<area id>…] | --check)',
+  'finding-brief': '--state=<orchestrator-state.yml> --node=<reviewing node> --findings-file=<findings file in the run> [--patch-file=<patch file>]',
+  'resume-check': '[--state=<orchestrator-state.yml>] [--no-open]',
+  'subrun-path': '--state=<the parent\'s orchestrator-state.yml> --node=<its workflow: node>',
+  import: '--state=<orchestrator-state.yml> --to=<folder of the run> --from=<file or directory>… [--as=<file or folder name>, with one --from]',
+  'sync-plan': '--plan=<implementation-plan.md>',
+  'dispatch-model': '--agent=<name>[,<name>…] --host=<claude or copilot> [--state=<orchestrator-state.yml> [--node=<node>]] [--tier=<light, standard or deep>]',
+  'review-brief': '(--state=<orchestrator-state.yml> | --task-path=<task directory> --base=<commit>) [--base=<commit>] [--cycle=<cycle number>] [--recheck=<tests-only or reviews> --fixed-issues=<id>[,<id>…] | --refresh]',
+  'findings-merge': '(--state=<orchestrator-state.yml> | --task-path=<task directory>) [--cycle=<cycle number>]',
+  'project-profile': '[--patch-file=.maister/.project-profile.json | the profile as JSON on stdin] [--fill]',
+  'runner-result': '--state=<orchestrator-state.yml> --node=<node the runner ran for> [--runner=<verification or implementation>] [--patch-file=<result file> | the result as JSON on stdin]',
+  'runner-step': '--state=<orchestrator-state.yml> --node=<node running the loop> [--runner=<verification or implementation>] [--answered]',
+  'in-flight': '--state=<orchestrator-state.yml> --node=<node whose loop sends the agents> [--runner=<verification or implementation>] (--record=<id>:<output>[,…] | --agents=<id>:<agent id>[,…] | --ended=<id>[,…])',
+  'scratch-dir': '--for=<what it holds, a kebab label> [--state=<orchestrator-state.yml>]',
+  reference: '--at=<file>[ § <heading>[ § <row>]]…',
+};
+
 /** This plugin's root, three levels above this file: what the edition check locates. */
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -500,12 +543,14 @@ const NEWER_FORMAT = 'newer-format';
  */
 function parseArgs(argv) {
   let verb = null;
+  askedVerb = null;
   const flags = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (!arg.startsWith('--')) {
       if (verb !== null) throw new UsageError(`unexpected argument "${arg}"`);
       verb = arg;
+      askedVerb = arg;
       continue;
     }
     const at = arg.indexOf('=');
@@ -533,6 +578,18 @@ function parseArgs(argv) {
 
 /** An invocation this entry point cannot act on. Always exit 2: nothing ran. */
 class UsageError extends Error {}
+
+/**
+ * The verb the invocation named, kept as soon as it is read so a usage error
+ * raised anywhere after — a flag's own value included — is followed by that
+ * verb's whole usage line (`USAGE`).
+ */
+let askedVerb = null;
+
+/** The verb's whole usage line, or null when the invocation named no known verb. */
+function usageLine(verb) {
+  return verb !== null && Object.hasOwn(USAGE, verb) ? `usage: workflow.mjs ${verb} ${USAGE[verb]}` : null;
+}
 
 function checkFlags(verb, flags) {
   const allowed = new Set(VERBS[verb].flags);
@@ -2067,5 +2124,7 @@ try {
   process.exitCode = await main();
 } catch (err) {
   process.stderr.write(`${err instanceof UsageError ? 'usage' : 'workflow'}: ${err.message}\n`);
+  const line = err instanceof UsageError ? usageLine(askedVerb) : null;
+  if (line !== null) process.stderr.write(`${line}\n`);
   process.exitCode = EXIT.INTERNAL;
 }
