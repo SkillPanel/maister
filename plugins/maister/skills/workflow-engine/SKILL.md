@@ -253,10 +253,10 @@ from the frozen graph, so there is no mid-graph entry point to start from; and n
 lives in state, because a budget is a prose rule rather than counted data.
 
 **Say so by name, before the first node runs.** Name the flag that arrived and state which of the
-two facts above makes it inert. No route in this plugin serves either flag: say that re-entry is
-planned for the engine, and that a run which genuinely needs a phase jump today is one to finish
-on the 2.x line. Promise no date. Then continue with the flag dropped: an ordinary run, or an
-ordinary resume from the frozen state. **Never drop one silently.**
+two facts above makes it inert. No route in this plugin serves either flag. To run a step again,
+send it back with the revise its checkpoint offers (`references/gates.md` § *Revising at a gate*).
+Then continue with the flag dropped: an ordinary run, or an ordinary resume from the frozen state.
+**Never drop one silently.**
 
 ---
 

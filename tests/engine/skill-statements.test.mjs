@@ -193,3 +193,9 @@ test('Step 4 says the freeze creates the run directory, and never tells the sess
   assert.ok(step.includes('the freeze creates it'), 'Step 4 says the freeze creates the task directory');
   assert.ok(!step.includes('Create it once'), 'Step 4 no longer tells the session to create it');
 });
+
+test('Step 5 points a phase jump at the step\'s checkpoint, never at the 2.x line', () => {
+  const step = section('Step 5');
+  assert.ok(!/finish(ed)? on the 2\.x line/.test(step), 'Step 5 no longer sends a run to the 2.x line');
+  assert.ok(step.includes('revise'), 'Step 5 names the revise at the step\'s checkpoint');
+});
