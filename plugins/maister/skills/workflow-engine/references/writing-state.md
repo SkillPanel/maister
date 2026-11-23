@@ -2,9 +2,7 @@
 
 The workflow engine's rules for writing a run's state. A refused `write-state` names
 *When a write is refused*, and a refused `run-complete` names *When `run-complete` refuses*.
-The rows of the verbs named here that only some steps call — `move-base`, `review-brief`,
-`findings-merge`, `wave-start`, `group-done`, `runner-result`, `runner-step` and `subrun-path` —
-and every verb's refusals are in `references/verbs.md`.
+Every verb's row and every verb's refusals are in `references/verbs.md`.
 
 **Every state change goes through `write-state`. Never edit `orchestrator-state.yml` with an
 editor tool** — not to fix a stray line, not to record one small field, not when a write has
