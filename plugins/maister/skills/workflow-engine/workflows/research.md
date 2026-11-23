@@ -332,7 +332,9 @@ choices.
 `run-context --node=research-foundation` is a path; when it reads `off`, the
 writer is not dispatched and nothing is registered for the page. First write
 the `decisions` text — the chosen approach per area and the deferred ideas — to
-a file in a directory `mktemp -d` makes. That decisions file is what a figure
+a file in the directory
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=decisions --state=<task path>/orchestrator-state.yml`
+makes and prints, inside the run and ignored by git. That decisions file is what a figure
 the operator chose, in an Other answer say, traces to when the page is
 checked; it is left where it is, not an artifact of the run, and never
 registered.
@@ -446,9 +448,9 @@ Runs when the `html:` line of `run-context --node=research-foundation` is a
 path; when it reads `off`, the writer is not dispatched and nothing is
 registered for the page. First write the `decisions` text — the convergence's
 chosen combination when it ran, read from its summary entry, this node's key
-decisions and the Part A constraints answer — to a file in a directory
-`mktemp -d` makes, as convergence does: the decisions file, left where it is
-and never registered.
+decisions and the Part A constraints answer — to a file in the directory
+`scratch-dir --for=decisions` makes, as convergence does: the decisions file,
+left where it is and never registered.
 
 Delegate to the `maister:explainer-writer` agent through the Task tool, with the
 model and effort

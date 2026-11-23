@@ -21,15 +21,18 @@ const NODE_BRIEF_OVERLAY = path.join(DEFINITIONS, 'node-brief.overlay.yml');
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 const SKILL = path.join(ENGINE_DIR, 'references/node-conventions.md');
 const RULES = `rules: ${SKILL} § Node conventions`;
-/** The line every brief opens with, naming the engine skill to read whole. */
-const engineSkill = (dir = ENGINE_DIR) => `engine skill: read ${path.join(dir, 'SKILL.md')} whole now, unless you have read it in this context`;
+/** The line every brief opens with: the command that prints the engine skill whole. */
+const engineSkill = (dir = ENGINE_DIR) => `engine skill: print it whole now with node ${path.join(dir, 'scripts', 'workflow.mjs')} reference --at=SKILL.md, unless it is in this context`;
 const ENGINE_SKILL = engineSkill();
 /** The line after it: the one-command form every call takes. */
 const COMMANDS = 'commands: one per call, from the project root — no cd, chain or pipe; a patch as a here-string';
 /** The two lines every brief opens with. */
 const OPENING = [ENGINE_SKILL, COMMANDS];
-/** The asks line's tail, naming the reference a node reads before its first question. */
-const ASKS_TAIL = ' — read references/in-node-questions.md before the first';
+/** The asks line's tail, naming the section a node prints before its first question, by driver. */
+const asksTail = section => ` — before the first, print reference --at="references/in-node-questions.md § ${section}"`;
+const ASKS_TAIL = asksTail('In-node questions');
+/** `text` as a regular expression matching it literally. */
+const esc = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const REFUSALS = ['node-brief-state-unreadable', 'node-brief-not-a-run', 'node-brief-unknown-node'];
 const RUN_PATH = '.maister/tasks/development/2026-01-05-sample';
 
@@ -274,25 +277,26 @@ test('node-brief: a step run in the main session is told where its throwaway fil
   const text = nodeBrief(run.state, 'research-foundation').stdout;
   const line = text.split('\n').find(each => each.startsWith('convention (every step): '));
   assert.ok(line, text);
-  assert.match(line, /throwaway file .* `mktemp -d` makes \(it uses `\$TMPDIR`\) or under `"\$\{TMPDIR:-\/tmp\}"`, never a literal `\/tmp` path: a fixed `\/tmp` path can stop the run for a permission prompt\./);
+  assert.match(line, /throwaway file .* goes in the directory `scratch-dir --for=<what it holds> --state=<state>` makes, inside the run and ignored by git; never the system temp directory or a literal `\/tmp` path/);
+  assert.doesNotMatch(line, /mktemp|TMPDIR/);
 });
 
 test('node-brief: the asks line follows the driver — in session, in a question set, or the Without line nobody is asked', t => {
   const sample = sampleRun(t);
   write(sample, { orchestrator: { driver: { kind: 'cockpit', features: ['question-sets'] } } });
-  assert.match(nodeBrief(sample.state, 'draft').stdout, /^asks \(question sets\): tone — read references\/in-node-questions\.md before the first$/m);
+  assert.match(nodeBrief(sample.state, 'draft').stdout, new RegExp(`^asks \\(question sets\\): tone${esc(asksTail('When a question suspends'))}$`, 'm'));
 
   // Nobody can be asked: one line, pointing at the Without line the section carries, never a second copy of the default.
   write(sample, { orchestrator: { driver: { kind: 'dispatch' } } });
   const driven = nodeBrief(sample.state, 'draft').stdout;
-  assert.match(driven, /^asks \(nobody can be asked\): tone — the Without line of each applies — read references\/in-node-questions\.md before the first$/m);
+  assert.match(driven, new RegExp(`^asks \\(nobody can be asked\\): tone — the Without line of each applies${esc(asksTail('When nobody can be asked'))}$`, 'm'));
   assert.doesNotMatch(driven, /not asked — default/);
   assert.match(driven, /^\*\*Without question sets\*\* \(`tone`\): a plain tone/m, 'the slice carries the default');
 
   const dev = scratch(t);
   freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' }, orchestrator: { driver: { kind: 'dispatch' } } });
   assert.match(nodeBrief(dev.state, 'specification').stdout,
-    /^asks \(nobody can be asked\): technical-questions, user-story, specification-requirements — the Without line of each applies — read references\/in-node-questions\.md before the first$/m);
+    new RegExp(`^asks \\(nobody can be asked\\): technical-questions, user-story, specification-requirements — the Without line of each applies${esc(asksTail('When nobody can be asked'))}$`, 'm'));
 });
 
 test('node-brief: the revise row prints whole only while a recorded revise names the step', t => {
@@ -743,7 +747,7 @@ test('node-brief: a session is shown each convention row whole once, and again a
   };
   const STEP_ROWS = ['`agent:` step', 'every step', 'asks', 'feeds a checkpoint'];
   const whole = (lines, keys) => keys.every(key => lines.includes(row(key)));
-  const named = (lines, keys) => lines.includes(`conventions in force (${keys.join(', ')}): printed whole by an earlier brief of this session; follow them as printed there, or read them at rules`);
+  const named = (lines, keys) => lines.includes(`conventions in force (${keys.join(', ')}): printed whole by an earlier brief of this session; follow them as printed there, or print them from rules with reference`);
   const one = as('session-one');
 
   // The session's first brief prints every row whole; the next names them on one line.
@@ -815,8 +819,11 @@ test('node-brief: every brief, step and gate alike, opens on the engine skill to
     assert.equal(lines.filter(line => line.startsWith('engine skill: ')).length, 1, `${node}: one line`);
     assert.ok(lines.includes(RULES), `${node}: the rules line stays`);
   }
-  assert.ok(fs.existsSync(path.join(ENGINE_DIR, 'SKILL.md')), 'the line names a file that exists');
-  assert.doesNotMatch(ENGINE_SKILL, /invoke|\bif\b/, 'the line says read now, never invoke the skill again, and states no condition to judge');
+  assert.ok(fs.existsSync(path.join(ENGINE_DIR, 'scripts', 'workflow.mjs')), 'the line names a script that exists');
+  assert.doesNotMatch(ENGINE_SKILL, /invoke|\bif\b|read tool/, 'the line says print now, never invoke the skill again or open it, and states no condition to judge');
+  const printed = run(path.join(ENGINE_DIR, 'scripts', 'workflow.mjs'), ['reference', '--at=SKILL.md']);
+  assert.equal(printed.code, 0, printed.stderr);
+  assert.ok(printed.stdout.includes('## Before anything else'), 'the command prints the skill');
   assert.match(COMMANDS, /no cd, chain or pipe/);
   assert.match(COMMANDS, /here-string/);
 

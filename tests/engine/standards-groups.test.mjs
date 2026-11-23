@@ -70,7 +70,7 @@ test('the five kinds of app and a mobile app each get their own groups', t => {
   assert.deepEqual(mobile.present, []);
   assert.deepEqual(mobile.absent, ['global', 'testing', 'data', 'mobile']);
   assert.equal(mobile.standards_dir, path.join(root, '.maister', 'docs', 'standards'));
-  assert.deepEqual(Object.keys(mobile), ['ok', 'profile', 'signals', 'monorepo', 'standards_dir', 'recommended', 'present', 'absent', 'not_recommended', 'groups', 'warnings']);
+  assert.deepEqual(Object.keys(mobile), ['ok', 'profile', 'signals', 'monorepo', 'standards_dir', 'recommended', 'present', 'absent', 'not_recommended', 'not_copied', 'groups', 'warnings']);
   assert.equal(mobile.groups.length, 9);
   assert.deepEqual(Object.keys(mobile.groups[0]), ['id', 'title', 'files', 'filter']);
 });
@@ -236,6 +236,52 @@ test('the group table holds together with the bundled standards and the analyzer
 
   const analyzer = fs.readFileSync(ANALYZER, 'utf8');
   for (const id of signalIds) assert.ok(analyzer.includes(`| \`${id}\` |`), `the analyzer's group signals table lacks ${id}`);
+});
+
+test('--chosen lists the recommended groups that were not copied, and never a group nobody recommended', t => {
+  // As init's summary runs it: after Phase 5 copied global, testing and mobile of a recommended mobile and data.
+  const root = scratchTree(t, {
+    '.maister/docs/standards/global/coding-style.md': '# Coding style\n',
+    '.maister/docs/standards/testing/test-writing.md': '# Tests\n',
+    '.maister/docs/standards/mobile/screens.md': '# Screens\n',
+  });
+  const flags = ['--kind=mobile', '--ui=native', '--data=sqlite', '--signals=native-mobile,database'];
+  const without = resolve(root, flags);
+  assert.equal(without.not_copied, null, 'no selection given, no list');
+  assert.deepEqual(ids(without.recommended), ['global', 'testing', 'data', 'mobile']);
+
+  const declined = resolve(root, [...flags, '--chosen=global,testing,mobile']);
+  assert.deepEqual(declined.not_copied, [{ id: 'data', title: 'Database' }]);
+  for (const never of ids(declined.not_recommended)) assert.ok(!ids(declined.not_copied).includes(never), `${never} was never recommended`);
+
+  const all = resolve(root, [...flags, '--chosen=global,testing,mobile,data']);
+  assert.deepEqual(ids(all.not_copied), ['data'], 'chosen but not held by the folder: not copied');
+  fs.mkdirSync(path.join(root, '.maister/docs/standards/data'));
+  fs.writeFileSync(path.join(root, '.maister/docs/standards/data/schema.md'), '# Schema\n');
+  assert.deepEqual(resolve(root, [...flags, '--chosen=global,testing,mobile,data']).not_copied, [], 'every recommended group copied');
+
+  // None chosen beyond global and testing; a group of the project's own is ignored.
+  assert.deepEqual(ids(resolve(root, [...flags, '--chosen=global,testing,payments']).not_copied), ['data', 'mobile']);
+  assert.deepEqual(ids(resolve(root, [...flags, '--chosen=']).not_copied), ['global', 'testing', 'data', 'mobile']);
+
+  // A source that lacks a recommended group: not held there, so not copied.
+  const source = scratchTree(t, { 'standards/global/style.md': '# Style\n', 'standards/mobile/screens.md': '# Screens\n' });
+  const fromSource = resolve(root, [...flags, `--standards-dir=${path.join(source, 'standards')}`, '--chosen=global,testing,mobile,data']);
+  assert.deepEqual(ids(fromSource.not_copied), ['testing', 'data']);
+
+  // The flag belongs to groups alone.
+  const refused = groups(root, [...flags, '--chosen=global'], ['built-in', 'candidates']);
+  assert.equal(refused.code, 1);
+  assert.match(refused.stderr, /unknown argument "--chosen=global"/);
+});
+
+test('the Copilot build\'s resolver lists the same groups not copied', t => {
+  const root = scratchTree(t, { '.maister/docs/standards/global/coding-style.md': '# Coding style\n' });
+  const args = ['groups', '--kind=mobile', '--ui=native', '--data=sqlite', '--signals=native-mobile,database', '--chosen=global,testing'];
+  const source = JSON.parse(run(RESOLVER, args, undefined, {}, root).stdout);
+  const built = JSON.parse(run(path.join(variantRoot(), 'skills/docs-manager/scripts/standards.mjs'), args, undefined, {}, root).stdout);
+  assert.deepEqual(ids(source.not_copied), ['testing', 'data', 'mobile']);
+  assert.deepEqual(built.not_copied, source.not_copied);
 });
 
 test('the Copilot build ships a resolver that prints the source\'s report', t => {

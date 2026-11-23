@@ -34,6 +34,8 @@ Restart Claude Code. Then set your project up once, and give it a task:
 
 `/maister:init` reads your configuration, code and documentation. It writes the standards and project facts it finds to `.maister/docs/`, and its settings to `.maister/config.yml`. Every workflow reads them from then on.
 
+If Claude Code asks "Allow this read outside the working directories?", answer "Yes, and keep allowing": [Troubleshooting](docs/troubleshooting.md#claude-code-asks-to-allow-a-read-outside-the-working-directories) explains why, and what to do if you blocked it.
+
 <details>
 <summary><b>On GitHub Copilot CLI</b></summary>
 
@@ -315,6 +317,14 @@ Pre-release versions install from the `beta` branch. Only one Maister channel ca
 
 ```bash
 /plugin uninstall maister@maister-plugins
+/plugin marketplace add SkillPanel/maister#beta
+/plugin install maister@maister-plugins-beta
+```
+
+From the 2.x line, uninstall that plugin instead, then add the channel:
+
+```bash
+/plugin uninstall maister@maister-plugins-2x
 /plugin marketplace add SkillPanel/maister#beta
 /plugin install maister@maister-plugins-beta
 ```

@@ -38,14 +38,18 @@ for a whole step, and say in the step's report which one it was.
 Browser steps that run one after another in a run share the tool and its browser: never drive
 it from two steps at once.
 
-**A browser step leaves nothing in the project but the files it was asked for.** `playwright-cli`
+**A browser step leaves nothing git sees but the files it was asked for.** `playwright-cli`
 otherwise writes its page snapshots and console logs into `.playwright-cli/` under the folder it
-runs from, which is the project root. So at the step's start make one directory with `mktemp -d`
-and set `PLAYWRIGHT_MCP_OUTPUT_DIR=<that directory>` on the `open` call (setting it on every call
-does no harm): the browser it starts keeps its own output there for the rest of the session.
-Screenshots still go by absolute path into the step's folder. Delete the directory when the step
-ends. A `.playwright-cli/` that turns up in the project anyway is named in the step's report and
-never committed with the step's work.
+runs from, which is the project root. So at the step's start make one directory with
+`node <plugin root>/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=browser`, adding
+`--state=<the run's orchestrator-state.yml>` in a run, and set
+`PLAYWRIGHT_MCP_OUTPUT_DIR=<that directory>` on the `open` call (setting it on every call does no
+harm): the browser it starts keeps its own output there for the rest of the session. The
+directory is inside the project and ignored by git, so a screenshot taken only to look at goes
+there too and is read back without a permission prompt; never the system temp directory. A
+screenshot the step was asked for still goes by absolute path into the step's folder. Leave the
+directory where it is. A `.playwright-cli/` that turns up in the project anyway is named in the
+step's report and never committed with the step's work.
 
 ## Screenshots
 

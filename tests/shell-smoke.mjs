@@ -201,7 +201,7 @@ try {
 
   // --- node-brief -----------------------------------------------------------
   const nodeBriefed = call('node-brief', [flag('state', statePath), '--node=analysis']);
-  check('node-brief prints the brief of a node, from a path holding a space', nodeBriefed.code === 0 && /^engine skill: read '.+' whole now/.test(nodeBriefed.stdout) && /^## Node: analysis/m.test(nodeBriefed.stdout) && /^rules: .+ § Node conventions$/m.test(nodeBriefed.stdout), show(nodeBriefed));
+  check('node-brief prints the brief of a node, from a path holding a space', nodeBriefed.code === 0 && /^engine skill: print it whole now with node '.+' reference --at=SKILL\.md, /.test(nodeBriefed.stdout) && /^## Node: analysis/m.test(nodeBriefed.stdout) && /^rules: .+ § Node conventions$/m.test(nodeBriefed.stdout), show(nodeBriefed));
 
   // --- node writes ----------------------------------------------------------
   const route = HERE_STRING ? 'here-string' : 'patch file';
@@ -398,14 +398,15 @@ try {
     check(`${script}: exit 0 with additional context`, reminder.code === 0 && typeof out?.hookSpecificOutput?.additionalContext === 'string', show(reminder));
   }
 
-  // After a compaction the reminder names the engine skill by its absolute
-  // path in this plugin copy, whose path holds a space. The host may start the
-  // script through the copy's real path, so either spelling of it is the copy.
+  // After a compaction the reminder names the command that prints the engine
+  // skill, by the engine's absolute path in this plugin copy, quoted since the
+  // path holds a space. The host may start the script through the copy's real
+  // path, so either spelling of it is the copy.
   const compacted = hook('post-compact-reminder.mjs', JSON.stringify({ hook_event_name: 'SessionStart', source: 'compact' }));
   const compactContext = json(compacted.stdout)?.hookSpecificOutput?.additionalContext ?? '';
   const skillPaths = [...new Set([pluginRoot, fs.realpathSync(pluginRoot), fs.realpathSync.native(pluginRoot)])]
-    .map(root => path.join(root, 'skills', 'workflow-engine', 'SKILL.md'));
-  check('post-compact-reminder.mjs: names the engine skill\'s absolute path', skillPaths.some(skill => compactContext.includes(skill)), show(compacted));
+    .map(root => `node '${path.join(root, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs')}' reference --at=SKILL.md`);
+  check('post-compact-reminder.mjs: names the command that prints the engine skill, its path quoted', skillPaths.some(skill => compactContext.includes(skill)), show(compacted));
 
   const guard = (agent, command) => hook('block-destructive-commands.mjs', JSON.stringify({
     hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, ...(agent ? { agent_type: agent } : {}),

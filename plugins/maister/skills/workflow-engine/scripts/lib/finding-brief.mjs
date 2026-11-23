@@ -11,8 +11,10 @@
  * finding offers: accept the risk and list it.
  *
  * The contract. `--state` and `--node` name the run and the reviewing node that
- * is asking; `--findings-file` names the findings list, resolved against the
- * run directory when relative and required to resolve inside it. Without
+ * is asking; `--findings-file` names the findings list, required to resolve
+ * inside the run directory: a relative path is read from the run directory, or
+ * from the project root when that names a file of the run, as every other path
+ * a session passes is spelled. Without
  * `--patch-file` the set, `{questions: [...]}`, is the verb's output; with it,
  * the set is written to the patch file for `gate-brief --request --patch-file`
  * or the classing write to take.
@@ -73,7 +75,7 @@ import path from 'node:path';
 
 import { Refusal, openTemp } from '../../../../lib/canonical.mjs';
 import { parse, isPlainObject } from './state-read.mjs';
-import { definitionPathOf } from './state.mjs';
+import { definitionPathOf, projectRootOf } from './state.mjs';
 import { declaredQuestionIds } from './question-triage.mjs';
 import { clipHeader } from './question-set.mjs';
 import { oneLine } from './items.mjs';
@@ -177,15 +179,25 @@ export function findingBrief({ state, node, findingsFile, patchFile = null }) {
 
 /**
  * The findings list at `given`, checked: `{findings, record}` — `record` its
- * repository-relative path, as a kept cite's path spells it — or `{warning}`. The path
- * is resolved against the run directory and must stay inside it.
+ * repository-relative path, as a kept cite's path spells it — or `{warning}`. A
+ * relative path is resolved against the run directory, then the project root,
+ * and must stay inside the run directory.
  */
 function loadFindings(given, runDir) {
-  const file = path.resolve(runDir, given);
-  const relative = path.relative(runDir, file);
-  if (relative === '' || relative.split(path.sep)[0] === '..' || path.isAbsolute(relative)) {
+  const inside = file => {
+    const relative = path.relative(runDir, file);
+    return relative !== '' && relative.split(path.sep)[0] !== '..' && !path.isAbsolute(relative);
+  };
+  // A relative path is read from the run directory, or from the project root
+  // when that is where it names a file of the run: every other path a session
+  // passes is spelled from the project root.
+  const bases = path.isAbsolute(given) ? [runDir] : [runDir, projectRootOf(runDir)];
+  const candidates = [...new Set(bases.map(base => path.resolve(base, given)))].filter(inside);
+  if (candidates.length === 0) {
     return { warning: `${WARNING.missing}:${given.split(path.sep).join('/')}:outside-run` };
   }
+  const file = candidates.find(each => fs.existsSync(each)) ?? candidates[0];
+  const relative = path.relative(runDir, file);
   const where = relative.split(path.sep).join('/');
   let text;
   try {

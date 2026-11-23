@@ -6,7 +6,7 @@
  *
  *   node <path to this file> groups [--kind=<kind>] [--ui=<ui>] [--deploy=<deploy>]
  *       [--data="<store>,<store>"] [--signals="<signal>,<signal>"] [--monorepo]
- *       [--root=<dir>] [--standards-dir=<dir>]
+ *       [--root=<dir>] [--standards-dir=<dir>] [--chosen="<group>,<group>"]
  *   node <path to this file> built-in candidates [the same flags]
  *       [--add-groups="<group>,<group>"]
  *
@@ -31,6 +31,10 @@
  *   --standards-dir          the standards folder whose groups count as present,
  *                            default `<root>/.maister/docs/standards`; a default
  *                            folder that does not exist holds nothing
+ *   --chosen                 groups only: the group folders a person chose to
+ *                            copy, a comma list, global and testing included
+ *                            when they were kept; an empty value (`--chosen=""`)
+ *                            is none. It fills `not_copied`
  *   --add-groups             built-in candidates only: the groups being added, a
  *                            comma list of the table's group ids; an empty value
  *                            (`--add-groups=""`) is none, and leaving the flag
@@ -101,6 +105,10 @@
  *   absent           the recommended ids not present
  *   not_recommended  [{id, title, outranked?}]: `outranked` lists the signals
  *                    precedence set aside
+ *   not_copied       with --chosen, [{id, title}]: each recommended group that
+ *                    was not copied — not in --chosen, or not held by the
+ *                    standards folder — in table order; null without --chosen.
+ *                    A group never recommended is never in it
  *   groups           the table's groups as [{id, title, files, filter}]
  *   warnings         strings
  *
@@ -163,11 +171,11 @@ const MOBILE = 'mobile';
 /** The profile fields the conditions read, in the profile's own order. */
 const PROFILE_FIELDS = Object.keys(FIELDS).filter(name => ['kind', 'ui', 'deploy', 'data'].includes(name));
 const ENUM_FIELDS = PROFILE_FIELDS.filter(name => Array.isArray(FIELDS[name]));
-const LIST_FLAGS = ['data', 'signals', 'add-groups'];
+const LIST_FLAGS = ['data', 'signals', 'add-groups', 'chosen'];
 const PATH_FLAGS = ['root', 'standards-dir'];
 const GROUPS_FLAGS = [...ENUM_FIELDS, 'data', 'signals', 'monorepo', ...PATH_FLAGS];
 /** Each verb's flags, in the order its unknown-flag message lists them. */
-const VERB_FLAGS = { [GROUPS]: GROUPS_FLAGS, [CANDIDATES]: [...GROUPS_FLAGS, 'add-groups'] };
+const VERB_FLAGS = { [GROUPS]: [...GROUPS_FLAGS, 'chosen'], [CANDIDATES]: [...GROUPS_FLAGS, 'add-groups'] };
 
 /** A refused input: the caller corrects it and runs again. */
 class Refusal extends Error {
@@ -196,6 +204,7 @@ function takes(name, table) {
   if (name === 'data') return 'a comma list of store names, or "" for none';
   if (name === 'signals') return `a comma list of ${table.signals.map(each => each.id).join(', ')}, or "" for none`;
   if (name === 'add-groups') return `a comma list of ${table.groups.map(each => each.id).join(', ')}, or "" for none`;
+  if (name === 'chosen') return 'a comma list of the group folders chosen, or "" for none';
   if (name === 'monorepo') return 'no value';
   return 'a directory';
 }
@@ -426,9 +435,21 @@ function resolveGroups(table, flags) {
     present,
     absent: recommended.map(each => each.id).filter(id => !held.has(id)),
     not_recommended: notRecommended,
+    not_copied: notCopied(recommended, held, flags.chosen),
     groups: table.groups.map(({ id, title, files, filter }) => ({ id, title, files, filter })),
     warnings,
   };
+}
+
+/**
+ * The recommended groups that were not copied, from the selection a person
+ * made (`chosen`, the --chosen value) and the groups the standards folder
+ * holds (`held`); null when no selection was given.
+ */
+function notCopied(recommended, held, chosen) {
+  if (typeof chosen !== 'string') return null;
+  const picked = new Set(list(chosen));
+  return recommended.filter(({ id }) => !picked.has(id) || !held.has(id)).map(({ id, title }) => ({ id, title }));
 }
 
 /* ---- built-in candidates ---------------------------------------------- */

@@ -35,11 +35,11 @@ copilot plugin install maister@maister-plugins-beta
 
 Quote the beta source: an unquoted `#` starts a comment in most shells.
 
-Copilot reads its own marketplace file and lists one plugin, `maister`. The Copilot build was
-called `maister-copilot` until now; that entry is gone, and `copilot plugin update` will not find
-it. Uninstall it once (`copilot plugin uninstall maister-copilot@maister-plugins-beta`, or
-`@maister-plugins` on the stable channel) and install `maister` as above. The project's
-`.maister/` folder is not touched.
+Copilot reads its own marketplace file and lists one plugin, `maister`. In 2.x the Copilot plugin
+was called `maister-copilot`; that entry is gone, and `copilot plugin update` will not find it.
+Uninstall it once (`copilot plugin uninstall maister-copilot@maister-plugins`, or
+`@maister-plugins-beta` if you were on the beta channel, `@maister-plugins-2x` from the 2.x line)
+and install `maister` as above. The project's `.maister/` folder is not touched.
 
 Install one channel only. To switch, uninstall the other first, for example
 `copilot plugin uninstall maister@maister-plugins`.

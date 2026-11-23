@@ -792,6 +792,20 @@ describe('quiet bookkeeping', () => {
     expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · started · specification', 'maister'])
   })
 
+  test('a write and a step brief sent together each collapse, however close their stamps', async ($: any, on: any) => {
+    // The engine stamps the status to the millisecond, one stamp per write: two calls in one second still differ.
+    const seen = beneath(on, files(), { shells: [saved({ updated: '2026-10-07T16:40:00.120Z' }), started({ updated: '2026-10-07T16:40:00.480Z' })] })
+    for (const command of [WRITE, STARTED]) await $.tool.call({ tool: 'Bash', command })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · saved · intake → done, codebase analysis → running', 'maister'])
+    expect((await row($, 'terminal', seen.ids[1])).texts).toEqual(['· maister · started · specification', 'maister'])
+  })
+
+  test('a step brief after a write that leaves the stamp where the write put it draws in full', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [saved({ updated: '2026-10-07T16:40:00.120Z' }), { stdout: 'the step\'s brief\n' }] })
+    for (const command of [WRITE, STARTED]) await $.tool.call({ tool: 'Bash', command })
+    expect((await row($, 'terminal', seen.ids[1])).drawn).toMatchObject({ type: 'engine' })
+  })
+
   test('a step brief that recorded no start, the step already running, draws in full', async ($: any, on: any) => {
     const seen = beneath(on, files(), { shells: [{ stdout: 'the step\'s brief\n' }] })
     await $.tool.call({ tool: 'Bash', command: STARTED })

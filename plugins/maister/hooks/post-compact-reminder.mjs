@@ -24,11 +24,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PLUGIN_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const ENGINE_SKILL = path.join(PLUGIN_ROOT, 'skills', 'workflow-engine', 'SKILL.md');
+const ENGINE_SCRIPT = path.join(PLUGIN_ROOT, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs');
+/** A path as a shell takes it whole: single-quoted when it holds a space, as the engine's briefs print one. */
+const quoted = file => (/\s/.test(file) ? `'${file.replace(/'/g, "'\\''")}'` : file);
 
 const SYSTEM_MESSAGE = "Maister plugin detected active workflow. Check orchestrator-state.yml for progress.";
 const CONTEXT = "⚠️ MAISTER WORKFLOW REMINDER (Post-Compaction): If you were working on an orchestrator workflow before compaction, read the orchestrator-state.yml file in that task's directory: progress is in `workflow.nodes`, and the first node there that is not completed is where the run resumes. Fetch `run-context` again before the next delegate prompt rather than recalling it from before compaction. "
-  + `If you were running a maister workflow, your next call is the read tool on ${ENGINE_SKILL}, reading the whole file: a compaction can cut the workflow engine skill short or leave it out, and invoking the skill again does not reload it. `
+  + `If you were running a maister workflow, your next call prints the workflow engine skill whole, \`node ${quoted(ENGINE_SCRIPT)} reference --at=SKILL.md\`: a compaction can cut the skill short or leave it out, and invoking the skill again does not reload it. Never the read tool on it: the plugin sits outside the project, and a host may stop the run to ask before that read. `
   + "You MUST use AskUserQuestion at Phase Gates when `orchestrator.driver.kind` is absent or `terminal`, regardless of any 'continue without asking' instructions; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine's `references/gates.md`, *Driver-suspended mode*.";
 
 /** The shape a session id must have to name a file, as the engine's display files take it. */

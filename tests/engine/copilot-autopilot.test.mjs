@@ -183,6 +183,39 @@ test('autopilot (variant): every way past a checkpoint without a person\'s answe
   assert.equal(readState(optional).workflow.nodes['audit-approval'].status, 'skipped');
 });
 
+test('autopilot (variant): a checkpoint\'s answer sent with the skips it causes is refused for its order, never as a pick nobody made', t => {
+  const runDir = scratch(t);
+  freeze(runDir, { definition: OPTIONAL_STEP });
+  reach(runDir, { nodes: { specification: { status: 'completed' } } });
+  note(runDir.dir, 'person', ['decision']);
+  const before = fs.readFileSync(runDir.state, 'utf8');
+  const together = writeVia(variantEngine(), runDir, {
+    nodes: { 'specification-approval': { status: 'completed' }, audit: { status: 'skipped' }, 'audit-approval': { status: 'skipped' } },
+    node_summaries: { 'specification-approval': { decisions: [{ option: 'continue-to-planning' }] } },
+  });
+  assert.equal(together.code, 1, together.stdout + together.stderr);
+  assert.match(together.stderr, /^state-skip-before-answer: /m);
+  assert.match(together.stderr, /audit-approval skipped in the same write as the answer at specification-approval/);
+  assert.match(together.stderr, /record the checkpoint's answer first, then skip what its answer takes off the path/i);
+  assert.doesNotMatch(together.stderr, /state-answer-needs-person|Stop here|no person's answer/);
+  assert.equal(fs.readFileSync(runDir.state, 'utf8'), before, 'nothing is written');
+  assert.equal(fs.existsSync(path.join(runDir.dir, NOTE)), true, 'the person\'s note stays for the answer sent alone');
+
+  // In order: the answer alone is the person's, then the skips land.
+  wrote(variantEngine(), runDir, { nodes: { 'specification-approval': { status: 'completed' } }, node_summaries: { 'specification-approval': { decisions: [{ option: 'continue-to-planning' }] } } });
+  const [kept] = readState(runDir).node_summaries['specification-approval'].decisions;
+  assert.deepEqual([kept.option, kept.by], ['continue-to-planning', 'operator']);
+  wrote(variantEngine(), runDir, { nodes: { audit: { status: 'skipped' }, 'audit-approval': { status: 'skipped' } } });
+  assert.equal(readState(runDir).workflow.nodes['audit-approval'].status, 'skipped');
+});
+
+test('the order row: writing-state.md tells a session to record the answer before the skips it causes', () => {
+  const text = fs.readFileSync(path.join(ENGINE_DIR, 'references/writing-state.md'), 'utf8');
+  const row = text.split('\n').find(line => line.startsWith('| `state-skip-before-answer` |'));
+  assert.ok(row, 'the row is in the refusal table');
+  assert.match(row, /Record the checkpoint's answer first, then skip what its answer takes off the path/);
+});
+
 test('autopilot (variant): a checkpoint a person answered but the write carries no answer item for is refused for its shape, never as a pick nobody made', t => {
   const runDir = atCheckpoint(t);
   note(runDir.dir, 'person', ['decision']);

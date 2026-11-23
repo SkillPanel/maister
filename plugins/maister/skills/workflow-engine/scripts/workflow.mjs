@@ -199,6 +199,14 @@
  *                  session before each is sent, its stale output cleared;
  *                  the host's agent ids attached; or marked ended without
  *                  their output)
+ *   reference      --at=<file>[ § <heading>], repeatable    the text
+ *                  (a section of one of the plugin's own Markdown files,
+ *                  printed under 20,000 characters, or refused with the
+ *                  file's headings and their sizes)
+ *   scratch-dir    --for, optional --state       the new directory's path
+ *                  (a fresh directory inside the project, ignored by git,
+ *                  for a file read back later: <run>/scratch/<for>-… with
+ *                  --state, else .maister/scratch/<for>-…)
  *
  * and one exit-code table: 0 success, 1 the input was rejected (the JSON report
  * is still printed, so a caller always has the reasons), 2 the tooling itself
@@ -392,6 +400,12 @@ const VERBS = {
   // The agents a runner's loop sent, recorded before they act, so a resume
   // waits for one still out instead of sending a second onto its work.
   'in-flight': { module: 'runner.mjs', flags: ['state', 'node', 'runner', 'record', 'agents', 'ended'] },
+  // A directory inside the project for a file read back later: the run's
+  // `scratch/` with `--state`, else `.maister/scratch/`, either ignored by git.
+  'scratch-dir': { module: 'scratch-dir.mjs', flags: ['for', 'state'] },
+  // A section of the plugin's own Markdown, printed: what a session reads the
+  // engine's rules through, never by opening a file outside the project.
+  reference: { module: 'reference.mjs', flags: ['at'] },
 };
 
 /** This plugin's root, three levels above this file: what the edition check locates. */
@@ -451,7 +465,7 @@ function refuseRules(moment) {
 }
 
 /** The flags that may be given more than once; every other flag is single-valued. */
-const REPEATABLE = new Set(['overlay', 'area', 'from']);
+const REPEATABLE = new Set(['overlay', 'area', 'from', 'at']);
 
 /**
  * The picker profiles `gate-brief --json` renders: `rich` for a tool that shows
@@ -1581,7 +1595,7 @@ async function runFindingBrief(flags) {
   if (!flags.state) throw new UsageError('finding-brief needs --state');
   if (!flags.node) throw new UsageError('finding-brief needs --node');
   if (typeof flags['findings-file'] !== 'string' || flags['findings-file'] === '') {
-    throw new UsageError('finding-brief needs --findings-file: the reviewer\'s findings list, inside the run directory');
+    throw new UsageError('finding-brief needs --findings-file: the reviewer\'s findings list, inside the run directory, spelled from the run directory or the project root');
   }
   // The set is the verb's own write, so nothing need be there yet.
   const patchFile = flags['patch-file'] !== undefined ? patchFileOf(flags, { absentOk: true }) : null;
@@ -1861,6 +1875,43 @@ async function runProjectProfile(flags) {
 }
 
 /**
+ * `reference` prints the sections asked for, as text; a refusal's code first
+ * on stderr at exit 1, nothing on stdout.
+ */
+async function runReference(flags) {
+  if (!(flags.at || []).length) throw new UsageError('reference needs --at: <file>, or <file> § <heading>, a Markdown file of the plugin');
+  const module = await loadModule(VERBS.reference.module);
+  const print = entryOf(module, 'reference', VERBS.reference.module);
+  const result = print({ ats: flags.at, pluginRoot: PLUGIN_ROOT });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(result.text);
+  return EXIT.OK;
+}
+
+/**
+ * `scratch-dir` prints the new directory's absolute path as its one stdout
+ * line, so the caller copies it as printed; a refusal's code first on stderr
+ * at exit 1.
+ */
+async function runScratchDir(flags) {
+  if (typeof flags.for !== 'string' || flags.for === '') throw new UsageError('scratch-dir needs --for: what the directory holds, a kebab label');
+  const module = await loadModule(VERBS['scratch-dir'].module);
+  const make = entryOf(module, 'scratchDir', VERBS['scratch-dir'].module);
+  const graph = await loadModule(VERBS.validate.module);
+  const root = entryOf(graph, 'projectRoot', VERBS.validate.module)();
+  const result = make({ label: flags.for, state: flags.state ?? null, root });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(`${result.path}\n`);
+  return EXIT.OK;
+}
+
+/**
  * `runner-result` reports like `findings-merge`: the written result as JSON on
  * stdout, a refusal's code first on stderr at exit 1 with the patch file kept
  * for correcting, and the patch file deleted once the result landed.
@@ -1992,6 +2043,8 @@ const RUNNERS = {
   'runner-result': runRunnerResult,
   'runner-step': runRunnerStep,
   'in-flight': runInFlight,
+  'scratch-dir': runScratchDir,
+  reference: runReference,
 };
 
 // ---------------------------------------------------------------------------

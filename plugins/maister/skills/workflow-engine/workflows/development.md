@@ -413,7 +413,8 @@ and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.m
 **Asks.** Each finding that needs a decision is its own question (step 5
 there): write the auditor's decision findings to
 `verification/spec-audit-findings.json`, each `id` the auditor's `name`, and
-build the set with `finding-brief` for this node (its row: the engine's `references/verbs.md`).
+build the set with
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set.
 
 **With question sets** (`spec-audit-findings`): this node's first request, with
 the audit report and every fix written first.
@@ -785,8 +786,9 @@ than retried.
      close. The run is exactly what it would be without this step.
    - **A refusal**: no re-ground; record one `open` risk naming the code and its
      message, and the pack stays as it is.
-   - **Sources touched**: copy the pack folder to a fresh `mktemp -d` directory,
-     then invoke `maister:mockup-studio` with the Skill tool and `--ground` — the
+   - **Sources touched**: copy the pack folder into the fresh directory
+     `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=grounding-pack-backup --state=<task path>/orchestrator-state.yml`
+     makes and prints, inside the run and ignored by git, then invoke `maister:mockup-studio` with the Skill tool and `--ground` — the
      pack's one builder, which rebuilds and seals it in place, draws no mockup
      and touches no task folder. It builds every file afresh from the sources,
      never by editing the old pack's files, in a fresh agent that never saw the
@@ -817,7 +819,9 @@ than retried.
    message covering the change; a review of the diff; a pull request; and
    deployment as the project's own process has it. Suggest a fresh session for
    whatever comes next. **Write the commit message to `commit-message.txt` in
-   the task directory** and name the file; never print the message itself.
+   the task directory** and name the file; never print the message itself. The
+   message carries no attribution trailer — no `Co-Authored-By`, no "Generated
+   with" line — unless the project's own instructions ask for one.
 8. **Publish when the plan gate granted it.** Only when `planning-approval-publish`
    completed on its continue — read from state; under the plain plan gate this
    step does not exist. Commit what the run changed on its own branch if any of

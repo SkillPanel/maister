@@ -122,7 +122,7 @@ test('every refusal exits 1 with its code, each verb listing its own flags', t =
   assert.equal(refused([...VERB, '--add-groups=gpu, cli ,tpu'], 'standards-unknown-group').length, 2);
 
   const [groupsFlag] = refused(['groups', '--add-groups=cli'], 'standards-unknown-flag');
-  assert.equal(groupsFlag.message, 'unknown argument "--add-groups=cli"; the flags are --kind, --deploy, --ui, --data, --signals, --monorepo, --root, --standards-dir, each written --name=value');
+  assert.equal(groupsFlag.message, 'unknown argument "--add-groups=cli"; the flags are --kind, --deploy, --ui, --data, --signals, --monorepo, --root, --standards-dir, --chosen, each written --name=value');
   const [ownFlag] = refused([...VERB, '--colour=red'], 'standards-unknown-flag');
   assert.match(ownFlag.message, /--standards-dir, --add-groups, each written --name=value$/);
 

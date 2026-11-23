@@ -132,15 +132,39 @@ test('standards prompts: the plan template and its checklist name standards file
   assert.match(planner, /Standards Compliance names files for every group, never a folder/, 'the checklist says files, never a folder');
 });
 
+test('standards prompts: init\'s "Choose individually" offers "None of these" and takes an empty selection as an answer', () => {
+  const init = read(INIT);
+  const phase = slice(init, '"Choose individually": offers every group', 'Nothing is written in this phase.', 'init');
+  assert.ok(phase.includes('The first question of the first page also offers "None of these", described as no group beyond global and testing'), 'the first page offers None of these');
+  assert.ok(phase.includes('An empty selection is an answer: every question left blank, or "None of these", means no group beyond global and testing.'), 'an empty selection is global and testing only');
+  assert.ok(phase.includes('never ask again in prose'), 'an empty selection is never asked again in prose');
+  assert.ok(phase.includes('`const` `none` and `title` "None of these"'), 'the plain picker carries the option too');
+});
+
+test('standards prompts: init\'s update path asks the built-in review offer in a call of its own, after the survey\'s answer', () => {
+  const init = read(INIT);
+  const offer = slice(init, 'The built-in standards. When', 'Step 3 — Apply only what was chosen.', 'init');
+  assert.ok(offer.includes('the offer is an AskUserQuestion call of its own, made after the survey\'s answer and its pages have come back'), 'the offer is its own call, after the answer');
+  assert.ok(offer.includes('never a question in the survey\'s call or on one of its pages'), 'the offer is never merged into the survey');
+});
+
+test('standards prompts: the built-in edits for docs-operator are composed in the call or with the file tool, never by a shell script', () => {
+  const update = read('skills/standards-update/SKILL.md');
+  const step = slice(update, '### BUILT-IN STEP 4', '### BUILT-IN STEP 5', 'standards-update');
+  assert.ok(step.includes('in the call\'s own text, or, when the set is long, with the file tool as `built-in-standard-edits.md` beside the list file'), 'composed in the call or with the file tool');
+  assert.ok(step.includes('Never build them with a shell heredoc or an inline interpreter'), 'never a heredoc or an inline interpreter');
+});
+
 test('standards prompts: init\'s summary names each recommended group that was not copied with its discover command', () => {
   const init = read(INIT);
   assert.ok(init.includes('Store the selection for Phase 5, and the groups the resolver recommended for Phase 7\'s summary.'), 'Phase 4 keeps the recommended set');
   const summary = slice(init, 'Standards not copied:', 'Project config:', 'init');
-  assert.ok(summary.includes('each group Phase 4 recommended that was not copied'), 'the summary names each recommended group not copied');
   assert.ok(summary.includes('deselected, or not held by the referenced project'), 'the summary says why a group was not copied');
   assert.ok(summary.includes('one line each with the command that adds it later, `/maister:standards-discover --scope=<group>`'), 'each line carries the discover command');
   assert.ok(summary.includes('a group Phase 4 never recommended is not named'), 'a group never recommended is not named');
-  assert.ok(summary.includes('the line is left out when every recommended group was copied'), 'the line is left out when every recommended group was copied');
+  assert.ok(summary.includes('the line is left out when `not_copied` is empty, as it is when every recommended group was copied'), 'the line is left out when every recommended group was copied');
+  assert.ok(summary.includes('run the resolver again with Phase 4\'s flags plus `--chosen="<the selection Phase 5 copied>"`; its `not_copied` lists each group Phase 4 recommended that was not copied'), 'the names come from the resolver');
+  assert.ok(summary.includes('Name exactly those') && summary.includes('nor any group the list does not hold'), 'no other group is named');
 });
 
 // Every reader of the standards groups asks the resolver, never a list of

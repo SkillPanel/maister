@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
 import { ENGINE, freeze, git, gitScratch, readState, run as runScript, verb } from '../helpers.mjs';
@@ -186,10 +185,11 @@ test('review-brief: standalone, a task directory and a base; --task-path without
 test('review-brief: a standalone brief has no run, so a missing plan is not warned', t => {
   const run = gitScratch(t, FILES);
   write(run, 'src/app.mjs', 'changed\n');
-  // As /maister:update-branch builds it: a mktemp -d directory outside the
-  // project, the project root taken from the working directory.
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-standalone-'));
-  t.after(() => fs.rmSync(scratch, { recursive: true, force: true }));
+  // As /maister:update-branch builds it: a scratch-dir directory under the
+  // project's .maister/scratch/, outside .maister/tasks/, so no run.
+  const made = runScript(ENGINE, ['scratch-dir', '--for=update-branch'], undefined, {}, run.root);
+  assert.equal(made.code, 0, made.stderr);
+  const scratch = made.stdout.trim();
   const result = runScript(ENGINE, ['review-brief', `--task-path=${scratch}`, '--base=HEAD'], undefined, {}, run.root);
   assert.equal(result.code, 0, result.stderr);
   assert.doesNotMatch(result.stderr, /review-brief-plan/);

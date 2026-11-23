@@ -47,7 +47,7 @@ For complex bugs that grow beyond a quick fix, offers to switch to a full develo
 
 ### Step 2: Discover Standards
 
-Discover the project's standards as part of analysis and planning (Steps 3–4), relevant to the bug area — not as a bulk upfront read. The Standards Compliance Checklist reference, `<plugin root>/skills/orchestrator-framework/references/standards-compliance-checklist.md` (the plugin root two levels above this skill's base directory, as an absolute path), says where the standards come from, how the plan's checklist is written and how it is verified; read it before Step 4.
+Discover the project's standards as part of analysis and planning (Steps 3–4), relevant to the bug area — not as a bulk upfront read. The Standards Compliance Checklist reference says where the standards come from, how the plan's checklist is written and how it is verified. Before Step 4, print it from the project root with `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference` and one `--at="skills/orchestrator-framework/references/standards-compliance-checklist.md § <section>"` for each of its sections — *Where the standards come from*, *Writing the checklist*, *When there are no standards* and *Verifying the checklist* — in one call (the plugin root two levels above this skill's base directory, as an absolute path), never with the read tool, since the plugin sits outside the project and a host may stop the run to ask before that read.
 
 - Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it. It shows which standards exist.
 - **Then read the specific standard files it points to that match the bug area** (e.g. API bug → api + error-handling standards; form bug → validation + frontend standards; query bug → data standards). Reading INDEX.md alone is NOT sufficient — this is mandatory.
@@ -176,7 +176,7 @@ If any section is missing, add it before calling ExitPlanMode.
 - **Standards applied**: Which standards from INDEX.md were followed
 - **Docs index**: the check's result (below)
 - **Tests**: Which tests were run and their results (including the TDD red→green transition)
-- **Commit suggestion**: Propose a commit message
+- **Commit suggestion**: Propose a commit message, with no attribution trailer (no `Co-Authored-By`, no "Generated with" line) unless the project's own instructions ask for one
 
 **Post-implementation standards check (mandatory):** after the test is green, go through the `## Standards Compliance Checklist` from the plan file and verify each item as the reference's *Verifying the checklist* says — mark pass/fail and report it in the summary. Address any failure before marking the task complete.
 

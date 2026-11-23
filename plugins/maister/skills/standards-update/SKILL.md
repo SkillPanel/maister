@@ -101,12 +101,12 @@ The report's `candidates` are in the order the questions use. A candidate's `gro
 
 Asked when any candidate is `recommended`. Write the full list first, then ask once, keeping the question compact.
 
-**The list file.** With the file tool, write `built-in-standards-changes.md` in a directory `mktemp -d` makes (it uses `$TMPDIR`). It holds one line per recommended candidate, under a heading per `group`: the groups in the group table's order, each group's lines in report order. A line gives the action, the heading or headings the candidate removes, and the new rule's heading with its file. For example:
+**The list file.** With the file tool, write `built-in-standards-changes.md` in the directory `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=built-in-standards` makes and prints, run from the project root as a command of its own: a fresh directory under `.maister/scratch/`, which git ignores, so the file is read back with no permission prompt. It holds one line per recommended candidate, under a heading per `group`: the groups in the group table's order, each group's lines in report order. A line gives the action, the heading or headings the candidate removes, and the new rule's heading with its file. For example:
 - "Replace Environment Variables with No Secrets in the Repository (global/conventions.md)"
 - "Move Avoid N+1 to data/queries.md (new file; backend/queries.md removed once empty)"
 - "Add Output Streams (cli/output.md, new file)"
 
-The file is never under `.maister/docs/`, is never read back by this or any later run, and is never cleaned up by the mode.
+The file is never under `.maister/docs/`, is never read by any later run, and is never cleaned up by the mode.
 
 **The question.** One line per `group`, in table order, counting that group's recommended candidates by action: replaced, merged, moved, removed and added. A candidate counts once, so a merge covering four rules is one merged. A move names the folder it moves to, or the file when it stays in its own folder, with one count per destination. The counts of every line sum to the N of "Apply all N". For example: "backend: 1 replaced, 4 merged, 10 moved to data/, 9 removed, 2 added".
 
@@ -131,6 +131,8 @@ With "Apply all N", every recommended candidate is chosen; after "Go through the
 > "Update Documentation, built-in standard edits, in `.maister/docs/standards/`. Apply each edit below in order as section edits; leave every section an edit does not name as it is. Edit `<id>` (`<action>`): remove these sections, only while each still reads as the text given; when any of them does not, apply nothing of this edit and name that section — `<path>` "`<heading>`": `<text>`; …. [When it writes:] Write this section to `standards/<home.path>`: `<home.text>`, unless after this edit's removals the file already holds a `###` section with this heading (an earlier edit in this call wrote it): then write nothing, and the removals still apply. When the file is missing, create it with the title line `<home.file_title>`. Put the section in place of the first removed section in that file when there is one; else, when the list of headings is empty, directly after the file's `#`/`##` title lines; else after the first of these headings the file holds: `<home.preceding>`; else, when it holds none of them, at the end. [When `home` is null or held:] Write nothing. Delete a file left with nothing but its headings. Then refresh INDEX.md with every path changed, created or deleted as changed. Check: [check path]. Return each edit as applied or not applied, with the reason."
 
 A candidate writes its home when `home` is not null and `home.held` is false; otherwise it only removes. When nothing was chosen, no call is made.
+
+Compose the edits yourself, from the report you already hold: in the call's own text, or, when the set is long, with the file tool as `built-in-standard-edits.md` beside the list file, which the call then names to read. Never build them with a shell heredoc or an inline interpreter (`python3 -c`, `node -e`, a `<<` here-document): the host flags such a command as one it cannot read, and an unattended run blocks on it.
 
 ### BUILT-IN STEP 5: The verb again, then the edited candidates
 

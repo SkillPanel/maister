@@ -228,7 +228,8 @@ test('finalization: the refreshed pack goes into the change\'s commit, or the cl
 
 test('finalization: a failed re-ground puts the pack back and is an open risk, never a failed run', t => {
   const { step } = finalizationBrief(t);
-  assert.match(step, /copy the pack folder to a fresh `mktemp -d` directory/);
+  assert.match(step, /copy the pack folder into the fresh directory `node \S+\/workflow\.mjs scratch-dir --for=grounding-pack-backup --state=<task path>\/orchestrator-state\.yml` makes and prints, inside the run and ignored by git/);
+  assert.doesNotMatch(step, /mktemp/);
   assert.match(step, /put the copy back so the pack is as it was: replace the pack folder with the copy \(remove the folder, then copy the backup in its place\), so no file the build wrote, its start marker included, stays\. Record an `open` risk naming what failed/);
   assert.match(step, /A failed re-ground never fails the run/);
   assert.match(step, /\*\*A refusal\*\*: no re-ground; record one `open` risk/);
