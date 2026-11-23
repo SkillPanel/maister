@@ -207,7 +207,7 @@ state, which is why the set is closed. An `id:` written inside a node is refused
 | `with` | task | Free-form context handed to whatever runs the node; may interpolate (§ 9) |
 | `outputs` | task | The artifacts and values the node declares (§ 8.2). A gate may not carry it |
 | `type` | gate | `gate` — the only node type; everything else is a task node |
-| `ask` | gate | The question the gate asks; may interpolate. A task node may not carry it |
+| `ask` | gate | The question the gate asks, shown as written: a `${…}` in it is refused. A task node may not carry it |
 | `options` | gate | The gate's answers and their effects (§ 6). A task node may not carry it |
 | `on` | both | Which endings of the node's needs let it run (§ 7) |
 | `dir` | task | A member repository this node dispatches into, which makes the definition a chain; may interpolate |
@@ -390,7 +390,7 @@ clears them. The brief walks each continue on its own answer, so each option nam
 and the closing node may say which one it recommends and why (`references/gates.md`). `sets` is part of
 the graph's identity, its keys in sorted order, so adopting it moves the definition's hash.
 
-When the question needs a value from earlier in the run, interpolate it into `ask` (§ 9). The
+A question is shown as written, so a value from earlier in the run does not go into `ask`; a node the gate needs names it in its summary. The
 gate brief — the closing node's summary, decisions, risks and a recommended option — is rendered
 beside the question by the engine; the node prose feeds it through its summary (`references/gates.md` § *Before every gate — the gate brief*).
 
@@ -541,8 +541,8 @@ definition only and is part of the recorded identity: adding one changes the def
 
 ## 9. Interpolation
 
-`${…}` is substituted in three keys only — `with`, `dir` and `ask` — however deeply nested inside
-`with`. Every reference is one of:
+`${…}` is substituted in two keys only — `with` and `dir` — however deeply nested inside
+`with`. A gate's `ask` is shown as written, and `validate` refuses a reference there. Every reference is one of:
 
 | Reference | Is |
 |---|---|

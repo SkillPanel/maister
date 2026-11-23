@@ -3413,19 +3413,32 @@ function checkWhenReference(operand, id, dotted, file, errors, scope) {
  * referencing node's `needs` closure — nothing else can have been produced by
  * the time the node runs, so nothing else can be interpolated into it.
  *
- * `with` is the bulk of it, but not the whole: `dir` reaches a file path and
- * `ask` is read aloud to the operator. A reference left unchecked in any of
- * them interpolates to nothing at run time, which is a silent wrong answer
- * rather than a rejection. (`on` is not among them: it is one of three words.)
+ * `with` is the bulk of it, but not the whole: `dir` reaches a file path. A
+ * reference left unchecked in either interpolates to nothing at run time,
+ * which is a silent wrong answer rather than a rejection. (`on` is not among
+ * them: it is one of three words. Nor is `ask`: it is shown to the person as
+ * written, so a reference there is refused by its own rule below.)
  *
  * A `${` that never closes is not a reference at all, so the pattern never
  * matches it and it used to pass as literal text — an author who wrote
  * `${inputs.version` meant a reference and got the characters.
  */
-const INTERPOLATED_KEYS = ['with', 'dir', 'ask'];
+const INTERPOLATED_KEYS = ['with', 'dir'];
+
+/**
+ * A gate's `ask` reaches the person as written, so a `${…}` in it would show
+ * as those characters. The refusal names the reference and what to do instead.
+ */
+function checkAskReference(node, id, at, file, errors) {
+  if (node.type !== 'gate' || typeof node.ask !== 'string' || !node.ask.includes('${')) return;
+  const ref = node.ask.match(/\$\{[^}]*\}/)?.[0] ?? node.ask;
+  fail(errors, file, `${at}.ask`,
+    `ask is shown to the person as written, so ${ref} would reach them as those characters: word the question without it and have a node the gate needs name the value in its summary, which the gate brief shows beside the question; a reference belongs in with: or dir:`, id);
+}
 
 function checkInterpolations(node, id, at, file, errors, scope) {
   for (const key of INTERPOLATED_KEYS) visit(node[key], `${at}.${key}`);
+  checkAskReference(node, id, at, file, errors);
 
   function visit(value, dotted) {
     if (Array.isArray(value)) {

@@ -127,7 +127,7 @@ decides something on an input or on another gate's answer. The definition's `nam
 letters, digits and dashes, starting with a letter, and matches the file name; `version: 1` is
 the bare number, never quoted; and each entry under `inputs:` declares its `type` as `string`,
 `bool` or `path`. A declared artifact is a literal path relative to the run's task directory:
-`${…}` references belong in `with:` and `ask:`, and one inside an artifact path, or one left
+`${…}` references belong in `with:` and `dir:`, and one inside an artifact path, or one left
 without its closing `}`, is a validation error. Every key, scheme and rule — the full node shape,
 gates and guards, inputs and outputs, interpolation, overlays, the companion's heading rule, and
 recipes for a child-capable workflow and a fix loop — is in the

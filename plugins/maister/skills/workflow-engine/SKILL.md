@@ -515,8 +515,8 @@ again. A host that names no session gets every row whole on every brief.
 
 Before a node runs, the driver substitutes every `${…}` in its `with:` — however deeply nested —
 and in its `dir:`; `node-brief` prints both filled in by the rules below, so a step takes them
-from there rather than resolving them by hand. Before a gate is asked, it substitutes the ones in
-its `ask:`. Nothing else is
+from there rather than resolving them by hand. A gate's `ask:` is shown as written: `validate`
+refuses a `${…}` there. Nothing else is
 interpolated: an artifact path is literal, a `when` is evaluated by the ready-set rule, and `uses`
 names a target as written. Each reference reads the run's state, never a recollection of it:
 

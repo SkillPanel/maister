@@ -199,3 +199,8 @@ test('Step 5 points a phase jump at the step\'s checkpoint, never at the 2.x lin
   assert.ok(!/finish(ed)? on the 2\.x line/.test(step), 'Step 5 no longer sends a run to the 2.x line');
   assert.ok(step.includes('revise'), 'Step 5 names the revise at the step\'s checkpoint');
 });
+
+test('Interpolating no longer says an ask: is substituted', () => {
+  const text = section('Interpolating');
+  assert.ok(!text.includes('substitutes the ones in its `ask:`'), 'no claim that ask: is interpolated');
+});
