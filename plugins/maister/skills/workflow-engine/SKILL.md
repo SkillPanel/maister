@@ -220,7 +220,7 @@ stamped line.
 
 **Every resume starts with `resume-check --state=<run directory>/orchestrator-state.yml`**, which
 checks the Node.js version first (Step 2). Its `next` says what to do first: relay a `warning:`
-line once, then do it.
+line once, then do it. A node update goes under the patch's top-level `nodes`, never `workflow`.
 
 ---
 

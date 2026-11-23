@@ -340,7 +340,8 @@ test('resume-check: a suffix that is not digits does not set a run aside', t => 
 // ---------------------------------------------------------------------------
 
 const NEXT_REFUSED = 'relay the message verbatim and stop; write nothing, create no task directory, print no marker';
-const NEXT_READY = 'resume the ready set from the frozen graph';
+/** A resumed session sent a node update under workflow.nodes, which the writer refuses: the clause says where it goes. */
+const NEXT_READY = 'resume the ready set from the frozen graph; a node update goes under the patch\'s top-level nodes, never under workflow';
 const NEXT_GATE = 'a gate is pending: take the first line through references/gates.md § Driver-suspended mode — resume';
 const NEXT_DASHBOARD = run => `show Dashboard: ${pathToFileURL(path.join(run.dir, 'dashboard.html')).href} once; run no opener`;
 const NEXT_REVISE = 'run gate-revise --node=review-approval --option=send-back with the note before anything else';
