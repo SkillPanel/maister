@@ -227,6 +227,7 @@ test('run-complete: silent with the HTML output off, and a dir: node is never he
   assert.deepEqual(companionLines(on.written.stdout), []);
   assert.equal(on.closed.code, 0, on.closed.stderr);
   assert.equal(on.closed.stdout, 'RUN-COMPLETE\n');
+  // A run with a `dir:` node is driven, so no wrap-up pointer is printed.
   assert.equal(on.closed.stderr, '');
 });
 

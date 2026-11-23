@@ -22,6 +22,7 @@ const AREAS = pointer('in-node-questions.md', 'Decision areas from the brainstor
 const FINDINGS = pointer('in-node-questions.md', 'Findings that need a decision');
 const WRITE_REFUSED = pointer('writing-state.md', 'When a write is refused');
 const COMPLETE_REFUSED = pointer('writing-state.md', 'When `run-complete` refuses');
+const WRAP_UP = pointer('writing-state.md', 'Ending the run — the wrap-up');
 const NODE_BRIEF = `${path.join(ENGINE_DIR, 'references/node-conventions.md')} § Node conventions`;
 
 const BUDGET = 1600;
@@ -349,4 +350,20 @@ test('node-brief: the one verb whose pointer is not the last paragraph — a hea
   const refused = verb(['node-brief', `--state=${run.state}`, '--node=nowhere']);
   assert.equal(refused.code, 1);
   assert.doesNotMatch(refused.stderr, /rules:/);
+});
+
+test('run-complete: a successful close under a terminal driver names the wrap-up section, on stderr only', t => {
+  const run = scratch(t);
+  freeze(run);
+  fs.mkdirSync(path.join(run.dir, 'analysis'), { recursive: true });
+  fs.writeFileSync(path.join(run.dir, 'analysis/report.md'), '');
+  write(run, {
+    task: { status: 'completed' },
+    nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'completed' }, research: { status: 'completed' } },
+    node_summaries: { analysis: SUMMARY },
+  });
+  const result = verb(['run-complete', `--state=${run.state}`]);
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  assert.deepEqual(linesOf(result.stderr), [`rules: ${WRAP_UP}`]);
 });

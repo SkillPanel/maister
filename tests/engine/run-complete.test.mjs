@@ -11,6 +11,10 @@ import { published } from '../../plugins/maister/lib/outbox-files.mjs';
 // every write here sends them as a session that dispatched them would.
 const write = (run, patch) => writeState(run, delegating(patch));
 
+/** The line a successful close under a terminal driver prints on stderr, naming where the wrap-up is written. */
+const WRAP_UP = `rules: ${path.join(ENGINE_DIR, 'references/writing-state.md')} § Ending the run — the wrap-up\n`;
+const CHILD_LINE = 'child run: no wrap-up — the parent\'s walk goes on\n';
+
 function complete(run, extra = []) {
   return verb(['run-complete', `--state=${run.state}`, ...extra]);
 }
@@ -48,7 +52,7 @@ test('completed: RUN-COMPLETE is the whole of stdout, exit 0', t => {
   const result = complete(run);
   assert.equal(result.code, 0);
   assert.equal(result.stdout, 'RUN-COMPLETE\n');
-  assert.equal(result.stderr, '');
+  assert.equal(result.stderr, WRAP_UP);
 });
 
 test('failed: the marker names the first failed node in graph order, exit 1', t => {
@@ -476,7 +480,7 @@ test('every declared artifact on disk, a directory among them: the marker alone'
   const result = closeWith(run, closingNodes({ audit: { status: 'completed', values: childWithFindings(run) } }));
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, 'RUN-COMPLETE\n');
-  assert.equal(result.stderr, '');
+  assert.equal(result.stderr, WRAP_UP);
 });
 
 test('a declared artifact moved away after its node completed: one line above RUN-COMPLETE, exit 0', t => {
@@ -725,5 +729,37 @@ test('recorded run: with the absences its nodes sanction recorded, it ends on RU
   const result = complete(run);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  assert.equal(result.stderr, WRAP_UP);
+});
+
+// ---------------------------------------------------------------------------
+// the wrap-up pointer: a terminal driver only, and none for a child run
+// ---------------------------------------------------------------------------
+
+test('wrap-up: a terminal-driver run prints the pointer, and a stopped run does too', t => {
+  const run = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE }, { orchestrator: { driver: { kind: 'terminal' } } });
+  const result = complete(run);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  assert.equal(result.stderr, WRAP_UP);
+});
+
+test('wrap-up: a child run prints the child line, never the pointer', t => {
+  const { child } = subRun(t);
+  put(child.dir, 'analysis/findings.md');
+  const result = closeWith(child, { scan: { status: 'completed', values: { blocking: false } } });
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, CHILD_LINE);
+  assert.ok(!result.stderr.includes('rules:'));
+});
+
+test('wrap-up: nothing is printed under a cockpit driver, and a failed run prints none', t => {
+  const driven = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE }, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  const result = complete(driven);
+  assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
+  const failed = ended(t, {
+    task: { status: 'failed' },
+    nodes: { analysis: { status: 'completed' }, implementation: { status: 'failed' }, research: { status: 'failed' } },
+  });
+  assert.ok(!complete(failed).stderr.includes('wrap-up'));
 });

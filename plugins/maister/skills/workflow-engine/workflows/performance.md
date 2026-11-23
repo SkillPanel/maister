@@ -408,8 +408,8 @@ candidates file, and always runs.
    remaining P2 and P3 bottlenecks if they still matter. Suggest a fresh session
    for whatever comes next.
 
-**Close for whoever reads the end**, as the engine's *Operator visibility*
-says. **Next** holds every one of step 6's next steps, a line each — all four,
+**Close for whoever reads the end**, as `references/writing-state.md` § *Ending the run —
+the wrap-up* says. **Next** holds every one of step 6's next steps, a line each — all four,
 then the fresh-session suggestion, none dropped or merged.
 
 **Standard candidates in the close**: when step 4 wrote the candidates file,

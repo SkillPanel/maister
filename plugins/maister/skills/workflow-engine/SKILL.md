@@ -162,26 +162,10 @@ own edit unasked: name both ways and let the person choose.
 
 **How a run ends depends on who reads its end.**
 
-- **Under an absent or `terminal` driver a person reads it.** Write the closing patch and call
-  `run-complete`; settle any refusal first (`references/writing-state.md` § *When `run-complete`
-  refuses*). Then close with one wrap-up message that fits one screen and is the last thing the
-  run prints: six labelled sections, in this order, and nothing else.
-  - **Done:** the outcome in plain words — completed, stopped at a named checkpoint with the
-    option taken, or failed at a named phase;
-  - **Needs you:** each `open` risk still open, one line each — what is open and where to take
-    it — or "nothing". Every `missing-artifact:` and `missing-companion:` line goes here too,
-    restated as a file a named phase should have written and did not. Never ask a question
-    here: the run has ended;
-  - **Follow-ups:** each `followup` risk, one line each, or "none";
-  - **Next:** every next step, one line each: the workflow's own as the real command with its
-    real flags (`/maister:development --research=<task-dir>`), then the rest its closing node
-    names;
-  - **Files:** the key files the run wrote, from the project root; anything long goes into a
-    file in the task directory, named here;
-  - **Dashboard:** `<link>`, or none when the run has none. Nothing follows it.
-
-  Never show the raw `missing-artifact:`, `missing-companion:`, `run stopped:` or `RUN-` lines. A
-  child run driven in session runs `run-complete` with no wrap-up: its parent's walk goes on.
+- **Under an absent or `terminal` driver a person reads it.** Write the closing patch, call
+  `run-complete` and settle any refusal (`references/writing-state.md` § *When `run-complete`
+  refuses*); on success it prints the wrap-up's `rules:` line — follow it. Never show the raw
+  `missing-artifact:`, `missing-companion:`, `run stopped:` or `RUN-` lines.
 - **Under a `cockpit` or `dispatch` driver tooling reads it.** Print everything the operator
   should read — the executive summary, the next steps, the dashboard link — before
   `run-complete`, and echo its lines, its marker last; never type a marker it did not print. A
@@ -248,11 +232,7 @@ disk, and never takes an answer from the person in the session: an answer is fol
 stamped line.
 
 **Every resume starts with `resume-check --state=<run directory>/orchestrator-state.yml`**, right
-after Step 2's probe. On exit `0`, show a non-null `dashboard` once as `Dashboard: <link>` (run
-no opener), relay a `warning:` line once, and when `revision.applied` is `false` run
-`gate-revise` before anything else (`references/gates.md` § *Revising at a gate*). On exit `1`
-— `written-by-2x`, `run-set-aside`, `state-unreadable` — relay the `message` verbatim and stop:
-write nothing, create no task directory, print no marker.
+after Step 2's probe. Its `next` says what to do first: relay a `warning:` line once, then do it.
 
 ---
 

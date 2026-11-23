@@ -148,7 +148,7 @@ import path from 'node:path';
 import { published } from '../../../../lib/outbox-files.mjs';
 import { Refusal } from '../../../../lib/canonical.mjs';
 import { gateCard } from './dashboard.mjs';
-import { isDispatchedRun } from './driver.mjs';
+import { isDispatchedRun, isTerminalDriver } from './driver.mjs';
 import { atClose, heldApprovalBefore, unmetNeeds } from './gate-brief.mjs';
 import { REQUEST_SUFFIX } from './gate-index.mjs';
 import { gateAnswer } from './items.mjs';
@@ -218,6 +218,9 @@ export function runComplete({ state, outbox, dispatch_id: dispatchId }) {
       };
     }
     const result = { ok: true, marker: COMPLETE, errors: [], ...reconciled };
+    // What the entry point prints under a terminal driver: a child run's
+    // parent walks on, so only a top-level run is pointed at the wrap-up.
+    if (isTerminalDriver(doc)) result.wrap_up = isPlainObject(doc.orchestrator) && isPlainObject(doc.orchestrator.parent) ? 'child' : 'run';
     if (status === 'stopped') result.notice = `run stopped: ${stopOf(nodes, doc, runDir)}`;
     return result;
   } catch (err) {

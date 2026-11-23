@@ -481,6 +481,31 @@ a retry**: publish the close-out through the umbrella runtime's outbox verb with
 and the summary the seed's close-out contract asks for, then run `run-complete` again with
 the same `--outbox` root and `--dispatch-id`. Never print `RUN-COMPLETE` by hand.
 
+## Ending the run — the wrap-up
+
+Under an absent or `terminal` driver a person reads the end: after `run-complete` succeeds, close
+with one wrap-up message that fits one screen and is the last thing the run prints — six labelled
+sections, in this order, and nothing else.
+
+- **Done:** the outcome in plain words — completed, stopped at a named checkpoint with the
+  option taken, or failed at a named phase;
+- **Needs you:** each `open` risk still open, one line each — what is open and where to take
+  it — or "nothing". Every `missing-artifact:` and `missing-companion:` line goes here too,
+  restated as a file a named phase should have written and did not. Never ask a question
+  here: the run has ended;
+- **Follow-ups:** each `followup` risk, one line each, or "none";
+- **Next:** every next step, one line each: the workflow's own as the real command with its
+  real flags (`/maister:development --research=<task-dir>`), then the rest its closing node
+  names;
+- **Files:** the key files the run wrote, from the project root; anything long goes into a
+  file in the task directory, named here;
+- **Dashboard:** `<link>`, or none when the run has none. Nothing follows it.
+
+Never show the raw `missing-artifact:`, `missing-companion:`, `run stopped:` or `RUN-` lines. A
+child run driven in session runs `run-complete` with no wrap-up: its parent's walk goes on.
+
+---
+
 ## Project configuration
 
 An optional project-level config file at `.maister/config.yml` (sibling of `.maister/docs/` and `.maister/tasks/`) holds defaults that apply to every workflow. It is scaffolded by `/maister:init` but is not required — when absent, every key falls back to its default.

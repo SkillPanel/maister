@@ -595,7 +595,7 @@ node entry adds `brief_layers`.
 mockups from this task directory. A delivery spanning several repositories is
 one development run per member in scope, in `depends_on` order.
 
-**Close** with the engine's wrap-up (engine § *Operator visibility*): Done
+**Close** with the engine's wrap-up (`references/writing-state.md` § *Ending the run — the wrap-up*): Done
 names what was designed, Needs you each `missing-artifact:` and
 `missing-companion:` line in plain words, Files the brief and the scope.
 **Next** carries this next step exactly, inventing no other command:

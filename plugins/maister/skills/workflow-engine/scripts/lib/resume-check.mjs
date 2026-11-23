@@ -79,7 +79,7 @@ export function writtenBy2x() {
  * the kind its driver records, or null — `revision` only while a gate's revise is open
  * (`openRevision`) — `gate` only while a gate is pending (`waitingGate`) — `dashboard`
  * the `file://` link a resume shows the operator once, or null when the run has none —
- * or `{ok: false, code, message}` for one it does not resume.
+ * or `{ok: false, code, message, next}` for one it does not resume; both carry `next`, one string saying what to do now.
  *
  * A run whose context block still carries the retired phase-summary mirror
  * resumes all the same; the result then carries `warnings`, the one
@@ -131,6 +131,14 @@ export function resumeCheck({ state }) {
     ...forgetConventionsShown({ root })
       .map(({ file, code, message }) => `${file} was not removed (${code}: ${message}); the resume check is unaffected`),
   ];
+  const dashboard = dashboardUrl(doc, dir);
+  const next = [
+    ...(revision && revision.applied === false
+      ? [`run gate-revise --node=${revision.gate} --option=${revision.option} with the note before anything else`] : []),
+    ...(dashboard === null || dashboard === undefined ? [] : [`show Dashboard: ${dashboard} once; run no opener`]),
+    gate ? 'a gate is pending: take the first line through references/gates.md § Driver-suspended mode — resume'
+      : 'resume the ready set from the frozen graph',
+  ].join('; ');
   return {
     ok: true,
     workflow: {
@@ -143,11 +151,12 @@ export function resumeCheck({ state }) {
     driver_kind: driverKindOf(doc),
     task_path: dir,
     root,
-    dashboard: dashboardUrl(doc, dir),
+    dashboard,
     // Additive, and only while a gate's revise is open: a resume that finds it
     // not yet applied runs `gate-revise` before it walks the ready set.
     ...(revision ? { revision: { gate: revision.gate, option: revision.option, reruns: revision.reruns, revision: revision.revision, applied: revision.applied } } : {}),
     ...(gate ? { gate } : {}),
+    next,
     ...(warnings.length ? { warnings } : {}),
   };
 }
@@ -311,5 +320,5 @@ export function runRoot(doc, dir) {
 }
 
 function refuse(code, message) {
-  return { ok: false, code, message };
+  return { ok: false, code, message, next: 'relay the message verbatim and stop; write nothing, create no task directory, print no marker' };
 }

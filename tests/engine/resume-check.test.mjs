@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { freeze, legacyMirror, run as runScript, scratch, sibling, variantRoot, verb, write } from '../helpers.mjs';
+import { FIXTURES, freeze, legacyMirror, run as runScript, scratch, sibling, variantRoot, verb, write } from '../helpers.mjs';
 
 /** Run `resume-check` against a run and parse the JSON it always prints. */
 function resumeCheck(run) {
@@ -333,4 +333,78 @@ test('resume-check: a suffix that is not digits does not set a run aside', t => 
   const run = scratch(t, { name: '2026-01-05-sample.moved-later' });
   freeze(run);
   assert.equal(resumeCheck(run).json.ok, true);
+});
+
+// ---------------------------------------------------------------------------
+// `next`: what the session does first, clauses in a fixed order
+// ---------------------------------------------------------------------------
+
+const NEXT_REFUSED = 'relay the message verbatim and stop; write nothing, create no task directory, print no marker';
+const NEXT_READY = 'resume the ready set from the frozen graph';
+const NEXT_GATE = 'a gate is pending: take the first line through references/gates.md § Driver-suspended mode — resume';
+const NEXT_DASHBOARD = run => `show Dashboard: ${pathToFileURL(path.join(run.dir, 'dashboard.html')).href} once; run no opener`;
+const NEXT_REVISE = 'run gate-revise --node=review-approval --option=send-back with the note before anything else';
+const REVISE = path.join(FIXTURES, 'definitions/revise.yml');
+
+/** A run frozen from the review loop, its gate answered with a send-back the run has not yet applied. */
+function sentBack(t) {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, {
+    nodes: { draft: { status: 'completed', values: { needs_figures: false } } },
+    node_summaries: { draft: { summary: 'Drafted the guide.' } },
+  });
+  write(run, { nodes: { figures: { status: 'skipped' }, 'side-note': { status: 'completed' } } });
+  write(run, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed the draft.' } } });
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'send-back', answered_by: 'cockpit:ana', at: '2026-01-05T09:40:00Z' }] } },
+  });
+  return run;
+}
+
+test('resume-check next: a refusal says to relay it and write nothing', t => {
+  const run = scratch(t, { fixture: 'prose-2x' });
+  assert.equal(resumeCheck(run).json.next, NEXT_REFUSED);
+  const gone = resumeCheck({ state: path.join(run.dir, 'nothing.yml') });
+  assert.equal(gone.json.next, NEXT_REFUSED);
+});
+
+test('resume-check next: a run with a dashboard shows it once, then resumes the ready set', t => {
+  const run = scratch(t);
+  freeze(run);
+  assert.equal(resumeCheck(run).json.next, `${NEXT_DASHBOARD(run)}; ${NEXT_READY}`);
+});
+
+test('resume-check next: a run with neither a dashboard nor a gate resumes the ready set alone', t => {
+  const run = scratch(t);
+  freeze(run);
+  fs.rmSync(path.join(run.dir, 'dashboard.html'));
+  assert.equal(resumeCheck(run).json.next, NEXT_READY);
+});
+
+test('resume-check next: an unapplied revise comes first, then the dashboard, then the ready set', t => {
+  const run = sentBack(t);
+  const result = resumeCheck(run);
+  assert.equal(result.json.revision.applied, false);
+  assert.equal(result.json.next, `${NEXT_REVISE}; ${NEXT_DASHBOARD(run)}; ${NEXT_READY}`);
+  fs.rmSync(path.join(run.dir, 'dashboard.html'));
+  assert.equal(resumeCheck(run).json.next, `${NEXT_REVISE}; ${NEXT_READY}`);
+});
+
+test('resume-check next: an applied revise adds no clause', t => {
+  const run = sentBack(t);
+  const sent = verb(['gate-revise', `--state=${run.state}`, '--node=review-approval', '--option=send-back'], { note: 'Fix section 2' });
+  assert.equal(sent.code, 0, sent.stdout + sent.stderr);
+  const result = resumeCheck(run);
+  assert.equal(result.json.revision.applied, true);
+  assert.ok(!result.json.next.includes('gate-revise'), result.json.next);
+});
+
+test('resume-check next: the listing form, with no --state, carries none', t => {
+  const run = scratch(t);
+  freeze(run);
+  const result = verb(['resume-check']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(!Object.hasOwn(JSON.parse(result.stdout), 'next'));
 });
