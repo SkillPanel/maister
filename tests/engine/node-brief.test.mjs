@@ -162,6 +162,16 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   }
 });
 
+test('node-brief: an agent step is told to paste the context output whole, never piped through a filter', t => {
+  const dev = scratch(t);
+  freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  const lines = nodeBrief(dev.state, 'gap-analysis').stdout.split('\n');
+  const agentRow = lines.find(line => line.startsWith('convention (`agent:` step): '));
+  assert.ok(agentRow, lines.join('\n'));
+  assert.match(agentRow, /`prior-context --node` pasted whole and unedited/);
+  assert.match(agentRow, /never piped through `head`, `sed` or any filter/);
+});
+
 test('node-brief: the exact brief of a step with brief: data, a renamed section and an owed page', t => {
   const sample = sampleRun(t);
   const result = nodeBrief(sample.state, 'draft');

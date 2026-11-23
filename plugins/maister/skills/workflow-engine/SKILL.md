@@ -39,7 +39,7 @@ closing write has returned — and ask what it prints; never write a gate questi
 
 **Every delegate prompt carries the run's context, fetched**, in the turn that writes it:
 `run-context --state=<state> --node=<node>`, or `prior-context --node=<node>` where the delegate
-needs the earlier phases, pasted unedited — whole, never sliced, never a path or an earlier
+needs the earlier phases, pasted unedited — whole, never piped or sliced, never a path or an earlier
 delegate's copy; `--background` for a document written for end users.
 
 **Every state change goes through `write-state`** — never an editor tool on
