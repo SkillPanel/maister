@@ -569,7 +569,8 @@ function scratchRun(t) {
 test('node-brief: a dispatched node prints its dir: filled in, as its with: values are', t => {
   const overlay = 'extends: node-brief.yml\nadd:\n  remote:\n    uses: workflow:node-brief\n    dir: "members/${scope.values.focus}"\n    needs: [scope]\n    before: [draft]\n';
   const sample = copiedSample(t, { files: { 'dir.overlay.yml': overlay } });
-  freeze(sample, { definition: path.join(sample.root, 'node-brief.yml'), overlays: [path.join(sample.root, 'dir.overlay.yml')] });
+  // A dir: node makes the graph a chain, which starts only under a driver that dispatches it.
+  freeze(sample, { definition: path.join(sample.root, 'node-brief.yml'), overlays: [path.join(sample.root, 'dir.overlay.yml')], orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
 
   assert.match(nodeBrief(sample.state, 'remote').stdout, /^runs: workflow:node-brief — dispatched to members\/\(not recorded yet\)$/m);
   write(sample, { nodes: { scope: { status: 'completed', values: { wants_audit: false, focus: 'narrow' } } } });
@@ -609,9 +610,14 @@ test('node-brief: an agent step\'s runs line carries the model and effort the ru
 });
 
 test('node-brief: asked in session on Copilot, a step that asks names the question-set command with the run\'s real paths', t => {
+  // The run is frozen through the Copilot build, so its delegation records the Copilot host.
   const dev = scratch(t);
-  freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
   const copilotEngine = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
+  const frozen = run(copilotEngine, ['write-state', `--state=${dev.state}`], freezePatch({ definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } }).patch);
+  assert.equal(frozen.code, 0, frozen.stderr);
+  // A run frozen on Claude Code, for the brief Claude Code prints.
+  const claudeRun = scratch(t, { name: '2026-01-05-claude' });
+  freeze(claudeRun, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
   const patch = path.join(dev.dir, '.state-patch.json');
   const askWith = node => 'ask with: write each question set to ' + patch + ' as the in-node questions reference shapes it, then run node '
     + copilotEngine + ' gate-brief --state=' + path.resolve(dev.state) + ' --node=' + node + ' --ask --patch-file=' + patch
@@ -623,7 +629,7 @@ test('node-brief: asked in session on Copilot, a step that asks names the questi
     assert.ok(at > 0, node);
     assert.equal(lines[at + 1], askWith(node), `${node}: the line follows the asks line`);
     // Claude Code's picker is composed in the session: its brief names no command.
-    assert.ok(!nodeBrief(dev.state, node).stdout.includes('ask with:'), `${node}: no line on Claude Code`);
+    assert.ok(!nodeBrief(claudeRun.state, node).stdout.includes('ask with:'), `${node}: no line on Claude Code`);
   }
   // A step that asks nothing gets no line.
   for (const node of ['implementation', 'finalization']) assert.ok(!nodeBrief(dev.state, node, copilotEngine).stdout.includes('ask with:'), node);
@@ -825,7 +831,7 @@ test('node-brief: start: yours prints for a ready step whose start the brief doe
   // A dispatched node never gets one, its needs settled or not.
   const overlay = 'extends: node-brief.yml\nadd:\n  remote:\n    uses: workflow:node-brief\n    dir: "members/${scope.values.focus}"\n    needs: [scope]\n    before: [draft]\n';
   const remote = copiedSample(t, { files: { 'dir.overlay.yml': overlay } });
-  freeze(remote, { definition: path.join(remote.root, 'node-brief.yml'), overlays: [path.join(remote.root, 'dir.overlay.yml')] });
+  freeze(remote, { definition: path.join(remote.root, 'node-brief.yml'), overlays: [path.join(remote.root, 'dir.overlay.yml')], orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
   write(remote, { nodes: { scope: { status: 'completed', values: { wants_audit: false, focus: 'narrow' } } } });
   assert.ok(!has(nodeBrief(remote.state, 'remote').stdout, 'start: '));
 });

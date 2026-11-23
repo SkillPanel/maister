@@ -774,7 +774,7 @@ async function runWriteState(flags) {
   // session-start warning is never read. Before stdin, so nothing is written.
   if (refusedForEditions(module, flags)) return EXIT.REJECTED;
   const input = await readInput(flags, 'the patch');
-  const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null });
+  const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null, noOpen: Boolean(flags['no-open']) });
   const code = reportWrite(result, input, 'writeRefused');
   // Only the freeze prints a banner, and a retried freeze prints none, so the
   // dashboard opens once per run start and never on a later write.

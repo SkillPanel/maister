@@ -43,13 +43,17 @@ const PROSE = '# Dir run — node prose\n\n## `plan`\n\nPlan the change.\n\n## `
 const DIR = 'members/${inputs.member}';
 const NOTE = /^note: ignored the supplied workflow\.nodes\.remote\.dir; the freeze records a node's dir from its definition, so no patch changes it$/m;
 
-/** A scratch run and the freeze patch of the dir-run definition, not yet sent. */
+/**
+ * A scratch run and the freeze patch of the dir-run definition, not yet sent.
+ * A `dir:` node makes the graph a chain, which starts only under a driver that
+ * dispatches it, so the patch carries one.
+ */
 function prepared(t) {
   const run = scratch(t);
   const definition = path.join(run.root, 'dir-run.yml');
   fs.writeFileSync(definition, DEFINITION);
   fs.writeFileSync(path.join(run.root, 'dir-run.md'), PROSE);
-  const { patch } = freezePatch({ definition, inputs: { member: 'api' } });
+  const { patch } = freezePatch({ definition, inputs: { member: 'api' }, orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
   return { run, patch };
 }
 

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, legacyMirror, readState, scratch, verb, delegating, write as writeState } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, briefOf, freeze, lastLine, legacyMirror, readState, scratch, sibling, verb, delegating, write as writeState } from '../helpers.mjs';
 import { scalar } from '../../plugins/maister/lib/canonical.mjs';
 import { FOCUS_BUDGET, FOCUS_LINES, PREVIEW_BUDGET } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
 
@@ -826,14 +826,19 @@ test('gate-brief: with html_output false a trimmed brief points at the state fil
 
 test('gate-brief --oneline: when the closing lines nearly fill the budget the brief still keeps inside it', t => {
   // A run directory long enough that Next, Recommended and the run line leave
-  // about twenty characters for everything else.
+  // about twenty characters for everything else. The length sits in the
+  // project's own path, above .maister, so the run is still in a run folder.
   const rootLength = path.join(os.tmpdir(), 'maister-engine-XXXXXX').length;
   const fixed = 'Next: Implementation\nRecommended: continue\n'.length + 1;
   const dirLength = Math.floor((BUDGET - 20 - fixed - runLineLength(0)) / 2);
-  const nameLength = dirLength - rootLength - '/.maister/tasks/development/'.length;
+  const left = dirLength - rootLength - '/.maister/tasks/development/'.length;
+  const name = 'n'.repeat(Math.min(200, left));
+  const upperLength = left - name.length - 1;
   const segments = [];
-  for (let left = nameLength; left > 0; left -= 201) segments.push('n'.repeat(Math.min(200, left)));
-  const run = scratch(t, { name: segments.join('/').slice(0, nameLength) });
+  for (let rest = upperLength; rest > 0; rest -= 201) segments.push('p'.repeat(Math.min(200, rest)));
+  const upper = segments.join('/').slice(0, upperLength).replace(/\/$/, 'p');
+  const run = sibling({ root: path.join(scratch(t).root, upper) }, { type: 'development', name });
+  assert.equal(run.dir.length, dirLength, 'the run directory is as long as the budget needs');
   freeze(run);
   write(run, { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: LONG } });
   const result = oneline(run, 'approval');

@@ -9,9 +9,8 @@ per-node context in `with:` to whatever the node names.
 **Does.** Establishes, before any analysis, the profiling-data drop point the
 analysis node reads from.
 
-1. **Create no task directory.** The freeze made it, with the state file and
-   `options.html_output` read from the project configuration (default `true`),
-   and opened the dashboard itself unless that is false, so run no opener.
+1. **Create no task directory.** The freeze made it, with the state file, and
+   recorded `options.html_output` itself.
 2. **Create `analysis/user-profiling-data/`**, empty. **An empty directory is
    the answer "no profiling data", not a missing artifact.**
 3. **Discover the project documentation** — every path in the

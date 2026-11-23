@@ -458,6 +458,16 @@ export function readState(run) {
 }
 
 /**
+ * Take the delegation record out of a frozen run's state by hand, writing
+ * nothing else: every freeze records one, so a test that reads a run without
+ * one builds it here.
+ */
+export function withoutDelegation(run) {
+  const text = fs.readFileSync(run.state, 'utf8');
+  fs.writeFileSync(run.state, text.replace(/(, )?delegation: \{[^}]*\}(, )?/, (_match, before, after) => (before && after ? ', ' : '')));
+}
+
+/**
  * Give the run the phase-summary mirror a run from 3.0.0-beta.28 or earlier
  * carries: `  phase_summaries:` and `lines`, each written as it is, directly
  * under the run's context-block header. The writer no longer writes the

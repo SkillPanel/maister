@@ -280,7 +280,7 @@ test('freeze: the proven freeze lands under the custom task type, every node pen
 
   const banner = result.stdout.split('\n\n')[0];
   assert.equal(banner, [
-    'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below.',
+    'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below — paths and links copied as printed.',
     'Maister run started: Release audit',
     'Task: Audit v2.4.0',
     'Checkpoints: one where you decide',
@@ -743,9 +743,19 @@ test('dashboard: a custom task type is projected as it is, not coerced', t => {
   assert.equal(readDashboard(run).task.type, 'audits');
 });
 
+test('dashboard: the freeze records the run\'s folder, so the type is the folder\'s with no write of the task path', t => {
+  const { run } = frozen(t);
+  assert.equal(readState(run).orchestrator.task_path, '.maister/tasks/audits/2026-01-05-release-audit');
+  assert.equal(readDashboard(run).task.type, 'audits');
+});
+
 test('dashboard: with no task path, the type is the workflow\'s own name', t => {
   const { run } = frozen(t);
-  assert.equal(readState(run).orchestrator?.task_path ?? null, null, 'the freeze records no task path of its own');
+  // Every freeze records its folder, so a run without one is built by hand.
+  const text = fs.readFileSync(run.state, 'utf8');
+  fs.writeFileSync(run.state, text.replace(/^ {2}task_path: .*\n/m, ''));
+  write(run, {});
+  assert.equal(readState(run).orchestrator?.task_path ?? null, null, 'the run records no task path');
   assert.equal(readDashboard(run).task.type, 'release-audit');
 });
 

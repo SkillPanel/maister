@@ -10,17 +10,13 @@ The engine executes every `direct:` node from its section below.
 **Does.** Establishes, before any analysis, the context ingests the rest of the
 run reads from.
 
-1. **Create no task directory.** The freeze made it, with the state file, and opened the
-   dashboard itself: run no opener.
-2. **Read the project configuration** for `options.mockup_format` (default
-   `html`, read later by `ui-mockups`). `mockup_format` takes `html` or `ascii`;
-   any other value is `html`, recorded as `html`, and the intake names the
-   replaced value in one line of its summary.
-3. **Discover the project documentation** — read the documentation index under
+1. **Create no task directory.** The freeze made it, with the state file, and
+   recorded `options.mockup_format` itself, which `ui-mockups` reads.
+2. **Discover the project documentation** — read the documentation index under
    the project's docs directory if one exists and extract every path from its
    project-documentation sections, predefined and operator-added alike. Record
    them as `project_context.project_doc_paths`, a top-level block of its own.
-4. **Detect research context** — when the invocation named a completed research
+3. **Detect research context** — when the invocation named a completed research
    task, as the sole argument or through the research input, bring its report and
    artifacts under `analysis/research-context/` with `import` (its row: the engine's `references/verbs.md`). Record
    `task_context.research_reference`: the source path, the copied path, the
@@ -28,7 +24,7 @@ run reads from.
    **informs** every later node and skips none of them, so a source the verb
    skips becomes an `open` risk naming each skipped file and the source path
    the later nodes read it at, and the node goes on.
-5. **Ingest design context from four sources** and unify them under
+4. **Ingest design context from four sources** and unify them under
    `analysis/design-context/`: a product-design task path, named in the
    description or supplied through the design input, whose brief is imported
    as `brief.md` and whose mockups under `mockups/` — its flat latest view
@@ -89,7 +85,7 @@ run reads from.
    table does not judge it. When it resolves to neither kind of task — nothing
    there, or neither a brief nor a decision — say so in one line in the node
    summary and continue without it.
-6. **Ingest the architecture** when the architecture input names one: a
+5. **Ingest the architecture** when the architecture input names one: a
    high-level design document, or a research task directory whose
    `outputs/high-level-design.md` is that document. Import it into
    `analysis/architecture-context/` as `high-level-design.md`, and
@@ -100,19 +96,19 @@ run reads from.
    file, say so in one line in the node summary and continue without it; when
    the verb skips a file that exists, record an `open` risk naming it and its
    source path, which the specification and the plan then read instead.
-7. **Generate the design index** when a mockup page was imported or a
+6. **Generate the design index** when a mockup page was imported or a
    design-tool link recorded — one row per screen or component with a stable id,
    its source mockup and a one-line description. For a quick-design task the
    rows are only for the imported slugs (for ASCII, the chosen anchors). There
    is no index when no page was imported and no link recorded: a decision or a
    brief alone has no screens to index.
    Downstream nodes reference screens by those ids and by nothing else.
-8. **Record `task_context.design_reference`** whenever a design ingest happened
+7. **Record `task_context.design_reference`** whenever a design ingest happened
    — which of the four sources supplied it, the product-design or quick-design
    task path when that was the source, how many pages were copied, whether a
    brief or a decision came with them, and the index path when there is an
    index. It stays unset when no source existed.
-9. **Ingest a context pack** when the context input names one — a file or a
+8. **Ingest a context pack** when the context input names one — a file or a
    directory handed over by whatever started the run. Import it under
    `analysis/work-context/` as it is, and record `task_context.work_reference`
    with its `path` as given. The pack has no shape the run may assume: read it

@@ -169,7 +169,8 @@ and prints `warning: base-dirty-unread`. A value a patch sends is ignored with a
 sub-run's freeze records its own, and no `write-state` changes it. The one exception is `move-base`, which moves the base to the merged tip after a merge and keeps each replaced base: `{sha, dirty, previous: [{sha, dirty, at, reason}, …]}`, oldest first, `dirty` being the paths still dirty that were already dirty before. A run that never moves keeps the two-key `{sha, dirty}`.
 
 **It records `orchestrator.options.delegation`** — whether the run's subagents can dispatch
-subagents of their own: `{mode, depth, source}`, from the host the freeze's `--host` names.
+subagents of their own: `{mode, depth, source}`, from the host the freeze's `--host` names, else
+the host this build ships for — so every freeze records one, `inline` on Copilot.
 `depth` is how many levels of subagents the host allows below the main session: on `claude` the
 value of `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` when it is a whole number, else 3; on `copilot`
 4. `mode` is `nested` at a depth of 2 or more and `inline` below it, and `source` says where the
@@ -177,8 +178,7 @@ depth came from. On `copilot` the mode is always `inline`, with a one-line `reas
 every subagent level under a session of its own, so the runners keep their loops in the main
 session there, and `runner-step` reads a run frozen `nested` on Copilot as `inline` too. A
 `cockpit` or `dispatch` driver follows the same rule, with a `source` naming
-the SDK release nesting was checked under. A terminal freeze naming no host
-records nothing, which reads as `inline`. The mode shows on the status line while the review step
+the SDK release nesting was checked under. A run that records none reads as `inline`. The mode shows on the status line while the review step
 runs, and on that step's dashboard card. A value a patch sends is ignored with a `note:` line, a
 sub-run's freeze records its own, and no later write widens it. After the freeze a run recorded
 `nested` may narrow to `inline`, once its verification runner finds it cannot dispatch
@@ -211,13 +211,29 @@ run's freeze records the narrower of its parent's effective ceiling and its own
 (`references/sub-runs.md` § *Walk two — a cockpit or dispatch driver, freeze, print, end the turn*). After the freeze it may narrow, never widen: a later write naming a wider level,
 or removing a recorded one, is dropped with a `note:` line, and the rest of the patch lands.
 
-**It creates the run directory.** The freeze patch names it as `orchestrator.task_path`, under
-the rule engine Step 4 gives, and the writer derives the project root from that depth, so the
-directory sits exactly there and nowhere deeper. Do not make it yourself: the freeze creates it,
-with the state file inside. A child run's directory is the one `subrun-path` prints
+**It creates the run directory**, at the path `--state` names, under the rule engine Step 4
+gives, and derives the project root from that depth. Do not make it yourself: the freeze creates
+it, with the state file inside. A top-level run whose folder is not
+`.maister/tasks/<type>/<name>/` or an umbrella run's `.maister/umbrella/runs/<id>/` (a chain's own
+run in its `runs/<child>/`) is refused `state-run-folder-misplaced`. **It records
+`orchestrator.task_path`**, the run's folder relative to the project root, from where the state
+file is; a value the freeze patch sends is dropped with a `note:` line, and a later write of the
+key lands as sent. A child run's directory is the one `subrun-path` prints
 (`references/sub-runs.md`). **It creates the folders inside it**: the first folder of every
 artifact path the resolved graph declares, so a node or an agent writing a declared artifact
 finds its folder there. A deeper folder, a directory artifact included, is its writer's to create.
+
+**It records `task.key`**, the ticket the run was started from: the value of the input `resolve`
+names as `tracker_key`, when that input has one and the patch sends no key.
+
+**It records `orchestrator.options.html_output` and `orchestrator.options.mockup_format`** from
+the top-level keys of `.maister/config.yml`, each only when the patch sends none, so a driver that
+sends one keeps it. With no file or no key it records `true` and `html`. A `mockup_format` other
+than `html` or `ascii` is recorded `html`, with one `warning: mockup-format-replaced:<value>` to
+relay.
+
+**A graph with a `dir:` node is a chain**, and its freeze under an absent or `terminal` driver is
+refused `state-freeze-chain-only`.
 
 **It records the project profile**, the `project:` key of `.maister/config.yml`, as
 `orchestrator.options.project`, which `review-brief` hands to the reviewers; a bad value is a
@@ -355,7 +371,7 @@ freeze leaves a child whose second call cannot land.
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
-thirty-eight, each with its response below; two more are raised before the writer runs,
+thirty-nine, each with its response below; two more are raised before the writer runs,
 `edition-collision` and `gate-request-unavailable`. Exit `2` carries no code at all and has the table's last rows:
 
 | Refusal | Response |
@@ -370,7 +386,8 @@ thirty-eight, each with its response below; two more are raised before the write
 | `state-freeze-unproven` | The freeze's `workflow` block does not re-resolve to its own `graph_hash` — no hash, a source that is not found, an overlay or a profile left out or changed, or a re-spelled hash. Nothing was written. Run `resolve` again with the `--definition`, `--overlay` and `--profile` the run was started with, and freeze with its output copied through (engine Step 4). When `resolve` itself fails, or the message says the definition cannot be read from the run's directory, stop with `RUN-FAILED: state-freeze-unproven` and report the message verbatim. |
 | `state-freeze-name-mismatch` | `workflow.name` is absent, or is not the name of the definition the freeze resolves. Nothing was written. Send the `name` `resolve` printed and freeze again. Never relabel a run to borrow another workflow's context block: every reader keyed by the name would then read it as that workflow. |
 | `state-freeze-nodes-mismatch` | The freeze's nodes are not exactly the nodes `resolve` printed — one added, one left out, or one recorded under a kind its node cannot have; the message names each. Nothing was written. Send one entry per resolved node with the kind the message names, and freeze again. |
-| `state-freeze-chain-only` | The definition declares `chain_only: true` and the freeze, as it leaves the state, has no driver or a `terminal` one. Nothing was written, and no dashboard was opened. Relay the message to the operator as the run's end, with the next step — start the chain from maister cockpit — and stop: no node runs and nothing is retried. A run a chain dispatches records its driver in this same freeze; one that sent it separately sends the freeze again with the driver beside the block. |
+| `state-freeze-chain-only` | The definition declares `chain_only: true`, or a node carries `dir:`, and the freeze, as it leaves the state, has no driver or a `terminal` one. Nothing was written, and no dashboard was opened. Relay the message to the operator as the run's end, with the next step — start the chain from maister cockpit — and stop: no node runs and nothing is retried. A run a chain dispatches records its driver in this same freeze; one that sent it separately sends the freeze again with the driver beside the block. |
+| `state-run-folder-misplaced` | A top-level freeze — no parent link — whose state file is not in a run folder: `.maister/tasks/<type>/<name>/`, `.maister/umbrella/runs/<id>/`, or a chain's own run at `.maister/umbrella/runs/<id>/runs/<child>/`, under the project root. Nothing was written. Every reader that lists runs looks only there, and a folder at another depth would read another folder's configuration. Freeze again at the path the message names; the freeze creates the folder. A child run is held to `state-subrun-path-mismatch` instead. |
 | `state-freeze-input-missing` | The definition requires an input the freeze records no value for. Nothing was written. Add the value the run was started with under `orchestrator.options.inputs` in the same freeze and send it again. When the invocation never carried one, ask the operator for it in a terminal run; a driven run stops with `RUN-FAILED: state-freeze-input-missing`, because an invented input is a defect. |
 | `state-node-status-unknown` | A node was sent with a status outside the eight (engine § *Recording an outcome*). The message lists them. Nothing was written. Map the outcome onto one of the eight and send the write again. `in_progress` belongs to the summary vocabulary, and `running` is the node status that means the same. |
 | `state-node-needs-unmet` | The write records a node `completed` while a node it needs, or a node behind that one, has not ended and is still on the path the run takes. A need the same write records `completed` or `skipped` counts as ended. Nothing was written. Run or ask each node the message names, then send the write again. A need off the path (its guard reads false) never refuses: the writer records it `skipped` in the same write and says so in a `note:` line. Never record a node `completed` or `skipped` to get past this. |
@@ -483,7 +500,7 @@ project: {…}          # Optional: what the project is, for the reviewers (belo
 | `subagents` | maister's own table: the `light` rung on `effort: high`; `Explore`, `project-analyzer`, `task-classifier`, `test-suite-runner`, `html-companion-writer` and `question-reader` on `light`; `docs-operator` and `standards-scanner` on `{claude: inherit, copilot: standard}`; `task-group-implementer` on `choose: by-plan-tier` (all three rungs, `unassessed: standard`, `ceiling: {claude: deep, copilot: standard}`, no `budget`), except at the built-in fix loops (development's and performance's `verification`, migration's `issue-resolution`), where it takes `model: inherit`; every other agent on the host's choice | The model and effort each subagent is dispatched with, for Claude Code and for Copilot. `tiers` remaps the `light` / `standard` / `deep` ladder (a `claude` cell is an alias — `haiku`, `sonnet`, `opus`, `fable` — and a `copilot` cell a model id, `premium: true` on one billed above one request; `inherit`, in a cell or an entry's `model`, is the session's model); `presets` names model + effort pairs (an effort is `low` … `max`, or `inherit` to send none; an entry's own effort beats its rung's, and a project's rung cell keeps the shipped `high` on `light` unless it sets one); `default`, `agents` and `workflows.<w>[.nodes.<n>].agents` assign an entry — `tier`, `preset`, `model` + `effort`, or for `task-group-implementer` `choose: by-plan-tier` with `allowed`, `unassessed`, `ceiling` (a rung, or one per host) and `budget`. Order: the plan tier, then any entry naming the agent (profile, overlay, the project's step, workflow and agent scopes, maister's own table), then the defaults in that layer order, then the host — so a `default` covers only agents nobody names, and maister's own `light` picks hold until a project names those agents. Overlays and profiles carry the same key without `tiers`. `/maister:init` writes maister's own table out as a real block, its fix-loop node entries included — into a new `config.yml`, or appended to one without a `subagents` key, never over an existing block — with `Explore` on `standard` at high effort for a codebase over its file-count threshold, and presets, a `default`, another per-workflow entry and the implementer's `budget` as commented examples. The block governs the agent calls maister makes; the explore agents a host's own plan mode starts are outside it. The workflow engine's grammar (*Subagent models*) holds the full vocabulary and precedence. |
 | `project` | none: every reviewer infers the profile from `.maister/docs/project/` | The project profile, so the reviewers check what applies to the project instead of a fixed web-service checklist. Every field optional: `kind` (`web-app`, `service`, `daemon`, `cli`, `library`, `plugin`, `desktop`, `mobile`, `data-pipeline`, `infra`), `runtime` (free text), `deploy` (`none`, `local`, `container`, `kubernetes`, `serverless`, `package-registry`, `app-store`), `exposure` (`local`, `internal`, `public`), `data` (the stores it writes; `[]` for none), `scale` (`single-user`, `team`, `multi-tenant`), `ui` (`none`, `web`, `tui`, `native`). A field left out rules no check out. `/maister:init` fills it in from its project analysis and writes it only when the file has no `project:` key, the fields it could not settle commented out. What each field rules out, and how the code reviewer, the production-readiness checker and the pragmatic reviewer split a safeguard's absence from its presence: `implementation-verifier/references/review-findings.md` § The project profile. |
 
-**How it is read**: once per run, into state, so a resume is consistent and an edit of the file reaches the next run, never one under way; every later reader reads state, not the file. The freeze patch carries `orchestrator.options.html_output` from the file (engine Step 4; `true` when the file or key is absent), and the intake of a workflow that draws mockups reads `mockup_format` into `orchestrator.options.mockup_format` (`html` when absent), as its section says. `subagents` is read by the engine's freeze instead: it judges the block, folds in the overlays' and the profile's, and records the result as `orchestrator.options.subagents`, which `dispatch-model` and the `runs:` line of a node's brief read (`references/verbs.md` § *Model and effort on every agent call*). A block with an error is refused whole, with a warning, and maister's own table applies; an edit of the file reaches the next run, never one under way. `project` is read by the freeze too: a field with a bad value is a warning and is left out, never a refusal, and the profile is recorded as `orchestrator.options.project`, which `review-brief` copies into each cycle's brief as `profile` with `source: config`. A run frozen with no profile hands its reviewers `source: none`, and each infers the profile from the project's docs. `/maister:run --check` judges the key the same way.
+**How it is read**: once per run, into state, so a resume is consistent and an edit of the file reaches the next run, never one under way; every later reader reads state, not the file. The freeze fills `orchestrator.options.html_output` and `orchestrator.options.mockup_format` from the file when the patch sends none (`true` and `html` when the file or the key is absent; any `mockup_format` other than `html` or `ascii` is recorded `html`, with a warning) — § *What the freeze write adds*. `subagents` is read by the engine's freeze instead: it judges the block, folds in the overlays' and the profile's, and records the result as `orchestrator.options.subagents`, which `dispatch-model` and the `runs:` line of a node's brief read (`references/verbs.md` § *Model and effort on every agent call*). A block with an error is refused whole, with a warning, and maister's own table applies; an edit of the file reaches the next run, never one under way. `project` is read by the freeze too: a field with a bad value is a warning and is left out, never a refusal, and the profile is recorded as `orchestrator.options.project`, which `review-brief` copies into each cycle's brief as `profile` with `source: config`. A run frozen with no profile hands its reviewers `source: none`, and each infers the profile from the project's docs. `/maister:run --check` judges the key the same way.
 
 ## The common fields
 

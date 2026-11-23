@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freezePatch, readState, scratch, verb, write } from '../helpers.mjs';
+import { FIXTURES, freezePatch, readState, scratch, verb, withoutDelegation, write } from '../helpers.mjs';
 
 // The verification runner's contract in code. The runner ends every dispatch
 // with one result, written through `runner-result`; the node reads its next
@@ -170,7 +170,10 @@ test('runner-result reads the patch file and deletes it once the result landed',
 test('runner-step keeps the loop inline when the run is not nested, saying why', t => {
   const shallow = verifying(t, { env: { [DEPTH_ENV]: '1' } });
   assert.deepEqual(stepOf(shallow), { next: 'inline', reason: `delegation is inline (${DEPTH_ENV})` });
+  // Every freeze records a delegation now, so a run without one is built by hand.
   const bare = verifying(t, { host: null });
+  withoutDelegation(bare);
+  assert.equal(readState(bare).orchestrator.options.delegation, undefined);
   assert.deepEqual(stepOf(bare), { next: 'inline', reason: 'the run recorded no delegation' });
 });
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { FIXTURES, freezePatch, readDashboard, readState, scratch, verb, write } from '../helpers.mjs';
+import { FIXTURES, freezePatch, readDashboard, readState, scratch, verb, withoutDelegation as removeDelegation, write } from '../helpers.mjs';
 
 // The delegation record: whether the run's subagents can dispatch subagents of
 // their own, written by the freeze under `orchestrator.options.delegation` from
@@ -81,13 +81,19 @@ for (const [label, driver, source] of DRIVERS) {
   });
 }
 
-test('a terminal freeze naming no host records nothing, as it always did', t => {
+test('a terminal freeze naming no host records the delegation of the host the build ships for', t => {
   const run = scratch(t);
   const result = freezeWith(run, { orchestrator: { driver: { kind: 'terminal' } } });
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
-  assert.doesNotMatch(fs.readFileSync(run.state, 'utf8'), /^\s*delegation:/m);
+  assert.deepEqual(delegationOf(run), { mode: 'nested', depth: 3, source: 'claude default' });
 });
+
+/** Take the delegation record out of a frozen run's state by hand: every freeze records one. */
+function withoutDelegation(run) {
+  removeDelegation(run);
+  assert.equal(delegationOf(run), undefined);
+}
 
 test('--host names claude or copilot, or the write is refused before anything is read', t => {
   const run = scratch(t);
@@ -142,6 +148,7 @@ test('the status line names the mode while the executor or the verifier runs, an
   // A run that recorded no delegation shows no word.
   const plain = scratch(t);
   assert.equal(freezeWith(plain).code, 0);
+  withoutDelegation(plain);
   write(plain, { nodes: { review: { status: 'running' } } });
   assert.doesNotMatch(statusOf(plain).line, /nested|inline/);
 });
@@ -152,7 +159,15 @@ test('the executor\'s and the verifier\'s dashboard cards carry the mode, and no
   const phases = readDashboard(run).phases;
   assert.deepEqual(phases.filter(phase => Object.hasOwn(phase, 'delegation')).map(phase => [phase.id, phase.delegation]), [['implementation', 'inline'], ['review', 'inline']]);
 
+  // A freeze naming no host records the shipped host's mode, and the two cards carry it.
+  const hostless = scratch(t, { name: '2026-01-05-hostless' });
+  assert.equal(freezeWith(hostless).code, 0);
+  assert.deepEqual(readDashboard(hostless).phases.filter(phase => Object.hasOwn(phase, 'delegation')).map(phase => [phase.id, phase.delegation]), [['implementation', 'nested'], ['review', 'nested']]);
+
+  // A run that recorded no delegation: no card carries a mode.
   const plain = scratch(t);
   assert.equal(freezeWith(plain).code, 0);
+  withoutDelegation(plain);
+  write(plain, {});
   assert.equal(readDashboard(plain).phases.some(phase => Object.hasOwn(phase, 'delegation')), false);
 });

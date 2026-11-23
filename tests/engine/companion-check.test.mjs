@@ -13,10 +13,14 @@ const DEFINITIONS = path.join(FIXTURES, 'definitions');
 const CHECK = path.join(DEFINITIONS, 'companion-check.yml');
 const CHECK_OVERLAY = path.join(DEFINITIONS, 'companion-check.overlay.yml');
 
-/** A frozen companion-check run with every node pending; the guarded deep-dive is off. */
+/**
+ * A frozen companion-check run with every node pending; the guarded deep-dive
+ * is off. Its `remote` node hands work to a member repository, which makes the
+ * graph a chain, so the run is frozen under a driver that dispatches one.
+ */
 function frozen(t, { html = true, overlays = [] } = {}) {
   const run = scratch(t, { type: 'companion-check', name: '2026-01-05-companion-check' });
-  freeze(run, { definition: CHECK, overlays, orchestrator: { options: { inputs: { deep: false }, html_output: html } } });
+  freeze(run, { definition: CHECK, overlays, orchestrator: { driver: { kind: 'cockpit', cwd: '/work' }, options: { inputs: { deep: false }, html_output: html } } });
   return run;
 }
 

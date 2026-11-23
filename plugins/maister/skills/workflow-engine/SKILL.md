@@ -281,31 +281,23 @@ the `definition` and `overlays` it prints, then the overlays the invocation name
 and its profile; inputs, overlays, profile and a title handed over by `/maister:run` are used
 exactly as given. When `locate` reports an overlay `ignored`, say it is not in effect.
 
-**A non-empty `dispatches` is a chain**, which never runs under an absent or `terminal` driver:
-name those nodes and stop. A `chain_only` refusal is relayed, then stop.
-
 ### Step 4: Freeze the graph before executing anything
 
 Three calls, in this order: `validate --definition=<path> [--overlay=<path>…] [--profile=<name>]`,
-then `resolve` with the same flags, then the freeze's `write-state` with `--host=claude`, so the
-writer records how the run's subagents can delegate. If `validate` rejects the definition, stop
-with `RUN-FAILED:` and its first error; relay its warnings (`references/grammar.md` § 14).
+then `resolve` with the same flags, then the freeze's `write-state`. If `validate` rejects the
+definition, stop with `RUN-FAILED:` and its first error; relay its warnings
+(`references/grammar.md` § 14).
 
-**The run directory** is `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` under the project root:
-`<type>` is the workflow's name (migration's `migrations/` the one exception), the slug is 3–5
-key words of the description in lowercase kebab-case after the date
-(`2025-12-17-fix-login-timeout`), with `-2`, `-3` … when the name is taken, and it sits nowhere
-deeper. Never make it yourself: the freeze creates it, and a resume keeps the
-one it has.
+**The run directory** is `.maister/tasks/<type>/<YYYY-MM-DD-slug>/`: `<type>` is the workflow's
+name (migration's `migrations/`), the slug 3–5 key words of the description in kebab-case, with
+`-2`, `-3` … when taken. Never make it yourself: the freeze creates it, and a resume keeps the one
+it has.
 
 **The freeze patch carries, and nothing else:**
 - `workflow`: `source`, `overlays`, `profile`, `graph_hash` and `name` exactly as `resolve`
   printed them, `grammar_version: 1`, no `nodes`; one here-string, never scripted from a file;
 - `task.title` and `task.description`;
-- `orchestrator.task_path`, the run directory relative to the repository;
-- `task.key`: the value of the input `resolve` names as `tracker_key`, when it names one;
 - `orchestrator.options.inputs`, the run's inputs; with none, no key;
-- `orchestrator.options.html_output` from `.maister/config.yml` (default `true`);
 - `orchestrator.options.ceiling`, when a dispatched run's seed names one;
 - `context`, the fields known before the first node runs, when the definition's prose names a seed.
 
@@ -314,8 +306,7 @@ a key it owns with a `note:`; relay any `warning:`; a refusal names its recovery
 The run creates no task items.
 
 **The freeze prints the startup banner first; your next message, before any other call, tells
-the user what it says**, paths and links as printed. On a terminal run the freeze has already
-opened the dashboard: run no opener.
+the user what it says**, as its first line asks.
 
 > **SELF-CHECK before the call after the freeze**: does your message name the workflow and
 > task, the checkpoints, the directory and the dashboard link? If not, STOP and write it first.
