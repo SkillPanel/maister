@@ -101,7 +101,7 @@ Each phase's brief is a template under this skill's base directory: which source
 - `checker:` the absolute path of `scripts/check-findings.mjs` under this skill's base directory, which the scanner runs on its file
 - `pr_count:` the number of pull requests, and `github:` `available` when the external sources check found pull requests readable, otherwise its reason — for the external phase only
 
-The scanner carries the rest itself — read-only, absolute paths, one file written. Each call carries the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:standards-scanner --host=claude` prints once just before the launch, run as a command of its own (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; likewise for the `docs-operator` call below).
+The scanner carries the rest itself — read-only, absolute paths, one file written. Each call carries the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:standards-scanner --host=claude` prints once just before the launch, run as a command of its own (`../workflow-engine/references/verbs.md` § *Model and effort on every agent call*; likewise for the `docs-operator` call below).
 
 Every applicable phase is a subagent of its own, whatever the size of the repository: a small repository, one commit or no linter config is no reason to run a phase's discovery in this session or to write its file yourself. The phases read different sources than this session has in view, which is what makes their findings worth scoring.
 

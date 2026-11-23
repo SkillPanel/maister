@@ -83,7 +83,7 @@ test('the candidate description lives in one reference that every other step poi
     'agents/implementation-runner.md': `skills/docs-manager/${REFERENCE}`,
     'skills/standards-update/SKILL.md': `skills/docs-manager/${REFERENCE}`,
     'skills/docs-manager/SKILL.md': `\`${REFERENCE}\``,
-    'skills/orchestrator-framework/references/orchestrator-patterns.md': `\`${REFERENCE}\``,
+    'agents/verification-runner.md': `\`${REFERENCE}\``,
   };
   for (const [file, pointer] of Object.entries(pointers)) {
     assert.ok(read(file).includes(pointer), `${file} points at the reference`);

@@ -19,6 +19,10 @@ started the run (a sub-run's freeze copies its parent's); the engine only reads 
 `question-sets` in it the driver cannot carry a question set. Decide this once, when the run
 starts, like the gate mode.
 
+**A decision a delegate returns is asked.** It is never skipped, never accepted on your behalf
+because the recommendation looks clear or the task simple, and never logged without asking:
+documentation is not consent.
+
 **Asked in session, a question offers answers, never their categories.** A question that
 invites a correction or an addition offers the corrections and additions themselves: concrete
 candidates generated from what the node found — its open gaps and its weakest inferences — each
@@ -358,6 +362,31 @@ accepted risk is a `tradeoff` risk, a finding nobody could be asked about stays 
 unless the policy settled, defaulted or held it, and a held choice goes on provisionally until a
 continue approves it.
 
+**An item whose recommendation is to leave it is not a decision.** A pre-existing info item
+that predates the change, recommended "leave", is not asked: record it in the node summary's
+`risks` as `{risk: <item and the fix, if wanted>, tag: followup}`, so the end of the run lists
+it. When such items arrive beside real decisions, the page carries at most one "Leave all N
+for later (Recommended)" choice for them, never one tab each.
+
+**Triage first when more than about eight issues need a decision**: one question showing the
+counts by severity and offering "Go through them, most severe first", "Only the critical ones
+now — the rest become open risks for the checkpoint", and "Continue as is".
+
+When the fix loop's stopping point ends undecided (§ *When nobody can be asked*), the go-on
+choice is recorded as not taken. The not-taken record is
+
+```
+{decision: "Not taken: the loop ended undecided", by: default, question_id: verification-go-on}
+```
+
+When the classing writer already recorded an item for the stopping question in this attempt,
+under either id (`verification-go-on` or `verification-fix-loop`), that item is the record and
+the node sends none, and the summary's `recommends` reason says the loop ended undecided and
+that the default or held choice listed under that id was not taken — a held or default "One
+more round" included, so the checkpoint never reads it as a round approved. Under a driver
+without question sets nothing is asked: the findings stay `open` risks, or take what the policy's
+class gives them.
+
 A file the verb cannot use is a fallback, never a refusal — compose the same questions from the
 reviewer's findings and say which warning made you: `finding-list-missing:<path>` (no file, or
 `:outside-run`), `finding-list-invalid:<path>:<where>` (not JSON, or the first field that breaks the
@@ -370,6 +399,36 @@ after a minute). Its refusals leave nothing written:
 | `finding-brief-unknown-node` | `--node` names no node of the run, or names a gate. Nothing was written. Name the reviewing node that is asking its findings and run the verb again; no state write fixes this. |
 | `finding-brief-not-running` | The node's status is not `running`, and only a running node asks. Nothing was written. Name the node that is asking, or start it first through `write-state`, then run the verb again. |
 | `finding-brief-undeclared` | The node's prose declares no `<node>-findings` question id, so no policy could class its findings. Nothing was written. Ask the findings as the node's prose says without the verb, or add the declaration to a workflow you own, then run it again. |
+
+## The specification audit's fix pass
+
+The verification fix loop's idea, scaled down, before any code exists. The workflow engine's `spec-audit` node
+prose (development and performance) carries it. The spec auditor grades each finding
+*fixable* — one clear change, no scope or behaviour change beyond what the spec, the
+requirements or an earlier answer already implies — or *needs decision*, and names the change.
+
+1. **Apply without asking** every fixable finding, in **one fix pass**: the specification
+   creator in its amend mode, called with the model and effort `dispatch-model`
+   prints for it (`references/verbs.md` § *Model and effort on every agent call*), applies exactly those changes to `implementation/spec.md` (and to
+   `analysis/requirements.md` where a fix reaches it). The audit report stays the auditor's —
+   the run never edits or annotates it.
+2. **Re-audit once, and only when a fix changed a requirement.** A fix that adds a planned test
+   case, a limit or a sentence stating an existing requirement more precisely needs no
+   re-audit. The re-audit rewrites the report; its new fixable findings are not fixed again.
+3. **No progress stops it**: a fixed finding coming back, or a fix the creator could not apply,
+   stays open.
+4. **Record the fixes**: each in the node summary's `fixes_applied` as `{finding, change}` (and
+   the re-audits in `reaudit_count`), never as a decision, so the gate lists it as fixed by the
+   run.
+5. **Ask each finding that needs a decision on its own**, as § *Findings that need a decision* says: the
+   auditor's decision findings become one question set through `finding-brief`. The chosen
+   changes go to the specification creator in one more amend pass, with no re-audit; an accepted
+   risk becomes a `tradeoff` risk; a finding nobody could be asked about stays open unless the
+   policy classes it.
+6. **What the gate is handed**: only the findings still open — undecided, not applied, or found
+   by the re-audit — as `open` risks with their `change`, the critical ones first; a finding
+   about something outside the change as a `followup`. The gate's revise suggestions come from
+   those alone, never from a fix already made.
 
 ## A dispatch closed out partial
 
@@ -549,12 +608,15 @@ answer the writer folded from a recorded answer block or one it already holds, s
 on a person's behalf (`references/gates.md` § *Provenance*). The older string form,
 `defaulted: <id> -> <taken>`, is still read as `by: default`.
 
-**A run started under a driver has its inputs** (`orchestrator.options.inputs`, engine Step 4):
-if one is missing, print `RUN-FAILED: <code>` and stop — never invent one. **Defaulting never
-waives** an unresolved critical issue or a decision the node owes
-(`orchestrator-patterns.md` § 2.2, *Two things this never defaults past*): the remainder
-becomes `open` risks for the next gate, and a node is never marked complete with an unasked,
-unrecorded decision outstanding.
+**A run started under a driver has its inputs** (`orchestrator.options.inputs`, engine Step 4),
+so a task description or research question is never invented: if one is genuinely missing, stop
+with `RUN-FAILED: <code>` rather than inventing one.
+
+**Two things this never defaults past.** It settles who answers, not what may be waived: an
+unresolved critical issue is not proceeded past — the default fixes what is fixable and carries
+the remainder into the following gate (the verification loop's exit, § *Findings that need a
+decision*) — and a decision the phase owes is still *resolved* rather than skipped, since a
+defaulted decision satisfies a completeness self-check and an unasked, unrecorded one does not.
 
 ## When the policy classes a question
 
@@ -691,7 +753,7 @@ sends its step back with a revise and a note (`references/gates.md` § *Revising
 it closes (`references/gates.md` § *The closing checkpoint `held-approval`*). Say this when you
 present the checkpoint in session: continuing approves what is listed as held. At the fix
 loop's stopping point, with a warning or critical issue open, a held or defaulted answer is not
-gone on with: the loop ends undecided (framework § 6 step 10), and the checkpoint that lists
+gone on with: the loop ends undecided (§ *Findings that need a decision*), and the checkpoint that lists
 the held item is where a person decides.
 
 **A stricter reading is carried, never a looser one.** A step's own judgement may only make a

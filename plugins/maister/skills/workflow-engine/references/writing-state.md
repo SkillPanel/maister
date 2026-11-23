@@ -12,6 +12,9 @@ with editor tools and hands the file straight back to the writer for re-validati
 canonical indent, writes the whole file once per invocation, and self-checks the candidate
 before it publishes anything.
 
+Every successful write also projects the run's `dashboard-data.js`: the projection is the file's
+only writer, so no node writes or rewrites it.
+
 The patch vocabulary is closed, and it is exactly the set of state blocks a run has to be
 able to write:
 
@@ -72,7 +75,7 @@ able to write:
   block. A mapping is merged key by key; `related_tasks` is a list and is replaced whole, so a
   caller that means to append sends the whole list. `verification_context.suite_run` — whether
   the cycle's full test suite ran — takes `passed`, `failed`, `skipped`, `not_run` or null
-  (orchestrator framework § *Shared: verification_context*); any other value is refused.
+  (§ *The verification block*); any other value is refused.
 
 Anything else is an error rather than a silent no-op.
 
@@ -460,3 +463,93 @@ were not given, so nothing could be checked. **The recovery is the step that was
 a retry**: publish the close-out through the umbrella runtime's outbox verb with the grade
 and the summary the seed's close-out contract asks for, then run `run-complete` again with
 the same `--outbox` root and `--dispatch-id`. Never print `RUN-COMPLETE` by hand.
+
+## Project configuration
+
+An optional project-level config file at `.maister/config.yml` (sibling of `.maister/docs/` and `.maister/tasks/`) holds defaults that apply to every workflow. It is scaffolded by `/maister:init` but is not required — when absent, every key falls back to its default.
+
+```yaml
+# Maister project configuration.
+html_output: true     # Generate the operator dashboard + HTML companion reports. false = markdown-only.
+mockup_format: html   # UI mockups: html (pages and a gallery file) or ascii (ascii-mockup-generator), and nothing else; a turn reads it when no format is passed. A written scope is chosen per turn with `format: scope`, never here.
+subagents: {…}        # Optional: the model and effort per subagent, per host (below).
+project: {…}          # Optional: what the project is, for the reviewers (below).
+```
+
+| Key | Default | Effect |
+|-----|---------|--------|
+| `html_output` | `true` | When `false`, workflows skip the dashboard AND the HTML companions (`references/grammar.md` § 3.2): no `dashboard.html`/`dashboard-data.js`, nothing opened in a browser, no `.html` companions. Markdown artifacts, their summary blocks (`orchestrator-patterns.md` § 7), and `orchestrator-state.yml` are produced regardless. |
+| `mockup_format` | `html` | How UI mockups are rendered when a workflow generates them (development's `ui-mockups` node, product-design's `sketches` and `screens` nodes, standalone `/maister:mockup-studio`). `html` → the pages and version gallery a `mockup-studio` turn writes (`.html` files to open; no browser preview). `ascii` → the `ascii-mockup-generator` agent (no Node/browser). Takes only these two values: a written scope is chosen per turn, never here. Auto-falls back to `ascii` when Node.js is unavailable. Independent of `html_output` (mockups are design deliverables, not report companions). |
+| `subagents` | maister's own table: the `light` rung on `effort: high`; `Explore`, `project-analyzer`, `task-classifier`, `test-suite-runner`, `html-companion-writer` and `question-reader` on `light`; `docs-operator` and `standards-scanner` on `{claude: inherit, copilot: standard}`; `task-group-implementer` on `choose: by-plan-tier` (all three rungs, `unassessed: standard`, `ceiling: {claude: deep, copilot: standard}`, no `budget`), except at the built-in fix loops (development's and performance's `verification`, migration's `issue-resolution`), where it takes `model: inherit`; every other agent on the host's choice | The model and effort each subagent is dispatched with, for Claude Code and for Copilot. `tiers` remaps the `light` / `standard` / `deep` ladder (a `claude` cell is an alias — `haiku`, `sonnet`, `opus`, `fable` — and a `copilot` cell a model id, `premium: true` on one billed above one request; `inherit`, in a cell or an entry's `model`, is the session's model); `presets` names model + effort pairs (an effort is `low` … `max`, or `inherit` to send none; an entry's own effort beats its rung's, and a project's rung cell keeps the shipped `high` on `light` unless it sets one); `default`, `agents` and `workflows.<w>[.nodes.<n>].agents` assign an entry — `tier`, `preset`, `model` + `effort`, or for `task-group-implementer` `choose: by-plan-tier` with `allowed`, `unassessed`, `ceiling` (a rung, or one per host) and `budget`. Order: the plan tier, then any entry naming the agent (profile, overlay, the project's step, workflow and agent scopes, maister's own table), then the defaults in that layer order, then the host — so a `default` covers only agents nobody names, and maister's own `light` picks hold until a project names those agents. Overlays and profiles carry the same key without `tiers`. `/maister:init` writes maister's own table out as a real block, its fix-loop node entries included — into a new `config.yml`, or appended to one without a `subagents` key, never over an existing block — with `Explore` on `standard` at high effort for a codebase over its file-count threshold, and presets, a `default`, another per-workflow entry and the implementer's `budget` as commented examples. The block governs the agent calls maister makes; the explore agents a host's own plan mode starts are outside it. The workflow engine's grammar (*Subagent models*) holds the full vocabulary and precedence. |
+| `project` | none: every reviewer infers the profile from `.maister/docs/project/` | The project profile, so the reviewers check what applies to the project instead of a fixed web-service checklist. Every field optional: `kind` (`web-app`, `service`, `daemon`, `cli`, `library`, `plugin`, `desktop`, `mobile`, `data-pipeline`, `infra`), `runtime` (free text), `deploy` (`none`, `local`, `container`, `kubernetes`, `serverless`, `package-registry`, `app-store`), `exposure` (`local`, `internal`, `public`), `data` (the stores it writes; `[]` for none), `scale` (`single-user`, `team`, `multi-tenant`), `ui` (`none`, `web`, `tui`, `native`). A field left out rules no check out. `/maister:init` fills it in from its project analysis and writes it only when the file has no `project:` key, the fields it could not settle commented out. What each field rules out, and how the code reviewer, the production-readiness checker and the pragmatic reviewer split a safeguard's absence from its presence: `implementation-verifier/references/review-findings.md` § The project profile. |
+
+**How it is read**: once per run, into state, so a resume is consistent and an edit of the file reaches the next run, never one under way; every later reader reads state, not the file. The freeze patch carries `orchestrator.options.html_output` from the file (engine Step 4; `true` when the file or key is absent), and the intake of a workflow that draws mockups reads `mockup_format` into `orchestrator.options.mockup_format` (`html` when absent), as its section says. `subagents` is read by the engine's freeze instead: it judges the block, folds in the overlays' and the profile's, and records the result as `orchestrator.options.subagents`, which `dispatch-model` and the `runs:` line of a node's brief read (`references/verbs.md` § *Model and effort on every agent call*). A block with an error is refused whole, with a warning, and maister's own table applies; an edit of the file reaches the next run, never one under way. `project` is read by the freeze too: a field with a bad value is a warning and is left out, never a refusal, and the profile is recorded as `orchestrator.options.project`, which `review-brief` copies into each cycle's brief as `profile` with `source: config`. A run frozen with no profile hands its reviewers `source: none`, and each infers the profile from the project's docs. `/maister:run --check` judges the key the same way.
+
+## The common fields
+
+The keys every run's `orchestrator` and `task` blocks carry, and who writes each. Nothing marked
+the writer's is ever sent: the writer drops it with a `note:` line (the opening section).
+
+- `orchestrator.started_phase`, `completed_phases`, `failed_phases` — derived by the writer from `workflow.nodes` on every write.
+- `orchestrator.created`, `updated`, `task_path`, `policy_hash` — the freeze's, `updated` restamped on every status change (§ *What the freeze write adds*).
+- `orchestrator.options` — an open map merged key by key: `sequential` (set by `--sequential`, read by the implementation loop), `html_output` and `mockup_format` (§ *Project configuration*), `inputs` and `ceiling` (the freeze patch, engine Step 4), `subagents`, `project` and `delegation` (recorded by the freeze), and each workflow's own keys (its guide).
+- `orchestrator.driver` — who drives the run, absent meaning terminal, written whole (the opening section).
+- `orchestrator.classes_questions` — the writer's, recorded at the freeze (§ *What the freeze write adds*).
+- `orchestrator.gate_pending` — the suspended gate's marker, set and cleared only as `references/gates.md` § *Driver-suspended mode — the write order* says.
+- `orchestrator.parent` — a child run's link to its parent, sent by its freeze (`references/sub-runs.md`).
+- `task.title`, `task.description`, `task.key` — the freeze patch (engine Step 4).
+- `task.status` — the writer's at the first node start, then the closing patch's (the opening section).
+- `task.base_commit` — the writer's, recorded at the freeze and moved only by `move-base`.
+
+## The verification block
+
+Every workflow with a verification node uses:
+
+```yaml
+verification_context:
+  last_status: passed | passed_with_issues | failed | null
+  suite_run: passed | failed | skipped | not_run  # whether the cycle's full test suite ran; absent: not recorded
+  issues_found: []           # [{id, severity, source, description, fixable, risky, fixed}]
+  fixes_applied: []
+  decisions_made: []
+  reverify_count: 0          # re-checks run; two run without asking
+  reviews: {chosen: [], done: []}  # the reviews dispatched this cycle and those returned, by short name
+  cycle: 1                   # the cycle under way, the review brief's number
+  snapshot: null             # the brief's tree id for that cycle
+  node: verification         # the node and its attempt that ran the cycle, so a re-dispatch
+  attempt: 1                 #   tells a crash in this attempt from a new attempt
+```
+
+Whoever runs the loop writes this block: the verification runner when the run nests, the main
+session otherwise.
+
+**`suite_run` says whether the full test suite ran in the cycle**, written on every cycle so its
+absence never reads as a run: `passed` — it ran and passed; `failed` — it ran and tests failed,
+the base's failures included (the verdict tells them apart); `skipped` — it did not run again
+because the implementation phase's full run passed and no fix has changed code since
+(`skip_test_suite`); `not_run` — it did not run and no earlier run stands in. The cycle's entry
+write sets `not_run`, and `findings-merge` records the cycle's value from the test suite's result.
+A block without the key — a run recorded before it existed — is read as *not recorded*, never as
+a suite that ran: the gate after verification then recommends no way on (`references/gates.md` §
+*Before every gate — the gate brief*). The orchestrator's own writes around a runner are the node's start, its end and
+the answers to the decisions the runner hands back.
+
+The workflow engine's `findings-merge`, run with `--state` over the cycle's reviewer findings files (`implementation-verifier/references/review-findings.md`), records `issues_found` in the state itself, so the numbering and the shape below are kept in code. Record every issue in `issues_found` as an object, never as a bare string: `severity` is `critical`, `warning` or `info` as the report graded it, `id` is the report's own number for the finding — kept across re-checks, a new finding taking the next unused number — `risky` is the verifier's grading of whether its fix would reach beyond the item, and `fixed: true` marks one fixed since (keep its original severity). The dashboard shows each issue under its `severity`. A string carries no severity field, so its severity has to be guessed from the text.
+
+## A missing or stale companion
+
+**Registration.** A node's summary registers each companion as `artifacts[].html` beside its
+`path`, so the dashboard links HTML first with md fallback (`html: null` when companions are
+disabled). `write-state` fills it from disk when the summary is written. **A companion never
+blocks**: one that fails never fails the node or the workflow — keep the md, name the miss,
+continue.
+
+**Recovery on `companion-missing:`.** When a node completes without a companion it owes, `write-state` prints `companion-missing: <node> <path>` after its changed paths. Then:
+1. Run html-companion-writer once for that file, on the model and effort `dispatch-model` prints
+   for it (`references/verbs.md` § *Model and effort on every agent call*), pasting
+   `run-context --node=<node>` so it gets `html:`.
+2. When the node already has a summary, re-send `{"node_summaries":{"<node>":{}}}` to register the companion. When it has none, the summary's own write — still owed — registers it; never send the empty summary then.
+3. Never re-run the node. A `failed` result is left for `run-complete` to report (the engine's
+   *Operator visibility*).
+
+**Recovery on `companion-stale:`.** A page goes stale when a later step edits an earlier step's markdown — an audit applying its fixes to the specification. The next write that completes a node prints `companion-stale: <node> <path>` for each owed page older than its markdown, and `gate-brief` warns of one its checkpoint names. Run html-companion-writer once for that file, as above, before the next checkpoint is asked; its registration already stands, so no summary is re-sent.

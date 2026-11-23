@@ -29,7 +29,7 @@ const PLUGIN = path.join(ROOT, 'plugins/maister');
 const ANCHOR = 'When nobody answers the stopping question';
 const END = 'it takes "Continue as is".';
 /** The copies kept on purpose; a copy added or removed on purpose updates it. */
-const COPIES = 7;
+const COPIES = 5;
 
 /** Every markdown file under `dir`, sorted. */
 function markdown(dir) {

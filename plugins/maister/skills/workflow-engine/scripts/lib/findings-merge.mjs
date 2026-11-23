@@ -601,7 +601,7 @@ function countsOf(findings, outOfScope) {
   };
 }
 
-/** `issues_found` as the state contract shapes it (`orchestrator-patterns.md` § 4), in id order. */
+/** `issues_found` as the state contract shapes it (`references/writing-state.md` § *The verification block*), in id order. */
 function projection(findings) {
   return [...findings].sort((a, b) => a.id - b.id).map(finding => {
     const reviewer = listOf(finding.sources)[0]?.reviewer ?? 'unknown';

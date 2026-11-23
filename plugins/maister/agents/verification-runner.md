@@ -78,12 +78,13 @@ stop. Do no review yourself.
   as it stands, `stop` ends with it too, and `undecided` ends the loop with the verdict as it
   stands and nothing accepted on anybody's behalf (nobody answered with a warning or critical
   issue open, and the node records that). Apply every chosen fix as a fix pass (§ *The fix pass*)
-  unless the fix is already in `fixes_applied`, then go on as § 6 of the framework says.
+  unless the fix is already in `fixes_applied`, then go on as § *The fix pass* says.
 
 ## A verification cycle
 
-The rules each step follows are the framework's (`<plugin_root>/skills/orchestrator-framework/references/orchestrator-patterns.md`
-§ 6 for the loop, § 4 for the issue shape); the reviewers' shared contract is
+The loop's rules are § *The fix pass* below, and the issue shape is
+`<plugin root>/skills/workflow-engine/references/writing-state.md` § *The verification block*; the
+reviewers' shared contract is
 `<plugin_root>/skills/implementation-verifier/references/review-findings.md`.
 
 1. **Prerequisites.** `implementation/implementation-plan.md`, `implementation/spec.md` and
@@ -105,7 +106,8 @@ The rules each step follows are the framework's (`<plugin_root>/skills/orchestra
 4. **Model and effort.** Run `node <plugin_root>/skills/workflow-engine/scripts/workflow.mjs
    dispatch-model --agent=<every agent this cycle sends> --host=claude --state=<state>
    --node=<node>` once, and give each call the `model` and `effort` its line
-   prints (framework § 1, *Model and Effort on Every Agent Call*).
+   prints (`<plugin root>/skills/workflow-engine/references/verbs.md` § *Model and effort on every
+   agent call*).
 5. **The tests and the checks, alone.** Record it first — `in-flight --state=<state> --node=<node>
    --runner=verification --record=suite:verification/test-suite-results.md`, which clears the old
    results file — then dispatch `maister:test-suite-runner` — the only agent call
@@ -185,9 +187,9 @@ With `fixes: off`, end with the verdict now (§ *Ending a dispatch*).
 
 ## The fix pass
 
-The policy is framework § 6, steps 1–4: what is fixed without asking, the re-check kinds, the
-budget of two automatic re-checks, when to stop and hand a decision back, and the documents rule.
-You carry it out:
+This section is the fix loop's policy — what is fixed without asking, the re-check kinds, the
+budget of two automatic re-checks, when to stop and hand a decision back, and the documents rule
+— and you carry it out:
 
 - **Batch, never one agent per finding.** Group every unfixed, fixable, non-risky critical and
   warning issue — and every fix a person chose — by file or area, so each batch touches files no other batch does.
@@ -208,10 +210,16 @@ You carry it out:
   comments, regenerated HTML or the run's bookkeeping: `recheck: tests-only`. Raise
   `reverify_count` by one as each re-check starts, then run a cycle with the fixed issue numbers.
   An `info` issue is listed in the report and never fixed, unless a person chooses its fix.
-- **Documents.** A fix never edits `.maister/docs/INDEX.md` or `.maister/docs/standards/`; a stale
-  fact is fixed in the document that holds it, as § 6 says.
+- **Documents.** A fix never edits `.maister/docs/INDEX.md` or anything under
+  `.maister/docs/standards/`. A stale fact is fixed in the document that holds it; a finding
+  against the index itself — a document with no entry, a dead or duplicate entry, a conflict
+  marker — is left for a refresh (`/maister:standards-update --refresh-index`), never fixed by
+  hand. A convention, pitfall or fact a fix shows to be worth keeping is written to the work log
+  as a standard candidate, one line as docs-manager's `references/standard-candidates.md`
+  (`<plugin root>/skills/docs-manager/references/standard-candidates.md`) describes it, for
+  finalization to consolidate and hand over to standards-update.
 
-**Hand back a decision** when § 6 step 4 holds — an issue that needs a person (`fixable: false`),
+**Hand back a decision** when one of these holds — an issue that needs a person (`fixable: false`),
 a risky fix, the budget spent with a fixable warning or critical issue open, or no progress. First finish every fix
 and re-check you can make without asking. Then write `findings_file` in the shape
 `finding-brief` takes (`<plugin_root>/skills/workflow-engine/references/in-node-questions.md`
@@ -282,8 +290,9 @@ review, the test suite and every fix as a subagent, exactly as above: only the l
 the brief, the writes, the merge, the verdict and the report — move into the main session. The
 differences are three:
 
-- It asks where you would hand back a decision: framework § 6 steps 5–10, as the node's prose says
-  (in session, or a request under a driver), then carries on with the answers. When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is".
+- It asks where you would hand back a decision, as the node's prose and
+  `<plugin root>/skills/workflow-engine/references/in-node-questions.md` § *Findings that need a
+  decision* say (in session, or a request under a driver), then carries on with the answers. When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is".
 - It writes no `runner-result.json` and no decisions file. In a run it still records every agent
   with `in-flight` before sending it, and adopts an output on disk the same way.
 - Standalone, with no state file, it writes no state at all, asks once which commit the work

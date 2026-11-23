@@ -71,7 +71,7 @@ What a gate asks is built by the engine, never written by hand. The engine reads
 - **Every node a gate needs writes a non-empty `summary`** in its closing `node_summaries`
   entry, in the same patch that marks it `completed`. The fields beside it — `headline`,
   `decisions` and their `by`, `fixes_applied`, `risks` and their tags — mean what the summary
-  contract says (`orchestrator-patterns.md` § 4, *Shared: node_summaries entry shape*), and
+  contract says (`references/node-summaries.md`), and
   every one is written for the user, by engine § *Speaking to the user*. What the gate adds:
   - **`headline`**, at most 220 characters, opens the checkpoint as *Done*; without it, *Done*
     is the summary's first sentence.
@@ -109,6 +109,13 @@ What a gate asks is built by the engine, never written by hand. The engine reads
     `not_run`, or is not recorded for that node's current attempt, the brief marks no option, and
     each continue's consequence says why. The checkpoint then carries `recommended: {option:
     null, reason}`, the driven line reads `Recommended: none`, and no picker marks an option.
+  - **What a verification loop hands its gate**: an issue still needing a decision is an `open`
+    risk with the fix as its `change`; an item left for later a `followup` risk; an accepted one a
+    `tradeoff` risk; a spent budget with a critical issue still open a `stop` risk, which makes
+    Stop the gate's recommended answer. Each done-when line of the task — its acceptance criteria
+    or "done when" lines — that the verification could not confirm with evidence (a passing test,
+    a review's finding that it is built) is an `open` risk naming the line ("Not confirmed: <the
+    line>"), and the node's `recommends` is `{option: null, reason}` naming how many.
 
   Items written as strings are still read (`open:`, `tradeoff:`, `followup:`, `left for later:`,
   `recommend stop:` prefixes; untagged reads as `open`); write new items typed. The writer

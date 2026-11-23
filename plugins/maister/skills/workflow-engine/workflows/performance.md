@@ -6,14 +6,12 @@ per-node context in `with:` to whatever the node names.
 
 ## `intake`
 
-**Does.** Establishes, before any analysis, the task directory, the state file
-and the profiling-data drop point the analysis node reads from.
+**Does.** Establishes, before any analysis, the profiling-data drop point the
+analysis node reads from.
 
-1. **Initialize** as `orchestrator-patterns.md` § 5 says: the clock from the
-   shell, the state file with the task description,
-   `options.html_output`
-   from the project configuration and the start banner shown; the freeze
-   opened the dashboard itself unless that is false, so run no opener.
+1. **Create no task directory.** The freeze made it, with the state file and
+   `options.html_output` read from the project configuration (default `true`),
+   and opened the dashboard itself unless that is false, so run no opener.
 2. **Create `analysis/user-profiling-data/`**, empty. **An empty directory is
    the answer "no profiling data", not a missing artifact.**
 3. **Discover the project documentation** — every path in the
@@ -198,12 +196,11 @@ named in the context.
 **Does.** Runs on every run. Hand the auditor the
 `prior-context --background --node=spec-audit` output for the decisions, so it
 can tell a finding with one obvious fix from one that needs a decision. **The
-obvious fixes are made without asking**, as `orchestrator-patterns.md` § 6,
-*The Specification Audit's Fix Pass*, says. A failing verdict does not end the
+obvious fixes are made without asking**, as the engine's `references/in-node-questions.md` § *The specification audit's fix pass* says. A failing verdict does not end the
 run: the gate's stop option is the route out.
 
 **Asks.** Each finding that needs a decision after the fix pass is its own
-question (§ 6, step 5): write the auditor's decision findings, as its
+question (the engine's `references/in-node-questions.md` § *Findings that need a decision*): write the auditor's decision findings, as its
 structured result gives them, to `verification/spec-audit-findings.json`, each
 finding's `id` the auditor's `name`, and build the set with `finding-brief` for
 this node (its row: the engine's `references/verbs.md`).
@@ -222,7 +219,7 @@ append to it, edit it or annotate it. Record the verdict in state.
 **Summary.** The `headline` — the final verdict, how many findings the run fixed
 and what it means for planning; the verdict, the counts by severity and how
 many were fixed in `summary`; each finding the audit settled as a `by: audit`
-decision. The risks follow § 6's fix pass, step 6.
+decision. The risks follow that fix pass, step 6.
 
 **Budget.** None — an audit that returns is an audit, whatever its verdict; a
 fix pass that fails leaves its findings open for the gate.
@@ -306,7 +303,7 @@ severity, and the report's path from the project root
 (`.maister/tasks/performance/<run>/verification/implementation-verification.md`).
 
 **The fix loop runs on its own for the obvious fixes**, following
-`orchestrator-patterns.md` § 6, *Fix-Then-Reverify Loop*: the verifier's
+`<plugin root>/agents/verification-runner.md` § *The fix pass*: the verifier's
 hand-off gives the cycles and the fix passes to the verification runner when
 the run records `nested` delegation, and runs them here otherwise. This node
 asks only the decisions the loop hands back.
@@ -314,7 +311,7 @@ asks only the decisions the loop hands back.
 saying so** — a gate answered from outside is such an answer; a default is not.
 
 **Asks.** Each issue that needs the user's decision is its own question, once
-the automatic fixes and re-checks are done (§ 6, step 5): write the verifier's
+the automatic fixes and re-checks are done (the engine's `references/in-node-questions.md` § *Findings that need a decision*): write the verifier's
 decision fields for those issues to `verification/verification-findings.json`,
 each issue's `id` the verifier's `name`, and build the set with `finding-brief`
 for this node. The gate after this node offers no revise, so a change the user
@@ -340,7 +337,7 @@ two re-checks — nothing is asked and no extra round is taken. Every issue that
 needs a decision, and every risky fix, stays open as an `open` risk in this
 node's summary, and the loop ends as the `verification-go-on` line says. An
 issue still critical is **not** proceeded past: it is an `open` risk and a
-`stop` risk (§ 6 step 9), which the gate brief shows at `verification-approval` — where a person
+`stop` risk (the engine's `references/gates.md` § *Before every gate — the gate brief*), which the gate brief shows at `verification-approval` — where a person
 answers.
 
 **With question sets** (`verification-go-on`): the stopping question when its
@@ -356,10 +353,11 @@ the pre-fix state rather than leaving a side file to carry the truth.
 
 **Summary.** The `headline` — the verdict, what was fixed and what is left; the
 total issues found, how many were fixed and how many remain by severity in
-`summary`. The fixes and risks follow § 6's fix loop, steps 1 and 9. When the
-loop ended undecided, the go-on choice is recorded as not taken (§ 6 step 10)
+`summary`. The fixes follow the fix loop (`<plugin root>/agents/verification-runner.md` § *The fix pass*) and the risks what it
+hands the gate (the engine's `references/gates.md` § *Before every gate — the gate brief*). When the loop ended undecided, the go-on choice is
+recorded as not taken (the engine's `references/in-node-questions.md` § *Findings that need a decision*)
 and `recommends` is `{option: null, reason}`.
-Unchecked work recommends no way on (§ 6 step 9): each done-when line of the
+Unchecked work recommends no way on (the engine's `references/gates.md` § *Before every gate — the gate brief*): each done-when line of the
 task the verification could not confirm with evidence is an `open` risk naming
 it, and `recommends` is `{option: null, reason}` saying how many; whether the
 suite ran the gate reads from `verification_context.suite_run` itself.
@@ -377,8 +375,8 @@ candidates file, and always runs.
 1. **Inventory the outputs**: the performance analysis, the requirements, the
    specification, the audit, the plan, the work log and the verification report.
    Nothing in this workflow is conditional, so an absent one is a defect to name.
-   `run-complete` checks the declared ones on disk (`orchestrator-patterns.md`
-   § 10); check by hand only a path a summary lists beyond them.
+   `run-complete` checks the declared ones on disk (the engine's *Recording an
+   outcome*); check by hand only a path a summary lists beyond them.
 2. **Present the executive summary**: which bottlenecks were found, which
    optimizations landed, the verification verdict with any issues left open, and
    whether the ranking rested on profiling data or on static analysis alone.
@@ -392,7 +390,7 @@ candidates file, and always runs.
    and effort
    `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude --state=<task path>/orchestrator-state.yml --node=finalization`
    prints,
-   `orchestrator-patterns.md` § 1): "Consolidate standard candidates.
+   the engine's `references/verbs.md` § *Model and effort on every agent call*): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]." It
    merges duplicates, matches each against what the project's standards and
    documents already hold, suggests a destination and returns each with its

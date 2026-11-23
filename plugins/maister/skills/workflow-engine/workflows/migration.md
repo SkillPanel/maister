@@ -273,7 +273,7 @@ an `open` risk with the fix as its `change`; a breaking change the
 specification chose is a `tradeoff` risk; an issue that predates the migration
 is a `followup` risk. **When the verdict failed and nothing in it is fixable,
 add a `stop` risk** saying why. Unchecked work recommends no way on
-(`orchestrator-patterns.md` § 6 step 9): each done-when line of the task the
+(the engine's `references/gates.md` § *Before every gate — the gate brief*): each done-when line of the task the
 verification could not confirm with evidence is an `open` risk naming it, and
 `recommends` is `{option: null, reason}` saying how many; whether the suite ran
 the gate reads from `verification_context.suite_run` itself.
@@ -286,7 +286,7 @@ on it.
 
 ## `issue-resolution`
 
-**Does.** Runs the fix loop of `orchestrator-patterns.md` § 6 on the
+**Does.** Runs the fix loop (`<plugin root>/agents/verification-runner.md` § *The fix pass*) on the
 verifier's issues, after showing the verdict, the counts by severity and the
 report's path from the project root. Once the data integrity question below is
 settled, invoke the verifier's hand-off (Skill tool,
@@ -348,7 +348,7 @@ two re-checks — nothing is asked and no extra round is taken. Every issue that
 needs a decision, and every risky fix, stays open as an `open` risk in this
 node's summary, and the loop ends as the `verification-go-on` line says. An
 issue still critical is **not** proceeded past: it is an `open` risk and a
-`stop` risk (§ 6 step 9), which the gate brief shows at `resolution-approval` — where a person
+`stop` risk (the engine's `references/gates.md` § *Before every gate — the gate brief*), which the gate brief shows at `resolution-approval` — where a person
 answers.
 
 **With question sets** (`verification-go-on`): the stopping question when its
@@ -366,7 +366,7 @@ state, never leave a side file to carry the truth.
 run recommends stopping; the issues found, fixed and remaining by severity in
 `summary`; an accepted data risk as a `tradeoff` risk, and the `stop` risk when
 the user chose to stop and roll back. When the loop ended undecided, the go-on
-choice is recorded as not taken (§ 6 step 10) and `recommends` is
+choice is recorded as not taken (the engine's `references/in-node-questions.md` § *Findings that need a decision*) and `recommends` is
 `{option: null, reason}`; with a critical issue left, the `stop` risk names the
 issue and `analysis/rollback-plan.md`, as "Stop here" does. Nothing rolls back
 automatically: the `stop` risk is the rollback recommendation, and
@@ -407,8 +407,9 @@ candidates file, and **always runs**.
    compatibility results. The migration guide is there only when the run was
    asked for one, and the dual-run plan only for a dual-run strategy — name each
    absent one as skipped rather than as missing, and every other absence as a
-   defect. Take the inventory from disk, not from state, as
-   `orchestrator-patterns.md` § 10 says.
+   defect. Take the inventory from disk, not from state: `run-complete` names a
+   declared artifact or page that never reached it, and any path a summary lists
+   beyond the declarations is checked too (the engine's *Recording an outcome*).
 2. **Present the executive summary**: what was migrated and to what, the
    strategy used, the verification verdict with any issues left open, whether
    the rollback procedure was tested and whether it is still available.
@@ -422,7 +423,7 @@ candidates file, and **always runs**.
    and effort
    `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude --state=<task path>/orchestrator-state.yml --node=finalization`
    prints,
-   `orchestrator-patterns.md` § 1): "Consolidate standard candidates.
+   the engine's `references/verbs.md` § *Model and effort on every agent call*): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]." It
    merges duplicates, matches each against what the project's standards and
    documents already hold, suggests a destination and returns each with its

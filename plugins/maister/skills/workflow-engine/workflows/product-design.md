@@ -46,8 +46,8 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
 
 **Does.**
 
-1. **Initialize** as the framework's *Initialization Steps* say. Set
-   `options.mockup_format` from `.maister/config.yml`, default `html`.
+1. **Read the project configuration**: set `options.mockup_format` from
+   `.maister/config.yml`, default `html`.
    `mockup_format` takes `html` or `ascii`; any other value is `html`, recorded
    as `html`, and the intake names the replaced value in one line of its summary.
 2. **Import research** the `research` input names: its report, synthesis and
@@ -74,8 +74,7 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    once. Then fan out two or three read-only agents in one message, through the
    Task tool with `subagent_type="Explore"`, and copy the two values the line
    prints into every call's `model` and `effort` fields, leaving out only a field
-   printed as `omit` (`orchestrator-patterns.md` § 1, *Model and Effort on Every
-   Agent Call*). A built-in agent carries none of this plugin's rules, so each
+   printed as `omit` (the engine's `references/verbs.md` § *Model and effort on every agent call*). A built-in agent carries none of this plugin's rules, so each
    prompt carries them:
    - the project root as an absolute path, and every file it names as an
      absolute path under that root;
@@ -411,7 +410,7 @@ built on it. This node does every part of the convergence except the choice:
 - an area with no recommendation is recorded the same way, its risk naming the
   alternatives to choose between and worded to whoever reads the gate
   ("<area>: you have not yet chosen between <A> and <B>"), never naming a role
-  as the one who decides (`orchestrator-patterns.md` § 7).
+  as the one who decides (the engine's *Speaking to the user*).
 
 **Writes.** `analysis/design-decisions.md`: the chosen approach and its
 rationale, the key decision per area, the trade-offs accepted, and the

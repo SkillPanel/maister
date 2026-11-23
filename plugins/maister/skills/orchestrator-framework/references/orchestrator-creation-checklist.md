@@ -53,6 +53,6 @@ Before considering a workflow complete, verify ALL items:
 
 ## Reference
 
-- **`orchestrator-patterns.md`** — Execution rules, schemas, and patterns
+- **`orchestrator-patterns.md`** — The gate rule (§ 2) and the artifact summary contract (§ 7); its index names where every other shared rule now lives — delegation, state, the verification block and companions are the workflow engine's `SKILL.md` and its references
 - **Existing workflows** — development, performance, migration, research and product-design are definitions under `workflow-engine/workflows/`; product-design is the example of a gate whose continues decide the route (`sets`) and whose convergence is left for a gate under a driver
 - **Library consumers** — `implementation-plan-executor` and `implementation-verifier` read and write the same state and artifacts without being orchestrators

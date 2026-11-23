@@ -41,7 +41,7 @@ or `inline`:
 - **`dispatch`** — dispatch the runner. First run `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs
   dispatch-model --agent=maister:implementation-runner --host=claude --state=<task path>/orchestrator-state.yml
   --node=<node>` and copy its `model` and `effort` into the call
-  (`../orchestrator-framework/references/orchestrator-patterns.md` § 1). One agent call, the only
+  (`../workflow-engine/references/verbs.md` § *Model and effort on every agent call*). One agent call, the only
   one in its message:
   - `subagent_type: maister:implementation-runner`, `description: Run the implementation waves`;
   - **`run_in_background: false`, set explicitly on every host.** Where the agent tool takes a

@@ -26,7 +26,7 @@ Every write goes through the `docs-operator` subagent, which preloads docs-manag
 
 For a project whose INDEX.md has grown long, been hand-edited or been merged badly — one command, run once, by the operator or for them.
 
-1. Invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before — `../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*, for every `docs-operator` call here):
+1. Invoke `docs-operator` via Task tool (subagent_type: `maister:docs-operator`, model and effort from `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude`, run just before — `../workflow-engine/references/verbs.md` § *Model and effort on every agent call*, for every `docs-operator` call here):
    > "Refresh INDEX.md with reshape. Check: [check path]. Rewrite every entry the check warns on and every structural failure, keep the entries that already follow the rules, bring the layout to the template, and return the check's result."
 2. Show what changed — entries rewritten, added and removed — and the check's result: no failures, and any warnings left. A `standards-file-over-guide` warning names a file to split: offer `/maister:standards-update "split <path>"` for each, and never split one here.
 

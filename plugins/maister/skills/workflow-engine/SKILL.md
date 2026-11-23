@@ -39,7 +39,7 @@ section of the guide.
 **Every delegate prompt carries the run's context, fetched**, in the turn that writes it:
 `run-context --state=<state> --node=<node>`, or `prior-context --node=<node>` where the delegate
 needs the earlier phases, pasted unedited — whole, never sliced, never a path or an earlier
-delegate's copy; `--background` for a document written for end users (framework § 3).
+delegate's copy; `--background` for a document written for end users.
 
 **Every state change goes through `write-state`** — never an editor tool on
 `orchestrator-state.yml` or the dashboard files, not even when a verb fails: a model-written state
@@ -53,7 +53,7 @@ brief, read it the first time in a session and again after a compaction, which d
 **A missing companion.** `companion-missing: <node> <path>` from `write-state`, or
 `companion-stale:` from it or from `gate-brief`, asks for one `html-companion-writer` run for that
 page, from the markdown as it reads now and before the next checkpoint — never a re-run of the
-node (`../orchestrator-framework/references/orchestrator-patterns.md` § 9).
+node (`references/writing-state.md` § *A missing or stale companion*).
 
 **`run-complete` is the last call** once nothing is left to run (*Operator visibility*).
 
@@ -247,7 +247,8 @@ run `RUN-FAILED`; a spent budget is the `has a budget` row's. **An outcome that 
 elsewhere is mapped, never judged**: a `workflow:` node's is its child's `task.status`
 (`references/sub-runs.md` § *Ending, and the re-resolve that precedes W4*), and a dispatched
 node's (`dir:`) its close-out grade, the held `partial` question included
-(`references/in-node-questions.md` § *A dispatch closed out partial*).
+(`references/in-node-questions.md` § *A dispatch closed out partial*). Any path a summary lists
+beyond the declarations, and a non-null `.html` beside it, is checked on disk too.
 
 ### Delegation by scheme
 
@@ -326,11 +327,12 @@ write nothing, create no task directory, print no marker.
 
 ## Starting a run
 
-### Step 1: Load framework patterns
+### Step 1: Read the node summary shape
 
-Read § 1–§ 4 of `../orchestrator-framework/references/orchestrator-patterns.md` now: delegation,
-phase gates, context passing and the state schema. Its § 7, § 9 and § 10 reach you through
-`run-context`, the companion lines and `run-complete`.
+Read `references/node-summaries.md` whole now: every closing write and every checkpoint depend on
+what each decision's `by` and each risk's tag mean. The summary contract reaches you through
+`run-context`, the companion lines through `write-state`, and the closing check through
+`run-complete`.
 
 ### Step 2: Probe the runtime, before writing anything
 
@@ -359,9 +361,10 @@ writer records how the run's subagents can delegate. If `validate` rejects the d
 with `RUN-FAILED:` and its first error; relay its warnings (`references/grammar.md` § 14).
 
 **The run directory** is `.maister/tasks/<type>/<YYYY-MM-DD-slug>/` under the project root:
-`<type>` is the workflow's name (migration's `migrations/` the one exception), the slug follows
-the task-name rule (`orchestrator-patterns.md` § 5), with `-2`, `-3` … when the name is taken,
-and it sits nowhere deeper. Never make it yourself: the freeze creates it, and a resume keeps the
+`<type>` is the workflow's name (migration's `migrations/` the one exception), the slug is 3–5
+key words of the description in lowercase kebab-case after the date
+(`2025-12-17-fix-login-timeout`), with `-2`, `-3` … when the name is taken, and it sits nowhere
+deeper. Never make it yourself: the freeze creates it, and a resume keeps the
 one it has.
 
 **The freeze patch carries, and nothing else:**

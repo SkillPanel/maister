@@ -46,7 +46,7 @@ Leaving without changes is the Other answer: stop.
 
 ## PHASE 2: Project Analysis
 
-Invoke `project-analyzer` subagent via the Task tool, with the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:project-analyzer --host=claude` prints just before (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*; each `docs-operator` call below runs it the same way, with `--agent=maister:docs-operator`).
+Invoke `project-analyzer` subagent via the Task tool, with the model and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:project-analyzer --host=claude` prints just before (`../workflow-engine/references/verbs.md` § *Model and effort on every agent call*; each `docs-operator` call below runs it the same way, with `--agent=maister:docs-operator`).
 
 **The analyzer runs whatever the project's size.** The analysis is its work: never inspect the codebase in its place, and a small, simple or familiar project is no reason to. Phase 3's confirmation is built from its report, and the same holds for standards-discover's subagents in Phase 8.
 

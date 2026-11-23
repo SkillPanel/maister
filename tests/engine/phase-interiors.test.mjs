@@ -273,9 +273,13 @@ test('neither phase-interior skill writes dashboard-data.js by hand', () => {
     assert.doesNotMatch(text, handWrite, `${skill} instructs a hand write of the dashboard`);
     assert.match(text, /write-state/, `${skill} names the engine route`);
   }
-  const patterns = fs.readFileSync(path.join(SKILLS, 'orchestrator-framework/references/orchestrator-patterns.md'), 'utf8');
-  const dashboard = patterns.slice(patterns.indexOf('## 8. Operator Dashboard'), patterns.indexOf('## 9. HTML Companion Reports'));
-  assert.match(dashboard, /the projection is the file's only writer/, 'the framework names the projection as the only writer');
-  const rows = dashboard.split('\n').filter(line => /^\| \d+ \|/.test(line));
+  const engine = fs.readFileSync(path.join(SKILLS, 'workflow-engine/SKILL.md'), 'utf8');
+  const start = engine.indexOf('## Operator visibility');
+  assert.notEqual(start, -1, 'the engine has its Operator visibility section');
+  const visibility = engine.slice(start, engine.indexOf('\n## ', start + 1));
+  assert.doesNotMatch(visibility, handWrite, 'the engine instructs no hand write of the dashboard');
+  const rows = visibility.split('\n').filter(line => /^\| \d+ \|/.test(line));
   assert.deepEqual(rows, [], 'no table assigns a dashboard rewrite moment to anyone');
+  const state = fs.readFileSync(path.join(SKILLS, 'workflow-engine/references/writing-state.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.match(state, /the projection is the file's only writer/, 'the state writer\'s rules name the projection as the only writer');
 });

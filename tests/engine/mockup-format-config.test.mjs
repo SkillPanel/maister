@@ -39,12 +39,12 @@ test('the user docs list the scope format for a turn and keep the config to html
   assert.match(row, /per turn/);
 });
 
-test('the framework patterns and init keep html and ascii as the only config values', () => {
-  const patterns = read(PLUGIN, 'orchestrator-framework/references/orchestrator-patterns.md');
+test('the state writer\'s configuration and init keep html and ascii as the only config values', () => {
+  const state = read(ENGINE_DIR, 'references/writing-state.md');
   const init = read(PLUGIN, 'init/SKILL.md');
-  assert.match(patterns, /mockup_format: html \| ascii /);
-  assert.match(patterns, /`mockup_format` \| `html` \|/);
+  assert.match(state, /Takes only these two values: a written scope is chosen per turn, never here/);
+  assert.match(state, /`mockup_format` \| `html` \|/);
   assert.match(init, /mockup_format: html/);
   assert.match(init, /`format: scope`/);
-  assert.doesNotMatch(patterns, /mockup_format: html \| ascii \| scope/);
+  assert.doesNotMatch(state, /mockup_format: html \| ascii \| scope/);
 });

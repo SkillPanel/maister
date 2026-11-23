@@ -94,7 +94,7 @@ If combining roles into one agent, also read `references/combined.md` for mergin
 
 **3c. Launch agents** — Use the Task tool with `subagent_type="Explore"` — one call per selected role, all in ONE message.
 
-**Model and effort:** just before the launch, run `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=Explore --host=claude` once — inside a workflow run add `--state=<task_path>/orchestrator-state.yml --node=<the node under way>` — and give every call the model and effort it prints (`../orchestrator-framework/references/orchestrator-patterns.md` § 1, *Model and Effort on Every Agent Call*).
+**Model and effort:** just before the launch, run `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=Explore --host=claude` once — inside a workflow run add `--state=<task_path>/orchestrator-state.yml --node=<the node under way>` — and give every call the model and effort it prints (`../workflow-engine/references/verbs.md` § *Model and effort on every agent call*).
 
 **IMPORTANT**: Every Explore agent prompt MUST include this instruction:
 > IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
