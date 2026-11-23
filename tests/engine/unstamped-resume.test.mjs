@@ -73,7 +73,8 @@ test('a part-way record is reported ahead of any verdict, and never finished', (
   assert.ok(part > words.indexOf('**No `gate`:**'));
   assert.ok(words.includes('Never finish it or repair it.'));
   assert.ok(words.includes('`answer-block` and `node-completed`'), 'the report\'s description names both');
-  assert.ok(flat(SKILL).includes('`part_recorded` only when the run\'s record is part-way through'));
+  assert.ok(flat(GATES).includes('`part_recorded` only when the run\'s record is part-way through'));
+  assert.ok(!SKILL.includes('part_recorded'), 'the report\'s fields have one home, in gates.md');
 });
 
 test('a session is sent to the verb first, and on a person\'s words records nothing at all', () => {

@@ -555,12 +555,26 @@ transitively — because nothing else has run by then. A reference to anything e
 outside the closure, and a `${` that never closes are all errors. There is nothing to substitute
 in an artifact path, a `when` (which has its own form) or `uses`.
 
-How the engine substitutes, including what a skipped node's value becomes and how a child run's
-outputs are joined back, is engine § *Interpolating `${…}`*. The rule an author needs from it:
-a string that is exactly one reference takes the value as it is, while a reference inside longer
-text becomes text and a null becomes empty. **Do not interpolate a value a skipped node may have
-left null** into a node that still runs — have that node's prose read the value from state
-instead, where its absence is visible.
+**How the engine substitutes.** Before a node runs, the driver fills in every `${…}` of its
+`with:` and `dir:` from the run's state, never from a recollection of it, and `node-brief` prints
+both filled in:
+
+| Reference | Resolves to |
+|---|---|
+| `${inputs.<name>}` | `orchestrator.options.inputs.<name>`; else the input's declared `default`; else null |
+| `${<node>.values.<key>}` | the value the node recorded in `workflow.nodes.<node>.values`. A skipped node recorded its bools false and its strings and enums null |
+| `${<node>.artifacts.<key>}` | the path the node declares, joined onto the task directory of the run that wrote it and spelled repository-root-relative (`references/writing-state.md` § *Recording an outcome — the detail*). A node with `dir:` declares a member repository's path: a dispatch envelope reads it in that dispatch's worktree once its close-out is published; one that also runs a `workflow:` is read at the path its worker's close-out lists for the key, in that worktree (the umbrella skill, `seed`) |
+
+**A value keeps its type when the reference is the whole string.** `with: {deep:
+"${intake.values.deep}"}` hands over the bool `true`, and a null stays null. A reference inside
+longer text becomes text, and a null there becomes empty. **Do not interpolate a value a skipped
+node may have left null** into a node that still runs — have that node's prose read the value
+from state instead, where its absence is visible.
+
+**The sub-run join.** A `workflow:` node's own `with:` is interpolated first, and the result is
+what the child freezes as its inputs (W2, `references/sub-runs.md`). Once the parent has adopted
+the child's outcome (W4), `${<node>.values.<key>}` is the value W4 copied onto the node, and
+`${<node>.artifacts.<key>}` the child's declared path joined onto the node's `values.task_path`.
 
 ## 10. Reserved and retired keys
 

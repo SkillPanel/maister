@@ -518,7 +518,7 @@ takes:
 | A loop offering another pass | the accept-as-is exit — the pass the loop would have added is not taken, and the following gate is the operator's route back |
 | A finding that needs a decision (a review step's finding questions) | nothing is asked; each finding stays open as an `open` risk for the gate, unless the policy classes it |
 | The automatic fix loop's stopping point | When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is". |
-| An exhausted recovery budget | the node is recorded `failed`, per engine § *Recording an outcome* |
+| An exhausted recovery budget | the node is recorded `failed`, per the engine's *Node conventions*, `has a budget` row |
 | A dispatch closed out partial (*A dispatch closed out partial*) | "Stop the run" — the node, every unexecuted node and the run are recorded `stopped`, and the summary carries what is held as an `open` risk; the work is never accepted and never dispatched again unasked |
 
 `(Recommended)` appears once per question, on the recommended option, whose description (or,
@@ -558,8 +558,8 @@ unrecorded decision outstanding.
 
 ## When the policy classes a question
 
-**The fact.** When the freeze recorded `orchestrator.classes_questions: true` (engine Step 4),
-the autonomy policy the run applies classes in-node questions too, and one step comes first.
+**The fact.** When the freeze recorded `orchestrator.classes_questions: true`
+(`references/writing-state.md` § *What the freeze write adds*), the autonomy policy the run applies classes in-node questions too, and one step comes first.
 Without it — always under the built-in default — skip this subsection.
 
 **The classing write.** At its asking point, before it asks anything or suspends, the node sends

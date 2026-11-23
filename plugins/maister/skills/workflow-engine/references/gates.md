@@ -53,10 +53,10 @@ Send the answer only**: never compose provenance stamps, triage, settlement or a
     `default` that carries it is refused with `state-on-behalf-of-not-operator`.
   - The dashboard shows such an answer as "<on_behalf_of> (via <answered_by>)".
   - An answer without `on_behalf_of` is recorded as it always was.
-- **Triage**, under a policy that classifies the gate (engine Step 4) and whose hash is the run's
-  recorded `policy_hash`: the writer adds `triage` to the answer item, and right after it one
-  settlement item per value the chosen continue `sets`; the gate's answer is still its last
-  decision with an `option`.
+- **Triage**, under a policy that classifies the gate (`references/writing-state.md` § *What
+  the freeze write adds*) and whose hash is the run's recorded `policy_hash`: the writer adds
+  `triage` to the answer item, and right after it one settlement item per value the chosen
+  continue `sets`; the gate's answer is still its last decision with an `option`.
 - **Approvals.** A continue at a gate — or at `held-approval` — while choices are held for
   approval (`references/in-node-questions.md` § *When the policy classes a question*) approves
   every one of them: the writer records one approval item per held choice. A held question with
@@ -681,9 +681,8 @@ after one of these:
   `run-complete`, which ends the run `RUN-FAILED: run-held-unapproved`. Only a completed run is
   judged for held choices; a failed one would end on a failed-node marker and hide them.
 
-A revise publishes nothing: the stretch, the closing node included, runs again. `run-complete`
-judges held choices before the close-out, so a close-out published too early never ends such a
-run `RUN-COMPLETE`.
+`run-complete` judges held choices before the close-out, so a close-out published too early
+never ends such a run `RUN-COMPLETE`.
 
 ## Revising at a gate
 
@@ -769,8 +768,8 @@ had been continue.
 **For a held choice.** While choices are held for approval, a frozen gate offers, beside its own
 options, one `revise-<node>` for each node holding a choice that sits behind it (in its needs
 closure) and that none of its own revises already re-runs — its note required, never
-recommended except under the no-choice rule (engine § *The ready set*). Its stretch, count and
-ceiling are the gate's own; it is not offered at the ceiling, when its id is one of the gate's
+recommended except under the no-choice rule (*The closing checkpoint `held-approval`*). Its
+stretch, count and ceiling are the gate's own; it is not offered at the ceiling, when its id is one of the gate's
 own options, or when its stretch holds a sub-run that has started. `gate-revise
 --node=<gate> --option=revise-<node>` applies it like any revise. It approves nothing; the other
 held choices stay held for the next continue.
@@ -778,7 +777,8 @@ held choices stay held for the next continue.
 **At `held-approval`.** The closing checkpoint has a revise rule of its own: `revise-<node>` names a
 node that holds a choice, and its stretch is that node and every frozen node downstream of it,
 the closing node included, all reset in one write; a run already recorded `completed` goes back to
-`in_progress`, and the checkpoint back to `pending`. Its revision count is the revises already
+`in_progress`, and the checkpoint back to `pending`. In a dispatched run a revise publishes nothing:
+the stretch, the closing node included, runs again. Its revision count is the revises already
 recorded on `node_summaries.held-approval`, plus one, against the same safety ceiling of ten. The note
 reaches the re-run node through `prior-context`, as any revise's does. The refusals below hold
 for it too: an option naming no node that holds a choice, the checkpoint not current — another

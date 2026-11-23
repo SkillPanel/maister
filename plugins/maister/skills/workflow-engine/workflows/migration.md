@@ -6,8 +6,8 @@ per-node context in `with:` to whatever the node names.
 
 ## `intake`
 
-**Does.** Validates the invocation, establishes the task directory and the
-state file, and settles the HTML output option later nodes read.
+**Does.** Validates the invocation and settles the HTML output option later
+nodes read.
 
 1. **Capture the clock** through the shell, not from context. Every timestamp
    written this turn uses that one value.
@@ -17,8 +17,8 @@ state file, and settles the HTML output option later nodes read.
    `RUN-FAILED` with no further node run. A valid value is written to
    `migration_context.migration_type` and carried unchanged into the gap
    analysis.
-3. **Create and initialize** the task directory under the `migrations/` type
-   directory and its state file, with the task description.
+3. **Create no task directory.** The freeze made it under the `migrations/`
+   type directory, with its state file inside (engine Step 4).
 4. **Read the project configuration** and set `options.html_output` (default
    true when the file or the key is absent). When `html_output` is false, skip
    the dashboard entirely — no dashboard asset, no data projection. Otherwise

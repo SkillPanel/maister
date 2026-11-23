@@ -42,13 +42,24 @@ test('json route: the engine skill shows the here-string first, its command star
 });
 
 // Copilot's permission rules match one command, so a chained line is offered
-// only a dismissal: every command a run issues stands alone on its line, and the
-// JSON routes the skill documents — the here-string and the pipe — are kept.
-test('json route: every other command is one per line, never chained, and the JSON routes stay documented', () => {
+// only a dismissal: every command a run issues stands alone on its line. The
+// engine still reads a piped document, but the skill teaches the here-string
+// alone: a command opening with `echo` no longer starts with the engine path.
+test('json route: every other command is one per line, never chained, and no pipe route is taught', () => {
   const text = read(SKILL).replace(/\s+/g, ' ');
   assert.ok(text.includes('Every other command a run issues follows the same rule: one command per line, never several chained with `&&`, `;` or `|`'), 'the one-command rule is stated');
-  assert.ok(text.includes('The here-string and the pipe below are the documented routes for a verb\'s JSON and stay as they are.'), 'the JSON routes are excepted');
-  assert.ok(text.includes("A pipe (`echo '<json>' |` in front) is accepted too"), 'the pipe route is still documented');
+  assert.ok(!text.includes("A pipe (`echo '<json>' |` in front)"), 'the pipe route is no longer taught');
+});
+
+// The contract's own command is spelled with the plugin root it tells the
+// session to write, never through the variable it forbids, and states no verb
+// count for the verbs reference to contradict.
+test('json route: the invocation contract spells the plugin root, counts no verbs and names what exit 2 covers', () => {
+  const text = read(SKILL);
+  assert.ok(!text.split('\n').some(line => line.startsWith('node ${CLAUDE_PLUGIN_ROOT}')), 'no command line opens with the variable');
+  assert.ok(text.includes('`node <plugin root>/skills/workflow-engine/scripts/workflow.mjs <verb> [flags]`'), 'the command is spelled with the plugin root');
+  assert.ok(!/\btwenty-\w+ verbs\b/.test(text), 'no verb count');
+  assert.ok(text.replace(/\s+/g, ' ').includes('a malformed call (`usage:`) or a tooling fault (`workflow:`)'), 'exit 2 names both of its lines');
 });
 
 test('json route: the engine skill, its references and the five guides carry no heredoc instruction', () => {

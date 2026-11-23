@@ -42,7 +42,7 @@ author sees first, the refusals are what fail a run.
 
 | Moment | The write | What it carries |
 |---|---|---|
-| **W1 — the node starts** | `write-state` against the **parent** state | `nodes.<node>`: `kind: workflow`, `status: running`. The writer stamps `started`. It refuses `state-subrun-held-open` while a step the node follows holds a question with no choice yet: settle it first (the engine skill, *The ready set*), since no revise can re-run that step once the child has run |
+| **W1 — the node starts** | `write-state` against the **parent** state | `nodes.<node>`: `kind: workflow`, `status: running`. The writer stamps `started`. It refuses `state-subrun-held-open` while a step the node follows holds a question with no choice yet: settle it first (`references/gates.md` § *The closing checkpoint `held-approval`*), since no revise can re-run that step once the child has run |
 | — | *no write* | run `subrun-path` for the node (checks 1–3 and the child's directory), interpolate `with:`, run checks 4 and 5, create the directory it prints unless it reports `existing: adopt`, `validate` and `resolve` the child definition |
 | **W2 — the child freezes** | one `write-state` against the **child** state, with `--host=claude` as every freeze names it (engine Step 4) | `task` (title, description, status `in_progress`, and `task.key` when the child marks a tracker key input); `workflow` (`source`, `overlays`, `profile`, `graph_hash` exactly as `resolve` printed it, `grammar_version`, `name`) **together with** its `nodes`; `orchestrator.options.inputs` (the interpolated `with:`, plus `embedded: true` when the child declares that input); `orchestrator.driver` (`{kind: terminal}`); `orchestrator.parent` (`{run, node}`, exactly as `subrun-path` printed it as `parent`: `run` is the parent's directory relative to the project root, never its bare run id, and a freeze sending anything outside `.maister/` is refused `state-patch-invalid`); `orchestrator.completed_phases` and `orchestrator.failed_phases`, both `[]`, which the writer seeds at the top of the block when the patch omits them; and `orchestrator.created`, which the writer stamps from its own clock when the patch omits it, as it does at any run's freeze — a driver drives no run without one. `updated` is the writer's own: it stamps it *after* applying the patch, by the same append rule that lands a key the region does not already carry at the end of it, so the block ends with `updated` below `parent`. A child's freeze is necessarily that run's first write: a state file carrying no `workflow:` block is refused `state-incomplete`, so there is no initialise-first, freeze-second two-step to spread it over. Its output opens with a line saying not to relay the banner: the parent never relays it, and its walk goes on. |
 | **W3 — the parent records the link** | `write-state` against the **parent** state | `nodes.<node>`: `status: waiting`, `values: {task_path, run_id}`, both exactly as `subrun-path` printed them. From here on every write to the child is held to that `task_path`: a child state in any other directory is refused `state-subrun-path-mismatch`. A freeze sent before W3 is held to the task-directory shape instead — `.maister/tasks/<type>/<name>` under the project root — so a child frozen beside another kind of run, or inside its parent's directory, is refused the same way |
@@ -72,7 +72,9 @@ engine skill, *Sub-runs*). A dispatched cockpit parent that lists it passes it o
 
 Then, and only then:
 
-4. `WAITING-SUBRUN: <node> run=<child-run-id>` is printed as the **last** line of the turn;
+4. `WAITING-SUBRUN: <node> run=<child-run-id>` is printed as the **last** line of the turn,
+   whole: node id first, `run=` second, nothing before or after it, and the marker carries no
+   `at=`;
 5. the turn ends. Nothing polls, nothing waits, no session is left idle.
 
 **`WAITING-SUBRUN` is typed by the driver, and no verb emits it.** The engine's other two closing
