@@ -132,6 +132,8 @@ With "Apply all N", every recommended candidate is chosen; after "Go through the
 
 A candidate writes its home when `home` is not null and `home.held` is false; otherwise it only removes. When nothing was chosen, no call is made.
 
+Compose the edits yourself, from the report you already hold: in the call's own text, or, when the set is long, with the file tool as `built-in-standard-edits.md` beside the list file, which the call then names to read. Never build them with a shell heredoc or an inline interpreter (`python3 -c`, `node -e`, a `<<` here-document): the host flags such a command as one it cannot read, and an unattended run blocks on it.
+
 ### BUILT-IN STEP 5: The verb again, then the edited candidates
 
 After the apply, or straight away when nothing was recommended or chosen, run the verb again with the same flags, handling a refusal and an exit 2 as in Step 1. Its `recommended: false` candidates are asked one at a time, four to a page, in report order, each never recommended:

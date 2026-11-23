@@ -148,6 +148,13 @@ test('standards prompts: init\'s update path asks the built-in review offer in a
   assert.ok(offer.includes('never a question in the survey\'s call or on one of its pages'), 'the offer is never merged into the survey');
 });
 
+test('standards prompts: the built-in edits for docs-operator are composed in the call or with the file tool, never by a shell script', () => {
+  const update = read('skills/standards-update/SKILL.md');
+  const step = slice(update, '### BUILT-IN STEP 4', '### BUILT-IN STEP 5', 'standards-update');
+  assert.ok(step.includes('in the call\'s own text, or, when the set is long, with the file tool as `built-in-standard-edits.md` beside the list file'), 'composed in the call or with the file tool');
+  assert.ok(step.includes('Never build them with a shell heredoc or an inline interpreter'), 'never a heredoc or an inline interpreter');
+});
+
 test('standards prompts: init\'s summary names each recommended group that was not copied with its discover command', () => {
   const init = read(INIT);
   assert.ok(init.includes('Store the selection for Phase 5, and the groups the resolver recommended for Phase 7\'s summary.'), 'Phase 4 keeps the recommended set');
