@@ -1,10 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 
-import { ROOT, run, variantRoot } from '../helpers.mjs';
+import { ROOT, run, scratchTree, snapshot, variantRoot } from '../helpers.mjs';
 
 // The standards groups resolver, run as a child process the way init's Phase 4
 // and its update survey run it: from a scratch project root, the JSON report
@@ -16,17 +15,6 @@ const RESOLVER = path.join(DOCS_MANAGER, 'scripts/standards.mjs');
 const TABLE = path.join(DOCS_MANAGER, 'docs/standards-groups.json');
 const BUNDLED = path.join(DOCS_MANAGER, 'docs/standards');
 const ANALYZER = path.join(ROOT, 'plugins/maister/agents/project-analyzer.md');
-
-/** A scratch project root holding `files` (path → content); removed when the test ends. */
-function scratch(t, files = {}) {
-  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maister-standards-')));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  for (const [rel, content] of Object.entries(files)) {
-    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
-    fs.writeFileSync(path.join(root, rel), content);
-  }
-  return root;
-}
 
 /** Run `groups` with `args` from `root`; the report parsed when stdout holds one. */
 function groups(root, args = [], verb = ['groups']) {
@@ -50,22 +38,8 @@ function resolve(root, args) {
 
 const ids = list => list.map(each => each.id);
 
-/** Every file under `dir`, `/`-separated and relative, with its bytes. */
-function snapshot(dir) {
-  const found = {};
-  const walk = rel => {
-    for (const dirent of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
-      const child = rel === '' ? dirent.name : `${rel}/${dirent.name}`;
-      if (dirent.isDirectory()) walk(child);
-      else found[child] = fs.readFileSync(path.join(dir, child)).toString('base64');
-    }
-  };
-  walk('');
-  return found;
-}
-
 test('the five kinds of app and a mobile app each get their own groups', t => {
-  const root = scratch(t);
+  const root = scratchTree(t);
 
   const library = resolve(root, ['--kind=library']);
   assert.deepEqual(ids(library.recommended), ['global', 'testing']);
@@ -102,7 +76,7 @@ test('the five kinds of app and a mobile app each get their own groups', t => {
 });
 
 test('a native mobile app outranks the web UI signal its template carries, unless a web shell or a desktop app says otherwise', t => {
-  const root = scratch(t);
+  const root = scratchTree(t);
 
   const reactNative = resolve(root, ['--kind=mobile', '--ui=native', '--signals=native-mobile,web-ui']);
   assert.ok(ids(reactNative.recommended).includes('mobile'));
@@ -127,7 +101,7 @@ test('a native mobile app outranks the web UI signal its template carries, unles
 });
 
 test('a monorepo gets the union of its apps, with no precedence', t => {
-  const root = scratch(t);
+  const root = scratchTree(t);
   const report = resolve(root, ['--monorepo', '--signals=web-ui,native-mobile,server']);
   assert.equal(report.monorepo, true);
   assert.deepEqual(ids(report.recommended), ['global', 'testing', 'frontend', 'backend', 'mobile']);
@@ -135,7 +109,7 @@ test('a monorepo gets the union of its apps, with no precedence', t => {
 });
 
 test('a profile field left out removes no group another alternative selects', t => {
-  const root = scratch(t);
+  const root = scratchTree(t);
 
   assert.ok(ids(resolve(root, ['--signals=server']).recommended).includes('backend'));
   assert.ok(ids(resolve(root, ['--kind=library', '--signals=database']).recommended).includes('data'));
@@ -154,7 +128,7 @@ test('a profile field left out removes no group another alternative selects', t 
 });
 
 test('the groups on disk: the written profile, older setups, the project\'s own folders and another standards tree', t => {
-  const root = scratch(t, {
+  const root = scratchTree(t, {
     '.maister/config.yml': 'project:\n  kind: service\n  data: [postgres]\n  runtime: node 20\n',
     '.maister/docs/standards/global/coding-style.md': '# Coding style\n',
     '.maister/docs/standards/backend/models.md': '# Models\n',
@@ -182,7 +156,7 @@ test('the groups on disk: the written profile, older setups, the project\'s own 
   assert.deepEqual(report.warnings, []);
 
   // A folder of its own beside the pre-change files: held by the folder, both paths listed.
-  const both = scratch(t, {
+  const both = scratchTree(t, {
     'standards/data/schema.md': '# Schema\n',
     'standards/backend/migrations.md': '# Migrations\n',
     'standards/cli tools/deep/notes.md': '# Notes\n',
@@ -194,14 +168,14 @@ test('the groups on disk: the written profile, older setups, the project\'s own 
   assert.ok(!ids(other.present).includes('payments'));
 
   // A block holding only fields the resolver does not read still came from the config.
-  const runtimeOnly = scratch(t, { '.maister/config.yml': 'project:\n  runtime: python 3.12\n' });
+  const runtimeOnly = scratchTree(t, { '.maister/config.yml': 'project:\n  runtime: python 3.12\n' });
   assert.deepEqual(resolve(runtimeOnly, []).profile, { source: 'config', fields: {} });
 
   assert.deepEqual(snapshot(root), before);
 });
 
 test('every refusal exits 1 with its code, and the edge values mean what the contract says', t => {
-  const root = scratch(t);
+  const root = scratchTree(t);
   const refused = (args, code, verb) => {
     const result = groups(root, args, verb);
     assert.equal(result.code, 1, `${args.join(' ')}: exit ${result.code}: ${result.stderr}`);
@@ -230,11 +204,11 @@ test('every refusal exits 1 with its code, and the edge values mean what the con
   assert.ok(!ids(none.recommended).includes('data'));
 
   // --root names the project from anywhere.
-  const elsewhere = scratch(t);
+  const elsewhere = scratchTree(t);
   assert.equal(resolve(elsewhere, [`--root=${root}`]).standards_dir, path.join(root, '.maister', 'docs', 'standards'));
 
   // A project: key that is not a map is a warning, never a refusal.
-  const notMap = scratch(t, { '.maister/config.yml': 'project: service\n' });
+  const notMap = scratchTree(t, { '.maister/config.yml': 'project: service\n' });
   const report = resolve(notMap, []);
   assert.deepEqual(report.profile, { source: 'none', fields: {} });
   assert.equal(report.warnings.length, 1);
@@ -265,7 +239,7 @@ test('the group table holds together with the bundled standards and the analyzer
 });
 
 test('the Copilot build ships a resolver that prints the source\'s report', t => {
-  const root = scratch(t);
+  const root = scratchTree(t);
   const args = ['groups', '--kind=mobile', '--ui=native', '--data=sqlite', '--signals=native-mobile,database'];
   const source = run(RESOLVER, args, undefined, {}, root);
   const built = run(path.join(variantRoot(), 'skills/docs-manager/scripts/standards.mjs'), args, undefined, {}, root);
@@ -280,7 +254,7 @@ test('the Copilot build ships a resolver that prints the source\'s report', t =>
 });
 
 test('the data list is trimmed, drops empty items and folds case: only files-only data selects no data group', t => {
-  const root = scratch(t);
+  const root = scratchTree(t);
   const padded = resolve(root, ['--kind=library', '--data= SQLite , ,']);
   assert.deepEqual(padded.profile.fields.data, ['SQLite']);
   assert.deepEqual(padded.recommended.find(each => each.id === 'data')?.reasons, [{ field: 'data', value: ['SQLite'] }]);

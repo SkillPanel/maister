@@ -313,6 +313,16 @@ try {
   check('the standards groups resolver takes empty list values on every shell: no data group',
     libraryGroups.code === 0 && libraryReport?.ok === true && !(libraryReport.recommended ?? []).some(each => each.id === 'data')
       && Array.isArray(libraryReport.profile?.fields?.data) && libraryReport.profile.fields.data.length === 0, show(libraryGroups));
+  // The two-word verb reaches the script as two words on every shell: the call line holds it unquoted, as the other verbs' call lines do.
+  const addedGroup = call('built-in candidates', ['--add-groups="cli"'], null, standardsResolver);
+  const addedReport = json(addedGroup.stdout);
+  check('the standards built-in candidates verb adds the cli group from its flag and proposes cli/output.md',
+    addedGroup.code === 0 && addedReport?.ok === true && JSON.stringify(addedReport.groups?.adding) === '["cli"]'
+      && (addedReport.candidates ?? []).some(each => each.action === 'add' && each.home?.path === 'cli/output.md'), show(addedGroup));
+  const noGroupAdded = call('built-in candidates', ['--add-groups=""'], null, standardsResolver);
+  const noGroupReport = json(noGroupAdded.stdout);
+  check('the standards built-in candidates verb takes an empty add-groups value on every shell: no group added',
+    noGroupAdded.code === 0 && noGroupReport?.ok === true && JSON.stringify(noGroupReport.groups?.adding) === '[]', show(noGroupAdded));
 
   // --- standards discovery's checks -------------------------------------------
   // The findings check takes a scanner's file by a path holding a space; the

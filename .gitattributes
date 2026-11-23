@@ -9,3 +9,4 @@
 *.log  text eol=lf
 tests/fixtures/decision-areas/**/*.md text eol=lf
 tests/fixtures/runs/team-calendar-sharing/analysis/alternatives.md text eol=lf
+tests/fixtures/standards-2.2/**/*.md text eol=lf
