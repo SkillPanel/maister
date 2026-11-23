@@ -132,6 +132,15 @@ test('standards prompts: the plan template and its checklist name standards file
   assert.match(planner, /Standards Compliance names files for every group, never a folder/, 'the checklist says files, never a folder');
 });
 
+test('standards prompts: init\'s "Choose individually" offers "None of these" and takes an empty selection as an answer', () => {
+  const init = read(INIT);
+  const phase = slice(init, '"Choose individually": offers every group', 'Nothing is written in this phase.', 'init');
+  assert.ok(phase.includes('The first question of the first page also offers "None of these", described as no group beyond global and testing'), 'the first page offers None of these');
+  assert.ok(phase.includes('An empty selection is an answer: every question left blank, or "None of these", means no group beyond global and testing.'), 'an empty selection is global and testing only');
+  assert.ok(phase.includes('never ask again in prose'), 'an empty selection is never asked again in prose');
+  assert.ok(phase.includes('`const` `none` and `title` "None of these"'), 'the plain picker carries the option too');
+});
+
 test('standards prompts: init\'s summary names each recommended group that was not copied with its discover command', () => {
   const init = read(INIT);
   assert.ok(init.includes('Store the selection for Phase 5, and the groups the resolver recommended for Phase 7\'s summary.'), 'Phase 4 keeps the recommended set');
