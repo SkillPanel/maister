@@ -182,9 +182,11 @@ validate:
 	@for n in $$(grep -rhoE '/maister:[A-Za-z0-9_-]+.?' "$(VARIANT)" --include="*.md" | grep -v ':$$' | sed -E 's#^/maister:([A-Za-z0-9_-]+).*#\1#' | sort -u); do \
 	  test -f "$(VARIANT)/commands/$$n.md" || test -f "$(VARIANT)/skills/$$n/SKILL.md" || { echo "FAIL: /maister:$$n names no command or skill"; exit 1; }; \
 	done
-	@echo "Checking every other maister:<name> names an agent (a bare skill name has no prefix)..."
+	@echo "Checking every other maister:<name> names an agent (a bare skill name has no prefix), or a skill an agent preloads..."
 	@for n in $$(grep -rhoE '(^|[^/A-Za-z0-9_-])maister:[A-Za-z0-9_-]+' "$(VARIANT)" --include="*.md" --include="*.json" --include="*.mjs" --include="*.yml" | sed -E 's#.*maister:##' | sort -u); do \
-	  test -f "$(VARIANT)/agents/$$n.md" || { echo "FAIL: maister:$$n names no agent; the build leaves a skill bare"; exit 1; }; \
+	  test -f "$(VARIANT)/agents/$$n.md" \
+	    || { test -f "$(VARIANT)/skills/$$n/SKILL.md" && grep -qxE "[[:space:]]+-[[:space:]]+maister:$$n[[:space:]]*" "$(VARIANT)"/agents/*.md; } \
+	    || { echo "FAIL: maister:$$n names no agent; the build leaves a skill bare"; exit 1; }; \
 	done
 	@echo "Checking gate markers are not nested inside code spans..."
 	@! grep -rnF '`→ **MANDATORY GATE** — fires ' plugins/maister/skills/ 2>/dev/null || (echo "FAIL: gate marker nested inside a code span" && exit 1)

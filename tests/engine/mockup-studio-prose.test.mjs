@@ -136,3 +136,12 @@ test('the visual companion names the three start-page targets', () => {
   assert.match(text, /versions\/<latest>\/scope\.md` when it has no `index\.html`/);
   assert.match(text, /and otherwise to `versions\/<latest>\/index\.html`/);
 });
+
+test('a close names the grounding pack uncommitted only after git status lists a path under it', () => {
+  const read = file => fs.readFileSync(path.join(PLUGIN, file), 'utf8').replace(/\r\n/g, '\n').replace(/\s+/g, ' ');
+  const check = /only when `git status --porcelain -- <grounding>`/;
+  assert.match(read('skills/mockup-studio/SKILL.md'), check);
+  assert.match(read('skills/mockup-studio/SKILL.md'), /never repeated without that check/);
+  assert.match(read('skills/workflow-engine/workflows/mockup-studio.md'), check);
+  assert.match(read('skills/mockup-studio/references/grounding-pack.md'), /only while `git status --porcelain -- <grounding>` still lists a path under the pack/);
+});

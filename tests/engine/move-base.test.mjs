@@ -150,6 +150,97 @@ test('move-base: a HEAD that is not a merge moves the base to HEAD, and --to nam
   assert.ok(named.stdout.endsWith(`\nmoved: ${was} → ${tip} (--to)\n`), named.stdout);
 });
 
+/**
+ * A run frozen on a commit of the branch's own — the usual case, the branch
+ * past its fork point — then the default branch moved on by three files and
+ * merged in. The run's work in `src/app.mjs` is left uncommitted, or, with
+ * `runCommits`, committed once between the freeze and the merge.
+ */
+function onBranchCommit(t, { runCommits = false } = {}) {
+  const run = gitScratch(t, FILES);
+  git(run.root, ['checkout', '-q', '-b', 'feature']);
+  write(run, 'src/early.mjs', 'export const early = 1;\n');
+  git(run.root, ['add', 'src']);
+  git(run.root, ['commit', '-q', '-m', 'the branch before the run']);
+  freeze(run);
+  write(run, 'src/app.mjs', 'export const a = 2;\n');
+  if (runCommits) {
+    git(run.root, ['add', 'src/app.mjs']);
+    git(run.root, ['commit', '-q', '-m', 'the run\'s work']);
+  }
+  git(run.root, ['checkout', '-q', 'main']);
+  for (const name of ['one', 'two', 'three']) write(run, `lib/${name}.mjs`, `export const ${name} = 1;\n`);
+  git(run.root, ['add', 'lib']);
+  git(run.root, ['commit', '-q', '-m', 'the default branch moves on']);
+  git(run.root, ['checkout', '-q', 'feature']);
+  // An uncommitted edit of the run's stays where it is through the merge.
+  git(run.root, ['merge', '-q', '--no-ff', '-m', 'merge main', 'main']);
+  return { run };
+}
+
+/**
+ * A run frozen on a side branch's own commit, then a branch cut from the
+ * default branch with the default branch merged into it: the base is on
+ * neither side of the merge.
+ */
+function onNeitherSide(t) {
+  const run = gitScratch(t, FILES);
+  git(run.root, ['checkout', '-q', '-b', 'side']);
+  write(run, 'src/side.mjs', 'export const side = 1;\n');
+  git(run.root, ['add', 'src']);
+  git(run.root, ['commit', '-q', '-m', 'a side branch']);
+  freeze(run);
+  git(run.root, ['checkout', '-q', 'main']);
+  git(run.root, ['checkout', '-q', '-b', 'feature']);
+  write(run, 'src/feature.mjs', 'export const feature = 1;\n');
+  git(run.root, ['add', 'src']);
+  git(run.root, ['commit', '-q', '-m', 'the branch\'s own work']);
+  git(run.root, ['checkout', '-q', 'main']);
+  write(run, 'lib/one.mjs', 'export const one = 1;\n');
+  git(run.root, ['add', 'lib']);
+  git(run.root, ['commit', '-q', '-m', 'the default branch moves on']);
+  git(run.root, ['checkout', '-q', 'feature']);
+  git(run.root, ['merge', '-q', '--no-ff', '-m', 'merge main', 'main']);
+  return run;
+}
+
+test('move-base: a run frozen on a commit of the branch\'s own moves to the merge commit, and the review counts only its own files', t => {
+  const { run } = onBranchCommit(t);
+  const old = readState(run).task.base_commit.sha;
+  const merge = head(run);
+  const moved = verb(['move-base', `--state=${run.state}`, '--reason=merged main']);
+  assert.equal(moved.code, 0, moved.stderr);
+  assert.ok(moved.stdout.endsWith(`\nmoved: ${old} → ${merge} (merge commit: the base is on the branch side)\n`), moved.stdout);
+  assert.equal(readState(run).task.base_commit.sha, merge);
+  const { code, stderr, json } = brief(run);
+  assert.equal(code, 0, stderr);
+  assert.deepEqual(json.changed.map(entry => entry.path), ['src/app.mjs']);
+
+  // Run again after the move: the base is the merge already.
+  const again = verb(['move-base', `--state=${run.state}`]);
+  assert.equal(again.code, 0, again.stderr);
+  assert.equal(again.stdout, `unchanged: ${merge} (merge commit: the base is on the branch side)\n`);
+});
+
+test('move-base: a run frozen at the branch point still moves to the merged tip', t => {
+  const { run, tip } = mergedRun(t);
+  const moved = verb(['move-base', `--state=${run.state}`]);
+  assert.equal(moved.code, 0, moved.stderr);
+  assert.equal(readState(run).task.base_commit.sha, tip);
+  assert.match(moved.stdout, /\(merged tip: HEAD is a merge\)\n$/);
+});
+
+test('move-base: a run on the branch side with commits of its own, and a base on neither side, are refused against the merge', t => {
+  const { run } = onBranchCommit(t, { runCommits: true });
+  const own = verb(['move-base', `--state=${run.state}`]);
+  assert.equal(own.code, 1, own.stdout);
+  assert.match(own.stderr, /^move-base-not-ancestor: .*has commits of its own since it/);
+  const neither = onNeitherSide(t);
+  const lost = verb(['move-base', `--state=${neither.state}`]);
+  assert.equal(lost.code, 1, lost.stdout);
+  assert.match(lost.stderr, /^move-base-not-ancestor: .*is not an ancestor of [0-9a-f]+ \(merged tip: HEAD is a merge\)/);
+});
+
 test('move-base: each refusal exits 1 with its code first, writes nothing and says so', async t => {
   const cases = [
     ['move-base-state-unreadable', s => {
@@ -187,22 +278,8 @@ test('move-base: each refusal exits 1 with its code first, writes nothing and sa
       return { run, flags: [] };
     }],
     ['move-base-bad-ref', s => ({ run: mergedRun(s).run, flags: ['--to=no-such-ref'] })],
-    ['move-base-not-ancestor', s => {
-      // Frozen after a commit of the branch's own: the merged tip does not descend from it.
-      const run = gitScratch(s, FILES);
-      git(run.root, ['checkout', '-q', '-b', 'feature']);
-      write(run, 'src/early.mjs', 'export const early = 1;\n');
-      git(run.root, ['add', 'src']);
-      git(run.root, ['commit', '-q', '-m', 'before the run']);
-      freeze(run);
-      git(run.root, ['checkout', '-q', 'main']);
-      write(run, 'lib/one.mjs', 'export const one = 1;\n');
-      git(run.root, ['add', 'lib']);
-      git(run.root, ['commit', '-q', '-m', 'the default branch moves on']);
-      git(run.root, ['checkout', '-q', 'feature']);
-      git(run.root, ['merge', '-q', '--no-ff', '-m', 'merge main', 'main']);
-      return { run, flags: [] };
-    }],
+    ['move-base-not-ancestor', s => ({ run: onBranchCommit(s, { runCommits: true }).run, flags: [] })],
+    ['move-base-not-ancestor', s => ({ run: onNeitherSide(s), flags: [] })],
     ['move-base-not-in-head', s => {
       const { run } = mergedRun(s);
       const base = readState(run).task.base_commit.sha;

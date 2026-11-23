@@ -320,6 +320,45 @@ test('autopilot (variant): an in-step pick nobody answered is the host\'s whatev
   assert.equal(stepAnswers(earlier).find(item => Number(item.attempt) === 2).by, 'operator');
 });
 
+test('autopilot (variant): a pick sent as taken by default for a question the host answered is the host\'s; any other default stays one', t => {
+  const sent = { decision: 'Narrow', by: 'default', question_id: 'scope', question: 'Widen the scope?', answer: 'Narrow', recommended: 'Narrow' };
+  const host = scratch(t);
+  freeze(host);
+  note(host.dir, 'host', ['scope']);
+  wrote(variantEngine(), host, { node_summaries: { analysis: { decisions: [sent] } } });
+  const [stored] = stepAnswers(host);
+  isHostPick(stored, 'a default under a host note that asked it');
+  assert.deepEqual([stored.question_id, stored.answer, stored.as_recommended], ['scope', 'Narrow', true]);
+
+  // Sent again as a default after the note is gone, it stays the host's.
+  fs.rmSync(path.join(host.dir, NOTE));
+  noteWith(host.dir, { outcome: 'none', questions: ['other'] });
+  wrote(variantEngine(), host, { node_summaries: { analysis: { decisions: [sent] } } });
+  isHostPick(stepAnswers(host)[0], 'the host\'s default re-sent');
+
+  // A host note that asked another question, a `none` note, and no note at all leave a default as one.
+  for (const [label, leave] of [
+    ['a host note for another question', dir => note(dir, 'host', ['other'])],
+    ['a none note', dir => note(dir, 'none', ['scope'])],
+    ['no note', () => {}],
+  ]) {
+    const runDir = scratch(t);
+    freeze(runDir);
+    leave(runDir.dir);
+    wrote(variantEngine(), runDir, { node_summaries: { analysis: { decisions: [sent] } } });
+    const [kept] = stepAnswers(runDir);
+    assert.equal(kept.by, 'default', label);
+    assert.equal(Object.hasOwn(kept, 'actor'), false, label);
+  }
+
+  // The Claude Code build never reads a note: the default stays one.
+  const claude = scratch(t);
+  freeze(claude);
+  note(claude.dir, 'host', ['scope']);
+  wrote(ENGINE, claude, { node_summaries: { analysis: { decisions: [sent] } } });
+  assert.equal(stepAnswers(claude)[0].by, 'default');
+});
+
 test('autopilot (variant): in a run that classes questions, an approval-class pick nobody answered is refused, and so is any after the policy changed', t => {
   const engine = variantWithPolicy(t);
   const runDir = scratch(t);

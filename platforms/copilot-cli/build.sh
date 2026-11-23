@@ -192,6 +192,29 @@ if grep -rl --include='*.md' '@@MAISTER_NS@@' "$OUT" >&2; then
   exit 1
 fi
 
+# 4b. An agent's skill preload names the skill as Copilot registers it,
+#     `<ns>:<skill>`: the bare name step 4 leaves is not found there, and the
+#     preload is dropped. Each entry of a frontmatter `skills:` list is
+#     rewritten, and one naming no skill of the build stops it.
+find "$OUT/agents" -name "*.md" | sort | while read f; do
+  awk -v ns="$NS" -v skills="$OUT/skills" -v file="$f" '
+    NR==1 && $0=="---" { fm=1; print; next }
+    fm==1 && $0=="---" { fm=2; list=0 }
+    fm==1 && /^skills:[[:space:]]*$/ { list=1; print; next }
+    fm==1 && list && /^[[:space:]]+-[[:space:]]+[A-Za-z0-9_-]+[[:space:]]*$/ {
+      name=$2
+      if (system("test -f \"" skills "/" name "/SKILL.md\"") != 0) {
+        print "build: " file " preloads the skill " name ", which the build does not hold" > "/dev/stderr"; bad=1
+      }
+      sub(/-[[:space:]]+[A-Za-z0-9_-]+/, "- " ns ":" name)
+      print; next
+    }
+    fm==1 { list=0 }
+    { print }
+    END { exit bad }
+  ' "$f" > "$f.tmp" && mv "$f.tmp" "$f" || { rm -f "$f.tmp"; exit 1; }
+done
+
 # 5. Replace CLAUDE.md references with copilot equivalents in skills.
 #    A path that only puts CLAUDE.md in a directory (`.claude/CLAUDE.md`) is
 #    turned first into AGENTS.md, which Copilot reads, so the general pass never

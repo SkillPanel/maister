@@ -252,3 +252,14 @@ test('update-branch-result: the verb needs a run or a file to write', () => {
   assert.equal(out.code, 2);
   assert.match(out.stderr, /needs --state .* --result/);
 });
+
+test('update-branch prose: with a known run the move-base call always runs and the result file is always written', () => {
+  const skill = fs.readFileSync(path.join(ENGINE_DIR, '../update-branch/SKILL.md'), 'utf8').replace(/\r\n/g, '\n');
+  const step = (heading, next) => skill.slice(skill.indexOf(heading), skill.indexOf(next));
+  const move = step('### Step 8:', '### Step 9:');
+  assert.match(move, /this call always runs\. The verb decides whether the base can move, never the session/);
+  assert.match(move, /Never with `--to`/);
+  const result = step('### Step 9:', '### Step 10:');
+  assert.match(result, /A known run always gets its result file, whatever Step 8 printed — a move, `unchanged:` or a refusal/);
+  assert.match(result, /Only with no run known and no `--result` is no file written/);
+});

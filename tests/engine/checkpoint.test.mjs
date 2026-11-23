@@ -382,6 +382,14 @@ test('checkpoint: the text a gate shows is the same with the actor grouping as w
   assert.equal(texts(checkpoint), texts(before));
 });
 
+test('checkpoint: the text a gate shows never names the person who answered', t => {
+  const checkpoint = checkpointOf(atSpecGate(t, withActors()), 'specification-approval');
+  assert.ok(JSON.stringify(checkpoint).includes('marek'), 'the checkpoint record carries the answers');
+  for (const text of [choicesLine(checkpoint), moreDetails(checkpoint), panelOfCheckpoint(checkpoint), richPicker(checkpoint), plainPicker(checkpoint)]) {
+    assert.equal(JSON.stringify(text).includes('marek'), false, JSON.stringify(text).slice(0, 200));
+  }
+});
+
 test('checkpoint: no headline falls back to the summary\'s first sentence', t => {
   const run = atSpecGate(t, { headline: undefined });
   const text = fs.readFileSync(run.state, 'utf8').replace(/^ {4}headline: .*\n/m, '');

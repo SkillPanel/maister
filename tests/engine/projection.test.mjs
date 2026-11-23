@@ -86,7 +86,8 @@ test('summary lists are normalized: artifacts to objects, gate answers to decisi
   assert.equal(analysis.summary, 'Scoped the change.');
   assert.deepEqual(analysis.decisions, [
     { decision: 'keep the parser', by: 'run' },
-    { decision: 'Continue', by: 'operator', option: 'continue', answered_by: 'marek', at: '2026-01-05T09:05:00Z' },
+    // A terminal run's dashboard names nobody: the chip reads "You".
+    { decision: 'Continue', by: 'operator', option: 'continue', at: '2026-01-05T09:05:00Z' },
   ]);
   assert.deepEqual(analysis.risks, [{ risk: 'the writer is untested on Windows', tag: 'open', change: null }]);
   assert.deepEqual(analysis.artifacts, [
@@ -418,16 +419,20 @@ const held = (extra = {}) => ({
   triage: { class: 'approve', held: true }, ...extra,
 });
 
+/** A driver that names the people who answered. */
+const COCKPIT = { kind: 'cockpit' };
+
 /** The approval a checkpoint's continue records for it. */
 const approval = (extra = {}) => ({
   decision: 'q-scope: keep the parser', by: 'operator', node: 'analysis', question_id: 'q-scope',
   triage: { class: 'approve' }, ...extra,
 });
 
-/** The projected decisions of each phase, keyed by node id. */
-function decisionsByNode(summaries, { classes = true } = {}) {
+/** The projected decisions of each phase, keyed by node id; `driver` is the run's, none by default. */
+function decisionsByNode(summaries, { classes = true, driver = null } = {}) {
+  const orchestrator = { ...(classes ? { classes_questions: true } : {}), ...(driver ? { driver } : {}) };
   const state = {
-    ...(classes ? { orchestrator: { classes_questions: true } } : {}),
+    ...(Object.keys(orchestrator).length ? { orchestrator } : {}),
     workflow: { nodes: { analysis: { status: 'completed' }, checkpoint: { status: 'completed' } } },
     node_summaries: summaries,
   };
@@ -440,7 +445,7 @@ test('a held choice an approval matches anywhere in the run is marked approved b
   const { byNode } = decisionsByNode({
     analysis: { decisions: [held()] },
     checkpoint: { decisions: [{ option: 'continue', answered_by: 'marek' }, approval({ answered_by: 'marek' })] },
-  });
+  }, { driver: COCKPIT });
   assert.deepEqual(byNode.analysis[0].approved, { by: 'marek' });
   assert.equal(Object.hasOwn(byNode.checkpoint[1], 'approved'), false, 'the approval item itself gains nothing');
 });
@@ -449,7 +454,7 @@ test('a relayed approval names the person it came from beside the operator who r
   const { byNode } = decisionsByNode({
     analysis: { decisions: [held(), { decision: 'Kept the parser', by: 'operator', answered_by: 'marek', on_behalf_of: 'lee' }] },
     checkpoint: { decisions: [{ option: 'continue', answered_by: 'marek', on_behalf_of: 'lee' }, approval({ answered_by: 'marek', on_behalf_of: 'lee' })] },
-  });
+  }, { driver: COCKPIT });
   assert.deepEqual(byNode.analysis[0].approved, { by: 'marek', on_behalf_of: 'lee' });
   assert.equal(byNode.analysis[1].on_behalf_of, 'lee', 'a projected answer keeps on_behalf_of for the viewer');
 });
@@ -482,8 +487,40 @@ test('a held choice no approval matches gains nothing', () => {
 
 test('with no classed choices the projection is unchanged: every decision is decisionOf of its entry', () => {
   const entries = ['keep the parser', { decision: 'd', by: 'run' }, { option: 'continue', answered_by: 'marek' }];
-  const { text, byNode } = decisionsByNode({ analysis: { decisions: entries }, checkpoint: { decisions: [] } });
+  const { text, byNode } = decisionsByNode({ analysis: { decisions: entries }, checkpoint: { decisions: [] } }, { driver: COCKPIT });
   assert.deepEqual(byNode.analysis, entries.map(entry => decisionOf(entry)).map(d =>
     d.option === 'continue' ? { ...d, decision: 'Continue' } : d));
   assert.equal(text.includes('"approved"'), false);
+});
+
+test('a run answered at its terminal names nobody on its dashboard; a cockpit or dispatch run names who answered', () => {
+  const summaries = {
+    analysis: { decisions: [held(), { decision: 'Kept the parser', by: 'operator', question_id: 'q-keep', answered_by: 'lee', via: 'terminal', actor: { kind: 'person', id: 'lee' } },
+      { decision: 'Narrow', by: 'run', question_id: 'q-host', actor: { kind: 'host', id: 'copilot' } }] },
+    checkpoint: { decisions: [{ option: 'continue', answered_by: 'lee' }, approval({ answered_by: 'lee' })] },
+  };
+  for (const driver of [null, { kind: 'terminal' }]) {
+    const { text, byNode } = decisionsByNode(summaries, { driver });
+    assert.equal(text.includes('lee'), false, `no person's name in a ${driver?.kind ?? 'driverless'} run's dashboard data`);
+    assert.deepEqual(byNode.analysis[0].approved, { by: 'operator' });
+    const answer = byNode.analysis[1];
+    for (const key of ['answered_by', 'on_behalf_of', 'actor']) assert.equal(Object.hasOwn(answer, key), false, key);
+    assert.equal(answer.via, 'terminal');
+    assert.deepEqual(byNode.analysis[2].actor, { kind: 'host', id: 'copilot' }, 'a host keeps its chip');
+    assert.equal(Object.hasOwn(byNode.checkpoint[0], 'answered_by'), false);
+  }
+  for (const kind of ['cockpit', 'dispatch']) {
+    const { byNode } = decisionsByNode(summaries, { driver: { kind } });
+    assert.deepEqual(byNode.analysis[0].approved, { by: 'lee' }, kind);
+    assert.equal(byNode.analysis[1].answered_by, 'lee', kind);
+    assert.deepEqual(byNode.analysis[1].actor, { kind: 'person', id: 'lee' }, kind);
+  }
+});
+
+test('a terminal run\'s recorded answered_by stays in state; only the dashboard leaves it out', t => {
+  const run = scratch(t);
+  freeze(run);
+  write(run, { node_summaries: { analysis: { status: 'completed', decisions: [{ option: 'continue', answered_by: 'lee', at: '2026-01-05T09:05:00Z' }] } } });
+  assert.equal(readState(run).node_summaries.analysis.decisions[0].answered_by, 'lee');
+  assert.equal(fs.readFileSync(path.join(run.dir, 'dashboard-data.js'), 'utf8').includes('lee'), false);
 });
