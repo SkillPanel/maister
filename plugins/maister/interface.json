@@ -681,6 +681,17 @@
           "project-profile-bad-input"
         ]
       },
+      "reference": {
+        "flags": [
+          "at"
+        ],
+        "refusals": [
+          "reference-missing",
+          "reference-outside-plugin",
+          "reference-too-long",
+          "reference-unknown-section"
+        ]
+      },
       "resolve": {
         "flags": [
           "definition",
@@ -1247,7 +1258,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.11",
+  "interface_version": "2.12",
   "mcp": {
     "servers": [],
     "tools": [

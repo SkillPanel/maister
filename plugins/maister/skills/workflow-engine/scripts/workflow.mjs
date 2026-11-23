@@ -199,6 +199,10 @@
  *                  session before each is sent, its stale output cleared;
  *                  the host's agent ids attached; or marked ended without
  *                  their output)
+ *   reference      --at=<file>[ § <heading>], repeatable    the text
+ *                  (a section of one of the plugin's own Markdown files,
+ *                  printed under 20,000 characters, or refused with the
+ *                  file's headings and their sizes)
  *   scratch-dir    --for, optional --state       the new directory's path
  *                  (a fresh directory inside the project, ignored by git,
  *                  for a file read back later: <run>/scratch/<for>-… with
@@ -399,6 +403,9 @@ const VERBS = {
   // A directory inside the project for a file read back later: the run's
   // `scratch/` with `--state`, else `.maister/scratch/`, either ignored by git.
   'scratch-dir': { module: 'scratch-dir.mjs', flags: ['for', 'state'] },
+  // A section of the plugin's own Markdown, printed: what a session reads the
+  // engine's rules through, never by opening a file outside the project.
+  reference: { module: 'reference.mjs', flags: ['at'] },
 };
 
 /** This plugin's root, three levels above this file: what the edition check locates. */
@@ -458,7 +465,7 @@ function refuseRules(moment) {
 }
 
 /** The flags that may be given more than once; every other flag is single-valued. */
-const REPEATABLE = new Set(['overlay', 'area', 'from']);
+const REPEATABLE = new Set(['overlay', 'area', 'from', 'at']);
 
 /**
  * The picker profiles `gate-brief --json` renders: `rich` for a tool that shows
@@ -1868,6 +1875,23 @@ async function runProjectProfile(flags) {
 }
 
 /**
+ * `reference` prints the sections asked for, as text; a refusal's code first
+ * on stderr at exit 1, nothing on stdout.
+ */
+async function runReference(flags) {
+  if (!(flags.at || []).length) throw new UsageError('reference needs --at: <file>, or <file> § <heading>, a Markdown file of the plugin');
+  const module = await loadModule(VERBS.reference.module);
+  const print = entryOf(module, 'reference', VERBS.reference.module);
+  const result = print({ ats: flags.at, pluginRoot: PLUGIN_ROOT });
+  if (!result.ok) {
+    for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
+    return EXIT.REJECTED;
+  }
+  process.stdout.write(result.text);
+  return EXIT.OK;
+}
+
+/**
  * `scratch-dir` prints the new directory's absolute path as its one stdout
  * line, so the caller copies it as printed; a refusal's code first on stderr
  * at exit 1.
@@ -2020,6 +2044,7 @@ const RUNNERS = {
   'runner-step': runRunnerStep,
   'in-flight': runInFlight,
   'scratch-dir': runScratchDir,
+  reference: runReference,
 };
 
 // ---------------------------------------------------------------------------

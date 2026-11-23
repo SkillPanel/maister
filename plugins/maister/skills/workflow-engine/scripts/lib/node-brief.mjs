@@ -187,13 +187,19 @@ const ENGINE_SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
 /** The gates reference, which the `close-out:` line points into. */
 const GATES_FILE = fileURLToPath(new URL('../../references/gates.md', import.meta.url));
 
+/** The engine's entry point, whose `reference` verb prints a plugin file. */
+const ENGINE_SCRIPT = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
+
 /**
  * The two lines every brief opens with. A session left with none of the skill
  * after a compaction — Copilot keeps none and has no hook to say so — did not
- * act on a condition at the foot of the brief, so the read is an instruction at
- * its head, and beside it the one command-form rule its drifting calls broke.
+ * act on a condition at the foot of the brief, so the reload is an instruction
+ * at its head, and beside it the one command-form rule its drifting calls
+ * broke. The skill is printed by the engine, never opened with the read tool:
+ * the plugin sits outside the project, and a host may stop the run to ask
+ * before that read.
  */
-const ENGINE_SKILL_LINE = `engine skill: read ${quoted(ENGINE_SKILL)} whole now, unless you have read it in this context`;
+const ENGINE_SKILL_LINE = `engine skill: print it whole now with node ${quoted(ENGINE_SCRIPT)} reference --at=SKILL.md, unless it is in this context`;
 const COMMANDS_LINE = 'commands: one per call, from the project root — no cd, chain or pipe; a patch as a here-string';
 
 /** How each scheme runs, and the convention row that applies to it. */
@@ -754,15 +760,20 @@ function askLines(origin, resolved, { doc, state, runDir }, node) {
   if (!ids.length) return [];
   const clarifications = declaredClarificationIds(origin, sectionNameOf(resolved));
   const families = [...familyLines(doc, ids, node), ...readerLines(doc, ids, clarifications, node)];
-  if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}${ASKS_TAIL}`, ...families];
-  if (!canAsk(doc)) return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies${ASKS_TAIL}`, ...families];
-  const lines = [`asks (in session): ${ids.join(', ')}${ASKS_TAIL}`, ...families];
+  if (questionSets(doc)) return [`asks (question sets): ${ids.join(', ')}${asksTail('When a question suspends')}`, ...families];
+  if (!canAsk(doc)) return [`asks (nobody can be asked): ${ids.join(', ')} — the Without line of each applies${asksTail('When nobody can be asked')}`, ...families];
+  const lines = [`asks (in session): ${ids.join(', ')}${asksTail('In-node questions')}`, ...families];
   if (runHost(doc) === 'copilot') lines.push(askWithLine(state, runDir, node));
   return lines;
 }
 
-/** The asks line's tail: the reference a node reads before it asks, or defaults, its first question. */
-const ASKS_TAIL = ' — read references/in-node-questions.md before the first';
+/**
+ * The asks line's tail: the section of the in-node questions reference a node
+ * prints before it asks, or defaults, its first question — the file's opening
+ * in session, else the section for the driver — never the whole file, which is
+ * longer than a shell output holds.
+ */
+const asksTail = section => ` — before the first, print reference --at="references/in-node-questions.md § ${section}"`;
 
 /**
  * One `families (<id>): <name> — <description>; …` line per declared id whose
@@ -1018,7 +1029,7 @@ function conventionLines(table, keys, shown = null, printed = new Set()) {
 
 /** The line that names the rows a session was already shown whole. */
 const IN_FORCE = 'conventions in force';
-const IN_FORCE_TAIL = 'printed whole by an earlier brief of this session; follow them as printed there, or read them at rules';
+const IN_FORCE_TAIL = 'printed whole by an earlier brief of this session; follow them as printed there, or print them from rules with reference';
 
 // ---------------------------------------------------------------------------
 // interpolation (references/grammar.md § 9)

@@ -76,21 +76,21 @@ State which roles you selected and why (1 sentence).
 
 ### Step 3: Read Prompt Templates and Launch Agents
 
-Read the template file for each selected role before launching — the templates hold the task-type-specific focus lists and the no-write constraint, which prompts written from memory drop.
+Print the template for each selected role before launching — the templates hold the task-type-specific focus lists and the no-write constraint, which prompts written from memory drop.
 
-**3a. Read templates** — Use the Read tool to load ONLY the files for your selected roles, each by its absolute path under this skill's base directory. Never `cd` into the skill to read them: the session would stay there instead of at the project root.
+**3a. Print templates** — Print ONLY the templates for your selected roles, all in one command from the project root: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference`, the plugin root two levels above this skill's base directory, written as an absolute path, with one `--at="<file> § <section>"` per template below. The section is the task type — Bug, Enhancement or Feature — for a file that has one, and the file's title otherwise. Never open the files with the read tool: they sit outside the project, and a host may stop the run to ask before that read. Never `cd` into the skill either: the session would stay there instead of at the project root.
 
-| Role | Read This File |
+| Role | Template, by its `--at` |
 |------|--------------|
-| File Discovery | `references/file-discovery.md` |
-| Code Analysis | `references/code-analysis.md` |
-| Context Discovery | `references/context-discovery.md` |
-| Pattern Mining | `references/pattern-mining.md` |
-| Migration Target | `references/migration-target.md` |
+| File Discovery | `skills/codebase-analyzer/references/file-discovery.md § <task type>` |
+| Code Analysis | `skills/codebase-analyzer/references/code-analysis.md § <task type>` |
+| Context Discovery | `skills/codebase-analyzer/references/context-discovery.md § <task type>` |
+| Pattern Mining | `skills/codebase-analyzer/references/pattern-mining.md § Pattern Mining` |
+| Migration Target | `skills/codebase-analyzer/references/migration-target.md § Migration Target` |
 
-If combining roles into one agent, also read `references/combined.md` for merging guidance.
+If combining roles into one agent, also print the merging guidance: `--at="skills/codebase-analyzer/references/combined.md § Merging Principles"` and `--at="skills/codebase-analyzer/references/combined.md § Example"`.
 
-**3b. Adapt templates** — Replace `[description]` with the actual task description. Select the correct task-type section (Bug / Enhancement / Feature).
+**3b. Adapt templates** — Replace `[description]` with the actual task description. The section printed is already the task type's.
 
 **3c. Launch agents** — Use the Task tool with `subagent_type="Explore"` — one call per selected role, all in ONE message.
 
