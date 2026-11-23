@@ -64,7 +64,9 @@ Then start a new session.
   offers what is missing: any of the vision, roadmap, tech stack and architecture documents you do
   not have, and two optional blocks in `.maister/config.yml` — `subagents`, which sets the models
   subagents run on, and `project`, a profile the reviews use. 3.0 works without them. Both blocks
-  are described in [Configuration](configuration.md).
+  are described in [Configuration](configuration.md). The update also offers to bring the built-in
+  standards up to date, rule by rule, keeping your edits; `/maister:standards-update --built-in` does
+  the same later.
 - **Optional: run `/maister:standards-update --refresh-index`** to rebuild the docs index.
 
 ## Tasks started on 2.x
@@ -132,6 +134,7 @@ Every command and flag is in the [command reference](commands.md).
 | `--context=PATH` on development, research, product design | Not available | New: a file or folder read as background at every step |
 | `--design=PATH`, `--architecture=PATH`, `--publish` on development | Not available | New |
 | `--refresh-index` on standards-update | Not available | New |
+| `--built-in` on standards-update | Not available | New |
 
 A flag a workflow does not take is named as not taken, and the run goes on without it.
 

@@ -91,8 +91,13 @@ the same conventions as an existing one.
   finds, and asks one question listing every proposed change. Only additions are recommended:
   missing config keys, missing profile fields, missing documents. A value or a passage that
   differs is offered one line or one file at a time, and kept unless you take the change.
-  Standards are never changed; a group your project's profile or code calls for and `standards/`
-  lacks is named with its `/maister:standards-discover --scope=<group>` command. Database rules an
+  Init changes no standard itself. It counts the built-in rules that changed since the setup was made
+  and, after its own question, offers to review them. On yes, `/maister:standards-update --built-in`
+  runs with the groups your code calls for: rules nobody edited in one question, save those folded
+  into a rule your team edited, which are asked after it; each edited rule on its own; your own rules
+  never offered. The same review runs alone with `/maister:standards-update --built-in`. A group your
+  project's profile or code calls for and `standards/` lacks is named with its
+  `/maister:standards-discover --scope=<group>` command. Database rules an
   older setup keeps in `backend/` count as the `data` group, so they are not named missing. Your other
   documents are never rewritten; they only get an index entry when they have none. Whatever you choose, INDEX.md is
   refreshed and the pointer repaired.

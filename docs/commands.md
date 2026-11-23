@@ -354,7 +354,7 @@ pull requests and CI, and offers them for your approval.
 | `--skip-external` | Skip pull request and CI analysis |
 | `--pr-count=N` | Number of recent merged pull requests to analyze (default `20`) |
 
-### `/maister:standards-update [description] [--from=PATH] [--refresh-index]`
+### `/maister:standards-update [description] [--from=PATH] [--built-in] [--refresh-index]`
 
 Records a coding standard, or project knowledge (a decision, a fact about the system) in a project
 document.
@@ -365,9 +365,10 @@ document.
 | `"description"` | The standard or the fact to record, for example `"prefer named exports over default exports"` |
 | `"split <path>"` | Proposes splitting a standards file that has grown past its size guidance |
 | `--from=PATH` | Import standards from another project's `.maister/docs/standards/`: shows what is new or changed and lets you choose |
+| `--built-in` | Bring the built-in rules your setup was made with up to date: each rule the plugin has since rewritten, merged, moved, removed or added. Rules nobody edited are offered together in one question, save those folded into a rule your team edited, which are asked after it; a rule your team edited is asked on its own and never recommended; your own rules are never offered. Nothing is recorded, so a rule you keep is offered again next time. `/maister:init`'s update path offers the same review, with the groups your code calls for |
 | `--refresh-index` | Bring `.maister/docs/INDEX.md` back in shape: rewrites the entries that run long or hold dates, ticket references or counts, adds missing entries, removes dead ones and settles a merge conflict. Touches no other document |
 
-It always asks where a standard goes before writing it.
+Outside `--built-in`, where each built-in rule's place is fixed, it always asks where a standard goes before writing it.
 
 ---
 

@@ -206,6 +206,31 @@ export function scratch(t, { fixture = null, type = 'development', name = '2026-
   return run;
 }
 
+/** A scratch project root holding `files` (path → content); removed when the test ends. */
+export function scratchTree(t, files = {}) {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maister-standards-')));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  for (const [rel, content] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+    fs.writeFileSync(path.join(root, rel), content);
+  }
+  return root;
+}
+
+/** Every file under `dir`, `/`-separated and relative, with its bytes. */
+export function snapshot(dir) {
+  const found = {};
+  const walk = rel => {
+    for (const dirent of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
+      const child = rel === '' ? dirent.name : `${rel}/${dirent.name}`;
+      if (dirent.isDirectory()) walk(child);
+      else found[child] = fs.readFileSync(path.join(dir, child)).toString('base64');
+    }
+  };
+  walk('');
+  return found;
+}
+
 /**
  * A scratch copy of the whole plugin tree, for a test that needs a file the
  * engine reads from its own folder — the autonomy policy at

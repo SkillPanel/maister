@@ -150,13 +150,15 @@ const RESOLVER = 'skills/docs-manager/scripts/standards.mjs groups';
 const RESOLVER_READERS = [
   { rel: INIT, from: '## PHASE 4', to: '## PHASE 5', label: 'init Phase 4' },
   { rel: INIT, from: 'Step 1 — Survey', to: 'Step 2 — One decision', label: 'init update survey' },
+  { rel: INIT, from: 'Step 1 — Survey', to: 'Step 2 — One decision', call: 'skills/docs-manager/scripts/standards.mjs built-in candidates', label: 'init update survey, built-in candidates' },
   { rel: 'skills/standards-discover/SKILL.md', label: 'standards-discover' },
+  { rel: 'skills/standards-update/SKILL.md', from: '## Mode: Built-in Standards', to: '## Mode: Conversation', call: 'skills/docs-manager/scripts/standards.mjs built-in candidates', label: 'standards-update built-in mode' },
 ];
 
 test('standards prompts: every reader of the standards groups runs the resolver', () => {
-  for (const { rel, from, to, label } of RESOLVER_READERS) {
+  for (const { rel, from, to, label, call = RESOLVER } of RESOLVER_READERS) {
     const text = from ? slice(read(rel), from, to, label) : read(rel);
-    assert.ok(text.includes(RESOLVER), `${label} names \`${RESOLVER}\``);
+    assert.ok(text.includes(call), `${label} names \`${call}\``);
   }
 });
 
@@ -217,4 +219,45 @@ test('standards prompts: each guard\'s key phrases appear in both prompt steps a
   ];
   for (const [where, text] of g1) for (const phrase of G1_PHRASES) assert.ok(text.includes(phrase), `${where} carries "${phrase}"`);
   for (const [where, text] of g2) for (const phrase of G2_PHRASES) assert.ok(text.includes(phrase), `${where} carries "${phrase}"`);
+});
+
+test('standards prompts: docs-manager no longer resets to the baseline', () => {
+  const dm = read(DOCS_MANAGER);
+  assert.ok(!dm.includes('Use Plugin Documentation as Reference'), 'the reference operation is gone');
+  assert.ok(!dm.includes('Reset everything to the baseline'), 'the reset choice is gone');
+});
+
+test('standards prompts: docs-manager Update applies built-in section edits and names the map as data', () => {
+  const dm = read(DOCS_MANAGER);
+  const update = slice(dm, '### 4. Update', '### 5.', 'docs-manager');
+  for (const phrase of ['add, replace, remove or move', 'is deleted', 'title line']) {
+    assert.ok(update.includes(phrase), `Update carries "${phrase}"`);
+  }
+  assert.ok(dm.includes('docs/standards-map.json'), 'docs-manager names the map');
+});
+
+test('standards prompts: standards-update built-in mode carries its options and its promises', () => {
+  const su = read('skills/standards-update/SKILL.md');
+  const mode = slice(su, '## Mode: Built-in Standards', '## Mode: Conversation', 'standards-update');
+  for (const phrase of ['Apply all', '(Recommended)', 'Go through them', 'Keep ours', 'Take the new rule', 'Remove it', 'More details', 'never recommended', 'Phase 1 Step 4 is not asked', 'Nothing is recorded']) {
+    assert.ok(mode.includes(phrase), `the built-in mode carries "${phrase}"`);
+  }
+  const hint = fs.readFileSync(path.join(PLUGIN, 'skills/standards-update/SKILL.md'), 'utf8').match(/^argument-hint:.*$/m);
+  assert.ok(hint && hint[0].includes('--built-in'), 'the argument hint carries --built-in');
+});
+
+test('standards prompts: standards-update no longer copies the plugin baseline and points at the built-in mode', () => {
+  const su = read('skills/standards-update/SKILL.md');
+  assert.ok(!su.includes('Optionally show plugin baseline'), 'the baseline offer is gone');
+  const creating = slice(su, '### If creating', '## PHASE 4', 'standards-update');
+  assert.ok(creating.includes('--built-in`'), 'If creating points at the --built-in mode');
+});
+
+test('standards prompts: init counts the built-in changes, writes no standard and hands the review off through the Skill tool', () => {
+  const init = read(INIT);
+  for (const phrase of ['invoke the `standards-update` skill via the Skill tool with `--built-in', 'Nothing is written under `standards/`.', 'Init writes no standard.']) {
+    assert.ok(init.includes(phrase), `init carries "${phrase}"`);
+  }
+  assert.ok(!init.includes('Standards are never touched'), 'the old never-touched rule is gone');
+  assert.ok(slice(init, 'Step 2 — One decision', 'Step 3 — Apply only what was chosen', 'init').includes('Review them (Recommended)'), 'Step 2 offers the review');
 });
