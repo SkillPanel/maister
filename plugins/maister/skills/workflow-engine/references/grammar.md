@@ -625,8 +625,8 @@ word, every `` ## `x` `` heading outside a fence must name a section some node f
 after `direct:` for a `direct:` node, the node id for any other node or gate. One that names none
 warns `orphan-prose-section` (§ 14).
 
-**The section is the node's own part of its brief.** The engine's node conventions (engine
-`SKILL.md` § *Node conventions*) already say how each scheme runs, how a gate is asked, what every
+**The section is the node's own part of its brief.** The engine's node conventions (the engine skill's
+`references/node-conventions.md`) already say how each scheme runs, how a gate is asked, what every
 step checks before it completes, what a closing summary carries and how a re-run works; a section
 states only what is the node's own and never restates them. `node-brief` prints the node's
 header, the conventions that apply to it and then its section, and the engine reads that before

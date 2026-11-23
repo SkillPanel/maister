@@ -415,7 +415,7 @@ const RULES = {
   findingBrief: ['references/in-node-questions.md', 'Findings that need a decision'],
   writeRefused: ['references/writing-state.md', 'When a write is refused'],
   completeRefused: ['references/writing-state.md', 'When `run-complete` refuses'],
-  nodeBrief: ['SKILL.md', 'Node conventions'],
+  nodeBrief: ['references/node-conventions.md', 'Node conventions'],
 };
 
 /** One pointer's value: the file's absolute path, then `§` and the heading. */

@@ -55,11 +55,11 @@ for (const name of BUILT_INS) {
   });
 }
 
-/** The rows of the engine skill's `### Node conventions` table, as their text. */
+/** The rows of the `# Node conventions` table of the engine's reference, as their text. */
 function conventionRows() {
-  const lines = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8').split(/\r?\n/);
+  const lines = fs.readFileSync(path.join(ENGINE_DIR, 'references/node-conventions.md'), 'utf8').split(/\r?\n/);
   const rows = [];
-  for (const line of lines.slice(lines.indexOf('### Node conventions') + 1)) {
+  for (const line of lines.slice(lines.indexOf('# Node conventions') + 1)) {
     if (line.startsWith('#')) break;
     if (!line.startsWith('|') || /^\|\s*-/.test(line) || line.startsWith('| Applies to')) continue;
     const cells = line.slice(1).replace(/\|\s*$/, '');

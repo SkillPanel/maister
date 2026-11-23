@@ -95,11 +95,13 @@ test('the gate-rule sentence occurs exactly once', () => {
 // --- Node conventions rows ---------------------------------------------------
 // Tests for the rows of the node conventions table go here.
 //
-// `### Node conventions` holds every node's default behaviour, once: one
+// `references/node-conventions.md` under `# Node conventions` holds every node's default behaviour, once: one
 // `| Applies to | Convention |` table whose first cell is one of ten fixed
 // keys, by which a reader selects the rows that apply to a node. A missing key
 // fails. The table is no home for the gate rule: it carries neither the
 // sentence nor its tail.
+
+const CONVENTIONS_FILE = path.join(ENGINE_DIR, 'references/node-conventions.md');
 
 const CONVENTION_KEYS = [
   '`agent:` step',
@@ -118,8 +120,8 @@ const GATE_RULE_TAIL = 'ask at every gate; **pro edition, driven sessions**: whe
   + '`cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine\'s `references/gates.md`, *Driver-suspended mode*.';
 
 /** The lines of the section headed exactly `heading`, up to the next heading of its level or above. */
-function sectionLines(heading) {
-  const lines = fs.readFileSync(SKILL, 'utf8').replace(/\r\n?/g, '\n').split('\n');
+function sectionLines(heading, file = SKILL) {
+  const lines = fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n').split('\n');
   const start = lines.indexOf(heading);
   assert.ok(start >= 0, `SKILL.md has no section headed ${heading}`);
   const level = heading.match(/^#+/)[0].length;
@@ -129,7 +131,7 @@ function sectionLines(heading) {
 
 /** The conventions table's body rows as `{key, convention}`, header and rule excluded. */
 function conventionRows() {
-  const table = sectionLines('### Node conventions').filter(line => line.startsWith('|'));
+  const table = sectionLines('# Node conventions', CONVENTIONS_FILE).filter(line => line.startsWith('|'));
   assert.ok(table.length >= 2, 'the section holds a table');
   assert.match(table[0], /^\|\s*Applies to\s*\|\s*Convention\s*\|$/, 'the table is `| Applies to | Convention |`');
   return table.slice(2).map(line => {
@@ -148,6 +150,12 @@ test('the node conventions sit directly after the delegation section, inside the
   assert.ok(headings.slice(0, delegation + 1).every(({ line }) => !line.startsWith('## ')), 'still inside ## Executing the graph');
 });
 
+test('the skill\'s conventions section points at the reference that holds the table', () => {
+  const section = sectionLines('### Node conventions');
+  assert.ok(!section.some(line => line.startsWith('|')), 'the skill no longer carries the table');
+  assert.ok(section.join('\n').includes('`references/node-conventions.md`'), 'the section names the reference');
+});
+
 test('the conventions table holds each of the ten keys as a first cell, once', () => {
   const keys = conventionRows().map(row => row.key);
   for (const key of CONVENTION_KEYS) {
@@ -161,7 +169,7 @@ test('every convention row says something', () => {
 });
 
 test('the conventions table carries no copy of the gate-rule sentence or its tail', () => {
-  const section = collapse(sectionLines('### Node conventions').join('\n'));
+  const section = collapse(sectionLines('# Node conventions', CONVENTIONS_FILE).join('\n'));
   assert.ok(!section.includes(collapse(GATE_RULE)), 'no gate-rule sentence');
   assert.ok(!section.includes(collapse(GATE_RULE_TAIL)), 'no gate-rule tail');
 });
@@ -174,7 +182,7 @@ test('the asks row records each in-session answer as an operator decision on the
   assert.match(asks.convention, /`as_recommended`/, 'the asks row names `as_recommended`');
   assert.match(asks.convention, /`node_summaries`/, 'the asks row records on the step\'s `node_summaries` entry');
   assert.match(asks.convention, /summary|`node_summaries`/, 'recording lands on the step\'s own summary');
-  const section = sectionLines('### Node conventions').filter(line => line.includes('`ask:`'));
+  const section = sectionLines('# Node conventions', CONVENTIONS_FILE).filter(line => line.includes('`ask:`'));
   assert.equal(section.length, 1, 'only the asks row mentions `ask:`');
   assert.ok(section[0].startsWith('| asks |'), 'the line mentioning `ask:` is the asks row');
 });

@@ -71,9 +71,9 @@
  * What it reads. The state file; the definition the run froze, re-read and
  * re-resolved through `gate-brief`'s `reread`; its overlays and profile; the
  * guide beside the file a node comes from — the base definition's, or the
- * adding overlay's for a node an overlay added; and the `### Node conventions`
- * table of the `SKILL.md` beside this module, found from its own location so a
- * generated variant reads its own copy.
+ * adding overlay's for a node an overlay added; and the `# Node conventions`
+ * table of `references/node-conventions.md` in the skill beside this module,
+ * found from its own location so a generated variant reads its own copy.
  *
  * Each convention row is printed whole once per session. The rows are fixed
  * text, the same on every node, and printed on every brief they made up much
@@ -144,11 +144,11 @@ import { runRoot } from './resume-check.mjs';
 /** The engine's entry script, which the `ask with:` line names by its absolute path. */
 const ENGINE = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
 
-/** The engine skill beside this module, whose conventions table the brief prints rows of. */
-const SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
+/** The engine skill's conventions reference, whose table the brief prints rows of. */
+const CONVENTIONS_FILE = fileURLToPath(new URL('../../references/node-conventions.md', import.meta.url));
 
 /** The heading the conventions table sits under, exactly. */
-const CONVENTIONS = '### Node conventions';
+const CONVENTIONS = '# Node conventions';
 
 /** How each scheme runs, and the convention row that applies to it. */
 const SCHEMES = {
@@ -183,7 +183,7 @@ const MISSING = Symbol('not recorded');
  *
  * Returns `{ok, text, errors, warnings}`; `text` ends with a newline.
  */
-export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` }) {
+export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node conventions` }) {
   const pointer = quotedPointer(rules);
   let doc;
   try {
@@ -210,7 +210,7 @@ export function nodeBrief({ state, node, rules = `${SKILL} § Node conventions` 
   else if (current.drift) warnings.push(`node-brief-graph-drift: the definition now resolves to ${current.digest}, not the graph this run froze; the brief follows the definition as it reads now`);
 
   const table = conventionsOf();
-  if (table === null) warnings.push(`node-brief-conventions-unread: ${SKILL}`);
+  if (table === null) warnings.push(`node-brief-conventions-unread: ${CONVENTIONS_FILE}`);
   // The rows this session was already shown whole; null prints every one whole.
   const root = runRoot(doc, runDir);
   const shown = table === null ? null : conventionsShown({ root });
@@ -779,13 +779,13 @@ function sliced(text) {
 // ---------------------------------------------------------------------------
 
 /**
- * The rows under `### Node conventions` in the skill beside this module, by
+ * The rows under `# Node conventions` in `references/node-conventions.md` of the skill beside this module, by
  * their first cell; null when the file, the heading or every row is missing.
  */
 function conventionsOf() {
   let text;
   try {
-    text = fs.readFileSync(SKILL, 'utf8');
+    text = fs.readFileSync(CONVENTIONS_FILE, 'utf8');
   } catch {
     return null;
   }

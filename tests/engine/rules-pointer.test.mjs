@@ -22,7 +22,7 @@ const AREAS = pointer('in-node-questions.md', 'Decision areas from the brainstor
 const FINDINGS = pointer('in-node-questions.md', 'Findings that need a decision');
 const WRITE_REFUSED = pointer('writing-state.md', 'When a write is refused');
 const COMPLETE_REFUSED = pointer('writing-state.md', 'When `run-complete` refuses');
-const NODE_BRIEF = `${path.join(ENGINE_DIR, 'SKILL.md')} § Node conventions`;
+const NODE_BRIEF = `${path.join(ENGINE_DIR, 'references/node-conventions.md')} § Node conventions`;
 
 const BUDGET = 1600;
 
@@ -304,7 +304,7 @@ test('the frozen-workflow refusal and an unfinished close each name the writing-
 
 test('every existing pointer keeps its printed path, byte for byte, under the engine skill\'s references', t => {
   // The pointer table names files relative to the engine skill directory, so it
-  // can point at SKILL.md too; the six pointers the verbs printed before stay
+  // can point at SKILL.md too, and the conventions pointer names its own reference; the six pointers the verbs printed before stay
   // spelled exactly as they were.
   const spelled = (file, heading) => `${ENGINE_DIR}${path.sep}references${path.sep}${file} § ${heading}`;
   const run = atApproval(t);

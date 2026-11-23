@@ -18,7 +18,7 @@ const DEFINITIONS = path.join(FIXTURES, 'definitions');
 const NODE_BRIEF = path.join(DEFINITIONS, 'node-brief.yml');
 const NODE_BRIEF_OVERLAY = path.join(DEFINITIONS, 'node-brief.overlay.yml');
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
-const SKILL = path.join(ENGINE_DIR, 'SKILL.md');
+const SKILL = path.join(ENGINE_DIR, 'references/node-conventions.md');
 const RULES = `rules: ${SKILL} § Node conventions`;
 const REFUSALS = ['node-brief-state-unreadable', 'node-brief-not-a-run', 'node-brief-unknown-node'];
 const RUN_PATH = '.maister/tasks/development/2026-01-05-sample';
@@ -32,7 +32,7 @@ function nodeBrief(state, node, engine = null) {
 function conventions(skill = SKILL) {
   // A Windows checkout gives `.md` files CRLF.
   const lines = fs.readFileSync(skill, 'utf8').split(/\r?\n/);
-  const start = lines.indexOf('### Node conventions');
+  const start = lines.indexOf('# Node conventions');
   const rows = {};
   for (const line of lines.slice(start + 1)) {
     if (line.startsWith('#')) break;
@@ -344,8 +344,8 @@ test('node-brief: graph drift and an unread definition warn and still print; unr
 
   // A plugin whose skill has lost the conventions table: one line points at the rules instead.
   const engine = scratchPlugin(t);
-  const skill = path.join(path.dirname(path.dirname(engine)), 'SKILL.md');
-  fs.writeFileSync(skill, fs.readFileSync(skill, 'utf8').replace('### Node conventions', '### Conventions elsewhere'));
+  const skill = path.join(path.dirname(path.dirname(engine)), 'references/node-conventions.md');
+  fs.writeFileSync(skill, fs.readFileSync(skill, 'utf8').replace('# Node conventions', '# Conventions elsewhere'));
   const sample = sampleRun(t);
   const blind = nodeBrief(sample.state, 'draft', engine);
   assert.equal(blind.code, 0, blind.stderr);
@@ -533,7 +533,7 @@ test('node-brief: a path holding a space is quoted on the rules line and in the 
   const { nodeBrief: render } = await import('../../plugins/maister/skills/workflow-engine/scripts/lib/node-brief.mjs');
   const sample = scratch(t, { name: '2026-01-05-a sample' });
   freeze(sample, { definition: NODE_BRIEF });
-  const rules = path.join(sample.root, 'plugin dir', 'SKILL.md');
+  const rules = path.join(sample.root, 'plugin dir', 'references', 'node-conventions.md');
 
   const gate = render({ state: sample.state, node: 'approval', rules: `${rules} § Node conventions` });
   assert.equal(gate.ok, true);
