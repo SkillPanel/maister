@@ -178,3 +178,29 @@ test('E12: a sub-run child is held to its own path rule, never refused as mispla
   assert.match(result.stderr, /^state-subrun-path-mismatch\b/);
   assert.doesNotMatch(result.stderr, /state-run-folder-misplaced/);
 });
+
+test('E13: a top-level run with a node named parent gets the relay banner, and is held to the run-folder rule', t => {
+  const definition = path.join(scratch(t).root, 'parent-node.yml');
+  fs.writeFileSync(definition, [
+    'name: parent-node', 'version: 1', 'description: "Has a node whose id is parent."', 'nodes:',
+    '  parent:', '    uses: direct:parent', '    needs: []', '',
+  ].join('\n'));
+  fs.writeFileSync(definition.replace(/\.yml$/, '.md'), '# Parent node — node prose\n\n## `parent`\n\nDo it.\n');
+  const target = scratch(t);
+  const result = freezeOf(target, freezePatch({ definition }).patch);
+  assert.equal(result.code, 0, result.stderr);
+  // The frozen file carries an indented `parent:` line under workflow.nodes, and no parent link.
+  assert.match(fs.readFileSync(target.state, 'utf8'), /^ +parent:/m);
+  assert.equal(readState(target).orchestrator.parent, undefined);
+  assert.equal(result.stdout.split('\n')[0], `${RELAY}.`);
+  assert.doesNotMatch(result.stdout, /do not relay/);
+
+  // Frozen in a misplaced folder, it is refused as a top-level run.
+  const misplaced = path.join(target.root, '.maister', 'tasks', '2026-01-05-shallow');
+  fs.mkdirSync(misplaced, { recursive: true });
+  const state = path.join(misplaced, 'orchestrator-state.yml');
+  const refused = verb(['write-state', `--state=${state}`], freezePatch({ definition }).patch);
+  assert.equal(refused.code, 1, `${refused.stdout}${refused.stderr}`);
+  assert.match(refused.stderr, /^state-run-folder-misplaced: /m);
+  assert.equal(fs.existsSync(state), false);
+});

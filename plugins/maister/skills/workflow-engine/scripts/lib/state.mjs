@@ -618,7 +618,7 @@ export function writeState({ state, patch, regress = null, host = null, moveBase
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
     const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings, notes: [...new Set(notes)] };
-    if (freeze) result.banner = [/^ +parent:/m.test(text) ? BANNER_CHILD : relayLine(text, banner, noOpen), ...banner.lines].map(line => `${line}\n`).join('');
+    if (freeze) result.banner = [hasParentLink(text) ? BANNER_CHILD : relayLine(text, banner, noOpen), ...banner.lines].map(line => `${line}\n`).join('');
     if (out.asking !== null) result.asking = out.asking;
     const companionMissing = companionCheck(text, path.dirname(path.resolve(state)), before);
     if (companionMissing.length) result.companionMissing = companionMissing;
@@ -711,6 +711,21 @@ function relayLine(text, banner, noOpen) {
   const opens = !noOpen && banner.dashboard !== null && isTerminalDriver(parseState(text)) && !optedOut()
     && fs.existsSync(path.join(banner.run_dir, VIEWER));
   return `${BANNER_RELAY}${opens ? BANNER_OPENED : ''}.`;
+}
+/**
+ * Does this state text carry a parent link — is it a child run's? Decided from
+ * the parsed `orchestrator.parent`, never from the text alone: the freeze writes
+ * `workflow.nodes` one indented line per node, so a node named `parent` puts the
+ * same indented key in a top-level run's file. The text match only spares the
+ * parse when no such key appears at all.
+ */
+function hasParentLink(text) {
+  if (!/^ +parent:/m.test(text)) return false;
+  try {
+    return isPlainObject(parseState(text).orchestrator?.parent);
+  } catch {
+    return false;
+  }
 }
 /** The first line of a child run's banner: the parent's walk goes on, so nothing is relayed. */
 export const BANNER_CHILD = 'A sub-run\'s banner: do not relay it to the user; the parent\'s walk goes on.';
@@ -3214,7 +3229,7 @@ function runRootOf(runDir) {
 function assertRunFolder(doc, patch, runDir) {
   if (runDir === null) return;
   const sent = isPlainObject(patch.orchestrator) && Object.hasOwn(patch.orchestrator, 'parent');
-  if (sent || /^ +parent:/m.test(doc.text())) return;
+  if (sent || hasParentLink(doc.text())) return;
   const parent = path.dirname(runDir);
   const above = path.dirname(parent);
   const placed = path.basename(path.dirname(above)) === '.maister'
