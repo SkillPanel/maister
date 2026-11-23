@@ -609,7 +609,7 @@ export function writeState({ state, patch, regress = null, host = null, moveBase
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
     const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings, notes: [...new Set(notes)] };
-    if (freeze) result.banner = [BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
+    if (freeze) result.banner = [/^ +parent:/m.test(text) ? BANNER_CHILD : BANNER_RELAY, ...banner.lines].map(line => `${line}\n`).join('');
     if (out.asking !== null) result.asking = out.asking;
     const companionMissing = companionCheck(text, path.dirname(path.resolve(state)), before);
     if (companionMissing.length) result.companionMissing = companionMissing;
@@ -686,6 +686,8 @@ function bannerOf(state, text) {
 
 /** The banner's first line, read by the orchestrating model rather than shown. */
 export const BANNER_RELAY = 'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below.';
+/** The first line of a child run's banner: the parent's walk goes on, so nothing is relayed. */
+export const BANNER_CHILD = 'A sub-run\'s banner: do not relay it to the user; the parent\'s walk goes on.';
 
 /**
  * Does the state this write produces have no gate pending?
