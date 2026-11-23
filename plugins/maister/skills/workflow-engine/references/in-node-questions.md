@@ -373,10 +373,23 @@ after a minute). Its refusals leave nothing written:
 
 ## A dispatch closed out partial
 
+**A dispatched node's outcome is its close-out grade, mapped rather than judged.** A node carrying
+`dir:` is recorded `waiting` while its dispatch runs, and its outcome is the grade the dispatch's
+close-out carries — `success`, `partial` or `failed`, given by the worker, or by whatever closed
+a dispatch the worker never closed. The engine never grades on a worker's behalf:
+
+| Close-out grade | Dispatched node | Run |
+|---|---|---|
+| `success` | `completed` | continues its walk; the declared outputs are exposed |
+| `partial` | unchanged, stays `waiting`; `completed` when the held item is already resolved | asks the held-dispatch question, and its answer decides (below), unless the dispatch's ledger entry records its pull request in `closeout.prs` or its `needs: [permission]` follow-up is `resolved`; then nothing is asked |
+| `failed` | `failed` | ends `RUN-FAILED: dispatch <dispatch-id> failed`, unless a downstream node declares `on: failure` or `on: always` |
+| a stopped dispatch | `stopped` | stops outright, as for a stopped child run |
+| no close-out yet | unchanged, stays `waiting` | nothing is recorded |
+
 A dispatched node — a `workflow:` node carrying `dir:` — waits while its worker runs in the
 member repository. When the dispatch's close-out is graded `partial`, the work was done but
-something is still held, and the node asks one question while still `waiting` (engine
-§ *Recording an outcome*). It asks only while the hold is live: when the dispatch's ledger entry
+something is still held, and the node asks one question while still `waiting` (the grade
+table above). It asks only while the hold is live: when the dispatch's ledger entry
 records its pull request in `closeout.prs`, or its `needs: [permission]` follow-up is
 `resolved`, the node is recorded `completed` with a `by: run` decision naming what resolved it,
 and nothing below is asked. A pull request is recorded there as `{repo, number, url}`, and the
@@ -398,6 +411,15 @@ summary in one line:
 No option is recommended and the set names no default, so nothing continues on its own. More
 details is never offered: the question carries what is held in its own text. It is never sent
 through the classing write, so no policy settles it.
+
+**A held item already resolved is not asked about.** Before asking, read the dispatch's ledger
+entry (the umbrella runtime's `ledger` verb, op `query`). When its `closeout.prs` records the
+dispatch's pull request, or its `needs: [permission]` follow-up is `resolved`, what was held has
+happened: record the node `completed` with one decision naming what resolved it, `by: run` —
+`{decision: "Held item resolved: pull request <url> recorded", by: run}`, `<url>` being the `url`
+of the pull request's `{repo, number, url}` entry, or `{decision: "Held
+item resolved: follow-up <id> resolved by <resolved_by>", by: run}` — and ask nothing. Never
+`by: operator`: nobody answered. Otherwise the question is asked exactly as above.
 
 - **In session** it is asked with the question tool, the same question and the same three
   options.

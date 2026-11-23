@@ -464,7 +464,8 @@ test('every closing node, and the engine\'s dispatched ending, asks held-approva
   const ending = sectionOf(skillText(), '### Ending a dispatched run');
   assert.ok(ending.includes(HELD_BRIEF), `SKILL.md § Ending a dispatched run never names ${HELD_BRIEF}`);
   assert.ok(ending.includes('`task.status: completed`'), 'the fallback\'s closing patch records task.status completed');
-  assert.ok(ending.includes('`gate-brief-nothing-held`'), 'the ending names the nothing-held refusal');
+  const full = sectionOf(skillText('references/gates.md'), '## Ending a dispatched run');
+  assert.ok(full.includes('`gate-brief-nothing-held`'), 'gates.md § Ending a dispatched run names the nothing-held refusal');
 });
 
 test('the close-out order rule adds no question-set marker, the parser counts stay, and the classing rule is stated once', () => {

@@ -317,25 +317,6 @@ write a question set there themselves.
 
 Every verb's flags, output and refusals are in `references/verbs.md`. Each step here spells the whole call of the verbs every run makes, where its moment is. Read a verb's row there only for a call no step spells.
 
-`run-complete --state=<state>` ends a run and, in a dispatched run, only once the close-out it owes is
-on disk. There it takes `--outbox` and `--dispatch-id` as well, because the state never records
-the outbox root, and the `dispatch_id` it records only marks the run as dispatched: pass them through unchanged from the seed, which hands them over under exactly
-these spellings for the outbox verb. Omitting them is refused like an unpublished close-out.
-
-**`write-state` checks the document it wrote structurally, not against a schema, and that
-is deliberate.** It re-reads the candidate through the shared state reader
-(`lib/state-scan.mjs`), then holds it to the rules a line-oriented writer can state for
-itself: no duplicate key at any column, no top-level block that neither the prior file nor
-this patch introduced, and a task, a workflow and a non-empty node map present; a consumer
-checkout carries no YAML package and no schema validator. So a document can be structurally
-sound and still carry a wrong value. Two things follow for a caller. Send values in the
-shapes this skill and the framework document rather than relying on a refusal to catch a
-wrong one; and never rewrite the `workflow:`
-block. It is written once, at the freeze, and never again: a later patch identical to it
-changes nothing, and one that differs in a node or in any scalar beside `workflow.nodes` —
-`graph_hash` among them — is refused with `state-workflow-frozen`. Nothing is carried
-forward into the block and nothing is dropped from it.
-
 **A changed definition never re-freezes an open run.** The graph a run froze is its graph
 for its whole life, and no verb or flag replaces it. Several things report a change: a read
 verb's `…-graph-drift` warning, a parent's `subrun-graph-drifted` and a dispatch's
@@ -398,39 +379,15 @@ driver (*Operator visibility*).
 
 ### Ending a dispatched run
 
-**A dispatched run's close-out publishes through the outbox close-out verb** — carrying the
-grade and the summary the seed's close-out contract asks for — **and the closing node records
-its outcome value only after that publish succeeded.** The outbox is the chain's only way to learn a dispatch is over, so `run-complete` refuses a run that never
-published. If the outbox cannot be written, the outbox verb hands back a `DISPATCH-RESULT:` line
-instead; that line is then the turn's last line and no `RUN-COMPLETE` is owed. A run that is
-not dispatched has no outbox.
-
-**No close-out while a choice is held.** In a run that records `classes_questions`, the closing
-node runs `gate-brief --node=held-approval` before it publishes anything, and publishes only
-after one of these:
-- `gate-brief-nothing-held`: publish as usual;
-- a continue: the approvals are recorded, then publish as usual;
-- a stop: publish the close-out a stopped dispatch owes;
-- the driver's request writer refusing the `held-approval` request: publish the close-out graded
-  `failed`, its summary naming each held choice — node, question, choice — as awaiting approval;
-  then write the closing patch recording `task.status: completed`, never `failed`, and run
-  `run-complete`, which ends the run `RUN-FAILED: run-held-unapproved`. Only a completed run is
-  judged for held choices; a failed one would end on a failed-node marker and hide them.
-
-A revise publishes nothing: the stretch, the closing node included, runs again. `run-complete`
-judges held choices before the close-out, so a close-out published too early never ends such a
-run `RUN-COMPLETE`.
+**A dispatched run publishes its close-out through the outbox verb, and the closing node records
+its outcome only after that publish succeeded** — in a run that records `classes_questions`,
+never before `gate-brief --node=held-approval` has run. There `run-complete --state=<state>` also
+takes `--outbox` and `--dispatch-id`, copied unchanged from the seed: the state records no outbox
+root, and its `dispatch_id` only marks the run as dispatched. The outcomes, the `DISPATCH-RESULT:`
+fallback and the `task.status: completed` a refused `held-approval` request still records are
+`references/gates.md` § *Ending a dispatched run*.
 
 ### Delegation by scheme
-
-The node's `uses` names both the mechanism and the target:
-
-| Scheme | How it runs |
-|---|---|
-| `skill:<name>` | the Skill tool |
-| `agent:<name>` | the Task tool |
-| `direct:<name>` | inline, by this engine, from the node's `node-brief` output |
-| `workflow:<name>` | with no `dir:`, it **starts a child run** — its own task directory, its own frozen graph, its own driver — and the node waits for it (*Sub-runs*). With `dir:` it keeps its dispatch meaning and is refused as a sub-run |
 
 **While a delegate runs, say so — the prompt otherwise looks like it is waiting for the user.**
 Right after launching a node's delegate, print one line: *"<Phase title> is running. Nothing
@@ -441,20 +398,7 @@ and may be said as one. When the run has a dashboard, the first such line ends *
 the dashboard in your browser."*, and a later one repeats it now and then — after a gate, or on a
 long wait — never on every line and never with its path. Questions never name the dashboard.
 
-**A `skill:` or `agent:` target resolves through the four tiers of `references/grammar.md`
-§ 5.1**, first hit winning, and `validate` reports where each was found. One found nowhere
-warns `unresolved-reference:<node>:<target>` and surfaces when the node is reached. **Target
-names in a definition are bare**; the provider prefix is applied at invocation, so one shipped
-definition is correct under every generated variant.
-
-**Prior-phase context is read out of state, never composed.** A prompt for an artifact-writing
-delegate carries everything earlier phases decided and flagged: `N` items in state arrive as `N`
-distinct items, none dropped and none merged. So run `prior-context` **at each consuming
-delegate** — one call per prompt, in the turn that composes it — and paste its stdout into the
-prompt under its own heading, unedited and whole: never slice it with `sed`, `head`, `tail` or
-the like, never pass a file path or a saved copy in its place, and never re-use a rendering made
-for an earlier delegate. **A delegate writing for end users — a user guide, user documentation —
-gets `prior-context --background` instead.**
+Target names are bare; the provider prefix is applied at invocation (`references/grammar.md` § 5.1).
 
 Before executing any node, run `node-brief --state=<state> --node=<id>` and read its output
 whole. It prints what the run derives for the node and the conventions that apply to it, and
@@ -507,7 +451,7 @@ names a target as written. Each reference reads the run's state, never a recolle
 |---|---|
 | `${inputs.<name>}` | `orchestrator.options.inputs.<name>`; else the input's declared `default`; else null |
 | `${<node>.values.<key>}` | the value the node recorded in `workflow.nodes.<node>.values`. A skipped node recorded its bools false and its strings and enums null |
-| `${<node>.artifacts.<key>}` | the path the node declares, joined onto the task directory of the run that wrote it and spelled repository-root-relative (*Recording an outcome*). A node with `dir:` declares a member repository's path: a dispatch envelope reads it in that dispatch's worktree once its close-out is published; one that also runs a `workflow:` is read at the path its worker's close-out lists for the key, in that worktree (the umbrella skill, `seed`) |
+| `${<node>.artifacts.<key>}` | the path the node declares, joined onto the task directory of the run that wrote it and spelled repository-root-relative (`references/writing-state.md` § *Recording an outcome — the detail*). A node with `dir:` declares a member repository's path: a dispatch envelope reads it in that dispatch's worktree once its close-out is published; one that also runs a `workflow:` is read at the path its worker's close-out lists for the key, in that worktree (the umbrella skill, `seed`) |
 
 **A value keeps its type when the reference is the whole string.** `with: {deep:
 "${intake.values.deep}"}` hands over the bool `true`, and a null stays null. A reference inside
@@ -540,96 +484,10 @@ schemes:
 outputs declare** (`references/writing-state.md` § *Recording an outcome — the detail*); the
 writer refuses anything else, and its refusal names the fix.
 
-**A `workflow:` node's outcome is the child run's, mapped rather than judged**: the parent reads
-the child's `task.status` at the node's recorded `values.task_path` and maps it:
-
-| Child `task.status` | Parent node | Parent run |
-|---|---|---|
-| `completed` | `completed` | continues its walk; the declared outputs are exposed |
-| `failed` | `failed` | ends `RUN-FAILED: sub-run <child-run-id> failed`, unless a downstream node declares `on: failure` or `on: always` |
-| `stopped` | `stopped` | stops outright — one patch carries `task.status: stopped` and every unexecuted node, then `run-complete`. No `RUN-FAILED`: a stop is a legitimate outcome |
-| anything else | unchanged, stays `waiting` | the waiting path runs again (*Sub-runs*) |
-
-A child can complete without an artifact its parent's node declares, when a guard skipped the
-child node that writes it: the adopting write records it under the parent node's `absent`, with
-the skip as the reason. Any other absence is left unrecorded, so `run-complete` reports it.
-
-**A dispatched node's outcome is its close-out grade, mapped rather than judged.** A node carrying
-`dir:` is recorded `waiting` while its dispatch runs, and its outcome is the grade the dispatch's
-close-out carries — `success`, `partial` or `failed`, given by the worker, or by whatever closed
-a dispatch the worker never closed. The engine never grades on a worker's behalf:
-
-| Close-out grade | Dispatched node | Run |
-|---|---|---|
-| `success` | `completed` | continues its walk; the declared outputs are exposed |
-| `partial` | unchanged, stays `waiting`; `completed` when the held item is already resolved | asks the held-dispatch question, and its answer decides (below), unless the dispatch's ledger entry records its pull request in `closeout.prs` or its `needs: [permission]` follow-up is `resolved`; then nothing is asked |
-| `failed` | `failed` | ends `RUN-FAILED: dispatch <dispatch-id> failed`, unless a downstream node declares `on: failure` or `on: always` |
-| a stopped dispatch | `stopped` | stops outright, as for a stopped child run |
-| no close-out yet | unchanged, stays `waiting` | nothing is recorded |
-
-**`partial` is held, and the operator decides.** The work was done but something is still held —
-a push or a pull request awaiting approval. The run asks one question, named after the node,
-that says what is held, from the close-out's own summary or its held-command report, and offers
-three options, none recommended and none taken on its own:
-- **accept the work as done**: the node is recorded `completed`, and its summary gains an `open`
-  risk naming what is held;
-- **dispatch the node again**: the node goes back to `pending`, and the ready set dispatches it
-  anew — a new dispatch, since ids are never reused;
-- **stop the run**: one patch carries `task.status: stopped`, the node and every unexecuted node
-  `stopped`, then `run-complete`, as for a stopped child run.
-
-**A held item already resolved is not asked about.** Before asking, read the dispatch's ledger
-entry (the umbrella runtime's `ledger` verb, op `query`). When its `closeout.prs` records the
-dispatch's pull request, or its `needs: [permission]` follow-up is `resolved`, what was held has
-happened: record the node `completed` with one decision naming what resolved it, `by: run` —
-`{decision: "Held item resolved: pull request <url> recorded", by: run}`, `<url>` being the `url`
-of the pull request's `{repo, number, url}` entry, or `{decision: "Held
-item resolved: follow-up <id> resolved by <resolved_by>", by: run}` — and ask nothing. Never
-`by: operator`: nobody answered. Otherwise the question is asked exactly as above.
-
-It is asked in session with the question tool, and under a driver suspended as an in-node
-question set from the waiting node; where the driver carries no question sets, the run stops
+**An outcome that comes from elsewhere is mapped, never judged**: a `workflow:` node's is its child's
+`task.status` (`references/sub-runs.md` § *Ending, and the re-resolve that precedes W4*), and a
+dispatched node's (`dir:`) its close-out grade, the held `partial` question included
 (`references/in-node-questions.md` § *A dispatch closed out partial*).
-
-**A declared artifact path resolves against the task directory of the run that wrote it** — the
-run's own for a `direct:`, `skill:` or `agent:` node, the child's (the node's recorded
-`values.task_path`) for a `workflow:` node — for the existence check below and for
-`${<node>.artifacts.<key>}` alike. The declared path itself is literal.
-
-**The two budget-exhausted rows need an operator.** Under a `cockpit` or `dispatch` driver the
-node is recorded `failed` and the run stops with `RUN-FAILED` (`references/in-node-questions.md`
-§ *When nobody can be asked*).
-
-**A node that did not produce its declared artifacts has not completed.** Before recording
-a node `completed`, check that every path the node declares under `outputs.artifacts` exists
-— one `test -e` per declared path, against the path resolved from the task directory. A
-declared artifact that is missing is one of exactly two things, and the node's `brief:` `absent`
-entry is what tells them apart (printed as "may be absent" on `node-brief`'s `writes:` line):
-
-| The node's `brief:` `absent` entry | The missing path means |
-|---|---|
-| sanctions the absence by name — the artifact's source may legitimately not exist | no such context; record `completed` with the absence on the node summary (below) |
-| names nothing for it | the delegate skipped work it was asked to do; the node has **not** completed |
-
-Treat the second as a failed self-check and re-drive the node within its budget, naming the
-missing path in the context handed back; when the budget is exhausted, the table above decides.
-
-**A sanctioned absence is recorded, not just described.** The completing write's node summary
-carries `absent: {<artifact-key>: "<reason>"}` — one entry per declared artifact the node
-completed without, named by its declared key (never its path), with the reason in a few words —
-and its `summary` still says it in prose. Record it only where the node's `brief:` `absent`
-entry sanctions the absence.
-
-**One summary per step.** A step's summary, decisions and risks are its `node_summaries` entry,
-keyed by node id, and are recorded nowhere else: no copy goes into the context block, and the
-writer drops a `phase_summaries` key, top-level or under `context`, with a `note:` line.
-
-The writer mirrors a node's status onto its summary and registers, on a completing summary,
-every declared artifact on disk the entry does not list; the closing write still lists what the
-section asks for, each path relative to the task directory and each file once (`references/writing-state.md` § *Recording an outcome — the detail*).
-
-**Retry budgets are prose, never `with:` data**: nothing consults a budget written in `with:`;
-the number sits in the node's `brief:` `budget` and is printed as a prose rule.
 
 ---
 
@@ -657,30 +515,8 @@ run's driver, and classed first when the freeze recorded `classes_questions` —
 
 ## Sub-runs
 
-A `workflow:` node carrying no `dir:` starts a **child run**: an ordinary task directory beside
-the parent's, with its own frozen graph, its own state file and its own driver, linked back by the
-child's `orchestrator.parent` — `{run, node}`, written once at the freeze, copied from `subrun-path`'s `parent` (the parent's directory, never its bare run id). The parent node holds
-`status: waiting` while the child executes and adopts the child's terminal status when it ends.
-The full contract is `references/sub-runs.md`. What the engine must hold in mind at the node:
-
-- **Three writes bracket a start**: W1 the parent node `running`; W2 the whole child freeze, one
-  call against the child's state; W3 the parent node `waiting` with `values: {task_path, run_id}`.
-  W2 precedes W3, and both precede the marker. W2 prints the child's own startup banner; the
-  parent does not relay it.
-- **Under a terminal driver the child runs in session** and the turn continues to W4. Under a
-  `cockpit` or `dispatch` driver the turn ends at `WAITING-SUBRUN` and the daemon discovers the
-  child in its ordinary sweep — the parent drives nothing and spawns nothing.
-- **Five checks refuse before anything is created**: `subrun-path` runs the first three; perform
-  the last two from `references/sub-runs.md` § *Before any write — the checks that refuse*.
-- **The child's freeze copies from the parent** the narrower autonomy ceiling and, under a driver
-  that is not the terminal, the driver's features — never `question-sets` from a parent that
-  does not carry them, such as the legacy `kind: dispatch`; a parent whose state cannot be read gives
-  neither, and the freeze warns `autonomy-ceiling-parent-unread:<run>` or
-  `driver-features-parent-unread:<run>`.
-- **The child's directory comes from `subrun-path`, never worked out by hand**: the verb prints
-  the `task_path` and `run_id` W3 records, so a parent re-driven after a crash gets the same
-  directory and **adopts** the existing child (`existing: adopt`) instead of starting a second
-  one. A child frozen anywhere else is refused `state-subrun-path-mismatch`.
+A `workflow:` node starts a child run: read `references/sub-runs.md` before its first write —
+the writes, the checks that refuse and the ending are there.
 
 ## Resume
 
@@ -775,30 +611,6 @@ The reader is a first-time user who sees only the terminal.
 ---
 
 ## Operator visibility
-
-The artifact summary contract (§ 7), the operator dashboard (§ 8) and the HTML companions (§ 9)
-are `../orchestrator-framework/references/orchestrator-patterns.md`'s; the engine honours them
-and restates none. Every successful `write-state` projects `dashboard-data.js` itself, so no
-node owes a rewrite of it, and a projection that fails is a warning that never blocks.
-
-**The display files are the engine's alone.** Every successful `write-state` also writes the
-run's `display/status.json`, the freeze writes `display/banner.json`, `gate-brief` in every
-form writes `display/next.json`, which the next state write removes, and under a host that
-names its session each write records the run in `.maister/display/sessions/<session id>.json`.
-An editor extension draws them beside the session: no node writes them or relays them, and one
-that cannot be written is a warning on the dashboard's terms.
-
-**Phases are named by their titles** — the definition's `display.titles`
-(`references/grammar.md` § 3.1), falling back to the id made readable in sentence case, a known
-acronym in capitals (`gap-analysis` → `Gap analysis`, `deliver-notes-api` → `Deliver notes
-API`); name phases the same way in the executive summary. Ids stay wherever something is keyed:
-state, gate files, markers and option ids — a gate's answer is recorded by option id, never by
-label.
-
-**The dashboard link is shown where a run starts, resumes and ends**: in the freeze banner as
-the run starts, from `resume-check` as a resume begins, and once more at the end as
-`Dashboard: <link>` — the same `file://` link each time. A gate never names it. A run without a
-dashboard shows none.
 
 **How a run ends depends on who reads its end.**
 

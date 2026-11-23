@@ -557,7 +557,7 @@ A refusal at step 3 is `state-question-answer-invalid` (`references/writing-stat
 answer, its status written `completed`. The suspend left the closing node `running`, and a
 running node is never in the ready set, so do not take the ready set first:
 - after a continue — the empty-patch re-validation records the approvals — or a stop, carry on
-  with the closing node at its close-out step (engine § *Ending a dispatched run*);
+  with the closing node at its close-out step (*Ending a dispatched run*);
 - after a revise, run `gate-revise --node=held-approval` with the note, as *Revising at a gate*
   says; it resets the stretch, the closing node included, and then the ready set is taken.
   `resume-check` reports such a revise `applied: false` until it has run.
@@ -636,7 +636,7 @@ When no checkpoint follows a held choice, the run raises one of its own before i
 the held rule (engine § *The ready set*). `held-approval` is a reserved id, never a node of the
 frozen graph, so no definition and no `graph_hash` changes. In a run that records
 `classes_questions`, the closing node runs `gate-brief --node=held-approval` before its closing
-patch and, in a dispatched run, before its close-out (engine § *Ending a dispatched run*):
+patch and, in a dispatched run, before its close-out (*Ending a dispatched run*):
 - `gate-brief-nothing-held` — nothing waits: close the run as usual;
 - otherwise it is asked like a gate, by the run's driver: in session with the picker, or suspended
   with `gate-request` — the writer accepts its `status` writes for exactly this. The brief
@@ -659,6 +659,31 @@ checkpoint has such a revise — a sub-run ready to start after the step counts 
 and the writer refuses to start it (`state-subrun-held-open`) — `held-approval` is asked at that
 point instead, and its revise, with the choice in the note, re-runs the step and everything
 after it.
+
+## Ending a dispatched run
+
+**A dispatched run's close-out publishes through the outbox close-out verb** — carrying the
+grade and the summary the seed's close-out contract asks for — **and the closing node records
+its outcome value only after that publish succeeded.** The outbox is the chain's only way to learn a dispatch is over, so `run-complete` refuses a run that never
+published. If the outbox cannot be written, the outbox verb hands back a `DISPATCH-RESULT:` line
+instead; that line is then the turn's last line and no `RUN-COMPLETE` is owed. A run that is
+not dispatched has no outbox. Omitting `run-complete`'s `--outbox` and `--dispatch-id` is refused like an unpublished close-out.
+
+**No close-out while a choice is held.** In a run that records `classes_questions`, the closing
+node runs `gate-brief --node=held-approval` before it publishes anything, and publishes only
+after one of these:
+- `gate-brief-nothing-held`: publish as usual;
+- a continue: the approvals are recorded, then publish as usual;
+- a stop: publish the close-out a stopped dispatch owes;
+- the driver's request writer refusing the `held-approval` request: publish the close-out graded
+  `failed`, its summary naming each held choice — node, question, choice — as awaiting approval;
+  then write the closing patch recording `task.status: completed`, never `failed`, and run
+  `run-complete`, which ends the run `RUN-FAILED: run-held-unapproved`. Only a completed run is
+  judged for held choices; a failed one would end on a failed-node marker and hide them.
+
+A revise publishes nothing: the stretch, the closing node included, runs again. `run-complete`
+judges held choices before the close-out, so a close-out published too early never ends such a
+run `RUN-COMPLETE`.
 
 ## Revising at a gate
 
@@ -772,4 +797,4 @@ holding a sub-run, a missing note.
 
 `stopped` is not only a status for unexecuted nodes: a `workflow:` node whose child run stopped
 ran, waited and adopted that outcome, so it is recorded `stopped` **with** a summary, mirrored to
-`skipped` per engine § *Recording an outcome*. The unexecuted nodes carry none, which tells the two apart.
+`skipped` per `references/writing-state.md` § *Recording an outcome — the detail*. The unexecuted nodes carry none, which tells the two apart.

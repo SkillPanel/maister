@@ -12,16 +12,17 @@ import { ENGINE_DIR } from '../helpers.mjs';
 // free to move; the words are not.
 
 const SKILL = path.join(ENGINE_DIR, 'SKILL.md');
+const WRITING_STATE = path.join(ENGINE_DIR, 'references/writing-state.md');
 
 const WRITE_STATE = [
   '**`write-state` checks the document it wrote structurally, not against a schema, and that',
   'is deliberate.** It re-reads the candidate through the shared state reader',
-  '(`lib/state-scan.mjs`), then holds it to the rules a line-oriented writer can state for',
+  "(the plugin root's `lib/state-scan.mjs`), then holds it to the rules a line-oriented writer can state for",
   'itself: no duplicate key at any column, no top-level block that neither the prior file nor',
   'this patch introduced, and a task, a workflow and a non-empty node map present; a consumer',
   'checkout carries no YAML package and no schema validator. So a document can be structurally',
   'sound and still carry a wrong value. Two things follow for a caller. Send values in the',
-  'shapes this skill and the framework document rather than relying on a refusal to catch a',
+  'shapes the engine skill and its references document rather than relying on a refusal to catch a',
   'wrong one; and never rewrite the `workflow:`',
   'block. It is written once, at the freeze, and never again: a later patch identical to it',
   'changes nothing, and one that differs in a node or in any scalar beside `workflow.nodes` —',
@@ -65,8 +66,10 @@ function skill() {
   return collapse(fs.readFileSync(SKILL, 'utf8'));
 }
 
-test('the write-state paragraph stands word for word', () => {
-  assert.ok(skill().includes(collapse(WRITE_STATE)), 'SKILL.md carries the write-state paragraph unchanged');
+test('the write-state paragraph stands word for word in the writing-state reference', () => {
+  const reference = collapse(fs.readFileSync(WRITING_STATE, 'utf8'));
+  assert.ok(reference.includes(collapse(WRITE_STATE)), 'writing-state.md carries the write-state paragraph unchanged');
+  assert.ok(!skill().includes('checks the document it wrote structurally'), 'SKILL.md no longer carries the paragraph: it has one home');
 });
 
 test('the no-re-freeze paragraph stands, with both ways on and the never-revert rule', () => {
