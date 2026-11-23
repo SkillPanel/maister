@@ -111,7 +111,6 @@ import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, decl
 import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
 import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
-import { optedOut } from '../../../../lib/open-file.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
 import { atClose, dueNext, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
@@ -549,11 +548,8 @@ const WORKFLOW_CONTEXT = {
  * `{sha, dirty, reason}`: the commit the run's base moves to, the paths dirty
  * now and why (a string or null). The writer replaces `task.base_commit` from
  * the record the document holds (`applyMoveBase`).
- *
- * `noOpen`, the verb's `--no-open`, only shapes the freeze banner's relay line:
- * the verb opens no dashboard then, so the line does not say one is open.
  */
-export function writeState({ state, patch, regress = null, host = null, moveBase = null, noOpen = false }) {
+export function writeState({ state, patch, regress = null, host = null, moveBase = null }) {
   const warnings = [];
   // What `apply` reports back about the record it built. `changed`: the dotted
   // paths it wrote. `ignored`: the clock fields the patch carried and the
@@ -618,7 +614,7 @@ export function writeState({ state, patch, regress = null, host = null, moveBase
     // freeze just installed; on the projection's terms, a warning at worst.
     warnings.push(...display(state, text, now, banner));
     const result = { ok: true, changed, errors: [], warnings, ignored, undeclared, writeWarnings, notes: [...new Set(notes)] };
-    if (freeze) result.banner = [hasParentLink(text) ? BANNER_CHILD : relayLine(text, banner, noOpen), ...banner.lines].map(line => `${line}\n`).join('');
+    if (freeze) result.banner = [hasParentLink(text) ? BANNER_CHILD : `${BANNER_RELAY}.`, ...banner.lines].map(line => `${line}\n`).join('');
     if (out.asking !== null) result.asking = out.asking;
     const companionMissing = companionCheck(text, path.dirname(path.resolve(state)), before);
     if (companionMissing.length) result.companionMissing = companionMissing;
@@ -711,20 +707,24 @@ export function startBanner(state) {
 
 /** The banner's first line, read by the orchestrating model rather than shown: it asks for a message the person sees. */
 export const BANNER_RELAY = 'Show the person the lines below now, as a visible message of your own — the next thing you write, before any other call, never only in your thinking — each line copied as printed';
-/** The relay line's tail when the freeze opens the dashboard itself. */
+/**
+ * The relay line's tail, by what the write-state verb's opener did after the
+ * freeze: it is told only once the opener has run, so it never says the
+ * dashboard is open when it did not open.
+ */
 export const BANNER_OPENED = '; the dashboard is already open: run no opener';
+export const BANNER_UNOPENED = '; the dashboard did not open: tell the person to open its Dashboard link in a browser, and run no opener';
 
 /**
- * The relay line for `banner`: `BANNER_RELAY`, with `BANNER_OPENED` when the
- * write-state verb opens the dashboard after this freeze — a run driven from
- * the terminal, its page on disk, the environment not opted out — the rule
- * `open-dashboard.mjs`'s `dashboardToOpen` keeps — and the verb was not
- * given `--no-open` (`noOpen`).
+ * The relay line with the opener's outcome told: `opened` is `'opened'`,
+ * `'failed'`, or null when nothing was opened (`--no-open`, an opted-out
+ * environment, a run with no page to open). `banner` is the freeze's printed
+ * banner; a child's, whose first line relays nothing, comes back as it is.
  */
-function relayLine(text, banner, noOpen) {
-  const opens = !noOpen && banner.dashboard !== null && isTerminalDriver(parseState(text)) && !optedOut()
-    && fs.existsSync(path.join(banner.run_dir, VIEWER));
-  return `${BANNER_RELAY}${opens ? BANNER_OPENED : ''}.`;
+export function bannerAfterOpen(banner, opened) {
+  const relay = `${BANNER_RELAY}.\n`;
+  if (typeof banner !== 'string' || !banner.startsWith(relay) || opened === null) return banner;
+  return `${BANNER_RELAY}${opened === 'opened' ? BANNER_OPENED : BANNER_UNOPENED}.\n${banner.slice(relay.length)}`;
 }
 /**
  * Does this state text carry a parent link — is it a child run's? Decided from

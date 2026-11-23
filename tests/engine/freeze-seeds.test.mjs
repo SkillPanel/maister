@@ -105,7 +105,7 @@ test('E10: a freeze naming no host records the delegation of the host the build 
   assert.equal(delegation.source, 'copilot default');
 });
 
-test('E11: the relay line asks for paths and links as printed, and says the dashboard is open when the freeze opened it', t => {
+test('E11: the relay line asks for the lines as printed, and tells whether the freeze\'s opener opened the dashboard', t => {
   const quiet = scratch(t, { name: '2026-01-05-quiet' });
   const kept = freezeOf(quiet, freezePatch().patch);
   assert.equal(kept.stdout.split('\n')[0], `${RELAY}.`);
@@ -118,6 +118,15 @@ test('E11: the relay line asks for paths and links as printed, and says the dash
   const result = freezeOf(opened, freezePatch().patch, env);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout.split('\n')[0], `${RELAY}; the dashboard is already open: run no opener.`);
+
+  // An opener that does not start: the line says the dashboard did not open,
+  // never that it is open, beside the warning naming the page.
+  const missing = scratch(t, { name: '2026-01-05-missing' });
+  const failed = freezeOf(missing, freezePatch().patch, { MAISTER_NO_OPEN: '', MAISTER_OPENER: JSON.stringify([path.join(missing.root, 'no-such-opener')]) });
+  assert.equal(failed.code, 0, failed.stderr);
+  assert.equal(failed.stdout.split('\n')[0], `${RELAY}; the dashboard did not open: tell the person to open its Dashboard link in a browser, and run no opener.`);
+  assert.doesNotMatch(failed.stdout, /already open/);
+  assert.match(failed.stderr, /^warning: the dashboard did not open \(.*\); open .*dashboard\.html in a browser$/m);
 
   // Under --no-open the verb opens nothing, so the line says nothing is open.
   const closed = scratch(t, { name: '2026-01-05-closed' });

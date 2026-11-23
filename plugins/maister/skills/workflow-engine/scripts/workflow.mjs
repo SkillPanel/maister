@@ -804,12 +804,13 @@ async function runWriteState(flags) {
   // session-start warning is never read. Before stdin, so nothing is written.
   if (refusedForEditions(module, flags)) return EXIT.REJECTED;
   const input = await readInput(flags, 'the patch');
-  const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null, noOpen: Boolean(flags['no-open']) });
+  const result = write({ state: flags.state, patch: input.document, host: flags.host ?? null });
+  // Only the freeze prints a banner, and a retried freeze prints none, so the
+  // dashboard opens once per run start and never on a later write. It opens
+  // before the banner prints, so the relay line tells what the opener did.
+  if (result.ok && result.banner) result.banner = module.bannerAfterOpen(result.banner, await openAfter(flags));
   const code = reportWrite(result, input, 'writeRefused');
   if (result.ok && result.next) printNext(result.next);
-  // Only the freeze prints a banner, and a retried freeze prints none, so the
-  // dashboard opens once per run start and never on a later write.
-  if (result.ok && result.banner) await openAfter(flags);
   return code;
 }
 
@@ -830,23 +831,25 @@ function printNext(next) {
  * `--no-open` or the environment opts out (`open-dashboard.mjs`). The state is
  * read as it now stands; a run that opens nothing prints nothing, and an opener
  * that did not start is one `warning:` line naming the page, the exit code
- * unmoved.
+ * unmoved. Resolves to `'opened'`, `'failed'`, or null when nothing was opened.
  */
 async function openAfter(flags) {
-  if (flags['no-open']) return;
+  if (flags['no-open']) return null;
   const opener = await loadModule('open-dashboard.mjs');
-  if (opener.optedOut()) return;
+  if (opener.optedOut()) return null;
   const { parse } = await loadModule('state-read.mjs');
   let doc;
   try {
     doc = parse(fs.readFileSync(flags.state, 'utf8'));
   } catch {
-    return;
+    return null;
   }
   const file = opener.dashboardToOpen(doc, path.dirname(path.resolve(flags.state)));
-  if (file === null) return;
+  if (file === null) return null;
   const reason = await opener.openDashboard(file);
-  if (reason !== null) process.stderr.write(`warning: the dashboard did not open (${reason}); open ${file} in a browser\n`);
+  if (reason === null) return 'opened';
+  process.stderr.write(`warning: the dashboard did not open (${reason}); open ${file} in a browser\n`);
+  return 'failed';
 }
 
 /** `edition-collision` for a verb that writes state, reported before anything is read. */
