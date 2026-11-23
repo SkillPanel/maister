@@ -75,7 +75,7 @@ Classify the question with the reference's **Research Type Classification** deci
 **Codebase, configuration and external sources**: derive them from the reference's **Source Identification Patterns** for the chosen type, made concrete with this question's key terms and this project's layout — paths and patterns a gatherer can run, not categories.
 
 **Documentation Sources**:
-1. Read `.maister/docs/INDEX.md` to discover all available project documentation and standards
+1. Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it. It lists all available project documentation and standards.
 2. Read ALL project documentation from `project_doc_paths` (if provided) — includes predefined docs (vision, roadmap, tech-stack, architecture) AND user-added project docs. Users may document domain models, deployment strategies, API conventions, etc. that directly inform research methodology and source selection.
 3. Check `.maister/docs/standards/` for relevant coding standards
 4. Use project context to inform source prioritization and methodology

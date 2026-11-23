@@ -263,7 +263,7 @@ Standards are found when they are relevant, not memorised upfront. Three sources
 1. **The plan's Standards Compliance section** — the standards relevant to this group.
 2. **INDEX.md** — standards matching the group's topic that the plan did not list.
 3. **The steps themselves** — a step about uploads, auth, notifications, forms, endpoints or
-   schemas may call for a standard no keyword names; check INDEX.md whenever a step touches a
+   schemas may call for a standard no keyword names; check the index whenever a step touches a
    concept the project likely has a rule for, and log what triggered it.
 
 INDEX.md and `.maister/docs/standards/` are read-only for every implementer: a document changed

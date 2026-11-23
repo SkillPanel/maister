@@ -200,6 +200,17 @@ find "$OUT/skills" -name "*.md" | while read f; do
   sedi -e 's#\.claude/CLAUDE\.md#AGENTS.md#g' -e 's/CLAUDE\.md/.github\/copilot-instructions.md/g' "$f"
 done
 
+# 5a. Copilot resolves an @-import in .github/copilot-instructions.md against
+#     .github/, so the import of the docs index climbs to the project root. Only
+#     the docs-manager template and its validation text name it. The pattern
+#     needs the @ directly before .maister, so a rewritten @../.maister is left
+#     alone. The old form is then added to the wrong-formats line, after the
+#     rewrite so it is not rewritten again.
+for f in "$OUT/skills/docs-manager/references/claude-md-template.md" "$OUT/skills/docs-manager/SKILL.md"; do
+  sedi -e 's#@\.maister/docs/INDEX\.md#@../.maister/docs/INDEX.md#g' "$f"
+done
+sedi -e 's#^\(.*incorrect formats like .*\)$#\1 or @.maister/docs/INDEX.md (resolved against .github/, it never loads the index)#' "$OUT/skills/docs-manager/SKILL.md"
+
 # 6. Replace AskUserQuestion with copilot's ask_user tool, and Claude Code's
 #    web tools with this host's: web_fetch by name, and web search as a plain
 #    phrase, since a session may offer no search tool at all.

@@ -37,7 +37,10 @@ updates its entry. A merge conflict in INDEX.md is settled by a refresh too
 
 **The pointer.** Your project's `CLAUDE.md` carries a line that loads `@.maister/docs/INDEX.md`,
 so every session starts from the index. On GitHub Copilot CLI the pointer goes in
-`.github/copilot-instructions.md` instead. Maister adds it when it is missing.
+`.github/copilot-instructions.md` instead. On Copilot the pointer line reads
+`@../.maister/docs/INDEX.md`. Maister adds it when it is missing. A pointer an earlier init wrote
+on Copilot reads `@.maister/docs/INDEX.md`, which never loaded the index; change it to
+`@../.maister/docs/INDEX.md`.
 
 ## Setting up: `/maister:init`
 
@@ -47,7 +50,8 @@ so every session starts from the index. On GitHub Copilot CLI the pointer goes i
   stack always, and the vision, roadmap and architecture unless you choose otherwise.
 - **Starter standards** under `.maister/docs/standards/`, in the categories that fit the code it
   found: global and testing always recommended, frontend and backend when the code has them. You
-  can choose the categories, or add one of your own.
+  can choose the categories, or add one of your own. A recommended category you leave out
+  gets no section in INDEX.md; init's closing summary names it with the command that adds it later.
 - **INDEX.md** for everything it wrote, and the pointer in `CLAUDE.md` (it creates the file when
   there is none).
 - **`.maister/config.yml`**, with the project profile; the keys are in

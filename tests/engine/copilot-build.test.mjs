@@ -61,6 +61,19 @@ test('the build is named maister, says it is for GitHub Copilot CLI and switches
   assert.match(read(ROOT, 'plugins/maister/lib/host.mjs'), /^export const SHIPPED_HOST = 'claude';$/m);
 });
 
+test('the Copilot build points the instructions import at the project root from .github/', () => {
+  const rel = 'skills/docs-manager/references/claude-md-template.md';
+  const template = fs.readFileSync(path.join(variantRoot(), rel), 'utf8');
+  assert.match(template, /Read\s+@\.\.\/\.maister\/docs\/INDEX\.md/);
+  const source = fs.readFileSync(path.join(ROOT, 'plugins/maister', rel), 'utf8');
+  assert.match(source, /Read\s+@\.maister\/docs\/INDEX\.md/);
+  const skill = fs.readFileSync(path.join(variantRoot(), 'skills/docs-manager/SKILL.md'), 'utf8');
+  const valid = skill.split('\n').find(l => l.includes('valid file reference format'));
+  assert.ok(valid && valid.includes('@../.maister/docs/INDEX.md'), 'the valid format names the .github/-relative import');
+  const wrong = skill.split('\n').find(l => l.includes('incorrect formats'));
+  assert.ok(wrong && /(^|[^`.\/])@\.maister\/docs\/INDEX\.md/.test(wrong), 'the old import is listed among the incorrect formats');
+});
+
 test('the prefix rewrite keeps the commands and agents, strips the bare skill and leaves no placeholder', () => {
   const variant = variantRoot();
   assert.match(read(variant, 'skills/quick-dev/SKILL.md'), /\/maister:init/);
@@ -180,4 +193,11 @@ test('a relative output folder whose parent does not exist is created under the 
   const result = spawnSync(bashPath(), [script, '--out', 'new/parent/copilot'], { cwd, encoding: 'utf8', timeout: BUILD_TIMEOUT_MS, killSignal: 'SIGKILL' });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(read(path.join(cwd, 'new/parent/copilot'), '.claude-plugin/plugin.json')).name, 'maister');
+});
+
+test('the Copilot build\'s docs-manager reads the import path from the instructions file\'s folder', () => {
+  const phrase = 'reading the path from the folder the instructions file sits in';
+  const squash = text => text.replace(/\s+/g, ' ');
+  assert.ok(squash(read(ROOT, 'plugins/maister/skills/docs-manager/SKILL.md')).includes(phrase), 'the source existence check names the instructions file\'s folder');
+  assert.ok(squash(read(variantRoot(), 'skills/docs-manager/SKILL.md')).includes(phrase), 'the variant existence check names the instructions file\'s folder');
 });

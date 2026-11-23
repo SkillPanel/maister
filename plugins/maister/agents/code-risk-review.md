@@ -120,9 +120,10 @@ simplicity review's call, judged from the same profile.
   | Build and packaging | new files, assets and scripts are included in the build and the published package; build steps call them | `critical` |
   | Caches and generated files | caches keyed so the change invalidates them; generated files rebuilt, not stale | `warning` |
 - **Standards, from two sources.** The candidates are the standards the run claimed (the spec's and the plan's Standards Compliance sections and the work log's
-  Standards Applied) together with those you judge, from one full read of
-  `.maister/docs/INDEX.md`, to govern what this change actually does: a migration, a route, a UI
-  component, a background job. Judge from each entry's title and description, opening a standard
+  Standards Applied) together with those you judge, from every entry of the standards index, to
+  govern what this change actually does: a migration, a route, a UI component, a background job.
+  Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's
+  instructions usually import it. Judge from each entry's title and description, opening a standard
   only when its rules bear on the changed code; never decide by matching words in paths. Check
   every candidate against the changed code. A broken rule is category `standards`, naming the
   standard, the rule and the place, one finding per rule; when the run claimed that standard,

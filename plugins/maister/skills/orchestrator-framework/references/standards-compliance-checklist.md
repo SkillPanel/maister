@@ -9,7 +9,7 @@ or verify the checklist.
 
 The project's standards live under `.maister/docs/`.
 
-- Read `.maister/docs/INDEX.md` to find which standards exist.
+- Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it. It shows which standards exist.
 - **Then read the specific standard files it points to that are relevant to the task.** Reading
   `INDEX.md` alone is not sufficient — this is mandatory. When the work reaches a new area
   mid-task (auth, database, forms), read that area's standards before working on it.

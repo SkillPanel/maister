@@ -44,7 +44,7 @@ All orchestrators follow these principles:
 3. **Interactive**: Pause at each gate for user review
 4. **User-Confirmed Rollback**: Never auto-rollback without user approval
 5. **Visible Progress**: The state file and the dashboard projected from it are the run's tracker
-6. **Standards Discovery**: Reference `.maister/docs/INDEX.md` throughout
+6. **Standards Discovery**: Use the standards index throughout. Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it.
 
 ## Orchestrators Using This Framework
 

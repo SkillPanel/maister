@@ -206,6 +206,8 @@ The reason is one clause naming what put the group on its tier ("copies the exis
 
 ### Phase 4: Write Implementation Plan
 
+**The standards each group follows.** Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it. Each standards entry ends with `Read in full before:` and the topics its rules govern; a file goes on a group's line in Standards Compliance when one of those topics is part of that group's work. Name files, never a folder. Without an index, the section says "No Maister standards found."
+
 Create `implementation/implementation-plan.md`:
 
 ```markdown
@@ -239,9 +241,9 @@ Expected Tests: [calculation]
 
 ## Standards Compliance
 
-Follow standards from `.maister/docs/standards/`:
-- global/ - Always applicable
-- [area]/ - Area-specific
+[One line per task group: the standards files whose `Read in full before:` topics match its work, each with the topic that matched — files, never a folder; "none matched" when no entry does]
+- Group 1 ([name]): `.maister/docs/standards/[area]/[file].md` ([topic]), `.maister/docs/standards/[area]/[file].md` ([topic])
+- Group 2 ([name]): none matched
 
 ## Notes
 
@@ -353,7 +355,7 @@ Before completing, verify:
 - Files to Modify declared for every group (use `"None"` only for pure-review groups)
 - Tier declared for every group, with its reason
 - Reusable components referenced
-- Standards section included
+- Standards Compliance names files for every group, never a folder
 - **When `design-context/INDEX.md` exists**: every UI task group has `Visual References` with all four sub-fields populated; `implementation/visual-coverage.md` covers 100% of INDEX.md (or documents uncovered items with justification)
 - **When it does NOT exist**: no `Visual References` sections, no `visual-coverage.md` (graceful degradation)
 

@@ -47,7 +47,7 @@ The turn reads the project's grounding pack and standards before dispatching you
 - **Strings**: use the product's real copy, not placeholder text.
 - **Standards** (resolved file paths): READ every standard file you are given (frontend, design, accessibility). Honor their rules in the mockups.
 
-If no grounding is passed (the turn had no pack), check `.maister/docs/INDEX.md` for frontend standards yourself, then analyze the codebase for patterns. Annotate any deliberate deviation from a token or standard with a rationale.
+If no grounding is passed (the turn had no pack), read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it. Take the frontend standards from it and read the files it points to, then analyze the codebase for patterns. Annotate any deliberate deviation from a token or standard with a rationale.
 
 ## Your Task
 

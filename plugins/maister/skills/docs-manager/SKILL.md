@@ -118,16 +118,7 @@ Use this when a project doesn't have `.maister/docs/` or needs documentation for
        - `['global', 'frontend', 'testing']` → Copy only these three categories
        - `['global', 'backend', 'testing']` → Skip frontend standards
        - `['global', 'testing']` → Only global and testing standards
-5. Write INDEX.md with Refresh INDEX.md — every copied file is new:
-   - For skipped standard categories, add placeholder sections with "Not initialized - run standards discovery if needed"
-   - Example: If frontend standards are skipped, INDEX.md shows:
-     ```markdown
-     ## Standards: frontend
-
-     *Not initialized for this project. If you need frontend standards, you can:*
-     - *Add them manually using the docs-manager skill*
-     - *Run `/maister:standards-discover --scope=frontend` to auto-discover*
-     ```
+5. Write INDEX.md with Refresh INDEX.md — every copied file is new. A category that was not copied gets no section: the index maps only what the project holds.
 6. **MANDATORY - Update CLAUDE.md:**
    - Check if `CLAUDE.md` exists in the project root; if not, create it — the integration is mandatory — and name it in the result
    - Add the documentation reference section (see "Manage CLAUDE.md Integration" operation)
@@ -139,7 +130,7 @@ Use this when a project doesn't have `.maister/docs/` or needs documentation for
   - Array of category names (e.g., `['global', 'frontend', 'backend', 'testing']`). Baseline categories: global, frontend, backend, testing. Custom categories are also supported.
   - If omitted or empty: Initialize all baseline standards (backward compatible)
   - If provided: Only initialize specified categories (creates directories for custom ones)
-- `standards_source_path` (optional, string): Absolute path to an external standards directory (e.g., `/path/to/other-project/.maister/docs/standards/`)
+- `standards_source_path` (optional, string): Absolute path to an external standards directory (e.g., `/path/to/other-project/.maister/docs/standards/`); the bundled `docs/standards/` tree's own absolute path is a valid value too, and copies the defaults
   - If provided: Copy standards from this path instead of the bundled defaults
   - If omitted: Copy from this skill's bundled `docs/standards/` directory (default behavior)
 
@@ -165,7 +156,7 @@ The one operation that writes `.maister/docs/INDEX.md`. Every other operation he
 2. **Collect the targets**: those documents, plus `changed`. With no `changed` given, take what changed under `.maister/docs/` since INDEX.md was last committed — the commit `git log -1` names for INDEX.md, `git diff --name-only` from it, and `git status` — or, without git, the check's findings alone. With `reshape`, also every entry the check warns on.
 3. **Settle a conflicted index** by keeping both sides' entries and dropping the markers; a path left with two entries becomes a target. Never merge entry prose by hand.
 4. **Write each target's entry** (rules below). Read the document's first heading and opening paragraph, and the whole file only when those do not say what it is for. A changed document whose purpose did not change keeps its entry; a gone document loses it.
-5. **Keep everything else byte for byte** — every other entry and the text around them — so two branches that refresh different documents merge cleanly. Two things are applied every time: the header comment from `references/index-md-template.md` is added when missing, and the retired "Keep Updated" and "Updating Documentation" guidance, which tells readers to edit the index, is removed. With `reshape`, the layout is also brought to the template: sections by kind and folder, entries at `###`.
+5. **Keep everything else byte for byte** — every other entry and the text around them — so two branches that refresh different documents merge cleanly. Three things are applied every time: the header comment from `references/index-md-template.md` is added when missing; the retired "Keep Updated" and "Updating Documentation" guidance, which tells readers to edit the index, is removed; and the placeholder an earlier Initialize wrote for a skipped category — a "Not initialized" line under a `## Standards: <folder>` heading and the bullets right under it — is removed, with its heading when no entry sits under it. With `reshape`, the layout is also brought to the template: sections by kind and folder, entries at `###`.
 6. **Run the check again** and return its result: the files and entries it counted, any failure left (an error in this refresh, to be fixed before returning) and its warnings.
 
 **Where an entry goes.** The kind follows from the path alone. A document under `standards/` is a standard; anything else is a project doc, files copied in from elsewhere included. Project docs go under "Project documentation" — `project/` and the top-level files — or under one "Project documentation: <folder>" section per other folder; the workflows' intake reads project documents from these sections. Standards go under one `## Standards: <folder>` section per folder, so `standards/backend/storage/` has its own. Entries run in path order within a section.
@@ -274,7 +265,7 @@ Use this to ensure the project's CLAUDE.md properly integrates with the document
    - Read `references/claude-md-template.md` for the template
    - Add the template section to CLAUDE.md
 5. Ensure the documentation section is placed prominently in CLAUDE.md (near the top)
-6. Verify that the INDEX.md path is correct and the file exists
+6. Verify that the INDEX.md path is correct and the file exists, reading the path from the folder the instructions file sits in
 7. If `.maister/docs/` doesn't exist, suggest running the initialization operation first
 
 **Result:** CLAUDE.md properly integrates with the documentation system, ensuring AI assistance is documentation-aware and follows team conventions.

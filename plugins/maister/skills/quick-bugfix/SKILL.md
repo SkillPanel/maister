@@ -49,7 +49,7 @@ For complex bugs that grow beyond a quick fix, offers to switch to a full develo
 
 Discover the project's standards as part of analysis and planning (Steps 3–4), relevant to the bug area — not as a bulk upfront read. The Standards Compliance Checklist reference, `<plugin root>/skills/orchestrator-framework/references/standards-compliance-checklist.md` (the plugin root two levels above this skill's base directory, as an absolute path), says where the standards come from, how the plan's checklist is written and how it is verified; read it before Step 4.
 
-- Read `.maister/docs/INDEX.md` to find which standards exist.
+- Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it. It shows which standards exist.
 - **Then read the specific standard files it points to that match the bug area** (e.g. API bug → api + error-handling standards; form bug → validation + frontend standards; query bug → database + backend standards). Reading INDEX.md alone is NOT sufficient — this is mandatory.
 - Apply the matched standards in the fix plan (Step 4) and during implementation (Step 6).
 
@@ -154,9 +154,12 @@ If any section is missing, add it before calling ExitPlanMode.
 3. Run the failing test — it MUST now pass
 4. Run the full test file and related test files to check for regressions
 
+**Change only what the task needs.** No renames, reformatting, refactors or improvements to neighbouring code, and no tests, docs or files the task did not call for. When something nearby looks wrong, name it in the Step 7 summary instead of changing it.
+
 **If tests fail after fix:**
 - Analyze the failure
 - Adjust the fix
+- **Fix the code, not the test.** When a test or check fails, fix the code under test: weakening an assertion, skipping or deleting a test, silencing a check or special-casing the test's inputs is not a fix. If the test itself is wrong, say why and change it as its own named step.
 - Re-run tests
 - Maximum 3 fix-and-verify iterations
 
