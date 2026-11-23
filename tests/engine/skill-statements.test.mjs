@@ -175,3 +175,21 @@ test('the asks row records each in-session answer as an operator decision on the
   assert.equal(section.length, 1, 'only the asks row mentions `ask:`');
   assert.ok(section[0].startsWith('| asks |'), 'the line mentioning `ask:` is the asks row');
 });
+
+// --- Instructions that must match what the engine does -----------------------
+
+/** A `###` section of SKILL.md, from its heading to the next heading of any level up to three, collapsed. */
+function section(heading) {
+  const raw = fs.readFileSync(SKILL, 'utf8');
+  const start = raw.indexOf(`\n### ${heading}`);
+  assert.ok(start >= 0, `SKILL.md has a section ### ${heading}`);
+  const rest = raw.slice(start + 1);
+  const next = rest.slice(4).search(/\n#{1,3} /);
+  return collapse(next < 0 ? rest : rest.slice(0, next + 4));
+}
+
+test('Step 4 says the freeze creates the run directory, and never tells the session to', () => {
+  const step = section('Step 4');
+  assert.ok(step.includes('the freeze creates it'), 'Step 4 says the freeze creates the task directory');
+  assert.ok(!step.includes('Create it once'), 'Step 4 no longer tells the session to create it');
+});
