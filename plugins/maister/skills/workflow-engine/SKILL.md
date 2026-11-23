@@ -189,7 +189,7 @@ beyond the declarations, and a non-null `.html` beside it, is checked on disk to
 
 A `started:` line in a node's brief means the brief recorded the step's start, and a
 `start: yours` line that the start is your write (`references/writing-state.md` § *One write per
-moment*). Dispatch an agent by the name its brief prints, the provider prefix applied
+moment*); a `start: refused` line is a refusal, settled by its `rules:` line first. Dispatch an agent by the name its brief prints, the provider prefix applied
 (`references/grammar.md` § 5.1).
 
 **While a delegate runs, say so.** Right after launching one, print the line its brief's `say:`

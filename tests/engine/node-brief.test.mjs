@@ -861,6 +861,26 @@ test('node-brief: start: yours prints for a ready step whose start the brief doe
   assert.ok(!has(nodeBrief(remote.state, 'remote').stdout, 'start: '));
 });
 
+test('node-brief: a start the writer refuses prints the refusal and its rules line, never start: yours to send the same write', { skip: process.platform === 'win32' || process.getuid?.() === 0 ? 'permissions do not stop this user from writing' : false }, t => {
+  const sample = sampleRun(t);
+  fs.chmodSync(sample.state, 0o444);
+  fs.chmodSync(sample.dir, 0o555);
+  let result;
+  try {
+    result = nodeBrief(sample.state, 'scope');
+  } finally {
+    // Before the scratch folder's own clean-up, which runs first among the after hooks.
+    fs.chmodSync(sample.dir, 0o755);
+    fs.chmodSync(sample.state, 0o644);
+  }
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stderr, /^warning: node-brief-start-unrecorded: state-unwritable$/m);
+  const lines = fromHeader(result.stdout);
+  assert.match(lines[2], /^start: refused — state-unwritable: .*orchestrator-state\.yml could not be written: /, lines.join('\n'));
+  assert.equal(lines[3], `rules: ${path.join(ENGINE_DIR, 'references/writing-state.md')} § When a write is refused`);
+  assert.ok(!lines.some(line => line.startsWith('start: yours') || line.startsWith('started: ')), lines.join('\n'));
+});
+
 test('node-brief: a run\'s first brief repeats the start banner as a say: step, once, and no other brief does', t => {
   const SAY = 'say: the run\'s start, a visible message of its own before this node\'s work, unless your last message showed these lines — each copied as printed:';
   const sample = sampleRun(t);

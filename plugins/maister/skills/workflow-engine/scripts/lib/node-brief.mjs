@@ -62,9 +62,11 @@
  *
  * The lines that carry a rule the session would otherwise hold from the
  * engine skill, each printed only where it applies:
- * - `start: yours` on a step ready to start whose start the brief did not
- *   record — a `workflow:` step, or one whose start write was refused — never
- *   beside `started:` and never for a dispatched (`dir:`) node.
+ * - `start: yours` on a step ready to start whose start the brief does not
+ *   record — a `workflow:` step — never beside `started:` and never for a
+ *   dispatched (`dir:`) node; where the brief's start write was refused, a
+ *   `start: refused` line with the refusal's code and message and its
+ *   `rules:` line in its place, since the same write would be refused again.
  * - `waiting:` on a node recorded `waiting`, which is never run again.
  * - `say:` on an `agent:` step and a step with `delegates:`: the one line the
  *   session prints while the delegate runs.
@@ -139,8 +141,8 @@
  * - `node-brief-conventions-unread` — the conventions table cannot be read;
  *   one `convention: see rules` line stands for its rows.
  * - `node-brief-start-unrecorded` — the state writer refused the step's start;
- *   the brief prints without its `started:` line and the start is the session's
- *   own write.
+ *   the brief prints the refusal and its recovery where its `started:` line
+ *   would be.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -300,7 +302,8 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
       if (started.ok) lines.splice(2, 0, STARTED);
       else {
         warnings.push(`node-brief-start-unrecorded: ${started.errors.map(error => error.code).join(', ')}`);
-        lines.splice(2, 0, startYours(node));
+        // The same write would be refused again: print the refusal and its recovery, never `start: yours`.
+        lines.splice(2, 0, ...startRefused(started.errors));
       }
     } else {
       lines.splice(2, 0, startYours(node));
@@ -347,6 +350,18 @@ function firstBrief(doc, node, context) {
 /** The line a ready step whose start the brief did not record prints in its place. */
 function startYours(node) {
   return `start: yours — send {"nodes": {${JSON.stringify(node)}: {"status": "running"}}}`;
+}
+
+/** The writing-state section holding a refused write's recovery. */
+const WRITE_REFUSED = `${quoted(fileURLToPath(new URL('../../references/writing-state.md', import.meta.url)))} § When a write is refused`;
+
+/**
+ * The lines a ready step whose start write the writer refused prints instead
+ * of `start: yours`: the refusal, code and message, then its `rules:` line.
+ */
+function startRefused(errors) {
+  const [error] = errors;
+  return [`start: refused — ${error.code}: ${error.message}`, `rules: ${WRITE_REFUSED}`];
 }
 
 /** The terminal task statuses, after which nothing starts. */
