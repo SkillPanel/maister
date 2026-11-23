@@ -178,9 +178,9 @@ The steps say what each one does; the references say how.
    - fix what looks wrong in `.turn.json`, then preview once more at most. A fix keeps the app's
      frame (its header, navigation and page width); a frame a screen drew twice loses only its
      inner copy;
-   - keep the browser tool's own output out of the project, as
-     `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` says for the tool
-     in use (*Which tool*).
+   - keep the browser tool's own output, and any screenshot taken to look at, in the scratch
+     directory `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` names for
+     the tool in use (*Which tool*), never the system temp directory.
 
    The notes record what was looked at and what was fixed, or "no browser tool: pages not looked
    at" — only when `shell_browser` is null and the session has no browser tool of its own.
@@ -188,7 +188,8 @@ The steps say what each one does; the references say how.
    with `--index=analysis/design-context/INDEX.md` when `emit_index_rows` is true and
    `--record=<record>` when `record` is set. It publishes the version, refreshes the flat view,
    writes the rows and the record, and prints the turn result with a `values` block. A refusal is
-   recovered by its row in `references/turn-contract.md` and `finish` run again — except a
+   recovered by its row in `references/turn-contract.md` § *Refusals*, printed with
+   `--at="skills/mockup-studio/references/turn-contract.md § Refusals § <code>"`, and `finish` run again — except a
    `folder-unwritable` that says the version is already published, which is never finished twice.
 
    Publishing an `html` or a written version also opens its page once, as a file in the person's default
@@ -276,8 +277,9 @@ pack is never repeated without that check: the person may have committed it sinc
 - The legacy `.maister/tasks/mockups/` is a folder run readers skip. Nothing new is written there.
 - The skill writes nothing outside the target folder, the INDEX file (`emit_index_rows`), the
   grounding pack (when a turn builds it, or `--ground`) and, in node mode with `record` set,
-  `turn-result.json` in the run folder. A browser tool's snapshots and logs from the look pass go
-  to a scratch directory, never the project.
+  `turn-result.json` in the run folder. A browser tool's snapshots, logs and look-only
+  screenshots from the look pass go to the scratch directory `scratch-dir` makes, which git
+  ignores, never elsewhere in the project.
 
 ### Turn N+1, and the record folder
 
@@ -318,9 +320,11 @@ return codes only: every sentence a person reads in the notes is written by this
 
 ## Local references
 
-| File | When to read | Purpose |
-|---|---|---|
-| `references/turn-contract.md` | Steps 3–6, the no-Node path, any refusal | The folder layout, `.turn.json`, the written scope's grammar and check, every file's keys, one refusal table with recoveries |
-| `references/grounding-pack.md` | Step 2, `--ground` | What the pack holds, how it is built and sealed, the per-turn read |
-| `references/prototype-page.md` | Step 4, prototype fidelity | The prototype page contract and how its scenes become screens |
-| `references/visual-companion.md` | Step 5, when `file://` is not available | The per-turn read-only viewer: start, stop, reuse |
+Print a section of these with `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/mockup-studio/references/<file> § <section>"` from the project root, one `--at` per section, several in one call; never open them with the read tool, since they sit outside the project and a host may stop the run to ask before that read. Only the no-Node path, which has no such command, reads them by path.
+
+| File | When to print | The sections | Purpose |
+|---|---|---|---|
+| `turn-contract.md` | Steps 3–4; the no-Node path; a refusal | *The input file*, *The written scope*; *Layout*, *The files a turn writes*; *Refusals* § the code | The folder layout, `.turn.json`, the written scope's grammar and check, every file's keys, one refusal table with recoveries |
+| `grounding-pack.md` | Step 2 | *The per-turn read*; on `missing`, *What the pack holds*, *What to harvest*, *Building afresh* and *Sealing* | What the pack holds, how it is built and sealed, the per-turn read |
+| `prototype-page.md` | Step 4, prototype fidelity | *What the page is*, *The two scripts*, *How the stills are made* | The prototype page contract and how its scenes become screens |
+| `visual-companion.md` | Step 5, when `file://` is not available | *Starting and stopping*; *A viewer left behind* on a refusal | The per-turn read-only viewer: start, stop, reuse |

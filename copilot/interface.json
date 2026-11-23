@@ -305,6 +305,7 @@
           "state-patch-unknown-key",
           "state-question-answer-invalid",
           "state-run-folder-misplaced",
+          "state-skip-before-answer",
           "state-subrun-held-open",
           "state-subrun-path-mismatch",
           "state-summary-artifact-outside",
@@ -423,6 +424,7 @@
           "state-patch-unknown-key",
           "state-question-answer-invalid",
           "state-run-folder-misplaced",
+          "state-skip-before-answer",
           "state-subrun-held-open",
           "state-subrun-path-mismatch",
           "state-summary-artifact-outside",
@@ -485,6 +487,7 @@
           "state-patch-unknown-key",
           "state-question-answer-invalid",
           "state-run-folder-misplaced",
+          "state-skip-before-answer",
           "state-subrun-held-open",
           "state-subrun-path-mismatch",
           "state-summary-artifact-outside",
@@ -582,6 +585,7 @@
           "state-patch-unknown-key",
           "state-question-answer-invalid",
           "state-run-folder-misplaced",
+          "state-skip-before-answer",
           "state-subrun-held-open",
           "state-subrun-path-mismatch",
           "state-summary-artifact-outside",
@@ -638,6 +642,7 @@
           "state-patch-unknown-key",
           "state-question-answer-invalid",
           "state-run-folder-misplaced",
+          "state-skip-before-answer",
           "state-subrun-held-open",
           "state-subrun-path-mismatch",
           "state-summary-artifact-outside",
@@ -674,6 +679,17 @@
         ],
         "refusals": [
           "project-profile-bad-input"
+        ]
+      },
+      "reference": {
+        "flags": [
+          "at"
+        ],
+        "refusals": [
+          "reference-missing",
+          "reference-outside-plugin",
+          "reference-too-long",
+          "reference-unknown-section"
         ]
       },
       "resolve": {
@@ -774,6 +790,17 @@
           "runner-step-unknown-node"
         ]
       },
+      "scratch-dir": {
+        "flags": [
+          "for",
+          "state"
+        ],
+        "refusals": [
+          "scratch-dir-bad-label",
+          "scratch-dir-no-run",
+          "scratch-dir-unwritable"
+        ]
+      },
       "subrun-path": {
         "flags": [
           "node",
@@ -864,6 +891,7 @@
           "state-patch-unknown-key",
           "state-question-answer-invalid",
           "state-run-folder-misplaced",
+          "state-skip-before-answer",
           "state-subrun-held-open",
           "state-subrun-path-mismatch",
           "state-summary-artifact-outside",
@@ -923,6 +951,7 @@
           "state-patch-unknown-key",
           "state-question-answer-invalid",
           "state-run-folder-misplaced",
+          "state-skip-before-answer",
           "state-subrun-held-open",
           "state-subrun-path-mismatch",
           "state-summary-artifact-outside",
@@ -1233,7 +1262,7 @@
     },
     "modules": []
   },
-  "interface_version": "2.9",
+  "interface_version": "2.10",
   "mcp": {
     "servers": [],
     "tools": [

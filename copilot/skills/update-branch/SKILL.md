@@ -49,7 +49,7 @@ A caller that drives the skill names the run with `--run`: without a run there i
 
 ## Workflow
 
-Engine verbs are called by the plugin root's absolute path (`${MAISTER_PLUGIN_ROOT}`), one command per line, never chained with another command. The scratch directory for the checks comes from `mktemp -d`, never a literal `/tmp` path.
+Engine verbs are called by the plugin root's absolute path (`${MAISTER_PLUGIN_ROOT}`), one command per line, never chained with another command. The scratch directory for the checks comes from `scratch-dir --for=update-branch`, which makes it under the project's `.maister/scratch/`, ignored by git; never the system temp directory or a literal `/tmp` path.
 
 ### Step 1: Check the preconditions
 
@@ -128,15 +128,17 @@ Before the commit, with the merge staged:
 
    `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:test-suite-runner --host=copilot`
 
-2. Make a scratch task directory with `mktemp -d` and build a standalone brief from the project root, with the merged tip as the base. The scratch path is outside `.maister/tasks/`, so the verb takes the project root from the working directory:
+2. Make a scratch task directory and build a standalone brief from the project root, with the merged tip as the base. The scratch directory sits under `.maister/scratch/`, outside `.maister/tasks/`, so it is no run, and the verb takes the project root from it:
 
-   `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs review-brief --task-path=<the mktemp -d directory> --base=<merged tip>`
+   `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=update-branch`
+
+   `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs review-brief --task-path=<the directory scratch-dir printed> --base=<merged tip>`
 
    It prints the brief's path.
 
 3. Dispatch `maister:test-suite-runner` alone with the Task tool — the scratch directory as its `task_path`, the printed brief as its `review_brief`, a one-line `task_description` naming the merged ref and the branch (for example "Checks after merging origin/main into search-filters"), and the model and effort step 1 printed. No reviewers.
 
-A failure the runner marks as failing on the base (`failed_on_base`, `fails_on_base`) is reported as not caused by the branch. Failures that are not on the base are reported; they do not stop the commit. The runner writes its results to `verification/test-suite-findings.json` in the scratch directory: keep the directory until Step 9 has read that file, then delete it.
+A failure the runner marks as failing on the base (`failed_on_base`, `fails_on_base`) is reported as not caused by the branch. Failures that are not on the base are reported; they do not stop the commit. The runner writes its results to `verification/test-suite-findings.json` in the scratch directory: keep the directory until Step 9 has read that file. It may stay after that, since git ignores the scratch folder; never delete it before.
 
 ### Step 7: Commit, never push
 

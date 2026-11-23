@@ -183,20 +183,39 @@ export function checkpointOf(doc, titles) {
  * `progress` the implementation progress keyed by its node, as the dashboard
  * projects it; `verifier` the node that runs the reviews, or null.
  * Returns the warnings, `{file, code, message}` each.
+ *
+ * The files carry the write's display stamp (`displayStamp`), not the state's
+ * one-second clock `now`: the status's `updated` is what tells a reader a call
+ * moved the run, and two writes a second apart must never read as one.
  */
 export function publishRun({ runDir, root, doc, now, titles, dashboard, artifacts = [], progress = {}, verifier = null, executor = null, banner = null, session = hostSession() }) {
   const warnings = [];
   const dir = path.join(runDir, DISPLAY_DIR);
+  const at = displayStamp(dir, now);
   attempt(warnings, `${DISPLAY_DIR}/${NEXT}`, () => remove(path.join(dir, NEXT)));
-  const started = banner !== null ? now : startedOf(dir, doc);
+  const started = banner !== null ? at : startedOf(dir, doc);
   const before = previousNodes(dir);
-  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now, titles, dashboard, artifacts, progress, verifier, executor, started, before })));
+  attempt(warnings, `${DISPLAY_DIR}/${STATUS}`, () => publish(dir, STATUS, statusOf({ runDir, doc, now: at, titles, dashboard, artifacts, progress, verifier, executor, started, before })));
   if (banner !== null) {
     const { lines, ...card } = banner;
-    attempt(warnings, `${DISPLAY_DIR}/${BANNER}`, () => publish(dir, BANNER, { version: VERSION, frozen: now, lines, ...card }));
+    attempt(warnings, `${DISPLAY_DIR}/${BANNER}`, () => publish(dir, BANNER, { version: VERSION, frozen: at, lines, ...card }));
   }
-  warnings.push(...publishPointer({ runDir, root, now, session }));
+  warnings.push(...publishPointer({ runDir, root, now: at, session }));
   return warnings;
+}
+
+/**
+ * The stamp a write's display files carry: the clock to the millisecond, never
+ * before the write's own clock `now`, and always after the `updated` of the
+ * status file it replaces, so every write moves it, however close two writes
+ * come. ISO 8601 with milliseconds, which every reader of the stamp parses and
+ * compares as it did the one-second form.
+ */
+export function displayStamp(dir, now = null) {
+  const floor = [Date.now(), Date.parse(now ?? '')].filter(Number.isFinite);
+  const previous = Date.parse(readDisplay(path.join(dir, STATUS))?.updated ?? '');
+  const at = Math.max(...floor, Number.isFinite(previous) ? previous + 1 : -Infinity);
+  return new Date(at).toISOString();
 }
 
 /**
@@ -413,7 +432,7 @@ function publish(dir, name, document, home = dir) {
 }
 
 /** `dir/.gitignore` holding `*`, written once and never over a file already there. */
-function ignoreAll(dir) {
+export function ignoreAll(dir) {
   const file = path.join(dir, '.gitignore');
   if (fs.existsSync(file)) return;
   fs.mkdirSync(dir, { recursive: true });

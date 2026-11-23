@@ -52,9 +52,12 @@ file drifts out of canonical shape, and its readers then disagree about the run.
 is answering a pending gate (`references/gates.md` § *Driver-suspended mode — resume*); the patch
 vocabulary is `references/writing-state.md`.
 
-**Read what a `rules:` line names** before acting. On a refusal or after `companion-` lines it
-holds the recovery; on a brief, read it the first time in a session and again after a compaction,
-which drops what was read.
+**Print what a `rules:` line names** before acting, with the `reference` verb:
+`--at="<its file> § <its heading>"`, adding ` § <the code>` after a refusal for that code's row.
+Print a step's `references/…` pointer the same way, never with the read tool: the plugin sits
+outside the project, and a host may stop the run to ask before that read. On a refusal or after
+`companion-` lines it holds the recovery; on a brief, print it the first time in a session and
+again after a compaction, which drops what was read.
 
 ---
 
@@ -232,8 +235,9 @@ line once, then do it. A node update goes under the patch's top-level `nodes`, n
 
 ### Step 1: Read the node summary shape
 
-Read `references/node-summaries.md` whole now: every closing write and every checkpoint depend on
-what each decision's `by` and each risk's tag mean. The summary contract reaches you through
+Print `references/node-summaries.md` § *Who settled a decision* and § *What a risk is* now, with
+`reference` and one `--at` each: every closing write and every checkpoint depend on what each
+decision's `by` and each risk's tag mean. The summary contract reaches you through
 `run-context`, the companion lines through `write-state`, and the closing check through
 `run-complete`.
 
