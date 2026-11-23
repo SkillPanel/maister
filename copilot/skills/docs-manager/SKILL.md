@@ -21,7 +21,7 @@ Internal skill that manages documentation file operations in `.maister/docs/`. N
 
 ## Decisions Go to the Caller
 
-Every operation below takes its choices from the caller's prompt. When an operation reaches a choice the prompt does not settle, it does not ask: it stops short of that change, finishes what it can, and returns the choice under `decisions_needed` — the question in the user's words, its options with what each changes, and the recommended one with its reason. The calling skill (init, standards-update, standards-discover) asks it and calls again with the answer. Choices a caller has already asked — init's re-initialization question, standards-update's file and merge choices — are never returned a second time.
+Every operation below takes its choices from the caller's prompt. When an operation reaches a choice the prompt does not settle, it does not ask: it stops short of that change, finishes what it can, and returns the choice under `decisions_needed` — the question in the user's words, its options with what each changes, and the recommended one with its reason. The calling skill (init, standards-update, standards-discover) asks it and calls again with the answer. Choices a caller has already asked — init's re-initialization question, standards-update's file and merge choices, the built-in edits a person chose — are never returned a second time.
 
 ## Documentation Structure
 
@@ -64,10 +64,11 @@ This skill bundles the following resources within the plugin:
 
 - **Standards directory**: `docs/standards/`, the baseline standards, one folder per group
 - **Group table**: `docs/standards-groups.json`, one entry per group with its folder, files, the profile conditions that select it and its discovery file filter. `scripts/standards.mjs groups` applies it; prose never restates it
+- **Rename and removal map**: `docs/standards-map.json`, beside the group table: each built-in rule an earlier version shipped, with the text it shipped, what became of it and where its rule lives now, and the rules added since. `scripts/standards.mjs built-in candidates` applies it; prose never restates it
 - **INDEX.md Template**: Master template for documentation index
 - **Standard candidates**: `references/standard-candidates.md` — the one description of a standard candidate: what it is, how one is written, where it belongs, and how finalization consolidates them
 - **Index check**: `scripts/docs-check.mjs` — reports whether INDEX.md still maps the documents (see Refresh INDEX.md)
-- **Group resolver**: `scripts/standards.mjs`, beside the index check, answers which groups fit a project (`groups`)
+- **Group resolver**: `scripts/standards.mjs`, beside the index check, answers which groups fit a project (`groups`) and which built-in rules changed since a project's copy was made (`built-in candidates`)
 
 ## Location Reference
 
@@ -178,7 +179,7 @@ Use this to help the user update or modify existing project documentation.
    - Read the current documentation
    - Apply the change the caller describes, and only that; with none described, return the question as a decision needed. A section the caller does not name for replacement or removal stays as it is: content that overlaps it is added beside it or to it, never folded into a new section in its place
    - Include the plugin's baseline version for reference when the caller asks for it
-4. If the documentation doesn't exist, return a decision needed: add it from the plugin baseline ("Add Documentation File") or create it from scratch
+4. If the documentation doesn't exist, return a decision needed: add it from the plugin baseline ("Add Documentation File") or create it from scratch, except a built-in edit's home file, which is created
 5. After updating:
    - Refresh INDEX.md with the path as `changed`; its entry changes only when the file's purpose did
    - If updating tech-stack.md or architecture.md, suggest reviewing .github/copilot-instructions.md for consistency
@@ -186,35 +187,21 @@ Use this to help the user update or modify existing project documentation.
    - If a corresponding project skill exists, suggest reviewing it for consistency
    - Standards should align with actual code patterns in the project
 
+**Built-in standard edits.** A call that names built-in edits applies each one as add, replace, remove or move; a merge is removals plus one write. Every section the call does not name stays byte for byte. A section runs from its `###` line to the next `#`, `##` or `###` heading outside a code fence, or to the end of the file.
+- **Placement.** When, after the edit's removals, the file already holds a `###` section with the home heading at the time of the edit (an earlier edit in this call wrote it), nothing is written; the removals still apply. Otherwise the new section goes in place of the first section the edit removes from that file. When the edit removes none there, it goes directly after the file's `#`/`##` title lines when the given preceding list is empty; else after the first heading of that list that the file holds at the time of the edit; when the file holds none of the listed headings, at the end. Sections are separated by one blank line, and the file ends with one newline.
+- **Files.** A missing home file is created with the given `## ` title line, a blank line, then the section. A file left with no `###` section and nothing but `#`/`##` headings and blank lines is deleted. A file that keeps other text stays, and the result names it.
+- **Guarded removal.** A section is removed only while its text still equals the text the call gives, compared with each whitespace run made one space, trailing spaces trimmed on each line, line endings made LF and leading and trailing blank lines dropped. Otherwise the whole edit is not applied: no section of it is removed and nothing is written, and its reason names the changed section. No choice is returned as a decision needed: the caller has asked them all already.
+
 **Result:** Documentation is updated to reflect current project state and team decisions.
 
 ---
 
-### 5. Use Plugin Documentation as Reference
-
-Use this when a team wants to see the plugin's baseline documentation for reference, or reset specific docs to plugin defaults.
-
-**What to do:**
-1. Compare the documentation in this skill's bundled `docs/` directory with the project's `.maister/docs/` directory to identify differences; only the Markdown documents under `docs/` count, and `docs/standards-groups.json` is data, never listed or copied
-2. Return which documents differ and how, in a few words each
-3. Unless the caller already chose, return the choice as a decision needed — "Keep your documentation (Recommended): the baseline is reference only", "Reset these files to the baseline", "Reset everything to the baseline" — the question saying that a reset overwrites the project's own edits
-4. When the caller's prompt chooses a reset:
-   - Copy the selected files from this skill's bundled `docs/` directory to the project's `.maister/docs/` directory
-   - Refresh INDEX.md with the reset files as `changed`
-   - Review .github/copilot-instructions.md for any necessary updates
-
-**Important:** This operation should be used rarely, mainly when a team wants to reset to baseline. Project documentation is the source of truth and should be maintained by the team.
-
-**Result:** User can reference plugin baseline documentation and optionally reset specific docs to plugin versions.
-
----
-
-### 6. List Available Documentation
+### 5. List Available Documentation
 
 Use this to show what documentation is bundled with this plugin and their installation status in the project.
 
 **What to do:**
-1. List all documentation in this skill's bundled `docs/` directory, organized by category; only the Markdown documents under `docs/` count, and `docs/standards-groups.json` is data, never listed or copied
+1. List all documentation in this skill's bundled `docs/` directory, organized by category; only the Markdown documents under `docs/` count, and `docs/standards-groups.json` and `docs/standards-map.json` are data, never listed or copied
 2. For each bundled document:
    - Show the category and name
    - Check if it exists in the project at `.maister/docs/[category]/[name].md`
@@ -228,7 +215,7 @@ Use this to show what documentation is bundled with this plugin and their instal
 
 ---
 
-### 7. Manage .github/copilot-instructions.md Integration
+### 6. Manage .github/copilot-instructions.md Integration
 
 Use this to ensure the project's .github/copilot-instructions.md properly integrates with the documentation system, encouraging AI to read and use the documentation.
 
@@ -247,7 +234,7 @@ Use this to ensure the project's .github/copilot-instructions.md properly integr
 
 ---
 
-### 8. Validate Documentation Consistency
+### 7. Validate Documentation Consistency
 
 Use this to check that documentation is consistent, up-to-date, and properly integrated.
 
@@ -281,7 +268,7 @@ Use this to check that documentation is consistent, up-to-date, and properly int
 
 ---
 
-### 9. Consolidate Standard Candidates
+### 8. Consolidate Standard Candidates
 
 Use this at a workflow's finalization, before the run writes its candidates file. Read-only: it writes no document and refreshes no index.
 
@@ -309,12 +296,6 @@ Claude: [Executes Update Documentation - reads current vision.md, applies the ed
 ```
 User: "Add documentation for our deployment process"
 Claude: [Executes Add Documentation File - creates custom project/deployment.md, refreshes INDEX.md]
-```
-
-**Reference plugin baseline:**
-```
-User: "Show me the plugin's baseline error handling standard"
-Claude: [Executes Use Plugin Documentation as Reference - shows plugin baseline, compares with project version, no changes unless user requests]
 ```
 
 **Validate documentation:**

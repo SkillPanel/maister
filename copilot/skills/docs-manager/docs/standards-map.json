@@ -1,0 +1,1201 @@
+{
+  "format": 1,
+  "rules": [
+    {
+      "id": "global/coding-style#naming-consistency",
+      "path": "global/coding-style.md",
+      "heading": "Naming Consistency",
+      "shipped": "### Naming Consistency\nFollow established naming patterns for variables, functions, classes, and files throughout the project.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/coding-style#automatic-formatting",
+      "path": "global/coding-style.md",
+      "heading": "Automatic Formatting",
+      "shipped": "### Automatic Formatting\nUse automated tools to enforce consistent indentation, spacing, and line breaks.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/coding-style#descriptive-names",
+      "path": "global/coding-style.md",
+      "heading": "Descriptive Names",
+      "shipped": "### Descriptive Names\nChoose names that clearly communicate intent; avoid cryptic abbreviations or single-letter identifiers outside tight loops.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/coding-style#focused-functions",
+      "path": "global/coding-style.md",
+      "heading": "Focused Functions",
+      "shipped": "### Focused Functions\nWrite functions that do one thing well; smaller functions are easier to read, test, and maintain.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/coding-style#uniform-indentation",
+      "path": "global/coding-style.md",
+      "heading": "Uniform Indentation",
+      "shipped": "### Uniform Indentation\nStandardize on spaces or tabs and enforce with editor/linter settings.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/coding-style#no-dead-code",
+      "path": "global/coding-style.md",
+      "heading": "No Dead Code",
+      "shipped": "### No Dead Code\nRemove unused imports, commented-out blocks, and orphaned functions instead of leaving them behind.",
+      "fate": "merge",
+      "home": {
+        "path": "global/minimal-implementation.md",
+        "heading": "No Leftovers"
+      }
+    },
+    {
+      "id": "global/coding-style#no-backward-compatibility-unless-required",
+      "path": "global/coding-style.md",
+      "heading": "No Backward Compatibility Unless Required",
+      "shipped": "### No Backward Compatibility Unless Required\nAvoid extra code paths for backward compatibility unless explicitly needed.",
+      "fate": "merge",
+      "home": {
+        "path": "global/coding-style.md",
+        "heading": "Compatibility Only for Outside Users"
+      }
+    },
+    {
+      "id": "global/coding-style#dry-dont-repeat-yourself",
+      "path": "global/coding-style.md",
+      "heading": "DRY (Don't Repeat Yourself)",
+      "shipped": "### DRY (Don't Repeat Yourself)\nExtract repeated logic into reusable functions or modules.",
+      "fate": "merge",
+      "home": {
+        "path": "global/coding-style.md",
+        "heading": "Reuse What Exists"
+      }
+    },
+    {
+      "id": "global/commenting#let-code-speak",
+      "path": "global/commenting.md",
+      "heading": "Let Code Speak",
+      "shipped": "### Let Code Speak\nWrite code that explains itself through structure and naming.",
+      "fate": "merge",
+      "home": {
+        "path": "global/coding-style.md",
+        "heading": "Comments Say Why"
+      }
+    },
+    {
+      "id": "global/commenting#comment-sparingly",
+      "path": "global/commenting.md",
+      "heading": "Comment Sparingly",
+      "shipped": "### Comment Sparingly\nAdd brief comments only when the logic isn't self-evident from the code.",
+      "fate": "merge",
+      "home": {
+        "path": "global/coding-style.md",
+        "heading": "Comments Say Why"
+      }
+    },
+    {
+      "id": "global/commenting#no-change-comments",
+      "path": "global/commenting.md",
+      "heading": "No Change Comments",
+      "shipped": "### No Change Comments\nAvoid comments about recent fixes or changes; comments should be timeless explanations, not changelogs.",
+      "fate": "merge",
+      "home": {
+        "path": "global/coding-style.md",
+        "heading": "Comments Say Why"
+      }
+    },
+    {
+      "id": "global/conventions#predictable-structure",
+      "path": "global/conventions.md",
+      "heading": "Predictable Structure",
+      "shipped": "### Predictable Structure\nOrganize files and directories in a logical, navigable layout.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/conventions#up-to-date-documentation",
+      "path": "global/conventions.md",
+      "heading": "Up-to-Date Documentation",
+      "shipped": "### Up-to-Date Documentation\nKeep README files current with setup steps, architecture overview, and contribution guidelines.",
+      "fate": "rewrite",
+      "home": {
+        "path": "global/conventions.md",
+        "heading": "Docs Follow the Change"
+      }
+    },
+    {
+      "id": "global/conventions#clean-version-control",
+      "path": "global/conventions.md",
+      "heading": "Clean Version Control",
+      "shipped": "### Clean Version Control\nWrite clear commit messages, use feature branches, and add meaningful descriptions to pull requests.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/conventions#environment-variables",
+      "path": "global/conventions.md",
+      "heading": "Environment Variables",
+      "shipped": "### Environment Variables\nStore configuration in environment variables; never commit secrets or API keys.",
+      "fate": "rewrite",
+      "home": {
+        "path": "global/conventions.md",
+        "heading": "No Secrets in the Repository"
+      }
+    },
+    {
+      "id": "global/conventions#minimal-dependencies",
+      "path": "global/conventions.md",
+      "heading": "Minimal Dependencies",
+      "shipped": "### Minimal Dependencies\nKeep dependencies lean and up-to-date; document why major ones are included.",
+      "fate": "rewrite",
+      "home": {
+        "path": "global/conventions.md",
+        "heading": "Adding a Dependency"
+      }
+    },
+    {
+      "id": "global/conventions#consistent-reviews",
+      "path": "global/conventions.md",
+      "heading": "Consistent Reviews",
+      "shipped": "### Consistent Reviews\nFollow a defined code review process with clear expectations for reviewers and authors.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/conventions#testing-standards",
+      "path": "global/conventions.md",
+      "heading": "Testing Standards",
+      "shipped": "### Testing Standards\nDefine required test coverage (unit, integration, etc.) before merging.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/conventions#feature-flags",
+      "path": "global/conventions.md",
+      "heading": "Feature Flags",
+      "shipped": "### Feature Flags\nUse flags for incomplete features instead of long-lived branches.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/conventions#changelog-updates",
+      "path": "global/conventions.md",
+      "heading": "Changelog Updates",
+      "shipped": "### Changelog Updates\nMaintain a changelog or release notes for significant changes.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "global/conventions#build-whats-needed",
+      "path": "global/conventions.md",
+      "heading": "Build What's Needed",
+      "shipped": "### Build What's Needed\nAvoid speculative code and \"just in case\" additions (see minimal-implementation.md).",
+      "fate": "merge",
+      "home": {
+        "path": "global/minimal-implementation.md",
+        "heading": "Build What You Need"
+      }
+    },
+    {
+      "id": "global/error-handling#clear-user-messages",
+      "path": "global/error-handling.md",
+      "heading": "Clear User Messages",
+      "shipped": "### Clear User Messages\nShow helpful, actionable messages without exposing internal details or security-sensitive information.",
+      "fate": "merge",
+      "home": {
+        "path": "global/error-handling.md",
+        "heading": "Clear User Messages"
+      }
+    },
+    {
+      "id": "global/error-handling#fail-fast",
+      "path": "global/error-handling.md",
+      "heading": "Fail Fast",
+      "shipped": "### Fail Fast\nValidate inputs and check preconditions early; reject invalid data before it causes deeper issues.",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Validate at the Boundary"
+      }
+    },
+    {
+      "id": "global/error-handling#typed-exceptions",
+      "path": "global/error-handling.md",
+      "heading": "Typed Exceptions",
+      "shipped": "### Typed Exceptions\nUse specific exception types instead of generic ones to enable precise error handling.",
+      "fate": "merge",
+      "home": {
+        "path": "global/error-handling.md",
+        "heading": "Catch Only to Act"
+      }
+    },
+    {
+      "id": "global/error-handling#centralized-handling",
+      "path": "global/error-handling.md",
+      "heading": "Centralized Handling",
+      "shipped": "### Centralized Handling\nCatch and process errors at appropriate boundaries (controllers, API layers) rather than scattering try-catch throughout.",
+      "fate": "merge",
+      "home": {
+        "path": "global/error-handling.md",
+        "heading": "Catch Only to Act"
+      }
+    },
+    {
+      "id": "global/error-handling#graceful-degradation",
+      "path": "global/error-handling.md",
+      "heading": "Graceful Degradation",
+      "shipped": "### Graceful Degradation\nWhen non-critical services fail, continue operating with reduced functionality rather than crashing entirely.",
+      "fate": "merge",
+      "home": {
+        "path": "global/error-handling.md",
+        "heading": "Catch Only to Act"
+      }
+    },
+    {
+      "id": "global/error-handling#retry-with-backoff",
+      "path": "global/error-handling.md",
+      "heading": "Retry with Backoff",
+      "shipped": "### Retry with Backoff\nUse exponential backoff for transient failures when calling external services.",
+      "fate": "rewrite",
+      "home": {
+        "path": "global/error-handling.md",
+        "heading": "Retry with Backoff"
+      }
+    },
+    {
+      "id": "global/error-handling#resource-cleanup",
+      "path": "global/error-handling.md",
+      "heading": "Resource Cleanup",
+      "shipped": "### Resource Cleanup\nAlways release resources (file handles, connections) in finally blocks or equivalent cleanup mechanisms.",
+      "fate": "rewrite",
+      "home": {
+        "path": "global/error-handling.md",
+        "heading": "Resource Cleanup"
+      }
+    },
+    {
+      "id": "global/minimal-implementation#build-what-you-need",
+      "path": "global/minimal-implementation.md",
+      "heading": "Build What You Need",
+      "shipped": "### Build What You Need\nCreate only methods, classes, and functions that will actually be called.",
+      "fate": "merge",
+      "home": {
+        "path": "global/minimal-implementation.md",
+        "heading": "Build What You Need"
+      }
+    },
+    {
+      "id": "global/minimal-implementation#clear-purpose",
+      "path": "global/minimal-implementation.md",
+      "heading": "Clear Purpose",
+      "shipped": "### Clear Purpose\nEvery method should either be called or improve code readability; nothing else.",
+      "fate": "merge",
+      "home": {
+        "path": "global/minimal-implementation.md",
+        "heading": "Build What You Need"
+      }
+    },
+    {
+      "id": "global/minimal-implementation#delete-exploration-artifacts",
+      "path": "global/minimal-implementation.md",
+      "heading": "Delete Exploration Artifacts",
+      "shipped": "### Delete Exploration Artifacts\nRemove helper methods and utilities created during development that ended up unused.",
+      "fate": "merge",
+      "home": {
+        "path": "global/minimal-implementation.md",
+        "heading": "No Leftovers"
+      }
+    },
+    {
+      "id": "global/minimal-implementation#no-future-stubs",
+      "path": "global/minimal-implementation.md",
+      "heading": "No Future Stubs",
+      "shipped": "### No Future Stubs\nAvoid empty methods, placeholder functions, or interfaces \"for future extensibility\".",
+      "fate": "merge",
+      "home": {
+        "path": "global/minimal-implementation.md",
+        "heading": "Build What You Need"
+      }
+    },
+    {
+      "id": "global/minimal-implementation#no-speculative-abstractions",
+      "path": "global/minimal-implementation.md",
+      "heading": "No Speculative Abstractions",
+      "shipped": "### No Speculative Abstractions\nSkip factories, strategies, or adapters unless there's an immediate need.",
+      "fate": "merge",
+      "home": {
+        "path": "global/minimal-implementation.md",
+        "heading": "Build What You Need"
+      }
+    },
+    {
+      "id": "global/minimal-implementation#review-before-commit",
+      "path": "global/minimal-implementation.md",
+      "heading": "Review Before Commit",
+      "shipped": "### Review Before Commit\nVerify all new methods have callers or serve a clear readability purpose before completing a task.",
+      "fate": "merge",
+      "home": {
+        "path": "global/minimal-implementation.md",
+        "heading": "No Leftovers"
+      }
+    },
+    {
+      "id": "global/minimal-implementation#unused-code-is-debt",
+      "path": "global/minimal-implementation.md",
+      "heading": "Unused Code Is Debt",
+      "shipped": "### Unused Code Is Debt\nRemove dead code promptly; it confuses readers and adds maintenance burden.",
+      "fate": "merge",
+      "home": {
+        "path": "global/minimal-implementation.md",
+        "heading": "No Leftovers"
+      }
+    },
+    {
+      "id": "global/validation#server-side-always",
+      "path": "global/validation.md",
+      "heading": "Server-Side Always",
+      "shipped": "### Server-Side Always\nValidate on the server; client-side validation alone is insufficient for security and data integrity.",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Server-Side Always"
+      }
+    },
+    {
+      "id": "global/validation#client-side-for-feedback",
+      "path": "global/validation.md",
+      "heading": "Client-Side for Feedback",
+      "shipped": "### Client-Side for Feedback\nUse client-side validation for immediate user feedback, but duplicate checks server-side.",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Server-Side Always"
+      }
+    },
+    {
+      "id": "global/validation#validate-early",
+      "path": "global/validation.md",
+      "heading": "Validate Early",
+      "shipped": "### Validate Early\nCheck inputs as early as possible and reject invalid data before processing.",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Validate at the Boundary"
+      }
+    },
+    {
+      "id": "global/validation#specific-errors",
+      "path": "global/validation.md",
+      "heading": "Specific Errors",
+      "shipped": "### Specific Errors\nProvide clear, field-specific messages that help users correct their input.",
+      "fate": "merge",
+      "home": {
+        "path": "global/error-handling.md",
+        "heading": "Clear User Messages"
+      }
+    },
+    {
+      "id": "global/validation#allowlists-over-blocklists",
+      "path": "global/validation.md",
+      "heading": "Allowlists Over Blocklists",
+      "shipped": "### Allowlists Over Blocklists\nDefine what's allowed rather than trying to block everything else.",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Validate at the Boundary"
+      }
+    },
+    {
+      "id": "global/validation#type-and-format-checks",
+      "path": "global/validation.md",
+      "heading": "Type and Format Checks",
+      "shipped": "### Type and Format Checks\nValidate data types, formats, ranges, and required fields systematically.",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Validate at the Boundary"
+      }
+    },
+    {
+      "id": "global/validation#input-sanitization",
+      "path": "global/validation.md",
+      "heading": "Input Sanitization",
+      "shipped": "### Input Sanitization\nSanitize user input to prevent injection attacks (SQL, XSS, command injection).",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Prevent Injection Where Data Is Used"
+      }
+    },
+    {
+      "id": "global/validation#business-rules",
+      "path": "global/validation.md",
+      "heading": "Business Rules",
+      "shipped": "### Business Rules\nValidate business logic (sufficient balance, valid dates) at the appropriate layer.",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Consistent Enforcement"
+      }
+    },
+    {
+      "id": "global/validation#consistent-enforcement",
+      "path": "global/validation.md",
+      "heading": "Consistent Enforcement",
+      "shipped": "### Consistent Enforcement\nApply validation uniformly across all entry points (forms, APIs, background jobs).",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Consistent Enforcement"
+      }
+    },
+    {
+      "id": "frontend/accessibility#semantic-html",
+      "path": "frontend/accessibility.md",
+      "heading": "Semantic HTML",
+      "shipped": "### Semantic HTML\nUse appropriate elements (nav, main, button) that convey meaning to assistive technologies.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Native Elements Before ARIA"
+      }
+    },
+    {
+      "id": "frontend/accessibility#keyboard-navigation",
+      "path": "frontend/accessibility.md",
+      "heading": "Keyboard Navigation",
+      "shipped": "### Keyboard Navigation\nMake all interactive elements accessible via keyboard with visible focus indicators.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Keyboard and Focus"
+      }
+    },
+    {
+      "id": "frontend/accessibility#color-contrast",
+      "path": "frontend/accessibility.md",
+      "heading": "Color Contrast",
+      "shipped": "### Color Contrast\nMaintain 4.5:1 contrast for normal text; don't rely solely on color to convey information.",
+      "fate": "rewrite",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Color Contrast"
+      }
+    },
+    {
+      "id": "frontend/accessibility#alt-text-and-labels",
+      "path": "frontend/accessibility.md",
+      "heading": "Alt Text and Labels",
+      "shipped": "### Alt Text and Labels\nProvide descriptive alt text for images and labels for form inputs.",
+      "fate": "rewrite",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Accessible Names"
+      }
+    },
+    {
+      "id": "frontend/accessibility#screen-reader-testing",
+      "path": "frontend/accessibility.md",
+      "heading": "Screen Reader Testing",
+      "shipped": "### Screen Reader Testing\nVerify all views work with screen readers.",
+      "fate": "rewrite",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Announce What Changes"
+      }
+    },
+    {
+      "id": "frontend/accessibility#aria-when-needed",
+      "path": "frontend/accessibility.md",
+      "heading": "ARIA When Needed",
+      "shipped": "### ARIA When Needed\nUse ARIA attributes to enhance complex components when semantic HTML isn't enough.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Native Elements Before ARIA"
+      }
+    },
+    {
+      "id": "frontend/accessibility#heading-structure",
+      "path": "frontend/accessibility.md",
+      "heading": "Heading Structure",
+      "shipped": "### Heading Structure\nUse heading levels (h1-h6) in proper order for clear document outline.",
+      "fate": "rewrite",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Heading Structure"
+      }
+    },
+    {
+      "id": "frontend/accessibility#focus-management",
+      "path": "frontend/accessibility.md",
+      "heading": "Focus Management",
+      "shipped": "### Focus Management\nManage focus appropriately in dynamic content, modals, and SPAs.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Keyboard and Focus"
+      }
+    },
+    {
+      "id": "frontend/components#single-responsibility",
+      "path": "frontend/components.md",
+      "heading": "Single Responsibility",
+      "shipped": "### Single Responsibility\nEach component should do one thing well.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "frontend/components#reusability",
+      "path": "frontend/components.md",
+      "heading": "Reusability",
+      "shipped": "### Reusability\nDesign components to work across different contexts with configurable props.",
+      "fate": "merge",
+      "home": {
+        "path": "global/coding-style.md",
+        "heading": "Reuse What Exists"
+      }
+    },
+    {
+      "id": "frontend/components#composability",
+      "path": "frontend/components.md",
+      "heading": "Composability",
+      "shipped": "### Composability\nBuild complex UIs by combining smaller components rather than creating monoliths.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "frontend/components#clear-interface",
+      "path": "frontend/components.md",
+      "heading": "Clear Interface",
+      "shipped": "### Clear Interface\nDefine explicit, documented props with sensible defaults.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "frontend/components#encapsulation",
+      "path": "frontend/components.md",
+      "heading": "Encapsulation",
+      "shipped": "### Encapsulation\nKeep implementation details private; expose only what's necessary.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "frontend/components#consistent-naming",
+      "path": "frontend/components.md",
+      "heading": "Consistent Naming",
+      "shipped": "### Consistent Naming\nUse descriptive names that indicate purpose and follow team conventions.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "frontend/components#local-state",
+      "path": "frontend/components.md",
+      "heading": "Local State",
+      "shipped": "### Local State\nKeep state as close to where it's used as possible; lift only when needed.",
+      "fate": "rewrite",
+      "home": {
+        "path": "frontend/components.md",
+        "heading": "Derived State"
+      }
+    },
+    {
+      "id": "frontend/components#minimal-props",
+      "path": "frontend/components.md",
+      "heading": "Minimal Props",
+      "shipped": "### Minimal Props\nIf a component needs many props, consider composition or splitting it.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "frontend/components#documentation",
+      "path": "frontend/components.md",
+      "heading": "Documentation",
+      "shipped": "### Documentation\nDocument usage, props, and examples to help team adoption.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "frontend/css#consistent-methodology",
+      "path": "frontend/css.md",
+      "heading": "Consistent Methodology",
+      "shipped": "### Consistent Methodology\nStick to the project's chosen approach (Tailwind, BEM, CSS modules, etc.) across the entire codebase.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/components.md",
+        "heading": "Style the Way the Project Does"
+      }
+    },
+    {
+      "id": "frontend/css#work-with-the-framework",
+      "path": "frontend/css.md",
+      "heading": "Work With the Framework",
+      "shipped": "### Work With the Framework\nUse framework patterns as intended rather than fighting them with excessive overrides.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/components.md",
+        "heading": "Style the Way the Project Does"
+      }
+    },
+    {
+      "id": "frontend/css#design-tokens",
+      "path": "frontend/css.md",
+      "heading": "Design Tokens",
+      "shipped": "### Design Tokens\nEstablish and document consistent values for colors, spacing, and typography.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/components.md",
+        "heading": "Use the Design Tokens"
+      }
+    },
+    {
+      "id": "frontend/css#minimize-custom-css",
+      "path": "frontend/css.md",
+      "heading": "Minimize Custom CSS",
+      "shipped": "### Minimize Custom CSS\nPrefer framework utilities to reduce custom styling maintenance.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "frontend/css#production-optimization",
+      "path": "frontend/css.md",
+      "heading": "Production Optimization",
+      "shipped": "### Production Optimization\nUse CSS purging or tree-shaking to remove unused styles.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "frontend/responsive#mobile-first",
+      "path": "frontend/responsive.md",
+      "heading": "Mobile-First",
+      "shipped": "### Mobile-First\nStart with mobile layout and progressively enhance for larger screens.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Layout at Every Width"
+      }
+    },
+    {
+      "id": "frontend/responsive#standard-breakpoints",
+      "path": "frontend/responsive.md",
+      "heading": "Standard Breakpoints",
+      "shipped": "### Standard Breakpoints\nUse consistent breakpoints (mobile, tablet, desktop) across the application.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/components.md",
+        "heading": "Use the Design Tokens"
+      }
+    },
+    {
+      "id": "frontend/responsive#fluid-layouts",
+      "path": "frontend/responsive.md",
+      "heading": "Fluid Layouts",
+      "shipped": "### Fluid Layouts\nUse percentage-based widths and flexible containers that adapt to screen size.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Layout at Every Width"
+      }
+    },
+    {
+      "id": "frontend/responsive#relative-units",
+      "path": "frontend/responsive.md",
+      "heading": "Relative Units",
+      "shipped": "### Relative Units\nPrefer rem/em over fixed pixels for better scalability.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Text That Scales"
+      }
+    },
+    {
+      "id": "frontend/responsive#cross-device-testing",
+      "path": "frontend/responsive.md",
+      "heading": "Cross-Device Testing",
+      "shipped": "### Cross-Device Testing\nTest across multiple screen sizes to ensure a balanced experience.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Layout at Every Width"
+      }
+    },
+    {
+      "id": "frontend/responsive#touch-friendly",
+      "path": "frontend/responsive.md",
+      "heading": "Touch-Friendly",
+      "shipped": "### Touch-Friendly\nSize tap targets appropriately (minimum 44x44px) for mobile users.",
+      "fate": "rewrite",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Target Size"
+      }
+    },
+    {
+      "id": "frontend/responsive#mobile-performance",
+      "path": "frontend/responsive.md",
+      "heading": "Mobile Performance",
+      "shipped": "### Mobile Performance\nOptimize images and assets for mobile network conditions.",
+      "fate": "rewrite",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Responsive Images"
+      }
+    },
+    {
+      "id": "frontend/responsive#readable-typography",
+      "path": "frontend/responsive.md",
+      "heading": "Readable Typography",
+      "shipped": "### Readable Typography\nMaintain readable font sizes across all breakpoints.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Text That Scales"
+      }
+    },
+    {
+      "id": "frontend/responsive#content-priority",
+      "path": "frontend/responsive.md",
+      "heading": "Content Priority",
+      "shipped": "### Content Priority\nShow the most important content first on smaller screens.",
+      "fate": "merge",
+      "home": {
+        "path": "frontend/accessibility.md",
+        "heading": "Layout at Every Width"
+      }
+    },
+    {
+      "id": "backend/api#restful-principles",
+      "path": "backend/api.md",
+      "heading": "RESTful Principles",
+      "shipped": "### RESTful Principles\nUse resource-based URLs with appropriate HTTP methods (GET, POST, PUT, PATCH, DELETE).",
+      "fate": "merge",
+      "home": {
+        "path": "backend/api.md",
+        "heading": "Methods and Status Codes"
+      }
+    },
+    {
+      "id": "backend/api#consistent-naming",
+      "path": "backend/api.md",
+      "heading": "Consistent Naming",
+      "shipped": "### Consistent Naming\nUse lowercase, hyphenated or underscored names consistently across endpoints.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "backend/api#versioning",
+      "path": "backend/api.md",
+      "heading": "Versioning",
+      "shipped": "### Versioning\nImplement versioning (URL path or headers) to manage breaking changes.",
+      "fate": "merge",
+      "home": {
+        "path": "global/coding-style.md",
+        "heading": "Compatibility Only for Outside Users"
+      }
+    },
+    {
+      "id": "backend/api#plural-nouns",
+      "path": "backend/api.md",
+      "heading": "Plural Nouns",
+      "shipped": "### Plural Nouns\nUse plural nouns for resources (`/users`, `/products`).",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "backend/api#limited-nesting",
+      "path": "backend/api.md",
+      "heading": "Limited Nesting",
+      "shipped": "### Limited Nesting\nKeep URL nesting to 2-3 levels maximum for readability.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "backend/api#query-parameters",
+      "path": "backend/api.md",
+      "heading": "Query Parameters",
+      "shipped": "### Query Parameters\nUse query parameters for filtering, sorting, and pagination.",
+      "fate": "rewrite",
+      "home": {
+        "path": "backend/api.md",
+        "heading": "Bounded Lists"
+      }
+    },
+    {
+      "id": "backend/api#proper-status-codes",
+      "path": "backend/api.md",
+      "heading": "Proper Status Codes",
+      "shipped": "### Proper Status Codes\nReturn appropriate HTTP status codes (200, 201, 400, 404, 500).",
+      "fate": "merge",
+      "home": {
+        "path": "backend/api.md",
+        "heading": "Methods and Status Codes"
+      }
+    },
+    {
+      "id": "backend/api#rate-limit-headers",
+      "path": "backend/api.md",
+      "heading": "Rate Limit Headers",
+      "shipped": "### Rate Limit Headers\nInclude rate limit information in response headers.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "backend/migrations#reversible",
+      "path": "backend/migrations.md",
+      "heading": "Reversible",
+      "shipped": "### Reversible\nAlways implement rollback methods for safe migration reversals.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "Rollback Follows the Project"
+      }
+    },
+    {
+      "id": "backend/migrations#small-and-focused",
+      "path": "backend/migrations.md",
+      "heading": "Small and Focused",
+      "shipped": "### Small and Focused\nKeep each migration to a single logical change.",
+      "fate": "merge",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "One Change per Migration"
+      }
+    },
+    {
+      "id": "backend/migrations#zero-downtime-awareness",
+      "path": "backend/migrations.md",
+      "heading": "Zero-Downtime Awareness",
+      "shipped": "### Zero-Downtime Awareness\nConsider deployment order and backward compatibility for high-availability systems.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "Expand, Then Contract"
+      }
+    },
+    {
+      "id": "backend/migrations#separate-schema-and-data",
+      "path": "backend/migrations.md",
+      "heading": "Separate Schema and Data",
+      "shipped": "### Separate Schema and Data\nKeep schema changes separate from data migrations for safer rollbacks.",
+      "fate": "merge",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "One Change per Migration"
+      }
+    },
+    {
+      "id": "backend/migrations#careful-indexing",
+      "path": "backend/migrations.md",
+      "heading": "Careful Indexing",
+      "shipped": "### Careful Indexing\nCreate indexes on large tables carefully, using concurrent options when available.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "Build Indexes Without Blocking Writes"
+      }
+    },
+    {
+      "id": "backend/migrations#descriptive-names",
+      "path": "backend/migrations.md",
+      "heading": "Descriptive Names",
+      "shipped": "### Descriptive Names\nUse names that indicate what the migration does.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "Create Migrations with the Project's Tool"
+      }
+    },
+    {
+      "id": "backend/migrations#version-control",
+      "path": "backend/migrations.md",
+      "heading": "Version Control",
+      "shipped": "### Version Control\nCommit migrations; never modify existing ones after deployment.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "Never Edit an Applied Migration"
+      }
+    },
+    {
+      "id": "backend/models#clear-naming",
+      "path": "backend/models.md",
+      "heading": "Clear Naming",
+      "shipped": "### Clear Naming\nUse singular names for models and plural for tables (or follow framework conventions).",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "backend/models#timestamps",
+      "path": "backend/models.md",
+      "heading": "Timestamps",
+      "shipped": "### Timestamps\nInclude created and updated timestamps for auditing and debugging.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "backend/models#database-constraints",
+      "path": "backend/models.md",
+      "heading": "Database Constraints",
+      "shipped": "### Database Constraints\nEnforce data rules at the database level (NOT NULL, UNIQUE, foreign keys).",
+      "fate": "merge",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "Constraints in the Database"
+      }
+    },
+    {
+      "id": "backend/models#appropriate-types",
+      "path": "backend/models.md",
+      "heading": "Appropriate Types",
+      "shipped": "### Appropriate Types\nChoose data types that match purpose and size requirements.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "Types That Fit the Data"
+      }
+    },
+    {
+      "id": "backend/models#index-foreign-keys",
+      "path": "backend/models.md",
+      "heading": "Index Foreign Keys",
+      "shipped": "### Index Foreign Keys\nIndex foreign key columns and frequently queried fields.",
+      "fate": "merge",
+      "home": {
+        "path": "data/queries.md",
+        "heading": "Index What New Queries Filter On"
+      }
+    },
+    {
+      "id": "backend/models#multi-layer-validation",
+      "path": "backend/models.md",
+      "heading": "Multi-Layer Validation",
+      "shipped": "### Multi-Layer Validation\nValidate at both model and database levels for defense in depth.",
+      "fate": "merge",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "Constraints in the Database"
+      }
+    },
+    {
+      "id": "backend/models#clear-relationships",
+      "path": "backend/models.md",
+      "heading": "Clear Relationships",
+      "shipped": "### Clear Relationships\nDefine relationships with appropriate cascade behaviors and naming.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/schema.md",
+        "heading": "Delete Behaviour on Purpose"
+      }
+    },
+    {
+      "id": "backend/models#practical-normalization",
+      "path": "backend/models.md",
+      "heading": "Practical Normalization",
+      "shipped": "### Practical Normalization\nBalance normalization with query performance needs.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "backend/queries#parameterized-queries",
+      "path": "backend/queries.md",
+      "heading": "Parameterized Queries",
+      "shipped": "### Parameterized Queries\nAlways use parameterized queries or ORM methods; never interpolate user input into SQL.",
+      "fate": "merge",
+      "home": {
+        "path": "global/validation.md",
+        "heading": "Prevent Injection Where Data Is Used"
+      }
+    },
+    {
+      "id": "backend/queries#avoid-n1",
+      "path": "backend/queries.md",
+      "heading": "Avoid N+1",
+      "shipped": "### Avoid N+1\nUse eager loading or joins to fetch related data in one query.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/queries.md",
+        "heading": "Avoid N+1"
+      }
+    },
+    {
+      "id": "backend/queries#select-only-needed-columns",
+      "path": "backend/queries.md",
+      "heading": "Select Only Needed Columns",
+      "shipped": "### Select Only Needed Columns\nRequest only the columns you need rather than SELECT *.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "backend/queries#index-strategic-columns",
+      "path": "backend/queries.md",
+      "heading": "Index Strategic Columns",
+      "shipped": "### Index Strategic Columns\nIndex columns used in WHERE, JOIN, and ORDER BY clauses.",
+      "fate": "merge",
+      "home": {
+        "path": "data/queries.md",
+        "heading": "Index What New Queries Filter On"
+      }
+    },
+    {
+      "id": "backend/queries#transactions",
+      "path": "backend/queries.md",
+      "heading": "Transactions",
+      "shipped": "### Transactions\nWrap related operations in transactions to maintain consistency.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/queries.md",
+        "heading": "Transactions"
+      }
+    },
+    {
+      "id": "backend/queries#query-timeouts",
+      "path": "backend/queries.md",
+      "heading": "Query Timeouts",
+      "shipped": "### Query Timeouts\nSet timeouts to prevent runaway queries from impacting performance.",
+      "fate": "rewrite",
+      "home": {
+        "path": "data/queries.md",
+        "heading": "Query Timeouts"
+      }
+    },
+    {
+      "id": "backend/queries#cache-expensive-queries",
+      "path": "backend/queries.md",
+      "heading": "Cache Expensive Queries",
+      "shipped": "### Cache Expensive Queries\nCache results of complex or frequent queries when appropriate.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "testing/test-writing#test-behavior",
+      "path": "testing/test-writing.md",
+      "heading": "Test Behavior",
+      "shipped": "### Test Behavior\nFocus on what code does, not how it does it, to allow safe refactoring.",
+      "fate": "merge",
+      "home": {
+        "path": "testing/test-writing.md",
+        "heading": "Test Behavior"
+      }
+    },
+    {
+      "id": "testing/test-writing#clear-names",
+      "path": "testing/test-writing.md",
+      "heading": "Clear Names",
+      "shipped": "### Clear Names\nUse descriptive names explaining what's tested and expected (`shouldReturnErrorWhenUserNotFound`).",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "testing/test-writing#mock-external-dependencies",
+      "path": "testing/test-writing.md",
+      "heading": "Mock External Dependencies",
+      "shipped": "### Mock External Dependencies\nIsolate tests by mocking databases, APIs, and external services.",
+      "fate": "merge",
+      "home": {
+        "path": "testing/test-writing.md",
+        "heading": "Test Behavior"
+      }
+    },
+    {
+      "id": "testing/test-writing#fast-execution",
+      "path": "testing/test-writing.md",
+      "heading": "Fast Execution",
+      "shipped": "### Fast Execution\nKeep unit tests fast (milliseconds) so developers run them frequently.",
+      "fate": "rewrite",
+      "home": {
+        "path": "testing/test-writing.md",
+        "heading": "Deterministic Tests"
+      }
+    },
+    {
+      "id": "testing/test-writing#risk-based-testing",
+      "path": "testing/test-writing.md",
+      "heading": "Risk-Based Testing",
+      "shipped": "### Risk-Based Testing\nPrioritize testing based on business criticality and likelihood of bugs.",
+      "fate": "merge",
+      "home": {
+        "path": "testing/test-writing.md",
+        "heading": "What to Test"
+      }
+    },
+    {
+      "id": "testing/test-writing#balance-coverage-and-velocity",
+      "path": "testing/test-writing.md",
+      "heading": "Balance Coverage and Velocity",
+      "shipped": "### Balance Coverage and Velocity\nAdjust test coverage based on project needs and team workflow.",
+      "fate": "remove",
+      "home": null
+    },
+    {
+      "id": "testing/test-writing#critical-path-focus",
+      "path": "testing/test-writing.md",
+      "heading": "Critical Path Focus",
+      "shipped": "### Critical Path Focus\nEnsure core user workflows and critical business logic are well-tested.",
+      "fate": "merge",
+      "home": {
+        "path": "testing/test-writing.md",
+        "heading": "What to Test"
+      }
+    },
+    {
+      "id": "testing/test-writing#appropriate-depth",
+      "path": "testing/test-writing.md",
+      "heading": "Appropriate Depth",
+      "shipped": "### Appropriate Depth\nMatch edge case testing to the risk profile of the code.",
+      "fate": "merge",
+      "home": {
+        "path": "testing/test-writing.md",
+        "heading": "What to Test"
+      }
+    }
+  ],
+  "new": [
+    {
+      "path": "global/conventions.md",
+      "heading": "Generated Files"
+    },
+    {
+      "path": "global/minimal-implementation.md",
+      "heading": "Change Only What the Task Needs"
+    },
+    {
+      "path": "testing/test-writing.md",
+      "heading": "Fix the Code, Not the Test"
+    },
+    {
+      "path": "backend/api.md",
+      "heading": "Response Fields on Purpose"
+    },
+    {
+      "path": "backend/api.md",
+      "heading": "Fetching URLs From Input"
+    },
+    {
+      "path": "cli/output.md",
+      "heading": "Output Streams"
+    },
+    {
+      "path": "mobile/app.md",
+      "heading": "Touch Targets and Labels"
+    },
+    {
+      "path": "mobile/app.md",
+      "heading": "Permissions in Context"
+    },
+    {
+      "path": "jobs/reruns.md",
+      "heading": "Safe to Run Twice"
+    },
+    {
+      "path": "infra/infrastructure.md",
+      "heading": "Least Privilege"
+    },
+    {
+      "path": "infra/infrastructure.md",
+      "heading": "Plan, Never Apply"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 ---
 name: standards-update
-description: Update or create project standards, or record project knowledge (a decision, a fact about the system) in a project document, from conversation context, an explicit description, or the standard candidates a finished workflow run handed over
-argument-hint: "[standard, convention or project fact] [--from=PATH] [--refresh-index]"
+description: Update or create project standards, or record project knowledge (a decision, a fact about the system) in a project document, from conversation context, an explicit description, or the standard candidates a finished workflow run handed over, or bring the plugin's changed built-in standards to a project set up on an earlier version
+argument-hint: "[standard, convention or project fact] [--from=PATH] [--built-in] [--refresh-index]"
 ---
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a subfolder of a run, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first. A run's own folder is never one: the freeze creates it.
@@ -21,6 +21,7 @@ Every write goes through the `docs-operator` subagent, which preloads docs-manag
 /maister:standards-update "always use React.memo for lists"  # From description
 /maister:standards-update --from=/path/to/other-project      # Sync from another project
 /maister:standards-update "split standards/backend/storage.md" # Split a file past its size guidance
+/maister:standards-update --built-in                         # Review the built-in rules changed since setup
 /maister:standards-update --refresh-index                    # Bring INDEX.md back in shape
 ```
 
@@ -83,9 +84,84 @@ Display: standards added, standards updated, standards skipped, and total count.
 
 ---
 
+## Mode: Built-in Standards (`--built-in`)
+
+For a project set up on an earlier plugin version: bring its built-in rules up to date with the ones the plugin ships now — each rule the plugin has since rewritten, merged, moved, removed or added. The map of what became of each rule is data the resolver reads; this mode never restates it. It bypasses Phases 1-3 and uses the flow below. It runs from `/maister:init`'s update path, which hands over the groups it resolved, or typed alone.
+
+Prerequisites are those of § Prerequisites. Every `docs-operator` call here takes the model and effort from `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=copilot`, run just before. Phase 1 Step 4 is not asked: the map fixes each rule's place.
+
+### BUILT-IN STEP 1: Run the verb
+
+From the project root, run `node <plugin root>/skills/docs-manager/scripts/standards.mjs built-in candidates`, the plugin root two levels above this skill's base directory, written as an absolute path.
+
+- Pass the `--add-groups="…"`, `--signals="…"` and `--monorepo` the invocation carries. Init's hand-off carries them; typed alone, the mode passes none. List values go in double quotes; a path holding a space goes in single quotes.
+- **A refusal** (exit 1): correct the input its error names and run once more.
+- **An internal failure** (exit 2): ask "The built-in standards could not be compared: \<cause\>. What now?" with "Retry (Recommended)" / "Stop", and write nothing.
+- **No candidates**: say the built-in standards are current, with the held count, give the summary of Step 6 and ask nothing.
+
+The report's `candidates` are in the order the questions use. A candidate's `group`, `action`, `recommended`, `covers`, `sections`, `home` and `reason` are what the steps below read.
+
+### BUILT-IN STEP 2: The bulk question
+
+Asked when any candidate is `recommended`. Write the full list first, then ask once, keeping the question compact.
+
+**The list file.** With the file tool, write `built-in-standards-changes.md` in a directory `mktemp -d` makes (it uses `$TMPDIR`). It holds one line per recommended candidate, under a heading per `group`: the groups in the group table's order, each group's lines in report order. A line gives the action, the heading or headings the candidate removes, and the new rule's heading with its file. For example:
+- "Replace Environment Variables with No Secrets in the Repository (global/conventions.md)"
+- "Move Avoid N+1 to data/queries.md (new file; backend/queries.md removed once empty)"
+- "Add Output Streams (cli/output.md, new file)"
+
+The file is never under `.maister/docs/`, is never read back by this or any later run, and is never cleaned up by the mode.
+
+**The question.** One line per `group`, in table order, counting that group's recommended candidates by action: replaced, merged, moved, removed and added. A candidate counts once, so a merge covering four rules is one merged. A move names the folder it moves to, or the file when it stays in its own folder, with one count per destination. The counts of every line sum to the N of "Apply all N". For example: "backend: 1 replaced, 4 merged, 10 moved to data/, 9 removed, 2 added".
+
+The question names the list file by its absolute path, then states three things:
+- how many rules are already current (`counts.held`), and how many of the project's own rules are left alone (`counts.team`);
+- how many candidates are asked next, one at a time and never recommended: the rules the team edited, and rules folded into a section the team edited (`counts.edited`);
+- that nothing is recorded.
+
+Options: "Apply all N (Recommended)" / "Go through them" / "More details". "More details" writes the list file's lines out in the session, then asks the question again without "More details".
+
+### BUILT-IN STEP 3: Going through them
+
+On "Go through them", each recommended candidate is its own question, four to a page, each page one ask_user call. A question holds the candidate's line and its `reason`. Options: "Apply it (Recommended)" / "Skip it".
+A page is one form of up to four properties, each `"type": "string"` — the question tool refuses a property without its type — and a choice of its options: `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), with `default` the recommended option's id.
+
+### BUILT-IN STEP 4: Apply the chosen ones
+
+With "Apply all N", every recommended candidate is chosen; after "Go through them", the ones chosen. Make one `docs-operator` call for the whole set, carrying each chosen candidate in report order. It names the Update Documentation operation, and `[check path]` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, written as an absolute path:
+
+> "Update Documentation, built-in standard edits, in `.maister/docs/standards/`. Apply each edit below in order as section edits; leave every section an edit does not name as it is. Edit `<id>` (`<action>`): remove these sections, only while each still reads as the text given; when any of them does not, apply nothing of this edit and name that section — `<path>` "`<heading>`": `<text>`; …. [When it writes:] Write this section to `standards/<home.path>`: `<home.text>`, unless after this edit's removals the file already holds a `###` section with this heading (an earlier edit in this call wrote it): then write nothing, and the removals still apply. When the file is missing, create it with the title line `<home.file_title>`. Put the section in place of the first removed section in that file when there is one; else, when the list of headings is empty, directly after the file's `#`/`##` title lines; else after the first of these headings the file holds: `<home.preceding>`; else, when it holds none of them, at the end. [When `home` is null or held:] Write nothing. Delete a file left with nothing but its headings. Then refresh INDEX.md with every path changed, created or deleted as changed. Check: [check path]. Return each edit as applied or not applied, with the reason."
+
+A candidate writes its home when `home` is not null and `home.held` is false; otherwise it only removes. When nothing was chosen, no call is made.
+
+### BUILT-IN STEP 5: The verb again, then the edited candidates
+
+After the apply, or straight away when nothing was recommended or chosen, run the verb again with the same flags, handling a refusal and an exit 2 as in Step 1. Its `recommended: false` candidates are asked one at a time, four to a page, in report order, each never recommended:
+- **An `edited:` candidate.** The question names the rule and its file and shows three texts in full: "Your text: …", "Shipped: …", and either "New rule (`<home.path>`): …" or "The plugin no longer ships this rule". When `home.held` is true it adds "A rule headed \<heading\> is already in \<path\>", with ", with the new text" only when `home.current` is true. Options: "Keep ours"; "Take the new rule" when the candidate writes its home (`home` is not null and `home.held` is false) or `home.current` is true, and "Remove it" when `home` is null, or when `home.held` is true and `home.current` is false (the home then holds the team's own section under that heading, and the edit only removes the rule); and "More details". "More details" prints the line-by-line difference between the team's text and the shipped text, then the candidate's `reason`, and asks the question again without "More details".
+- **An unrecommended `update:` candidate**, asked in its place in report order. Its sections are unedited, so the question names each rule it covers and its file, shows the shipped text once, and gives its `reason`, which names the team's section keeping the heading. Options: "Keep ours" / "Remove it" / "More details". "More details" prints the team's section at `home.path` and the new rule's text, then asks again without "More details".
+- **A recommended candidate that comes back** on this run is not asked again: it is named in the summary as kept when it was skipped, and as not applied when it was chosen.
+A page is one form of up to four properties, each `"type": "string"` — the question tool refuses a property without its type — and a choice of its options: `oneOf` entries of `const` (the option's id) and `title` (its label), none marked "(Recommended)", with no `default`.
+
+"Take the new rule" and "Remove it" answers are applied together in one `docs-operator` call worded as in Step 4, each chosen candidate in report order. "Keep ours" writes nothing. The mode makes at most two `docs-operator` calls, each ending with the INDEX.md refresh and the check, and when nothing was applied nothing is written and no refresh runs.
+
+### BUILT-IN STEP 6: Summarize
+
+- Applied: one line per candidate, with the files created and deleted.
+- Kept: each edited or folded candidate kept and each recommended one skipped, which are offered again next time; and each recommended one not applied, with the reason `docs-operator` gave.
+- Already current: the held count, and the project's own rules left alone.
+- Groups added, when any add was applied.
+- For each id in `groups.not_recommended_held`, one line: "\<title\> is held although the profile no longer calls for it; its rules were updated like the others".
+- When `groups.adding_from` is `"profile"`, one line: "A group only the code shows — such as `cli` for a command entry point — is not offered when this mode runs alone; `/maister:init`'s update path offers it".
+- The refresh's changes, the check's result, and any failure `docs-operator` reported.
+- "Nothing is recorded: a rule kept is offered again next time."
+
+The mode never runs `candidates.mjs` and writes no file of its own, apart from the list file of Step 2, which nothing reads back.
+
+---
+
 ## Mode: Conversation / Description (default)
 
-When `--from` is NOT provided, the skill uses the standard detect-and-update flow below.
+When no mode flag (`--from`, `--built-in`, `--refresh-index`) is provided, the skill uses the standard detect-and-update flow below.
 
 ---
 
@@ -143,7 +219,7 @@ No user prompt needed — just inform: "Updating existing standard: [name]" or "
 
 1. Inform user of target path
 2. Take the practices, examples and do's/don'ts from the argument and the conversation. Ask only for what they leave out — free text, what is already known stated in the question
-3. Optionally show plugin baseline if similar standard exists in docs-manager's bundled docs
+3. A rule the plugin ships changed since setup reaches the project through `/maister:standards-update --built-in`, never by copying the bundled docs here.
 
 ---
 
