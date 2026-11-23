@@ -148,7 +148,7 @@ test('E12: a top-level freeze outside a run folder is refused state-run-folder-m
     const result = verb(['write-state', `--state=${state}`], freezePatch().patch);
     assert.equal(result.code, 1, `${relative}: ${result.stdout}${result.stderr}`);
     assert.match(result.stderr, /^state-run-folder-misplaced: /m, relative);
-    assert.ok(result.stderr.includes('.maister/tasks/development/'), `${relative}: the message names the folder the run belongs in`);
+    assert.ok(result.stderr.includes(path.join('.maister', 'tasks', 'development') + path.sep), `${relative}: the message names the folder the run belongs in`);
     assert.equal(fs.existsSync(state), false, `${relative}: nothing is written`);
   }
   // An umbrella run's folder is a run folder too.
