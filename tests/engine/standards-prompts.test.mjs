@@ -141,6 +141,13 @@ test('standards prompts: init\'s "Choose individually" offers "None of these" an
   assert.ok(phase.includes('`const` `none` and `title` "None of these"'), 'the plain picker carries the option too');
 });
 
+test('standards prompts: init\'s update path asks the built-in review offer in a call of its own, after the survey\'s answer', () => {
+  const init = read(INIT);
+  const offer = slice(init, 'The built-in standards. When', 'Step 3 — Apply only what was chosen.', 'init');
+  assert.ok(offer.includes('the offer is an AskUserQuestion call of its own, made after the survey\'s answer and its pages have come back'), 'the offer is its own call, after the answer');
+  assert.ok(offer.includes('never a question in the survey\'s call or on one of its pages'), 'the offer is never merged into the survey');
+});
+
 test('standards prompts: init\'s summary names each recommended group that was not copied with its discover command', () => {
   const init = read(INIT);
   assert.ok(init.includes('Store the selection for Phase 5, and the groups the resolver recommended for Phase 7\'s summary.'), 'Phase 4 keeps the recommended set');

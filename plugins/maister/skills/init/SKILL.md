@@ -306,7 +306,7 @@ With offers but no addition, the first option would apply nothing, so it is left
 A page is one form of up to four properties, each `"type": "string"` and a choice of its options: `oneOf` entries of `const` (the option's id) and `title` (its label, "(Recommended)" on the recommended one), with `default` the recommended option's id.
 -->
 
-**The built-in standards.** After the survey's choice and its pages, when `counts.candidates` is above zero, a separate AskUserQuestion: "Review the N built-in standard changes now? Rules nobody edited are offered together, save those folded into a rule your team edited, which are asked after it; each rule your team edited is asked on its own; nothing changes without a choice." Options: "Review them (Recommended)" / "Not now". It is asked even when the survey itself asked nothing.
+**The built-in standards.** When `counts.candidates` is above zero, the offer is an AskUserQuestion call of its own, made after the survey's answer and its pages have come back: never a question in the survey's call or on one of its pages, since the survey's answer decides what is applied before the review. The offer: "Review the N built-in standard changes now? Rules nobody edited are offered together, save those folded into a rule your team edited, which are asked after it; each rule your team edited is asked on its own; nothing changes without a choice." Options: "Review them (Recommended)" / "Not now". It is asked even when the survey itself asked nothing.
 <!-- plain-picker
 A form of one property, `"type": "string"`, a choice of its options: `oneOf` entries of `const` (the option's id) and `title` (its label), with `default` the id of "Review them (Recommended)".
 -->
