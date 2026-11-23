@@ -68,6 +68,9 @@
  * - `waiting:` on a node recorded `waiting`, which is never run again.
  * - `say:` on an `agent:` step and a step with `delegates:`: the one line the
  *   session prints while the delegate runs.
+ * - `say:` over the start banner's lines, first, on a top-level run's brief
+ *   of its first node while no node has started: the freeze's banner, which sessions kept in
+ *   their thinking, as a printed step.
  * - `missing:` for each `with:` reference that finds nothing recorded yet,
  *   which is re-driven or recorded, never guessed.
  * - `held:` at a gate a held choice asks, with the count still waiting.
@@ -149,7 +152,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { BUILT_IN_AGENTS, guardReadsTask, guideRows, nodeKindIn, proseSection, readerRows, sectionNameOf } from './graph.mjs';
 import { driftClause, atClose, closingCandidates, evaluate, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
-import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, writeState } from './state.mjs';
+import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, startBanner, writeState } from './state.mjs';
 import { owedCompanions } from './companions.mjs';
 import { STYLE_GUIDE } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
@@ -296,6 +299,12 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
       lines.splice(2, 0, startYours(node));
     }
   }
+  // A run's first brief, before any node started, repeats the start banner as a
+  // `say:` step: a banner kept in the session's thinking never reached the person.
+  if (firstBrief(doc, node, context)) {
+    const banner = startBanner(state);
+    if (banner !== null) lines.unshift(BANNER_SAY, ...banner);
+  }
   // A marker that cannot be written only means the next brief prints the rows whole again.
   if (shown !== null && printedWhole.size) markConventionsShown({ root, rows: new Set([...shown, ...printedWhole]) });
   lines.push('');
@@ -312,6 +321,20 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
 }
 
 const STARTED = 'started: recorded running by this brief — the start needs no write of its own';
+
+/** The line over the start banner a run's first brief repeats. */
+const BANNER_SAY = 'say: the run\'s start, a visible message of its own before this node\'s work, unless your last message showed these lines — each copied as printed:';
+
+/**
+ * Is this the first brief of a top-level run — its first node, with no node
+ * started yet, as the statuses read before this brief's own start write? A
+ * child run's banner is never relayed: the parent's walk goes on.
+ */
+function firstBrief(doc, node, context) {
+  if (isPlainObject(doc.orchestrator) && isPlainObject(doc.orchestrator.parent)) return false;
+  if ([...context.status.keys()][0] !== node) return false;
+  return [...context.status.values()].every(status => status === 'pending');
+}
 
 /** The line a ready step whose start the brief did not record prints in its place. */
 function startYours(node) {

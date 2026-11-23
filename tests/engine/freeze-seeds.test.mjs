@@ -12,7 +12,7 @@ import { ENGINE_DIR, freezePatch, readState, run, scratch, variantRoot, verb } f
 // run folder at the wrong depth, before anything is written.
 
 const RESEARCH = path.join(ENGINE_DIR, 'workflows/research.yml');
-const RELAY = 'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below — paths and links copied as printed';
+const RELAY = 'Show the person the lines below now, as a visible message of your own — the next thing you write, before any other call, never only in your thinking — each line copied as printed';
 
 /** A scratch run with `config` written as the project's `.maister/config.yml`. */
 function configured(t, config, options = {}) {

@@ -272,8 +272,9 @@ The writer adds the rest (`references/writing-state.md` § *What the freeze writ
 a key it owns with a `note:`; relay any `warning:`; a refusal names its recovery under `rules:`.
 The run creates no task items.
 
-**The freeze prints the startup banner first; your next message, before any other call, tells
-the user what it says**, as its first line asks.
+**The freeze prints the startup banner first; the next thing you write, before any other call, is a
+visible message to the user with its lines copied as printed** — never only in your thinking. The
+first node's brief repeats them under `say:` until a node starts.
 
 > **SELF-CHECK before the call after the freeze**: does your message name the workflow and
 > task, the checkpoints, the directory and the dashboard link? If not, STOP and write it first.

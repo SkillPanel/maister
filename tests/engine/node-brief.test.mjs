@@ -28,6 +28,12 @@ const ASKS_TAIL = ' — read references/in-node-questions.md before the first';
 const REFUSALS = ['node-brief-state-unreadable', 'node-brief-not-a-run', 'node-brief-unknown-node'];
 const RUN_PATH = '.maister/tasks/development/2026-01-05-sample';
 
+/** The brief's lines from its `## ` header on, past the lines a brief may open with. */
+function fromHeader(stdout) {
+  const lines = stdout.split('\n');
+  return lines.slice(lines.findIndex(line => line.startsWith('## ')));
+}
+
 function nodeBrief(state, node, engine = null) {
   const args = ['node-brief', `--state=${state}`, `--node=${node}`];
   return engine ? run(engine, args) : verb(args);
@@ -813,13 +819,13 @@ test('node-brief: start: yours prints for a ready step whose start the brief doe
   freeze(child);
   assert.ok(!has(nodeBrief(child.state, 'research').stdout, 'start: '), 'needs unmet: no start line');
   reach(child, { nodes: { implementation: { status: 'completed' } } });
-  const ready = nodeBrief(child.state, 'research').stdout.split('\n');
+  const ready = fromHeader(nodeBrief(child.state, 'research').stdout);
   assert.equal(ready[2], START('research'));
   assert.ok(!ready.includes(STARTED), 'never beside started:');
 
   // A step whose start the brief records prints started:, never start: yours.
   const sample = sampleRun(t);
-  const scope = nodeBrief(sample.state, 'scope').stdout.split('\n');
+  const scope = fromHeader(nodeBrief(sample.state, 'scope').stdout);
   assert.equal(scope[2], STARTED);
   assert.ok(!scope.some(line => line.startsWith('start: yours')));
 
@@ -838,6 +844,27 @@ test('node-brief: start: yours prints for a ready step whose start the brief doe
   freeze(remote, { definition: path.join(remote.root, 'node-brief.yml'), overlays: [path.join(remote.root, 'dir.overlay.yml')], orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
   write(remote, { nodes: { scope: { status: 'completed', values: { wants_audit: false, focus: 'narrow' } } } });
   assert.ok(!has(nodeBrief(remote.state, 'remote').stdout, 'start: '));
+});
+
+test('node-brief: a run\'s first brief repeats the start banner as a say: step, once, and no other brief does', t => {
+  const SAY = 'say: the run\'s start, a visible message of its own before this node\'s work, unless your last message showed these lines — each copied as printed:';
+  const sample = sampleRun(t);
+  const banner = JSON.parse(fs.readFileSync(path.join(sample.dir, 'display', 'banner.json'), 'utf8')).lines;
+  assert.equal(banner[0], 'Maister run started: Node brief');
+
+  // Any other node of the fresh run: no banner.
+  assert.doesNotMatch(nodeBrief(sample.state, 'draft').stdout, /^say: the run's start/m, 'only the first node repeats it');
+
+  const first = nodeBrief(sample.state, 'scope');
+  assert.equal(first.code, 0, first.stderr);
+  const lines = first.stdout.split('\n');
+  const at = lines.indexOf(SAY);
+  assert.ok(at >= 0, first.stdout);
+  assert.deepEqual(lines.slice(at + 1, at + 1 + banner.length), banner, 'the banner lines follow, exactly as the freeze printed them');
+  assert.ok(at + banner.length < lines.findIndex(line => line.startsWith('## ')), 'before the node\'s header');
+
+  // The brief recorded the start, so the next one is past the run's start.
+  assert.doesNotMatch(nodeBrief(sample.state, 'scope').stdout, /^say: the run's start/m, 'printed once');
 });
 
 test('node-brief: a waiting node says it is not run again; an agent step and a step with delegates carry the line to say', t => {

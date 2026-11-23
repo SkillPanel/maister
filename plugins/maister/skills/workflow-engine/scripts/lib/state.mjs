@@ -695,8 +695,22 @@ function bannerOf(state, text) {
   };
 }
 
-/** The banner's first line, read by the orchestrating model rather than shown. */
-export const BANNER_RELAY = 'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below — paths and links copied as printed';
+/**
+ * The startup banner's lines for the run whose state file is `state`, as the
+ * freeze printed them, without the line addressed to the model; null when the
+ * file cannot be read. `node-brief` repeats them on a run's first brief, so a
+ * banner the session kept in its thinking still reaches the person.
+ */
+export function startBanner(state) {
+  try {
+    return bannerOf(state, fs.readFileSync(state, 'utf8')).lines;
+  } catch {
+    return null;
+  }
+}
+
+/** The banner's first line, read by the orchestrating model rather than shown: it asks for a message the person sees. */
+export const BANNER_RELAY = 'Show the person the lines below now, as a visible message of your own — the next thing you write, before any other call, never only in your thinking — each line copied as printed';
 /** The relay line's tail when the freeze opens the dashboard itself. */
 export const BANNER_OPENED = '; the dashboard is already open: run no opener';
 

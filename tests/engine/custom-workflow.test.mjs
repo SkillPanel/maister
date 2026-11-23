@@ -280,7 +280,7 @@ test('freeze: the proven freeze lands under the custom task type, every node pen
 
   const banner = result.stdout.split('\n\n')[0];
   assert.equal(banner, [
-    'Tell the user, in your own message before any other call: the workflow and the task, the checkpoints, the directory, the dashboard and the first phase below — paths and links copied as printed.',
+    'Show the person the lines below now, as a visible message of your own — the next thing you write, before any other call, never only in your thinking — each line copied as printed.',
     'Maister run started: Release audit',
     'Task: Audit v2.4.0',
     'Checkpoints: one where you decide',
