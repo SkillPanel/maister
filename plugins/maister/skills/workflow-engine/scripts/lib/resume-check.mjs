@@ -55,6 +55,39 @@ const INSTALL_2X = {
     + 'for example `copilot plugin uninstall maister@maister-plugins`). ',
 };
 
+/** The oldest Node.js major release the engine runs on. */
+export const NODE_MAJOR = 20;
+
+/** The marker a run that cannot start for want of Node.js ends on. */
+export const NODE_UNAVAILABLE = 'RUN-FAILED: node-unavailable';
+
+/**
+ * Whether the Node.js running the engine is too old for it: null when it is
+ * `NODE_MAJOR` or newer, else `{marker, message}` — the marker for stdout and
+ * the message, with the 2.x line's install commands for this host, for stderr.
+ * `locate` and `resume-check`, the first verbs a start and a resume run, print
+ * it in place of their result and exit 1, before anything is read or written.
+ * It is a marker and not a refusal: the run never began, so there is no code
+ * for a driver to recover from, only an install to change.
+ *
+ * `version` is `process.versions.node` unless given, which is how a test fakes
+ * an older one; no flag takes it. A version that cannot be read is let through:
+ * the check only refuses a release it knows is too old.
+ */
+export function nodeUnavailable(version = process.versions.node) {
+  const major = Number.parseInt(String(version).replace(/^v/, ''), 10);
+  if (!Number.isFinite(major) || major >= NODE_MAJOR) return null;
+  return {
+    marker: NODE_UNAVAILABLE,
+    message: [
+      `This workflow needs Node.js ${NODE_MAJOR} or newer, and this is Node.js ${String(version).replace(/^v/, '')}. `,
+      `Nothing was written. Install Node.js ${NODE_MAJOR} or newer and run the command again; an install that cannot run it `,
+      'stays on the 2.x line: ',
+      (INSTALL_2X[SHIPPED_HOST] ?? INSTALL_2X.claude).trimEnd(),
+    ].join(''),
+  };
+}
+
 /**
  * What an operator reads when a 2.x directory is offered for resume, with the
  * install line for the host this copy ships for.

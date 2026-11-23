@@ -2664,6 +2664,41 @@ export function atClose({ doc, runDir }) {
 }
 
 /**
+ * What a write that completed or skipped a node leaves to do, for the state
+ * writer's `next:` line: `{id, title}` for the node due next, `{id: null}` when
+ * nothing is left for the run but its closing patch, or null when nothing is
+ * due yet and the run is not done — a step waiting on its child run, or one
+ * started and not ended.
+ *
+ * The node due next is the one `node-brief` holds every later start behind:
+ * the first pending node in frozen order whose needs settle by the ready-set
+ * rule. Its guard is not read here: a guard that reads false is the brief's to
+ * report, and the session records the step skipped from it. Nothing is left
+ * when no node is pending and due and none started without ending, and also
+ * when the task already records how it ended, since the closing patch is then
+ * the write just made. The edges are the freeze's and `on` the re-read
+ * definition's, trusted only when it hashes to the freeze, as for `atClose`.
+ */
+export function dueNext({ doc, runDir }) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const ids = frozenIds(recorded);
+  if (!ids.length) return null;
+  const task = isPlainObject(doc.task) ? doc.task : {};
+  if (RUN_ENDINGS.has(task.status)) return null;
+  const current = reread(doc, workflow, runDir);
+  const byId = new Map((current.drift ? [] : current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
+  const status = new Map(ids.map(id => [id, entryOf(recorded, id).status ?? 'pending']));
+  const due = ids.find(id => status.get(id) === 'pending'
+    && readiness(needsOf(recorded, byId, id).map(need => status.get(need)), byId.get(id)?.on) !== 'waiting');
+  if (due !== undefined) return { id: due, title: titleOf(current.display?.titles, due) };
+  return ids.some(id => status.get(id) !== 'pending' && !ENDED.has(status.get(id))) ? null : { id: null };
+}
+
+/** The `task.status` values a run's closing patch records. */
+const RUN_ENDINGS = new Set(['completed', 'failed', 'stopped']);
+
+/**
  * The needs a starting or completing node finds unsettled, for the state
  * writer and `run-complete`: `{gaps, skippable, toRun}`, all empty when every
  * node in `ids` may stand where it is recorded.

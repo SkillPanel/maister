@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { FIXTURES, freeze, legacyMirror, run as runScript, scratch, sibling, variantRoot, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, legacyMirror, run as runScript, scratch, sibling, variantRoot, verb, write } from '../helpers.mjs';
 
 /** Run `resume-check` against a run and parse the JSON it always prints. */
 function resumeCheck(run) {
@@ -407,4 +407,33 @@ test('resume-check next: the listing form, with no --state, carries none', t => 
   const result = verb(['resume-check']);
   assert.equal(result.code, 0, result.stderr);
   assert.ok(!Object.hasOwn(JSON.parse(result.stdout), 'next'));
+});
+
+// The Node.js check at entry: `locate` and `resume-check` print the marker in
+// place of their result below Node.js 20, and let a newer one through. The
+// version is faked through the exported function's parameter; no flag takes it.
+
+const RESUME_CHECK_MODULE = path.join(ENGINE_DIR, 'scripts/lib/resume-check.mjs');
+
+test('node check: below Node.js 20 the marker and the 2.x install line come back, and nothing else', async () => {
+  const { nodeUnavailable } = await import(pathToFileURL(RESUME_CHECK_MODULE).href);
+  for (const version of ['19.9.0', 'v18.19.1', '16.20.2']) {
+    const unavailable = nodeUnavailable(version);
+    assert.equal(unavailable.marker, 'RUN-FAILED: node-unavailable', version);
+    assert.match(unavailable.message, /needs Node\.js 20 or newer/, version);
+    assert.ok(unavailable.message.includes(`this is Node.js ${version.replace(/^v/, '')}`), unavailable.message);
+    assert.ok(unavailable.message.includes('`/plugin install maister@maister-plugins-2x`'), 'the source tree ships for Claude Code');
+    assert.doesNotMatch(unavailable.message, /^[a-z][a-z0-9]*(?:-[a-z0-9]+)+: /, 'a marker, never a refusal code first');
+  }
+});
+
+test('node check: Node.js 20 and newer pass, and so does this one, so resume-check answers as before', async t => {
+  const { nodeUnavailable } = await import(pathToFileURL(RESUME_CHECK_MODULE).href);
+  for (const version of ['20.0.0', 'v20.19.0', '22.22.2', '24.1.0', process.versions.node]) assert.equal(nodeUnavailable(version), null, version);
+  const run = scratch(t);
+  freeze(run);
+  const result = resumeCheck(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.ok(!result.stdout.includes('node-unavailable'), result.stdout);
+  assert.equal(result.json.ok, true);
 });

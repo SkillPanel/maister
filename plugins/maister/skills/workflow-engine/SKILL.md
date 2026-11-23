@@ -20,7 +20,7 @@ this one.
 
 ## Before anything else
 
-Seven things no verb tells you. Everything else a moment needs, the verb that runs at it names.
+Five things no verb tells you. Everything else a moment needs, the verb that runs at it names.
 
 **The invocation.** Every verb is one command of its own — two verbs are two calls — starting
 with the engine path as an absolute directory, its JSON a here-string in single quotes at the end
@@ -32,9 +32,9 @@ node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-request --st
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-revise --state=<run>/orchestrator-state.yml --node=<gate> --option=<revise option> <<< '<json>'
 ```
 
-**Run `node-brief` before every node**, `node-brief --state=<state> --node=<id>`, and read its
-output whole: how the node runs, its `with:` filled in, the conventions that apply and its
-section of the guide. At a gate, run the call its `ask it:` line prints — on its own, after the
+**Run `node-brief` before every node** — the one a write's `next:` line names —
+`node-brief --state=<state> --node=<id>`, and read its output whole: how the node runs, its
+`with:` filled in, the conventions that apply and its section of the guide. At a gate, run the call its `ask it:` line prints — on its own, after the
 closing write has returned — and ask what it prints; never write a gate question by hand.
 
 **Every delegate prompt carries the run's context, fetched**, in the turn that writes it:
@@ -48,15 +48,9 @@ file drifts out of canonical shape, and its readers then disagree about the run.
 is answering a pending gate (`references/gates.md` § *Driver-suspended mode — resume*); the patch
 vocabulary is `references/writing-state.md`.
 
-**Read what a `rules:` line names** before acting. On a refusal it holds the recovery; on a
-brief, read it the first time in a session and again after a compaction, which drops what was read.
-
-**A missing companion.** `companion-missing: <node> <path>` from `write-state`, or
-`companion-stale:` from it or from `gate-brief`, asks for one `html-companion-writer` run for that
-page, from the markdown as it reads now and before the next checkpoint — never a re-run of the
-node (`references/writing-state.md` § *A missing or stale companion*).
-
-**`run-complete` is the last call** once nothing is left to run (*Operator visibility*).
+**Read what a `rules:` line names** before acting. On a refusal or after `companion-` lines it
+holds the recovery; on a brief, read it the first time in a session and again after a compaction,
+which drops what was read.
 
 ---
 
@@ -170,12 +164,11 @@ Every verb's flags, output and refusals are in `references/verbs.md`. Each step 
 
 ### The ready set
 
-Run ready nodes one at a time, in the frozen graph's order: a node is ready when its `needs`
-have ended as its `on:` accepts and its `when` guard reads true (`references/grammar.md` § 7).
-A false guard, or an `on: failure` node with nothing failed, is recorded `skipped`, which
-satisfies everything downstream. When nothing is pending — or a node failed with no `on:`
+Run one node at a time: the one a completing or skipping write names on its `next:` line. A
+guard its brief reads `now false`, or an `on: failure` node with nothing failed, is recorded
+`skipped`, which satisfies everything downstream. On `next: none` — or a node failed with no `on:`
 downstream to take it, or a stop ended the run — write the closing patch with `task.status` and
-end through `run-complete`, which prints the marker from that status.
+end through `run-complete`.
 
 ### Recording an outcome
 
@@ -224,8 +217,9 @@ run. On such a run a session given a person's words records nothing at all, not 
 disk, and never takes an answer from the person in the session: an answer is folded only on a
 stamped line.
 
-**Every resume starts with `resume-check --state=<run directory>/orchestrator-state.yml`**, right
-after Step 2's probe. Its `next` says what to do first: relay a `warning:` line once, then do it.
+**Every resume starts with `resume-check --state=<run directory>/orchestrator-state.yml`**, which
+checks the Node.js version first (Step 2). Its `next` says what to do first: relay a `warning:`
+line once, then do it.
 
 ---
 
@@ -238,14 +232,14 @@ what each decision's `by` and each risk's tag mean. The summary contract reaches
 `run-context`, the companion lines through `write-state`, and the closing check through
 `run-complete`.
 
-### Step 2: Probe the runtime, before writing anything
+### Step 2: When Node.js cannot run the engine
 
-Run `node --version` once. On failure, or below 20, stop before any task directory exists: print
-`RUN-FAILED: node-unavailable`. A terminal-driver run tells the user the workflow needs Node.js 20
-or newer, and that an install which cannot run it stays on the 2.x line
-(`/plugin marketplace add SkillPanel/maister#release/2.x`, then
-`/plugin install maister@maister-plugins-2x`); a dispatched worker reports `blocked` through the
-outbox verb and stops. There is no second interpreter: never run such a workflow by hand.
+The workflow needs Node.js 20 or newer. On an older one `locate` and `resume-check` print
+`RUN-FAILED: node-unavailable` and stop; when `node` itself does not run, print it yourself. Either
+way stop before any task directory exists: a terminal-driver run tells the user an install which
+cannot run Node.js 20 stays on the 2.x line (`/plugin marketplace add SkillPanel/maister#release/2.x`,
+then `/plugin install maister@maister-plugins-2x`); a dispatched worker reports `blocked` through
+the outbox verb. There is no second interpreter: never run such a workflow by hand.
 
 ### Step 3: Resolve the workflow by name
 

@@ -113,7 +113,7 @@ import { projectRootOf } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { optedOut } from '../../../../lib/open-file.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
-import { atClose, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
+import { atClose, dueNext, heldApprovalBefore, renderedLabels, unmetNeeds } from './gate-brief.mjs';
 // The display files, a projection of this write on the dashboard's terms. Like
 // `dashboard.mjs` it knows nothing of this module, which keeps the edge acyclic.
 import { DISPLAY_DIR, SESSION_ID, hostSession, publishRun } from './display-files.mjs';
@@ -535,6 +535,11 @@ const WORKFLOW_CONTEXT = {
  * of a completed node that is older than its markdown, checked on every write
  * that completes a node (`staleCheck`); one `companion-stale:` line each.
  *
+ * `next`, present only on a write that completed or skipped a node, is
+ * `{id, title}` for the node due next or `{id: null}` when only the closing
+ * patch is left (`nextCheck`); absent when nothing is due yet and the run is
+ * not done. `workflow.mjs` prints it as the write's last `next:` line.
+ *
  * The clock is read once, here, and handed to everything downstream. It used to be
  * read inside `apply`, which `writeState` never saw — so the projection would have
  * had to read a second one and a write could be stamped a second apart from the
@@ -619,6 +624,8 @@ export function writeState({ state, patch, regress = null, host = null, moveBase
     if (companionMissing.length) result.companionMissing = companionMissing;
     const companionStale = staleCheck(text, path.dirname(path.resolve(state)), before);
     if (companionStale.length) result.companionStale = companionStale;
+    const next = nextCheck(text, path.dirname(path.resolve(state)), before);
+    if (next !== null) result.next = next;
     return result;
   } catch (err) {
     if (err instanceof Refusal) {
@@ -5213,6 +5220,31 @@ function staleCheck(text, runDir, before) {
     return staleCompanions({ companions: companionsOfRun(doc, runDir), nodes, ids: completed, runDir, absences: sanctionedAbsences(doc) });
   } catch {
     return [];
+  }
+}
+
+/**
+ * The write-state `next:` check: on a write that completed or skipped a node,
+ * the node due next as `{id, title}`, `{id: null}` when only the closing patch
+ * is left, or null — no node ended here, or nothing is due yet and the run is
+ * not done (`dueNext`). Read from the committed text and the definition only.
+ *
+ * It exists because the write that ends a node is the moment a session picks
+ * the next one, and the ready-set rule it would otherwise apply by itself is
+ * the engine's: the line names the node, and `node-brief` takes it from there.
+ *
+ * Never a refusal and never a failure of the write: a state or definition that
+ * cannot be read yields null.
+ */
+function nextCheck(text, runDir, before) {
+  try {
+    const doc = parseState(text);
+    const nodes = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+    const ended = Object.keys(nodes).some(id => isPlainObject(nodes[id])
+      && (nodes[id].status === 'completed' || nodes[id].status === 'skipped') && before[id] !== nodes[id].status);
+    return ended ? dueNext({ doc, runDir }) : null;
+  } catch {
+    return null;
   }
 }
 
