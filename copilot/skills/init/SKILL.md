@@ -101,15 +101,15 @@ Ask once with ask_user, the defaults and their source in the question — "Start
 
 Custom categories: if user adds a new category, create the directory and include it in the selection.
 
-Store selection for Phase 5.
+Store the selection for Phase 5, and the categories the defaults recommended for Phase 7's summary.
 
 ---
 
 ## PHASE 5: Initialize Documentation Structure
 
-**Invoke `docs-operator` subagent** via Task tool (agent_type: `maister:docs-operator`, model and effort from `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=copilot`, run just before) with prompt — here and in Phase 7, `[check path]` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path:
+**Invoke `docs-operator` subagent** via Task tool (agent_type: `maister:docs-operator`, model and effort from `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=copilot`, run just before) with prompt — here and in Phase 7, `[check path]` is `<plugin root>/skills/docs-manager/scripts/docs-check.mjs`, the plugin root two levels above this skill's base directory, written as an absolute path. `[standards path]` is `<plugin root>/skills/docs-manager/docs/standards/`, the built-in standards, written the same way as an absolute path, or with `--standards-from` the `[resolved path]/.maister/docs/standards/` Phase 1 stored:
 
-> "Initialize documentation structure. Standards selection: [array from Phase 4]. [If --standards-from was provided: Standards source path: [resolved path]/.maister/docs/standards/. Copy standards from this external path instead of built-in defaults.] Only copy selected standard categories. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Create placeholder sections in INDEX.md for skipped categories. Check: [check path]."
+> "Initialize documentation structure. Standards selection: [array from Phase 4]. Standards source path: [standards path]. Copy only the selected standard categories, from that path. Do NOT copy project templates — only create the project/ directory. Project documentation will be generated in Phase 6 with real content from project analysis. Write no INDEX.md section for a category that was not copied. Check: [check path]."
 
 Wait for docs-operator to complete, then continue with Steps 2 and 3 and go on to Phase 6.
 
@@ -241,6 +241,7 @@ Wait for docs-operator to complete, then immediately continue with Step 2.
 - Project analysis results (type, language, framework, architecture), and the project description as written when Phase 3 did not ask it
 - Structure created (tree with check marks for created items)
 - Documentation status (which docs generated, which standards initialized)
+- Standards not copied: each category Phase 4 recommended that the person deselected, one line each with the command that adds it later, `/maister:standards-discover --scope=<category>`; a category Phase 4 never recommended is not named, and the line is left out when every recommended category was kept
 - Project config: whether `.maister/config.yml` was created, had the `subagents` block appended, or already held a `subagents` block and was left alone; the file count and the `Explore` tier it chose; and the `subagents` block written or appended, as written. Note that the block governs the agent calls maister makes; the explore agents a host's own plan mode starts are outside it
 - Project profile: whether the `project:` block was written or appended, or an existing one was left alone; the block written, as written, with each field it left commented out and any `warning:` line, and a line asking the user to fill in those fields, since they decide which checks the reviewers apply; and that a run freezes the profile when it starts, so a correction reaches the next run
 - Key findings (strengths, opportunities)

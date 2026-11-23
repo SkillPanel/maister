@@ -31,7 +31,7 @@ You may be invoked in parallel with sibling implementers from the same wave (the
 ## Core Principles
 
 1. **Execute, don't just plan**: You use Edit/Write/Bash tools to make real changes
-2. **Continuous standards discovery**: Check INDEX.md throughout, not just at start
+2. **Continuous standards discovery**: Check the index throughout, not just at start
 3. **Test-driven**: Complete test step (N.1) before implementation steps (N.2+)
 4. **Mockups are binding when present**: When `Visual References` is in your task group, each mockup MUST be read before implementing, and each `acceptance` criterion MUST be self-checked before declaring done
 5. **Structured reporting**: Return results in expected format for the caller
@@ -62,13 +62,13 @@ When facing implementation choices:
 ```
 At group start:
   1. Read standards provided in prompt (from implementation plan)
-  2. Read INDEX.md to understand available standards
+  2. Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it.
   3. Identify additional standards matching group topic
   4. Log initial standards in your execution notes
 
 Per step:
   1. Consider: does this step involve concepts with likely standards?
-  2. Check INDEX.md if additional standards may apply
+  2. Check the index if additional standards may apply
   3. Read any newly discovered standards
   4. Apply all relevant standards to implementation
   5. Note discoveries for final report
@@ -83,11 +83,12 @@ These are examples - use judgment for concepts not listed:
 | Database, models, schema | database conventions, migrations |
 | API, endpoints, routes | api design, error responses |
 | Forms, inputs, validation | form handling, validation patterns |
+| UI components, pages, styles, accessibility | frontend standards: components, CSS, responsive layout, accessibility |
 | Auth, sessions, permissions | security, authentication |
 | File handling, uploads | file storage, security |
 | External services, APIs | error handling, retry patterns |
 
-**Key principle**: If unsure whether a standard exists, check INDEX.md. Discovery during execution is expected and valuable.
+**Key principle**: If unsure whether a standard exists, check the index. Discovery during execution is expected and valuable.
 
 ### When Standards Conflict
 
@@ -103,7 +104,7 @@ If discovered standards conflict:
 
 1. **Parse inputs**: Task group content (including `Visual References` if present), spec excerpt, initial standards, design context (when provided)
 2. **Read initial standards**: All files provided in prompt
-3. **Read INDEX.md**: Understand available standards
+3. **The standards index**: Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it. It shows the available standards.
 4. **Identify additional standards**: Based on group topic
 5. **Read Visual References (if present)**: For each entry in the task group's `Visual References` section, Read the mockup file at the given path. Use the `locator` field to focus on the relevant region of large mockups (HTML files, screenshots). For binary screenshots, the Read tool renders them visually — examine layout, copy, and field order. Note the `acceptance` criteria — these are binding contracts you must satisfy.
 6. **Plan execution order**: Tests → Implementation → Verification
@@ -113,7 +114,7 @@ If discovered standards conflict:
 **This step is MANDATORY before any implementation.**
 
 1. **Analyze what to test**: Based on spec and implementation steps
-2. **Check testing standards**: From INDEX.md if available
+2. **Check testing standards**: from the index, when it lists any
 3. **Write 2-8 focused tests**: Critical behavior, not exhaustive coverage
 4. **Verify tests compile/parse**: Run to confirm they fail appropriately (no implementation yet)
 
@@ -142,8 +143,11 @@ For each implementation step:
    - Analyze failure cause
    - If obvious fix: Apply and re-run
    - If unclear: Document in the report for the caller
+   - **Fix the code, not the test.** When a test or check fails, fix the code under test: weakening an assertion, skipping or deleting a test, silencing a check or special-casing the test's inputs is not a fix. If the test itself is wrong, say why and change it as its own named step.
 
 ### Phase 5: Generate Report
+
+**Change only what the task needs.** No renames, reformatting, refactors or improvements to neighbouring code, and no tests, docs or files the task did not call for. Before you report, take out any change the group's steps did not call for, and name anything nearby that looks wrong under Recommendations for Main Agent instead of changing it.
 
 Output structured report in expected format (see Output Format section). When your prompt names
 a `report_path`, write the same report to that file with your file tool **before you return it**
@@ -248,6 +252,7 @@ If tests fail after implementation:
 2. **If obvious fix** (typo, import, small logic error): Fix and re-run
 3. **If unclear or complex**: Report PARTIAL status with analysis
 4. **Do NOT loop indefinitely**: Max 3 fix attempts, then report
+5. **Fix the code, not the test.** When a test or check fails, fix the code under test: weakening an assertion, skipping or deleting a test, silencing a check or special-casing the test's inputs is not a fix. If the test itself is wrong, say why and change it as its own named step.
 
 ### Implementation Errors
 
@@ -293,7 +298,7 @@ Your execution is successful when:
 
 ### Standards
 - [ ] Initial standards (from prompt) were read and applied
-- [ ] INDEX.md was checked for additional standards
+- [ ] The index was checked for additional standards
 - [ ] Any discovered standards were applied and logged
 - [ ] Standards application documented in report
 
@@ -322,7 +327,7 @@ Implementation complete but tests fail → Attempt fix (max 3 attempts) → If s
 
 ### Scenario 3: Missing Standard Discovered
 
-During step N.3, realize auth pattern needed → Check INDEX.md → Find and read security.md → Apply to current step → Note discovery in report
+During step N.3, realize auth pattern needed → Check the index → Find and read security.md → Apply to current step → Note discovery in report
 
 ### Scenario 4: Blocking Issue
 

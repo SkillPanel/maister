@@ -51,9 +51,10 @@ Write the frame in the session, a few lines each:
 - **The question**, in one sentence.
 - **What is known**: the code, docs and behaviour it touches, read rather than assumed.
 - **The constraints**: decisions already taken that it must respect, and the project standards it
-  must follow. Read `.maister/docs/INDEX.md` when it exists, then the standard files it points to
-  that bear on the question; INDEX.md alone is not enough. When it does not exist, note "No
-  Maister standards found. Consider running `/maister:init`."
+  must follow. Read `.maister/docs/INDEX.md` only if it is not already in your context — the
+  project's instructions usually import it. Then read the standard files it points to that bear on
+  the question; INDEX.md alone is not enough. When it does not exist, note "No Maister standards
+  found. Consider running `/maister:init`."
 - **The decision areas**: the independent choices inside the question, at most three. More than
   three is the size check above.
 - **Mockups: yes or no, and why.** Mockups are made when the decision turns on how something looks

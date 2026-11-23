@@ -43,4 +43,5 @@ for example "v003 of analysis/mockups — 2 of 5 screens changed; open
 versions/v003/index.html", or, for a written version, "v004 of analysis/mockups — written
 scope, 2 of 4 sections changed; open versions/v004/index.html". Each `degraded` reason goes in `risks` as `open`.
 The note to commit the grounding pack, and the note to run `--ground`, go in
-as `followup`.
+as `followup` — the commit note only when `git status --porcelain -- <grounding>`
+lists a path under the pack now, never carried over from an earlier turn.

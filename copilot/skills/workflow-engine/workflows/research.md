@@ -69,6 +69,7 @@ take every path in its project-documentation sections, predefined and
 operator-added alike. The milestone records `research_type`,
 `research_question`, `scope` as a map of three lists — `included`, `excluded`,
 `constraints` — and `project_doc_paths`, `[]` when there is no index.
+The recorded paths never include `INDEX.md` itself or any file under `standards/`: those reach every delegate through the index.
 
 When the context input names a context pack — a file or a directory handed over
 by whatever started the run — bring it under `analysis/work-context/` as it is

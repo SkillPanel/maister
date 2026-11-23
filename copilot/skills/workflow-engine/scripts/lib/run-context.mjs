@@ -51,6 +51,8 @@ import { companionsOfRun, htmlOutput, isContextBlock, projectRootOf, sourcesOf }
 import { isMarkdown, owedCompanions } from './companions.mjs';
 import { changesCodeOf } from './graph.mjs';
 import { HELD_APPROVAL } from './question-triage.mjs';
+// The host this tree is built for; the Copilot build switches the constant.
+import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 
 /**
  * The two plugin files the block names, built from this module's own location
@@ -66,12 +68,14 @@ const PATTERNS = fileURLToPath(new URL('orchestrator-patterns.md', REFERENCES));
 const STANDARDS_INDEX = path.join('.maister', 'docs', 'INDEX.md');
 
 /**
- * The project instructions files a session loads, relative to the root. One
- * that imports the index (`@.maister/docs/INDEX.md`) has already put it in
- * every delegate's context, so listing it again would only invite a second
- * read of the same file.
+ * The project instructions file checked for the index import, relative to the
+ * root. An import (`@.maister/docs/INDEX.md`) in the root instructions puts the
+ * index in a Claude Code session and in every plugin subagent, so listing it
+ * again would only invite a second read of the same file. `.claude/CLAUDE.md`
+ * is not checked: its relative import resolves under `.claude/`, so it never
+ * reaches the index.
  */
-const INSTRUCTIONS = ['CLAUDE.md', path.join('.claude', 'CLAUDE.md')];
+const INSTRUCTIONS = 'CLAUDE.md';
 const INDEX_IMPORT = /(?:^|\s)@\.maister\/docs\/INDEX\.md(?=\s|$)/m;
 
 /**
@@ -240,8 +244,11 @@ function taskPathOf(doc, runDir, root) {
 /**
  * The project documentation a delegate reads, absolute and listed once: the
  * shared `project_context` paths, then each context block's in key order, then
- * the standards index when the project has one and its instructions do not
- * already import it — imported, it is left out even where a list names it. A
+ * the standards index when the project has one. On Claude Code the root
+ * instructions importing it leave it out, even where a list names it, because
+ * the session and every plugin subagent already carry it. A Copilot subagent is
+ * given no repository instructions, so on the Copilot build this listing is its
+ * one route to the index and an existing index is always listed. A
  * value that is not a list, or an item that is not a one-line string, was not
  * written by the writer and is skipped. The list is printed read-only: a
  * delegate reads these files, and changes one only when its own task names it.
@@ -258,7 +265,7 @@ function docsOf(doc, root) {
     for (const item of list) if (isLine(item)) seen.add(path.resolve(root, item));
   }
   const index = path.resolve(root, STANDARDS_INDEX);
-  if (importsIndex(root)) seen.delete(index);
+  if (SHIPPED_HOST !== 'copilot' && importsIndex(root)) seen.delete(index);
   else if (fs.existsSync(index)) seen.add(index);
   return [...seen];
 }
@@ -272,15 +279,13 @@ function isDirectory(dir) {
   }
 }
 
-/** Whether one of the project's instructions files imports the standards index. */
+/** Whether the root instructions file imports the standards index. */
 function importsIndex(root) {
-  return INSTRUCTIONS.some(file => {
-    try {
-      return INDEX_IMPORT.test(fs.readFileSync(path.join(root, file), 'utf8'));
-    } catch {
-      return false;
-    }
-  });
+  try {
+    return INDEX_IMPORT.test(fs.readFileSync(path.join(root, INSTRUCTIONS), 'utf8'));
+  } catch {
+    return false;
+  }
 }
 
 /**

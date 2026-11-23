@@ -265,6 +265,10 @@ relative to the project root and `--subdir=<output_subdir>` added when it is not
 `v001`. When `<folder>` is a `mockup-studio` record folder, that command records the next turn
 as a run of its own. A workflow run ends the same way, from its node's prose.
 
+A close names the grounding pack as uncommitted only when `git status --porcelain -- <grounding>`,
+run from the project root in this turn, lists a path under it. An earlier turn's note to commit the
+pack is never repeated without that check: the person may have committed it since.
+
 ### Folder rules
 
 - A first terminal turn's folder is the engine's `.maister/tasks/mockup-studio/<YYYY-MM-DD-slug>/`,

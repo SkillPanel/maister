@@ -21,6 +21,7 @@ and the profiling-data drop point the analysis node reads from.
    project's docs directory, if one exists, predefined and operator-added
    alike, into `project_context.project_doc_paths`: a top-level key of the
    patch, never nested inside the orchestrator or context block.
+   The recorded paths never include `INDEX.md` itself or any file under `standards/`: those reach every delegate through the index.
 
 **Budget.** None — a configuration file it cannot find is an absence, not a
 failure.

@@ -302,7 +302,8 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared, verif
   const delegation = delegationOf(state);
   const summaries = summarySources(state);
   const nodeSummaries = isPlainObject(state.node_summaries) ? state.node_summaries : {};
-  const approvers = approversOf(state);
+  const named = namesPeople(state);
+  const approvers = approversOf(state, named);
 
   return frozenIds(nodes).map(id => {
     const node = isPlainObject(nodes[id]) ? nodes[id] : {};
@@ -343,7 +344,8 @@ function phasesOf(state, icons, titles, labels, gates, progress, declared, verif
     // `earlier`, so the viewer shows it as history and does not count it.
     const decisions = list(summary.decisions);
     phase.decisions = decisions.map(entry => {
-      const decision = withApproval(decisionOf(entry, option => optionLabelOf(labels, id, option)), id, approvers);
+      const read = decisionOf(entry, option => optionLabelOf(labels, id, option));
+      const decision = withApproval(named ? read : unnamed(read), id, approvers);
       return decision && items.isEarlierAnswer(entry, decisions) ? { ...decision, earlier: true } : decision;
     }).filter((d) => d !== null);
     phase.risks = list(summary.risks).map(items.riskOf).filter((r) => r !== null);
@@ -496,18 +498,55 @@ export function artifactOf(entry) {
 }
 
 /**
+ * The driver kinds whose dashboards may name a person: a driven run, where
+ * several people answer and the name says which one.
+ */
+const NAMING_DRIVERS = new Set(['cockpit', 'dispatch']);
+
+/**
+ * Whether the projection names the people who answered: only in a driven run
+ * (`orchestrator.driver.kind` one of NAMING_DRIVERS). A run answered at its own
+ * terminal has one person, the reader, so the viewer says "You" — and a
+ * dashboard shared or captured never carries the machine's user name. State
+ * keeps `answered_by` as recorded either way.
+ */
+function namesPeople(state) {
+  const orchestrator = isPlainObject(state.orchestrator) ? state.orchestrator : {};
+  const driver = isPlainObject(orchestrator.driver) ? orchestrator.driver : {};
+  return NAMING_DRIVERS.has(driver.kind);
+}
+
+/**
+ * A projected decision with the person it names left out — `answered_by`,
+ * `on_behalf_of` and an `actor` of kind `person` — for a run that names
+ * nobody (`namesPeople`). A host's actor is kept: it names the host, not a
+ * person. Anything not a map passes unchanged.
+ */
+function unnamed(decision) {
+  if (!isPlainObject(decision)) return decision;
+  const { answered_by: _answeredBy, on_behalf_of: _onBehalfOf, ...rest } = decision;
+  if (isPlainObject(rest.actor) && rest.actor.kind === 'person') delete rest.actor;
+  return rest;
+}
+
+/**
  * Who approved each held choice the run's approvals match, keyed by owning
  * node, question id and attempt (1 when absent) — the matching a checkpoint
  * applies (`approvalKey`) — to `{by}`: the approval's `answered_by`, else
  * `operator`, with the approval's `on_behalf_of` beside it when a relaying
  * side named the person. The first approval recorded for a key names the
- * approver.
+ * approver. In a run that names nobody (`named` false) every approver is
+ * `operator`, with no `on_behalf_of`.
  */
-function approversOf(state) {
+function approversOf(state, named = true) {
   const approvers = new Map();
   for (const { node, item } of approvalsOf(state)) {
     const key = approvalKey(node, item);
     if (approvers.has(key)) continue;
+    if (!named) {
+      approvers.set(key, { by: 'operator' });
+      continue;
+    }
     const by = typeof item.answered_by === 'string' && item.answered_by.trim() !== '' ? item.answered_by.trim() : 'operator';
     const behalf = typeof item.on_behalf_of === 'string' && item.on_behalf_of.trim() !== '' ? item.on_behalf_of.trim() : null;
     approvers.set(key, behalf === null ? { by } : { by, on_behalf_of: behalf });

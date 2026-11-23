@@ -3,7 +3,7 @@ name: docs-operator
 tools: ["execute", "read", "edit", "search", "web", "todo", "grep", "glob", "rg", "apply_patch", "web_fetch", "update_todo"]
 description: Internal documentation management service. Executes docs-manager operations and returns results to the calling workflow.
 skills:
-  - docs-manager
+  - maister:docs-manager
 ---
 
 **Create a file's directory before the file.** On this host the file-create tool refuses a path whose directory does not exist, so before writing a file into a folder that may not exist yet — a new task or sub-run directory, one of its subfolders, or `.maister/docs/` or `.github/` on a fresh project — run `mkdir -p` on that folder first.

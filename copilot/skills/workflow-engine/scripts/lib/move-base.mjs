@@ -9,12 +9,20 @@
  * merged-in work behind the base again.
  *
  * The base rule. With `--to`, the target is the commit it names. Without it:
- * when HEAD is a merge (two or more parents), the target is HEAD's second
- * parent, the merged tip; when HEAD is not a merge, the target is HEAD.
- * Whether the run's work is committed, uncommitted or both does not pick the
- * target: a diff from the merged tip to the working tree holds both. The
- * result names the rule that chose: `merged tip: HEAD is a merge`, `HEAD: not
- * a merge` or `--to`.
+ * when HEAD is a merge (two or more parents) and the base is an ancestor of
+ * HEAD's second parent, the merged tip, the target is that tip — a run frozen
+ * at the branch point or earlier. Whether the run's work is committed,
+ * uncommitted or both does not pick it: a diff from the merged tip to the
+ * working tree holds both. When the base is on the branch side instead — the
+ * run was frozen on a commit of the branch's own, the usual case — the merged
+ * tip never descends from it, and the target is the merge commit itself, but
+ * only while the merge's first parent is the base (or the base is the merge
+ * already): the run committed nothing since, so only its uncommitted work is
+ * measured, and nothing of its own goes behind the base. A run with commits
+ * of its own since the base is refused, since moving to the merge would hide
+ * them from the review. When HEAD is not a merge, the target is HEAD. The
+ * result names the rule that chose: `merged tip: HEAD is a merge`, `merge
+ * commit: the base is on the branch side`, `HEAD: not a merge` or `--to`.
  *
  * The refusals, in the order they are checked, each leaving the file exactly
  * as it was: `move-base-state-unreadable`, `move-base-no-repository` (no
@@ -43,6 +51,7 @@ import { commitOf, dirtyPaths, isAncestor, repoOf } from './git-tree.mjs';
 /** The rule that chose the target, as the result names it. */
 export const BASE_RULES = {
   merge: 'merged tip: HEAD is a merge',
+  branch: 'merge commit: the base is on the branch side',
   head: 'HEAD: not a merge',
   to: '--to',
 };
@@ -96,7 +105,7 @@ export function moveBase({ state, to = null, reason = null }) {
       + 'Give review-brief --base for this run instead');
   }
 
-  const chosen = targetOf(repo, to);
+  const chosen = targetOf(repo, to, base);
   if (chosen.refusal) return chosen.refusal;
   const { target, rule } = chosen;
   if (target === null) {
@@ -130,8 +139,12 @@ export function moveBase({ state, to = null, reason = null }) {
   return { ...result, move: { from: base, to: target, rule } };
 }
 
-/** The target and the rule that chose it, or the `move-base-bad-ref` refusal. */
-function targetOf(repo, to) {
+/**
+ * The target and the rule that chose it, or a refusal: `move-base-bad-ref`
+ * for a `--to` naming no commit, `move-base-not-ancestor` for a run on the
+ * branch side of a merge with commits of its own since its base.
+ */
+function targetOf(repo, to, base) {
   if (to !== null) {
     const target = commitOf(repo, to);
     if (target === null) {
@@ -142,8 +155,23 @@ function targetOf(repo, to) {
     return { target, rule: BASE_RULES.to };
   }
   const tip = commitOf(repo, 'HEAD^2');
-  if (tip !== null) return { target: tip, rule: BASE_RULES.merge };
-  return { target: commitOf(repo, 'HEAD'), rule: BASE_RULES.head };
+  if (tip === null) return { target: commitOf(repo, 'HEAD'), rule: BASE_RULES.head };
+  const merged = { target: tip, rule: BASE_RULES.merge };
+  const behind = isAncestor(repo, base, tip);
+  if (!behind.ok) return { refusal: unreadable(behind.error) };
+  if (behind.ancestor) return merged;
+  // The base is not behind the merged tip: on the branch side, or on neither.
+  const head = commitOf(repo, 'HEAD');
+  const first = commitOf(repo, 'HEAD^1');
+  if (base === head || base === first) return { target: head, rule: BASE_RULES.branch };
+  const own = first === null ? { ok: true, ancestor: false } : isAncestor(repo, base, first);
+  if (!own.ok) return { refusal: unreadable(own.error) };
+  // On neither side: the ancestry check refuses it against the merged tip.
+  if (!own.ancestor) return merged;
+  return { refusal: refuse('move-base-not-ancestor',
+    `the run's base ${base} is on the branch side of the merge ${head}, and the run has commits of its own since it, `
+    + `so moving the base to the merge would hide them from the review (${BASE_RULES.branch}). Nothing was written. `
+    + 'The review keeps measuring from the old base; name a target with --to only when those commits are meant to go behind it') };
 }
 
 /**
