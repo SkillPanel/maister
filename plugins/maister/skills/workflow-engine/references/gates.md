@@ -221,7 +221,7 @@ asked the decision areas of a node behind it, that node's `open` risks are left 
 written before any answer, and the asking node's own risks, written after the answers, say what
 is still open. A summary further back never stands in for
 the closing node's own, and neither does a skipped node: without one, the brief is refused
-`gate-brief-no-summary` — unless a held choice is why the gate is asked (engine § *The ready set*), when
+`gate-brief-no-summary` — unless a held choice is why the gate is asked (`references/in-node-questions.md` § *When the policy classes a question*), when
 its *Done* reads `Skipped.` and the held choices lead.
 
 **What the checkpoint shows is the verb's to compose.** The one-line ask (`<what finished> Ready
@@ -307,8 +307,8 @@ one line with no `"` and carrying its checked `evidence` and `cites` when it nam
 top level repeats the first question's); the patch file is read and kept, for the request to be written
 over it.
 
-`--node=held-approval` briefs the run's closing checkpoint, in every form (engine § *The ready
-set*). When the asking node recorded `asking` (`references/in-node-questions.md` § *When the
+`--node=held-approval` briefs the run's closing checkpoint, in every form
+(`references/in-node-questions.md` § *When the policy classes a question*). When the asking node recorded `asking` (`references/in-node-questions.md` § *When the
 policy classes a question*), a question set's `--checkpoint` and `--request` carry only those
 questions.
 
@@ -640,7 +640,7 @@ its note is asked again for it (*Revising at a gate*).
 ## The closing checkpoint `held-approval`
 
 When no checkpoint follows a held choice, the run raises one of its own before it closes, under
-the held rule (engine § *The ready set*). `held-approval` is a reserved id, never a node of the
+the held rule (`references/in-node-questions.md` § *When the policy classes a question*). `held-approval` is a reserved id, never a node of the
 frozen graph, so no definition and no `graph_hash` changes. In a run that records
 `classes_questions`, the closing node runs `gate-brief --node=held-approval` before its closing
 patch and, in a dispatched run, before its close-out (*Ending a dispatched run*):

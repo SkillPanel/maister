@@ -617,7 +617,7 @@ A run a gate's stop option ended closes the same way, except `use-quick-design`,
 No close-out while a choice is held: when the freeze recorded
 `orchestrator.classes_questions`, this node runs
 `gate-brief --node=held-approval` before its closing patch and before any
-close-out, as the engine's *Ending a dispatched run* says.
+close-out, as the engine's `references/gates.md` § *Ending a dispatched run* says.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out
 verb before this node ends** — the grade and the summary the seed's close-out

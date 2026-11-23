@@ -100,7 +100,7 @@ never refusals — the write lands and the exit code does not move:
   is not the run's `policy_hash`, or the run recorded none. Nothing is classified; relay it. A
   classing write warns it naming the node, and every question is printed under `ask:`.
 - **`held-gate-skipped:<gate>`** — the write recorded `skipped` on a gate the held rule asks while
-  choices wait for approval (engine § *The ready set*). The status was written as sent: ask the gate, and its
+  choices wait for approval (`references/in-node-questions.md` § *When the policy classes a question*). The status was written as sent: ask the gate, and its
   continue approves the held choices.
 - **`autonomy-ceiling-parent-unread:<run>`** — a child run's freeze could not read its parent's
   state, so it copied no autonomy ceiling from it. Relay it.

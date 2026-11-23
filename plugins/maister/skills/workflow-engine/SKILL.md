@@ -15,7 +15,7 @@ needs the word "engine". The grammar a definition is written in is
 **A dispatched run is told by its `dispatch_id`, not by a kind of its own**: its
 `orchestrator.driver` is a `cockpit` driver carrying one, or the legacy `kind: dispatch` with or
 without one. It suspends on its gates like any `cockpit` run and owes its close-out to the outbox
-(*Ending a dispatched run*). Every rule that says *a dispatched run* or *under dispatch* means
+(`references/gates.md` § *Ending a dispatched run*). Every rule that says *a dispatched run* or *under dispatch* means
 this one.
 
 ## Before anything else
@@ -34,7 +34,8 @@ node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-revise --sta
 
 **Run `node-brief` before every node**, `node-brief --state=<state> --node=<id>`, and read its
 output whole: how the node runs, its `with:` filled in, the conventions that apply and its
-section of the guide.
+section of the guide. At a gate, run the call its `ask it:` line prints — on its own, after the
+closing write has returned — and ask what it prints; never write a gate question by hand.
 
 **Every delegate prompt carries the run's context, fetched**, in the turn that writes it:
 `run-context --state=<state> --node=<node>`, or `prior-context --node=<node>` where the delegate
@@ -192,49 +193,12 @@ own edit unasked: name both ways and let the person choose.
 
 ### The ready set
 
-Run ready nodes one at a time, in the frozen graph's order. A node is ready when its `needs`
-have ended as its `on:` accepts and its `when` guard reads true (`node-brief`'s `when:` line
-evaluates it; the rule is `references/grammar.md` § 7). A false guard, or an `on: failure`
-node with nothing failed, is recorded `skipped`, and **a skip satisfies everything downstream**.
-When nothing is pending — or a node failed with no `on:` downstream to take it, or a stop ended
-the run — write the closing patch with `task.status` and end through `run-complete`, which
-prints the marker from that status.
-
-**The held rule.** While a choice is held for approval, a gate whose guard reads a step's value
-is asked whatever its guard reads, and its continue approves the held choices; a gate guarded
-only by inputs or other gates' values is still skipped (`gate-guard-false`). With no checkpoint
-left, the closing node asks `held-approval` (`references/gates.md` § *The closing checkpoint
-`held-approval`*).
-
-**A `waiting` node is not ready** and satisfies no `needs`, not even under `on: always`: it is
-never executed again and never makes the run gate-pending (*Sub-runs*; a dispatch's close-out,
-*Recording an outcome*).
-
-### Gates and in-node questions
-
-**At a gate, run the `gate-brief` call its `node-brief` names**,
-`gate-brief --state=<state> --node=<gate>`, on its own and only after the closing write has
-returned — `gate-request --node=<gate>` in its place when a driver suspends on it, and when it is
-asked in session
-<!-- rich-picker -->
-with `--json --picker=rich`.
-<!-- /rich-picker -->
-<!-- plain-picker
-with `--ask`, whose whole output is the question tool's arguments, passed as they stand.
--->
-Ask what it prints; never write a gate question by hand.
-
-**A question a node asks inside itself** follows the run's driver and is classed first when the
-freeze recorded `classes_questions`: read `references/in-node-questions.md` before a node asks
-its first one.
-
-### Interpolating `${…}`
-
-`node-brief` prints a node's `with:` and `dir:` with every `${…}` filled in from state, a
-reference that is the whole string keeping its type (`references/grammar.md` § 9): take them
-from there, never resolve one by hand. **A reference never resolves by guessing**: one printed
-`(not recorded yet)` for a completed node is that node's defect — re-drive it, or record the
-value through `write-state`, never substitute a plausible one.
+Run ready nodes one at a time, in the frozen graph's order: a node is ready when its `needs`
+have ended as its `on:` accepts and its `when` guard reads true (`references/grammar.md` § 7).
+A false guard, or an `on: failure` node with nothing failed, is recorded `skipped`, which
+satisfies everything downstream. When nothing is pending — or a node failed with no `on:`
+downstream to take it, or a stop ended the run — write the closing patch with `task.status` and
+end through `run-complete`, which prints the marker from that status.
 
 ### Recording an outcome
 
@@ -252,14 +216,14 @@ beyond the declarations, and a non-null `.html` beside it, is checked on disk to
 
 ### Delegation by scheme
 
-A `started:` line in a node's brief means the brief recorded the step's start; without one, the
-start is your write (`references/writing-state.md` § *One write per moment*). Target names are
-bare; the provider prefix is applied at invocation (`references/grammar.md` § 5.1).
+A `started:` line in a node's brief means the brief recorded the step's start, and a
+`start: yours` line that the start is your write (`references/writing-state.md` § *One write per
+moment*). Dispatch an agent by the name its brief prints, the provider prefix applied
+(`references/grammar.md` § 5.1).
 
-**While a delegate runs, say so.** Right after launching one, print one line — *"<Phase title>
-is running. Nothing needed from you; I'll continue when it finishes."* — and when a
-notification brings you back before it is done, one short line on what is done and what is
-left. Never predict how long a step takes; an elapsed time a step reports may be said. With a
+**While a delegate runs, say so.** Right after launching one, print the line its brief's `say:`
+names, and when a notification brings you back before it is done, one short line on what is
+done and what is left. Never predict how long a step takes; an elapsed time a step reports may be said. With a
 dashboard, the first such line ends *"Progress is on the dashboard in your browser."*, repeated
 only now and then, never with its path. Questions never name the dashboard.
 
@@ -267,22 +231,7 @@ only now and then, never with its path. Questions never name the dashboard.
 
 The rows apply by case. `node-brief` prints each whole where it applies, then names it on its `conventions in force (…)` line; the table is `references/node-conventions.md`, at the brief's `rules:` path.
 
-### Ending a dispatched run
-
-**A dispatched run publishes its close-out through the outbox verb, and the closing node records
-its outcome only after that publish succeeded** — in a run that records `classes_questions`,
-never before `gate-brief --node=held-approval` has run. There `run-complete --state=<state>` also
-takes `--outbox` and `--dispatch-id`, copied unchanged from the seed: the state records no outbox
-root, and its `dispatch_id` only marks the run as dispatched. The outcomes, the `DISPATCH-RESULT:`
-fallback and the `task.status: completed` a refused `held-approval` request still records are
-`references/gates.md` § *Ending a dispatched run*.
-
 ---
-
-## Sub-runs
-
-A `workflow:` node starts a child run: read `references/sub-runs.md` before its first write —
-the writes, the checks that refuse and the ending are there.
 
 ## Resume
 
@@ -387,5 +336,5 @@ drop one silently.**
 ## When to use
 
 Only when a workflow's own skill or `/maister:run` hands a run over, or a node starts a child run
-(*Sub-runs*). A dispatch goes through the umbrella runtime's `envelope` verb, which opens the
+(`references/sub-runs.md`). A dispatch goes through the umbrella runtime's `envelope` verb, which opens the
 dispatch's ledger entry itself; a run never writes `create-entry` for a dispatch.

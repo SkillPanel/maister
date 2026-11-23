@@ -51,9 +51,11 @@ test('the brief of a step with delegates names them on its runs line and prints 
   const at = lines.findIndex(line => line.startsWith('delegates: '));
   assert.ok(at > 0, result.stdout);
   assert.match(lines[at], /through the Task tool, on the model and effort beside it, whatever the size of the project or the task — never do its work in this session/);
-  assert.match(lines[at], /refused without it$/);
+  assert.match(lines[at], new RegExp(`refused without it — each prompt carries run-context --node=${FOUNDATION} pasted unedited$`));
   assert.deepEqual(lines.slice(at + 1, at + 1 + DELEGATES.length),
     DELEGATES.map(agent => `- maister:${agent}: model omit, effort omit (source: shipped default)`));
+  // The line the session says once it has launched them follows the list.
+  assert.equal(lines[at + 1 + DELEGATES.length], 'say: "Research foundation is running. Nothing needed from you; I\'ll continue when it finishes."');
   const patch = lines.find(line => line.startsWith('closing patch'));
   assert.ok(patch.includes(`"delegated": [${DELEGATES.map(agent => `"${agent}"`).join(', ')}]`), patch);
 });

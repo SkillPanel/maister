@@ -537,7 +537,7 @@ own.
 
 No close-out while a choice is held: when the freeze recorded
 `orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
-closing patch and before any close-out, as the engine's *Ending a dispatched run* says, and
+closing patch and before any close-out, as the engine's `references/gates.md` § *Ending a dispatched run* says, and
 closes as that section's outcomes direct.
 
 **Under a dispatch driver, publish the close-out through the outbox close-out

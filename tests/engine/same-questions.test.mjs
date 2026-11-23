@@ -461,11 +461,11 @@ test('every closing node, and the engine\'s dispatched ending, asks held-approva
     assert.ok(rule >= 0, `${name}.md: the closing node's section never names ${HELD_BRIEF}`);
     assert.ok(sectionStart + rule < publish, `${name}.md: ${HELD_BRIEF} comes after the close-out publish`);
   }
-  const ending = sectionOf(skillText(), '### Ending a dispatched run');
-  assert.ok(ending.includes(HELD_BRIEF), `SKILL.md § Ending a dispatched run never names ${HELD_BRIEF}`);
+  const ending = sectionOf(skillText('references/gates.md'), '## Ending a dispatched run');
+  assert.ok(ending.includes(HELD_BRIEF), `gates.md § Ending a dispatched run never names ${HELD_BRIEF}`);
   assert.ok(ending.includes('`task.status: completed`'), 'the fallback\'s closing patch records task.status completed');
-  const full = sectionOf(skillText('references/gates.md'), '## Ending a dispatched run');
-  assert.ok(full.includes('`gate-brief-nothing-held`'), 'gates.md § Ending a dispatched run names the nothing-held refusal');
+  assert.ok(ending.includes('`gate-brief-nothing-held`'), 'gates.md § Ending a dispatched run names the nothing-held refusal');
+  assert.ok(!skillText().includes('### Ending a dispatched run'), 'SKILL.md keeps no stub of its own: the brief\'s close-out line points at gates.md');
 });
 
 test('the close-out order rule adds no question-set marker, the parser counts stay, and the classing rule is stated once', () => {

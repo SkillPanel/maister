@@ -747,7 +747,10 @@ and ask it, or take its default, exactly as the sections above say.
 
 **A held choice is provisional.** It may shape the steps after it, but nothing irreversible is
 done on its strength — nothing pushed, published, sent or deleted — before a person approves it.
-It forces the next checkpoint that runs, whose continue approves it; a person who disagrees
+**The held rule:** while a choice is held for approval, a gate whose guard reads a step's value
+is asked whatever its guard reads, and its continue approves the held choices; a gate guarded
+only by inputs or other gates' values is still skipped (`gate-guard-false`). So the next
+checkpoint the held rule asks approves it; a person who disagrees
 sends its step back with a revise and a note (`references/gates.md` § *Revising at a gate*,
 *For a held choice*). When no checkpoint follows, the closing node asks `held-approval` before
 it closes (`references/gates.md` § *The closing checkpoint `held-approval`*). Say this when you

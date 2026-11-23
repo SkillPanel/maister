@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, scratch, scratchPlugin, run, sibling, variantRoot, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, write } from '../helpers.mjs';
 
 // The brief a step reads before it runs: the facts the engine derives for it —
 // how it runs, its guard, its attempt, its inputs filled in, the files it
@@ -20,6 +20,11 @@ const NODE_BRIEF_OVERLAY = path.join(DEFINITIONS, 'node-brief.overlay.yml');
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 const SKILL = path.join(ENGINE_DIR, 'references/node-conventions.md');
 const RULES = `rules: ${SKILL} § Node conventions`;
+/** The line every brief prints directly before its `rules:` line, naming the engine skill to read whole. */
+const engineSkill = (dir = ENGINE_DIR) => `engine skill: ${path.join(dir, 'SKILL.md')} — if this skill is not in your context in full, as after a compaction, read the whole file with the read tool before acting on this brief`;
+const ENGINE_SKILL = engineSkill();
+/** The asks line's tail, naming the reference a node reads before its first question. */
+const ASKS_TAIL = ' — read references/in-node-questions.md before the first';
 const REFUSALS = ['node-brief-state-unreadable', 'node-brief-not-a-run', 'node-brief-unknown-node'];
 const RUN_PATH = '.maister/tasks/development/2026-01-05-sample';
 
@@ -81,7 +86,8 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   const [header, slice] = [gap.stdout.slice(0, gap.stdout.indexOf('\n\n')), gap.stdout.slice(gap.stdout.indexOf('\n\n') + 2)];
   assert.deepEqual(header.split('\n'), [
     '## Node: gap-analysis — Gap analysis',
-    'runs: agent:gap-analyzer — Task tool, model omit, effort omit (source: shipped default)',
+    'runs: agent:gap-analyzer — Task tool as maister:gap-analyzer, model omit, effort omit (source: shipped default)',
+    'say: "Gap analysis is running. Nothing needed from you; I\'ll continue when it finishes."',
     'with:',
     `- analysis: ${RUN_PATH}/analysis/codebase-analysis.md`,
     `- clarifications: ${RUN_PATH}/analysis/clarifications.md`,
@@ -91,7 +97,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     `- gap: ${RUN_PATH}/analysis/gap-analysis.md`,
     `- scope: ${RUN_PATH}/analysis/scope-clarifications.md`,
     'records: has_reproducible_defect (bool), mockups_needed (bool), risk_level (enum: high, medium, low)',
-    'asks (in session): scope-decisions',
+    `asks (in session): scope-decisions${ASKS_TAIL}`,
     'feeds: gap-approval — continues: continue-past-analysis; revise: revise-gap-analysis → gap-analysis',
     'budget: 2 attempts — a prose rule; nothing enforces it',
     row('`agent:` step'),
@@ -100,6 +106,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     row('feeds a checkpoint'),
     LATER,
     closing('gap-analysis', '"status": "completed", "values": {"has_reproducible_defect": true|false, "mockups_needed": true|false, "risk_level": "high|medium|low"}'),
+    ENGINE_SKILL,
     RULES,
   ]);
   assert.ok(slice.trim().length > 0 && !slice.startsWith('\n'), 'the section follows the one blank line');
@@ -127,6 +134,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     'runs: direct:finalization — inline',
     'with:',
     closing('finalization'),
+    ENGINE_SKILL,
     RULES,
   ]);
 
@@ -159,13 +167,14 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
     '- focus: (not recorded yet)',
     '- label: Focus: (not recorded yet)',
     `- sources: {"list":["plain",false],"notes":"${relative}/analysis/scope.md"}`,
+    'missing: focus from scope — re-drive scope or record the value; never substitute one',
     'writes:',
     `- extras: ${relative}/drafts/extras.md — may be absent: Written only when the draft raises open questions.`,
     `- notes: ${relative}/drafts/notes.md — HTML page owed: notes.html beside it`,
     COMPANION_WRITER,
     `- html: ${STYLE_GUIDE}`,
     `- md_path: ${path.join(sample.dir, 'drafts/notes.md')}`,
-    'asks (in session): tone',
+    `asks (in session): tone${ASKS_TAIL}`,
     'feeds: approval — continues: continue-to-audit, continue-to-wrap-up; revise: revise-draft → draft',
     'budget: 2 attempts — a prose rule; nothing enforces it',
     row('`direct:` step'),
@@ -175,6 +184,7 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
     LATER,
     `see: ${path.join(DEFINITIONS, 'node-brief.md')} § Embedded mode`,
     closing('draft', undefined, ', "absent": {"extras": "<reason, only when not written>"}, "recommends": {"option": "continue-to-audit|continue-to-wrap-up", "reason": "<one line>"}'),
+    ENGINE_SKILL,
     RULES,
     '',
     '**Does.** Write the notes from the scope. As a child run, *Embedded mode* applies.',
@@ -209,6 +219,7 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
   assert.doesNotMatch(nodeBrief(sampleRun(t).state, 'draft').stdout, /^recommends:/m, 'an unset input recommends nothing, and says nothing');
   assert.match(set, /^- focus: narrow$/m);
   assert.match(set, /^- label: Focus: narrow$/m);
+  assert.doesNotMatch(set, /^missing:/m, 'a recorded value is missing no longer');
 });
 
 test('node-brief: every rule a step of a built-in can trigger reaches it — the four that must print whole wherever they apply', t => {
@@ -248,19 +259,19 @@ test('node-brief: a step run in the main session is told where its throwaway fil
 test('node-brief: the asks line follows the driver — in session, in a question set, or the Without line nobody is asked', t => {
   const sample = sampleRun(t);
   write(sample, { orchestrator: { driver: { kind: 'cockpit', features: ['question-sets'] } } });
-  assert.match(nodeBrief(sample.state, 'draft').stdout, /^asks \(question sets\): tone$/m);
+  assert.match(nodeBrief(sample.state, 'draft').stdout, /^asks \(question sets\): tone — read references\/in-node-questions\.md before the first$/m);
 
   // Nobody can be asked: one line, pointing at the Without line the section carries, never a second copy of the default.
   write(sample, { orchestrator: { driver: { kind: 'dispatch' } } });
   const driven = nodeBrief(sample.state, 'draft').stdout;
-  assert.match(driven, /^asks \(nobody can be asked\): tone — the Without line of each applies$/m);
+  assert.match(driven, /^asks \(nobody can be asked\): tone — the Without line of each applies — read references\/in-node-questions\.md before the first$/m);
   assert.doesNotMatch(driven, /not asked — default/);
   assert.match(driven, /^\*\*Without question sets\*\* \(`tone`\): a plain tone/m, 'the slice carries the default');
 
   const dev = scratch(t);
   freeze(dev, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' }, orchestrator: { driver: { kind: 'dispatch' } } });
   assert.match(nodeBrief(dev.state, 'specification').stdout,
-    /^asks \(nobody can be asked\): technical-questions, user-story, specification-requirements — the Without line of each applies$/m);
+    /^asks \(nobody can be asked\): technical-questions, user-story, specification-requirements — the Without line of each applies — read references\/in-node-questions\.md before the first$/m);
 });
 
 test('node-brief: the revise row prints whole only while a recorded revise names the step', t => {
@@ -288,9 +299,10 @@ test('node-brief: a gate points at gate-brief unless its section carries an exce
     'closes: draft',
     'options: continue-to-audit (continue), continue-to-wrap-up (continue), revise-draft (revise → draft), stop-here (stop)',
     row('gate'),
+    ENGINE_SKILL,
     RULES,
     '',
-    `ask it: gate-brief --state=${sample.state} --node=approval`,
+    `ask it: gate-brief --state=${sample.state} --node=approval --json --picker=rich`,
     '',
   ].join('\n'));
 
@@ -302,7 +314,10 @@ test('node-brief: a gate points at gate-brief unless its section carries an exce
     'closes: audit',
     'options: continue-to-wrap-up (continue), revise-draft (revise → draft), stop-here (stop)',
     row('gate'),
+    ENGINE_SKILL,
     RULES,
+    '',
+    `ask it: gate-brief --state=${sample.state} --node=audit-approval --json --picker=rich`,
     '',
     '**Exception.** Ask it even when the audit found nothing, so the operator sees the audit ran.',
     '',
@@ -538,7 +553,7 @@ test('node-brief: a path holding a space is quoted on the rules line and in the 
   const gate = render({ state: sample.state, node: 'approval', rules: `${rules} § Node conventions` });
   assert.equal(gate.ok, true);
   assert.match(gate.text, new RegExp(`^rules: '${rules.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}' § Node conventions$`, 'm'));
-  assert.ok(gate.text.includes(`ask it: gate-brief --state='${path.resolve(sample.state)}' --node=approval`), gate.text);
+  assert.ok(gate.text.split('\n').includes(`ask it: gate-brief --state='${path.resolve(sample.state)}' --node=approval --json --picker=rich`), gate.text);
 
   // A path without one stays bare, as the built-in pointer prints.
   assert.match(nodeBrief(scratchRun(t).state, 'draft').stdout, new RegExp(`^${RULES.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
@@ -582,12 +597,12 @@ test('node-brief: an agent step\'s runs line carries the model and effort the ru
   const runsOf = result => result.stdout.split('\n').find(line => line.startsWith('runs:'));
   const claude = nodeBrief(dev.state, 'gap-analysis');
   assert.equal(claude.code, 0, claude.stderr);
-  assert.equal(runsOf(claude), 'runs: agent:gap-analyzer — Task tool, model opus, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
+  assert.equal(runsOf(claude), 'runs: agent:gap-analyzer — Task tool as maister:gap-analyzer, model opus, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
 
   // The Copilot build is made at test time, so the same run's brief names Copilot's model id.
   const copilot = run(path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs'), ['node-brief', `--state=${dev.state}`, '--node=gap-analysis']);
   assert.equal(copilot.code, 0, copilot.stderr);
-  assert.equal(runsOf(copilot), 'runs: agent:gap-analyzer — Task tool, model claude-opus-5.5, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
+  assert.equal(runsOf(copilot), 'runs: agent:gap-analyzer — Task tool as maister:gap-analyzer, model claude-opus-5.5, effort high (source: project workflows.development.nodes.gap-analysis.agents.gap-analyzer, tier deep)');
 
   // A direct or skill step's runs line is as it was.
   assert.equal(runsOf(nodeBrief(dev.state, 'finalization')), 'runs: direct:finalization — inline');
@@ -733,4 +748,155 @@ test('node-brief: a session is shown each convention row whole once, and again a
   assert.ok(!fs.existsSync(marker), 'the hook removed the marker');
   assert.ok(whole(header(one('gap-analysis')), STEP_ROWS), 'the first brief after a compaction prints the rows whole');
   assert.ok(fs.existsSync(path.join(dev.root, '.maister/display/.gitignore')), 'the marker is ignored by git with the other display files');
+});
+
+// ---------------------------------------------------------------------------
+// the lines that carry a rule the engine skill held
+// ---------------------------------------------------------------------------
+
+/** The plugin copy whose policy classes the in-node questions fixture, so a choice can be held. */
+const CLASSING = sharedPlugin({ policy: JSON.parse(fs.readFileSync(path.join(FIXTURES, 'policy', 'questions.json'), 'utf8')) });
+const IN_NODE = path.join(DEFINITIONS, 'in-node-questions.yml');
+
+/** A run of the in-node questions fixture through the classing copy, `scoping` closed with one choice held. */
+function heldRun(t, driver) {
+  const engine = CLASSING.engine;
+  const sample = scratch(t);
+  const send = patch => {
+    const result = run(engine, ['write-state', `--state=${sample.state}`], patch);
+    assert.equal(result.code, 0, result.stderr);
+  };
+  send(freezePatch({ definition: IN_NODE, orchestrator: { options: { ceiling: 'advice' }, ...(driver ? { driver } : {}) } }).patch);
+  send({ nodes: { scoping: { status: 'running' } } });
+  const question = id => ({ id, question: `Which ${id}?`, options: [{ id: 'a', label: `${id} A`, description: 'A is the safe pick.', recommended: true }, { id: 'b', label: `${id} B` }] });
+  send({ node_summaries: { scoping: { question_set: { questions: ['quick-choice', 'signed-choice'].map(question) } } } });
+  send({ nodes: { scoping: { status: 'completed', values: { wants_review: true, wants_notes: false } } }, node_summaries: { scoping: { summary: 'Scoped the work.' } } });
+  return { sample, engine, skill: path.dirname(path.dirname(engine)) };
+}
+
+test('node-brief: every brief, step and gate alike, names the engine skill directly before its rules line, and the variant names its own', t => {
+  const sample = sampleRun(t, { overlays: [NODE_BRIEF_OVERLAY] });
+  for (const node of ['scope', 'draft', 'polish', 'approval', 'audit-approval', 'wrap-up']) {
+    const lines = nodeBrief(sample.state, node).stdout.split('\n');
+    const at = lines.indexOf(RULES);
+    assert.ok(at > 0, node);
+    assert.equal(lines[at - 1], ENGINE_SKILL, `${node}: the line sits directly before rules:`);
+    assert.equal(lines.filter(line => line.startsWith('engine skill: ')).length, 1, `${node}: one line`);
+  }
+  assert.ok(fs.existsSync(path.join(ENGINE_DIR, 'SKILL.md')), 'the line names a file that exists');
+  assert.doesNotMatch(ENGINE_SKILL, /invoke/, 'the line says read, never invoke the skill again');
+
+  // The Copilot variant's brief names the variant's own skill, from its own location.
+  const variant = path.join(variantRoot(), 'skills/workflow-engine');
+  const copilot = nodeBrief(sample.state, 'approval', path.join(variant, 'scripts/workflow.mjs')).stdout.split('\n');
+  assert.ok(copilot.includes(engineSkill(variant)), copilot.join('\n'));
+  assert.ok(fs.existsSync(path.join(variant, 'SKILL.md')));
+});
+
+test('node-brief: start: yours prints for a ready step whose start the brief does not record, never for one not ready or dispatched', t => {
+  const START = node => `start: yours — send {"nodes": {"${node}": {"status": "running"}}}`;
+  const STARTED = 'started: recorded running by this brief — the start needs no write of its own';
+  const has = (text, prefix) => text.split('\n').some(line => line.startsWith(prefix));
+
+  // A workflow: step: its start brackets its child's freeze, so a ready one is told the start is its write.
+  const child = scratch(t);
+  freeze(child);
+  assert.ok(!has(nodeBrief(child.state, 'research').stdout, 'start: '), 'needs unmet: no start line');
+  reach(child, { nodes: { implementation: { status: 'completed' } } });
+  const ready = nodeBrief(child.state, 'research').stdout.split('\n');
+  assert.equal(ready[2], START('research'));
+  assert.ok(!ready.includes(STARTED), 'never beside started:');
+
+  // A step whose start the brief records prints started:, never start: yours.
+  const sample = sampleRun(t);
+  const scope = nodeBrief(sample.state, 'scope').stdout.split('\n');
+  assert.equal(scope[2], STARTED);
+  assert.ok(!scope.some(line => line.startsWith('start: yours')));
+
+  // Needs settled and pending, but a false guard: nothing to start, nothing written.
+  write(sample, { nodes: { scope: { status: 'completed', values: { wants_audit: false, focus: 'narrow' } } } });
+  write(sample, { nodes: { draft: { status: 'completed' } }, node_summaries: { draft: { summary: 'Drafted the notes.' } } });
+  write(sample, { nodes: { approval: { status: 'completed' } }, node_summaries: { approval: { decisions: [{ option: 'continue-to-wrap-up' }] } } });
+  const audit = nodeBrief(sample.state, 'audit');
+  assert.equal(audit.code, 0, audit.stderr);
+  assert.match(audit.stdout, /^when: .* — now false$/m);
+  assert.ok(!has(audit.stdout, 'start: ') && !has(audit.stdout, 'started: '), audit.stdout);
+
+  // A dispatched node never gets one, its needs settled or not.
+  const overlay = 'extends: node-brief.yml\nadd:\n  remote:\n    uses: workflow:node-brief\n    dir: "members/${scope.values.focus}"\n    needs: [scope]\n    before: [draft]\n';
+  const remote = copiedSample(t, { files: { 'dir.overlay.yml': overlay } });
+  freeze(remote, { definition: path.join(remote.root, 'node-brief.yml'), overlays: [path.join(remote.root, 'dir.overlay.yml')] });
+  write(remote, { nodes: { scope: { status: 'completed', values: { wants_audit: false, focus: 'narrow' } } } });
+  assert.ok(!has(nodeBrief(remote.state, 'remote').stdout, 'start: '));
+});
+
+test('node-brief: a waiting node says it is not run again; an agent step and a step with delegates carry the line to say', t => {
+  const child = scratch(t);
+  freeze(child);
+  reach(child, { nodes: { implementation: { status: 'completed' } } });
+  const before = fs.readFileSync(child.state, 'utf8');
+  const waiting = before.replace(/(    research: \{kind: [a-z]+, )status: pending/, '$1status: waiting');
+  assert.notEqual(waiting, before, 'the node line carries the status');
+  fs.writeFileSync(child.state, waiting);
+  const lines = nodeBrief(child.state, 'research').stdout.split('\n');
+  assert.ok(lines.includes('attempt: 1 — waiting'), lines.join('\n'));
+  assert.equal(lines[lines.indexOf('attempt: 1 — waiting') + 1], 'waiting: its child run or dispatch has not ended — do not run it again');
+  assert.ok(!lines.some(line => line.startsWith('start: ')), 'a waiting node is not ready');
+  assert.ok(!lines.some(line => line.startsWith('say: ')), 'a child run is no delegate');
+
+  // A step run inline, with no delegate, says nothing of the kind.
+  assert.ok(!nodeBrief(scratchRun(t).state, 'scope').stdout.includes('\nsay: '));
+});
+
+test('node-brief: a gate a held choice asks says how many wait, and the closing node of a dispatched or classing run names its close-out', t => {
+  const dispatched = heldRun(t, { kind: 'dispatch', cwd: '/work' });
+  const brief = node => run(dispatched.engine, ['node-brief', `--state=${dispatched.sample.state}`, `--node=${node}`]);
+  const HELD = 'held: 1 choice waits for approval — asked whatever its guard reads; its continue approves it';
+  const review = brief('review-approval');
+  assert.equal(review.code, 0, review.stderr);
+  assert.ok(review.stdout.split('\n').includes(HELD), review.stdout);
+  // Under a driver that suspends, the gate is asked through its request.
+  assert.ok(review.stdout.split('\n').includes(`ask it: gate-request --state=${dispatched.sample.state} --node=review-approval`), review.stdout);
+  // A gate guarded only by an input is still skipped by its guard: no held line.
+  assert.ok(!brief('depth-approval').stdout.includes('\nheld: '));
+
+  const gates = path.join(dispatched.skill, 'references/gates.md');
+  const closeOut = text => text.split('\n').filter(line => line.startsWith('close-out: '));
+  assert.deepEqual(closeOut(brief('finish').stdout), [
+    `close-out: gate-brief --node=held-approval first, then publish through the outbox verb before recording this step's outcome — rules: ${gates} § Ending a dispatched run`,
+  ]);
+  assert.deepEqual(closeOut(brief('drafting').stdout), [], 'only the closing node');
+  const headings = fs.readFileSync(gates, 'utf8').split(/\r?\n/).filter(line => line.startsWith('## '));
+  for (const heading of ['## Ending a dispatched run', '## The closing checkpoint `held-approval`']) assert.ok(headings.includes(heading), heading);
+
+  // A classing run asked in session: held-approval first, and no outbox.
+  const terminal = heldRun(t, null);
+  const finish = run(terminal.engine, ['node-brief', `--state=${terminal.sample.state}`, '--node=finish']);
+  assert.deepEqual(closeOut(finish.stdout), [
+    `close-out: gate-brief --node=held-approval first, before recording this step's outcome — rules: ${path.join(terminal.skill, 'references/gates.md')} § The closing checkpoint \`held-approval\``,
+  ]);
+
+  // A dispatched run that classes nothing: the outbox alone; a terminal one that classes nothing: no line at all.
+  const sample = sampleRun(t);
+  assert.deepEqual(closeOut(nodeBrief(sample.state, 'wrap-up').stdout), []);
+  assert.ok(!nodeBrief(sample.state, 'approval').stdout.includes('\nheld: '), 'nothing held, no held line');
+  write(sample, { orchestrator: { driver: { kind: 'dispatch' } } });
+  assert.deepEqual(closeOut(nodeBrief(sample.state, 'wrap-up').stdout), [
+    `close-out: publish through the outbox verb before recording this step's outcome — rules: ${path.join(ENGINE_DIR, 'references/gates.md')} § Ending a dispatched run`,
+  ]);
+  assert.deepEqual(closeOut(nodeBrief(sample.state, 'draft').stdout), []);
+});
+
+test('node-brief: the ask it line is the whole call — the rich profile on Claude Code, the question tool\'s arguments on Copilot, the request under a driver', t => {
+  const sample = sampleRun(t);
+  const askIt = (text) => text.split('\n').find(line => line.startsWith('ask it: '));
+  assert.equal(askIt(nodeBrief(sample.state, 'approval').stdout), `ask it: gate-brief --state=${sample.state} --node=approval --json --picker=rich`);
+  const variant = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
+  assert.equal(askIt(nodeBrief(sample.state, 'approval', variant).stdout), `ask it: gate-brief --state=${sample.state} --node=approval --ask`);
+  for (const driver of [{ kind: 'cockpit', features: ['question-sets'] }, { kind: 'dispatch' }]) {
+    write(sample, { orchestrator: { driver } });
+    for (const engine of [null, variant]) {
+      assert.equal(askIt(nodeBrief(sample.state, 'approval', engine).stdout), `ask it: gate-request --state=${sample.state} --node=approval`, driver.kind);
+    }
+  }
 });
