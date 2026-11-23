@@ -152,11 +152,12 @@ test('standards prompts: init\'s summary names each recommended group that was n
   const init = read(INIT);
   assert.ok(init.includes('Store the selection for Phase 5, and the groups the resolver recommended for Phase 7\'s summary.'), 'Phase 4 keeps the recommended set');
   const summary = slice(init, 'Standards not copied:', 'Project config:', 'init');
-  assert.ok(summary.includes('each group Phase 4 recommended that was not copied'), 'the summary names each recommended group not copied');
   assert.ok(summary.includes('deselected, or not held by the referenced project'), 'the summary says why a group was not copied');
   assert.ok(summary.includes('one line each with the command that adds it later, `/maister:standards-discover --scope=<group>`'), 'each line carries the discover command');
   assert.ok(summary.includes('a group Phase 4 never recommended is not named'), 'a group never recommended is not named');
-  assert.ok(summary.includes('the line is left out when every recommended group was copied'), 'the line is left out when every recommended group was copied');
+  assert.ok(summary.includes('the line is left out when `not_copied` is empty, as it is when every recommended group was copied'), 'the line is left out when every recommended group was copied');
+  assert.ok(summary.includes('run the resolver again with Phase 4\'s flags plus `--chosen="<the selection Phase 5 copied>"`; its `not_copied` lists each group Phase 4 recommended that was not copied'), 'the names come from the resolver');
+  assert.ok(summary.includes('Name exactly those') && summary.includes('nor any group the list does not hold'), 'no other group is named');
 });
 
 // Every reader of the standards groups asks the resolver, never a list of
