@@ -69,3 +69,9 @@ test('json route: no prose prescribes the JSON escape for an apostrophe', () => 
     });
   }
 });
+
+test('json route: the apostrophe rule names the JSON escape it forbids', () => {
+  const lines = read(SKILL).split('\n').filter(line => line.includes('Never the JSON escape'));
+  assert.equal(lines.length, 1, 'SKILL.md carries the apostrophe rule once');
+  assert.ok(lines[0].includes('`\\u0027`'), `the rule names the escape itself: ${lines[0].trim()}`);
+});

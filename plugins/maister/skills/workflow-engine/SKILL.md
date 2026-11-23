@@ -289,7 +289,7 @@ documented routes for a verb's JSON and stay as they are.
 A patch or a request document travels as a here-string (*Before anything else*, item 2).
 Inside single quotes nothing is expanded. An apostrophe inside the JSON is written `'\''` —
 close the quote, an escaped quote, open it again — so `{"summary":"the operator'\''s note"}`.
-Never the JSON escape `'`, which a tool call decodes into a bare quote that ends the
+Never the JSON escape `\u0027`, which a tool call decodes into a bare quote that ends the
 string early. The typographic `’` may stand for an apostrophe only in a prose text value,
 never in code, a command, a path or a quoted identifier. A pipe (`echo '<json>' |` in front)
 is accepted too, but the command then no longer starts with the engine path.
