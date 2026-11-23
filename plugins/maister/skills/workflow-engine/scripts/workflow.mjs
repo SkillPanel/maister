@@ -420,9 +420,16 @@ const RULES = {
   writeRefused: ['references/writing-state.md', 'When a write is refused'],
   completeRefused: ['references/writing-state.md', 'When `run-complete` refuses'],
   nodeBrief: ['references/node-conventions.md', 'Node conventions'],
-  wrapUp: ['references/writing-state.md', 'Ending the run — the wrap-up'],
   companion: ['references/writing-state.md', 'A missing or stale companion'],
 };
+
+/**
+ * The line a top-level run's successful close prints on stderr under a
+ * terminal driver: the wrap-up's six sections by name, in order, inline. A
+ * session that skipped a pointer to them wrote a wrap-up without them; the
+ * detail of each stays in writing-state.md § *Ending the run — the wrap-up*.
+ */
+const WRAP_UP = 'wrap-up: one last message, six labelled sections in this order and nothing else — Done, Needs you, Follow-ups, Next, Files, Dashboard; a missing- line goes under Needs you in words, never raw';
 
 /** One pointer's value: the file's absolute path, then `§` and the heading. */
 function rulesOf(moment) {
@@ -1234,7 +1241,7 @@ async function runRunComplete(flags) {
   for (const line of result.missing || []) process.stdout.write(`${line}\n`);
   if (result.notice) process.stdout.write(`${result.notice}\n`);
   process.stdout.write(`${result.marker}\n`);
-  if (result.wrap_up === 'run') refuseRules('wrapUp');
+  if (result.wrap_up === 'run') process.stderr.write(`${WRAP_UP}\n`);
   else if (result.wrap_up === 'child') process.stderr.write('child run: no wrap-up — the parent\'s walk goes on\n');
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }

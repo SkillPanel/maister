@@ -12,7 +12,8 @@ import { published } from '../../plugins/maister/lib/outbox-files.mjs';
 const write = (run, patch) => writeState(run, delegating(patch));
 
 /** The line a successful close under a terminal driver prints on stderr, naming where the wrap-up is written. */
-const WRAP_UP = `rules: ${path.join(ENGINE_DIR, 'references/writing-state.md')} § Ending the run — the wrap-up\n`;
+/** The wrap-up's six sections, printed inline on stderr by a terminal run's successful close. */
+const WRAP_UP = 'wrap-up: one last message, six labelled sections in this order and nothing else — Done, Needs you, Follow-ups, Next, Files, Dashboard; a missing- line goes under Needs you in words, never raw\n';
 const CHILD_LINE = 'child run: no wrap-up — the parent\'s walk goes on\n';
 
 function complete(run, extra = []) {
@@ -762,4 +763,12 @@ test('wrap-up: nothing is printed under a cockpit driver, and a failed run print
     nodes: { analysis: { status: 'completed' }, implementation: { status: 'failed' }, research: { status: 'failed' } },
   });
   assert.ok(!complete(failed).stderr.includes('wrap-up'));
+});
+
+test('run-complete: the wrap-up line names the six sections writing-state.md labels, in its order', () => {
+  const text = fs.readFileSync(path.join(ENGINE_DIR, 'references/writing-state.md'), 'utf8').replace(/\r\n?/g, '\n');
+  const section = text.split('\n## Ending the run — the wrap-up\n')[1].split('\n## ')[0];
+  const labels = [...section.matchAll(/^- \*\*([^*]+):\*\*/gm)].map(match => match[1]);
+  assert.equal(labels.length, 6, labels.join(', '));
+  assert.ok(WRAP_UP.includes(`— ${labels.join(', ')};`), `${labels.join(', ')} vs ${WRAP_UP}`);
 });
