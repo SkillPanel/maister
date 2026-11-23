@@ -23,8 +23,8 @@ applicable guideline the implementation must satisfy, each annotated with its so
 ```markdown
 ## Standards Compliance Checklist
 
-- [ ] Every endpoint validates its input before use (from `standards/backend/api.md`)
-- [ ] New components follow the naming convention (from `standards/frontend/components.md`)
+- [ ] List endpoints are paged with a maximum size (from `standards/backend/api.md`)
+- [ ] New queries load related rows without N+1 (from `standards/data/queries.md`)
 ```
 
 A guideline that does not apply to this task gets no checkbox. Where the work has a plan, the

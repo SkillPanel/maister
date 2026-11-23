@@ -50,7 +50,7 @@ For complex bugs that grow beyond a quick fix, offers to switch to a full develo
 Discover the project's standards as part of analysis and planning (Steps 3–4), relevant to the bug area — not as a bulk upfront read. The Standards Compliance Checklist reference, `<plugin root>/skills/orchestrator-framework/references/standards-compliance-checklist.md` (the plugin root two levels above this skill's base directory, as an absolute path), says where the standards come from, how the plan's checklist is written and how it is verified; read it before Step 4.
 
 - Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it. It shows which standards exist.
-- **Then read the specific standard files it points to that match the bug area** (e.g. API bug → api + error-handling standards; form bug → validation + frontend standards; query bug → database + backend standards). Reading INDEX.md alone is NOT sufficient — this is mandatory.
+- **Then read the specific standard files it points to that match the bug area** (e.g. API bug → api + error-handling standards; form bug → validation + frontend standards; query bug → data standards). Reading INDEX.md alone is NOT sufficient — this is mandatory.
 - Apply the matched standards in the fix plan (Step 4) and during implementation (Step 6).
 
 If `.maister/docs/INDEX.md` does not exist, note it and suggest `/maister:init` in the completion summary.

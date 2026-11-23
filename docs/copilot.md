@@ -83,7 +83,8 @@ Open Copilot CLI in your project and run:
 1. whether its reading of the project (type, language, framework, architecture, stack) is right;
 2. a short form for the project's description, goals and team;
 3. which project documents to write (vision, roadmap, tech stack, architecture);
-4. which built-in standards to start from (global, frontend, backend, testing);
+4. which built-in standards groups to start from (global and testing always, plus those that fit
+   the stack: frontend, backend, data, cli, mobile, jobs, infra);
 5. which coding standards it found in your code and configuration to keep, grouped by how sure it
    is, and how to settle any that conflict with the built-in set.
 

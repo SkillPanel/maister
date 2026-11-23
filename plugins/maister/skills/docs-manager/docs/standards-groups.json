@@ -1,0 +1,189 @@
+{
+  "signals": [
+    { "id": "web-ui", "title": "web UI framework" },
+    { "id": "web-shell", "title": "web view in a native shell" },
+    { "id": "server", "title": "server framework or server routes" },
+    { "id": "database", "title": "database" },
+    { "id": "command-entry", "title": "command entry point" },
+    { "id": "native-mobile", "title": "native mobile project" },
+    { "id": "job-queue", "title": "job, pipeline or queue framework" },
+    { "id": "infra-files", "title": "infrastructure files" }
+  ],
+  "groups": [
+    {
+      "id": "global",
+      "title": "Global",
+      "files": ["coding-style.md", "conventions.md", "error-handling.md", "minimal-implementation.md", "validation.md"],
+      "when": [
+        { "always": true }
+      ],
+      "filter": [],
+      "pre_change_files": []
+    },
+    {
+      "id": "testing",
+      "title": "Testing",
+      "files": ["test-writing.md"],
+      "when": [
+        { "always": true }
+      ],
+      "filter": [
+        "*.test.*",
+        "*.spec.*",
+        "*_test.*",
+        "test_*.py",
+        "tests/",
+        "__tests__/",
+        "test runner configs (jest.config.*, vitest.config.*, pytest.ini, conftest.py, playwright.config.*)"
+      ],
+      "pre_change_files": []
+    },
+    {
+      "id": "frontend",
+      "title": "Web UI",
+      "files": ["accessibility.md", "components.md"],
+      "when": [
+        { "field": "ui", "in": ["web"] },
+        { "signal": "web-ui", "yields_to_mobile": true },
+        { "signal": "web-shell" }
+      ],
+      "filter": [
+        "*.tsx",
+        "*.jsx",
+        "*.vue",
+        "*.svelte",
+        "*.css",
+        "*.scss",
+        "*.html",
+        "components/",
+        "pages and app routes that render UI"
+      ],
+      "pre_change_files": []
+    },
+    {
+      "id": "backend",
+      "title": "HTTP service",
+      "files": ["api.md"],
+      "when": [
+        { "field": "kind", "in": ["service", "daemon"] },
+        { "signal": "server" }
+      ],
+      "filter": [
+        "routes/",
+        "controllers/",
+        "handlers/",
+        "api/",
+        "server entry files (server.*, app.*)",
+        "Next app/**/route.* and pages/api/",
+        "Nuxt server/",
+        "SvelteKit +server.*",
+        "OpenAPI specs"
+      ],
+      "pre_change_files": []
+    },
+    {
+      "id": "data",
+      "title": "Database",
+      "files": ["schema.md", "queries.md"],
+      "when": [
+        { "field": "data", "any_except": ["files"] },
+        { "signal": "database" }
+      ],
+      "filter": [
+        "migrations/",
+        "*.sql",
+        "schema.prisma",
+        "ORM model and entity files (models/, entities/)",
+        "alembic/",
+        "db/"
+      ],
+      "pre_change_files": [
+        "backend/models.md",
+        "backend/migrations.md",
+        "backend/queries.md"
+      ]
+    },
+    {
+      "id": "cli",
+      "title": "Command-line interface",
+      "files": ["output.md"],
+      "when": [
+        { "field": "kind", "in": ["cli"] },
+        { "field": "ui", "in": ["tui"] },
+        { "signal": "command-entry" }
+      ],
+      "filter": [
+        "bin/",
+        "cmd/",
+        "cli/",
+        "the files a package.json bin, console_scripts or [project.scripts] names",
+        "modules that use a CLI framework (commander, yargs, oclif, click, typer, cobra, clap)"
+      ],
+      "pre_change_files": []
+    },
+    {
+      "id": "mobile",
+      "title": "Native mobile app",
+      "files": ["app.md"],
+      "when": [
+        { "field": "kind", "in": ["mobile"] },
+        {
+          "all": [
+            { "field": "deploy", "in": ["app-store"] },
+            { "field": "ui", "in": ["native"] },
+            { "field": "kind", "not_in": ["desktop"] }
+          ]
+        },
+        { "signal": "native-mobile" }
+      ],
+      "filter": [
+        "ios/",
+        "android/",
+        "*.swift",
+        "*.kt",
+        "*.dart",
+        "app.json and app.config.*",
+        "React Native screens and components"
+      ],
+      "pre_change_files": []
+    },
+    {
+      "id": "jobs",
+      "title": "Jobs and message handlers",
+      "files": ["reruns.md"],
+      "when": [
+        { "field": "kind", "in": ["data-pipeline"] },
+        { "signal": "job-queue" }
+      ],
+      "filter": [
+        "dags/",
+        "jobs/",
+        "workers/",
+        "tasks/",
+        "consumers/",
+        "dbt_project.yml and its models, job, worker and queue consumer modules"
+      ],
+      "pre_change_files": []
+    },
+    {
+      "id": "infra",
+      "title": "Infrastructure as code",
+      "files": ["infrastructure.md"],
+      "when": [
+        { "field": "kind", "in": ["infra"] },
+        { "signal": "infra-files" }
+      ],
+      "filter": [
+        "*.tf",
+        "*.tfvars",
+        "Pulumi.yaml and its program",
+        "CloudFormation and SAM templates",
+        "cdk.json and its app",
+        "Chart.yaml and chart templates",
+        "Kubernetes manifests",
+        "Ansible playbooks"
+      ],
+      "pre_change_files": []
+    }
+  ]
+}

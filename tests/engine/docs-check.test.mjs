@@ -306,4 +306,6 @@ test('docs-check: the plugin\'s bundled documentation passes clean', () => {
   const report = JSON.parse(result.stdout);
   assert.deepEqual(report.failures, []);
   assert.deepEqual(report.warnings, []);
+  assert.equal(report.files, 15);
+  assert.equal(report.entries, 15);
 });

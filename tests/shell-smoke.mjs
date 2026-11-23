@@ -18,7 +18,8 @@
  * check (`docs-manager/scripts/docs-check.mjs`), the standard candidates
  * lookup (`standards-update/scripts/candidates.mjs`), and standards
  * discovery's findings check and external sources check
- * (`standards-discover/scripts/`), and `project-profile` with its profile
+ * (`standards-discover/scripts/`), the standards groups resolver
+ * (`docs-manager/scripts/standards.mjs`), and `project-profile` with its profile
  * file. The freeze travels in
  * the patch file under every shell; the node writes travel as a here-string
  * (`<<< '<json>'`, an apostrophe written `'\''`) under bash and zsh, and in the
@@ -120,6 +121,8 @@ const docsCheck = path.join(pluginRoot, 'skills', 'docs-manager', 'scripts', 'do
 const candidatesLookup = path.join(pluginRoot, 'skills', 'standards-update', 'scripts', 'candidates.mjs');
 
 const findingsCheck = path.join(pluginRoot, 'skills', 'standards-discover', 'scripts', 'check-findings.mjs');
+
+const standardsResolver = path.join(pluginRoot, 'skills', 'docs-manager', 'scripts', 'standards.mjs');
 
 const externalSources = path.join(pluginRoot, 'skills', 'standards-discover', 'scripts', 'external-sources.mjs');
 
@@ -292,6 +295,24 @@ try {
   check('the candidates lookup finds a run under a path holding a space and records one applied',
     found?.run?.name === '2026-01-05-candidate run' && marked.code === 0 && after?.run === null
       && named?.run?.name === '2026-01-05-candidate run' && named.candidates.length === 0, show(marked));
+
+  // --- the standards groups resolver ------------------------------------------
+  // Run from the project root as init runs it, with the project's own standards
+  // folder `cli tools` (a name with a space). The list values are in double
+  // quotes on every shell, the one quote cmd.exe takes, never through `flag()`.
+  fs.mkdirSync(path.join(project, '.maister', 'docs', 'standards', 'cli tools'), { recursive: true });
+  fs.writeFileSync(path.join(project, '.maister', 'docs', 'standards', 'cli tools', 'notes.md'), '# Notes\n');
+  const cliGroups = call('groups', ['--kind=cli', '--data="sqlite"', '--signals="command-entry,database"'], null, standardsResolver);
+  const cliReport = json(cliGroups.stdout);
+  const cliIds = new Set((cliReport?.recommended ?? []).map(each => each.id));
+  check('the standards groups resolver recommends the cli groups and finds a project folder with a space',
+    cliGroups.code === 0 && cliReport?.ok === true && cliIds.has('cli') && cliIds.has('data')
+      && (cliReport.present ?? []).some(each => each.id === 'cli tools' && each.custom === true), show(cliGroups));
+  const libraryGroups = call('groups', ['--kind=library', '--data=""', '--signals=""'], null, standardsResolver);
+  const libraryReport = json(libraryGroups.stdout);
+  check('the standards groups resolver takes empty list values on every shell: no data group',
+    libraryGroups.code === 0 && libraryReport?.ok === true && !(libraryReport.recommended ?? []).some(each => each.id === 'data')
+      && Array.isArray(libraryReport.profile?.fields?.data) && libraryReport.profile.fields.data.length === 0, show(libraryGroups));
 
   // --- standards discovery's checks -------------------------------------------
   // The findings check takes a scanner's file by a path holding a space; the

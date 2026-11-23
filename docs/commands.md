@@ -348,7 +348,7 @@ pull requests and CI, and offers them for your approval.
 
 | Flag | Description |
 |------|-------------|
-| `--scope=SCOPE` | `full` (default), `quick` (configuration files only), or a category: `global`, `frontend`, `backend`, `testing`, or a custom category that exists under `.maister/docs/standards/` |
+| `--scope=SCOPE` | `full` (default), `quick` (configuration files only), a group of the built-in set (`global`, `testing`, `frontend`, `backend`, `data`, `cli`, `mobile`, `jobs`, `infra`), or a folder of your own that exists under `.maister/docs/standards/` |
 | `--confidence=N` | Minimum confidence, 0 to 100, for a finding to be offered (default `60`). Findings below it are listed in the summary |
 | `--auto-apply` | Apply findings at 90% confidence or more without asking. Conflicts are still asked |
 | `--skip-external` | Skip pull request and CI analysis |

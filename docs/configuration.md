@@ -15,7 +15,7 @@ Everything here is optional. A project with no `.maister/config.yml` runs on the
 ├── config.yml          # Project settings (below)
 ├── docs/               # Standards and project documents
 │   ├── INDEX.md        #   The map every run reads; refreshed for you, never edited by hand
-│   ├── standards/      #   Coding standards, one folder per category
+│   ├── standards/      #   Coding standards, one folder per group
 │   ├── project/        #   Vision, roadmap, tech stack, architecture, and any doc you add
 │   └── design-context/ #   The grounding pack mockups are drawn from, when you build one
 ├── workflows/          # Workflows your project defines, overlays and ejects of the built-ins
