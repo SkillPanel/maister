@@ -151,8 +151,8 @@ Every verb's flags, output and refusals are in `references/verbs.md`. Each step 
 
 - **Under an absent or `terminal` driver a person reads it.** Write the closing patch, call
   `run-complete` and settle any refusal (`references/writing-state.md` § *When `run-complete`
-  refuses*); on success it prints the wrap-up's six sections on a `wrap-up:` line — write
-  exactly those. Never show the raw `missing-artifact:`, `missing-companion:`, `run stopped:`
+  refuses*); on success it prints the wrap-up's six sections on a `wrap-up sections:` line —
+  write exactly those. Never show the raw `missing-artifact:`, `missing-companion:`, `run stopped:`
   or `RUN-` lines.
 - **Under a `cockpit` or `dispatch` driver tooling reads it.** Print everything the operator
   should read — the executive summary, the next steps, the dashboard link — before

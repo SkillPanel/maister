@@ -367,7 +367,7 @@ test('run-complete: a successful close under a terminal driver prints the wrap-u
   assert.equal(result.stdout, 'RUN-COMPLETE\n');
   const lines = linesOf(result.stderr);
   assert.equal(lines.length, 1, result.stderr);
-  assert.match(lines[0], /^wrap-up: .* — Done, Needs you, Follow-ups, Next, Files, Dashboard;/);
+  assert.match(lines[0], /^wrap-up sections: Done, Needs you, Follow-ups, Next, Files, Dashboard — /);
 });
 
 test('write-state: the companion lines close on one pointer to their recovery, on stdout, and a write that names none prints none', t => {

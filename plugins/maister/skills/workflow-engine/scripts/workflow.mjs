@@ -429,7 +429,7 @@ const RULES = {
  * session that skipped a pointer to them wrote a wrap-up without them; the
  * detail of each stays in writing-state.md § *Ending the run — the wrap-up*.
  */
-const WRAP_UP = 'wrap-up: one last message, six labelled sections in this order and nothing else — Done, Needs you, Follow-ups, Next, Files, Dashboard; a missing- line goes under Needs you in words, never raw';
+const WRAP_UP = 'wrap-up sections: Done, Needs you, Follow-ups, Next, Files, Dashboard — one last message, these six labelled in this order and nothing else; a missing- line goes under Needs you in words, never raw';
 
 /** One pointer's value: the file's absolute path, then `§` and the heading. */
 function rulesOf(moment) {
