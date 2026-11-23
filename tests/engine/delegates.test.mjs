@@ -46,7 +46,9 @@ test('the brief of a step with delegates names them on its runs line and prints 
   const run = researchRun(t);
   const result = brief(run, FOUNDATION);
   assert.equal(result.code, 0, result.stderr);
-  const lines = result.stdout.split('\n');
+  const all = result.stdout.split('\n');
+  // From the header on: a brief opens on the engine skill and command-form lines.
+  const lines = all.slice(all.findIndex(line => line.startsWith('## ')));
   assert.equal(lines[1], `runs: direct:${FOUNDATION} — inline, its delegates dispatched through the Task tool`);
   const at = lines.findIndex(line => line.startsWith('delegates: '));
   assert.ok(at > 0, result.stdout);
@@ -203,7 +205,8 @@ test('a per-host set: the brief and the closing patch name the run host\'s set',
     const run = perHostRun(t, PER_HOST, host);
     const result = brief(run, 'step');
     assert.equal(result.code, 0, result.stderr);
-    const lines = result.stdout.split('\n');
+    const all = result.stdout.split('\n');
+    const lines = all.slice(all.findIndex(line => line.startsWith('## ')));
     assert.equal(lines[1], 'runs: direct:step — inline, its delegates dispatched through the Task tool', String(host));
     const at = lines.findIndex(each => each.startsWith('delegates: '));
     assert.ok(lines[at + 1].startsWith(line), `${host}: ${lines[at + 1]}`);

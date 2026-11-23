@@ -76,9 +76,10 @@
  * - `held:` at a gate a held choice asks, with the count still waiting.
  * - `close-out:` at the closing node of a dispatched or classing run: the
  *   `held-approval` brief and the outbox publish its outcome waits on.
- * - `engine skill:` on every brief, directly before `rules:`: the skill's
- *   absolute path, to be read whole when the session no longer holds it — a
- *   compaction can leave none of it in view.
+ * - `engine skill:` first on every brief, then `commands:`: the skill's
+ *   absolute path, to be read whole now unless read in this context — a
+ *   compaction can leave none of it in view — and the one-command form every
+ *   call takes.
  * - The gate's `ask it:` line, the whole call by the run's driver and the host
  *   this plugin ships for: `gate-request` where a driver suspends, else
  *   `gate-brief` in the form the host's question tool takes.
@@ -184,8 +185,14 @@ const ENGINE_SKILL = fileURLToPath(new URL('../../SKILL.md', import.meta.url));
 /** The gates reference, which the `close-out:` line points into. */
 const GATES_FILE = fileURLToPath(new URL('../../references/gates.md', import.meta.url));
 
-/** The `engine skill:` line every brief prints directly before its `rules:` line. */
-const ENGINE_SKILL_LINE = `engine skill: ${quoted(ENGINE_SKILL)} — if this skill is not in your context in full, as after a compaction, read the whole file with the read tool before acting on this brief`;
+/**
+ * The two lines every brief opens with. A session left with none of the skill
+ * after a compaction — Copilot keeps none and has no hook to say so — did not
+ * act on a condition at the foot of the brief, so the read is an instruction at
+ * its head, and beside it the one command-form rule its drifting calls broke.
+ */
+const ENGINE_SKILL_LINE = `engine skill: read ${quoted(ENGINE_SKILL)} whole now, unless you have read it in this context`;
+const COMMANDS_LINE = 'commands: one per call, from the project root — no cd, chain or pipe; a patch as a here-string';
 
 /** How each scheme runs, and the convention row that applies to it. */
 const SCHEMES = {
@@ -305,6 +312,7 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
     const banner = startBanner(state);
     if (banner !== null) lines.unshift(BANNER_SAY, ...banner);
   }
+  lines.unshift(ENGINE_SKILL_LINE, COMMANDS_LINE);
   // A marker that cannot be written only means the next brief prints the rows whole again.
   if (shown !== null && printedWhole.size) markConventionsShown({ root, rows: new Set([...shown, ...printedWhole]) });
   lines.push('');
@@ -455,7 +463,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (attempt > 1 || status !== 'pending') lines.push(`attempt: ${attempt} — ${status}`);
   if (status === 'waiting') lines.push(WAITING);
   if (resolved === null) {
-    lines.push(...convention(known ? [known.row, 'every step'] : ['every step']), ENGINE_SKILL_LINE, `rules: ${rules}`);
+    lines.push(...convention(known ? [known.row, 'every step'] : ['every step']), `rules: ${rules}`);
     return lines;
   }
   const brief = (sources ? briefOfRun(context.doc, context.runDir, sources) : null)?.[node] ?? {};
@@ -517,7 +525,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues, delegates));
   const closeOut = closeOutLine(node, context);
   if (closeOut) lines.push(closeOut);
-  lines.push(ENGINE_SKILL_LINE, `rules: ${rules}`);
+  lines.push(`rules: ${rules}`);
   return lines;
 }
 
@@ -879,7 +887,7 @@ function gateLines({ node, title, resolved, context, convention, rules }) {
   }
   const held = heldLine(resolved, context);
   if (held) lines.push(held);
-  lines.push(...convention(['gate']), ENGINE_SKILL_LINE, `rules: ${rules}`);
+  lines.push(...convention(['gate']), `rules: ${rules}`);
   return lines;
 }
 

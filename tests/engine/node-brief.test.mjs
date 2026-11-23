@@ -20,9 +20,13 @@ const NODE_BRIEF_OVERLAY = path.join(DEFINITIONS, 'node-brief.overlay.yml');
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 const SKILL = path.join(ENGINE_DIR, 'references/node-conventions.md');
 const RULES = `rules: ${SKILL} § Node conventions`;
-/** The line every brief prints directly before its `rules:` line, naming the engine skill to read whole. */
-const engineSkill = (dir = ENGINE_DIR) => `engine skill: ${path.join(dir, 'SKILL.md')} — if this skill is not in your context in full, as after a compaction, read the whole file with the read tool before acting on this brief`;
+/** The line every brief opens with, naming the engine skill to read whole. */
+const engineSkill = (dir = ENGINE_DIR) => `engine skill: read ${path.join(dir, 'SKILL.md')} whole now, unless you have read it in this context`;
 const ENGINE_SKILL = engineSkill();
+/** The line after it: the one-command form every call takes. */
+const COMMANDS = 'commands: one per call, from the project root — no cd, chain or pipe; a patch as a here-string';
+/** The two lines every brief opens with. */
+const OPENING = [ENGINE_SKILL, COMMANDS];
 /** The asks line's tail, naming the reference a node reads before its first question. */
 const ASKS_TAIL = ' — read references/in-node-questions.md before the first';
 const REFUSALS = ['node-brief-state-unreadable', 'node-brief-not-a-run', 'node-brief-unknown-node'];
@@ -91,6 +95,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   assert.equal(gap.stderr, '');
   const [header, slice] = [gap.stdout.slice(0, gap.stdout.indexOf('\n\n')), gap.stdout.slice(gap.stdout.indexOf('\n\n') + 2)];
   assert.deepEqual(header.split('\n'), [
+    ...OPENING,
     '## Node: gap-analysis — Gap analysis',
     'runs: agent:gap-analyzer — Task tool as maister:gap-analyzer, model omit, effort omit (source: shipped default)',
     'say: "Gap analysis is running. Nothing needed from you; I\'ll continue when it finishes."',
@@ -112,7 +117,6 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     row('feeds a checkpoint'),
     LATER,
     closing('gap-analysis', '"status": "completed", "values": {"has_reproducible_defect": true|false, "mockups_needed": true|false, "risk_level": "high|medium|low"}'),
-    ENGINE_SKILL,
     RULES,
   ]);
   assert.ok(slice.trim().length > 0 && !slice.startsWith('\n'), 'the section follows the one blank line');
@@ -136,11 +140,11 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   const finalization = nodeBrief(dev.state, 'finalization').stdout;
   const finalHeader = finalization.slice(0, finalization.indexOf('\n\n')).split('\n');
   assert.deepEqual(finalHeader.filter(line => !line.startsWith('- ')), [
+    ...OPENING,
     '## Node: finalization — Finalization',
     'runs: direct:finalization — inline',
     'with:',
     closing('finalization'),
-    ENGINE_SKILL,
     RULES,
   ]);
 
@@ -165,6 +169,7 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
   assert.equal(result.stderr, '');
   const relative = path.relative(sample.root, sample.dir).split(path.sep).join('/');
   assert.equal(result.stdout, [
+    ...OPENING,
     '## Node: draft — Drafting',
     'runs: direct:draft-notes — inline',
     'with:',
@@ -190,7 +195,6 @@ test('node-brief: the exact brief of a step with brief: data, a renamed section 
     LATER,
     `see: ${path.join(DEFINITIONS, 'node-brief.md')} § Embedded mode`,
     closing('draft', undefined, ', "absent": {"extras": "<reason, only when not written>"}, "recommends": {"option": "continue-to-audit|continue-to-wrap-up", "reason": "<one line>"}'),
-    ENGINE_SKILL,
     RULES,
     '',
     '**Does.** Write the notes from the scope. As a child run, *Embedded mode* applies.',
@@ -301,11 +305,11 @@ test('node-brief: a gate points at gate-brief unless its section carries an exce
   const plain = nodeBrief(sample.state, 'approval');
   assert.equal(plain.code, 0, plain.stderr);
   assert.equal(plain.stdout, [
+    ...OPENING,
     '## Gate: approval — Approval',
     'closes: draft',
     'options: continue-to-audit (continue), continue-to-wrap-up (continue), revise-draft (revise → draft), stop-here (stop)',
     row('gate'),
-    ENGINE_SKILL,
     RULES,
     '',
     `ask it: gate-brief --state=${sample.state} --node=approval --json --picker=rich`,
@@ -315,12 +319,12 @@ test('node-brief: a gate points at gate-brief unless its section carries an exce
   const excepted = nodeBrief(sample.state, 'audit-approval');
   assert.equal(excepted.code, 0, excepted.stderr);
   assert.equal(excepted.stdout, [
+    ...OPENING,
     '## Gate: audit-approval — Audit approval',
     'when: ${approval.values.audit_enabled} — now not yet decidable',
     'closes: audit',
     'options: continue-to-wrap-up (continue), revise-draft (revise → draft), stop-here (stop)',
     row('gate'),
-    ENGINE_SKILL,
     RULES,
     '',
     `ask it: gate-brief --state=${sample.state} --node=audit-approval --json --picker=rich`,
@@ -364,7 +368,7 @@ test('node-brief: graph drift and an unread definition warn and still print; unr
   const unread = nodeBrief(drifted.state, 'draft');
   assert.equal(unread.code, 0, unread.stderr);
   assert.equal(unread.stderr, `warning: node-brief-definition-unread: ${drifted.state}\n`);
-  assert.match(unread.stdout, /^## Node: draft — Draft\nruns: direct — inline\nconvention \(`direct:` step\): /, 'unread, every row of its scheme prints whole');
+  assert.match(unread.stdout, /^engine skill: .*\ncommands: .*\n## Node: draft — Draft\nruns: direct — inline\nconvention \(`direct:` step\): /, 'unread, every row of its scheme prints whole');
   assert.ok(unread.stdout.endsWith(`${RULES}\n\nsection: unknown — the definition this run froze cannot be re-read\n`), unread.stdout);
 
   // A plugin whose skill has lost the conventions table: one line points at the rules instead.
@@ -790,17 +794,18 @@ function heldRun(t, driver) {
   return { sample, engine, skill: path.dirname(path.dirname(engine)) };
 }
 
-test('node-brief: every brief, step and gate alike, names the engine skill directly before its rules line, and the variant names its own', t => {
+test('node-brief: every brief, step and gate alike, opens on the engine skill to read now and the command form, and the variant names its own', t => {
   const sample = sampleRun(t, { overlays: [NODE_BRIEF_OVERLAY] });
   for (const node of ['scope', 'draft', 'polish', 'approval', 'audit-approval', 'wrap-up']) {
     const lines = nodeBrief(sample.state, node).stdout.split('\n');
-    const at = lines.indexOf(RULES);
-    assert.ok(at > 0, node);
-    assert.equal(lines[at - 1], ENGINE_SKILL, `${node}: the line sits directly before rules:`);
+    assert.deepEqual(lines.slice(0, 2), OPENING, `${node}: the brief opens on the two lines`);
     assert.equal(lines.filter(line => line.startsWith('engine skill: ')).length, 1, `${node}: one line`);
+    assert.ok(lines.includes(RULES), `${node}: the rules line stays`);
   }
   assert.ok(fs.existsSync(path.join(ENGINE_DIR, 'SKILL.md')), 'the line names a file that exists');
-  assert.doesNotMatch(ENGINE_SKILL, /invoke/, 'the line says read, never invoke the skill again');
+  assert.doesNotMatch(ENGINE_SKILL, /invoke|\bif\b/, 'the line says read now, never invoke the skill again, and states no condition to judge');
+  assert.match(COMMANDS, /no cd, chain or pipe/);
+  assert.match(COMMANDS, /here-string/);
 
   // The Copilot variant's brief names the variant's own skill, from its own location.
   const variant = path.join(variantRoot(), 'skills/workflow-engine');
@@ -882,7 +887,8 @@ test('node-brief: a waiting node says it is not run again; an agent step and a s
   assert.ok(!lines.some(line => line.startsWith('say: ')), 'a child run is no delegate');
 
   // A step run inline, with no delegate, says nothing of the kind.
-  assert.ok(!nodeBrief(scratchRun(t).state, 'scope').stdout.includes('\nsay: '));
+  // (The run's first brief carries the start banner's say: line, which is no delegate's.)
+  assert.ok(!nodeBrief(scratchRun(t).state, 'scope').stdout.includes('\nsay: "'));
 });
 
 test('node-brief: a gate a held choice asks says how many wait, and the closing node of a dispatched or classing run names its close-out', t => {
