@@ -25,10 +25,12 @@ able to write:
   `dispatch_id`*), and a legacy `{kind: dispatch, …}` reads as a dispatched run with or without
   one. `cwd` is absolute and records the directory the run
   was started in, which a driver needs to start a session there again; nothing reads it to find
-  the run. A run is located by its state file, four levels below its checkout under one of two
-  roots — `<checkout>/.maister/tasks/<type>/<date-name>`, or
-  `<checkout>/.maister/umbrella/runs/<run-id>` for the run that drives a chain — so a run moved
-  to another machine is found where it now is; `resume-check` prints that checkout as `root`. A
+  the run. A run is located by its state file, and its checkout is the folder holding the
+  `.maister/` it sits in — `<checkout>/.maister/tasks/<type>/<date-name>`,
+  `<checkout>/.maister/umbrella/runs/<run-id>` for the run that drives a chain, or
+  `<run-id>/runs/<child>` under it for a chain's own run — so a run moved to another machine is
+  found where it now is, and every read of the project's `config.yml` takes that one checkout;
+  `resume-check` prints it as `root`. A
   folder named `<run>.moved-<digits>` (the copy a machine kept after the run moved) or
   `<run>.failed-<digits>` (a rolled-back copy) is not a run: no listing names it and
   `resume-check` refuses it. The four **open
