@@ -66,7 +66,8 @@ channel you want. The stable channel:
 ```
 
 For the beta channel, add `SkillPanel/maister#beta` and install `maister@maister-plugins-beta`
-instead. On Copilot CLI:
+instead; it updates with `claude plugin marketplace update maister-plugins-beta` and
+`claude plugin update maister@maister-plugins-beta`, as the [README](../README.md#upgrading) says. On Copilot CLI:
 
 ```bash
 copilot plugin uninstall maister-copilot@maister-plugins-2x

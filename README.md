@@ -329,6 +329,15 @@ From the 2.x line, uninstall that plugin instead, then add the channel:
 /plugin install maister@maister-plugins-beta
 ```
 
+To update the beta channel, run these from a shell, or use the `/plugin` menu in a session, then start a new session:
+
+```bash
+claude plugin marketplace update maister-plugins-beta
+claude plugin update maister@maister-plugins-beta
+```
+
+On GitHub Copilot CLI, `copilot plugin update maister@maister-plugins-beta` does the same.
+
 On Claude Code, if two channels are enabled together, a warning at session start names both and the command that disables each, and workflows do not start or resume until only one is enabled and the session restarted. [Troubleshooting](docs/troubleshooting.md) has the fix.
 
 </details>
