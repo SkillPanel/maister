@@ -102,9 +102,9 @@ this record.
 
 ### Step 3 — gather (parallel delegates)
 
-Take the categories from the plan's **Gathering Strategy** section, at most
-eight; when it names none, use codebase, documentation, configuration and
-external. Record `research_context.gathering_strategy` as exactly `categories`
+Take every category the plan's **Gathering Strategy** section names — the
+count follows the question, with no fixed maximum; when it names none, use
+codebase, documentation, configuration and external. Record `research_context.gathering_strategy` as exactly `categories`
 (those launched), `count` and `source` (`planner` or `default`).
 
 Launch every `maister:information-gatherer` in one message, so they run in

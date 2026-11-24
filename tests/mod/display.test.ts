@@ -907,6 +907,39 @@ describe('quiet bookkeeping', () => {
     expect((await row($, 'terminal', seen.ids[2])).drawn).toMatchObject({ type: 'engine' })
   })
 
+  test('a findings brief and a run\'s close collapse on a clean exit, naming what they did', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [
+      { stdout: '{\n  "questions": []\n}\n' },
+      { stdout: 'RUN-COMPLETE\n', stderr: 'wrap-up sections: Done, Needs you, Follow-ups, Next, Files, Dashboard — one last message\n' },
+      { stdout: 'RUN-COMPLETE\n', stderr: 'child run: no wrap-up — the parent\'s walk goes on\n' },
+    ] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} finding-brief --state=${RUN}/orchestrator-state.yml --node=spec-audit --findings-file=analysis/findings.json` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} run-complete --state=${RUN}/orchestrator-state.yml` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} run-complete --state=${RUN}/orchestrator-state.yml` })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · briefed the findings', 'maister'])
+    expect((await row($, 'terminal', seen.ids[1])).texts).toEqual(['· maister · wrapped up the run', 'maister'])
+    // The same line again is the repeat a quiet line drops.
+    expect((await row($, 'terminal', seen.ids[2])).texts).toEqual([])
+    expect((await row($, 'terminal', seen.ids[2])).drawn).not.toMatchObject({ type: 'engine' })
+  })
+
+  test('a findings brief or a run\'s close that errored or warned draws in full', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [
+      { error: 'Exit code 1\nfinding-brief-list-invalid: analysis/findings.json is not a findings list' },
+      { stdout: '', stderr: 'warning: analysis/findings.json could not be read; ask the findings in words\n' },
+      { stdout: 'RUN-COMPLETE\n', stderr: 'warning: dashboard was not refreshed\nwrap-up sections: Done, Needs you, Follow-ups, Next, Files, Dashboard\n' },
+      { error: 'Exit code 1\nRUN-FAILED: run-unfinished-nodes' },
+    ] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} finding-brief --state=${RUN}/orchestrator-state.yml --node=spec-audit --findings-file=analysis/findings.json` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} finding-brief --state=${RUN}/orchestrator-state.yml --node=spec-audit --findings-file=analysis/findings.json` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} run-complete --state=${RUN}/orchestrator-state.yml` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} run-complete --state=${RUN}/orchestrator-state.yml` })
+    expect((await row($, 'terminal', seen.ids[0], 'Bash', { isErrored: true })).drawn).toMatchObject({ type: 'engine' })
+    expect((await row($, 'terminal', seen.ids[1])).drawn).toMatchObject({ type: 'engine' })
+    expect((await row($, 'terminal', seen.ids[2])).drawn).toMatchObject({ type: 'engine' })
+    expect((await row($, 'terminal', seen.ids[3], 'Bash', { isErrored: true })).drawn).toMatchObject({ type: 'engine' })
+  })
+
   test('a read-only verb inside a compound command draws in full', async ($: any, on: any) => {
     const seen = beneath(on, files(), { shells: [{ stdout: '== SKILL.md\n' }] })
     await $.tool.call({ tool: 'Bash', command: `${ENGINE} reference --at=SKILL.md | head -20` })
