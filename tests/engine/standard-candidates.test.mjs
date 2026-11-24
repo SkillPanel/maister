@@ -308,6 +308,54 @@ test('import: run folders from before the store are folded in once — candidate
   assert.deepEqual(snapshotStore(where), before, 'nothing missing, nothing rewritten');
 });
 
+test('evidence: a list is joined with commas on import and on filing, an empty sighting left by an earlier import is filled in once, and any other type is a problem', t => {
+  const where = project(t);
+  const listed = ['group 1', 'group 2'];
+  runWith(where, 'development', '2026-01-05-first', { version: 2, candidates: [candidate('a', { evidence: listed })] });
+  const second = runWith(where, 'development', '2026-01-06-second', { version: 2, candidates: [], attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: ['fix 1', 'fix 2'] }] });
+  const a = storeId('development/2026-01-05-first', 'a', 'Label a');
+  const imported = script(where, ['import']);
+  assert.equal(imported.code, 0, imported.stderr);
+  assert.deepEqual(imported.report.problems, []);
+  assert.deepEqual(record(where, a).seen_in.map(each => each.evidence), ['group 1, group 2', 'fix 1, fix 2'], 'a version 2 run\'s list evidence, candidate and attachment, joined');
+
+  // The store as an import that dropped list evidence left it: both sightings empty.
+  const file = path.join(where.store, `${a}.json`);
+  fs.writeFileSync(file, storeText(where, a).replace('"evidence":"group 1, group 2"', '"evidence":""').replace('"evidence":"fix 1, fix 2"', '"evidence":""'));
+  assert.deepEqual(record(where, a).seen_in.map(each => each.evidence), ['', '']);
+  const repaired = script(where, ['queue', '--json']);
+  assert.equal(repaired.code, 0, repaired.stderr);
+  assert.deepEqual(record(where, a).seen_in.map(each => each.evidence), ['group 1, group 2', 'fix 1, fix 2'], 'the next command fills both in');
+  assert.deepEqual(script(where, ['show', `--run=${second}`]).report.attached.map(each => each.evidence), ['fix 1, fix 2']);
+  const before = snapshotStore(where);
+  for (const args of [['latest'], ['import'], ['queue']]) assert.equal(script(where, args).code, 0);
+  assert.deepEqual(snapshotStore(where), before, 'a second run changes no byte');
+
+  const filed = filedRun(where, 'performance', '2026-01-07-third', { candidates: [candidate('v3', { evidence: ['fix 3', 'fix 4'] })] });
+  assert.equal(record(where, filed.filed[0]).seen_in[0].evidence, 'fix 3, fix 4', 'a version 3 run filed with list evidence');
+  const runFile = JSON.parse(fs.readFileSync(path.join(filed.dir, 'standard-candidates.json'), 'utf8'));
+  assert.deepEqual(runFile.candidates[0].evidence, ['fix 3', 'fix 4'], 'the run\'s own file keeps its list');
+  assert.equal(script(where, ['show', `--run=${filed.dir}`]).report.candidates[0].evidence, 'fix 3, fix 4');
+
+  runWith(where, 'development', '2026-01-08-odd', { version: 2, candidates: [candidate('n', { evidence: 42 }), candidate('m', { evidence: ['group 1', 7] })], attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: { x: 1 } }] });
+  const odd = script(where, ['queue', '--json']);
+  assert.equal(odd.code, 0, odd.stderr);
+  const problems = odd.report.problems.filter(each => path.basename(path.dirname(each.path)) === '2026-01-08-odd');
+  assert.deepEqual(problems.map(each => [path.basename(each.path), each.message]), [
+    ['standard-candidates.json', 'candidate 1\'s evidence is not text or a list of text; read as none'],
+    ['standard-candidates.json', 'candidate 2\'s evidence is not text or a list of text; read as none'],
+    ['standard-candidates.json', 'attachment 1\'s evidence is not text or a list of text; read as none'],
+  ]);
+  const n = storeId('development/2026-01-08-odd', 'n', 'Label n');
+  assert.equal(record(where, n).seen_in[0].evidence, '', 'read as none, the candidate still filed');
+  assert.equal(record(where, a).seen_in.at(-1).evidence, '');
+
+  fs.writeFileSync(file, storeText(where, a).replace('"evidence":"group 1, group 2"', '"evidence":["group 1",{"x":1}]'));
+  const stored = script(where, ['latest']);
+  assert.equal(stored.code, 0, stored.stderr);
+  assert.deepEqual(stored.report.problems.filter(each => path.basename(each.path) === `${a}.json`).map(each => each.message), ['the sighting of development/2026-01-05-first\'s evidence is not text or a list of text; read as none']);
+});
+
 // Merging two branches: real git in a scratch repository.
 
 /** A scratch project that is a git repository, its first commit holding `setup`'s run folders. */

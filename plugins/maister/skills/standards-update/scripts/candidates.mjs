@@ -53,7 +53,12 @@
  * store (no `version`, or 1 or 2) are folded in: their candidates, their
  * applied and dismissed states (`standard-candidates-applied.json`) and their
  * attachments. A candidate or sighting already there is skipped, so folding
- * in twice adds nothing; `import` does it alone.
+ * in twice adds nothing; `import` does it alone. A sighting already there
+ * that holds no evidence where the run's file gives a list is filled in.
+ *
+ * Evidence, wherever it is read (a run's candidates and attachments, a store
+ * sighting), is one string: text as it is, a list of text joined with `, `.
+ * Anything else is a problem named with its file's path and read as none.
  *
  * Exit 0 when the verb did its work, 1 when `file`, `applied` or `dismiss`
  * refused, 2 on a usage error or a file this script could not write. Exec
@@ -151,6 +156,19 @@ function writeWhole(file, text) {
 
 const isText = value => typeof value === 'string' && value.trim() !== '';
 
+/**
+ * Evidence as one string: text as it is, a list of text joined with `, `,
+ * none as empty. Anything else is named under `problems` with `file` and read
+ * as none.
+ */
+function evidenceOf(value, file, what, problems) {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && value.every(item => typeof item === 'string')) return value.join(', ');
+  problems.push({ path: file, message: `${what}'s evidence is not text or a list of text; read as none` });
+  return '';
+}
+
 /** A run's name: `<type>/<name>`, a forward slash on every system. */
 function runId(dir) {
   return `${path.basename(path.dirname(dir))}/${path.basename(dir)}`;
@@ -228,7 +246,7 @@ function readStore(dir, problems) {
     const seen = [];
     for (const sighting of Array.isArray(doc?.seen_in) ? doc.seen_in : []) {
       if (!isText(sighting?.run) || seen.some(each => each.run === sighting.run)) continue;
-      seen.push({ run: sighting.run, date: isDay(sighting.date) ? sighting.date : null, evidence: typeof sighting.evidence === 'string' ? sighting.evidence : '' });
+      seen.push({ run: sighting.run, date: isDay(sighting.date) ? sighting.date : null, evidence: evidenceOf(sighting.evidence, file, `the sighting of ${sighting.run}`, problems) });
     }
     if (!seen.length || !seen[0].date) missing.push('seen_in');
     if (missing.length) {
@@ -293,7 +311,7 @@ function readRun(dir, problems) {
       problems.push({ path: file, message: `candidate ${index + 1} has no ${missing.join(', ')}` });
       continue;
     }
-    candidates.push({ index, entry });
+    candidates.push({ index, entry, evidence: evidenceOf(entry.evidence, file, `candidate ${index + 1}`, problems), listed: Array.isArray(entry.evidence) });
   }
   const attached = [];
   for (const [index, entry] of (Array.isArray(doc?.attached) ? doc.attached : []).entries()) {
@@ -302,7 +320,7 @@ function readRun(dir, problems) {
       problems.push({ path: file, message: `attachment ${index + 1} has no ${missing.join(', ')}` });
       continue;
     }
-    attached.push({ index, entry });
+    attached.push({ index, entry, evidence: evidenceOf(entry.evidence, file, `attachment ${index + 1}`, problems), listed: Array.isArray(entry.evidence) });
   }
   return { file, doc, version, candidates, attached, mtime: fs.statSync(file).mtimeMs };
 }
@@ -342,7 +360,7 @@ function runDirs(tasks) {
 }
 
 /** A run file's candidate as a new store record, filed by `run` on `date`. */
-function recordOf(entry, run, date, settled = null) {
+function recordOf(entry, evidence, run, date, settled = null) {
   const label = entry.label.trim();
   const id = `${date}-${slugOf(label)}-${hashOf(run, entry.id)}`;
   let state = 'open';
@@ -358,7 +376,7 @@ function recordOf(entry, run, date, settled = null) {
     id, label, line: entry.line, action: entry.action === 'extend' ? 'extend' : 'new',
     extends: entry.action === 'extend' && isText(entry.extends) ? entry.extends : null, destination: entry.destination,
     guards: Object.hasOwn(GUARDS, entry.guards) ? entry.guards : null, caught_by: isText(entry.caught_by) ? entry.caught_by : null,
-    state, closed, seen_in: [{ run, date, evidence: isText(entry.evidence) ? entry.evidence : '' }],
+    state, closed, seen_in: [{ run, date, evidence }],
   };
 }
 
@@ -371,7 +389,19 @@ function targetOf(records, entry) {
 /** Add `run`'s sighting to `record` unless it is there; whether it was added. */
 function sight(record, run, date, evidence) {
   if (record.seen_in.some(each => each.run === run)) return false;
-  record.seen_in.push({ run, date, evidence: isText(evidence) ? evidence : '' });
+  record.seen_in.push({ run, date, evidence });
+  return true;
+}
+
+/**
+ * Fill in `run`'s sighting on `record` when it holds no evidence and the run's
+ * file gave its evidence as a list, which an earlier import stored as empty;
+ * whether it was filled in.
+ */
+function repair(record, run, { evidence, listed }) {
+  const sighting = record.seen_in.find(each => each.run === run);
+  if (!listed || !evidence || sighting?.evidence !== '') return false;
+  sighting.evidence = evidence;
   return true;
 }
 
@@ -397,25 +427,31 @@ function foldIn(tasks, store, records, problems) {
   const attached = [];
   for (const each of runs) {
     const settled = settledOf(each.dir, problems);
-    for (const { entry } of each.read.candidates) {
-      if (filedAs(records, each.run, entry.id)) continue;
-      const record = recordOf(entry, each.run, each.date, settled);
+    for (const read of each.read.candidates) {
+      const { entry } = read;
+      const filed = filedAs(records, each.run, entry.id);
+      if (filed) {
+        if (repair(filed, each.run, read)) changed.add(filed.id);
+        continue;
+      }
+      const record = recordOf(entry, read.evidence, each.run, each.date, settled);
       records.set(record.id, record);
       changed.add(record.id);
       imported.push(record.id);
     }
   }
   for (const each of runs) {
-    for (const { entry } of each.read.attached) {
+    for (const read of each.read.attached) {
+      const { entry } = read;
       const target = targetOf(records, entry);
       if (!target) {
         problems.push({ path: each.read.file, message: `attachment ${entry.run}#${entry.id} names no candidate` });
         continue;
       }
-      if (sight(target, each.run, each.date, entry.evidence)) {
+      if (sight(target, each.run, each.date, read.evidence)) {
         changed.add(target.id);
         attached.push(target.id);
-      }
+      } else if (repair(target, each.run, read)) changed.add(target.id);
     }
   }
   writeStore(store, records, changed);
@@ -623,10 +659,10 @@ function file(dir, tasks) {
   const kept = read.candidates.slice(0, CAP);
   const over = read.candidates.length - kept.length;
   const filed = [];
-  for (const { entry } of kept) {
+  for (const { entry, evidence } of kept) {
     let record = filedAs(records, run, entry.id);
     if (!record) {
-      record = recordOf(entry, run, date);
+      record = recordOf(entry, evidence, run, date);
       records.set(record.id, record);
       changed.add(record.id);
     }
@@ -634,7 +670,7 @@ function file(dir, tasks) {
     filed.push(record.id);
   }
   const attached = [];
-  for (const { entry } of read.attached) {
+  for (const { entry, evidence } of read.attached) {
     const target = targetOf(records, entry);
     if (!target) {
       problems.push({ path: read.file, message: `attachment ${entry.id} names no candidate in the store` });
@@ -643,7 +679,7 @@ function file(dir, tasks) {
     if (target.seen_in[0].run === run) continue;
     entry.id = target.id;
     delete entry.run;
-    if (sight(target, run, date, entry.evidence)) changed.add(target.id);
+    if (sight(target, run, date, evidence)) changed.add(target.id);
     attached.push(target.id);
   }
   writeStore(store, records, changed);

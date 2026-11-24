@@ -150,10 +150,10 @@ what every later step reads. The file is JSON:
 - `candidates` — each one offered: `id` (short, unique in the file), `label` (its few words),
   `line` (the candidate line), `action` (`new` or `extend`), `extends` (the rule's file and
   heading, for `extend`), `destination` (the suggested file), `evidence` (which groups or fixes
-  showed it), `guards` (`security` or `data-loss`, only when the candidate guards one and its
-  why names the failure it prevents) and `caught_by` (the check that already catches it, only
-  then). Filing adds `store`, the candidate's id in the store. A file written earlier may carry
-  `recommended` and `reason` too; they are ignored.
+  showed it, as text or a list), `guards` (`security` or `data-loss`, only when the candidate
+  guards one and its why names the failure it prevents) and `caught_by` (the check that already
+  catches it, only then). Filing adds `store`, the candidate's id in the store. A file written
+  earlier may carry `recommended` and `reason` too; they are ignored.
 - `attached` — each `{id, evidence, line}`: a lesson of this run that an open candidate already
   teaches, `id` that candidate's store id as the queue printed it, `evidence` this run's groups or
   fixes, and `line`, optional, this run's own wording. An attachment is never offered on its own:
