@@ -64,6 +64,26 @@ test('a row of a section\'s table prints by its first cell, with the section\'s 
   assert.match(unknown, /state-node-regressed/, 'the rows are listed');
 });
 
+test('each gate-request refusal has a row of its own in the write table, and a grouped row is found by any of its codes', () => {
+  const table = 'references/writing-state.md § When a write is refused';
+  for (const code of ['gate-request-invalid', 'gate-request-exists', 'gate-request-pending', 'gate-request-unavailable', 'gate-unwritable', 'gate-temp-exists']) {
+    const text = printed(reference([`${table} § ${code}`]));
+    assert.equal(text.split('\n')[0], `== skills/workflow-engine/${table} § ${code}`);
+    assert.equal(text.split('\n').filter(line => line.startsWith('| `')).length, 1, `${code}: one row`);
+    assert.match(text, new RegExp(`^\\| \`${code}\` \\| `, 'm'), code);
+  }
+  // A row whose first cell groups several codes prints for each of them, and only that row.
+  for (const code of ['state-unwritable', 'state-candidate-unsound', 'state-inline-collection']) {
+    const text = printed(reference([`${table} § ${code}`]));
+    assert.equal(text.split('\n').filter(line => line.startsWith('| `')).length, 1, `${code}: one row`);
+    assert.match(text, new RegExp(`^\\| [^|]*\`${code}\``, 'm'), code);
+  }
+  // The gate brief's paragraph points at the rows rather than repeating them.
+  const gates = fs.readFileSync(path.join(ENGINE_DIR, 'references', 'gates.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.ok(gates.includes('each have a row in `references/writing-state.md` § *When a write is refused*'));
+  refused(reference([`${table} § gate-request-nonsense`]), 'reference-unknown-section');
+});
+
 test('several --at print in order, and a path may open from the plugin root or with its placeholder', () => {
   const text = printed(reference([
     'skills/codebase-analyzer/references/file-discovery.md § Bug',
@@ -128,6 +148,8 @@ const POINTERS = [
   'references/gates.md § The closing checkpoint `held-approval`',
   'references/gates.md § Ending a dispatched run',
   'references/writing-state.md § When a write is refused § state-node-regressed',
+  'references/writing-state.md § When a write is refused § gate-request-invalid',
+  'references/verbs.md § Refusals § move-base-no-base',
   'references/writing-state.md § When `run-complete` refuses',
   'references/writing-state.md § A missing or stale companion',
   'skills/orchestrator-framework/references/standards-compliance-checklist.md § Where the standards come from',

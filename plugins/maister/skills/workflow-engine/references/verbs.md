@@ -74,7 +74,7 @@ A project chooses the model and effort its subagents run on (`subagents` in `.ma
 | `dispatch-model-not-a-run` | The file carries no `workflow:` block: the engine never froze it, so it recorded no subagents block. Run the verb on a frozen run's state, or without `--state` when no run is under way. |
 | `dispatch-model-unknown-node` | `--node` is not a node of the run's frozen graph. Name the node that dispatches, exactly as `workflow.nodes` spells it, and run the verb again; no state write fixes this. |
 
-`move-base` refuses with exit `1`, an empty stdout and the code first on stderr, each message ending "Nothing was written." and the next step; a missing `--state` is a usage error, exit `2`. The checks run in this order:
+`move-base` refuses with exit `1`, an empty stdout and the code first on stderr, each message ending "Nothing was written." and the next step, then a `rules:` line naming this section; a refusal the writer raises while landing the move names `references/writing-state.md` § *When a write is refused* instead. A missing `--state` is a usage error, exit `2`. The checks run in this order:
 
 | Refusal | Response |
 |---|---|

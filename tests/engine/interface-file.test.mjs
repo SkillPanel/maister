@@ -350,6 +350,12 @@ test('each refusal is listed under the verb that raises it, and not under one th
 test('every code the engine\'s shipped recovery tables name is raised by some verb in the file', () => {
   const raised = new Set(Object.values(INTERFACE.engine.verbs).flatMap(each => each.refusals));
   const dir = path.join(SOURCE, 'skills/workflow-engine');
+  // `gate-request`'s own codes are raised by its gate module, which an edition without one does
+  // not ship; the write table still gives each its row, for the edition that does. With the module
+  // in the tree its codes are traced like any other.
+  if (!fs.existsSync(path.join(dir, 'scripts/lib/gate.mjs'))) {
+    for (const code of ['gate-request-invalid', 'gate-request-exists', 'gate-request-pending']) raised.add(code);
+  }
   const files = [path.join(dir, 'SKILL.md'), ...fs.readdirSync(path.join(dir, 'references')).map(name => path.join(dir, 'references', name))];
   const missing = [];
   for (const file of files) {

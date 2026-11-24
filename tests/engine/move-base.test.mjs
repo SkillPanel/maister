@@ -296,7 +296,13 @@ test('move-base: each refusal exits 1 with its code first, writes nothing and sa
       assert.equal(result.stdout, '');
       assert.ok(result.stderr.startsWith(`${code}:`), result.stderr);
       assert.match(result.stderr, /Nothing was written\./);
-      assert.match(result.stderr, /^rules: .*writing-state\.md § When a write is refused$/m);
+      // Its own refusals point at the rows beside the verb, and the pointer prints that row.
+      const rules = /^rules: (.*)$/m.exec(result.stderr);
+      assert.ok(rules, result.stderr);
+      assert.match(rules[1], /[\\/]references[\\/]verbs\.md § Refusals$/);
+      const row = verb(['reference', `--at=${rules[1]} § ${code}`]);
+      assert.equal(row.code, 0, row.stderr);
+      assert.match(row.stdout, new RegExp(`^\\| \`${code}\` \\|`, 'm'));
       assert.deepEqual(fs.readFileSync(run.state), before);
     });
   }

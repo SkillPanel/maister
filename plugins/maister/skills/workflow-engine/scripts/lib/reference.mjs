@@ -25,7 +25,8 @@
  * left out. A row names a table row of the section by its first cell (a
  * refusal code, say), matched as a heading is: the section's heading, the
  * table's header and that row print, so one row of a long table is asked for
- * without the table. Picker passages print as the build's reader sees them
+ * without the table; a first cell grouping several codes is found by any
+ * one of them. Picker passages print as the build's reader sees them
  * (`readerRows`). Each part opens with `== <file> § <heading>`.
  *
  * Refusals, nothing printed: `reference-outside-plugin`, `reference-missing`,
@@ -112,6 +113,8 @@ function split(at) {
 function rowOf(rows, section, row) {
   const lines = readerRows(rows.slice(section.at, section.end)).map(each => each.text);
   const cell = line => fold(line.split('|')[1] ?? '');
+  // A first cell may group several codes (`a`, `b`); naming any one of them finds the row.
+  const names = line => [cell(line), ...cell(line).split(',').map(each => each.trim())];
   const isRow = line => /^\s*\|/.test(line);
   const isRule = line => /^\s*\|[\s:|-]+\|\s*$/.test(line);
   const kept = [lines[0], ''];
@@ -119,7 +122,7 @@ function rowOf(rows, section, row) {
   for (const [at, line] of lines.entries()) {
     if (!isRow(line) || isRule(line) || isRule(lines[at + 1] ?? '')) continue;
     keys.push(cell(line));
-    if (cell(line) !== fold(row)) continue;
+    if (!names(line).includes(fold(row))) continue;
     // The table's header: the row above its rule line, found upwards.
     let top = at;
     while (top > 0 && isRow(lines[top - 1])) top -= 1;
