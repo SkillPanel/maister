@@ -215,7 +215,9 @@ budget of two automatic re-checks, when to stop and hand a decision back, and th
   against the index itself — a document with no entry, a dead or duplicate entry, a conflict
   marker — is left for a refresh (`/maister:standards-update --refresh-index`), never fixed by
   hand. A convention, pitfall or fact a fix shows to be worth keeping is written to the work log
-  as a standard candidate, one line as docs-manager's `references/standard-candidates.md`
+  as a standard candidate — stated as the general hazard the fix guards against, never as the fix
+  itself, and ending `caught by: <the check>` when a check's own failure already said what to
+  do — one line as docs-manager's `references/standard-candidates.md`
   (`<plugin root>/skills/docs-manager/references/standard-candidates.md`) describes it, for
   finalization to consolidate and hand over to standards-update.
 

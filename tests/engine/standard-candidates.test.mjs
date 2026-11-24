@@ -94,6 +94,12 @@ test('the candidate description lives in one reference that every other step poi
   for (const [file, pointer] of Object.entries(pointers)) {
     assert.ok(read(file).includes(pointer), `${file} points at the reference`);
   }
+  for (const each of ['**The hazard, not the feature.**', '**`where` names a second place.**', '**Not caught already.**', '**Not a helper trick or a process note.**', '[; caught by: <the check>]']) {
+    assert.ok(reference.includes(each), `How one is written holds ${each}`);
+  }
+  assert.ok(read('agents/task-group-implementer.md').includes('a general hazard, stated as a rule, with this group\'s work only as its example'), 'the implementer asks for the hazard');
+  assert.ok(read('agents/implementation-runner.md').includes('each a general hazard rather than this group\'s feature'), 'the implementer\'s prompt asks for the hazard');
+  assert.ok(read('agents/verification-runner.md').includes('stated as the general hazard the fix guards against, never as the fix itself'), 'the fix loop asks for the hazard');
 });
 
 test('standards-update, given nothing, offers the latest run\'s candidates through the script and records each one applied', () => {

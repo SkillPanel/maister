@@ -28,10 +28,25 @@ judging a candidate, and follow what they say over this file.
 One bullet, on one line, compact — a few clauses, never a section:
 
 ```
-- <the rule or fact> — why: <what went wrong or what it protects>; where: <project, domain, module or feature>; shown by: <what in this work showed it>
+- <the rule or fact> — why: <what went wrong or what it protects>; where: <the class of code it governs, naming a place beyond this change>; shown by: <what in this work showed it>[; caught by: <the check>]
 ```
 
 - **The rule first**, in the words the standard would use, then the reason, then the scope.
+- **The hazard, not the feature.** The rule names the mistake a future change in another feature
+  or module would plausibly make; this change is only its example, in `shown by`. A lesson met in
+  one feature usually states a general hazard ("a check holds only until the next await"), and
+  that hazard is what the line says.
+- **`where` names a second place.** It names the class of code the rule governs — a project,
+  domain, module or feature — with at least one place in it other than this change. When no
+  second place comes to mind, the line is a fact about this module (*Where one belongs*) or
+  "None".
+- **Not caught already.** When a test, lint rule, type check or build failed on the mistake and
+  its failure said what to do, the line ends with `caught by: <the check>` (*Offered, not
+  recommended*).
+- **Not a helper trick or a process note.** A workaround for one test helper, library quirk or
+  fixture goes in a code comment beside that helper, as part of the change, never into a
+  candidate. A note about how the work is done — gates, sessions, worktrees, commands run — goes
+  to the project's contributor guide, never to a standard (*Where one belongs*).
 - **Nothing that goes stale**: no exact counts, line numbers, dates, ticket references or
   identifiers that only hold today. Name the concept, not the current call site.
 - **"None" is a good answer.** Prefer it over restating what an existing standard already says,
