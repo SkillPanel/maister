@@ -2,8 +2,9 @@
 
 The one description of a standard candidate. The implementer writes candidates to it, a fix loop
 writes one to it, finalization's consolidation reads them against it and against the open queue
-of earlier runs, and hands them over in the run's candidates file; `standards-update` and the
-project's `CLAUDE.md` block point here rather than restating it.
+of earlier runs, and hands them over in the run's candidates file, from which they are filed in
+the project's candidate store; `standards-update` and the project's `CLAUDE.md` block point here
+rather than restating it.
 
 ## What a candidate is
 
@@ -97,8 +98,8 @@ operation of that name. It reads; it never writes a document.
    as *The open queue* prints them. Match by hazard, not by wording: a line that teaches the same
    lesson as a queued candidate — the same failure mode, whatever the feature or module it was
    met in — is that candidate seen again. It is not offered again: it becomes an attachment,
-   `{run, id, evidence, line}`, naming the queued candidate and carrying this run's groups or
-   fixes as its evidence and this run's wording as its line. With no queue passed, every line goes on to the next step.
+   `{id, evidence, line}`, naming the queued candidate by the id its queue line opens with and
+   carrying this run's groups or fixes as its evidence and this run's wording as its line. With no queue passed, every line goes on to the next step.
 3. **Match against what the project holds.** Scan INDEX.md and read the standards and project
    documents it points to that touch each candidate's topic — their text, not only their
    headings.
@@ -131,103 +132,169 @@ The person still chooses: consolidation orders and places, it never decides what
 ## The run's candidates file
 
 A workflow run never writes a standard and asks nothing about its candidates. Finalization writes
-what consolidation returned to `standard-candidates.json` in the task directory, lists the
-candidates in its close with that task directory, and names `/maister:standards-update` once
-under **Next**. Run with no argument in the same session, standards-update finds the close and
-offers that run's candidates; in a fresh session it finds the most recent run whose file still
-holds something to apply and offers it — its own candidates and the open ones it attached to.
-Either way a closed candidate — applied, dismissed or expired (*Closing a candidate*) — is not
-offered again. The file is JSON:
+what consolidation returned to `standard-candidates.json` in the task directory, then files it in
+the project's candidate store with
+`node <plugin root>/skills/standards-update/scripts/candidates.mjs file --run=<task dir>` from the
+project root, prints its close's candidate lines with `close --run=<task dir>` (*The close*), and
+names `/maister:standards-update` once under **Next**. Run with no argument in the same session,
+standards-update finds the close and offers that run's candidates; in a fresh session it finds the
+most recent run that still has something to apply and offers it — its own candidates and the
+open ones it attached to. Either way a closed candidate — applied, dismissed or expired
+(*Closing a candidate*) — is not offered again.
 
-- `version` — `2` for a file written to this description. A file without it was written
-  earlier and is read the same way: no attachments, nothing dismissed.
+The run's file stays in its task directory as the record of what that run found; the store is
+what every later step reads. The file is JSON:
+
+- `version` — `3` for a file written to this description. A file without it, or with `1` or `2`,
+  was written before the store and is folded into it once (*Folding in earlier runs*).
 - `candidates` — each one offered: `id` (short, unique in the file), `label` (its few words),
   `line` (the candidate line), `action` (`new` or `extend`), `extends` (the rule's file and
   heading, for `extend`), `destination` (the suggested file), `evidence` (which groups or fixes
   showed it), `guards` (`security` or `data-loss`, only when the candidate guards one and its
   why names the failure it prevents) and `caught_by` (the check that already catches it, only
-  then). A file written earlier may carry `recommended` and `reason` too; they are ignored, and
-  a file written now leaves them out.
-- `attached` — each `{run, id, evidence, line}`: a lesson of this run that an open candidate of
-  an earlier run already teaches. `run` names that candidate's run as `<type>/<name>` — its task
-  directory's last two folders, always with a forward slash — and `id` the candidate in it;
-  `evidence` is this run's groups or fixes, and `line`, optional, this run's own wording. An
-  attachment is never offered on its own: it adds this run to that candidate's `seen_in`.
+  then). Filing adds `store`, the candidate's id in the store. A file written earlier may carry
+  `recommended` and `reason` too; they are ignored.
+- `attached` — each `{id, evidence, line}`: a lesson of this run that an open candidate already
+  teaches, `id` that candidate's store id as the queue printed it, `evidence` this run's groups or
+  fixes, and `line`, optional, this run's own wording. An attachment is never offered on its own:
+  filing adds this run to that candidate's `seen_in`. A file written before the store names the
+  candidate as `{run, id}` instead, its run and its id in that run's file.
 - `already_held` — each `{line, held_by}`: the rule that already says it.
-- `dropped` — how many new lessons consolidation left out over the cap of five; 0 or absent when
-  it dropped none. The run's close says the count.
+- `dropped` — how many new lessons were left out over the cap of five; 0 or absent when none
+  were. Filing keeps the first five new candidates of the file and adds any more to this count.
 - `consolidated` — false when consolidation failed and the lines are the work log's as written
   (each then `action` `new`, its destination the likeliest file by *Where one belongs*, and no
   `guards`).
 
-`id`, `label`, `line` and `destination` are required; an entry without them is not offered.
-Which candidates have been applied or dismissed is recorded beside it, in
-`standard-candidates-applied.json`, by standards-update's script — never by hand, and never in
-the candidates file itself.
+`id`, `label`, `line` and `destination` are required; an entry without them is not filed. Filing
+the same run again adds nothing.
 
-**`recommended`** is never written either: the script works it out on read, with its `reason`.
-A candidate is recommended when it has been seen in two runs or more (`reason`: "seen in N
-runs"), or when it guards security or data loss and names the failure it prevents (`reason`:
-"guards security" or "guards data loss") — unless it has a `caught_by`, which no support
-outweighs. Nothing else recommends one: not that it extends a rule the project has, and not
-evidence from several groups of one run, which only orders it. A candidate the standards already
-hold is not a candidate at all (`already_held`).
+## The candidate store
 
-**`seen_in`** is never written: the script reads it across runs. A candidate's `seen_in` is its
-own run, then every other run whose `attached` names it, each once, ordered by run date and then
-by name. A run's date is the `YYYY-MM-DD` that opens its directory name, else the day its
-candidates file was last written. Applying a candidate closes every attachment that names it.
+`.maister/standard-candidates/`, beside `.maister/docs/` and never under `standards/`, so it is
+neither read nor indexed as a standard. It holds one file per candidate, `<id>.json`, and is the
+open queue's one source of truth: filing, the queue, standards-update's offer, applying and
+dismissing all read and write it, and nothing else does. The folder is meant to be committed
+with the standards, its `.gitattributes` included, so the queue is the same in every clone and
+worktree, and a teammate's candidates, sightings and dismissals reach everyone once their work
+is merged — whether or not the project commits its task folders.
+
+**The id** is `<run date>-<label slug>-<hash>`: the filing run's date, the label in lowercase
+words joined by hyphens (at most 40 characters), and the first six hex digits of sha256 over
+`<run>#<id in the run's file>`. The run and its own id make it project-unique — two branches'
+runs are different task folders, so they never pick one file name — and stable: filing the same
+run again finds its file by the hash.
+
+**The file** keeps one key to a line and one sighting to a line:
+
+```
+{
+  "id": "2026-11-20-token-check-before-await-3f9a2c",
+  "label": "Token check before await",
+  "action": "new", … "state": "open", "closed": null,
+  "seen_in": [
+    {"run":"development/2026-11-20-auth-retry","date":"2026-11-20","evidence":"groups 2 and 3"}
+  , {"run":"performance/2026-11-28-cache","date":"2026-11-28","evidence":"fix 1"}
+  ]
+}
+```
+
+Its keys, in this order: `id`, `label`, `line`, `action`, `extends`, `destination`, `guards`,
+`caught_by` (each as the run's file gives it, null when absent), `state` (`open`, `applied` or
+`dismissed`), `closed` (null while open; `{date}` when applied; `{reason, by, date}` when
+dismissed) and `seen_in`, one `{run, date, evidence}` per run that met it, the filing run first.
+A run is named `<type>/<name>`, its task directory's last two folders, always with a forward
+slash, and dated by the `YYYY-MM-DD` that opens its name, else the day its candidates file was
+last written. No other date or time is written.
+
+**Merging.** A new candidate is a new file, so two branches filing candidates never conflict.
+Two branches that attach to the same candidate each add a sighting at the same place, just
+before the closing bracket; each sighting after the first opens with its comma, and the store's
+`.gitattributes` (`*.json merge=union`, written once with the folder and never overwritten) has
+git keep both lines, which still parse. Two branches that close the same candidate differently
+keep both sides' `state` and `closed` lines; the later line wins on read. Reading takes one
+sighting a run, the first in the file, and the next write to that file — filing, applying,
+dismissing or the fold-in — leaves it in shape. A file that does not parse is named under the
+script's problems and left out, never a failure.
+
+## Folding in earlier runs
+
+Run folders written before the store keep their candidates in their own files. The first time
+any verb of the script runs in a project that has such a folder, the store takes them in: each
+valid candidate becomes a store file with its run's sighting, applied when the run's
+`standard-candidates-applied.json` lists it (dated by that file's day) and dismissed with its
+reason, who and day when it records one; then each attachment `{run, id}` adds its run's
+sighting to the candidate it names. A candidate or sighting already in the store is skipped, so
+folding in again adds nothing and, with nothing missing, writes nothing; `candidates.mjs import`
+runs it alone. A version 3 file is never folded in: it is filed by `file`. The earlier files stay
+as they are, readable for history.
 
 ## Closing a candidate
 
-A candidate stays open until one of three things closes it. Its state is worked out each time
-the script reads it, the first that holds:
+A candidate stays open until one of three things closes it. The first two are stored in its file;
+the third is worked out each time the script reads it:
 
 1. **applied** — a person wrote it into a standard or document through standards-update.
 2. **dismissed** — a person reviewed it and declined it, with a reason.
-3. **expired** — no second run has met it (`seen_in` holds its own run alone) and its run is
-   dated more than 30 days before today. Nothing is written when it expires and nothing is
-   deleted: the candidate stays in its file, reported as expired. A later run that files the same
-   lesson files it as new, since the queue no longer holds it.
+3. **expired** — no second run has met it (`seen_in` holds its filing run alone) and that
+   sighting, its newest, is dated more than 30 days before today. Nothing is written when it
+   expires and nothing is deleted: the candidate stays in the store, reported as expired. A later
+   run that files the same lesson files it as new, since the queue no longer holds it.
 4. otherwise **open** — offered, and listed in the queue.
 
-An attachment's state is the state of the candidate it names, so closing a candidate closes
-every attachment that names it.
+A run's attachment shares the state of the candidate it names, so closing a candidate closes
+every attachment to it. The script's `applied` and `dismiss` verbs are the only writers, by store
+id; `dismiss --run=<task dir> --all` takes every candidate that run filed and is not applied.
+Applying a dismissed candidate takes its dismissal back; dismissing an applied one is refused.
 
-`standard-candidates-applied.json` holds `{applied, dismissed}`: `applied` the ids applied, and
-`dismissed` a map from each dismissed id to `{reason, by, date}` — why it was declined, who
-declined it, and the day (`YYYY-MM-DD`). A file written earlier holds `applied` alone and
-dismisses nothing. Applying a dismissed candidate takes its dismissal back; dismissing an applied
-one is refused. The script's `applied` and `dismiss` verbs are the only writers.
+**`recommended`** is never written: the script works it out on read, with its `reason`. A
+candidate is recommended when it has been seen in two runs or more (`reason`: "seen in N runs"),
+or when it guards security or data loss and names the failure it prevents (`reason`: "guards
+security" or "guards data loss") — unless it has a `caught_by`, which no support outweighs.
+Nothing else recommends one: not that it extends a rule the project has, and not evidence from
+several groups of one run, which only orders it. A candidate the standards already hold is not a
+candidate at all (`already_held`).
 
 ## The open queue
 
-Every open candidate of every run under `.maister/tasks/`, one line each, as
+Every open candidate in the store, one line each, as
 `node <plugin root>/skills/standards-update/scripts/candidates.mjs queue` prints it from the
-project root. `--skip=<task dir>` leaves one run out — the run being consolidated — `--tasks`
-names another tasks folder, and `--today=<YYYY-MM-DD>` sets the day expiry is judged on (today,
-in UTC, by default). The output is stable: consolidation reads the text, and a tool reads
-`--json`.
+project root. `--skip=<task dir>` leaves one run out — the run being consolidated: its candidates
+are not listed and its sightings not counted — `--tasks` names another tasks folder (the store is
+the folder beside it), and `--today=<YYYY-MM-DD>` sets the day expiry is judged on (today, in
+UTC, by default). The output is stable: consolidation reads the text, and a tool reads `--json`.
 
-**Text**, oldest run first and each run's candidates in file order:
+**Text**, oldest filing run first and each run's candidates by id:
 
 ```
-<run>#<id> [<action>; seen in <N>] <label>: <rule>
+<id> [<action>; seen in <N>] <label>: <rule>
 ```
 
-`<action>` is `new`, or `extend <extends>`; `<N>` is the length of `seen_in`; `<rule>` is the
-candidate line without its leading `- ` and without everything from ` — why:` on. With no open
-candidate it prints nothing. A file it cannot read, or an entry that is not a candidate or an
-attachment, is one line on stderr, `candidates: <path>: <message>`, and never a failure: the exit
-is 0, and 2 only on a usage error.
+`<id>` is the store id an attachment names; `<action>` is `new`, or `extend <extends>`; `<N>` is
+the length of `seen_in`; `<rule>` is the candidate line without its leading `- ` and without
+everything from ` — why:` on. With no open candidate it prints nothing. A file it cannot read, or
+an entry that is not a candidate or an attachment, is one line on stderr,
+`candidates: <path>: <message>`, and never a failure: the exit is 0, and 2 only on a usage error.
 
 **`--json`** prints one document, `{queue, closed, problems}`:
 
-- `queue` — each open candidate, in the text's order: `run` (`<type>/<name>`), `dir` (its task
-  directory, absolute), `date` (the run's date), `id`, `label`, `rule`, `action` (`new` or
-  `extend`), `extends` (null for `new`), `destination`, `seen_in` (run names, its own first),
-  `recommended`, `reason` (null when not recommended) and `caught_by` (null when no check catches
-  it).
-- `closed` — `{applied, dismissed, expired}`: how many candidates under the tasks folder each
-  state holds.
+- `queue` — each open candidate, in the text's order: `run` (the filing run, `<type>/<name>`),
+  `dir` (that run's task directory under the tasks folder, absolute — a teammate's run may not be
+  in this checkout), `date` (the filing sighting's date), `id` (the store id, unique in the
+  project), `label`, `rule`, `action` (`new` or `extend`), `extends` (null for `new`),
+  `destination`, `seen_in` (run names, the filing run first), `recommended`, `reason` (null when
+  not recommended) and `caught_by` (null when no check catches it).
+- `closed` — `{applied, dismissed, expired}`: how many candidates in the store each state holds.
 - `problems` — each `{path, message}`, as stderr names them in the text form.
+
+## The close
+
+`node <plugin root>/skills/standards-update/scripts/candidates.mjs close --run=<task dir>` prints
+the lines a run's close carries about its candidates, read from the store and the run's file:
+a first line naming the run, its task directory and the store; then each candidate it filed, in
+its file's order — new or the rule it extends, recommended with the reason or how many runs have
+seen it, a check that already catches it, the label, the destination, the evidence and the store
+id; each candidate it met again, with how many runs have now seen it; each already-held line with
+the rule that holds it; how many new lessons were dropped over the cap of five; and a line when
+consolidation failed. A candidate already closed says so. A run that filed nothing prints
+nothing. The close copies the lines as printed.

@@ -15,8 +15,8 @@
  * `node-brief` for a node, two node writes with a patch no shell may touch, `area-brief`'s
  * fallback at a node that declares no decision areas, `gate-brief --json` at
  * the gate, the dashboard projection, `resume-check`, the documentation
- * check (`docs-manager/scripts/docs-check.mjs`), the standard candidates
- * lookup (`standards-update/scripts/candidates.mjs`), and standards
+ * check (`docs-manager/scripts/docs-check.mjs`), the standard candidate
+ * store (`standards-update/scripts/candidates.mjs`), and standards
  * discovery's findings check and external sources check
  * (`standards-discover/scripts/`), the standards groups resolver
  * (`docs-manager/scripts/standards.mjs`), and `project-profile` with its profile
@@ -281,12 +281,13 @@ try {
   const docsReport = json(checked.stdout);
   check('docs-check reads the project\'s documentation from a path holding a space', checked.code === 0 && docsReport?.ok === true && docsReport.entries === 1, show(checked));
 
-  // --- the standard candidates lookup ---------------------------------------
-  // Run from the project root as standards-update runs it: a run's candidates
-  // file found, one applied through a --run path holding a space, and gone,
-  // and the run read by name through the same path; the open queue listed, and
-  // one dismissed with a reason holding spaces. Each dated verb is judged on a
-  // fixed day, so the run stays inside its window.
+  // --- the standard candidate store -----------------------------------------
+  // Run from the project root as standards-update runs it: a run folder from
+  // before the store folded in, one candidate applied and one dismissed (with a
+  // reason holding spaces) by their store ids, and the run read by name through
+  // a --run path holding a space; then a run of this version filed and its
+  // close printed through the same kind of path. Each dated verb is judged on a
+  // fixed day, so the runs stay inside their window.
   const candidateRun = path.join(project, '.maister', 'tasks', 'development', '2026-01-05-candidate run');
   const today = '--today=2026-01-10';
   fs.mkdirSync(candidateRun, { recursive: true });
@@ -296,15 +297,28 @@ try {
   ] }));
   const found = json(call('latest', [today], null, candidatesLookup).stdout);
   const queued = json(call('queue', ['--json', today], null, candidatesLookup).stdout);
-  const marked = call('applied', [flag('run', candidateRun), '--id=typed-errors'], null, candidatesLookup);
-  const dismissed = call('dismiss', [flag('run', candidateRun), '--id=small-modules', flag('reason', 'not a rule here'), flag('by', 'A Person'), today], null, candidatesLookup);
+  const ids = Object.fromEntries((queued?.queue ?? []).map(each => [each.label, each.id]));
+  const marked = call('applied', [`--id=${ids['Typed errors']}`, today], null, candidatesLookup);
+  const dismissed = call('dismiss', [`--id=${ids['Small modules']}`, flag('reason', 'not a rule here'), flag('by', 'A Person'), today], null, candidatesLookup);
   const after = json(call('latest', [today], null, candidatesLookup).stdout);
   const named = json(call('show', [flag('run', candidateRun), today], null, candidatesLookup).stdout);
-  check('the candidates lookup finds a run under a path holding a space, queues it, records one applied and one dismissed',
-    found?.run?.name === '2026-01-05-candidate run' && queued?.queue?.[1]?.rule === 'Keep modules small'
-      && marked.code === 0 && dismissed.code === 0 && json(dismissed.stdout)?.dismissed?.[0] === 'small-modules'
+  check('the candidate store folds in a run under a path holding a space, queues it, records one applied and one dismissed',
+    found?.run?.name === '2026-01-05-candidate run' && queued?.queue?.some(each => each.rule === 'Keep modules small')
+      && marked.code === 0 && dismissed.code === 0 && json(dismissed.stdout)?.dismissed?.[0] === ids['Small modules']
       && after?.run === null && named?.run?.name === '2026-01-05-candidate run' && named.candidates.length === 0
       && named.closed?.dismissed >= 1, show(dismissed));
+  const filedRun = path.join(project, '.maister', 'tasks', 'development', '2026-01-06-filed run');
+  fs.mkdirSync(filedRun, { recursive: true });
+  fs.writeFileSync(path.join(filedRun, 'standard-candidates.json'), JSON.stringify({ version: 3, candidates: [
+    { id: 'c1', label: 'Atomic writes', line: '- Write files whole — why: torn files', destination: 'standards/global/files.md', evidence: 'group 1' },
+  ] }));
+  const filed = call('file', [flag('run', filedRun)], null, candidatesLookup);
+  const closeLines = call('close', [flag('run', filedRun), today], null, candidatesLookup);
+  check('the candidate store files a run under a path holding a space and prints its close',
+    filed.code === 0 && json(filed.stdout)?.filed?.length === 1
+      && fs.existsSync(path.join(project, '.maister', 'standard-candidates', '.gitattributes'))
+      && closeLines.code === 0 && closeLines.stdout.startsWith('Standard candidates of development/2026-01-06-filed run')
+      && closeLines.stdout.includes('Atomic writes → standards/global/files.md'), show(closeLines));
 
   // --- the standards groups resolver ------------------------------------------
   // Run from the project root as init runs it, with the project's own standards
