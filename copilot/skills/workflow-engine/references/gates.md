@@ -405,7 +405,7 @@ suspended the moment step 2's marker publishes. **The commit point is `gate_pend
 
 **A sub-run suspends on the same shape**: the child freeze (W2) and the parent's record of the
 link (W3) both complete **before** the write that projects the dashboard and before
-`WAITING-SUBRUN` is printed (`references/sub-runs.md` carries both walks).
+`WAITING-SUBRUN` is printed (`references/sub-runs.md` § *Walk one* and § *Walk two* carry both walks).
 
 **The `gate-request` verb** derives everything from `--state` — the run directory, the `gates/`
 directory and the frozen graph the node id is checked against. A document sent in place of
@@ -416,11 +416,11 @@ session that suspended on the gate, in that session's own word, taken from the h
 `CLAUDE_CODE_SESSION_ID`. It is optional — written only on a `cockpit` or `dispatch` run whose host
 names its session, and left out, never written null or empty, on any other host or with no id — and
 it is cleared with the marker when the answer is folded. It never writes, and is never read as,
-`orchestrator.driver.session`. Readers of the marker ignore keys they do not know. Its own five refusals are `gate-request-unavailable` (above),
-`gate-request-invalid` (fix the document and re-run), `gate-request-exists` (a *different* gate
-has already been asked at that node — read the file rather than re-asking), `gate-unwritable`
-and `gate-temp-exists` (handled exactly like `state-unwritable` and `state-temp-exists` in
-`references/writing-state.md` § *When a write is refused*). Because the marker rides along, the
+`orchestrator.driver.session`. Readers of the marker ignore keys they do not know. Its own refusals —
+`gate-request-unavailable`, `gate-request-invalid`, `gate-request-exists`, `gate-request-pending`,
+`gate-unwritable` and `gate-temp-exists` — each have a row in `references/writing-state.md`
+§ *When a write is refused*, which says what it means and what to do; print one with
+` § <the code>` after that section. Because the marker rides along, the
 verb may also return any refusal `write-state` names, verbatim and with its own code.
 
 **A refusal leaves the run unsuspended.** If anything after the request file refuses, the
@@ -459,7 +459,7 @@ the node's recorded `values.run_id`; a token with no colon is its own last segme
 
 A malformed line, a `run=` or `node=` that is not this run's, or a `child=` that is not the
 recorded one, all print `SUB-RUN-INVALID: <reason>` and write nothing — the reason names the field
-at fault in that field's own spelling (`references/sub-runs.md`); a `node=` that is no longer
+at fault in that field's own spelling (`references/sub-runs.md` § *The `SUB-RUN-INVALID` reason vocabulary*); a `node=` that is no longer
 `waiting` prints `SUB-RUN-ALREADY-DONE` and writes nothing. A missing `at=` falls to the rule
 above.
 

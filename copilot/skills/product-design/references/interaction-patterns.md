@@ -23,7 +23,7 @@ Product design is a conversation, not a form. The workflow alternates between ex
 **Principles**:
 - **Avoid anchoring bias**: Do not propose solutions during exploration. Premature solutions close off discovery.
 - **One page of independent questions**: Up to four questions, each standing on its own, and only what the explore could not answer. A gap the page cannot hold, or whose framing depends on another's answer, is written into the scope as an assumption to check. Decision areas are never paged — they belong to convergence.
-- **One behaviour, one story**: Questions about one behaviour the feature must support — who may do it, where they start, what changes, who sees the result — are drafted into one journey-level story and asked as one question, never as separate tabs. A screen or a control appears in it only where the design context already names one, so the story records the journey without anchoring the layout. The workflow engine's `references/in-node-questions.md` states the rule.
+- **One behaviour, one story**: Questions about one behaviour the feature must support — who may do it, where they start, what changes, who sees the result — are drafted into one journey-level story and asked as one question, never as separate tabs. A screen or a control appears in it only where the design context already names one, so the story records the journey without anchoring the layout. The workflow engine's `references/in-node-questions.md` § *In-node questions* states the rule (*One topic is one drafted story*).
 - **Context-aware questions**: Each question carries its own synthesis line — what the run already understands that bears on it, from the explore briefs, the user-supplied context or earlier answers — and two or three answers generated from it. Generic questions waste the user's time.
 - **Nothing on screen**: when the project has no screens, the design is the behaviour — what a client can do, what is refused and in what words, what order things come in. Never offer an API, a response or an endpoint as the thing to design; the contract is development's specification's.
 - **Escape hatches**: Always allow the user to say "Not sure yet" without blocking progress, and to ask for More details — the full context written out, then the same question again.
@@ -132,7 +132,7 @@ Structure: topical choices + escape hatches
 
 **Always leave an open-ended escape hatch**: the question tool's free-text answer covers cases where none of the structured options match the user's intent, so it costs no option slot; say in the question that the user can type their own answer when it matters. Without it, users feel trapped in a multiple-choice quiz.
 
-**Never recommend a narrower task**: the recommended answer keeps every acceptance criterion and requirement the description states, and where an earlier checkpoint flagged a criterion as open to two readings, it is the reading that keeps the criterion whole. A narrower option may be offered, naming what it gives up, but is never marked recommended. The workflow engine's `references/in-node-questions.md` states the rule.
+**Never recommend a narrower task**: the recommended answer keeps every acceptance criterion and requirement the description states, and where an earlier checkpoint flagged a criterion as open to two readings, it is the reading that keeps the criterion whole. A narrower option may be offered, naming what it gives up, but is never marked recommended. The workflow engine's `references/in-node-questions.md` § *In-node questions* states the rule.
 
 **Never present all decision areas in a single batch**: One area at a time with full context. Batch decisions produce shallow answers because users optimize for completion speed rather than quality.
 
@@ -180,4 +180,4 @@ Every transition between exploration and convergence gets an explicit label. Thi
 
 ---
 
-This reference provides interaction patterns and frameworks. The workflow's node prose, `<plugin root>/skills/workflow-engine/workflows/product-design.md`, defines the node logic that applies these patterns, and what each question takes under a `cockpit` or `dispatch` driver, with question sets and without.
+This reference provides interaction patterns and frameworks. The workflow's node prose, `<plugin root>/skills/workflow-engine/workflows/product-design.md` § <each node's section>, which `node-brief` prints, defines the node logic that applies these patterns, and what each question takes under a `cockpit` or `dispatch` driver, with question sets and without.

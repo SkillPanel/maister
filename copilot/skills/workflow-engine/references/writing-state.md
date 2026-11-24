@@ -2,7 +2,7 @@
 
 The workflow engine's rules for writing a run's state. A refused `write-state` names
 *When a write is refused*, and a refused `run-complete` names *When `run-complete` refuses*.
-Every verb's row and every verb's refusals are in `references/verbs.md`.
+Every verb's row and every verb's refusals are in `references/verbs.md` § *The verbs every run calls*, § *The verbs some steps call* and § *Refusals*.
 
 **Every state change goes through `write-state`. Never edit `orchestrator-state.yml` with an
 editor tool** — not to fix a stray line, not to record one small field, not when a write has
@@ -96,7 +96,7 @@ changes nothing, and one that differs in a node or in any scalar beside `workflo
 forward into the block and nothing is dropped from it.
 
 **The writer judges a gate's triage itself**, on the write that records its answer and on the
-re-validation of a driven answer (`references/gates.md`). These `warning:` lines on stderr are
+re-validation of a driven answer (`references/gates.md` § *Driver-suspended mode — resume*). These `warning:` lines on stderr are
 never refusals — the write lands and the exit code does not move:
 - **`policy-hash-mismatch:<gate>`** — the policy loaded now would classify the gate, but its hash
   is not the run's `policy_hash`, or the run recorded none. Nothing is classified; relay it. A
@@ -221,7 +221,7 @@ run in its `runs/<child>/`) is refused `state-run-folder-misplaced`. **It record
 `orchestrator.task_path`**, the run's folder relative to the project root, from where the state
 file is; a value the freeze patch sends is dropped with a `note:` line, and a later write of the
 key lands as sent. A child run's directory is the one `subrun-path` prints
-(`references/sub-runs.md`). **It creates the folders inside it**: the first folder of every
+(`references/sub-runs.md` § *The child directory name*). **It creates the folders inside it**: the first folder of every
 artifact path the resolved graph declares, so a node or an agent writing a declared artifact
 finds its folder there. A deeper folder, a directory artifact included, is its writer's to create.
 
@@ -373,8 +373,11 @@ freeze leaves a child whose second call cannot land.
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
-thirty-nine, each with its response below; two more are raised before the writer runs,
-`edition-collision` and `gate-request-unavailable`. Exit `2` carries no code at all and has the table's last rows:
+forty-two, each with its response below; two of them, `gate-unwritable` and `gate-temp-exists`,
+come from the gate index a write regenerates, and `gate-request` raises them too. Two more are
+raised before the writer runs, `edition-collision` and `gate-request-unavailable`, and three are
+`gate-request`'s own: `gate-request-invalid`, `gate-request-exists` and `gate-request-pending`.
+Exit `2` carries no code at all and has the table's last rows:
 
 | Refusal | Response |
 |---|---|
@@ -413,6 +416,11 @@ thirty-nine, each with its response below; two more are raised before the writer
 | `state-patch-invalid`, `state-patch-unknown-key`, `state-inline-collection`, `state-workflow-without-nodes`, `state-context-block-unknown` | The engine built a patch the writer will not apply. Stop with `RUN-FAILED: <code>` and report the writer's message verbatim. The run's own context block sent as a top-level key is not among them: it is written as `context`, with a `note:` line. |
 | `edition-collision` | Two editions of this plugin are enabled in the session's settings — the settings files, plus the session's own `--settings` when `MAISTER_SESSION_SETTINGS` names it — so skills may load from either one. Nothing was written, and no write, whether a start or a resume, will land until one edition is disabled. Relay the message verbatim to the operator, since it names both editions, the command that disables each and how a session started with `--settings` makes that layer visible, and stop with `RUN-FAILED: edition-collision`. Don't retry within this session: the fix takes effect only after Claude Code restarts. |
 | `gate-request-unavailable` | This edition of the plugin carries no gate module, so a driven run cannot suspend at a gate. Nothing was written and the request in the patch file is kept. Stop with `RUN-FAILED: gate-request-unavailable` — never ask in session and never take a default answer. |
+| `gate-request-invalid` | The request document, or the question set `gate-request --node` built it from, breaks the request's shape; the message names the first fault: a key the request does not take, a node the frozen graph does not carry, a question set sent for a gate (a gate is asked with its own kind), a question id outside the id rule (`references/in-node-questions.md` § *When a question suspends*) or one two questions share, an option with no id or no label. Nothing was written and the patch file is kept. Correct that field in the document or the set and run `gate-request` again. Never ask in session instead, and never take a default answer. |
+| `gate-request-exists` | A different request already stands in the node's request file: one answered in this attempt of the node, or one spelling another question. Nothing was written. A gate is asked once: read that file rather than asking again, and never overwrite or delete it, because it may already hold the answer. A node asks again in one attempt only as a later round of its question set, once the earlier round's answer is folded. |
+| `gate-request-pending` | Another node of this run is still waiting for its answer, and a run asks one question at a time; the message names that node. Nothing was written. End the turn on that question, and ask this one after it is answered. |
+| `gate-unwritable` | The run's `gates/` folder, a request file in it or the gate index cannot be read or written; `gate-request` writes them, and a write that records an answer regenerates the index. Nothing was left published. Handled exactly like `state-unwritable`: stop with `RUN-FAILED: gate-unwritable`; the operator repairs the directory or starts a new task. |
+| `gate-temp-exists` | The temp twin of the gate index or of a request file is on disk and less than a minute old, so another writer holds it. Nothing was written. Handled exactly like `state-temp-exists`: **do not delete anything**, wait a minute and issue the same call again. |
 | exit `2`, `usage: the patch file …` or `usage: the patch in …` | The document never reached the writer: the flag named another file, or the file is missing, empty or not JSON. Nothing was written and the file is kept. Write the document to the run's own `.state-patch.json`, name that path, and run the verb once more; the same message twice is `RUN-FAILED: writer-unavailable`. |
 | exit `2`, `usage: the patch on stdin …`, or the shell's `argument list too long` | The here-string never delivered a document: it arrived empty or not JSON — most often an apostrophe that closed the single quotes early — or the command line was too long. Nothing was written. Write each apostrophe inside the JSON as `'\''` and run the verb once more, or send the document through the patch file, which a too-long command line always takes; the same message twice is `RUN-FAILED: writer-unavailable`. |
 | exit `2`, any other message | The writer itself did not run — a module it imports is missing, or the verb and its flags were malformed. Nothing was published and nothing was even attempted. Stop with `RUN-FAILED: writer-unavailable` and report the message verbatim. |
@@ -548,7 +556,7 @@ the writer's is ever sent: the writer drops it with a `note:` line (the opening 
 - `orchestrator.driver` — who drives the run, absent meaning terminal, written whole (the opening section).
 - `orchestrator.classes_questions` — the writer's, recorded at the freeze (§ *What the freeze write adds*).
 - `orchestrator.gate_pending` — the suspended gate's marker, set and cleared only as `references/gates.md` § *Driver-suspended mode — the write order* says.
-- `orchestrator.parent` — a child run's link to its parent, sent by its freeze (`references/sub-runs.md`).
+- `orchestrator.parent` — a child run's link to its parent, sent by its freeze (`references/sub-runs.md` § *Walk one*).
 - `task.title`, `task.description`, `task.key` — the freeze patch (engine Step 4).
 - `task.status` — the writer's at the first node start, then the closing patch's (the opening section).
 - `task.base_commit` — the writer's, recorded at the freeze and moved only by `move-base`.

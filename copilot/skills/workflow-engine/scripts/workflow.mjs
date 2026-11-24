@@ -478,6 +478,7 @@ const RULES = {
   areaBrief: ['references/in-node-questions.md', 'Decision areas from the brainstorm'],
   findingBrief: ['references/in-node-questions.md', 'Findings that need a decision'],
   writeRefused: ['references/writing-state.md', 'When a write is refused'],
+  moveBaseRefused: ['references/verbs.md', 'Refusals'],
   completeRefused: ['references/writing-state.md', 'When `run-complete` refuses'],
   nodeBrief: ['references/node-conventions.md', 'Node conventions'],
   companion: ['references/writing-state.md', 'A missing or stale companion'],
@@ -982,7 +983,10 @@ async function runMoveBase(flags) {
     process.stdout.write(`unchanged: ${result.unchanged.base} (${result.unchanged.rule})\n`);
     return EXIT.OK;
   }
-  const code = reportWrite(result, { file: null }, 'writeRefused');
+  // A refusal of the move itself has its row beside the verb's; one the writer
+  // raised while landing the move has its row in the writer's table.
+  const own = !result.ok && (result.errors || []).every(error => String(error.code).startsWith('move-base-'));
+  const code = reportWrite(result, { file: null }, own ? 'moveBaseRefused' : 'writeRefused');
   if (result.ok && result.move) {
     const { from, to, rule } = result.move;
     process.stdout.write(`\nmoved: ${from} → ${to} (${rule})\n`);

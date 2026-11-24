@@ -278,7 +278,9 @@ Each group's prompt carries, in this order: the task group's content from the pl
 `Visual References`), the spec excerpt, the plan's standards for it ("identify which are
 relevant and read them"), standards discovery (INDEX.md's path and the read-only rule above),
 the path of docs-manager's standard candidates reference
-(`<plugin_root>/skills/docs-manager/references/standard-candidates.md`), which its candidates follow,
+(`<plugin_root>/skills/docs-manager/references/standard-candidates.md`), which its candidates follow
+(each a general hazard rather than this group's feature, its `where` naming a place beyond this
+change),
 the design context when there is one (the root, the brief excerpt, the mockup paths, the binding
 rule: each referenced mockup is read before implementing, its layout, copy, field order and
 states bind, and each `acceptance` criterion is self-checked), the sibling wave (the other groups

@@ -176,14 +176,14 @@ Use this to help the user update or modify existing project documentation.
 
 **What to do:**
 1. Accept the documentation identifier from the user (e.g., "project/vision", "standards/global/error-handling")
-2. Check if the documentation exists in `.maister/docs/`
+2. Check if the documentation exists in `.maister/docs/` — or, for the project's contributor guide, at the path the caller names outside it
 3. If the documentation exists:
    - Read the current documentation
    - Apply the change the caller describes, and only that; with none described, return the question as a decision needed. A section the caller does not name for replacement or removal stays as it is: content that overlaps it is added beside it or to it, never folded into a new section in its place
    - Include the plugin's baseline version for reference when the caller asks for it
 4. If the documentation doesn't exist, return a decision needed: add it from the plugin baseline ("Add Documentation File") or create it from scratch, except a built-in edit's home file, which is created
 5. After updating:
-   - Refresh INDEX.md with the path as `changed`; its entry changes only when the file's purpose did
+   - Refresh INDEX.md with the path as `changed`; its entry changes only when the file's purpose did. A contributor guide outside `.maister/docs/` has no entry and gets no refresh
    - If updating tech-stack.md or architecture.md, suggest reviewing .github/copilot-instructions.md for consistency
 6. For technical standards:
    - If a corresponding project skill exists, suggest reviewing it for consistency
@@ -274,9 +274,9 @@ Use this to check that documentation is consistent, up-to-date, and properly int
 
 Use this at a workflow's finalization, before the run writes its candidates file. Read-only: it writes no document and refreshes no index.
 
-**What to do:** follow *Consolidation* in `references/standard-candidates.md` over the candidate lines the caller passes, with the project's own wording from its `.github/copilot-instructions.md` block and the top of INDEX.md taking precedence over that file's description. Return the consolidated list and the already-held lines as that section says; no choice is returned as a decision needed — the caller writes the list to the run's candidates file, and the person chooses later, through standards-update.
+**What to do:** follow *Consolidation* in `references/standard-candidates.md` over the candidate lines the caller passes and against the open queue of earlier runs it passes beside them, with the project's own wording from its `.github/copilot-instructions.md` block and the top of INDEX.md taking precedence over that file's description. Return the consolidated list — at most five new lessons — the attachments, the already-held lines and how many lessons were dropped over that cap, as that section says; no choice is returned as a decision needed — the caller writes the list to the run's candidates file, and the person chooses later, through standards-update.
 
-**Result:** fewer, clearer candidates, each with its suggested destination and its evidence, for the person to choose from when they run standards-update.
+**Result:** fewer, clearer candidates, each with its suggested destination and its evidence, for the person to choose from when they run standards-update; a lesson an earlier run already filed counts as support for that candidate instead of being filed again.
 
 ---
 

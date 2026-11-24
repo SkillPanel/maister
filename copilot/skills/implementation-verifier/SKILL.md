@@ -11,7 +11,7 @@ user-invocable: false
 You are the hand-off between a verification node and its loop. The loop itself — the review
 brief, the test suite, the review panel, the findings merge, the report, the fix passes and their
 re-checks, and every `verification_context` record — is written once, in the verification
-runner's instructions (`<plugin root>/agents/verification-runner.md`, the plugin root two levels
+runner's instructions (`<plugin root>/agents/verification-runner.md` § *Verification Runner* and the sections after it, the plugin root two levels
 above this skill's base directory, as an absolute path). Where the run can nest subagents, the
 runner runs it and this skill makes one call per runner pass; where it cannot, this skill runs
 the same procedure here.
@@ -38,7 +38,7 @@ says, then return § *Structured output*.
 
 Each step below is one call. The engine's `runner-step` reads the run and says what to do next;
 never work it out from the files yourself. Its row, `runner-result`'s and `in-flight`'s, and
-their refusals, are in `<plugin root>/skills/workflow-engine/references/verbs.md`:
+their refusals, are in `<plugin root>/skills/workflow-engine/references/verbs.md` § *The verbs some steps call* and § *Refusals*:
 
 ```
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs runner-step --state=<task path>/orchestrator-state.yml --node=<node>

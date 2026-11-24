@@ -60,5 +60,5 @@ a viewer of another folder, an unreadable file — is replaced. Two turns on two
 viewer, and a different `output_subdir` is a different folder.
 
 Refusals — `root-missing`, `ports-busy` and `folder-unwritable` — and what to do about each are in
-`turn-contract.md`. All three mean the same for the turn: open the pages by path if the tool can,
+`turn-contract.md` § *Refusals*. All three mean the same for the turn: open the pages by path if the tool can,
 else skip the look pass with a note.

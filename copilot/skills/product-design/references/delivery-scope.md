@@ -69,5 +69,5 @@ together, so the two never disagree.
 Approval is never recommended while an agreed point is missing. The writer checks the scope
 against the agreed points before asking; each one missing is an `open` risk naming it, and the
 recommendation is to add it — at a gate, the revise that rewrites the scope, its reason naming
-what is missing (the workflow engine's `references/gates.md`, `recommends`). The person still
+what is missing (the workflow engine's `references/gates.md` § *Before every gate — the gate brief*, `recommends`). The person still
 decides.

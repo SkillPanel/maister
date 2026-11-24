@@ -41,6 +41,21 @@ import { FAMILY_NAME } from './policy.mjs';
  */
 const QUESTION_KEYS = ['id', 'header', 'question', 'why', 'multi_select', 'allow_other', 'options', 'default', 'triage', 'family', 'reader', 'details', 'evidence', 'cites'];
 
+/**
+ * The question id rule: a lower-case letter first, then lower-case letters,
+ * digits and hyphens, 2 to 41 characters in all — a node id's own shape, since
+ * a request, a decision and a policy row key on it. An id the engine composes
+ * (`<node>-findings-<finding id>`, `convergence-decisions-<area id>`) keeps it
+ * whole, so its builders judge the part they are given against it too.
+ */
+export const QUESTION_ID = /^[a-z][a-z0-9-]{1,40}$/;
+
+/** The longest question id the rule admits. */
+export const QUESTION_ID_MAX = 41;
+
+/** The rule in words, as a refusal states it. */
+export const QUESTION_ID_RULE = 'a question id starts with a lower-case letter, then lower-case letters, digits and hyphens, 2 to 41 characters in all';
+
 /** The keys a reader's verdict carries, and the two values its verdict may take. */
 const READER_KEYS = ['verdict', 'reason'];
 const READER_VERDICTS = ['agree', 'raise'];
@@ -113,6 +128,7 @@ export function checkSet(input) {
       if (!QUESTION_KEYS.includes(key)) errors.push(`${where}: the key "${key}" is not one of ${QUESTION_KEYS.join(', ')}`);
     }
     if (!isLine(question.id)) errors.push(`${where}: "id" must be a one-line id`);
+    else if (!QUESTION_ID.test(question.id)) errors.push(`${where}: "${question.id}" is not a usable question id: ${QUESTION_ID_RULE}, and this one has ${question.id.length}`);
     else if (ids.has(question.id)) errors.push(`${where}: the id is used twice; each question needs its own`);
     else ids.add(question.id);
     if (!isText(question.question)) errors.push(`${where}: "question" must be the question's text`);

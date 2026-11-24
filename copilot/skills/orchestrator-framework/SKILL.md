@@ -18,7 +18,7 @@ Reduce duplication across orchestrators by documenting common patterns once:
 
 - **Delegation**: Skill tool for skills, Task tool for agents — the workflow engine's § *Delegation by scheme*
 - **Gates**: Pause behavior, the driver rule and in-node question defaults — § 2
-- **State Management**: `orchestrator-state.yml` and the context blocks — the workflow engine's `references/writing-state.md`
+- **State Management**: `orchestrator-state.yml` and the context blocks — the workflow engine's `references/writing-state.md` § *Recording an outcome — the detail* and § *The common fields*
 - **Initialization**: Task directory setup and naming — the workflow engine's § *Starting a run*
 
 ## How Orchestrators Use This

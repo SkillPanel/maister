@@ -6,7 +6,7 @@ decision areas file is that grouping written down for a machine as well as a per
 brainstormer writes it as `decision-areas.json` beside its markdown — research's
 `outputs/solution-exploration.md`, product design's `analysis/alternatives.md` — and the brainstorm
 node declares it as its `decision_areas` artifact. The convergence node reads it through the
-engine's `area-brief` verb (its row: `references/verbs.md`), which asks each area from the file: in the terminal one area at a
+engine's `area-brief` verb (its row: `references/verbs.md` § *The verbs some steps call* § `area-brief`), which asks each area from the file: in the terminal one area at a
 time, and for a cockpit every area in one question set, each carrying its full write-up.
 
 The verb renders and never writes words of its own. Every content sentence a user sees comes from
@@ -36,7 +36,7 @@ alternatives in the same order and the same recommendations, so the two never di
 | `source.path` | The markdown the file was written from, relative to the task directory, `/`-separated, no `..`, not absolute |
 | `source.sha256` | 64 lowercase hex digits: the SHA-256 of that file's bytes as written |
 | `areas` | A non-empty list, in the order the areas are asked |
-| `areas[].id` | A slug, `^[a-z][a-z0-9-]*$`, unique in the file |
+| `areas[].id` | A slug, `^[a-z][a-z0-9-]*$`, unique in the file, at most 19 characters: the area is asked as `convergence-decisions-<area id>`, which keeps the question id rule's 41 |
 | `areas[].area` | The area's name, one line |
 | `areas[].question` | The area's question, one line, in the task's words |
 | `areas[].why` | Why the decision matters, text |
@@ -106,6 +106,7 @@ is refused whole: no area is ever rendered from it. The reasons are a closed set
 | `empty` | A string, list or object that must hold something is empty |
 | `not-one-line` | A one-line value holds a line break |
 | `bad-id` | An area or alternative id is not a slug |
+| `id-too-long` | An area id is past 19 characters, so its question id would break the question id rule |
 | `duplicate` | An id repeats where it must be unique, or `depends_on` names an area twice |
 | `too-few` | An area has fewer than two alternatives |
 | `reserved-id` | An alternative is named `other`, `more-details` or `investigate-first` |
