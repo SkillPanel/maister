@@ -502,18 +502,20 @@ test(`${OUTCOME}: registered on ask_user for both events in the variant only, wi
   }
 });
 
-test('display module: every verb it collapses by name is an engine verb that writes no state', () => {
-  // The module keeps the read-only verbs by name, since they leave no file to prove them by.
+test('display module: every verb it collapses by name is an engine verb no display file shows', () => {
+  // The module keeps by name the verbs that leave no display file to prove them by.
   const module = fs.readFileSync(path.join(SOURCE, 'display.mjs'), 'utf8');
-  const block = module.match(/const READ_ONLY = \{([\s\S]*?)\n\};/);
-  assert.ok(block, 'display.mjs declares READ_ONLY');
+  const block = module.match(/const BY_NAME = \{([\s\S]*?)\n\};/);
+  assert.ok(block, 'display.mjs declares BY_NAME');
   const named = [...block[1].matchAll(/^\s*'?([a-z][a-z-]*)'?:/gm)].map(match => match[1]);
   assert.ok(named.length >= 10, named.join(', '));
   const engine = fs.readFileSync(path.join(ROOT, 'plugins/maister/skills/workflow-engine/scripts/workflow.mjs'), 'utf8');
   const table = engine.slice(engine.indexOf('const VERBS = {'), engine.indexOf('\n};', engine.indexOf('const VERBS = {')));
   const verbs = new Set([...table.matchAll(/^\s*'?([a-z][a-z-]*)'?: \{ module:/gm)].map(match => match[1]));
   for (const verb of named) assert.ok(verbs.has(verb), `${verb} is a verb of workflow.mjs`);
-  for (const writer of ['write-state', 'node-brief', 'gate-brief', 'gate-request', 'run-complete', 'finding-brief', 'area-brief', 'resume-check']) {
+  for (const writer of ['write-state', 'node-brief', 'gate-brief', 'gate-request', 'area-brief', 'resume-check']) {
     assert.ok(!named.includes(writer), `${writer} is proved by the files, never collapsed by name`);
   }
+  // Neither moves a display file: a close only judges the state, a findings brief prints a set.
+  for (const verb of ['run-complete', 'finding-brief']) assert.ok(named.includes(verb), `${verb} collapses by name`);
 });

@@ -32,18 +32,23 @@
  * brief, which writes no status, the panel file holds what it briefed; for a
  * step brief that started nothing — a checkpoint's, or a step's the session
  * then skips — the brief file's stamp moved on (`brief.json`). A writing verb
- * added later collapses by the same proof. The verbs that write nothing a
- * reader could check — reading a run's context, printing a reference, resolving
- * a definition — collapse by name instead (`READ_ONLY`), on a clean exit alone,
- * before any run exists as well; a verb neither named there nor proved by the
- * files draws as it always did. The command
+ * added later collapses by the same proof. The verbs whose result no display
+ * file shows — reading a run's context, printing a reference, resolving a
+ * definition, briefing a findings list's question set, judging a run's close —
+ * collapse by name instead (`BY_NAME`), on a clean exit alone, before any run
+ * exists as well; a verb neither named there nor proved by the files draws as
+ * it always did. The command
  * must be the engine's script alone: that is the guard against a compound
  * command, whose other parts the files prove nothing about, never the source of
  * what is drawn. Only a clean call collapses — no error, no refusal, nothing
  * on stderr, not interrupted — and the decision is made once, when the call
  * returns, so a row redrawn later or replayed from an earlier session draws
- * as it always did. A call whose line would say nothing — a write that moved
- * no step — or say again what the last line said draws nothing at all.
+ * as it always did. One stderr line still counts as clean: the close's own
+ * pointer to the wrap-up (`SUCCESS_STDERR`), which the engine prints on
+ * stderr on every successful close so that stdout stays the marker alone; a
+ * warning beside it draws in full. A call whose line would say nothing — a
+ * write that moved no step — or say again what the last line said draws
+ * nothing at all.
  *
  * The elapsed time in the band is a fact, how long the run has been going.
  * Nothing here predicts how long anything will take.
@@ -80,11 +85,12 @@ const VERSION = 1;
 const DRAWN = new Set(['terminal', 'desktop']);
 
 /**
- * The engine's verbs that write nothing a reader could check, each with the
- * few words its quiet line says. A verb missing here draws in full: the safe
- * side for one added later.
+ * The engine's verbs whose result no display file shows, each with the few
+ * words its quiet line says: they collapse by name on a clean exit. A verb
+ * missing here draws in full unless the files prove it: the safe side for one
+ * added later.
  */
-const READ_ONLY = {
+const BY_NAME = {
   validate: 'checked the workflow',
   resolve: 'resolved the workflow',
   locate: 'looked up the workflow',
@@ -96,6 +102,17 @@ const READ_ONLY = {
   'scratch-dir': 'made a scratch folder',
   'sync-plan': 'synced the plan',
   'subrun-path': 'found the sub-run\'s folder',
+  'finding-brief': 'briefed the findings',
+  'run-complete': 'wrapped up the run',
+};
+
+/**
+ * The one stderr line a verb prints on success, by verb: a successful close
+ * points at the wrap-up there (or says a child run has none), so that stdout
+ * stays the marker alone. Anything else on stderr is not clean.
+ */
+const SUCCESS_STDERR = {
+  'run-complete': /^(?:wrap-up sections: |child run: no wrap-up)[^\n]*\n?$/,
 };
 
 /** A call of the engine's script: the interpreter, the script, bare or quoted, and the verb. */
@@ -272,10 +289,10 @@ async function snapshot($) {
  */
 async function afterShell($, e, ran, before) {
   const verb = engineVerb(e.command);
-  const quiet = verb !== null && clean(ran);
+  const quiet = verb !== null && clean(ran, true, verb);
   const id = e.tool_use_id;
-  // A verb that writes nothing has no file to prove it by, and may run before any run exists.
-  if (quiet && !e.agentId && typeof id === 'string' && Object.hasOwn(READ_ONLY, verb)) await say($, id, { line: `· maister · ${READ_ONLY[verb]}` });
+  // A verb no display file shows has no file to prove it by, and may run before any run exists.
+  if (quiet && !e.agentId && typeof id === 'string' && Object.hasOwn(BY_NAME, verb)) await say($, id, { line: `· maister · ${BY_NAME[verb]}` });
 
   const pointer = await pointerOf($);
   const dir = pointer?.run_dir;
@@ -285,7 +302,7 @@ async function afterShell($, e, ran, before) {
   const drawn = await drawnHere($);
   await update($, run, () => status);
   if (!drawn && typeof status.line === 'string') $.ui.status(status.line);
-  if (e.agentId || Object.hasOwn(READ_ONLY, verb ?? '')) return;
+  if (e.agentId || Object.hasOwn(BY_NAME, verb ?? '')) return;
 
   // Under a pointer this call set, there is no earlier stamp to compare: a state
   // write stamps the pointer and the status alike, a resume check the pointer alone.
@@ -367,12 +384,17 @@ function artifactOf(dir, status, file) {
   return status.artifacts.some(each => typeof each === 'string' && (path === each || path.startsWith(`${each}/`))) ? path : null;
 }
 
-/** A call that ran to the end without an error, a refusal, an interruption or a word on stderr. */
-function clean(ran, shell = true) {
+/**
+ * A call that ran to the end without an error, a refusal, an interruption or a
+ * word on stderr — but the one line the verb prints there on success.
+ */
+function clean(ran, shell = true, verb = null) {
   if (!ran || ran.deny !== undefined || ran.isError) return false;
   if (!shell) return true;
   const result = ran.result;
-  return Boolean(result) && result.interrupted !== true && (result.stderr ?? '') === '';
+  if (!result || result.interrupted === true) return false;
+  const stderr = result.stderr ?? '';
+  return stderr === '' || (Object.hasOwn(SUCCESS_STDERR, verb ?? '') && SUCCESS_STDERR[verb].test(stderr));
 }
 
 /** Every patch row still drawn: a state write landed it, so it draws nothing now and its write speaks for it. */
