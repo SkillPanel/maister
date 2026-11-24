@@ -171,15 +171,23 @@ five, the most important first, and its closing message says how many it dropped
 the work is done goes to your contributor guide, and a fact about one module to your architecture
 note, never to a standard.
 
-The run leaves its candidates in its task folder, lists them in its closing message and names this
-command. A run never writes a standard itself: run `/maister:standards-update` in the same
-session, or in a fresh one, where it finds the most recent run with candidates left, together with
-the earlier candidates that run met again. A candidate is recommended only when it has been seen in
+The run files its candidates in `.maister/standard-candidates/`, one file per candidate, lists them
+in its closing message and names this command. A run never writes a standard itself: run
+`/maister:standards-update` in the same session, or in a fresh one, where it finds the most recent
+run with candidates left, together with the earlier candidates that run met again. A candidate is recommended only when it has been seen in
 two runs or more, or when it guards against a named security or data-loss failure; one that a
 test, lint rule or type check already catches is offered but never recommended. You choose which
 to add, and you can dismiss the ones you leave, with a reason. A candidate you added or dismissed
 is not offered again. One you leave open is offered again later, until it expires: a candidate no
-second run has met within 30 days is closed as expired, though it stays in the run's folder.
+second run has met within 30 days is closed as expired, though its file stays.
+
+**Where candidates live.** `.maister/standard-candidates/` is the one list every run and
+`/maister:standards-update` read, whether or not you commit your task folders. Commit it with your
+standards, its `.gitattributes` included: then a candidate, a repeat sighting or a dismissal made in
+one clone, worktree or teammate's branch reaches everyone once that work is merged, and two
+branches that add to the same candidate merge without a conflict. A project whose runs kept their
+candidates in their task folders has them moved into the folder the first time a run or
+`/maister:standards-update` looks for candidates; the old files stay as a record.
 
 **From another project.** `--from=PATH` compares that project's `.maister/docs/standards/` with
 yours, lists what is new and what differs, and lets you choose. For a file that differs you can
