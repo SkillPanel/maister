@@ -203,7 +203,7 @@ run: the gate's stop option is the route out.
 question (the engine's `references/in-node-questions.md` § *Findings that need a decision*): write the auditor's decision findings, as its
 structured result gives them, to `verification/spec-audit-findings.json`, each
 finding's `id` the auditor's `name`, and build the set with
-`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set.
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set. The file is one object, `{"findings": [{"id", "severity", "title", "evidence", "options", "recommended", "reason"}]}`, never a bare list (the engine's `references/in-node-questions.md` § *Findings that need a decision* spells each key).
 
 **With question sets** (`spec-audit-findings`): asked through the cockpit as
 this node's first request, with the audit report and every fix written first.

@@ -48,20 +48,24 @@
  * `triage` is written — the classing write classes the set it is sent.
  *
  * Checks run in one order: the state, the node, whether it runs, the declared
- * id, then the file. A file that cannot be used is a fallback, never a refusal: one warning,
+ * id, then the file. A file that cannot be reached is a fallback: one warning,
  * exit 0 and nothing to paste, so the node asks its findings itself.
  * `finding-list-missing:<path>` (no file, or `:outside-run` for a path that
- * leaves the run directory), `finding-list-invalid:<path>:<detail>` (not JSON,
- * or the first shape violation, its location as the detail) and
- * `finding-list-unwritable:<run-relative patch path>:<error code>` (the patch
- * write failed, its temp removed).
+ * leaves the run directory), `finding-list-invalid:<path>:unreadable` (the
+ * file cannot be read) and `finding-list-unwritable:<run-relative patch
+ * path>:<error code>` (the patch write failed, its temp removed).
  *
  * The refusals, none of them fixed by a state write; each says nothing was
  * written. `finding-brief-state-unreadable` (the run is not where the caller
  * thinks), `finding-brief-unknown-node` (no node of the run, or a gate),
- * `finding-brief-not-running` (only a running node asks) and
+ * `finding-brief-not-running` (only a running node asks),
  * `finding-brief-undeclared` (the node's prose declares no `<node>-findings`
- * question id, so the set would carry ids no policy row or prose names).
+ * question id, so the set would carry ids no policy row or prose names) and
+ * `finding-brief-list-invalid` (the file is not JSON, or breaks the shape: the
+ * message names the first problem, spells the shape from the keys this reader
+ * accepts and the `reference` call that prints the section defining it, so the
+ * file is rewritten and the verb run again rather than the questions composed
+ * by hand from a file that was meant to hold them).
  *
  * A dropped cite is a warning beside the set, never a fallback.
  *
@@ -117,6 +121,13 @@ const WARNING = {
 /** The names `openTemp` refuses under; a live writer's temp is reported as `EEXIST`. */
 const TEMP_CODES = { unwritable: WARNING.unwritable, tempExists: WARNING.unwritable };
 
+/** Where the findings list's shape is defined, as `reference --at` prints it. */
+const SHAPE_SECTION = 'references/in-node-questions.md § Findings that need a decision';
+
+/** The shape a findings list takes, spelled from the keys this reader accepts. */
+const SHAPE = `{"findings": [{${FINDING_KEYS.map(key => (key === 'cites' ? `"${key}"?` : `"${key}"`)).join(', ')}}]}`
+  + `, each option {${OPTION_KEYS.map(key => `"${key}"`).join(', ')}}, severity one of ${SEVERITIES.join(', ')}`;
+
 const isText = value => typeof value === 'string' && value.trim() !== '';
 const isLine = value => isText(value) && !/[\r\n]/.test(value);
 
@@ -159,6 +170,11 @@ export function findingBrief({ state, node, findingsFile, patchFile = null }) {
 
   const loaded = loadFindings(findingsFile, runDir);
   if (loaded.warning) return fallback(loaded.warning);
+  if (loaded.invalid) {
+    return refuse('finding-brief-list-invalid',
+      `${loaded.invalid.where} is not a findings list (${loaded.invalid.fault === 'not-json' ? 'not JSON' : `first problem at ${loaded.invalid.fault}`}). Nothing was written. `
+      + `A findings file is ${SHAPE}. Print the section that defines it with workflow.mjs reference --at="${SHAPE_SECTION}", rewrite the file and run the verb again`);
+  }
   const warnings = [];
   const questions = order(loaded.findings).map(finding => {
     const question = questionOf(finding, declared);
@@ -179,7 +195,8 @@ export function findingBrief({ state, node, findingsFile, patchFile = null }) {
 
 /**
  * The findings list at `given`, checked: `{findings, record}` — `record` its
- * repository-relative path, as a kept cite's path spells it — or `{warning}`. A
+ * repository-relative path, as a kept cite's path spells it — `{warning}` when
+ * it cannot be reached, or `{invalid: {where, fault}}` when it breaks the shape. A
  * relative path is resolved against the run directory, then the project root,
  * and must stay inside the run directory.
  */
@@ -210,10 +227,10 @@ function loadFindings(given, runDir) {
   try {
     data = JSON.parse(text);
   } catch {
-    return { warning: `${WARNING.invalid}:${where}:not-json` };
+    return { invalid: { where, fault: 'not-json' } };
   }
   const fault = shapeFault(data);
-  if (fault !== null) return { warning: `${WARNING.invalid}:${where}:${fault}` };
+  if (fault !== null) return { invalid: { where, fault } };
   return { findings: data.findings, record: path.relative(repositoryOf(runDir), file).split(path.sep).join('/') };
 }
 

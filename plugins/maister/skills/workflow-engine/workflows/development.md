@@ -414,7 +414,7 @@ and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.m
 there): write the auditor's decision findings to
 `verification/spec-audit-findings.json`, each `id` the auditor's `name`, and
 build the set with
-`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set.
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set. The file is one object, `{"findings": [{"id", "severity", "title", "evidence", "options", "recommended", "reason"}]}`, never a bare list (the engine's `references/in-node-questions.md` § *Findings that need a decision* spells each key).
 
 **With question sets** (`spec-audit-findings`): this node's first request, with
 the audit report and every fix written first.
