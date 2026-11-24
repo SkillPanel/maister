@@ -270,7 +270,7 @@ Use this to check that documentation is consistent, up-to-date, and properly int
 
 Use this at a workflow's finalization, before the run writes its candidates file. Read-only: it writes no document and refreshes no index.
 
-**What to do:** follow *Consolidation* in `references/standard-candidates.md` over the candidate lines the caller passes and against the open queue of earlier runs it passes beside them, with the project's own wording from its `CLAUDE.md` block and the top of INDEX.md taking precedence over that file's description. Return the consolidated list, the attachments and the already-held lines as that section says; no choice is returned as a decision needed — the caller writes the list to the run's candidates file, and the person chooses later, through standards-update.
+**What to do:** follow *Consolidation* in `references/standard-candidates.md` over the candidate lines the caller passes and against the open queue of earlier runs it passes beside them, with the project's own wording from its `CLAUDE.md` block and the top of INDEX.md taking precedence over that file's description. Return the consolidated list — at most five new lessons — the attachments, the already-held lines and how many lessons were dropped over that cap, as that section says; no choice is returned as a decision needed — the caller writes the list to the run's candidates file, and the person chooses later, through standards-update.
 
 **Result:** fewer, clearer candidates, each with its suggested destination and its evidence, for the person to choose from when they run standards-update; a lesson an earlier run already filed counts as support for that candidate instead of being filed again.
 

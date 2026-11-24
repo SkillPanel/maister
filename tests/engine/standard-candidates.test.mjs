@@ -68,6 +68,8 @@ test('each guide consolidates, writes the candidates file and asks nothing about
     assert.ok(close.includes('run with no argument in this session or a fresh one'), `${workflow}: the command works in the same session too`);
     assert.ok(close.includes('never one per candidate; with no candidates there is no such line'), `${workflow}: once, and only with candidates`);
     assert.ok(close.includes('each lesson it attached to an earlier run\'s candidate'), `${workflow}: the close lists the attachments`);
+    assert.ok(consolidate.includes('keeps at most five new lessons'), `${workflow}: the cap is asked for`);
+    assert.ok(close.includes('how many new lessons were dropped over the cap of five'), `${workflow}: the close says the dropped count`);
     return [consolidate, close];
   });
   for (const each of steps.slice(1)) assert.deepEqual(each, steps[0], 'the three guides word the hand-over alike');
@@ -81,7 +83,7 @@ test('the candidate description lives in one reference that every other step poi
   }
   for (const field of ['`id`', '`label`', '`line`', '`destination`', '`evidence`', '`recommended`', '`already_held`', '`standard-candidates-applied.json`',
     '`version`', '`attached`', '`seen_in`', '`--json`', '`{run, id, evidence, line}`', '<run>#<id> [<action>; seen in <N>] <label>: <rule>',
-    '`guards`', '`caught_by`', '`dismissed`', '`{reason, by, date}`', '**expired**', '`{queue, closed, problems}`']) {
+    '`dropped`', '**Keep at most five new lessons.**', '`guards`', '`caught_by`', '`dismissed`', '`{reason, by, date}`', '**expired**', '`{queue, closed, problems}`']) {
     assert.ok(reference.includes(field), `the file shape names ${field}`);
   }
   const pointers = {

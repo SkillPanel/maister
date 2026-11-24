@@ -770,7 +770,8 @@ than retried.
    queue: [the queue's lines as printed, or none]." It merges duplicates,
    attaches a lesson the open queue already holds to that candidate, matches the
    rest against what the project's standards and documents already hold,
-   suggests a destination and returns each with its evidence, as docs-manager's
+   suggests a destination, keeps at most five new lessons and returns each with
+   its evidence and how many it dropped, as docs-manager's
    `references/standard-candidates.md` says. When the queue cannot be read, say
    so in the prompt in its place and go on. Write
    what it returns to `standard-candidates.json` in the task directory, in the
@@ -858,7 +859,9 @@ that commit.
 the close names the run's task directory, lists each candidate — its line, its
 destination and its evidence — and each already-held line with the rule that
 holds it, then each lesson it attached to an earlier run's candidate — that
-candidate's label and how many runs have now seen it — and **Next** ends, after the fresh-session suggestion, with one line
+candidate's label and how many runs have now seen it — and, when the file's
+`dropped` is not zero, how many new lessons were dropped over the cap of five;
+**Next** ends, after the fresh-session suggestion, with one line
 more: `/maister:standards-update`, run with no argument in this session or a
 fresh one, which offers this run's candidates and asks where each goes. One line for all of them, never one per
 candidate; with no candidates there is no such line.

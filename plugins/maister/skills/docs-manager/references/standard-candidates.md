@@ -114,12 +114,17 @@ operation of that name. It reads; it never writes a document.
    contributor guide, and a fact about how one module works, its `where` that module alone with
    no class of code, to the architecture note; neither is ever suggested a standards file. A
    trick for one test helper or fixture is left out: it belongs in a comment beside the helper.
-6. **Return**, for each candidate offered: a label of a few words, the candidate line, the action
+6. **Keep at most five new lessons.** Attachments and already-held lines do not count: they file
+   nothing new. Rank the rest — first a candidate that guards security or data loss and names
+   the failure it prevents; then one whose evidence spans more than one group or fix of this
+   run; then an extend that changes what a contributor would do; then the others, with one a
+   check already catches last. Offer the first five and drop the rest, counting them.
+7. **Return**, for each candidate offered: a label of a few words, the candidate line, the action
    (new or extend, with the rule extended), the suggested destination, and the evidence (which
    groups or fixes showed it), `guards` when it guards security or data loss, and `caught_by`
-   when a check already catches it (*Offered, not recommended*). Then each
-   attachment, and each already-held line with the rule
-   that holds it.
+   when a check already catches it (*Offered, not recommended*). Then each attachment, each
+   already-held line with the rule that holds it, and how many new lessons were dropped over the
+   cap.
 
 The person still chooses: consolidation orders and places, it never decides what is kept.
 
@@ -149,6 +154,8 @@ offered again. The file is JSON:
   `evidence` is this run's groups or fixes, and `line`, optional, this run's own wording. An
   attachment is never offered on its own: it adds this run to that candidate's `seen_in`.
 - `already_held` — each `{line, held_by}`: the rule that already says it.
+- `dropped` — how many new lessons consolidation left out over the cap of five; 0 or absent when
+  it dropped none. The run's close says the count.
 - `consolidated` — false when consolidation failed and the lines are the work log's as written
   (each then `action` `new`, its destination the likeliest file by *Where one belongs*, and no
   `guards`).
