@@ -123,7 +123,7 @@ Take the analysis framework for the chosen type from the reference's **Analysis 
 4. **Research Phases** — the phases chosen above
 
 5. **Gathering Strategy**
-   - Number of information gatherer instances to launch (1-8)
+   - Number of information gatherer instances to launch: one per distinct source area the question needs
    - Focus area and rationale for each instance
    - Expected output file prefix for each instance
 
@@ -147,7 +147,7 @@ Take the analysis framework for the chosen type from the reference's **Analysis 
 
 **Output**: "Gathering Strategy" section in `planning/research-plan.md`
 
-**Decision Criteria**:
+**Decision Criteria**: the count follows the question, not a fixed number.
 - **Scope complexity**: Broader scope → more gatherers with narrower focus
 - **Source diversity**: More source types → align gatherers to source types
 - **Research type**: Technical → heavier codebase focus; Literature → heavier external focus
@@ -159,7 +159,7 @@ Take the analysis framework for the chosen type from the reference's **Analysis 
 ```markdown
 ## Gathering Strategy
 
-### Instances: [N] (max 8)
+### Instances: [N]
 
 | # | Category ID | Focus Area | Tools | Output Prefix |
 |---|------------|------------|-------|---------------|
@@ -168,13 +168,14 @@ Take the analysis framework for the chosen type from the reference's **Analysis 
 | 3 | external-apis | External API documentation | WebSearch, WebFetch | external-apis |
 
 ### Rationale
-[Brief explanation of why this split was chosen]
+[Brief explanation of why this split was chosen; above six gatherers, why each area needs its own]
 ```
 
 **Guardrails**:
 - Minimum: 1 gatherer (simple questions that only need one source type)
-- Maximum: 8 gatherers (prevent token waste and diminishing returns)
-- Each gatherer must have a distinct focus area (no overlapping categories)
+- No fixed maximum: one gatherer per distinct source area the question needs, and fewer when the sources are thin — a thin area folds into a neighbour rather than getting a gatherer of its own
+- Never two gatherers on overlapping areas: each has a distinct focus (no overlapping categories)
+- Above six gatherers, the Rationale says why each area needs its own gatherer rather than sharing one
 - The category ID becomes the `source_category` parameter for the information-gatherer agent
 - The output prefix becomes the file naming convention: `analysis/findings/[prefix]-*.md`
 
