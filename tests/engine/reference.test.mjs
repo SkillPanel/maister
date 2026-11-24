@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE, ENGINE_DIR, ROOT, run, variantRoot } from '../helpers.mjs';
+import { ENGINE, ENGINE_DIR, ROOT, run, scratchTree, variantRoot } from '../helpers.mjs';
 import { PRINT_MAX, reference as printReference } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
 
 // `reference` prints a section of the plugin's own Markdown, so a session
@@ -224,13 +224,16 @@ test('every --at a skill, an agent or a workflow guide spells in a reference cal
   }
 });
 
+/** The plugin-root forms a pointer may open with: the placeholder, and the variable in its source and Copilot build spellings. */
+const ROOT_PREFIX = String.raw`<plugin[ _]root>\/|\$\{(?:CLAUDE|MAISTER)_PLUGIN_ROOT\}\/|\$(?:CLAUDE|MAISTER)_PLUGIN_ROOT\/`;
+
 /**
  * The pointers a main-session text names: each backticked `.md` path, and each
  * `--at=` value a reference call spells, with where it stands in the text.
  */
 function pointersIn(text) {
   const found = [];
-  for (const match of text.matchAll(/`((?:<plugin[ _]root>\/|\$\{CLAUDE_PLUGIN_ROOT\}\/|\$CLAUDE_PLUGIN_ROOT\/)?[\w./-]+\.md)`/g)) {
+  for (const match of text.matchAll(new RegExp(String.raw`\`((?:${ROOT_PREFIX})?[\w./-]+\.md)\``, 'g'))) {
     found.push({ given: match[1], after: text.slice(match.index + match[0].length, match.index + match[0].length + 8), at: false });
   }
   for (const match of text.matchAll(/--at=(?:"([^"]+)"|'([^']+)'|([^\s"'`]+))/g)) {
@@ -242,31 +245,37 @@ function pointersIn(text) {
   return found;
 }
 
-/** The plugin file a pointer in `from` names, resolved as a reader would: beside it, then the engine, the plugin root and `skills/`. */
-function pointed(given, from) {
-  const bare = given.replace(/^(?:<plugin[ _]root>|\$\{CLAUDE_PLUGIN_ROOT\}|\$CLAUDE_PLUGIN_ROOT)\//, '');
-  const candidates = [path.resolve(path.dirname(from), bare), path.join(ENGINE_DIR, bare), path.join(PLUGIN, bare), path.join(PLUGIN, 'skills', bare)];
+/** The file a pointer in `from` names in the plugin tree at `root`, resolved as a reader would: beside it, then the engine, the plugin root and `skills/`. */
+function pointed(given, from, root) {
+  const bare = given.replace(new RegExp(`^(?:${ROOT_PREFIX})`), '');
+  const candidates = [path.resolve(path.dirname(from), bare), path.join(root, 'skills/workflow-engine', bare), path.join(root, bare), path.join(root, 'skills', bare)];
   return candidates.find(file => {
-    const relative = path.relative(PLUGIN, file);
+    const relative = path.relative(root, file);
     return !relative.startsWith('..') && !path.isAbsolute(relative) && fs.existsSync(file) && fs.statSync(file).isFile();
   }) ?? null;
 }
 
-test('every pointer the main session reads to a file past the cap names a section', () => {
-  // A session following a bare pointer to such a file prints it whole and is refused reference-too-long.
-  // Agents' own reads are a subagent's, so agents/ is not scanned.
+/**
+ * Every pointer the main session reads in the plugin tree at `root` to a file
+ * past the cap there that names no section, each as `<from>: <pointer> → <file>`,
+ * with how many pointers to files past the cap were checked. A file is measured
+ * as that tree holds it, so the Copilot build, whose rewrites lengthen some
+ * files, is judged on its own text. Agents' own reads are a subagent's, so
+ * agents/ is not scanned.
+ */
+function barePastCap(root) {
   const overCap = new Map();
   const isOver = file => {
     if (!overCap.has(file)) {
-      const result = printReference({ ats: [file], pluginRoot: PLUGIN });
+      const result = printReference({ ats: [file], pluginRoot: root });
       overCap.set(file, !result.ok && result.errors[0].code === 'reference-too-long');
     }
     return overCap.get(file);
   };
-  const shown = file => path.relative(PLUGIN, file).split(path.sep).join('/');
-  const files = fs.readdirSync(PLUGIN, { recursive: true }).map(String)
+  const shown = file => path.relative(root, file).split(path.sep).join('/');
+  const files = fs.readdirSync(root, { recursive: true }).map(String)
     .filter(file => file.endsWith('.md') && !file.split(/[\\/]/).includes('agents'))
-    .map(file => path.join(PLUGIN, file));
+    .map(file => path.join(root, file));
   const bare = [];
   let checked = 0;
   for (const file of files) {
@@ -274,15 +283,45 @@ test('every pointer the main session reads to a file past the cap names a sectio
     // defaults live rather than sending the session to read a file, and is left out here.
     const text = fs.readFileSync(file, 'utf8').replace(/^### Step 0\b[\s\S]*?(?=^#{1,3} |(?![\s\S]))/m, '').replace(/\s+/g, ' ');
     for (const pointer of pointersIn(text)) {
-      const target = pointed(pointer.given, file);
+      const target = pointed(pointer.given, file, root);
       if (target === null || !isOver(target)) continue;
       checked += 1;
       const named = pointer.at ? pointer.named : /^\s?(?:,\s?|\(\s?)?(?:§|\*)/.test(pointer.after);
       if (!named) bare.push(`${shown(file)}: ${pointer.at ? '--at=' : ''}${pointer.given} → ${shown(target)}`);
     }
   }
-  assert.ok(checked >= 40, `${checked} pointers to files past the cap were found`);
-  assert.deepEqual(bare, [], `pointers to a file past the cap that name no section:\n${bare.join('\n')}`);
+  return { checked, bare };
+}
+
+test('every pointer the main session reads to a file past the cap names a section, on both builds', () => {
+  // A session following a bare pointer to such a file prints it whole and is refused reference-too-long.
+  for (const [tree, root] of [['source', PLUGIN], ['Copilot build', variantRoot()]]) {
+    const { checked, bare } = barePastCap(root);
+    assert.ok(checked >= 40, `${tree}: ${checked} pointers to files past the cap were found`);
+    assert.deepEqual(bare, [], `${tree}: pointers to a file past the cap that name no section:\n${bare.join('\n')}`);
+  }
+});
+
+test('a file under the cap on the source tree and past it on the Copilot build fails its bare pointer there', t => {
+  // Build step 5 rewrites CLAUDE.md to .github/copilot-instructions.md in skills, 22 characters
+  // longer each time: a file just under the cap at the source grows past it in the build.
+  // The synthetic build below applies the same two substitutions as that step.
+  const build = fs.readFileSync(path.join(ROOT, 'platforms/copilot-cli/build.sh'), 'utf8');
+  assert.ok(build.includes(String.raw`sedi -e 's#\.claude/CLAUDE\.md#AGENTS.md#g' -e 's/CLAUDE\.md/.github\/copilot-instructions.md/g'`), 'build step 5 is the rewrite copied here');
+  const mention = 'Read the project\'s CLAUDE.md block first.\n';
+  const body = `# Big\n\n## Part\n\n${mention.repeat(10)}`;
+  const big = body + 'x'.repeat(PRINT_MAX - 100 - body.length) + '\n';
+  const skill = '# Demo\n\nFollow `references/big.md` before the first step.\n';
+  const copilot = text => text.replace(/\.claude\/CLAUDE\.md/g, 'AGENTS.md').replace(/CLAUDE\.md/g, '.github/copilot-instructions.md');
+  const source = scratchTree(t, { 'skills/demo/SKILL.md': skill, 'skills/demo/references/big.md': big });
+  const built = scratchTree(t, { 'skills/demo/SKILL.md': copilot(skill), 'skills/demo/references/big.md': copilot(big) });
+
+  assert.ok(printReference({ ats: ['skills/demo/references/big.md'], pluginRoot: source }).ok, 'whole on the source tree');
+  assert.deepEqual(barePastCap(source), { checked: 0, bare: [] });
+  const refused = printReference({ ats: ['skills/demo/references/big.md'], pluginRoot: built });
+  assert.equal(refused.ok, false);
+  assert.equal(refused.errors[0].code, 'reference-too-long', 'past the cap on the Copilot build');
+  assert.deepEqual(barePastCap(built), { checked: 1, bare: ['skills/demo/SKILL.md: references/big.md → skills/demo/references/big.md'] });
 });
 
 test('the inline runner route prints each runner whole in the calls its skill spells, every one under the cap', () => {
