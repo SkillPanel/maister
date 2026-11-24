@@ -101,7 +101,7 @@ Adapt search depth based on task scope:
 | Medium | 4-8 | Standard — thorough component search |
 | Large | >8 | Deep — exhaustive codebase search |
 
-**Search for reusable code** (using Grep and Glob):
+**Search for reusable code** (with `grep` and `find` through the shell, or `rg` when present):
 - Similar features or functionality (matching patterns, workflows)
 - Existing UI components (forms, tables, dialogs, layouts)
 - Related models, services, controllers

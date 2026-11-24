@@ -222,9 +222,9 @@ accepting the risk as it stands is offered by the caller on its own.
 
 **Read**: Read specifications, source code, configuration files, database schemas
 
-**Grep**: Search codebase for features, patterns, implementations
+**`grep` or `rg` through the shell**: Search codebase for features, patterns, implementations
 
-**Glob**: Find relevant files (models, controllers, routes, tests)
+**`find` through the shell**: Find relevant files (models, controllers, routes, tests)
 
 **Bash**: Execute az CLI (Azure resources), gh CLI (GitHub), database queries, test commands
 

@@ -81,7 +81,8 @@ const WORKTREES = '.worktrees';
  * source renamed to `as` when it is given.
  *
  * Returns `{ok, to, copied: [{from, to, files}], skipped: [{from, code,
- * message}]}` — `ok` false when anything was skipped — or `{ok: false, code,
+ * message}]}` — `ok` true when at least one source was copied, the others
+ * still listed under `skipped`, and false when none was — or `{ok: false, code,
  * message}` for a refusal. Every path it reports is relative to the run
  * directory and spelled with `/`.
  */
@@ -143,7 +144,7 @@ export function importContext({ state, to, from, as = null }) {
       skipped.push({ from: given, code: 'import-copy-failed', message: `${given} could not be copied: ${err.message}` });
     }
   }
-  return { ok: skipped.length === 0, to: posix(runDir, dir), copied, skipped };
+  return { ok: copied.length > 0, to: posix(runDir, dir), copied, skipped };
 }
 
 /**

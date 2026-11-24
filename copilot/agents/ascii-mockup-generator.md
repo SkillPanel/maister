@@ -94,7 +94,7 @@ Feature Type: [new-feature / enhancement]
 - Icon library and notification systems
 - Interaction patterns (modals, dropdowns, context menus)
 
-**Use search tools** (Glob, Grep) to find:
+**Search** with `grep`/`find` (or `rg` when present) through the shell to find:
 - Layout files: `*Layout*`, `Header*`, `Sidebar*`, `Navigation*`, `Footer*`
 - UI components: `Button*`, `Form*`, `Table*`, `Modal*`, `Toast*`
 - Icon patterns: `Icon*`, `icons/`

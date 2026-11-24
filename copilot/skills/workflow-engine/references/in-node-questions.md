@@ -462,8 +462,9 @@ taking their defaults. These rules hold:
   question the node could not have formed before — a follow-up, another refinement round, a
   retry after a spent budget, the fix loop's stopping point — the node may send one more set for
   those questions alone, in the same attempt. An attempt sends at most three requests: the first
-  and two follow-up rounds. Each request carries its `round` (1, 2 or 3), and each answer folded
-  from a follow-up is stamped with its `round`, which is how the engine counts them. Within one
+  and two follow-up rounds. The engine numbers each request's `round` (1, 2 or 3) from the answers
+  already recorded, and stamps each answer folded from a follow-up with it, which is how it counts
+  them; the question set a node writes never carries `round`. Within one
   attempt, a later round's answer to the same question is the one in effect: the earlier round's
   stays as history and is never counted as a choice, even when the follow-up words the question
   differently.

@@ -56,8 +56,8 @@ Research type classification determines which methodology to apply. Use question
 5. **Integration Mapping**: Understand connections and dependencies
 
 **Tools**:
-- Glob: File pattern matching
-- Grep: Code pattern searching
+- `find` through the shell: File pattern matching
+- `grep` (or `rg` when present) through the shell: Code pattern searching
 - Read: Full file analysis
 - Bash: Directory structure exploration
 
@@ -85,9 +85,9 @@ Research type classification determines which methodology to apply. Use question
 5. **Synthesis**: Create comprehensive requirement specification
 
 **Tools**:
-- Glob: Find requirement documents
+- `find` through the shell: Find requirement documents
 - Read: Document analysis
-- Grep: Search for keywords (requirement, must, should, acceptance criteria)
+- `grep` through the shell: Search for keywords (requirement, must, should, acceptance criteria)
 
 **Expected Timeline**: 2-3 phases
 
