@@ -12,8 +12,8 @@ a pitfall met during the work, or an important fact about the code. Each comes w
 what went wrong without it, or what it protects.
 
 The idea is kept open on purpose. A project uses its standards as a knowledge base, so none of
-these is set aside for what it is — a candidate is closed only by a person's choice or by time
-(*Closing a candidate*), never for its kind:
+these is set aside for what it is — once offered, a candidate is closed only by a person's choice
+or by time (*Closing a candidate*):
 
 - one whose scope is a domain, a module or a single feature rather than the whole project;
 - one that a test also enforces — offered, though never recommended (*Offered, not recommended*);
@@ -97,8 +97,8 @@ operation of that name. It reads; it never writes a document.
    as *The open queue* prints them. Match by hazard, not by wording: a line that teaches the same
    lesson as a queued candidate — the same failure mode, whatever the feature or module it was
    met in — is that candidate seen again. It is not offered again: it becomes an attachment,
-   `{run, id, evidence}`, naming the queued candidate and carrying this run's groups or fixes as
-   its evidence. With no queue passed, every line goes on to the next step.
+   `{run, id, evidence, line}`, naming the queued candidate and carrying this run's groups or
+   fixes as its evidence and this run's wording as its line. With no queue passed, every line goes on to the next step.
 3. **Match against what the project holds.** Scan INDEX.md and read the standards and project
    documents it points to that touch each candidate's topic — their text, not only their
    headings.
@@ -146,8 +146,8 @@ offered again. The file is JSON:
   heading, for `extend`), `destination` (the suggested file), `evidence` (which groups or fixes
   showed it), `guards` (`security` or `data-loss`, only when the candidate guards one and its
   why names the failure it prevents) and `caught_by` (the check that already catches it, only
-  then). A file written earlier may carry `recommended` and `reason`
-  too; they are ignored, and a file written now leaves them out.
+  then). A file written earlier may carry `recommended` and `reason` too; they are ignored, and
+  a file written now leaves them out.
 - `attached` — each `{run, id, evidence, line}`: a lesson of this run that an open candidate of
   an earlier run already teaches. `run` names that candidate's run as `<type>/<name>` — its task
   directory's last two folders, always with a forward slash — and `id` the candidate in it;
@@ -169,9 +169,9 @@ the candidates file itself.
 A candidate is recommended when it has been seen in two runs or more (`reason`: "seen in N
 runs"), or when it guards security or data loss and names the failure it prevents (`reason`:
 "guards security" or "guards data loss") — unless it has a `caught_by`, which no support
-outweighs. Nothing else recommends one: not that it extends a rule
-the project has, and not evidence from several groups of one run, which only orders it. A
-candidate the standards already hold is not a candidate at all (`already_held`).
+outweighs. Nothing else recommends one: not that it extends a rule the project has, and not
+evidence from several groups of one run, which only orders it. A candidate the standards already
+hold is not a candidate at all (`already_held`).
 
 **`seen_in`** is never written: the script reads it across runs. A candidate's `seen_in` is its
 own run, then every other run whose `attached` names it, each once, ordered by run date and then
