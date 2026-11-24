@@ -12,7 +12,8 @@ a pitfall met during the work, or an important fact about the code. Each comes w
 what went wrong without it, or what it protects.
 
 The idea is kept open on purpose. A project uses its standards as a knowledge base, so none of
-these is set aside for what it is:
+these is set aside for what it is — a candidate is closed only by a person's choice or by time
+(*Closing a candidate*), never for its kind:
 
 - one whose scope is a domain, a module or a single feature rather than the whole project;
 - one that a test also enforces — offered, though never recommended (*Offered, not recommended*);
@@ -98,7 +99,8 @@ candidates in its close with that task directory, and names `/maister:standards-
 under **Next**. Run with no argument in the same session, standards-update finds the close and
 offers that run's candidates; in a fresh session it finds the most recent run whose file still
 holds something to apply and offers it — its own candidates and the open ones it attached to.
-Either way an applied candidate is not offered again. The file is JSON:
+Either way a closed candidate — applied, dismissed or expired (*Closing a candidate*) — is not
+offered again. The file is JSON:
 
 - `version` — `2` for a file written to this description. A file without it was written
   earlier and is read the same way: no attachments, nothing dismissed.
@@ -120,8 +122,9 @@ Either way an applied candidate is not offered again. The file is JSON:
   `guards`).
 
 `id`, `label`, `line` and `destination` are required; an entry without them is not offered.
-Which candidates have been applied is recorded beside it, in `standard-candidates-applied.json`,
-by standards-update's script — never by hand, and never in the candidates file itself.
+Which candidates have been applied or dismissed is recorded beside it, in
+`standard-candidates-applied.json`, by standards-update's script — never by hand, and never in
+the candidates file itself.
 
 **`recommended`** is never written either: the script works it out on read, with its `reason`.
 A candidate is recommended when it has been seen in two runs or more (`reason`: "seen in N
@@ -136,12 +139,35 @@ own run, then every other run whose `attached` names it, each once, ordered by r
 by name. A run's date is the `YYYY-MM-DD` that opens its directory name, else the day its
 candidates file was last written. Applying a candidate closes every attachment that names it.
 
+## Closing a candidate
+
+A candidate stays open until one of three things closes it. Its state is worked out each time
+the script reads it, the first that holds:
+
+1. **applied** — a person wrote it into a standard or document through standards-update.
+2. **dismissed** — a person reviewed it and declined it, with a reason.
+3. **expired** — no second run has met it (`seen_in` holds its own run alone) and its run is
+   dated more than 30 days before today. Nothing is written when it expires and nothing is
+   deleted: the candidate stays in its file, reported as expired. A later run that files the same
+   lesson files it as new, since the queue no longer holds it.
+4. otherwise **open** — offered, and listed in the queue.
+
+An attachment's state is the state of the candidate it names, so closing a candidate closes
+every attachment that names it.
+
+`standard-candidates-applied.json` holds `{applied, dismissed}`: `applied` the ids applied, and
+`dismissed` a map from each dismissed id to `{reason, by, date}` — why it was declined, who
+declined it, and the day (`YYYY-MM-DD`). A file written earlier holds `applied` alone and
+dismisses nothing. Applying a dismissed candidate takes its dismissal back; dismissing an applied
+one is refused. The script's `applied` and `dismiss` verbs are the only writers.
+
 ## The open queue
 
 Every open candidate of every run under `.maister/tasks/`, one line each, as
 `node <plugin root>/skills/standards-update/scripts/candidates.mjs queue` prints it from the
-project root. `--skip=<task dir>` leaves one run out — the run being consolidated — and `--tasks`
-names another tasks folder. The output is stable: consolidation reads the text, and a tool reads
+project root. `--skip=<task dir>` leaves one run out — the run being consolidated — `--tasks`
+names another tasks folder, and `--today=<YYYY-MM-DD>` sets the day expiry is judged on (today,
+in UTC, by default). The output is stable: consolidation reads the text, and a tool reads
 `--json`.
 
 **Text**, oldest run first and each run's candidates in file order:
@@ -156,11 +182,13 @@ candidate it prints nothing. A file it cannot read, or an entry that is not a ca
 attachment, is one line on stderr, `candidates: <path>: <message>`, and never a failure: the exit
 is 0, and 2 only on a usage error.
 
-**`--json`** prints one document, `{queue, problems}`:
+**`--json`** prints one document, `{queue, closed, problems}`:
 
 - `queue` — each open candidate, in the text's order: `run` (`<type>/<name>`), `dir` (its task
   directory, absolute), `date` (the run's date), `id`, `label`, `rule`, `action` (`new` or
   `extend`), `extends` (null for `new`), `destination`, `seen_in` (run names, its own first),
   `recommended`, `reason` (null when not recommended) and `caught_by` (null when no check catches
   it).
+- `closed` — `{applied, dismissed, expired}`: how many candidates under the tasks folder each
+  state holds.
 - `problems` — each `{path, message}`, as stderr names them in the text form.

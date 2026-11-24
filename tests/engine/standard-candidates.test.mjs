@@ -76,11 +76,12 @@ test('each guide consolidates, writes the candidates file and asks nothing about
 test('the candidate description lives in one reference that every other step points at', () => {
   const read = file => fs.readFileSync(path.join(PLUGIN_DIR, file), 'utf8').replace(/\s+/g, ' ');
   const reference = read(`skills/docs-manager/${REFERENCE}`);
-  for (const heading of ['## What a candidate is', '## How one is written', '## Where one belongs', '## Consolidation', "## The run's candidates file", '## The open queue']) {
+  for (const heading of ['## What a candidate is', '## How one is written', '## Where one belongs', '## Offered, not recommended', '## Consolidation', "## The run's candidates file", '## Closing a candidate', '## The open queue']) {
     assert.ok(reference.includes(heading), `the reference holds ${heading}`);
   }
   for (const field of ['`id`', '`label`', '`line`', '`destination`', '`evidence`', '`recommended`', '`already_held`', '`standard-candidates-applied.json`',
-    '`version`', '`attached`', '`seen_in`', '`--json`', '`{run, id, evidence, line}`', '<run>#<id> [<action>; seen in <N>] <label>: <rule>']) {
+    '`version`', '`attached`', '`seen_in`', '`--json`', '`{run, id, evidence, line}`', '<run>#<id> [<action>; seen in <N>] <label>: <rule>',
+    '`guards`', '`caught_by`', '`dismissed`', '`{reason, by, date}`', '**expired**', '`{queue, closed, problems}`']) {
     assert.ok(reference.includes(field), `the file shape names ${field}`);
   }
   const pointers = {
@@ -104,6 +105,9 @@ test('standards-update, given nothing, offers the latest run\'s candidates throu
   assert.ok(skill.includes('other runs hold candidates too'), 'the others are mentioned');
   assert.ok(skill.includes('When none is, the question says no candidate has been seen in two runs yet or guards security or data loss'), 'none qualifying is said');
   assert.ok(skill.includes('never taken as given'), 'the destination is still confirmed');
+  assert.ok(skill.includes('`node <plugin root>/skills/standards-update/scripts/candidates.mjs dismiss --run=<run dir> --id=<id> … --reason=<reason> --by=<name>`'), 'a candidate a person declines is dismissed');
+  assert.ok(skill.includes('"Keep them open (Recommended)"'), 'keeping the rest open is the recommended answer');
+  assert.ok(skill.includes('until it is dismissed or expires'), 'an unchosen candidate is offered again only until it closes');
 });
 
 test('standards-update scans back far enough to reach a run\'s close and takes that run\'s candidates from its file', () => {
@@ -143,8 +147,13 @@ function runWith(where, type, name, doc, seconds) {
   return dir;
 }
 
+/** The day the fixtures' runs are judged on, unless a test names another: inside every 2026-01 run's window. */
+const TODAY = '--today=2026-01-10';
+const DATED = ['latest', 'show', 'queue', 'dismiss'];
+
 function script(where, args) {
-  const result = run(SCRIPT, args, undefined, {}, where.root);
+  const dated = DATED.includes(args[0]) && !args.some(arg => arg.startsWith('--today=')) ? [...args, TODAY] : args;
+  const result = run(SCRIPT, dated, undefined, {}, where.root);
   let report = null;
   try {
     report = JSON.parse(result.stdout);
@@ -158,7 +167,7 @@ test('latest: no tasks directory and no candidates file both answer with no run'
   const where = project(t);
   const none = script(where, ['latest']);
   assert.equal(none.code, 0, none.stderr);
-  assert.deepEqual(none.report, { run: null, candidates: [], already_held: [], attached: [], others: [], problems: [] });
+  assert.deepEqual(none.report, { run: null, candidates: [], already_held: [], attached: [], others: [], closed: { applied: 0, dismissed: 0, expired: 0 }, problems: [] });
   fs.mkdirSync(path.join(where.tasks, 'development', '2026-01-05-plain'), { recursive: true });
   assert.equal(script(where, ['latest']).report.run, null);
 });
@@ -320,7 +329,8 @@ test('queue: every open candidate across runs, oldest first, one line each, its 
 
   const json = script(where, ['queue', '--json']);
   assert.equal(json.code, 0, json.stderr);
-  assert.deepEqual(Object.keys(json.report).sort(), ['problems', 'queue']);
+  assert.deepEqual(Object.keys(json.report).sort(), ['closed', 'problems', 'queue']);
+  assert.deepEqual(json.report.closed, { applied: 1, dismissed: 0, expired: 0 });
   assert.deepEqual(json.report.queue[0], {
     run: 'development/2026-01-05-first', dir: first, date: '2026-01-05', id: 'a', label: 'Atomic writes', rule: 'Rule a',
     action: 'new', extends: null, destination: 'standards/global/conventions.md',
@@ -339,10 +349,10 @@ test('queue: no tasks folder prints nothing; an undated run is dated by its file
   const empty = script(where, ['queue']);
   assert.equal(empty.code, 0, empty.stderr);
   assert.equal(empty.stdout, '');
-  assert.deepEqual(script(where, ['queue', '--json']).report, { queue: [], problems: [] });
+  assert.deepEqual(script(where, ['queue', '--json']).report, { queue: [], closed: { applied: 0, dismissed: 0, expired: 0 }, problems: [] });
 
   runWith(where, 'development', 'undated-run', { candidates: [candidate('a')] }, 1_000_000);
-  assert.equal(script(where, ['queue', '--json']).report.queue[0].date, '1970-01-12');
+  assert.equal(script(where, ['queue', '--json', '--today=1970-01-20']).report.queue[0].date, '1970-01-12');
   for (const args of [['queue', '--id=a'], ['queue', '--run=x'], ['latest', '--json'], ['show', '--run=x', '--skip=y']]) {
     const usage = script(where, args);
     assert.equal(usage.code, 2, args.join(' '));
@@ -383,4 +393,90 @@ test('caught by a check: offered, never recommended however many runs met it, an
   ]);
   const queued = script(where, ['queue', '--json']).report.queue;
   assert.deepEqual(queued.map(each => [each.id, each.caught_by]), [['caught', 'the lint rule'], ['plain', null]], 'the queue keeps file order');
+});
+
+// Closing a candidate: dismissed by a person, or expired when no second run met it.
+
+const settledFile = dir => JSON.parse(fs.readFileSync(path.join(dir, 'standard-candidates-applied.json'), 'utf8'));
+
+test('dismiss: records the reason, who and the day, closes the candidate and its attachments; applied takes it back', t => {
+  const where = project(t);
+  const first = runWith(where, 'development', '2026-01-05-first', { candidates: [candidate('a'), candidate('b'), candidate('c')] }, 1_000_000);
+  const second = runWith(where, 'development', '2026-01-06-second', { version: 2, candidates: [], attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: 'group 1' }] }, 2_000_000);
+  const before = fs.readFileSync(path.join(first, 'standard-candidates.json'), 'utf8');
+
+  const done = script(where, ['dismiss', `--run=${first}`, '--id=a', '--reason=not a rule here', '--by=Dana']);
+  assert.equal(done.code, 0, done.stderr);
+  assert.deepEqual(done.report, { ok: true, dismissed: ['a'], left: 2 });
+  assert.deepEqual(settledFile(first), { applied: [], dismissed: { a: { reason: 'not a rule here', by: 'Dana', date: '2026-01-10' } } });
+  assert.equal(fs.readFileSync(path.join(first, 'standard-candidates.json'), 'utf8'), before, 'the candidates file is never rewritten');
+
+  const shown = script(where, ['show', `--run=${second}`]).report;
+  assert.deepEqual(shown.attached.map(each => each.state), ['dismissed'], 'its attachment is closed with it');
+  assert.deepEqual(shown.closed, { applied: 0, dismissed: 1, expired: 0 });
+  assert.deepEqual(script(where, ['queue', '--json']).report.queue.map(each => each.id), ['b', 'c']);
+
+  script(where, ['applied', `--run=${first}`, '--id=a']);
+  assert.deepEqual(settledFile(first), { applied: ['a'], dismissed: {} }, 'applying a dismissed one takes the dismissal back');
+
+  const refused = script(where, ['dismiss', `--run=${first}`, '--id=a', '--id=zzz', '--reason=x', '--by=Dana']);
+  assert.equal(refused.code, 1);
+  assert.deepEqual(refused.report.refused.sort(), ['a is already applied', 'zzz is not a candidate of this run']);
+  assert.deepEqual(settledFile(first), { applied: ['a'], dismissed: {} }, 'a refusal records nothing');
+
+  const all = script(where, ['dismiss', `--run=${first}`, '--all', '--reason=settled in review', '--by=Dana', '--today=2026-01-11']);
+  assert.deepEqual(all.report, { ok: true, dismissed: ['b', 'c'], left: 0 }, '--all takes every candidate not applied');
+  assert.equal(settledFile(first).dismissed.c.date, '2026-01-11');
+
+  for (const args of [
+    ['dismiss', `--run=${first}`, '--id=b', '--by=Dana'],
+    ['dismiss', `--run=${first}`, '--id=b', '--reason=x'],
+    ['dismiss', `--run=${first}`, '--reason=x', '--by=Dana'],
+    ['dismiss', `--run=${first}`, '--id=b', '--all', '--reason=x', '--by=Dana'],
+    ['dismiss', '--id=b', '--reason=x', '--by=Dana'],
+    ['applied', `--run=${first}`, '--id=b', '--reason=x'],
+    ['latest', '--today=2026-02-30'],
+    ['queue', '--today=yesterday'],
+  ]) {
+    const usage = script(where, args);
+    assert.equal(usage.code, 2, args.join(' '));
+    assert.match(usage.stderr, /^usage:/m, args.join(' '));
+  }
+});
+
+test('expired: seen in one run only and more than 30 days old, worked out on read, nothing written or deleted', t => {
+  const where = project(t);
+  const lonely = runWith(where, 'development', '2026-01-05-lonely', { candidates: [candidate('a')] }, 1_000_000);
+  const met = runWith(where, 'development', '2026-01-06-met', { candidates: [candidate('b')] }, 2_000_000);
+  runWith(where, 'development', '2026-01-20-later', { version: 2, candidates: [], attached: [{ run: 'development/2026-01-06-met', id: 'b', evidence: 'group 1' }] }, 3_000_000);
+  const files = () => fs.readdirSync(lonely).sort();
+  const before = files();
+
+  const inside = script(where, ['queue', '--json', '--today=2026-02-04']).report;
+  assert.deepEqual(inside.queue.map(each => each.id), ['a', 'b'], 'thirty days on, still open');
+  const after = script(where, ['queue', '--json', '--today=2026-02-05']).report;
+  assert.deepEqual(after.queue.map(each => each.id), ['b'], 'a second sighting keeps a candidate from expiring');
+  assert.deepEqual(after.closed, { applied: 0, dismissed: 0, expired: 1 });
+  assert.deepEqual(files(), before, 'expiry writes nothing');
+
+  const shown = script(where, ['show', `--run=${lonely}`, '--today=2026-02-05']).report;
+  assert.equal(shown.run.dir, lonely, 'the run is still read');
+  assert.deepEqual(shown.candidates, [], 'its expired candidate is not offered');
+  assert.equal(script(where, ['latest', '--today=2026-02-05']).report.run.dir, path.join(where.tasks, 'development', '2026-01-20-later'));
+  assert.ok(script(where, ['latest', '--today=2026-03-30']).report.run.dir.endsWith(`${path.sep}2026-01-20-later`), 'an attachment still offers its open candidate');
+  assert.equal(script(where, ['show', `--run=${met}`, '--today=2027-01-01']).report.candidates.length, 1, 'seen in two runs, it never expires');
+});
+
+test('an earlier candidates file — no version, no attached, no dismissed — reads, its candidates open unless applied', t => {
+  const where = project(t);
+  const dir = runWith(where, 'development', '2026-01-05-earlier', {
+    candidates: [candidate('a', { recommended: true, reason: 'extends a rule' }), candidate('b')],
+    already_held: [], consolidated: true,
+  }, 1_000_000);
+  fs.writeFileSync(path.join(dir, 'standard-candidates-applied.json'), JSON.stringify({ applied: ['b'] }));
+  const report = script(where, ['latest']).report;
+  assert.equal(report.run.dir, dir);
+  assert.deepEqual(report.candidates.map(each => [each.id, each.recommended, each.seen_in]), [['a', false, ['development/2026-01-05-earlier']]]);
+  assert.deepEqual(report.attached, []);
+  assert.deepEqual(report.problems, []);
 });
