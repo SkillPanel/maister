@@ -1,9 +1,9 @@
 # Standard Candidates
 
 The one description of a standard candidate. The implementer writes candidates to it, a fix loop
-writes one to it, finalization's consolidation reads them against it and hands them over in the
-run's candidates file, and `standards-update` and the project's `CLAUDE.md` block point here
-rather than restating it.
+writes one to it, finalization's consolidation reads them against it and against the open queue
+of earlier runs, and hands them over in the run's candidates file; `standards-update` and the
+project's `CLAUDE.md` block point here rather than restating it.
 
 ## What a candidate is
 
@@ -55,19 +55,27 @@ operation of that name. It reads; it never writes a document.
 
 1. **Merge duplicates.** The same lesson from different groups, in different words, becomes one
    candidate in the clearest wording; every source line stays as its evidence.
-2. **Match against what the project holds.** Scan INDEX.md and read the standards and project
-   documents it points to that touch each candidate's topic.
+2. **Match against the open queue** — the open candidates of earlier runs, which the caller passes
+   as *The open queue* prints them. Match by hazard, not by wording: a line that teaches the same
+   lesson as a queued candidate — the same failure mode, whatever the feature or module it was
+   met in — is that candidate seen again. It is not offered again: it becomes an attachment,
+   `{run, id, evidence}`, naming the queued candidate and carrying this run's groups or fixes as
+   its evidence. With no queue passed, every line goes on to the next step.
+3. **Match against what the project holds.** Scan INDEX.md and read the standards and project
+   documents it points to that touch each candidate's topic — their text, not only their
+   headings.
    - A near-duplicate of an existing rule becomes **extend**: the rule's file and heading, and
      what the candidate adds to it.
    - A candidate an existing rule already says in full is **already held**: named with that rule,
      not offered, so the person sees it was not lost.
-3. **Tidy the wording** to *How one is written*: the rule, the reason, the scope; counts, line
+4. **Tidy the wording** to *How one is written*: the rule, the reason, the scope; counts, line
    numbers and stale identifiers taken out. The meaning is never changed.
-4. **Suggest a destination** for each, by *Where one belongs*: an existing file, or a new one
+5. **Suggest a destination** for each, by *Where one belongs*: an existing file, or a new one
    named for its topic.
-5. **Return**, for each candidate offered: a label of a few words, the candidate line, the action
+6. **Return**, for each candidate offered: a label of a few words, the candidate line, the action
    (new or extend, with the rule extended), the suggested destination, and the evidence (which
-   groups or fixes showed it). Then each already-held line with the rule that holds it.
+   groups or fixes showed it). Then each attachment, and each already-held line with the rule
+   that holds it.
 
 The person still chooses: consolidation orders and places, it never decides what is kept.
 
@@ -78,14 +86,21 @@ what consolidation returned to `standard-candidates.json` in the task directory,
 candidates in its close with that task directory, and names `/maister:standards-update` once
 under **Next**. Run with no argument in the same session, standards-update finds the close and
 offers that run's candidates; in a fresh session it finds the most recent run whose file still
-holds a candidate to apply and offers them. Either way an applied candidate is not offered again.
-The file is JSON:
+holds something to apply and offers it — its own candidates and the open ones it attached to.
+Either way an applied candidate is not offered again. The file is JSON:
 
+- `version` — `2` for a file written to this description. A file without it was written
+  earlier and is read the same way: no attachments, nothing dismissed.
 - `candidates` — each one offered: `id` (short, unique in the file), `label` (its few words),
   `line` (the candidate line), `action` (`new` or `extend`), `extends` (the rule's file and
   heading, for `extend`), `destination` (the suggested file), `evidence` (which groups or fixes
   showed it), `recommended` (true when well supported — its evidence in more than one place, or
   its action extending a rule the project already has) and `reason` (why, when recommended).
+- `attached` — each `{run, id, evidence, line}`: a lesson of this run that an open candidate of
+  an earlier run already teaches. `run` names that candidate's run as `<type>/<name>` — its task
+  directory's last two folders, always with a forward slash — and `id` the candidate in it;
+  `evidence` is this run's groups or fixes, and `line`, optional, this run's own wording. An
+  attachment is never offered on its own: it adds this run to that candidate's `seen_in`.
 - `already_held` — each `{line, held_by}`: the rule that already says it.
 - `consolidated` — false when consolidation failed and the lines are the work log's as written
   (each then `action` `new`, its destination the likeliest file by *Where one belongs*, and
@@ -94,3 +109,35 @@ The file is JSON:
 `id`, `label`, `line` and `destination` are required; an entry without them is not offered.
 Which candidates have been applied is recorded beside it, in `standard-candidates-applied.json`,
 by standards-update's script — never by hand, and never in the candidates file itself.
+
+**`seen_in`** is never written: the script reads it across runs. A candidate's `seen_in` is its
+own run, then every other run whose `attached` names it, each once, ordered by run date and then
+by name. A run's date is the `YYYY-MM-DD` that opens its directory name, else the day its
+candidates file was last written. Applying a candidate closes every attachment that names it.
+
+## The open queue
+
+Every open candidate of every run under `.maister/tasks/`, one line each, as
+`node <plugin root>/skills/standards-update/scripts/candidates.mjs queue` prints it from the
+project root. `--skip=<task dir>` leaves one run out — the run being consolidated — and `--tasks`
+names another tasks folder. The output is stable: consolidation reads the text, and a tool reads
+`--json`.
+
+**Text**, oldest run first and each run's candidates in file order:
+
+```
+<run>#<id> [<action>; seen in <N>] <label>: <rule>
+```
+
+`<action>` is `new`, or `extend <extends>`; `<N>` is the length of `seen_in`; `<rule>` is the
+candidate line without its leading `- ` and without everything from ` — why:` on. With no open
+candidate it prints nothing. A file it cannot read, or an entry that is not a candidate or an
+attachment, is one line on stderr, `candidates: <path>: <message>`, and never a failure: the exit
+is 0, and 2 only on a usage error.
+
+**`--json`** prints one document, `{queue, problems}`:
+
+- `queue` — each open candidate, in the text's order: `run` (`<type>/<name>`), `dir` (its task
+  directory, absolute), `date` (the run's date), `id`, `label`, `rule`, `action` (`new` or
+  `extend`), `extends` (null for `new`), `destination` and `seen_in` (run names, its own first).
+- `problems` — each `{path, message}`, as stderr names them in the text form.

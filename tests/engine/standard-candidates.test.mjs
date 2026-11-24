@@ -53,6 +53,9 @@ test('each guide consolidates, writes the candidates file and asks nothing about
     const consolidate = step(section, 4);
     assert.ok(consolidate.includes('workflow.mjs dispatch-model --agent=maister:docs-operator'), `${workflow}: the call takes its dispatch-model values`);
     assert.ok(consolidate.includes('"Consolidate standard candidates.'), `${workflow}: the call names the docs-manager operation`);
+    assert.ok(consolidate.includes('candidates.mjs queue --skip=<task path>`'), `${workflow}: the open queue is read first, this run left out`);
+    assert.ok(consolidate.includes('Open queue: [the queue\'s lines as printed, or none]."'), `${workflow}: the queue goes into the prompt`);
+    assert.ok(consolidate.includes('attaches a lesson the open queue already holds to that candidate'), `${workflow}: a repeat is attached, not offered`);
     assert.ok(consolidate.includes(`\`${REFERENCE}\``), `${workflow}: the step points at the reference`);
     assert.ok(consolidate.includes('`standard-candidates.json` in the task directory'), `${workflow}: the candidates are written to the one named file`);
     assert.ok(consolidate.includes('The run applies none of them and asks nothing about them'), `${workflow}: nothing is applied or asked`);
@@ -64,6 +67,7 @@ test('each guide consolidates, writes the candidates file and asks nothing about
     assert.ok(close.includes('the close names the run\'s task directory'), `${workflow}: the close names the task directory standards-update reads`);
     assert.ok(close.includes('run with no argument in this session or a fresh one'), `${workflow}: the command works in the same session too`);
     assert.ok(close.includes('never one per candidate; with no candidates there is no such line'), `${workflow}: once, and only with candidates`);
+    assert.ok(close.includes('each lesson it attached to an earlier run\'s candidate'), `${workflow}: the close lists the attachments`);
     return [consolidate, close];
   });
   for (const each of steps.slice(1)) assert.deepEqual(each, steps[0], 'the three guides word the hand-over alike');
@@ -72,10 +76,11 @@ test('each guide consolidates, writes the candidates file and asks nothing about
 test('the candidate description lives in one reference that every other step points at', () => {
   const read = file => fs.readFileSync(path.join(PLUGIN_DIR, file), 'utf8').replace(/\s+/g, ' ');
   const reference = read(`skills/docs-manager/${REFERENCE}`);
-  for (const heading of ['## What a candidate is', '## How one is written', '## Where one belongs', '## Consolidation', "## The run's candidates file"]) {
+  for (const heading of ['## What a candidate is', '## How one is written', '## Where one belongs', '## Consolidation', "## The run's candidates file", '## The open queue']) {
     assert.ok(reference.includes(heading), `the reference holds ${heading}`);
   }
-  for (const field of ['`id`', '`label`', '`line`', '`destination`', '`evidence`', '`recommended`', '`already_held`', '`standard-candidates-applied.json`']) {
+  for (const field of ['`id`', '`label`', '`line`', '`destination`', '`evidence`', '`recommended`', '`already_held`', '`standard-candidates-applied.json`',
+    '`version`', '`attached`', '`seen_in`', '`--json`', '`{run, id, evidence, line}`', '<run>#<id> [<action>; seen in <N>] <label>: <rule>']) {
     assert.ok(reference.includes(field), `the file shape names ${field}`);
   }
   const pointers = {
@@ -153,7 +158,7 @@ test('latest: no tasks directory and no candidates file both answer with no run'
   const where = project(t);
   const none = script(where, ['latest']);
   assert.equal(none.code, 0, none.stderr);
-  assert.deepEqual(none.report, { run: null, candidates: [], already_held: [], others: [], problems: [] });
+  assert.deepEqual(none.report, { run: null, candidates: [], already_held: [], attached: [], others: [], problems: [] });
   fs.mkdirSync(path.join(where.tasks, 'development', '2026-01-05-plain'), { recursive: true });
   assert.equal(script(where, ['latest']).report.run, null);
 });
@@ -238,6 +243,105 @@ test('applied: an id the run does not hold is refused and nothing is recorded; a
   assert.equal(fs.existsSync(path.join(dir, 'standard-candidates-applied.json')), false);
 
   for (const args of [[], ['nonsense'], ['applied', `--run=${dir}`], ['latest', '--id=a'], ['latest', '--bogus=1'], ['show'], ['show', `--run=${dir}`, '--id=a']]) {
+    const usage = script(where, args);
+    assert.equal(usage.code, 2, args.join(' '));
+    assert.match(usage.stderr, /^usage:/m, args.join(' '));
+  }
+});
+
+// The open queue across runs: attachments, seen_in, and the queue verb.
+
+/** A path or a file URL in a message, masked, so assertions hold on every system. */
+const masked = text => text.replace(/file:\/\/\S+/g, '<url>').replace(/(?:[A-Za-z]:)?[\\/]\S+/g, '<path>');
+
+test('seen_in: a later run attaching to a candidate adds itself, once, and an attachment is never offered on its own', t => {
+  const where = project(t);
+  const first = runWith(where, 'development', '2026-01-05-first', { version: 2, candidates: [candidate('a'), candidate('b')] }, 1_000_000);
+  runWith(where, 'performance', '2026-01-06-second', {
+    version: 2, candidates: [],
+    attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: 'group 2', line: '- Same lesson, other words' }],
+  }, 2_000_000);
+  runWith(where, 'development', '2026-01-07-third', {
+    version: 2, candidates: [candidate('c')],
+    attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: 'group 1' }, { run: 'development/2026-01-05-first', id: 'a', evidence: 'fix 3' }, { run: 'development/2026-01-01-gone', id: 'x', evidence: 'group 1' }, { id: 'no-run' }],
+  }, 3_000_000);
+
+  const shown = script(where, ['show', `--run=${first}`]).report;
+  assert.deepEqual(shown.candidates.map(each => [each.id, each.run, each.seen_in]), [
+    ['a', 'development/2026-01-05-first', ['development/2026-01-05-first', 'performance/2026-01-06-second', 'development/2026-01-07-third']],
+    ['b', 'development/2026-01-05-first', ['development/2026-01-05-first']],
+  ]);
+  assert.deepEqual(shown.problems.map(each => each.message).sort(), ['attachment 4 has no run', 'attachment development/2026-01-01-gone#x names no candidate']);
+
+  const third = script(where, ['latest']).report;
+  assert.equal(third.run.name, '2026-01-07-third');
+  assert.deepEqual(third.candidates.map(each => each.id), ['c'], 'the attachments are not candidates of the run');
+  assert.deepEqual(third.attached.map(each => [each.run, each.id, each.state, each.candidate?.id ?? null]), [
+    ['development/2026-01-05-first', 'a', 'open', 'a'], ['development/2026-01-05-first', 'a', 'open', 'a'], ['development/2026-01-01-gone', 'x', 'unknown', null],
+  ]);
+  assert.equal(third.attached[0].candidate.dir, first, 'the attached candidate names its own run\'s directory, for applied');
+});
+
+test('applied closes the attachments that name the candidate, and latest falls to a run whose only offer is an attached candidate', t => {
+  const where = project(t);
+  const first = runWith(where, 'development', '2026-01-05-first', { candidates: [candidate('a'), candidate('b')] }, 1_000_000);
+  const second = runWith(where, 'development', '2026-01-06-second', { version: 2, candidates: [], attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: 'group 1' }] }, 2_000_000);
+
+  const before = script(where, ['latest']).report;
+  assert.equal(before.run.dir, second, 'a run with only an open attached candidate is still offered');
+  assert.deepEqual(before.candidates, []);
+  assert.deepEqual(before.others, [{ dir: first, count: 2 }]);
+
+  script(where, ['applied', `--run=${first}`, '--id=a']);
+  const shown = script(where, ['show', `--run=${second}`]).report;
+  assert.deepEqual(shown.attached.map(each => [each.state, each.candidate]), [['applied', null]], 'applying it closed the attachment');
+  assert.equal(script(where, ['latest']).report.run.dir, first, 'with its attachment closed the later run gives way');
+});
+
+test('queue: every open candidate across runs, oldest first, one line each, its rule only; --skip leaves a run out', t => {
+  const where = project(t);
+  runWith(where, 'development', '2026-01-06-second', {
+    version: 2,
+    candidates: [candidate('b', { action: 'extend', extends: 'standards/global/errors.md § Retries', label: 'Retry cap' })],
+    attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: 'group 1' }],
+  }, 1_000_000);
+  const first = runWith(where, 'development', '2026-01-05-first', { candidates: [candidate('a', { label: 'Atomic writes' }), candidate('done')] }, 2_000_000);
+  runWith(where, 'migration', '2026-01-07-broken', '{not json', 3_000_000);
+  script(where, ['applied', `--run=${first}`, '--id=done']);
+
+  const text = script(where, ['queue']);
+  assert.equal(text.code, 0, text.stderr);
+  assert.deepEqual(text.stdout.split('\n').filter(Boolean), [
+    'development/2026-01-05-first#a [new; seen in 2] Atomic writes: Rule a',
+    'development/2026-01-06-second#b [extend standards/global/errors.md § Retries; seen in 1] Retry cap: Rule b',
+  ]);
+  assert.match(masked(text.stderr), /^candidates: <path> could not read the candidates/m, 'a broken file is named on stderr');
+
+  const json = script(where, ['queue', '--json']);
+  assert.equal(json.code, 0, json.stderr);
+  assert.deepEqual(Object.keys(json.report).sort(), ['problems', 'queue']);
+  assert.deepEqual(json.report.queue[0], {
+    run: 'development/2026-01-05-first', dir: first, date: '2026-01-05', id: 'a', label: 'Atomic writes', rule: 'Rule a',
+    action: 'new', extends: null, destination: 'standards/global/conventions.md',
+    seen_in: ['development/2026-01-05-first', 'development/2026-01-06-second'],
+  });
+  assert.equal(json.report.queue[1].extends, 'standards/global/errors.md § Retries');
+
+  const skipped = script(where, ['queue', '--json', `--skip=${first}`]).report;
+  assert.deepEqual(skipped.queue.map(each => each.id), ['b'], 'the skipped run is left out');
+  assert.ok(!skipped.problems.some(each => /names no candidate/.test(each.message)), 'an attachment to the skipped run is no problem');
+});
+
+test('queue: no tasks folder prints nothing; an undated run is dated by its file; a misused flag is a usage error', t => {
+  const where = project(t);
+  const empty = script(where, ['queue']);
+  assert.equal(empty.code, 0, empty.stderr);
+  assert.equal(empty.stdout, '');
+  assert.deepEqual(script(where, ['queue', '--json']).report, { queue: [], problems: [] });
+
+  runWith(where, 'development', 'undated-run', { candidates: [candidate('a')] }, 1_000_000);
+  assert.equal(script(where, ['queue', '--json']).report.queue[0].date, '1970-01-12');
+  for (const args of [['queue', '--id=a'], ['queue', '--run=x'], ['latest', '--json'], ['show', '--run=x', '--skip=y']]) {
     const usage = script(where, args);
     assert.equal(usage.code, 2, args.join(' '));
     assert.match(usage.stderr, /^usage:/m, args.join(' '));
