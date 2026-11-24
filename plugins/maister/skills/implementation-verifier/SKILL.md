@@ -131,7 +131,7 @@ the `running` node, this skill runs `runner-step`, and the files say where the l
 |----------|-----------|
 | `verification/implementation-verification.md` | Always; rewritten every cycle |
 | `verification/implementation-verification.html` | Once, at the final verdict, unless `orchestrator.options.html_output` is false |
-| `verification/<review>-report.md` and `<review>-findings.json` | Each review that ran (`references/review-findings.md`) |
+| `verification/<review>-report.md` and `<review>-findings.json` | Each review that ran (`node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/implementation-verifier/references/review-findings.md § The findings file"`) |
 | `verification/review-brief-<N>.json`, `findings.json`, `findings-<N>.json` | Each cycle, by the engine's `review-brief` and `findings-merge` |
 | `verification/runner-result.json`, `decisions-<N>.json` | When the runner runs the loop: its last result, and each decision's answers |
 | `verification/in-flight.json`, `verification/fix-reports/fix-<cycle>-<n>.md` | In a run: the agents sent and not yet reported, and each fix batch's report |

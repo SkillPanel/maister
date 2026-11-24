@@ -148,6 +148,12 @@ const POINTERS = [
   ...['What the page is', 'The two scripts', 'How the stills are made'].map(section => `skills/mockup-studio/references/prototype-page.md § ${section}`),
   'skills/mockup-studio/references/visual-companion.md § Starting and stopping',
   'skills/mockup-studio/references/visual-companion.md § A viewer left behind',
+  'skills/orchestrator-framework/references/browser-tools.md § Which tool',
+  'skills/orchestrator-framework/references/browser-tools.md § When there is none',
+  'skills/implementation-verifier/references/review-findings.md § The findings file',
+  'agents/verification-runner.md § The fix pass',
+  ...['Exploration Mode', 'Exploration Mode Options', 'Convergence Mode', 'Convergence Mode Options'].map(section => `skills/product-design/references/interaction-patterns.md § ${section}`),
+  'skills/product-design/references/delivery-scope.md § The shape',
 ];
 
 test('every pointer a brief, a hook or a skill step names prints under the cap, on both builds', () => {
@@ -174,5 +180,24 @@ test('the hooks and the engine skill point at reference, never at the read tool'
     const text = fs.readFileSync(path.join(PLUGIN, 'hooks', hook), 'utf8');
     assert.match(text, /reference --at=/, hook);
     assert.doesNotMatch(text, /next call is the read tool|read its files by absolute path/, hook);
+  }
+});
+
+test('every --at a skill, an agent or a workflow guide spells in a reference call prints', () => {
+  // A pointer that names no heading the file has is refused with reference-unknown-section at run time.
+  const files = fs.readdirSync(PLUGIN, { recursive: true }).filter(file => String(file).endsWith('.md')).map(file => path.join(PLUGIN, String(file)));
+  const spelled = new Set();
+  for (const file of files) {
+    for (const span of fs.readFileSync(file, 'utf8').match(/`[^`\n]*reference --at=[^`\n]*`/g) ?? []) {
+      for (const [, quoted, bare] of span.matchAll(/--at=(?:"([^"]+)"|([^\s"`]+))/g)) {
+        const at = quoted ?? bare;
+        if (!/[<…$]/.test(at)) spelled.add(at);
+      }
+    }
+  }
+  assert.ok(spelled.size >= 8, [...spelled].join('\n'));
+  for (const at of spelled) {
+    const result = reference([at]);
+    assert.equal(result.code, 0, `${at}: ${result.stderr}`);
   }
 });

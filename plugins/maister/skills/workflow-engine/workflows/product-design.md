@@ -95,9 +95,9 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    pages the first one matched, and record `design_context.greenfield` and
    `design_context.project_context_summary`. There is no whole-repository scan,
    and no flag for one.
-4. **Fill the gaps, one page at most.** Read the exploration mode of
-   `<plugin root>/skills/product-design/references/interaction-patterns.md` for
-   its question design. Ask only where the explore and any context pack could not
+4. **Fill the gaps, one page at most.** Print the exploration mode of the
+   interaction patterns for its question design:
+   `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/product-design/references/interaction-patterns.md § Exploration Mode" --at="skills/product-design/references/interaction-patterns.md § Exploration Mode Options"`. Ask only where the explore and any context pack could not
    answer what the design needs: up to four questions in one call, each generated
    from what was found, with concrete answers and a "Not sure yet" that does not
    block. For an existing product: which screens, which users, what exists
@@ -308,9 +308,9 @@ of the version's screens.
 
 ## `convergence`
 
-**Does.** Read the convergence mode of
-`<plugin root>/skills/product-design/references/interaction-patterns.md` first if
-this session has not. When the `work_context` folder exists, read it as well, images
+**Does.** Print the convergence mode of the interaction patterns first if this
+session has not:
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/product-design/references/interaction-patterns.md § Convergence Mode" --at="skills/product-design/references/interaction-patterns.md § Convergence Mode Options"`. When the `work_context` folder exists, read it as well, images
 and PDFs opened with the session's own file tool: it is background, never a
 specification, and nothing in it is changed. Each decision is recorded as what a person sees and does, or,
 with nothing on screen, as behaviour, a rule or a message's words — never as a field,
@@ -557,7 +557,7 @@ adopted once `direction-approval` continued.
    scope layer and in the statement of the member it would have changed. A point
    deliberately not carried is named in the scope layer with why.
 3. **Write `outputs/delivery-scope.yml`** as
-   `<plugin root>/skills/product-design/references/delivery-scope.md` shapes it. A member is
+   `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/product-design/references/delivery-scope.md § The shape"` prints it. A member is
    in scope when the design changes something it owns. Draw every statement from the
    agreed points and the documents on disk, never from a guess about code nobody read.
 4. **Check the scope against the agreed points** — every one carried, or named as left

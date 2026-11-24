@@ -249,7 +249,7 @@ After the verifier returns, run the four migration-specific checks:
 The verifier has already recorded `verification_context.last_status`, `suite_run` and
 `issues_found`. Write each issue a check raised as a finding of
 `verification/migration-checks-findings.json`, in the reviewers' findings
-schema (`<plugin root>/skills/implementation-verifier/references/review-findings.md`) with the
+schema (print `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/implementation-verifier/references/review-findings.md § The findings file"`) with the
 cycle the verifier ran; a data integrity issue takes `category:
 data-integrity` and `fixable: false`. Then run `findings-merge --state=<state>`
 (its row: the engine's `references/verbs.md`) again, which records `verification_context.issues_found` itself, so the
@@ -284,7 +284,7 @@ on it.
 
 ## `issue-resolution`
 
-**Does.** Runs the fix loop (`<plugin root>/agents/verification-runner.md` § *The fix pass*) on the
+**Does.** Runs the fix loop (`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="agents/verification-runner.md § The fix pass"` prints it) on the
 verifier's issues, after showing the verdict, the counts by severity and the
 report's path from the project root. Once the data integrity question below is
 settled, invoke the verifier's hand-off (Skill tool,

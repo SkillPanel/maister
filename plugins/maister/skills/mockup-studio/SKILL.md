@@ -75,8 +75,7 @@ A prototype is HTML: `fidelity: prototype` with the `ascii` format runs as `sket
 say so. A prototype also needs Node, which the export runs on.
 
 **No browser tool is not degradation.** HTML is still written. The notes then carry the no-browser
-line from `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` (*When there is
-none*), with the step named as "the mockup look pass", and the hint that the turn opens
+line that `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/orchestrator-framework/references/browser-tools.md § When there is none"` prints, with the step named as "the mockup look pass", and the hint that the turn opens
 `versions/vNNN/index.html` in the default browser for a person at the terminal, and otherwise to
 open it by hand or to run again with `--format ascii`.
 
@@ -175,8 +174,8 @@ The steps say what each one does; the references say how.
      frame (its header, navigation and page width); a frame a screen drew twice loses only its
      inner copy;
    - keep the browser tool's own output, and any screenshot taken to look at, in the scratch
-     directory `<plugin root>/skills/orchestrator-framework/references/browser-tools.md` names for
-     the tool in use (*Which tool*), never the system temp directory.
+     directory `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/orchestrator-framework/references/browser-tools.md § Which tool"` names for the tool in use, never the system temp
+     directory.
 
    The notes record what was looked at and what was fixed, or "no browser tool: pages not looked
    at" — only when `shell_browser` is null and the session has no browser tool of its own.

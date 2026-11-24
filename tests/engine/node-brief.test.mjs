@@ -26,8 +26,10 @@ const engineSkill = (dir = ENGINE_DIR) => `engine skill: print it whole now with
 const ENGINE_SKILL = engineSkill();
 /** The line after it: the one-command form every call takes. */
 const COMMANDS = 'commands: one per call, from the project root — no cd, chain or pipe; a patch as a here-string';
-/** The two lines every brief opens with. */
-const OPENING = [ENGINE_SKILL, COMMANDS];
+/** The line after that: plugin files are printed, and a patch file is never /dev/stdin. */
+const FILES = 'plugin files: print them only with reference, never the file tool, sed or cat; a patch file is .state-patch.json beside the state file, never /dev/stdin';
+/** The three lines every brief opens with. */
+const OPENING = [ENGINE_SKILL, COMMANDS, FILES];
 /** The asks line's tail, naming the section a node prints before its first question, by driver. */
 const asksTail = section => ` — before the first, print reference --at="references/in-node-questions.md § ${section}"`;
 const ASKS_TAIL = asksTail('In-node questions');
@@ -403,7 +405,7 @@ test('node-brief: graph drift and an unread definition warn and still print; unr
   const unread = nodeBrief(drifted.state, 'draft');
   assert.equal(unread.code, 0, unread.stderr);
   assert.equal(unread.stderr, `warning: node-brief-definition-unread: ${drifted.state}\n`);
-  assert.match(unread.stdout, /^engine skill: .*\ncommands: .*\n## Node: draft — Draft\nruns: direct — inline\nconvention \(`direct:` step\): /, 'unread, every row of its scheme prints whole');
+  assert.match(unread.stdout, /^engine skill: .*\ncommands: .*\nplugin files: .*\n## Node: draft — Draft\nruns: direct — inline\nconvention \(`direct:` step\): /, 'unread, every row of its scheme prints whole');
   assert.ok(unread.stdout.endsWith(`${RULES}\n\nsection: unknown — the definition this run froze cannot be re-read\n`), unread.stdout);
 
   // A plugin whose skill has lost the conventions table: one line points at the rules instead.
@@ -843,7 +845,7 @@ test('node-brief: every brief, step and gate alike, opens on the engine skill to
   const sample = sampleRun(t, { overlays: [NODE_BRIEF_OVERLAY] });
   for (const node of ['scope', 'draft', 'polish', 'approval', 'audit-approval', 'wrap-up']) {
     const lines = nodeBrief(sample.state, node).stdout.split('\n');
-    assert.deepEqual(lines.slice(0, 2), OPENING, `${node}: the brief opens on the two lines`);
+    assert.deepEqual(lines.slice(0, 3), OPENING, `${node}: the brief opens on the three lines`);
     assert.equal(lines.filter(line => line.startsWith('engine skill: ')).length, 1, `${node}: one line`);
     assert.ok(lines.includes(RULES), `${node}: the rules line stays`);
   }
@@ -854,6 +856,10 @@ test('node-brief: every brief, step and gate alike, opens on the engine skill to
   assert.ok(printed.stdout.includes('## Before anything else'), 'the command prints the skill');
   assert.match(COMMANDS, /no cd, chain or pipe/);
   assert.match(COMMANDS, /here-string/);
+  // After a compaction a session read plugin files with the file tool or sed and sent a patch as /dev/stdin.
+  assert.match(FILES, /only with reference, never the file tool, sed or cat/);
+  assert.match(FILES, /\.state-patch\.json beside the state file, never \/dev\/stdin/);
+  assert.ok(FILES.length <= 160, `the line stays short: ${FILES.length} characters`);
 
   // The Copilot variant's brief names the variant's own skill, from its own location.
   const variant = path.join(variantRoot(), 'skills/workflow-engine');

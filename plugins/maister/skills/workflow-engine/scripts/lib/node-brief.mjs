@@ -194,16 +194,20 @@ const GATES_FILE = fileURLToPath(new URL('../../references/gates.md', import.met
 const ENGINE_SCRIPT = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
 
 /**
- * The two lines every brief opens with. A session left with none of the skill
+ * The three lines every brief opens with. A session left with none of the skill
  * after a compaction — Copilot keeps none and has no hook to say so — did not
  * act on a condition at the foot of the brief, so the reload is an instruction
  * at its head, and beside it the one command-form rule its drifting calls
  * broke. The skill is printed by the engine, never opened with the read tool:
  * the plugin sits outside the project, and a host may stop the run to ask
- * before that read.
+ * before that read. The third line carries the two rules a session without the
+ * skill broke next: it read plugin files with the file tool or the shell, and
+ * passed a patch as /dev/stdin, which a host asks about as a path outside the
+ * project.
  */
 const ENGINE_SKILL_LINE = `engine skill: print it whole now with node ${quoted(ENGINE_SCRIPT)} reference --at=SKILL.md, unless it is in this context`;
 const COMMANDS_LINE = 'commands: one per call, from the project root — no cd, chain or pipe; a patch as a here-string';
+const FILES_LINE = 'plugin files: print them only with reference, never the file tool, sed or cat; a patch file is .state-patch.json beside the state file, never /dev/stdin';
 
 /** How each scheme runs, and the convention row that applies to it. */
 const SCHEMES = {
@@ -324,7 +328,7 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
     const banner = startBanner(state);
     if (banner !== null) lines.unshift(BANNER_SAY, ...banner);
   }
-  lines.unshift(ENGINE_SKILL_LINE, COMMANDS_LINE);
+  lines.unshift(ENGINE_SKILL_LINE, COMMANDS_LINE, FILES_LINE);
   // A marker that cannot be written only means the next brief prints the rows whole again.
   if (shown !== null && printedWhole.size) markConventionsShown({ root, rows: new Set([...shown, ...printedWhole]) });
   lines.push('');
