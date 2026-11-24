@@ -122,11 +122,13 @@ from that branch. Nothing is ever merged.
 
 **Standard candidates.** While implementing, each task group notes what the next change should know
 that no standard holds yet: a convention, a pitfall met, an important fact about the code. At
-finalization the run merges duplicates, matches each against your existing standards and suggests
-where it belongs, with the evidence. It writes no standard and asks nothing about them: it lists
-them in its closing message, keeps them in `standard-candidates.json`, and names
-`/maister:standards-update` under **Next**. Run that command with no argument and it offers the
-latest run's candidates and adds the ones you choose. Performance and migration do the same. See
+finalization the run merges duplicates, counts a lesson an earlier run already noted as one more
+sighting of it instead of filing it again, matches the rest against your existing standards,
+keeps at most five new ones and suggests where each belongs, with the evidence. It writes no
+standard and asks nothing about them: it lists them in its closing message, keeps them in
+`standard-candidates.json`, and names `/maister:standards-update` under **Next**. Run that command
+with no argument and it offers the latest run's candidates, with the earlier ones that run met
+again, and adds the ones you choose; one seen in two runs or more is recommended. Performance and migration do the same. See
 [Standards](standards.md).
 
 **The grounding pack.** When the change touches a file the project's mockup grounding pack was
