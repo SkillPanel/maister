@@ -50,8 +50,9 @@ Install one channel only. To switch, uninstall the other first, for example
 copilot plugin update maister@maister-plugins
 ```
 
-Use `maister-plugins-beta` on the beta channel. Start a new session afterwards so the new version
-loads.
+Use `maister-plugins-beta` on the beta channel. The update replaces the plugin's files at once,
+under any session that is open, so finish or stop a run first. Then start a new session, so the
+session's instructions match the new files.
 
 ### Running a local checkout
 

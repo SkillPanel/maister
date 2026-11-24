@@ -305,7 +305,7 @@ claude plugin marketplace update maister-plugins
 claude plugin update maister@maister-plugins
 ```
 
-Then run `/reload-plugins`, or start a new session. On GitHub Copilot CLI, `copilot plugin update maister@maister-plugins` does the same.
+Then start a new session. `/reload-plugins` loads the new skills, but the session keeps using parts of the old version, so it is no substitute. On GitHub Copilot CLI, `copilot plugin update maister@maister-plugins` does the same; it replaces the files under any open session, so finish or stop a run first.
 
 > [!IMPORTANT]
 > Coming from 2.x? Version 3 needs Node.js 20 and does not resume tasks started on 2.x. Read [Upgrading from 2.x](docs/upgrading-from-2x.md) before you update.

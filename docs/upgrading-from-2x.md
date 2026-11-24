@@ -42,7 +42,8 @@ claude plugin marketplace update maister-plugins
 claude plugin update maister@maister-plugins
 ```
 
-Then run `/reload-plugins` or start a new session.
+Then start a new session. `/reload-plugins` loads the new skills, but the session keeps using
+parts of the old version, so it is no substitute.
 
 On Copilot CLI the plugin is now called `maister`, so `copilot plugin update` will not move you across. Reinstall it once:
 
