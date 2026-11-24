@@ -758,16 +758,22 @@ than retried.
    matched against the specification, and say which, or that none matched. A
    tick changes no document's purpose, so its index entry stays as it is.
 4. **Consolidate, then hand over the standard candidates** the work log
-   records — the implementers' and the fix loop's. When there are any, invoke
-   `docs-operator` once (subagent_type `maister:docs-operator`, with the model
+   records — the implementers' and the fix loop's. When there are any, first
+   run `node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs queue --skip=<task path>`
+   from the project root: the open candidates earlier runs left, one line each.
+   Then invoke `docs-operator` once (subagent_type `maister:docs-operator`, with the model
    and effort
    `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:docs-operator --host=claude --state=<task path>/orchestrator-state.yml --node=finalization`
    prints,
    the engine's `references/verbs.md` § *Model and effort on every agent call*): "Consolidate standard candidates.
-   Candidates: [each work-log line, with the group or fix it came from]." It
-   merges duplicates, matches each against what the project's standards and
-   documents already hold, suggests a destination and returns each with its
-   evidence, as docs-manager's `references/standard-candidates.md` says. Write
+   Candidates: [each work-log line, with the group or fix it came from]. Open
+   queue: [the queue's lines as printed, or none]." It merges duplicates,
+   attaches a lesson the open queue already holds to that candidate, matches the
+   rest against what the project's standards and documents already hold,
+   suggests a destination, keeps at most five new lessons and returns each with
+   its evidence and how many it dropped, as docs-manager's
+   `references/standard-candidates.md` says. When the queue cannot be read, say
+   so in the prompt in its place and go on. Write
    what it returns to `standard-candidates.json` in the task directory, in the
    shape that reference's *The run's candidates file* gives. When the call
    fails, the work log's lines are written as they stand, marked not
@@ -852,7 +858,10 @@ that commit.
 **Standard candidates in the close**: when step 4 wrote the candidates file,
 the close names the run's task directory, lists each candidate — its line, its
 destination and its evidence — and each already-held line with the rule that
-holds it, and **Next** ends, after the fresh-session suggestion, with one line
+holds it, then each lesson it attached to an earlier run's candidate — that
+candidate's label and how many runs have now seen it — and, when the file's
+`dropped` is not zero, how many new lessons were dropped over the cap of five;
+**Next** ends, after the fresh-session suggestion, with one line
 more: `/maister:standards-update`, run with no argument in this session or a
 fresh one, which offers this run's candidates and asks where each goes. One line for all of them, never one per
 candidate; with no candidates there is no such line.

@@ -162,14 +162,24 @@ or a sub-folder, moving the rules word for word.
 ("we should always…", "our convention is…", "prefer X over Y") and proposes them.
 
 **From a finished workflow run.** While a development, performance or migration run implements,
-each task group notes knowledge the next change should have: a convention, a pitfall, an
-important fact about the code. At the end, the run merges those notes, checks them against what
-your standards and documents already hold, and leaves them in its task folder as standard
-candidates. Its closing message lists them and names this command. A run never writes a standard
-itself: run `/maister:standards-update` in the same session, or in a fresh one, where it finds the
-most recent run with candidates left. The well-supported candidates are recommended, you choose
-which to add, and each one added is not offered again. The ones you leave stay in the run's folder
-for later.
+each task group notes knowledge the next change should have: the general mistake a future change
+would make, with this work as its example. At the end, the run merges those notes, checks them
+against what your standards and documents already hold, and against the candidates earlier runs
+left open. A lesson an earlier run already noted is not filed again: it counts as one more
+sighting of that candidate, shown as "seen in N runs". Of the new lessons the run keeps at most
+five, the most important first, and its closing message says how many it dropped. A note about how
+the work is done goes to your contributor guide, and a fact about one module to your architecture
+note, never to a standard.
+
+The run leaves its candidates in its task folder, lists them in its closing message and names this
+command. A run never writes a standard itself: run `/maister:standards-update` in the same
+session, or in a fresh one, where it finds the most recent run with candidates left, together with
+the earlier candidates that run met again. A candidate is recommended only when it has been seen in
+two runs or more, or when it guards against a named security or data-loss failure; one that a
+test, lint rule or type check already catches is offered but never recommended. You choose which
+to add, and you can dismiss the ones you leave, with a reason. A candidate you added or dismissed
+is not offered again. One you leave open is offered again later, until it expires: a candidate no
+second run has met within 30 days is closed as expired, though it stays in the run's folder.
 
 **From another project.** `--from=PATH` compares that project's `.maister/docs/standards/` with
 yours, lists what is new and what differs, and lets you choose. For a file that differs you can

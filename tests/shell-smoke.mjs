@@ -284,17 +284,27 @@ try {
   // --- the standard candidates lookup ---------------------------------------
   // Run from the project root as standards-update runs it: a run's candidates
   // file found, one applied through a --run path holding a space, and gone,
-  // and the run read by name through the same path.
+  // and the run read by name through the same path; the open queue listed, and
+  // one dismissed with a reason holding spaces. Each dated verb is judged on a
+  // fixed day, so the run stays inside its window.
   const candidateRun = path.join(project, '.maister', 'tasks', 'development', '2026-01-05-candidate run');
+  const today = '--today=2026-01-10';
   fs.mkdirSync(candidateRun, { recursive: true });
-  fs.writeFileSync(path.join(candidateRun, 'standard-candidates.json'), JSON.stringify({ candidates: [{ id: 'typed-errors', label: 'Typed errors', line: '- Raise typed errors', destination: 'standards/global/errors.md' }] }));
-  const found = json(call('latest', [], null, candidatesLookup).stdout);
+  fs.writeFileSync(path.join(candidateRun, 'standard-candidates.json'), JSON.stringify({ candidates: [
+    { id: 'typed-errors', label: 'Typed errors', line: '- Raise typed errors', destination: 'standards/global/errors.md' },
+    { id: 'small-modules', label: 'Small modules', line: '- Keep modules small — why: they grew', destination: 'standards/global/conventions.md' },
+  ] }));
+  const found = json(call('latest', [today], null, candidatesLookup).stdout);
+  const queued = json(call('queue', ['--json', today], null, candidatesLookup).stdout);
   const marked = call('applied', [flag('run', candidateRun), '--id=typed-errors'], null, candidatesLookup);
-  const after = json(call('latest', [], null, candidatesLookup).stdout);
-  const named = json(call('show', [flag('run', candidateRun)], null, candidatesLookup).stdout);
-  check('the candidates lookup finds a run under a path holding a space and records one applied',
-    found?.run?.name === '2026-01-05-candidate run' && marked.code === 0 && after?.run === null
-      && named?.run?.name === '2026-01-05-candidate run' && named.candidates.length === 0, show(marked));
+  const dismissed = call('dismiss', [flag('run', candidateRun), '--id=small-modules', flag('reason', 'not a rule here'), flag('by', 'A Person'), today], null, candidatesLookup);
+  const after = json(call('latest', [today], null, candidatesLookup).stdout);
+  const named = json(call('show', [flag('run', candidateRun), today], null, candidatesLookup).stdout);
+  check('the candidates lookup finds a run under a path holding a space, queues it, records one applied and one dismissed',
+    found?.run?.name === '2026-01-05-candidate run' && queued?.queue?.[1]?.rule === 'Keep modules small'
+      && marked.code === 0 && dismissed.code === 0 && json(dismissed.stdout)?.dismissed?.[0] === 'small-modules'
+      && after?.run === null && named?.run?.name === '2026-01-05-candidate run' && named.candidates.length === 0
+      && named.closed?.dismissed >= 1, show(dismissed));
 
   // --- the standards groups resolver ------------------------------------------
   // Run from the project root as init runs it, with the project's own standards
