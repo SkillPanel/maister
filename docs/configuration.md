@@ -18,12 +18,13 @@ Everything here is optional. A project with no `.maister/config.yml` runs on the
 │   ├── standards/      #   Coding standards, one folder per group
 │   ├── project/        #   Vision, roadmap, tech stack, architecture, and any doc you add
 │   └── design-context/ #   The grounding pack mockups are drawn from, when you build one
+├── standard-candidates/ # Lessons runs handed over, one file each; commit it with the standards
 ├── workflows/          # Workflows your project defines, overlays and ejects of the built-ins
 ├── tasks/              # One folder per run (Task directories, below)
 └── display/            # What the terminal draws beside a session; ignored by git
 ```
 
-- Standards and project documents: [Standards](standards.md).
+- Standards and project documents, and the standard candidates: [Standards](standards.md).
 - The grounding pack: [Mockups](mockups.md).
 - `.maister/workflows/`: [Extending maister](extending.md).
 

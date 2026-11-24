@@ -405,9 +405,15 @@ candidates file, and always runs.
    what it returns to `standard-candidates.json` in the task directory, in the
    shape that reference's *The run's candidates file* gives. When the call
    fails, the work log's lines are written as they stand, marked not
-   consolidated, and a line of the close says so. The run applies none of them
-   and asks nothing about them: a person adds the ones worth keeping afterwards,
-   with standards-update.
+   consolidated. Then run
+   `node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs file --run=<task path>`
+   from the project root: it files the run's candidates in the project's
+   candidate store, `.maister/standard-candidates/` — its first five new ones,
+   and this run as one more sighting of each candidate it attached to — and
+   records their store ids in the run's file. The store is the project's,
+   committed with its standards: whichever commit carries the change carries
+   the files it wrote. The run applies none of them and asks nothing about
+   them: a person adds the ones worth keeping afterwards, with standards-update.
 5. **Set the task status to completed**.
 6. **Guide the next steps**, this workflow's own four: run the application and
    confirm the improvement by hand; profile with runtime tools to measure the
@@ -420,16 +426,19 @@ candidates file, and always runs.
 the wrap-up* says. **Next** holds every one of step 6's next steps, a line each — all four,
 then the fresh-session suggestion, none dropped or merged.
 
-**Standard candidates in the close**: when step 4 wrote the candidates file,
-the close names the run's task directory, lists each candidate — its line, its
-destination and its evidence — and each already-held line with the rule that
-holds it, then each lesson it attached to an earlier run's candidate — that
-candidate's label and how many runs have now seen it — and, when the file's
-`dropped` is not zero, how many new lessons were dropped over the cap of five;
-**Next** ends, after the fresh-session suggestion, with one line
-more: `/maister:standards-update`, run with no argument in this session or a
-fresh one, which offers this run's candidates and asks where each goes. One line for all of them, never one per
-candidate; with no candidates there is no such line.
+**Standard candidates in the close**: when step 4 filed candidates, run
+`node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs close --run=<task path>`
+from the project root and copy every line it prints into the close as printed —
+the line naming the run's task directory, each new candidate with its
+destination, its evidence and whether it is recommended or how many runs have
+seen it, each lesson it attached to an earlier run's candidate with how many
+runs have now seen it, each already-held line, how many new lessons were
+dropped over the cap of five and, when consolidation failed, that line too —
+never retold, merged or left out; **Next** ends, after the fresh-session
+suggestion, with one line more: `/maister:standards-update`, run with no
+argument in this session or a fresh one, which offers this run's candidates and
+asks where each goes. One line for all of them, never one per candidate; with
+no candidates there is no such line.
 
 **No close-out while a choice is held**. When the freeze recorded
 `orchestrator.classes_questions`, this node runs `gate-brief --node=held-approval` before its
