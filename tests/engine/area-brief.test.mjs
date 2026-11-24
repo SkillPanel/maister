@@ -81,6 +81,7 @@ const FAULTS = [
   ['empty at areas.0.alternatives.0.cons', doc => { doc.areas[0].alternatives[0].cons = []; }],
   ['not-one-line at areas.2.question', doc => { doc.areas[2].question = 'Where does an owner\nshare a calendar from?'; }],
   ['bad-id at areas.1.id', doc => { doc.areas[1].id = 'Access'; }],
+  ['id-too-long at areas.1.id', doc => { doc.areas[1].id = 'a'.repeat(20); }],
   ['duplicate at areas.2.depends_on.1', doc => { doc.areas[2].depends_on[1] = 'storage'; }],
   ['too-few at areas.1.alternatives', doc => { doc.areas[1].alternatives.length = 1; }],
   ['reserved-id at areas.2.alternatives.2.id', doc => { doc.areas[2].alternatives[2].id = 'more-details'; }],
@@ -94,7 +95,7 @@ const FAULTS = [
 test('area-brief: the valid file passes and every invalid file gives its one located fault', () => {
   assert.equal(areas().length, 3);
   const reasons = new Set(['not-json', ...FAULTS.map(([fault]) => fault.split(' at ')[0])]);
-  assert.equal(reasons.size, 16, 'one fault per reason of the closed set');
+  assert.equal(reasons.size, 17, 'one fault per reason of the closed set');
   assert.deepEqual(loadAreas({ file: fixture('not-json.json'), taskDir: AREAS }),
     { warning: 'decision-areas-invalid:not-json.json:not-json at (root)' });
   const dir = scratchTask();

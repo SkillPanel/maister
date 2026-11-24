@@ -260,6 +260,8 @@ const SHAPES = [
   ['(root)', () => []],
   ['extra', doc => { doc.extra = true; }],
   ['findings', doc => { doc.findings = []; }],
+  // The question id `review-findings-<id>` keeps the question id rule whole: 25 characters are left for the finding's.
+  [`findings[0].id: its question id review-findings-${'a'.repeat(26)} would pass the 41 characters a question id holds, so a finding id here has at most 25`, doc => { doc.findings[0].id = 'a'.repeat(26); }],
   ['findings[1].severity', doc => { doc.findings[1].severity = 'severe'; }],
   ['findings[0].id', doc => { doc.findings[0].id = 'Slow listing'; }],
   ['findings[2].id', doc => { doc.findings[2].id = 'empty-upload'; }],

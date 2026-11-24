@@ -229,5 +229,5 @@ test('cites: gate-brief drops a cite that is not the shape or names nothing, wit
 
   const none = requested(run, { questions: [{ ...question('storage', undefined), cites: [{ path: 'src/b.ts' }] }] });
   assert.equal(Object.hasOwn(JSON.parse(none.stdout).questions[0], 'cites'), false, 'a list left empty is no key');
-  assert.equal(checkSet({ questions: [{ ...question('q'), cites: 'anything' }] }).ok, true, 'the set carries cites as written; the brief judges them');
+  assert.equal(checkSet({ questions: [{ ...question('storage'), cites: 'anything' }] }).ok, true, 'the set carries cites as written; the brief judges them');
 });
