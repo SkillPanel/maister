@@ -577,6 +577,25 @@ test('latest and show: the newest run with something to offer, an attached-only 
   assert.equal(missing.report.problems.length, 1);
 });
 
+test('others: show and latest leave out the run they report, however its path is spelled, and list the other runs holding open candidates', t => {
+  const where = project(t);
+  const first = filedRun(where, 'development', '2026-01-05-first', { candidates: [candidate('a'), candidate('b')] });
+  const second = filedRun(where, 'performance', '2026-01-06-second', { candidates: [candidate('c')] });
+  const relative = path.relative(where.root, first.dir);
+  const roundabout = path.join(where.tasks, 'development', 'elsewhere', '..', '2026-01-05-first');
+  for (const spelled of [first.dir, relative, roundabout, `${first.dir}${path.sep}`]) {
+    const shown = script(where, ['show', `--run=${spelled}`]);
+    assert.equal(shown.code, 0, shown.stderr);
+    assert.equal(shown.report.candidates.length, 2, `${spelled} is the first run`);
+    assert.deepEqual(shown.report.others, [{ dir: second.dir, count: 1 }], `show --run=${spelled} lists the other run, never its own`);
+  }
+  assert.deepEqual(script(where, ['show', `--run=${second.dir}`]).report.others, [{ dir: first.dir, count: 2 }]);
+
+  const newest = script(where, ['latest']).report;
+  assert.equal(newest.run.dir, second.dir);
+  assert.deepEqual(newest.others, [{ dir: first.dir, count: 2 }], 'latest lists the other run, never its own');
+});
+
 test('recommended: two runs or a guarded failure, never an extend alone, an earlier flag, one run\'s several groups, or with a caught_by', t => {
   const where = project(t);
   const { dir } = filedRun(where, 'development', '2026-01-05-run', {

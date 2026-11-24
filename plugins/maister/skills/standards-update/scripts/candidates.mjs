@@ -583,7 +583,8 @@ const newestFirst = (a, b) => b.date.localeCompare(a.date) || b.run.localeCompar
 
 function report(index, chosen, problems) {
   const extras = chosen ? runExtras(chosen.dir) : null;
-  const rest = [...index.runs.values()].filter(each => each !== chosen && openOf(index, each.run).length).sort(newestFirst);
+  // Runs compare by their `<type>/<name>` id, so the chosen run is left out however its path was spelled.
+  const rest = [...index.runs.values()].filter(each => each.run !== chosen?.run && openOf(index, each.run).length).sort(newestFirst);
   return {
     run: chosen ? { dir: chosen.dir, type: chosen.type, name: chosen.name } : null,
     candidates: chosen ? openOf(index, chosen.run) : [],
