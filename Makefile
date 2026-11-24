@@ -38,8 +38,8 @@ reference:
 # The containment sentence every source agent carries, as validate checks it.
 # It holds no apostrophe, so the recipe can single-quote it.
 CONTAINMENT = **You are a dispatched agent: do the work of this task yourself.** Never start another workflow, a command or an orchestrator skill — not a `reviews-*` command, which would dispatch you again, and not `work`, `development` or any other workflow — even when its description matches your task. Load only a skill your own instructions name.
-# The scratch-file sentence, the same way: no apostrophe, and each $ doubled for make.
-SCRATCH = **Scratch files go in the system temp directory.** Read the output of a command as it prints rather than redirecting it to a file. When a file is unavoidable — a long log, an export, a copy — make its directory with `mktemp -d` (it uses `$$TMPDIR`) or put it under `"$${TMPDIR:-/tmp}"`, never at a literal `/tmp` path, which can stop the run for a permission prompt, and delete it when done. Write each file your prompt asks for directly at its path with the write tool, and name any other file for what it holds: never a name that starts with report, summary, findings or analysis and ends in `.md`, which Claude Code refuses when a subagent writes it.
+# The scratch-file sentence, the same way: no apostrophe and no $.
+SCRATCH = **Scratch files go in the project scratch folder.** Read the output of a command as it prints rather than redirecting it to a file. When a file is unavoidable — a helper script, a long log, an export, a copy — put it where the `scratch:` line of your prompt says, or else in the directory that `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=<what it holds>` makes under `.maister/scratch/`, which git ignores, and leave it there: never the system temp directory or a literal `/tmp` path, which sit outside the project and can stop the run for a permission prompt. Write each file your prompt asks for directly at its path with the write tool, and name any other file for what it holds: never a name that starts with report, summary, findings or analysis and ends in `.md`, which Claude Code refuses when a subagent writes it.
 # The search-scope sentence, the same way: no apostrophe and no $.
 SEARCH = **Search only inside the project.** Never search, list or glob outside the project and the paths your prompt names, for anything — not a parent directory, the home directory, a plugin cache or the settings of another tool. Read a plugin file at the absolute path your prompt gives, or at its place under the plugin root your instructions name; when it is not there, say so in your result instead of looking for a copy elsewhere: a copy may belong to another version, and the search can stop the run for a permission prompt.
 
@@ -108,10 +108,10 @@ validate:
 	done
 	@echo "Checking every source agent carries the scratch-file sentence..."
 	@# An agent's own file is all it reads before it runs a command, so the
-	@# rule that keeps its throwaway files off a literal /tmp path lives there.
+	@# rule that keeps its throwaway files inside the project, under .maister/scratch/, lives there.
 	@sentence='$(SCRATCH)'; \
 	for f in plugins/maister/agents/*.md "$(VARIANT)"/agents/*.md; do \
-	  grep -qxF -- "$$sentence" "$$f" || { echo "FAIL: $$f lacks the scratch-file sentence, so nothing keeps its throwaway files off a literal /tmp path"; exit 1; }; \
+	  grep -qxF -- "$$sentence" "$$f" || { echo "FAIL: $$f lacks the scratch-file sentence, so nothing keeps its throwaway files inside the project"; exit 1; }; \
 	done
 	@echo "Checking every source agent carries the search-scope sentence..."
 	@# The same reason: a file the agent was not handed is reported, never
