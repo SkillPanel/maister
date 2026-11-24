@@ -39,8 +39,8 @@ You always write your findings to the files below — the synthesizer reads them
 
 | Category | Sources to Process | Output Files | Tools |
 |----------|-------------------|--------------|-------|
-| `codebase` | File patterns, key files, directories | `codebase-*.md` | Glob, Grep, Read |
-| `documentation` | Project docs, code docs, inline comments | `docs-*.md` | Read, Grep |
+| `codebase` | File patterns, key files, directories | `codebase-*.md` | `grep`/`find` (or `rg`) through the shell, Read |
+| `documentation` | Project docs, code docs, inline comments | `docs-*.md` | Read, `grep` through the shell |
 | `configuration` | package.json, .env, config files | `config-*.md` | Read |
 | `external` | URLs, web resources, framework docs | `external-*.md` | WebSearch, WebFetch |
 | `all` | All of the above | All files + `00-summary.md` | All tools |
@@ -48,7 +48,7 @@ You always write your findings to the files below — the synthesizer reads them
 **Custom Categories**: The `source_category` parameter also accepts custom category IDs defined by the research-planner's gathering strategy (e.g., `external-apis`, `project-a-codebase`, `legacy-system`). When a custom category is provided:
 - Read the Gathering Strategy section from `planning/research-plan.md` to understand the focus area
 - Name output files using the category ID as prefix: `analysis/findings/[category-id]-*.md`
-- Apply the most appropriate tools based on the focus area (codebase-focused → Glob/Grep/Read, external-focused → WebSearch/WebFetch, docs-focused → Read/Grep)
+- Apply the most appropriate tools based on the focus area (codebase-focused → `grep`/`find` (or `rg`) through the shell and Read, external-focused → WebSearch/WebFetch, docs-focused → Read and `grep` through the shell)
 
 **When source_category is NOT `all`**:
 - Filter `planning/sources.md` to only include matching category (or use gathering strategy focus area for custom categories)

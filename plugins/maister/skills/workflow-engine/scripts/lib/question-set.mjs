@@ -93,7 +93,7 @@ export function checkSet(input) {
   const errors = [];
   if (!isMap(input)) return { ok: false, errors: ['the question set must be a JSON object with a "questions" list'] };
   for (const key of Object.keys(input)) {
-    if (!SET_KEYS.includes(key)) errors.push(`the key "${key}" is not one of ${SET_KEYS.join(', ')}`);
+    if (!SET_KEYS.includes(key)) errors.push(`the key "${key}" is not one of ${SET_KEYS.join(', ')}${key === 'round' ? ': the engine sets a request\'s round itself, so a question set never carries it' : ''}`);
   }
   for (const key of ['ask', 'headline']) {
     if (Object.hasOwn(input, key) && !isLine(input[key])) errors.push(`"${key}" must be one line of text`);

@@ -82,7 +82,7 @@ Detect ORM calls inside iteration constructs:
 
 **Missing Index Detection** (read schema/migrations, don't run EXPLAIN):
 - Read migration files and schema definitions to catalog existing indexes
-- Grep for query patterns (WHERE, ORDER BY, JOIN columns)
+- Search with `grep` (or `rg` when present) through the shell for query patterns (WHERE, ORDER BY, JOIN columns)
 - Cross-reference: columns filtered/sorted on without corresponding indexes
 - Flag composite conditions without composite indexes
 
@@ -314,8 +314,8 @@ warnings: ["non-blocking observations, e.g. a pattern static analysis could not 
 ## Tool Usage
 
 - **Read**: Load codebase analysis, schema files, migration files, code files, user data
-- **Grep**: Search for patterns (ORM calls in loops, sync I/O, regex compilation, unbounded caches)
-- **Glob**: Find related files (models, controllers, services, configs, migrations, schema files)
+- **`grep` or `rg` through the shell**: Search for patterns (ORM calls in loops, sync I/O, regex compilation, unbounded caches)
+- **`find` through the shell**: Find related files (models, controllers, services, configs, migrations, schema files)
 
 **NOT used**: Bash (no runtime profiling, no command execution)
 

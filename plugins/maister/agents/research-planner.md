@@ -163,8 +163,8 @@ Take the analysis framework for the chosen type from the reference's **Analysis 
 
 | # | Category ID | Focus Area | Tools | Output Prefix |
 |---|------------|------------|-------|---------------|
-| 1 | codebase | Source code analysis | Glob, Grep, Read | codebase |
-| 2 | documentation | Project docs & code docs | Read, Grep | docs |
+| 1 | codebase | Source code analysis | `grep`/`find` (or `rg`) through the shell, Read | codebase |
+| 2 | documentation | Project docs & code docs | Read, `grep` through the shell | docs |
 | 3 | external-apis | External API documentation | WebSearch, WebFetch | external-apis |
 
 ### Rationale
@@ -260,7 +260,7 @@ When the planner does not include a Gathering Strategy section, the orchestrator
 ## Key Principles
 
 ### 1. Evidence-Based Planning
-- Only include sources that actually exist (use Glob/Grep to verify)
+- Only include sources that actually exist (verify with `grep`/`find` through the shell)
 - Provide concrete file paths, not hypothetical patterns
 - Verify documentation exists before listing
 

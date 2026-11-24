@@ -107,7 +107,7 @@ Combine fetched details with user-provided context:
 
 When description mentions a feature/component:
 1. Extract component names from description
-2. Search codebase using Grep/Glob for existing implementations
+2. Search codebase with `grep`/`find` (or `rg` when present) through the shell for existing implementations
 3. This context helps confirm the task is development work (vs migration, performance, etc.)
 
 **Error Pattern Analysis** (for bug detection):
@@ -250,9 +250,9 @@ A description too thin to tell the types apart ("Work on dashboard", "Work on th
 
 **Read**: project documentation and specifications. Read `.maister/docs/INDEX.md` only if it is not already in your context — the project's instructions usually import it.
 
-**Grep**: Search for component definitions, error patterns, imports/exports
+**`grep` or `rg` through the shell**: Search for component definitions, error patterns, imports/exports
 
-**Glob**: Find files matching component names
+**`find` through the shell**: Find files matching component names
 
 **Bash**: Execute git log for history analysis; CLI tools for issue fetching (`gh`, `acli`, `jira`, `az`)
 

@@ -193,6 +193,16 @@ test('gate-request --node --patch-file: a refused set is kept for the same call'
   assert.equal(fs.readFileSync(patchOf(run), 'utf8'), JSON.stringify({ questions: [] }), 'the set is kept');
 });
 
+test('gate-request --node --patch-file: a set carrying round is refused, saying the engine sets it, and nothing is written', t => {
+  const engine = suspendingEngine(t);
+  const run = asking(t);
+  fs.writeFileSync(patchOf(run), JSON.stringify({ ...QUESTIONS, round: 1 }));
+  const result = runScript(engine, ['gate-request', `--state=${run.state}`, '--node=analysis', `--patch-file=${patchOf(run)}`]);
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /^gate-brief-questions-invalid: .*the key "round" is not one of ask, headline, questions: the engine sets a request's round itself/);
+  assert.equal(fs.existsSync(path.join(run.dir, 'gates')), false, 'no request file');
+});
+
 test('gate-request: --reask needs --node, and takes no question set', t => {
   const run = atReview(t);
   const alone = runScript(suspendingEngine(t), ['gate-request', `--state=${run.state}`, '--reask=send-back'], '{}');

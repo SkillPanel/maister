@@ -102,15 +102,16 @@ function linked(target, link) {
   }
 }
 
-test('import: a source outside the project is skipped, the one inside beside it still copied, exit 1', t => {
+test('import: a source outside the project is skipped, the one inside beside it still copied, exit 0 with a warning each', t => {
   const run = project(t);
   const away = outsider(t);
   const climb = path.relative(run.root, path.join(away, 'secret.txt'));
-  const { code, report } = importing(run, [
+  const { code, stderr, report } = importing(run, [
     '--to=analysis/work-context', `--from=${path.join(away, 'secret.txt')}`, `--from=${climb}`, '--from=sources/report.md',
   ]);
-  assert.equal(code, 1);
-  assert.equal(report.ok, false);
+  assert.equal(code, 0, stderr);
+  assert.equal(report.ok, true);
+  assert.equal(stderr.split(/\r?\n/).filter(line => line.startsWith('warning: import-source-outside: ')).length, 2, stderr);
   assert.deepEqual(report.copied.map(each => each.from), ['sources/report.md']);
   assert.deepEqual(report.skipped.map(each => each.code), ['import-source-outside', 'import-source-outside']);
   assert.match(report.skipped[0].message, /copy the file into the project first/);
@@ -123,7 +124,8 @@ test('import: a link inside the project that points out is skipped; one that poi
   if (!linked(path.join(away, 'secret.txt'), path.join(run.root, 'sources/out.txt'))) return;
   assert.ok(linked(path.join(run.root, 'sources/report.md'), path.join(run.root, 'sources/in.md')));
   const { code, report } = importing(run, ['--to=analysis/work-context', '--from=sources/out.txt', '--from=sources/in.md']);
-  assert.equal(code, 1);
+  assert.equal(code, 0);
+  assert.equal(report.ok, true);
   assert.deepEqual(report.copied.map(each => each.from), ['sources/in.md']);
   assert.equal(report.skipped[0].code, 'import-source-outside');
   assert.equal(fs.existsSync(path.join(run.dir, 'analysis/work-context/out.txt')), false);
@@ -175,15 +177,27 @@ test('import: --as with two sources, or holding a path, is a usage error and cop
   assert.equal(fs.existsSync(path.join(run.dir, 'analysis/x')), false);
 });
 
-test('import: a missing source is skipped and the others are still copied, exit 1', t => {
+test('import: a missing source is skipped and the others are still copied: ok, exit 0, one warning naming it', t => {
   const run = project(t);
-  const { code, report } = importing(run, ['--to=analysis/research-context', '--from=sources/gone.md', '--from=sources/report.md']);
-  assert.equal(code, 1);
-  assert.equal(report.ok, false);
+  const { code, stderr, report } = importing(run, ['--to=analysis/research-context', '--from=sources/gone.md', '--from=sources/report.md']);
+  assert.equal(code, 0, stderr);
+  assert.equal(report.ok, true);
+  assert.equal(stderr.split(/\r?\n/).filter(line => line !== '').length, 1, stderr);
+  assert.match(stderr, /^warning: import-source-missing: sources[\\/]gone\.md does not exist \(read as .+\)\r?\n$/);
   assert.deepEqual(report.copied.map(each => each.from), ['sources/report.md']);
   assert.equal(report.skipped.length, 1);
   assert.equal(report.skipped[0].code, 'import-source-missing');
   assert.ok(fs.existsSync(path.join(run.dir, 'analysis/research-context/report.md')));
+});
+
+test('import: when no source is copied, ok is false, exit 1, and no warning lines', t => {
+  const run = project(t);
+  const { code, stderr, report } = importing(run, ['--to=analysis/research-context', '--from=sources/gone.md', '--from=sources/also-gone.md']);
+  assert.equal(code, 1);
+  assert.equal(report.ok, false);
+  assert.deepEqual(report.copied, []);
+  assert.deepEqual(report.skipped.map(each => each.code), ['import-source-missing', 'import-source-missing']);
+  assert.doesNotMatch(stderr, /warning:/);
 });
 
 test('import: a source holding the destination, or inside it, is skipped as overlapping', t => {
@@ -373,7 +387,8 @@ test('import: a member run still skips a link out of the workspace, a directory 
     `--from=${path.join(away, 'secret.txt')}`,
     `--from=${space.context}`,
   ]);
-  assert.equal(code, 1);
+  assert.equal(code, 0);
+  assert.equal(report.ok, true);
   assert.deepEqual(report.copied.map(each => each.from), [space.context]);
   assert.deepEqual(report.skipped.map(each => each.code), ['import-source-outside', 'import-source-outside', 'import-source-outside']);
   assert.match(report.skipped[0].message, /outside the project and its workspace/);

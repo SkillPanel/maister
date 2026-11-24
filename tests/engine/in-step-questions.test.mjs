@@ -240,6 +240,17 @@ test('request: a gate request carries the multi-choice flag under its contract n
 // what the verb refuses
 // ---------------------------------------------------------------------------
 
+test('provoked: a question set carrying round is refused, naming the keys it takes and that the engine sets the round', t => {
+  const run = running(t);
+  const result = refused(brief(run, { round: 1, ...questionSet() }), 'gate-brief-questions-invalid');
+  assert.match(result.stderr, /the key "round" is not one of ask, headline, questions: the engine sets a request's round itself, so a question set never carries it/);
+  assert.equal(fs.existsSync(path.join(run.dir, 'gates')), false, 'nothing is written');
+  // Any other unknown key names the keys a set takes, and says nothing of the round.
+  const other = refused(brief(run, { title: 'x', ...questionSet() }), 'gate-brief-questions-invalid');
+  assert.match(other.stderr, /the key "title" is not one of ask, headline, questions/);
+  assert.doesNotMatch(other.stderr, /round/);
+});
+
 test('provoked: gate-brief-questions-invalid names the question and the field', t => {
   const run = running(t);
   const base = questionSet().questions;
