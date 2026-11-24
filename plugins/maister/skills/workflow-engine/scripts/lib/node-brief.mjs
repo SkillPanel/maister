@@ -113,15 +113,18 @@
  * row it no longer has in view. Without a session id, every row prints whole
  * on every brief.
  *
- * What it writes. The start of a step it briefs (`recordStart`), and the
- * session's conventions marker when it printed a row whole. The brief is what
+ * What it writes. The start of a step it briefs (`recordStart`), the
+ * session's conventions marker when it printed a row whole, and on every brief
+ * it prints the run's `display/brief.json` stamp, the display's proof that a
+ * brief was printed when no start was written. The brief is what
  * every step is run from, so a step cannot be begun without it, and the start
  * it records is what the status line and the dashboard read as the step under
  * way. A `skill:` step hands the session to a skill whose own instructions take
  * over, and the start the prose asked for was the write runs dropped. Nothing
- * else — a refusal, a step not ready to run — writes anything; a gate writes
- * only the marker. A marker that cannot be written is not a warning: the next
- * brief prints the rows whole again. It returns `{ok, text, errors, warnings}`.
+ * else — a refusal, a step not ready to run — writes anything else; a gate
+ * writes only the marker and the stamp. A marker that cannot be written is not
+ * a warning: the next brief prints the rows whole again. A stamp that cannot be
+ * written is one, so the display draws the call in full. It returns `{ok, text, errors, warnings}`.
  *
  * Refusals, each with a recovery row in the engine skill:
  * - `node-brief-state-unreadable` — `--state` cannot be read or parsed.
@@ -165,7 +168,7 @@ import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestion
 import { CLASSES, ceilingOf, loadPolicy, questionFamilies } from './policy.mjs';
 import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
-import { conventionsShown, markConventionsShown } from './display-files.mjs';
+import { conventionsShown, markConventionsShown, publishBrief } from './display-files.mjs';
 import { runRoot } from './resume-check.mjs';
 
 /** The engine's entry script, which the `ask with:` line names by its absolute path. */
@@ -334,6 +337,8 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
   } else {
     lines.push(printed ?? NO_SECTION);
   }
+  // The display's proof that this call printed a brief, whether or not it started the node.
+  warnings.push(...publishBrief({ runDir, node, title, kind: gate ? 'gate' : 'step' }).map(each => `${each.code}: ${each.file}: ${each.message}`));
   return { ok: true, text: `${lines.join('\n')}\n`, errors: [], warnings };
 }
 

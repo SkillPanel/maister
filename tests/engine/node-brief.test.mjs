@@ -315,6 +315,26 @@ test('node-brief: the revise row prints whole only while a recorded revise names
   assert.doesNotMatch(nodeBrief(sample.state, 'scope').stdout, /^convention \(named by a revise\): [^s]/m);
 });
 
+test('node-brief: every brief that prints stamps display/brief.json — a gate, a step not ready, a started one — each stamp after the last', t => {
+  const sample = sampleRun(t);
+  const file = path.join(sample.dir, 'display', 'brief.json');
+  const seen = [];
+  for (const [node, kind] of [['approval', 'gate'], ['audit', 'step'], ['approval', 'gate'], ['scope', 'step']]) {
+    const result = nodeBrief(sample.state, node);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stderr, '', 'a stamp written is no warning');
+    const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.deepEqual({ ...doc, printed: undefined }, { version: 1, node, title: doc.title, kind, printed: undefined });
+    assert.equal(typeof doc.title, 'string');
+    assert.match(doc.printed, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+    seen.push(doc.printed);
+  }
+  for (let at = 1; at < seen.length; at += 1) assert.ok(seen[at] > seen[at - 1], `${seen[at]} after ${seen[at - 1]}`);
+  // A refused brief leaves the stamp where it was.
+  assert.equal(nodeBrief(sample.state, 'nope').code, 1);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).printed, seen.at(-1));
+});
+
 test('node-brief: a gate points at gate-brief unless its section carries an exception', t => {
   const sample = sampleRun(t);
   const plain = nodeBrief(sample.state, 'approval');
@@ -426,12 +446,20 @@ test('node-brief: three refusals and the usage errors, none of which writes a fi
     assert.ok(result.stderr.includes(message), result.stderr);
   }
 
-  // None of these is a step ready to start, so briefing them writes nothing.
+  // A refusal writes nothing at all, the display's brief stamp included.
+  const refused = snapshot(sample.root);
+  delete refused[path.join('.maister', 'tasks', 'development', '2026-01-06-other', 'orchestrator-state.yml')];
+  assert.deepEqual(refused, before);
+
+  // None of these is a step ready to start, so briefing them writes nothing but the brief stamp.
+  const stamp = path.join(path.relative(sample.root, sample.dir), 'display', 'brief.json');
   for (const node of ['draft', 'approval', 'audit', 'audit-approval', 'wrap-up']) {
     assert.equal(nodeBrief(sample.state, node).code, 0, node);
   }
   const after = snapshot(sample.root);
   delete after[path.join('.maister', 'tasks', 'development', '2026-01-06-other', 'orchestrator-state.yml')];
+  assert.ok(Object.hasOwn(after, stamp), 'every brief that printed stamps display/brief.json');
+  delete after[stamp];
   assert.deepEqual(after, before);
   // The one write a brief makes: the start of the step ready to run.
   assert.equal(nodeBrief(sample.state, 'scope').code, 0);

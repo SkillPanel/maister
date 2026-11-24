@@ -57,6 +57,19 @@ export type DisplayStatus = {
   [field: string]: unknown;
 };
 
+/**
+ * The stamp of a step brief's print, `display/brief.json`: written by every
+ * `node-brief` that prints, so a brief that started nothing still proves it ran.
+ */
+export type DisplayBrief = {
+  version: number;
+  node: string;
+  title: string;
+  kind: 'gate' | 'step';
+  printed: string;
+  [field: string]: unknown;
+};
+
 /** What the start card shows, taken from `display/banner.json`. */
 export type DisplayCard = {
   workflow: string;

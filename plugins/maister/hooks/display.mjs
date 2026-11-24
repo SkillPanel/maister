@@ -27,11 +27,16 @@
  * unknown version draws nothing. The status file also lists the artifact paths
  * the run declares, which is how a Write into the task folder is told to be one.
  *
- * A shell call draws as one quiet line only when the engine's own files prove
- * what it did: the status file moved on during a call of any engine verb, or,
- * for a gate brief, which writes no status, the panel file holds what it
- * briefed. No list of verbs is kept, so a verb added later collapses by the
- * same proof, and a call that moved nothing draws as it always did. The command
+ * A shell call draws as one quiet line when the engine's own files prove what
+ * it did: the status file moved on during a call of any engine verb; for a gate
+ * brief, which writes no status, the panel file holds what it briefed; for a
+ * step brief that started nothing — a checkpoint's, or a step's the session
+ * then skips — the brief file's stamp moved on (`brief.json`). A writing verb
+ * added later collapses by the same proof. The verbs that write nothing a
+ * reader could check — reading a run's context, printing a reference, resolving
+ * a definition — collapse by name instead (`READ_ONLY`), on a clean exit alone,
+ * before any run exists as well; a verb neither named there nor proved by the
+ * files draws as it always did. The command
  * must be the engine's script alone: that is the guard against a compound
  * command, whose other parts the files prove nothing about, never the source of
  * what is drawn. Only a clean call collapses — no error, no refusal, nothing
@@ -73,6 +78,25 @@ const VERSION = 1;
 
 /** The surfaces that draw the band and the card; anywhere else the status line and the log stand in. */
 const DRAWN = new Set(['terminal', 'desktop']);
+
+/**
+ * The engine's verbs that write nothing a reader could check, each with the
+ * few words its quiet line says. A verb missing here draws in full: the safe
+ * side for one added later.
+ */
+const READ_ONLY = {
+  validate: 'checked the workflow',
+  resolve: 'resolved the workflow',
+  locate: 'looked up the workflow',
+  'prior-context': 'read the prior context',
+  'run-context': 'read the run context',
+  'runner-step': 'read the runner\'s next step',
+  'dispatch-model': 'picked the agent\'s model',
+  reference: 'printed a plugin reference',
+  'scratch-dir': 'made a scratch folder',
+  'sync-plan': 'synced the plan',
+  'subrun-path': 'found the sub-run\'s folder',
+};
 
 /** A call of the engine's script: the interpreter, the script, bare or quoted, and the verb. */
 const ENGINE_CALL = /^\s*(?:[^\s"']*[\\/])?node(?:\.exe)?\s+(?:"[^"]*[\\/]workflow\.mjs"|'[^']*[\\/]workflow\.mjs'|(?:[^\s"']*[\\/])?workflow\.mjs)\s+([a-z][a-z-]*)(?=\s|$)/;
@@ -236,9 +260,9 @@ export const register = on => {
 /** The run this session drives and the stamps of its files, read before a shell call. */
 async function snapshot($) {
   const dir = await runOf($);
-  if (!dir) return { dir: null, updated: null, brief: null };
-  const [status, brief] = await Promise.all([display($, dir, 'status.json'), display($, dir, 'next.json')]);
-  return { dir, updated: status?.updated ?? null, brief: brief ? JSON.stringify(brief) : null };
+  if (!dir) return { dir: null, updated: null, brief: null, printed: null };
+  const [status, brief, printed] = await Promise.all([display($, dir, 'status.json'), display($, dir, 'next.json'), display($, dir, 'brief.json')]);
+  return { dir, updated: status?.updated ?? null, brief: brief ? JSON.stringify(brief) : null, printed: printed ? JSON.stringify(printed) : null };
 }
 
 /**
@@ -247,6 +271,12 @@ async function snapshot($) {
  * call of the engine alone did.
  */
 async function afterShell($, e, ran, before) {
+  const verb = engineVerb(e.command);
+  const quiet = verb !== null && clean(ran);
+  const id = e.tool_use_id;
+  // A verb that writes nothing has no file to prove it by, and may run before any run exists.
+  if (quiet && !e.agentId && typeof id === 'string' && Object.hasOwn(READ_ONLY, verb)) await say($, id, { line: `· maister · ${READ_ONLY[verb]}` });
+
   const pointer = await pointerOf($);
   const dir = pointer?.run_dir;
   if (!dir) return;
@@ -255,14 +285,11 @@ async function afterShell($, e, ran, before) {
   const drawn = await drawnHere($);
   await update($, run, () => status);
   if (!drawn && typeof status.line === 'string') $.ui.status(status.line);
-  if (e.agentId) return;
+  if (e.agentId || Object.hasOwn(READ_ONLY, verb ?? '')) return;
 
   // Under a pointer this call set, there is no earlier stamp to compare: a state
   // write stamps the pointer and the status alike, a resume check the pointer alone.
   const moved = before?.dir === dir ? status.updated !== before.updated : status.updated === pointer.updated;
-  const verb = engineVerb(e.command);
-  const quiet = verb !== null && clean(ran);
-  const id = e.tool_use_id;
 
   // A gate brief reads the patch file for a question set and leaves it unlanded.
   if (moved && verb !== 'gate-brief') await consumePatches($);
@@ -282,7 +309,17 @@ async function afterShell($, e, ran, before) {
     if (brief) await say($, id, { line: checkpointLine(brief) });
     return;
   }
-  if (moved) await say($, id, { line: savedLine(status) });
+  if (moved) {
+    await say($, id, { line: savedLine(status) });
+    return;
+  }
+  if (verb === 'node-brief' && before?.dir === dir) {
+    // A brief that started nothing: its stamp, moved on by this call, is the proof it printed.
+    const printed = await display($, dir, 'brief.json');
+    if (printed && JSON.stringify(printed) !== before.printed && typeof printed.title === 'string') {
+      await say($, id, { line: `· maister · brief · ${lowered(printed.title)}` });
+    }
+  }
 }
 
 /** The verb, when the command is the engine's script and nothing else; null otherwise. */
