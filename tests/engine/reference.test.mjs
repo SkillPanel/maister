@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ENGINE, ENGINE_DIR, ROOT, run, variantRoot } from '../helpers.mjs';
-import { PRINT_MAX } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
+import { PRINT_MAX, reference as printReference } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
 
 // `reference` prints a section of the plugin's own Markdown, so a session
 // reads the plugin's rules through a command and never opens a file outside
@@ -222,6 +222,67 @@ test('every --at a skill, an agent or a workflow guide spells in a reference cal
     const result = reference([at]);
     assert.equal(result.code, 0, `${at}: ${result.stderr}`);
   }
+});
+
+/**
+ * The pointers a main-session text names: each backticked `.md` path, and each
+ * `--at=` value a reference call spells, with where it stands in the text.
+ */
+function pointersIn(text) {
+  const found = [];
+  for (const match of text.matchAll(/`((?:<plugin[ _]root>\/|\$\{CLAUDE_PLUGIN_ROOT\}\/|\$CLAUDE_PLUGIN_ROOT\/)?[\w./-]+\.md)`/g)) {
+    found.push({ given: match[1], after: text.slice(match.index + match[0].length, match.index + match[0].length + 8), at: false });
+  }
+  for (const match of text.matchAll(/--at=(?:"([^"]+)"|'([^']+)'|([^\s"'`]+))/g)) {
+    const value = match[1] ?? match[2] ?? match[3];
+    if (/[<…$]/.test(value)) continue;
+    const [given, ...rest] = value.split('§');
+    found.push({ given: given.trim(), named: rest.length > 0, at: true });
+  }
+  return found;
+}
+
+/** The plugin file a pointer in `from` names, resolved as a reader would: beside it, then the engine, the plugin root and `skills/`. */
+function pointed(given, from) {
+  const bare = given.replace(/^(?:<plugin[ _]root>|\$\{CLAUDE_PLUGIN_ROOT\}|\$CLAUDE_PLUGIN_ROOT)\//, '');
+  const candidates = [path.resolve(path.dirname(from), bare), path.join(ENGINE_DIR, bare), path.join(PLUGIN, bare), path.join(PLUGIN, 'skills', bare)];
+  return candidates.find(file => {
+    const relative = path.relative(PLUGIN, file);
+    return !relative.startsWith('..') && !path.isAbsolute(relative) && fs.existsSync(file) && fs.statSync(file).isFile();
+  }) ?? null;
+}
+
+test('every pointer the main session reads to a file past the cap names a section', () => {
+  // A session following a bare pointer to such a file prints it whole and is refused reference-too-long.
+  // Agents' own reads are a subagent's, so agents/ is not scanned.
+  const overCap = new Map();
+  const isOver = file => {
+    if (!overCap.has(file)) {
+      const result = printReference({ ats: [file], pluginRoot: PLUGIN });
+      overCap.set(file, !result.ok && result.errors[0].code === 'reference-too-long');
+    }
+    return overCap.get(file);
+  };
+  const shown = file => path.relative(PLUGIN, file).split(path.sep).join('/');
+  const files = fs.readdirSync(PLUGIN, { recursive: true }).map(String)
+    .filter(file => file.endsWith('.md') && !file.split(/[\\/]/).includes('agents'))
+    .map(file => path.join(PLUGIN, file));
+  const bare = [];
+  let checked = 0;
+  for (const file of files) {
+    // A Step 0 block is held word for word across the workflow hand-offs: it names where the
+    // defaults live rather than sending the session to read a file, and is left out here.
+    const text = fs.readFileSync(file, 'utf8').replace(/^### Step 0\b[\s\S]*?(?=^#{1,3} |(?![\s\S]))/m, '').replace(/\s+/g, ' ');
+    for (const pointer of pointersIn(text)) {
+      const target = pointed(pointer.given, file);
+      if (target === null || !isOver(target)) continue;
+      checked += 1;
+      const named = pointer.at ? pointer.named : /^\s?(?:,\s?|\(\s?)?(?:§|\*)/.test(pointer.after);
+      if (!named) bare.push(`${shown(file)}: ${pointer.at ? '--at=' : ''}${pointer.given} → ${shown(target)}`);
+    }
+  }
+  assert.ok(checked >= 40, `${checked} pointers to files past the cap were found`);
+  assert.deepEqual(bare, [], `pointers to a file past the cap that name no section:\n${bare.join('\n')}`);
 });
 
 test('the inline runner route prints each runner whole in the calls its skill spells, every one under the cap', () => {

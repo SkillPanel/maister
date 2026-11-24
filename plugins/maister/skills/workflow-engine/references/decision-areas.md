@@ -6,7 +6,7 @@ decision areas file is that grouping written down for a machine as well as a per
 brainstormer writes it as `decision-areas.json` beside its markdown — research's
 `outputs/solution-exploration.md`, product design's `analysis/alternatives.md` — and the brainstorm
 node declares it as its `decision_areas` artifact. The convergence node reads it through the
-engine's `area-brief` verb (its row: `references/verbs.md`), which asks each area from the file: in the terminal one area at a
+engine's `area-brief` verb (its row: `references/verbs.md` § *The verbs some steps call* § `area-brief`), which asks each area from the file: in the terminal one area at a
 time, and for a cockpit every area in one question set, each carrying its full write-up.
 
 The verb renders and never writes words of its own. Every content sentence a user sees comes from

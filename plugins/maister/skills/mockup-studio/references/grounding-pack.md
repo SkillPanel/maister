@@ -124,7 +124,7 @@ The digest and the source hashes are computed by code, never by the model.
 3. Run `turn.mjs ground-seal --pack=<pack> --root=<project root>`. It hashes every source and image,
    computes the digest over them and the pack's own files, writes `grounding.json` and deletes
    `.sources.json` and the build marker. It prints the digest and the counts. A refusal keeps the input file; its
-   recovery is in `turn-contract.md`.
+   recovery is in `turn-contract.md` § *Refusals*.
 
 A hash is the file's git blob hash, so it matches what git records. A text file (one with no NUL
 byte) is hashed with its CRLF line endings read as LF, as git stores text, so a checkout that

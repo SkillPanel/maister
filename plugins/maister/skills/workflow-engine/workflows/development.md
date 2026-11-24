@@ -19,7 +19,7 @@ run reads from.
    The recorded paths never include `INDEX.md` itself or any file under `standards/`: those reach every delegate through the index.
 3. **Detect research context** — when the invocation named a completed research
    task, as the sole argument or through the research input, bring its report and
-   artifacts under `analysis/research-context/` with `import` (its row: the engine's `references/verbs.md`). Record
+   artifacts under `analysis/research-context/` with `import` (its row: the engine's `references/verbs.md` § *The verbs some steps call* § `import`). Record
    `task_context.research_reference`: the source path, the copied path, the
    research question, the research type and the confidence level. Research
    **informs** every later node and skips none of them, so a source the verb
@@ -300,7 +300,7 @@ Skip it entirely for a simple, low-risk task with one obvious approach.
   four tabs**, shaped like the `codebase-analysis` clarifications.
 - **The architecture choice.** When several architectural approaches are
   genuinely open, each open choice is a decision area by engine
-  `references/in-node-questions.md`, asked **one area per call**, each option an
+  `references/in-node-questions.md` § *Decision areas from the brainstorm*, asked **one area per call**, each option an
   approach.
 
 An area the architecture input already decides is not asked. Save what was
@@ -321,7 +321,7 @@ refactor, or a defect fix the failing test already pins, has no stories.
 confirmable assumptions, the count adapted to how much the invocation already
 said: a brief description earns six to eight, a standard one four to six, a
 detailed one two or three, asked as engine `references/in-node-questions.md`
-asks assumptions. Two are always among them: which existing components and
+§ *In-node questions* asks assumptions. Two are always among them: which existing components and
 patterns the change should reuse, and whether any visual assets exist that have
 not been ingested yet. A third, how users reach
 the feature and which personas it serves, only when the run drafted no story.

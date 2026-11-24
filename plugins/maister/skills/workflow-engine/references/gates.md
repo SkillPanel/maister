@@ -433,7 +433,7 @@ suspended the moment step 2's marker publishes. **The commit point is `gate_pend
 
 **A sub-run suspends on the same shape**: the child freeze (W2) and the parent's record of the
 link (W3) both complete **before** the write that projects the dashboard and before
-`WAITING-SUBRUN` is printed (`references/sub-runs.md` carries both walks).
+`WAITING-SUBRUN` is printed (`references/sub-runs.md` § *Walk one* and § *Walk two* carry both walks).
 
 **The `gate-request` verb** derives everything from `--state` — the run directory, the `gates/`
 directory and the frozen graph the node id is checked against. A document sent in place of
@@ -487,7 +487,7 @@ the node's recorded `values.run_id`; a token with no colon is its own last segme
 
 A malformed line, a `run=` or `node=` that is not this run's, or a `child=` that is not the
 recorded one, all print `SUB-RUN-INVALID: <reason>` and write nothing — the reason names the field
-at fault in that field's own spelling (`references/sub-runs.md`); a `node=` that is no longer
+at fault in that field's own spelling (`references/sub-runs.md` § *The `SUB-RUN-INVALID` reason vocabulary*); a `node=` that is no longer
 `waiting` prints `SUB-RUN-ALREADY-DONE` and writes nothing. A missing `at=` falls to the rule
 above.
 

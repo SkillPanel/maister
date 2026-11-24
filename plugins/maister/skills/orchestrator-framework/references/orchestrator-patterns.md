@@ -8,7 +8,7 @@ What is left of the shared orchestrator rules, kept because something still name
 - **§ 3 Context Passing & Decisions** → engine `SKILL.md` § *Before anything else* (the run context every delegate prompt carries). A decision a delegate returns is asked as `references/in-node-questions.md` § *In-node questions* says.
 - **§ 4 State Schema** → `references/node-summaries.md` (the `node_summaries` entry, each decision's `by`, each risk's tag), and `references/writing-state.md` § *Project configuration*, § *The common fields* and § *The verification block*.
 - **§ 5 Initialization & Resume** → engine `SKILL.md` § *Starting a run* (the run directory and the task-name rule are Step 4), and § *Resume*.
-- **§ 6 Issue Resolution** → `agents/verification-runner.md` (the fix loop and the documents a fix may touch), `references/in-node-questions.md` § *Findings that need a decision* and § *The specification audit's fix pass*, and the `implementation-verifier` skill (the stopping question).
+- **§ 6 Issue Resolution** → `agents/verification-runner.md` § *The fix pass* (the fix loop and the documents a fix may touch), `references/in-node-questions.md` § *Findings that need a decision* and § *The specification audit's fix pass*, and the `implementation-verifier` skill (the stopping question).
 - **§ 8 Operator Dashboard** → engine `SKILL.md` § *Operator visibility*. Copying decisions and risks verbatim → `references/node-summaries.md` § *Lifting an artifact's summary block*.
 - **§ 9 HTML Companion Reports** → `references/grammar.md` § 3.2 (which artifacts owe a page) and `references/writing-state.md` § *A missing or stale companion* (the recovery and the registration).
 - **§ 10 Finalization: Artifact Reconciliation** → engine `SKILL.md` § *Recording an outcome* (a path a summary lists is checked too), and `references/writing-state.md` § *Ending the run — the wrap-up* (missing files go under **Needs you**).
@@ -25,7 +25,7 @@ Decide the gate policy once, at the run's start, and do not weigh it again at ea
 
 ### 2.2 In-node questions under a non-terminal driver
 
-A question a phase asks inside itself follows the run's driver: the workflow engine's `references/in-node-questions.md` holds the rule, the defaults a run takes when nobody can be asked (§ *When nobody can be asked*), and what is never defaulted past.
+A question a phase asks inside itself follows the run's driver: the workflow engine's `references/in-node-questions.md` § *In-node questions* holds the rule, the defaults a run takes when nobody can be asked (§ *When nobody can be asked*), and what is never defaulted past.
 
 ---
 

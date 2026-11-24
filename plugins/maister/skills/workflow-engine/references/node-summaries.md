@@ -3,7 +3,7 @@
 A node summary is the `node_summaries.<node>` entry a step writes when it closes: what it found,
 settled, fixed and left open, read by every later step's `prior-context`, by the gate that
 closes the stretch and by the dashboard. The engine's Step 1 reads this file whole; the writer
-merges an entry field by field (`references/writing-state.md`), and a gate's own fields are
+merges an entry field by field (`references/writing-state.md` § *Writing state*), and a gate's own fields are
 `references/gates.md` § *Before every gate — the gate brief*.
 
 ## The entry shape

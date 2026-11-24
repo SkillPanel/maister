@@ -228,7 +228,7 @@ project file declares, such as a built-in's `string` value — belongs to the pl
 author. Report it as the built-in's, with no `fix:` line, and do not count it against the
 author's files.
 
-The grammar every message refers to is the workflow engine's `references/grammar.md`; point the
+The grammar every message refers to is the workflow engine's `references/grammar.md` § 1 to § 14; point the
 author at the section a problem falls under when the message alone leaves them guessing.
 
 ---

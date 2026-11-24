@@ -10,7 +10,7 @@ Turns a definition's graph into a run, one ready set at a time, with every state
 by a script rather than by a model holding a file open. A user reaches it only through a
 workflow's own command or `/maister:run <name>`, which hand the run here; nothing a user reads
 needs the word "engine". The grammar a definition is written in is
-[`references/grammar.md`](references/grammar.md); this skill executes it and does not restate it.
+[`references/grammar.md` § *3. The definition*](references/grammar.md) and the sections after it; this skill executes it and does not restate it.
 
 **A dispatched run is told by its `dispatch_id`, not by a kind of its own**: its
 `orchestrator.driver` is a `cockpit` driver carrying one, or the legacy `kind: dispatch` with or
@@ -46,7 +46,7 @@ delegate's copy; `--background` for a document written for end users.
 `orchestrator-state.yml` or the dashboard files, not even when a verb fails: a model-written state
 file drifts out of canonical shape, and its readers then disagree about the run. The one exception
 is answering a pending gate (`references/gates.md` § *Driver-suspended mode — resume*); the patch
-vocabulary is `references/writing-state.md`.
+vocabulary is `references/writing-state.md` § *Recording an outcome — the detail*.
 
 **Print what a `rules:` line names** before acting, with the `reference` verb:
 `--at="<its file> § <its heading>"`, adding ` § <the code>` after a refusal for that code's row.
@@ -99,7 +99,7 @@ who sees only the terminal.
   decided.
 - **Every recommendation gives its reason** in the option's description and keeps every
   criterion the task states; "(Recommended)" appears once per question, on the option
-  (`references/in-node-questions.md`).
+  (`references/in-node-questions.md` § *When a question suspends*).
 - **Paths are anchored** at the project root (`.maister/tasks/<type>/<run>/analysis/gap-analysis.md`);
   only a gate's *Review* and More details, which the start banner anchored, name them inside the
   task folder.
@@ -144,7 +144,7 @@ Write the JSON with the file-writing tool to `.state-patch.json` beside `orchest
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=<run>/orchestrator-state.yml --patch-file=<run>/.state-patch.json
 ```
 
-Every verb's flags, output and refusals are in `references/verbs.md`. Each step here spells the whole call of the verbs every run makes, where its moment is. Read a verb's row there only for a call no step spells.
+Every verb's flags, output and refusals are in `references/verbs.md` § *The verbs every run calls*, § *The verbs some steps call* and § *Refusals*, a row per verb. Each step here spells the whole call of the verbs every run makes, where its moment is. Read a verb's row there only for a call no step spells.
 
 ---
 
@@ -160,7 +160,7 @@ Every verb's flags, output and refusals are in `references/verbs.md`. Each step 
 - **Under a `cockpit` or `dispatch` driver tooling reads it.** Print everything the operator
   should read — the executive summary, the next steps, the dashboard link — before
   `run-complete`, and echo its lines, its marker last; never type a marker it did not print. A
-  turn that ends at a sub-run ends on the typed `WAITING-SUBRUN` line (`references/sub-runs.md`).
+  turn that ends at a sub-run ends on the typed `WAITING-SUBRUN` line (`references/sub-runs.md` § *Walk two*).
 
 ---
 
@@ -301,5 +301,5 @@ drop one silently.**
 ## When to use
 
 Only when a workflow's own skill or `/maister:run` hands a run over, or a node starts a child run
-(`references/sub-runs.md`). A dispatch goes through the umbrella runtime's `envelope` verb, which opens the
+(`references/sub-runs.md` § *Walk one* or § *Walk two*, by the driver). A dispatch goes through the umbrella runtime's `envelope` verb, which opens the
 dispatch's ledger entry itself; a run never writes `create-entry` for a dispatch.

@@ -2,7 +2,7 @@
 
 The workflow engine's rules for writing a run's state. A refused `write-state` names
 *When a write is refused*, and a refused `run-complete` names *When `run-complete` refuses*.
-Every verb's row and every verb's refusals are in `references/verbs.md`.
+Every verb's row and every verb's refusals are in `references/verbs.md` § *The verbs every run calls*, § *The verbs some steps call* and § *Refusals*.
 
 **Every state change goes through `write-state`. Never edit `orchestrator-state.yml` with an
 editor tool** — not to fix a stray line, not to record one small field, not when a write has
@@ -96,7 +96,7 @@ changes nothing, and one that differs in a node or in any scalar beside `workflo
 forward into the block and nothing is dropped from it.
 
 **The writer judges a gate's triage itself**, on the write that records its answer and on the
-re-validation of a driven answer (`references/gates.md`). These `warning:` lines on stderr are
+re-validation of a driven answer (`references/gates.md` § *Driver-suspended mode — resume*). These `warning:` lines on stderr are
 never refusals — the write lands and the exit code does not move:
 - **`policy-hash-mismatch:<gate>`** — the policy loaded now would classify the gate, but its hash
   is not the run's `policy_hash`, or the run recorded none. Nothing is classified; relay it. A
@@ -221,7 +221,7 @@ run in its `runs/<child>/`) is refused `state-run-folder-misplaced`. **It record
 `orchestrator.task_path`**, the run's folder relative to the project root, from where the state
 file is; a value the freeze patch sends is dropped with a `note:` line, and a later write of the
 key lands as sent. A child run's directory is the one `subrun-path` prints
-(`references/sub-runs.md`). **It creates the folders inside it**: the first folder of every
+(`references/sub-runs.md` § *The child directory name*). **It creates the folders inside it**: the first folder of every
 artifact path the resolved graph declares, so a node or an agent writing a declared artifact
 finds its folder there. A deeper folder, a directory artifact included, is its writer's to create.
 
@@ -556,7 +556,7 @@ the writer's is ever sent: the writer drops it with a `note:` line (the opening 
 - `orchestrator.driver` — who drives the run, absent meaning terminal, written whole (the opening section).
 - `orchestrator.classes_questions` — the writer's, recorded at the freeze (§ *What the freeze write adds*).
 - `orchestrator.gate_pending` — the suspended gate's marker, set and cleared only as `references/gates.md` § *Driver-suspended mode — the write order* says.
-- `orchestrator.parent` — a child run's link to its parent, sent by its freeze (`references/sub-runs.md`).
+- `orchestrator.parent` — a child run's link to its parent, sent by its freeze (`references/sub-runs.md` § *Walk one*).
 - `task.title`, `task.description`, `task.key` — the freeze patch (engine Step 4).
 - `task.status` — the writer's at the first node start, then the closing patch's (the opening section).
 - `task.base_commit` — the writer's, recorded at the freeze and moved only by `move-base`.

@@ -252,7 +252,7 @@ The verifier has already recorded `verification_context.last_status`, `suite_run
 schema (print `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/implementation-verifier/references/review-findings.md § The findings file"`) with the
 cycle the verifier ran; a data integrity issue takes `category:
 data-integrity` and `fixable: false`. Then run `findings-merge --state=<state>`
-(its row: the engine's `references/verbs.md`) again, which records `verification_context.issues_found` itself, so the
+(its row: the engine's `references/verbs.md` § *The verbs some steps call* § `findings-merge`) again, which records `verification_context.issues_found` itself, so the
 issues keep their numbers in every later cycle. Then **declare
 `issues_to_resolve`**: true when the
 report carries an open issue the fix loop can fix or needs a decision on,
@@ -299,7 +299,7 @@ and a data integrity issue is never fixed and never a finding (Asks below).
 
 **Asks.** Write the issues still needing a person to
 `verification/issue-resolution-findings.json`, each `id` the verifier's
-`name`, and build the set with `finding-brief` for this node (its row: the engine's `references/verbs.md`); compose the same
+`name`, and build the set with `finding-brief` for this node (its row: the engine's `references/verbs.md` § *The verbs some steps call* § `finding-brief`); compose the same
 questions by hand only when it cannot use the file. At the stopping
 point, recommend "One more round" under `verification-fix-loop` while the last
 round made progress and a fixable warning or critical issue is open. Once there
