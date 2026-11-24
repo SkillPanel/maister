@@ -28,8 +28,9 @@
  * of its own and no open candidate it attached to. Of the rest the newest file
  * wins, its path breaking a tie. It prints `{run, candidates, already_held,
  * attached, others, problems}`: `run` is `{dir, type, name}` or null when no
- * run holds a candidate to apply; each candidate carries its `run` and
- * `seen_in`; `attached` is the run's attachments, each with the `state` of the
+ * run holds a candidate to apply; each candidate carries its `run`, its
+ * `seen_in`, and `recommended` with its `reason`, worked out here — seen in two
+ * runs or more, or guarding security or data loss — and listed first; `attached` is the run's attachments, each with the `state` of the
  * candidate it names and that `candidate` while it is open; `others` is every
  * other run with an open candidate, `{dir, count}`, newest first; `problems`
  * names each file that could not be read and each entry that is not a
@@ -142,7 +143,11 @@ function readRun(dir, problems) {
       problems.push({ path: file, message: `candidate ${index + 1} has no ${missing.join(', ')}` });
       continue;
     }
-    candidates.push({ ...entry, recommended: entry.recommended === true });
+    // `recommended` and `reason` are worked out on read, never taken from the
+    // file: support grows after a run writes it, and an earlier file used a
+    // looser bar.
+    const { recommended: _recommended, reason: _reason, ...rest } = entry;
+    candidates.push(rest);
   }
   const attached = [];
   for (const [index, entry] of (Array.isArray(doc?.attached) ? doc.attached : []).entries()) {
@@ -216,12 +221,30 @@ function stateOf(owner, candidate) {
   return owner.applied.has(candidate.id) ? 'applied' : 'open';
 }
 
-/** A candidate as the reports print it: its run and the runs that met it. */
-function decorate(index, owner, candidate) {
-  return { ...candidate, run: owner.run, seen_in: index.seenIn(owner, candidate) };
+const GUARDS = { security: 'security', 'data-loss': 'data loss' };
+
+/**
+ * Whether a candidate is recommended, and why: seen in two runs or more, or
+ * guarding security or data loss. Nothing else earns it.
+ */
+function support(candidate, seenIn) {
+  const reasons = [];
+  if (seenIn.length >= 2) reasons.push(`seen in ${seenIn.length} runs`);
+  if (Object.hasOwn(GUARDS, candidate.guards)) reasons.push(`guards ${GUARDS[candidate.guards]}`);
+  return { recommended: reasons.length > 0, reason: reasons.length ? reasons.join('; ') : null };
 }
 
-const openOf = (index, owner) => owner.candidates.filter(candidate => stateOf(owner, candidate) === 'open').map(candidate => decorate(index, owner, candidate));
+/** A candidate as the reports print it: its run, the runs that met it, and whether it is recommended. */
+function decorate(index, owner, candidate) {
+  const seenIn = index.seenIn(owner, candidate);
+  return { ...candidate, run: owner.run, seen_in: seenIn, ...support(candidate, seenIn) };
+}
+
+/** A run's open candidates, the recommended first, each group in file order. */
+function openOf(index, owner) {
+  const open = owner.candidates.filter(candidate => stateOf(owner, candidate) === 'open').map(candidate => decorate(index, owner, candidate));
+  return [...open.filter(each => each.recommended), ...open.filter(each => !each.recommended)];
+}
 
 /** A run's attachments, each with the state of the candidate it names and that candidate while it is open. */
 function attachedOf(index, owner) {
@@ -277,12 +300,14 @@ function queue(tasks, skip) {
   const index = loadIndex(tasks, problems, { skip });
   const entries = [];
   for (const owner of [...index.runs].sort(byAge)) {
-    for (const candidate of openOf(index, owner)) {
+    const open = new Map(openOf(index, owner).map(candidate => [candidate.id, candidate]));
+    for (const candidate of owner.candidates.map(each => open.get(each.id)).filter(Boolean)) {
       entries.push({
         run: owner.run, dir: owner.dir, date: owner.date, id: candidate.id, label: candidate.label,
         rule: ruleOf(candidate.line), action: candidate.action === 'extend' ? 'extend' : 'new',
         extends: candidate.action === 'extend' && isText(candidate.extends) ? candidate.extends : null,
         destination: candidate.destination, seen_in: candidate.seen_in,
+        recommended: candidate.recommended, reason: candidate.reason,
       });
     }
   }

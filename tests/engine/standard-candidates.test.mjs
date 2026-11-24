@@ -102,7 +102,7 @@ test('standards-update, given nothing, offers the latest run\'s candidates throu
   assert.ok(skill.includes('`node <plugin root>/skills/standards-update/scripts/candidates.mjs applied --run=<run dir> --id=<id>`'), 'each applied candidate is recorded');
   assert.ok(skill.includes('one multi-select AskUserQuestion. The question names the run'), 'one multi-select naming the run');
   assert.ok(skill.includes('other runs hold candidates too'), 'the others are mentioned');
-  assert.ok(skill.includes('When none is, the question says no candidate has support beyond one place yet'), 'none qualifying is said');
+  assert.ok(skill.includes('When none is, the question says no candidate has been seen in two runs yet or guards security or data loss'), 'none qualifying is said');
   assert.ok(skill.includes('never taken as given'), 'the destination is still confirmed');
 });
 
@@ -177,8 +177,8 @@ test('latest: the newest run wins, the others are counted, and a broken file is 
   assert.equal(result.code, 0, result.stderr);
   const { report } = result;
   assert.deepEqual(report.run, { dir: newest, type: 'performance', name: '2026-01-06-newer' });
-  assert.deepEqual(report.candidates.map(each => [each.id, each.recommended]), [['c', true]], 'the entry without its fields is not offered');
-  assert.equal(report.candidates[0].reason, 'seen in two groups');
+  assert.deepEqual(report.candidates.map(each => [each.id, each.recommended]), [['c', false]], 'the entry without its fields is not offered, and an earlier file\'s flag is not taken');
+  assert.equal(report.candidates[0].reason, null);
   assert.deepEqual(report.already_held.map(each => each.held_by), ['standards/global/errors.md § Errors']);
   assert.deepEqual(report.others.map(each => [path.basename(each.dir), each.count]), [['2026-01-05-older', 2]]);
   assert.deepEqual(report.problems.map(each => path.basename(path.dirname(each.path))).sort(), ['2026-01-06-newer', '2026-01-07-unreadable']);
@@ -207,7 +207,7 @@ test('applied: an applied candidate is not offered again, a fully applied run gi
 test('show: the named run, not the newest, less its applied candidates, with the others counted', t => {
   const where = project(t);
   const named = runWith(where, 'development', '2026-01-05-named', {
-    candidates: [candidate('a'), candidate('b', { recommended: true, reason: 'two groups' })],
+    candidates: [candidate('a'), candidate('b', { guards: 'security' })],
     already_held: [{ line: '- Held', held_by: 'standards/global/errors.md § Errors' }],
   }, 1_000_000);
   const newer = runWith(where, 'performance', '2026-01-06-newer', { candidates: [candidate('c')] }, 2_000_000);
@@ -215,7 +215,7 @@ test('show: the named run, not the newest, less its applied candidates, with the
   const first = script(where, ['show', `--run=${named}`]);
   assert.equal(first.code, 0, first.stderr);
   assert.deepEqual(first.report.run, { dir: named, type: 'development', name: '2026-01-05-named' });
-  assert.deepEqual(first.report.candidates.map(each => [each.id, each.recommended]), [['a', false], ['b', true]]);
+  assert.deepEqual(first.report.candidates.map(each => [each.id, each.recommended, each.reason]), [['b', true, 'guards security'], ['a', false, null]], 'the recommended come first');
   assert.deepEqual(first.report.already_held.map(each => each.held_by), ['standards/global/errors.md § Errors']);
   assert.deepEqual(first.report.others, [{ dir: newer, count: 1 }], 'the named run is not among the others');
 
@@ -271,6 +271,7 @@ test('seen_in: a later run attaching to a candidate adds itself, once, and an at
     ['a', 'development/2026-01-05-first', ['development/2026-01-05-first', 'performance/2026-01-06-second', 'development/2026-01-07-third']],
     ['b', 'development/2026-01-05-first', ['development/2026-01-05-first']],
   ]);
+  assert.deepEqual(shown.candidates.map(each => [each.recommended, each.reason]), [[true, 'seen in 3 runs'], [false, null]], 'two runs or more recommend it');
   assert.deepEqual(shown.problems.map(each => each.message).sort(), ['attachment 4 has no run', 'attachment development/2026-01-01-gone#x names no candidate']);
 
   const third = script(where, ['latest']).report;
@@ -324,6 +325,7 @@ test('queue: every open candidate across runs, oldest first, one line each, its 
     run: 'development/2026-01-05-first', dir: first, date: '2026-01-05', id: 'a', label: 'Atomic writes', rule: 'Rule a',
     action: 'new', extends: null, destination: 'standards/global/conventions.md',
     seen_in: ['development/2026-01-05-first', 'development/2026-01-06-second'],
+    recommended: true, reason: 'seen in 2 runs',
   });
   assert.equal(json.report.queue[1].extends, 'standards/global/errors.md § Retries');
 
@@ -346,4 +348,21 @@ test('queue: no tasks folder prints nothing; an undated run is dated by its file
     assert.equal(usage.code, 2, args.join(' '));
     assert.match(usage.stderr, /^usage:/m, args.join(' '));
   }
+});
+
+test('recommended: two runs or a guarded failure, never an extend alone, an earlier flag, or one run\'s several groups', t => {
+  const where = project(t);
+  const dir = runWith(where, 'development', '2026-01-05-run', {
+    version: 2,
+    candidates: [
+      candidate('extends', { action: 'extend', extends: 'standards/global/errors.md § Errors', evidence: 'groups 1, 2 and 3' }),
+      candidate('flagged', { recommended: true, reason: 'its evidence in more than one place' }),
+      candidate('data', { guards: 'data-loss' }),
+      candidate('odd', { guards: 'style' }),
+    ],
+  }, 1_000_000);
+  const shown = script(where, ['show', `--run=${dir}`]).report;
+  assert.deepEqual(shown.candidates.map(each => [each.id, each.recommended, each.reason]), [
+    ['data', true, 'guards data loss'], ['extends', false, null], ['flagged', false, null], ['odd', false, null],
+  ]);
 });

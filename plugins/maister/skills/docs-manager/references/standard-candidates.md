@@ -74,7 +74,8 @@ operation of that name. It reads; it never writes a document.
    named for its topic.
 6. **Return**, for each candidate offered: a label of a few words, the candidate line, the action
    (new or extend, with the rule extended), the suggested destination, and the evidence (which
-   groups or fixes showed it). Then each attachment, and each already-held line with the rule
+   groups or fixes showed it), and `guards` when it guards security or data loss. Then each
+   attachment, and each already-held line with the rule
    that holds it.
 
 The person still chooses: consolidation orders and places, it never decides what is kept.
@@ -94,8 +95,9 @@ Either way an applied candidate is not offered again. The file is JSON:
 - `candidates` — each one offered: `id` (short, unique in the file), `label` (its few words),
   `line` (the candidate line), `action` (`new` or `extend`), `extends` (the rule's file and
   heading, for `extend`), `destination` (the suggested file), `evidence` (which groups or fixes
-  showed it), `recommended` (true when well supported — its evidence in more than one place, or
-  its action extending a rule the project already has) and `reason` (why, when recommended).
+  showed it) and `guards` (`security` or `data-loss`, only when the candidate guards one and its
+  why names the failure it prevents). A file written earlier may carry `recommended` and `reason`
+  too; they are ignored, and a file written now leaves them out.
 - `attached` — each `{run, id, evidence, line}`: a lesson of this run that an open candidate of
   an earlier run already teaches. `run` names that candidate's run as `<type>/<name>` — its task
   directory's last two folders, always with a forward slash — and `id` the candidate in it;
@@ -103,12 +105,19 @@ Either way an applied candidate is not offered again. The file is JSON:
   attachment is never offered on its own: it adds this run to that candidate's `seen_in`.
 - `already_held` — each `{line, held_by}`: the rule that already says it.
 - `consolidated` — false when consolidation failed and the lines are the work log's as written
-  (each then `action` `new`, its destination the likeliest file by *Where one belongs*, and
-  `recommended` false).
+  (each then `action` `new`, its destination the likeliest file by *Where one belongs*, and no
+  `guards`).
 
 `id`, `label`, `line` and `destination` are required; an entry without them is not offered.
 Which candidates have been applied is recorded beside it, in `standard-candidates-applied.json`,
 by standards-update's script — never by hand, and never in the candidates file itself.
+
+**`recommended`** is never written either: the script works it out on read, with its `reason`.
+A candidate is recommended when it has been seen in two runs or more (`reason`: "seen in N
+runs"), or when it guards security or data loss and names the failure it prevents (`reason`:
+"guards security" or "guards data loss"). Nothing else recommends one: not that it extends a rule
+the project has, and not evidence from several groups of one run, which only orders it. A
+candidate the standards already hold is not a candidate at all (`already_held`).
 
 **`seen_in`** is never written: the script reads it across runs. A candidate's `seen_in` is its
 own run, then every other run whose `attached` names it, each once, ordered by run date and then
@@ -139,5 +148,6 @@ is 0, and 2 only on a usage error.
 
 - `queue` — each open candidate, in the text's order: `run` (`<type>/<name>`), `dir` (its task
   directory, absolute), `date` (the run's date), `id`, `label`, `rule`, `action` (`new` or
-  `extend`), `extends` (null for `new`), `destination` and `seen_in` (run names, its own first).
+  `extend`), `extends` (null for `new`), `destination`, `seen_in` (run names, its own first),
+  `recommended` and `reason` (null when not recommended).
 - `problems` — each `{path, message}`, as stderr names them in the text form.
