@@ -325,7 +325,7 @@ test('queue: every open candidate across runs, oldest first, one line each, its 
     run: 'development/2026-01-05-first', dir: first, date: '2026-01-05', id: 'a', label: 'Atomic writes', rule: 'Rule a',
     action: 'new', extends: null, destination: 'standards/global/conventions.md',
     seen_in: ['development/2026-01-05-first', 'development/2026-01-06-second'],
-    recommended: true, reason: 'seen in 2 runs',
+    recommended: true, reason: 'seen in 2 runs', caught_by: null,
   });
   assert.equal(json.report.queue[1].extends, 'standards/global/errors.md § Retries');
 
@@ -359,10 +359,28 @@ test('recommended: two runs or a guarded failure, never an extend alone, an earl
       candidate('flagged', { recommended: true, reason: 'its evidence in more than one place' }),
       candidate('data', { guards: 'data-loss' }),
       candidate('odd', { guards: 'style' }),
+      candidate('caught', { guards: 'security', caught_by: 'the contrast test' }),
     ],
   }, 1_000_000);
   const shown = script(where, ['show', `--run=${dir}`]).report;
   assert.deepEqual(shown.candidates.map(each => [each.id, each.recommended, each.reason]), [
-    ['data', true, 'guards data loss'], ['extends', false, null], ['flagged', false, null], ['odd', false, null],
+    ['data', true, 'guards data loss'], ['extends', false, null], ['flagged', false, null], ['odd', false, null], ['caught', false, null],
   ]);
+});
+
+test('caught by a check: offered, never recommended however many runs met it, and listed last', t => {
+  const where = project(t);
+  const first = runWith(where, 'development', '2026-01-05-first', {
+    version: 2, candidates: [candidate('caught', { caught_by: 'the lint rule' }), candidate('plain')],
+  }, 1_000_000);
+  runWith(where, 'development', '2026-01-06-second', {
+    version: 2, candidates: [],
+    attached: [{ run: 'development/2026-01-05-first', id: 'caught', evidence: 'group 1' }, { run: 'development/2026-01-05-first', id: 'plain', evidence: 'group 2' }],
+  }, 2_000_000);
+  const shown = script(where, ['show', `--run=${first}`]).report;
+  assert.deepEqual(shown.candidates.map(each => [each.id, each.seen_in.length, each.recommended, each.caught_by ?? null]), [
+    ['plain', 2, true, null], ['caught', 2, false, 'the lint rule'],
+  ]);
+  const queued = script(where, ['queue', '--json']).report.queue;
+  assert.deepEqual(queued.map(each => [each.id, each.caught_by]), [['caught', 'the lint rule'], ['plain', null]], 'the queue keeps file order');
 });

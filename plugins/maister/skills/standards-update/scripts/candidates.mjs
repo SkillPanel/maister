@@ -30,7 +30,8 @@
  * attached, others, problems}`: `run` is `{dir, type, name}` or null when no
  * run holds a candidate to apply; each candidate carries its `run`, its
  * `seen_in`, and `recommended` with its `reason`, worked out here — seen in two
- * runs or more, or guarding security or data loss — and listed first; `attached` is the run's attachments, each with the `state` of the
+ * runs or more, or guarding security or data loss, never with a `caught_by` —
+ * the recommended listed first and those a check catches last; `attached` is the run's attachments, each with the `state` of the
  * candidate it names and that `candidate` while it is open; `others` is every
  * other run with an open candidate, `{dir, count}`, newest first; `problems`
  * names each file that could not be read and each entry that is not a
@@ -225,9 +226,11 @@ const GUARDS = { security: 'security', 'data-loss': 'data loss' };
 
 /**
  * Whether a candidate is recommended, and why: seen in two runs or more, or
- * guarding security or data loss. Nothing else earns it.
+ * guarding security or data loss. Nothing else earns it, and a candidate a
+ * check already catches never does.
  */
 function support(candidate, seenIn) {
+  if (isText(candidate.caught_by)) return { recommended: false, reason: null };
   const reasons = [];
   if (seenIn.length >= 2) reasons.push(`seen in ${seenIn.length} runs`);
   if (Object.hasOwn(GUARDS, candidate.guards)) reasons.push(`guards ${GUARDS[candidate.guards]}`);
@@ -240,10 +243,12 @@ function decorate(index, owner, candidate) {
   return { ...candidate, run: owner.run, seen_in: seenIn, ...support(candidate, seenIn) };
 }
 
-/** A run's open candidates, the recommended first, each group in file order. */
+/** A run's open candidates: the recommended, then the rest, then those a check already catches, each group in file order. */
 function openOf(index, owner) {
   const open = owner.candidates.filter(candidate => stateOf(owner, candidate) === 'open').map(candidate => decorate(index, owner, candidate));
-  return [...open.filter(each => each.recommended), ...open.filter(each => !each.recommended)];
+  const caught = open.filter(each => isText(each.caught_by));
+  const rest = open.filter(each => !isText(each.caught_by));
+  return [...rest.filter(each => each.recommended), ...rest.filter(each => !each.recommended), ...caught];
 }
 
 /** A run's attachments, each with the state of the candidate it names and that candidate while it is open. */
@@ -308,6 +313,7 @@ function queue(tasks, skip) {
         extends: candidate.action === 'extend' && isText(candidate.extends) ? candidate.extends : null,
         destination: candidate.destination, seen_in: candidate.seen_in,
         recommended: candidate.recommended, reason: candidate.reason,
+        caught_by: isText(candidate.caught_by) ? candidate.caught_by : null,
       });
     }
   }

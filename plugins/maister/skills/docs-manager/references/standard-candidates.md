@@ -15,7 +15,7 @@ The idea is kept open on purpose. A project uses its standards as a knowledge ba
 these is set aside for what it is:
 
 - one whose scope is a domain, a module or a single feature rather than the whole project;
-- one that a test also enforces;
+- one that a test also enforces — offered, though never recommended (*Offered, not recommended*);
 - one that cannot be checked by reading a diff.
 
 **A project's own wording wins.** A project may widen or narrow this description in its own words
@@ -48,6 +48,15 @@ One bullet, on one line, compact — a few clauses, never a section:
   fact about the system rather than a way of writing code. Any Markdown file is accepted as it
   is; none needs frontmatter or a fixed name.
 
+## Offered, not recommended
+
+A candidate a test, lint rule, type check or build already fails on, with a failure that says
+what to do, is still offered — the knowledge stays open to the person — but never recommended,
+however many runs met it. Its line names the check (`caught by: <check>`), and consolidation
+copies it to `caught_by`. A check whose failure does not explain the rule — a timeout that names
+nothing, a type error far from its cause — does not catch it: the line names no check, and the
+candidate is judged like any other.
+
 ## Consolidation
 
 Run once at finalization, before the run hands its candidates over, by the docs-manager
@@ -74,7 +83,8 @@ operation of that name. It reads; it never writes a document.
    named for its topic.
 6. **Return**, for each candidate offered: a label of a few words, the candidate line, the action
    (new or extend, with the rule extended), the suggested destination, and the evidence (which
-   groups or fixes showed it), and `guards` when it guards security or data loss. Then each
+   groups or fixes showed it), `guards` when it guards security or data loss, and `caught_by`
+   when a check already catches it (*Offered, not recommended*). Then each
    attachment, and each already-held line with the rule
    that holds it.
 
@@ -95,8 +105,9 @@ Either way an applied candidate is not offered again. The file is JSON:
 - `candidates` — each one offered: `id` (short, unique in the file), `label` (its few words),
   `line` (the candidate line), `action` (`new` or `extend`), `extends` (the rule's file and
   heading, for `extend`), `destination` (the suggested file), `evidence` (which groups or fixes
-  showed it) and `guards` (`security` or `data-loss`, only when the candidate guards one and its
-  why names the failure it prevents). A file written earlier may carry `recommended` and `reason`
+  showed it), `guards` (`security` or `data-loss`, only when the candidate guards one and its
+  why names the failure it prevents) and `caught_by` (the check that already catches it, only
+  then). A file written earlier may carry `recommended` and `reason`
   too; they are ignored, and a file written now leaves them out.
 - `attached` — each `{run, id, evidence, line}`: a lesson of this run that an open candidate of
   an earlier run already teaches. `run` names that candidate's run as `<type>/<name>` — its task
@@ -115,7 +126,8 @@ by standards-update's script — never by hand, and never in the candidates file
 **`recommended`** is never written either: the script works it out on read, with its `reason`.
 A candidate is recommended when it has been seen in two runs or more (`reason`: "seen in N
 runs"), or when it guards security or data loss and names the failure it prevents (`reason`:
-"guards security" or "guards data loss"). Nothing else recommends one: not that it extends a rule
+"guards security" or "guards data loss") — unless it has a `caught_by`, which no support
+outweighs. Nothing else recommends one: not that it extends a rule
 the project has, and not evidence from several groups of one run, which only orders it. A
 candidate the standards already hold is not a candidate at all (`already_held`).
 
@@ -149,5 +161,6 @@ is 0, and 2 only on a usage error.
 - `queue` — each open candidate, in the text's order: `run` (`<type>/<name>`), `dir` (its task
   directory, absolute), `date` (the run's date), `id`, `label`, `rule`, `action` (`new` or
   `extend`), `extends` (null for `new`), `destination`, `seen_in` (run names, its own first),
-  `recommended` and `reason` (null when not recommended).
+  `recommended`, `reason` (null when not recommended) and `caught_by` (null when no check catches
+  it).
 - `problems` — each `{path, message}`, as stderr names them in the text form.
