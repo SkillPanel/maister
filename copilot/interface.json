@@ -258,6 +258,7 @@
           "state"
         ],
         "refusals": [
+          "finding-brief-list-invalid",
           "finding-brief-not-running",
           "finding-brief-state-unreadable",
           "finding-brief-undeclared",
@@ -1262,7 +1263,7 @@
     },
     "modules": []
   },
-  "interface_version": "2.10",
+  "interface_version": "2.11",
   "mcp": {
     "servers": [],
     "tools": [

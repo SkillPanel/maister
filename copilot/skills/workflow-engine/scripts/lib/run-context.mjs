@@ -103,7 +103,25 @@ export function groundingPackLine(pack) {
 /** The scheme of a node that starts a sub-run, whose files land in the child's task directory. */
 const WORKFLOW_SCHEME = 'workflow:';
 
-const SCRATCH = 'scratch: make any throwaway file — a copy, a probe, a benchmark — in a directory mktemp -d makes (it uses $TMPDIR) or under "${TMPDIR:-/tmp}", and leave it there; never a literal /tmp path, since a fixed /tmp path can stop the run for a permission prompt — no cleanup step, no rm -rf. Name every path absolute and never cd, into it or into the task directory: a relative path is resolved from the project root, and a host may stop the run to ask for access to it; name any file you make for what it holds, never with a name that starts with report, summary, findings or analysis and ends in .md, which Claude Code refuses when a subagent writes it';
+/** The engine's entry point, whose `scratch-dir` verb makes a delegate's scratch directory. */
+const ENGINE_SCRIPT = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
+
+/**
+ * The scratch line of a delegate prompt: the directory the engine makes inside
+ * the run, ignored by git, so a file is read back with no prompt for a path
+ * outside the project.
+ */
+function scratchLine(state) {
+  return `scratch: make any throwaway file — a helper script, a copy, a probe, a benchmark — in the directory node ${quoted(ENGINE_SCRIPT)} scratch-dir --for=<what it holds> --state=${quoted(path.resolve(state))} makes and prints, inside the run and ignored by git, and leave it there; `
+    + 'never the system temp directory or a literal /tmp path, which sit outside the project and can stop the run for a permission prompt — no cleanup step, no rm -rf. '
+    + 'Name every path absolute and never cd, into it or into the task directory: a relative path is resolved from the project root, and a host may stop the run to ask for access to it; '
+    + 'name any file you make for what it holds, never with a name that starts with report, summary, findings or analysis and ends in .md, which Claude Code refuses when a subagent writes it';
+}
+
+/** A path as a shell reads it: bare, or in single quotes when it holds whitespace. */
+function quoted(file) {
+  return /\s/.test(file) ? `'${file.replace(/'/g, "'\\''")}'` : file;
+}
 
 const CONTRACT = 'summary contract: open every markdown artifact you write with ## TL;DR (at most 5 lines, conclusions in plain words), '
   + '## Key Decisions (- decision — rationale) and ## Open Questions / Risks (- risk → what would change), omitting an empty section; '
@@ -176,7 +194,7 @@ export function runContext({ state, node }) {
     `html: ${html}`,
     ...(docs.length ? ['docs (read-only):', ...docs.map(file => `- ${file}`)] : ['docs: none']),
     ...(isDirectory(pack) && (sources === null || changesCode(sources)) ? [groundingPackLine(pack)] : []),
-    SCRATCH,
+    scratchLine(state),
     ...(declared === null || writesMarkdown(declared) ? [CONTRACT] : []),
     ...companions,
   ];

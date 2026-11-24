@@ -323,7 +323,8 @@ const VERBS = {
   // because what a node owes is the node's, and the state records no
   // "current" one while a prompt is being composed.
   'run-context': { module: 'run-context.mjs', flags: ['state', 'node'] },
-  // Read-only as well: the brief a node reads before it runs. `--node` for
+  // Read-only as well, but for a step's start, the session's conventions marker
+  // and the display's brief stamp: the brief a node reads before it runs. `--node` for
   // `run-context`'s reason; nothing else is taken, because the definition,
   // its overlays, the guide and the conventions are all found from the run.
   'node-brief': { module: 'node-brief.mjs', flags: ['state', 'node'] },

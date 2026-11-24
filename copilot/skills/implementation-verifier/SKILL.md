@@ -113,9 +113,9 @@ or `inline`:
   `write-state` of `{"orchestrator": {"options": {"delegation": {"mode": "inline", "reason":
   "<the reason, one line>"}}}}`. Then `runner-step` says `inline`.
 - **`inline`** — the run keeps its loop in the main session (its delegation is `inline`, with
-  the reason printed). Read the runner's file, `<plugin root>/agents/verification-runner.md` by its
-  absolute path, with the file-read tool — in parts by line range when it is long — never through
-  the shell and never into a scratch copy. Follow its procedure here, from § *Where to start* with `resume`
+  the reason printed). Print the runner's file, by its own headings, in the two calls one print
+  each holds — `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="agents/verification-runner.md § Verification Runner" --at="agents/verification-runner.md § Inputs" --at="agents/verification-runner.md § Where to start" --at="agents/verification-runner.md § A verification cycle"`, then `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="agents/verification-runner.md § The fix pass" --at="agents/verification-runner.md § Ending a dispatch" --at="agents/verification-runner.md § In the main session"` — never with the file-read tool and never into a scratch copy: the
+  plugin sits outside the project. Follow its procedure here, from § *Where to start* with `resume`
   as the files say, asking where the runner would hand back a decision — today's loop, one step
   at a time. **Every review, the test suite and every fix is still a subagent call**: what moves
   into this session is the loop's bookkeeping, never a check. Never run the tests, review the
@@ -135,7 +135,7 @@ the `running` node, this skill runs `runner-step`, and the files say where the l
 |----------|-----------|
 | `verification/implementation-verification.md` | Always; rewritten every cycle |
 | `verification/implementation-verification.html` | Once, at the final verdict, unless `orchestrator.options.html_output` is false |
-| `verification/<review>-report.md` and `<review>-findings.json` | Each review that ran (`references/review-findings.md`) |
+| `verification/<review>-report.md` and `<review>-findings.json` | Each review that ran (`node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/implementation-verifier/references/review-findings.md § The findings file"`) |
 | `verification/review-brief-<N>.json`, `findings.json`, `findings-<N>.json` | Each cycle, by the engine's `review-brief` and `findings-merge` |
 | `verification/runner-result.json`, `decisions-<N>.json` | When the runner runs the loop: its last result, and each decision's answers |
 | `verification/in-flight.json`, `verification/fix-reports/fix-<cycle>-<n>.md` | In a run: the agents sent and not yet reported, and each fix batch's report |

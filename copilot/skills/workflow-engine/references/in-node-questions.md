@@ -340,11 +340,11 @@ more round" included, so the checkpoint never reads it as a round approved. Unde
 without question sets nothing is asked: the findings stay `open` risks, or take what the policy's
 class gives them.
 
-A file the verb cannot use is a fallback, never a refusal — compose the same questions from the
-reviewer's findings and say which warning made you: `finding-list-missing:<path>` (no file, or
-`:outside-run`), `finding-list-invalid:<path>:<where>` (not JSON, or the first field that breaks the
-shape), `finding-list-unwritable:<patch path>:<code>` (the set could not be written; `EEXIST` clears
-after a minute). Its refusals leave nothing written:
+A file the verb cannot reach is a fallback — compose the same questions from the reviewer's
+findings and say which warning made you: `finding-list-missing:<path>` (no file, or
+`:outside-run`), `finding-list-invalid:<path>:unreadable` (the file cannot be read),
+`finding-list-unwritable:<patch path>:<code>` (the set could not be written; `EEXIST` clears after a
+minute). A file of the wrong shape is a refusal. Its refusals leave nothing written:
 
 | Refusal | Response |
 |---|---|
@@ -352,6 +352,7 @@ after a minute). Its refusals leave nothing written:
 | `finding-brief-unknown-node` | `--node` names no node of the run, or names a gate. Nothing was written. Name the reviewing node that is asking its findings and run the verb again; no state write fixes this. |
 | `finding-brief-not-running` | The node's status is not `running`, and only a running node asks. Nothing was written. Name the node that is asking, or start it first through `write-state`, then run the verb again. |
 | `finding-brief-undeclared` | The node's prose declares no `<node>-findings` question id, so no policy could class its findings. Nothing was written. Ask the findings as the node's prose says without the verb, or add the declaration to a workflow you own, then run it again. |
+| `finding-brief-list-invalid` | The findings file is not JSON, or breaks the shape above; the message names the first problem and spells the shape. Nothing was written. Rewrite the file as `{"findings": [ … ]}`, each finding with the keys above, and run the verb again. |
 
 ## The specification audit's fix pass
 
