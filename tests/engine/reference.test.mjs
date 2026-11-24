@@ -148,6 +148,12 @@ const POINTERS = [
   ...['What the page is', 'The two scripts', 'How the stills are made'].map(section => `skills/mockup-studio/references/prototype-page.md § ${section}`),
   'skills/mockup-studio/references/visual-companion.md § Starting and stopping',
   'skills/mockup-studio/references/visual-companion.md § A viewer left behind',
+  'skills/orchestrator-framework/references/browser-tools.md § Which tool',
+  'skills/orchestrator-framework/references/browser-tools.md § When there is none',
+  'skills/implementation-verifier/references/review-findings.md § The findings file',
+  'agents/verification-runner.md § The fix pass',
+  ...['Exploration Mode', 'Exploration Mode Options', 'Convergence Mode', 'Convergence Mode Options'].map(section => `skills/product-design/references/interaction-patterns.md § ${section}`),
+  'skills/product-design/references/delivery-scope.md § The shape',
 ];
 
 test('every pointer a brief, a hook or a skill step names prints under the cap, on both builds', () => {
@@ -174,5 +180,53 @@ test('the hooks and the engine skill point at reference, never at the read tool'
     const text = fs.readFileSync(path.join(PLUGIN, 'hooks', hook), 'utf8');
     assert.match(text, /reference --at=/, hook);
     assert.doesNotMatch(text, /next call is the read tool|read its files by absolute path/, hook);
+  }
+});
+
+test('every --at a skill, an agent or a workflow guide spells in a reference call prints', () => {
+  // A pointer that names no heading the file has is refused with reference-unknown-section at run time.
+  const files = fs.readdirSync(PLUGIN, { recursive: true }).filter(file => String(file).endsWith('.md')).map(file => path.join(PLUGIN, String(file)));
+  const spelled = new Set();
+  for (const file of files) {
+    for (const span of fs.readFileSync(file, 'utf8').match(/`[^`\n]*reference --at=[^`\n]*`/g) ?? []) {
+      for (const [, quoted, bare] of span.matchAll(/--at=(?:"([^"]+)"|([^\s"`]+))/g)) {
+        const at = quoted ?? bare;
+        if (!/[<…$]/.test(at)) spelled.add(at);
+      }
+    }
+  }
+  assert.ok(spelled.size >= 8, [...spelled].join('\n'));
+  for (const at of spelled) {
+    const result = reference([at]);
+    assert.equal(result.code, 0, `${at}: ${result.stderr}`);
+  }
+});
+
+test('the inline runner route prints each runner whole in the calls its skill spells, every one under the cap', () => {
+  for (const [skill, runner] of [['implementation-verifier', 'verification-runner'], ['implementation-plan-executor', 'implementation-runner']]) {
+    const file = `agents/${runner}.md`;
+    // Past the cap whole: the refusal lists its headings, so a caller can ask for sections.
+    const whole = refused(reference([file]), 'reference-too-long');
+    assert.match(whole, new RegExp(`agents[\\\\/]${runner}\\.md:`));
+    // The calls the inline bullet spells, in order.
+    const text = fs.readFileSync(path.join(PLUGIN, 'skills', skill, 'SKILL.md'), 'utf8');
+    const bullet = text.slice(text.indexOf('- **`inline`**'), text.indexOf('\n- **`', text.indexOf('- **`inline`**') + 1));
+    assert.doesNotMatch(bullet, /file-read tool —|by line range/, `${skill}: the bullet no longer reads the file`);
+    const calls = [...bullet.matchAll(/`node <plugin root>\/skills\/workflow-engine\/scripts\/workflow\.mjs reference ([^`]+)`/g)]
+      .map(match => [...match[1].matchAll(/--at="([^"]+)"/g)].map(at => at[1]));
+    assert.ok(calls.length >= 2, `${skill}: ${calls.length} calls`);
+    const asked = new Set();
+    for (const ats of calls) {
+      const out = printed(reference(ats));
+      assert.ok(out.length < PRINT_MAX, `${skill}: a call prints ${out.length} characters`);
+      for (const at of ats) {
+        assert.ok(at.startsWith(`${file} § `), at);
+        asked.add(at.slice(`${file} § `.length));
+      }
+    }
+    // Every heading at the top two levels, by the runner's own file, is asked for once.
+    const headings = fs.readFileSync(path.join(PLUGIN, file), 'utf8').split(/\r?\n/)
+      .filter(line => /^#{1,2} /.test(line)).map(line => line.replace(/^#+ /, '').trim());
+    assert.deepEqual([...asked].sort(), [...headings].sort(), `${skill}: the calls cover ${runner} whole`);
   }
 });

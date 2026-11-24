@@ -14,7 +14,7 @@ Nothing waits on the viewer.
 Only in step 5 of the turn, and only when all of these hold:
 
 - the format is `html`;
-- the session has a browser tool (`<plugin root>/skills/orchestrator-framework/references/browser-tools.md`);
+- the session has a browser tool (`node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/orchestrator-framework/references/browser-tools.md § Which tool"` says how to tell);
 - that tool cannot open the pages by `file://` path.
 
 Otherwise the turn opens the pages by path, or, with no browser tool, skips the look pass with its

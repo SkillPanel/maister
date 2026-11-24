@@ -15,6 +15,7 @@ const POINTER = `${ROOT}/.maister/display/sessions/${SESSION}.json`
 const STATUS = `${RUN}/display/status.json`
 const BANNER = `${RUN}/display/banner.json`
 const NEXT = `${RUN}/display/next.json`
+const BRIEF_STAMP = `${RUN}/display/brief.json`
 const PATCH = `${RUN}/.state-patch.json`
 
 const FROZEN = '2026-10-07T16:24:39Z'
@@ -833,9 +834,82 @@ describe('quiet bookkeeping', () => {
     expect((await row($, 'terminal', seen.ids[0])).texts).toEqual([])
   })
 
-  test('a read-only verb draws in full', async ($: any, on: any) => {
-    const seen = beneath(on, files(), { shells: [{ stdout: '{"model":"opus"}\n' }] })
+  const printed = (node: string, title: string, at: string, kind = 'step') => json({ version: 1, node, title, kind, printed: at })
+  const briefOf = (node: string) => `${ENGINE} node-brief --state=${RUN}/orchestrator-state.yml --node=${node}`
+
+  test('a checkpoint\'s brief, which starts nothing, collapses by the stamp it printed', async ($: any, on: any) => {
+    const seen = beneath(on, { ...files(), [BRIEF_STAMP]: printed('intake', 'Intake', '2026-10-07T16:39:00.000Z') }, { shells: [
+      { stdout: 'the gate\'s brief\n', files: { [BRIEF_STAMP]: printed('gap-approval', 'Gap approval', '2026-10-07T16:40:00.120Z', 'gate') } },
+    ] })
+    const ran = await $.tool.call({ tool: 'Bash', command: briefOf('gap-approval') })
+    expect(ran.result).toEqual((seen.results[0] as any).result)
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · brief · gap approval', 'maister'])
+  })
+
+  test('the brief of a step the session then skips collapses, and so does the skip', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [
+      { stdout: 'the step\'s brief\n', files: { [BRIEF_STAMP]: printed('tdd-red', 'TDD red', '2026-10-07T16:40:00.120Z') } },
+      saved({ updated: '2026-10-07T16:40:00.480Z', saved: [{ node: 'tdd-red', title: 'TDD red', status: 'skipped' }] }),
+    ] })
+    for (const command of [briefOf('tdd-red'), WRITE]) await $.tool.call({ tool: 'Bash', command })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · brief · TDD red', 'maister'])
+    expect((await row($, 'terminal', seen.ids[1])).texts).toEqual(['· maister · saved · TDD red → skipped', 'maister'])
+  })
+
+  test('two briefs of one node in one second each collapse, by their stamps to the millisecond', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [
+      { stdout: 'b\n', files: { [BRIEF_STAMP]: printed('gap-approval', 'Gap approval', '2026-10-07T16:40:00.120Z', 'gate') } },
+      { stdout: 'b\n', files: { [BRIEF_STAMP]: printed('mockup-approval', 'Mockup approval', '2026-10-07T16:40:00.121Z', 'gate') } },
+    ] })
+    for (const node of ['gap-approval', 'mockup-approval']) await $.tool.call({ tool: 'Bash', command: briefOf(node) })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · brief · gap approval', 'maister'])
+    expect((await row($, 'terminal', seen.ids[1])).texts).toEqual(['· maister · brief · mockup approval', 'maister'])
+  })
+
+  test('a brief whose stamp did not move, or that warned, draws in full', async ($: any, on: any) => {
+    const stamp = printed('gap-approval', 'Gap approval', '2026-10-07T16:40:00.120Z', 'gate')
+    const seen = beneath(on, { ...files(), [BRIEF_STAMP]: stamp }, { shells: [
+      { stdout: 'b\n' },
+      { stdout: 'b\n', stderr: 'warning: display-unwritable: display/brief.json: EACCES', files: { [BRIEF_STAMP]: printed('gap-approval', 'Gap approval', '2026-10-07T16:41:00.000Z', 'gate') } },
+    ] })
+    for (const _ of [1, 2]) await $.tool.call({ tool: 'Bash', command: briefOf('gap-approval') })
+    for (const id of seen.ids) expect((await row($, 'terminal', id)).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  test('a read-only verb collapses on a clean exit, naming what it did', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [{ stdout: '{"model":"opus"}\n' }, { stdout: '== SKILL.md\n' }, { stdout: '{"next":"inline"}\n' }] })
     await $.tool.call({ tool: 'Bash', command: `${ENGINE} dispatch-model --agent=Explore --host=claude` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} reference --at=SKILL.md` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} runner-step --state=${RUN}/orchestrator-state.yml --node=verification` })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · picked the agent\'s model', 'maister'])
+    expect((await row($, 'terminal', seen.ids[1])).texts).toEqual(['· maister · printed a plugin reference', 'maister'])
+    expect((await row($, 'terminal', seen.ids[2])).texts).toEqual(['· maister · read the runner\'s next step', 'maister'])
+  })
+
+  test('a read-only verb collapses before any run exists', async ($: any, on: any) => {
+    const seen = beneath(on, {}, { shells: [{ stdout: '{"ok":true}\n' }] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} validate --definition=/plugin/skills/workflow-engine/workflows/development.yml` })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · checked the workflow', 'maister'])
+  })
+
+  test('a read-only verb with a word on stderr, or a non-zero exit, draws in full', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [
+      { stdout: '{"model":"opus"}\n', stderr: 'warning: dispatch-model-config-unread' },
+      { error: 'Exit code 1\nreference-unknown-section: references/verbs.md has no heading "finding-brief"' },
+      { stdout: '', stderr: 'usage: scratch-dir needs --for' },
+    ] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} dispatch-model --agent=Explore --host=claude` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} reference --at="references/verbs.md § finding-brief"` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} scratch-dir` })
+    expect((await row($, 'terminal', seen.ids[0])).drawn).toMatchObject({ type: 'engine' })
+    expect((await row($, 'terminal', seen.ids[1], 'Bash', { isErrored: true })).drawn).toMatchObject({ type: 'engine' })
+    expect((await row($, 'terminal', seen.ids[1])).drawn).toMatchObject({ type: 'engine' })
+    expect((await row($, 'terminal', seen.ids[2])).drawn).toMatchObject({ type: 'engine' })
+  })
+
+  test('a read-only verb inside a compound command draws in full', async ($: any, on: any) => {
+    const seen = beneath(on, files(), { shells: [{ stdout: '== SKILL.md\n' }] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} reference --at=SKILL.md | head -20` })
     expect((await row($, 'terminal', seen.ids[0])).drawn).toMatchObject({ type: 'engine' })
   })
 

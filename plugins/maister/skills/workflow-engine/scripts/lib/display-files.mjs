@@ -36,6 +36,10 @@
  *   header and the count (`questionPanelOf`), its `kind` saying which. Every
  *   state write removes it: a write after a brief means its gate or its set
  *   was answered or sent back.
+ * - `<run>/display/brief.json`, from every `node-brief` that prints: the node,
+ *   its title, whether it is a gate, and the stamp of the print, moved on by
+ *   every brief. A brief that starts no node writes no state, so this is the
+ *   one proof a reader has that the call printed a brief.
  * - `<project>/.maister/display/sessions/<session id>.json`, from every state
  *   write and every accepted resume check: the run this session wrote or resumed
  *   last, so a run resumed in a new session draws before its next write. A reader
@@ -73,10 +77,11 @@ import { frozenIds } from './question-triage.mjs';
 /** The directory beside the state file that holds a run's display files. */
 export const DISPLAY_DIR = 'display';
 
-/** The three files of a run, by what they hold. */
+/** The four files of a run, by what they hold. */
 export const STATUS = 'status.json';
 export const BANNER = 'banner.json';
 export const NEXT = 'next.json';
+export const BRIEF = 'brief.json';
 
 /** Where a session's run pointer lives, under the project root. */
 export const SESSIONS_DIR = path.join('.maister', 'display', 'sessions');
@@ -207,13 +212,13 @@ export function publishRun({ runDir, root, doc, now, titles, dashboard, artifact
 /**
  * The stamp a write's display files carry: the clock to the millisecond, never
  * before the write's own clock `now`, and always after the `updated` of the
- * status file it replaces, so every write moves it, however close two writes
- * come. ISO 8601 with milliseconds, which every reader of the stamp parses and
+ * status file it replaces — or the `field` of the `file` named — so every
+ * write moves it, however close two writes come. ISO 8601 with milliseconds, which every reader of the stamp parses and
  * compares as it did the one-second form.
  */
-export function displayStamp(dir, now = null) {
+export function displayStamp(dir, now = null, { file = STATUS, field = 'updated' } = {}) {
   const floor = [Date.now(), Date.parse(now ?? '')].filter(Number.isFinite);
-  const previous = Date.parse(readDisplay(path.join(dir, STATUS))?.updated ?? '');
+  const previous = Date.parse(readDisplay(path.join(dir, file))?.[field] ?? '');
   const at = Math.max(...floor, Number.isFinite(previous) ? previous + 1 : -Infinity);
   return new Date(at).toISOString();
 }
@@ -278,6 +283,21 @@ export function forgetConventionsShown({ root, session = hostSession() }) {
 export function publishNext({ runDir, panel }) {
   const warnings = [];
   attempt(warnings, `${DISPLAY_DIR}/${NEXT}`, () => publish(path.join(runDir, DISPLAY_DIR), NEXT, { version: VERSION, kind: 'gate', ...panel }));
+  return warnings;
+}
+
+/**
+ * Stamp a brief's print: `{node, title, kind}` with `printed`, a stamp after
+ * the one it replaces, so two briefs of one node a millisecond apart still
+ * differ. Returns the warnings, as `publishRun` does.
+ */
+export function publishBrief({ runDir, node, title, kind }) {
+  const warnings = [];
+  const dir = path.join(runDir, DISPLAY_DIR);
+  attempt(warnings, `${DISPLAY_DIR}/${BRIEF}`, () => {
+    const printed = displayStamp(dir, null, { file: BRIEF, field: 'printed' });
+    publish(dir, BRIEF, { version: VERSION, node, title, kind, printed });
+  });
   return warnings;
 }
 

@@ -26,8 +26,10 @@ const engineSkill = (dir = ENGINE_DIR) => `engine skill: print it whole now with
 const ENGINE_SKILL = engineSkill();
 /** The line after it: the one-command form every call takes. */
 const COMMANDS = 'commands: one per call, from the project root — no cd, chain or pipe; a patch as a here-string';
-/** The two lines every brief opens with. */
-const OPENING = [ENGINE_SKILL, COMMANDS];
+/** The line after that: plugin files are printed, and a patch file is never /dev/stdin. */
+const FILES = 'plugin files: print them only with reference, never the file tool, sed or cat; a patch file is .state-patch.json beside the state file, never /dev/stdin';
+/** The three lines every brief opens with. */
+const OPENING = [ENGINE_SKILL, COMMANDS, FILES];
 /** The asks line's tail, naming the section a node prints before its first question, by driver. */
 const asksTail = section => ` — before the first, print reference --at="references/in-node-questions.md § ${section}"`;
 const ASKS_TAIL = asksTail('In-node questions');
@@ -315,6 +317,26 @@ test('node-brief: the revise row prints whole only while a recorded revise names
   assert.doesNotMatch(nodeBrief(sample.state, 'scope').stdout, /^convention \(named by a revise\): [^s]/m);
 });
 
+test('node-brief: every brief that prints stamps display/brief.json — a gate, a step not ready, a started one — each stamp after the last', t => {
+  const sample = sampleRun(t);
+  const file = path.join(sample.dir, 'display', 'brief.json');
+  const seen = [];
+  for (const [node, kind] of [['approval', 'gate'], ['audit', 'step'], ['approval', 'gate'], ['scope', 'step']]) {
+    const result = nodeBrief(sample.state, node);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stderr, '', 'a stamp written is no warning');
+    const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.deepEqual({ ...doc, printed: undefined }, { version: 1, node, title: doc.title, kind, printed: undefined });
+    assert.equal(typeof doc.title, 'string');
+    assert.match(doc.printed, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
+    seen.push(doc.printed);
+  }
+  for (let at = 1; at < seen.length; at += 1) assert.ok(seen[at] > seen[at - 1], `${seen[at]} after ${seen[at - 1]}`);
+  // A refused brief leaves the stamp where it was.
+  assert.equal(nodeBrief(sample.state, 'nope').code, 1);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).printed, seen.at(-1));
+});
+
 test('node-brief: a gate points at gate-brief unless its section carries an exception', t => {
   const sample = sampleRun(t);
   const plain = nodeBrief(sample.state, 'approval');
@@ -383,7 +405,7 @@ test('node-brief: graph drift and an unread definition warn and still print; unr
   const unread = nodeBrief(drifted.state, 'draft');
   assert.equal(unread.code, 0, unread.stderr);
   assert.equal(unread.stderr, `warning: node-brief-definition-unread: ${drifted.state}\n`);
-  assert.match(unread.stdout, /^engine skill: .*\ncommands: .*\n## Node: draft — Draft\nruns: direct — inline\nconvention \(`direct:` step\): /, 'unread, every row of its scheme prints whole');
+  assert.match(unread.stdout, /^engine skill: .*\ncommands: .*\nplugin files: .*\n## Node: draft — Draft\nruns: direct — inline\nconvention \(`direct:` step\): /, 'unread, every row of its scheme prints whole');
   assert.ok(unread.stdout.endsWith(`${RULES}\n\nsection: unknown — the definition this run froze cannot be re-read\n`), unread.stdout);
 
   // A plugin whose skill has lost the conventions table: one line points at the rules instead.
@@ -426,12 +448,20 @@ test('node-brief: three refusals and the usage errors, none of which writes a fi
     assert.ok(result.stderr.includes(message), result.stderr);
   }
 
-  // None of these is a step ready to start, so briefing them writes nothing.
+  // A refusal writes nothing at all, the display's brief stamp included.
+  const refused = snapshot(sample.root);
+  delete refused[path.join('.maister', 'tasks', 'development', '2026-01-06-other', 'orchestrator-state.yml')];
+  assert.deepEqual(refused, before);
+
+  // None of these is a step ready to start, so briefing them writes nothing but the brief stamp.
+  const stamp = path.join(path.relative(sample.root, sample.dir), 'display', 'brief.json');
   for (const node of ['draft', 'approval', 'audit', 'audit-approval', 'wrap-up']) {
     assert.equal(nodeBrief(sample.state, node).code, 0, node);
   }
   const after = snapshot(sample.root);
   delete after[path.join('.maister', 'tasks', 'development', '2026-01-06-other', 'orchestrator-state.yml')];
+  assert.ok(Object.hasOwn(after, stamp), 'every brief that printed stamps display/brief.json');
+  delete after[stamp];
   assert.deepEqual(after, before);
   // The one write a brief makes: the start of the step ready to run.
   assert.equal(nodeBrief(sample.state, 'scope').code, 0);
@@ -815,7 +845,7 @@ test('node-brief: every brief, step and gate alike, opens on the engine skill to
   const sample = sampleRun(t, { overlays: [NODE_BRIEF_OVERLAY] });
   for (const node of ['scope', 'draft', 'polish', 'approval', 'audit-approval', 'wrap-up']) {
     const lines = nodeBrief(sample.state, node).stdout.split('\n');
-    assert.deepEqual(lines.slice(0, 2), OPENING, `${node}: the brief opens on the two lines`);
+    assert.deepEqual(lines.slice(0, 3), OPENING, `${node}: the brief opens on the three lines`);
     assert.equal(lines.filter(line => line.startsWith('engine skill: ')).length, 1, `${node}: one line`);
     assert.ok(lines.includes(RULES), `${node}: the rules line stays`);
   }
@@ -826,6 +856,10 @@ test('node-brief: every brief, step and gate alike, opens on the engine skill to
   assert.ok(printed.stdout.includes('## Before anything else'), 'the command prints the skill');
   assert.match(COMMANDS, /no cd, chain or pipe/);
   assert.match(COMMANDS, /here-string/);
+  // After a compaction a session read plugin files with the file tool or sed and sent a patch as /dev/stdin.
+  assert.match(FILES, /only with reference, never the file tool, sed or cat/);
+  assert.match(FILES, /\.state-patch\.json beside the state file, never \/dev\/stdin/);
+  assert.ok(FILES.length <= 160, `the line stays short: ${FILES.length} characters`);
 
   // The Copilot variant's brief names the variant's own skill, from its own location.
   const variant = path.join(variantRoot(), 'skills/workflow-engine');

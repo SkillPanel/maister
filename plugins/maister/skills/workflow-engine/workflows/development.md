@@ -414,7 +414,7 @@ and effort `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.m
 there): write the auditor's decision findings to
 `verification/spec-audit-findings.json`, each `id` the auditor's `name`, and
 build the set with
-`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set.
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set. The file is one object, `{"findings": [{"id", "severity", "title", "evidence", "options", "recommended", "reason"}]}`, never a bare list (the engine's `references/in-node-questions.md` § *Findings that need a decision* spells each key).
 
 **With question sets** (`spec-audit-findings`): this node's first request, with
 the audit report and every fix written first.
@@ -539,7 +539,7 @@ reason ("The change adds public API, so a usage guide helps"). Its answer is thi
 `user_docs_enabled` output.
 
 Before asking, check whether the session can drive a
-browser (`<plugin root>/skills/orchestrator-framework/references/browser-tools.md`, *Which tool*). When it cannot, the question
+browser (print `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/orchestrator-framework/references/browser-tools.md § Which tool"`). When it cannot, the question
 carries that reference's no-browser warning, recommends off whatever the seed
 says, and gives on its consequence: the guide is written without screenshots.
 The browser-checks line says the same will be recommended at the verification
@@ -571,7 +571,7 @@ the same rule, recorded as `user_docs_enabled`.
 gates its own companion on the HTML output option.
 
 **The loop runs in the verifier's hand-off**: with `work_log: true`, it hands
-the cycles and the fix passes (`<plugin root>/agents/verification-runner.md` § *The fix pass*) to the
+the cycles and the fix passes (`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="agents/verification-runner.md § The fix pass"` prints them) to the
 verification runner when the run records `nested` delegation, and runs them
 here otherwise. Either way this node asks only the decisions the loop hands
 back, as below. What this node adds: **each fix is also logged in the work
@@ -633,7 +633,7 @@ the browser-checks recommendation below goes into that reason instead ("Two
 done-when lines are not confirmed; the browser checks would drive the new page").
 
 Otherwise, recommend whether the browser checks run. When the session has no browser
-tool (`<plugin root>/skills/orchestrator-framework/references/browser-tools.md`), recommend `continue-past-verification`
+tool (print `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/orchestrator-framework/references/browser-tools.md § When there is none"`), recommend `continue-past-verification`
 whatever the input or seed says, its reason that reference's no-browser warning,
 which the brief carries before the choice; picking the browser checks anyway
 still runs them, and they report that they could not. Otherwise: a set

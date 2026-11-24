@@ -42,7 +42,8 @@ claude plugin marketplace update maister-plugins
 claude plugin update maister@maister-plugins
 ```
 
-Then run `/reload-plugins` or start a new session.
+Then start a new session. `/reload-plugins` loads the new skills, but the session keeps using
+parts of the old version, so it is no substitute.
 
 On Copilot CLI the plugin is now called `maister`, so `copilot plugin update` will not move you across. Reinstall it once:
 
@@ -65,7 +66,8 @@ channel you want. The stable channel:
 ```
 
 For the beta channel, add `SkillPanel/maister#beta` and install `maister@maister-plugins-beta`
-instead. On Copilot CLI:
+instead; it updates with `claude plugin marketplace update maister-plugins-beta` and
+`claude plugin update maister@maister-plugins-beta`, as the [README](../README.md#upgrading) says. On Copilot CLI:
 
 ```bash
 copilot plugin uninstall maister-copilot@maister-plugins-2x

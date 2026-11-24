@@ -305,7 +305,7 @@ claude plugin marketplace update maister-plugins
 claude plugin update maister@maister-plugins
 ```
 
-Then run `/reload-plugins`, or start a new session. On GitHub Copilot CLI, `copilot plugin update maister@maister-plugins` does the same.
+Then start a new session. `/reload-plugins` loads the new skills, but the session keeps using parts of the old version, so it is no substitute. On GitHub Copilot CLI, `copilot plugin update maister@maister-plugins` does the same; it replaces the files under any open session, so finish or stop a run first.
 
 > [!IMPORTANT]
 > Coming from 2.x? Version 3 needs Node.js 20 and does not resume tasks started on 2.x. Read [Upgrading from 2.x](docs/upgrading-from-2x.md) before you update.
@@ -328,6 +328,15 @@ From the 2.x line, uninstall that plugin instead, then add the channel:
 /plugin marketplace add SkillPanel/maister#beta
 /plugin install maister@maister-plugins-beta
 ```
+
+To update the beta channel, run these from a shell, or use the `/plugin` menu in a session, then start a new session:
+
+```bash
+claude plugin marketplace update maister-plugins-beta
+claude plugin update maister@maister-plugins-beta
+```
+
+On GitHub Copilot CLI, `copilot plugin update maister@maister-plugins-beta` does the same.
 
 On Claude Code, if two channels are enabled together, a warning at session start names both and the command that disables each, and workflows do not start or resume until only one is enabled and the session restarted. [Troubleshooting](docs/troubleshooting.md) has the fix.
 

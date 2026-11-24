@@ -20,7 +20,12 @@ const GUIDE = path.join(REFERENCES, 'html-report-style.md');
 const PATTERNS = path.join(REFERENCES, 'orchestrator-patterns.md');
 const REFUSALS = ['run-context-state-unreadable', 'run-context-not-a-run', 'run-context-unknown-node'];
 
-const SCRATCH = 'scratch: make any throwaway file — a copy, a probe, a benchmark — in a directory mktemp -d makes (it uses $TMPDIR) or under "${TMPDIR:-/tmp}", and leave it there; never a literal /tmp path, since a fixed /tmp path can stop the run for a permission prompt — no cleanup step, no rm -rf. Name every path absolute and never cd, into it or into the task directory: a relative path is resolved from the project root, and a host may stop the run to ask for access to it; name any file you make for what it holds, never with a name that starts with report, summary, findings or analysis and ends in .md, which Claude Code refuses when a subagent writes it';
+const ENGINE_SCRIPT = path.join(ENGINE_DIR, 'scripts', 'workflow.mjs');
+/** The scratch line for the run in `dir`: the engine's scratch-dir call inside the run, never the system temp directory. */
+const scratchOf = dir => `scratch: make any throwaway file — a helper script, a copy, a probe, a benchmark — in the directory node ${ENGINE_SCRIPT} scratch-dir --for=<what it holds> --state=${path.join(dir, 'orchestrator-state.yml')} makes and prints, inside the run and ignored by git, and leave it there; `
+  + 'never the system temp directory or a literal /tmp path, which sit outside the project and can stop the run for a permission prompt — no cleanup step, no rm -rf. '
+  + 'Name every path absolute and never cd, into it or into the task directory: a relative path is resolved from the project root, and a host may stop the run to ask for access to it; '
+  + 'name any file you make for what it holds, never with a name that starts with report, summary, findings or analysis and ends in .md, which Claude Code refuses when a subagent writes it';
 const CONTRACT = 'summary contract: open every markdown artifact you write with ## TL;DR (at most 5 lines, conclusions in plain words), '
   + '## Key Decisions (- decision — rationale) and ## Open Questions / Risks (- risk → what would change), omitting an empty section; '
   + 'a risk that waits on a choice is written to the reader ("you have not yet chosen…") and never names a role as the one who decides; '
@@ -36,7 +41,7 @@ function block({ taskPath, html, docs = [], pack = null, companions = [], contra
   if (docs.length) lines.push('docs (read-only):', ...docs.map(doc => `- ${doc}`));
   else lines.push('docs: none');
   if (pack) lines.push(groundingPackLine(pack));
-  lines.push(SCRATCH);
+  lines.push(scratchOf(taskPath));
   if (contract) lines.push(CONTRACT);
   if (typeof companions === 'string') lines.push(`companions: ${companions}`);
   else if (companions.length) lines.push('companions:', ...companions.map(each => `- ${each}`));
@@ -435,4 +440,18 @@ test('run-context: the summary contract is only for a node that declares a markd
   const unread = runContext(copied, 'wrap-up').stdout.split('\n');
   assert.ok(unread.includes(CONTRACT), 'unknown declarations print the contract');
   assert.ok(unread.some(line => line.startsWith('grounding pack')), 'unknown sources print the pack line');
+});
+
+test('run-context: the scratch line names the scratch-dir call inside the run, and that call makes a directory there', t => {
+  const run = fixtureRun(t);
+  const result = runContext(run, 'draft');
+  assert.equal(result.code, 0, result.stderr);
+  const line = result.stdout.split('\n').find(each => each.startsWith('scratch: '));
+  assert.doesNotMatch(line, /mktemp|TMPDIR/, 'never the system temp directory');
+  const call = line.match(/in the directory node (\S+) scratch-dir --for=<what it holds> --state=(\S+) makes/);
+  assert.ok(call, line);
+  const made = runScript(call[1], ['scratch-dir', '--for=helper-script', `--state=${call[2]}`]);
+  assert.equal(made.code, 0, made.stderr);
+  const dir = made.stdout.trim();
+  assert.match(path.relative(run.dir, dir), /^scratch[\\/]helper-script-/);
 });

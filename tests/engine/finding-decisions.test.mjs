@@ -11,8 +11,9 @@ import { outstandingHeld } from '../../plugins/maister/skills/workflow-engine/sc
 // A reviewer's findings as the reviewing node's questions. The reviewer writes
 // its findings as data — each with the fix it proposes, its alternatives and a
 // recommendation — and `finding-brief` builds one question per finding, the
-// accept-the-risk choice added, in severity order. A list the verb cannot use
-// is a warning and nothing to paste; a wrong invocation is a refusal. Every
+// accept-the-risk choice added, in severity order. A list the verb cannot reach
+// is a warning and nothing to paste; a list of the wrong shape, or a wrong
+// invocation, is a refusal. Every
 // finding here is made up.
 
 const DEFINITION = path.join(FIXTURES, 'definitions/finding-review.yml');
@@ -278,23 +279,39 @@ const SHAPES = [
   ['findings[3].priority', doc => { doc.findings[3].priority = 1; }],
 ];
 
-test('finding-brief: a list that is not JSON or breaks the shape warns invalid with its first problem', t => {
+/** A list of the wrong shape: refused, its first problem named, the shape spelled and the section that defines it printable. */
+function misshapen(result, problem) {
+  refused(result, 'finding-brief-list-invalid');
+  assert.ok(result.stderr.includes(`${FINDINGS} is not a findings list (${problem})`), result.stderr);
+  assert.ok(result.stderr.includes('{"findings": [{"id", "severity", "title", "evidence", "cites"?, "options", "recommended", "reason"}]}'), result.stderr);
+  assert.ok(result.stderr.includes('each option {"label", "description"}, severity one of critical, high, medium, low, warning, info'), result.stderr);
+  assert.ok(result.stderr.includes('reference --at="references/in-node-questions.md § Findings that need a decision"'), result.stderr);
+}
+
+test('finding-brief: a list that is not JSON or breaks the shape is refused, naming its first problem and the shape', t => {
   const run = reviewing(t);
   place(run, '{"findings": [');
-  fellBack(brief(run), `finding-list-invalid:${FINDINGS}:not-json`);
+  misshapen(brief(run), 'not JSON');
   for (const [detail, mutate] of SHAPES) {
     const doc = findingsList();
     const changed = mutate(doc) ?? doc;
     place(run, changed);
-    fellBack(brief(run), `finding-list-invalid:${FINDINGS}:${detail}`);
+    misshapen(brief(run), `first problem at ${detail}`);
   }
-  // Two violations: the first one is named.
+  // Two violations: the first one is named, and no patch is written.
   const doc = findingsList();
   doc.findings[0].severity = 'severe';
   doc.findings[2].title = '';
   place(run, doc);
-  fellBack(brief(run, { patch: true }), `finding-list-invalid:${FINDINGS}:findings[0].severity`);
+  misshapen(brief(run, { patch: true }), 'first problem at findings[0].severity');
   assert.equal(fs.existsSync(run.patch), false);
+});
+
+test('finding-brief: the section its shape refusal points to prints with reference', () => {
+  const result = verb(['reference', '--at=references/in-node-questions.md § Findings that need a decision']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^== skills[\\/]workflow-engine[\\/]references[\\/]in-node-questions\.md § Findings that need a decision$/m);
+  assert.match(result.stdout, /\{"findings": \[\{"id":/);
 });
 
 test('finding-brief: a patch file it cannot write warns unwritable and leaves no temp', t => {

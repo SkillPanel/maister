@@ -203,7 +203,7 @@ run: the gate's stop option is the route out.
 question (the engine's `references/in-node-questions.md` § *Findings that need a decision*): write the auditor's decision findings, as its
 structured result gives them, to `verification/spec-audit-findings.json`, each
 finding's `id` the auditor's `name`, and build the set with
-`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set.
+`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs finding-brief --state=<task path>/orchestrator-state.yml --node=spec-audit --findings-file=verification/spec-audit-findings.json`, which prints the set. The file is one object, `{"findings": [{"id", "severity", "title", "evidence", "options", "recommended", "reason"}]}`, never a bare list (the engine's `references/in-node-questions.md` § *Findings that need a decision* spells each key).
 
 **With question sets** (`spec-audit-findings`): asked through the cockpit as
 this node's first request, with the audit report and every fix written first.
@@ -304,7 +304,7 @@ severity, and the report's path from the project root
 (`.maister/tasks/performance/<run>/verification/implementation-verification.md`).
 
 **The fix loop runs on its own for the obvious fixes**, following
-`<plugin root>/agents/verification-runner.md` § *The fix pass*: the verifier's
+the fix pass `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="agents/verification-runner.md § The fix pass"` prints: the verifier's
 hand-off gives the cycles and the fix passes to the verification runner when
 the run records `nested` delegation, and runs them here otherwise. This node
 asks only the decisions the loop hands back.
@@ -354,7 +354,7 @@ the pre-fix state rather than leaving a side file to carry the truth.
 
 **Summary.** The `headline` — the verdict, what was fixed and what is left; the
 total issues found, how many were fixed and how many remain by severity in
-`summary`. The fixes follow the fix loop (`<plugin root>/agents/verification-runner.md` § *The fix pass*) and the risks what it
+`summary`. The fixes follow the fix loop (`node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="agents/verification-runner.md § The fix pass"` prints it) and the risks what it
 hands the gate (the engine's `references/gates.md` § *Before every gate — the gate brief*). When the loop ended undecided, the go-on choice is
 recorded as not taken (the engine's `references/in-node-questions.md` § *Findings that need a decision*)
 and `recommends` is `{option: null, reason}`.
