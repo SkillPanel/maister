@@ -201,3 +201,32 @@ test('every --at a skill, an agent or a workflow guide spells in a reference cal
     assert.equal(result.code, 0, `${at}: ${result.stderr}`);
   }
 });
+
+test('the inline runner route prints each runner whole in the calls its skill spells, every one under the cap', () => {
+  for (const [skill, runner] of [['implementation-verifier', 'verification-runner'], ['implementation-plan-executor', 'implementation-runner']]) {
+    const file = `agents/${runner}.md`;
+    // Past the cap whole: the refusal lists its headings, so a caller can ask for sections.
+    const whole = refused(reference([file]), 'reference-too-long');
+    assert.match(whole, new RegExp(`agents[\\\\/]${runner}\\.md:`));
+    // The calls the inline bullet spells, in order.
+    const text = fs.readFileSync(path.join(PLUGIN, 'skills', skill, 'SKILL.md'), 'utf8');
+    const bullet = text.slice(text.indexOf('- **`inline`**'), text.indexOf('\n- **`', text.indexOf('- **`inline`**') + 1));
+    assert.doesNotMatch(bullet, /file-read tool —|by line range/, `${skill}: the bullet no longer reads the file`);
+    const calls = [...bullet.matchAll(/`node <plugin root>\/skills\/workflow-engine\/scripts\/workflow\.mjs reference ([^`]+)`/g)]
+      .map(match => [...match[1].matchAll(/--at="([^"]+)"/g)].map(at => at[1]));
+    assert.ok(calls.length >= 2, `${skill}: ${calls.length} calls`);
+    const asked = new Set();
+    for (const ats of calls) {
+      const out = printed(reference(ats));
+      assert.ok(out.length < PRINT_MAX, `${skill}: a call prints ${out.length} characters`);
+      for (const at of ats) {
+        assert.ok(at.startsWith(`${file} § `), at);
+        asked.add(at.slice(`${file} § `.length));
+      }
+    }
+    // Every heading at the top two levels, by the runner's own file, is asked for once.
+    const headings = fs.readFileSync(path.join(PLUGIN, file), 'utf8').split(/\r?\n/)
+      .filter(line => /^#{1,2} /.test(line)).map(line => line.replace(/^#+ /, '').trim());
+    assert.deepEqual([...asked].sort(), [...headings].sort(), `${skill}: the calls cover ${runner} whole`);
+  }
+});

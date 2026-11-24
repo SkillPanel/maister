@@ -94,9 +94,9 @@ or `inline`:
   `write-state` of `{"orchestrator": {"options": {"delegation": {"mode": "inline", "reason":
   "<the reason, one line>"}}}}`. Then `runner-step` says `inline`.
 - **`inline`** — the run keeps its waves in the main session (its delegation is `inline`, with
-  the reason printed). Read the runner's file, `<plugin root>/agents/implementation-runner.md` by
-  its absolute path, with the file-read tool — in parts by line range when it is long — never
-  through the shell and never into a scratch copy. Follow its procedure here, from § *Where to start* with `resume`
+  the reason printed). Print the runner's file, by its own headings, in the two calls one print
+  each holds — `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="agents/implementation-runner.md § Implementation Runner" --at="agents/implementation-runner.md § Inputs" --at="agents/implementation-runner.md § Where to start" --at="agents/implementation-runner.md § Phase 1: Initialize" --at="agents/implementation-runner.md § Phase 2: The waves"`, then `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="agents/implementation-runner.md § Phase 3: Finalize" --at="agents/implementation-runner.md § Standards discovery" --at="agents/implementation-runner.md § The implementer's prompt" --at="agents/implementation-runner.md § Work-log entries" --at="agents/implementation-runner.md § Ending a dispatch" --at="agents/implementation-runner.md § In the main session"` — never with the file-read tool and never into a scratch copy: the
+  plugin sits outside the project. Follow its procedure here, from § *Where to start* with `resume`
   as the files say, asking where the runner would hand back a decision. **Every task group is
   still a `task-group-implementer` call**, and the full suite is still a subagent call: what moves into this session is the loop's bookkeeping, never a group's code.
 - **`close`** — the waves are done, and the plan and the work log say so. Return § *Structured

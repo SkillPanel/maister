@@ -291,8 +291,8 @@ the brief, the writes, the merge, the verdict and the report — move into the m
 differences are three:
 
 - It asks where you would hand back a decision, as the node's prose and
-  `<plugin root>/skills/workflow-engine/references/in-node-questions.md` § *Findings that need a
-  decision* say (in session, or a request under a driver), then carries on with the answers. When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is".
+  `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="references/in-node-questions.md § Findings that need a decision"`
+  say (in session, or a request under a driver), then carries on with the answers. When nobody answers the stopping question — the attempt's rounds are spent, nobody can be asked, or its answer was recorded by default or by the run without the policy classing it — and a warning or critical issue is still open, the loop ends undecided: nothing is accepted on anybody's behalf, each open issue stays an `open` risk, the go-on choice is recorded as not taken, the summary recommends no way on (`recommends: {option: null, reason}`), and a critical issue left is a `stop` risk; with nothing above info open, it takes "Continue as is".
 - It writes no `runner-result.json` and no decisions file. In a run it still records every agent
   with `in-flight` before sending it, and adopts an output on disk the same way.
 - Standalone, with no state file, it writes no state at all, asks once which commit the work
