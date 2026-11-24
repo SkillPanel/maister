@@ -179,7 +179,7 @@ When no mode flag (`--from`, `--built-in`, `--refresh-index`) is provided, the s
 
 **Step 2: Discover existing categories and files**
 
-Scan `.maister/docs/standards/*/` to find all existing categories and standard files, and `.maister/docs/project/` for the project's own documents (a decision log, a glossary, an architecture note — any name). This determines what's available — not limited to baseline categories.
+Scan `.maister/docs/standards/*/` to find all existing categories and standard files, and `.maister/docs/project/` for the project's own documents (a decision log, a glossary, an architecture note — any name), and find the project's contributor guide as *Where one belongs* in the standard candidates reference says. This determines what's available — not limited to baseline categories.
 
 **Step 3: Match to category and file**
 
@@ -236,7 +236,7 @@ No user prompt needed — just inform: "Updating existing standard: [name]" or "
 For **updates**:
 > "Update documentation file: standards/[category]/[name].md. Current content: [content]. Add/change: [new conventions]. Integrate new practices, maintain markdown formatting, organize logically, preserve existing unless conflicts. Then refresh INDEX.md with this path as changed. Check: [check path]. Report the file's size and rule count against its guidance."
 
-For a **project document**, the same calls with its `project/[name].md` path — the Update or Add Documentation File operation — adding the knowledge where it reads naturally in the document.
+For a **project document**, the same calls with its `project/[name].md` path — the Update or Add Documentation File operation — adding the knowledge where it reads naturally in the document. The project's **contributor guide**, when it lives outside `.maister/docs/` (a `CONTRIBUTING.md` at the project root, or the guide the project's `CLAUDE.md` block names), takes the same Update call with that path and no INDEX.md refresh: the index maps `.maister/docs/` alone.
 
 For **creates**:
 > "Create documentation file: standards/[category]/[name].md. Category: [category]. Content: [conventions]. Create with proper markdown, organized sections, code examples. Then refresh INDEX.md with this path as changed. Check: [check path]. Verify CLAUDE.md integration."

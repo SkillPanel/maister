@@ -172,14 +172,14 @@ Use this to help the user update or modify existing project documentation.
 
 **What to do:**
 1. Accept the documentation identifier from the user (e.g., "project/vision", "standards/global/error-handling")
-2. Check if the documentation exists in `.maister/docs/`
+2. Check if the documentation exists in `.maister/docs/` — or, for the project's contributor guide, at the path the caller names outside it
 3. If the documentation exists:
    - Read the current documentation
    - Apply the change the caller describes, and only that; with none described, return the question as a decision needed. A section the caller does not name for replacement or removal stays as it is: content that overlaps it is added beside it or to it, never folded into a new section in its place
    - Include the plugin's baseline version for reference when the caller asks for it
 4. If the documentation doesn't exist, return a decision needed: add it from the plugin baseline ("Add Documentation File") or create it from scratch, except a built-in edit's home file, which is created
 5. After updating:
-   - Refresh INDEX.md with the path as `changed`; its entry changes only when the file's purpose did
+   - Refresh INDEX.md with the path as `changed`; its entry changes only when the file's purpose did. A contributor guide outside `.maister/docs/` has no entry and gets no refresh
    - If updating tech-stack.md or architecture.md, suggest reviewing CLAUDE.md for consistency
 6. For technical standards:
    - If a corresponding project skill exists, suggest reviewing it for consistency

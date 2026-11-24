@@ -63,6 +63,19 @@ One bullet, on one line, compact — a few clauses, never a section:
   (a decision log, a glossary, an architecture note). The better fit for a decision, or for a
   fact about the system rather than a way of writing code. Any Markdown file is accepted as it
   is; none needs frontmatter or a fixed name.
+- **The project's architecture note** — for a fact about how one module works today: what it
+  holds, what it owns, how it is wired. It is the project document that describes the system's
+  structure, whatever it is called; with none, the suggestion is a new
+  `.maister/docs/project/architecture.md`.
+- **The project's contributor guide** — for a note about how the work is done: gates, sessions,
+  worktrees, commands run, merge tactics. It is the guide the project names in its `CLAUDE.md`
+  block, else a `CONTRIBUTING.md` at the project root, else a project document already written
+  for contributors. With none, the suggestion is a new `.maister/docs/project/contributing.md` —
+  never a file at the project root created unasked; the person may still choose one when the
+  destination is confirmed.
+
+A process note or a module fact is still knowledge worth keeping, offered like any candidate,
+but never as a standard: neither is a way of writing code.
 
 ## Offered, not recommended
 
@@ -96,7 +109,11 @@ operation of that name. It reads; it never writes a document.
 4. **Tidy the wording** to *How one is written*: the rule, the reason, the scope; counts, line
    numbers and stale identifiers taken out. The meaning is never changed.
 5. **Suggest a destination** for each, by *Where one belongs*: an existing file, or a new one
-   named for its topic.
+   named for its topic. Route by what the line is, whatever destination it suggests: a note
+   about how the work is done — its `shown by` a command run rather than code — goes to the
+   contributor guide, and a fact about how one module works, its `where` that module alone with
+   no class of code, to the architecture note; neither is ever suggested a standards file. A
+   trick for one test helper or fixture is left out: it belongs in a comment beside the helper.
 6. **Return**, for each candidate offered: a label of a few words, the candidate line, the action
    (new or extend, with the rule extended), the suggested destination, and the evidence (which
    groups or fixes showed it), `guards` when it guards security or data loss, and `caught_by`
