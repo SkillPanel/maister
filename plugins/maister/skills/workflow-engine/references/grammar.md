@@ -387,7 +387,7 @@ A `sets` key is lower-case letters and underscores, the form a guard reference e
 value is `true` or `false`. The writer records the chosen option's map as the gate's values when
 it records the answer, a skipped gate records every key false, and a revise that resets the gate
 clears them. The brief walks each continue on its own answer, so each option names where it leads,
-and the closing node may say which one it recommends and why (`references/gates.md`). `sets` is part of
+and the closing node may say which one it recommends and why (`references/gates.md` § *Before every gate — the gate brief*). `sets` is part of
 the graph's identity, its keys in sorted order, so adopting it moves the definition's hash.
 
 A question is shown as written, so a value from earlier in the run does not go into `ask`; a node the gate needs names it in its summary. The
@@ -572,7 +572,7 @@ node may have left null** into a node that still runs — have that node's prose
 from state instead, where its absence is visible.
 
 **The sub-run join.** A `workflow:` node's own `with:` is interpolated first, and the result is
-what the child freezes as its inputs (W2, `references/sub-runs.md`). Once the parent has adopted
+what the child freezes as its inputs (W2, `references/sub-runs.md` § *Walk one*). Once the parent has adopted
 the child's outcome (W4), `${<node>.values.<key>}` is the value W4 copied onto the node, and
 `${<node>.artifacts.<key>}` the child's declared path joined onto the node's `values.task_path`.
 
@@ -643,7 +643,7 @@ with its bold label, in this order, each at most once:
 | `**Budget.**` | What happens between recovery attempts; the number is `brief:` `budget` (§ 3.3) |
 
 A gate has a section only for an exception — behaviour neither its definition,
-`references/gates.md` nor the conventions carry — held in a single `**Exception.**` part. The data
+the gate rules (`references/gates.md` § *Before every gate — the gate brief* and the sections after it) nor the conventions carry — held in a single `**Exception.**` part. The data
 a step reads (its sanctioned absences, budget, recommendation and question defaults)
 lives in `brief:`, never in the prose, and a budget never in `with:`, where it would be inert.
 
@@ -749,7 +749,7 @@ whose per-host `tier` does not name the host is passed over there, as a pinned `
 Copilot, and the next level answers. `inherit` in a `claude` or `copilot` cell or an entry's `model` is the
 session's model: it prints as `omit`, and is never refused as an alias nor counted as premium. A rung's effort applies to whatever runs on it unless the
 entry sets its own, and a project's cell is laid over the shipped one, so it keeps `high` unless
-it sets an effort; `effort: inherit` sends none. `dispatch-model` prints what an agent resolves to (its row: `references/verbs.md`). A block with an
+it sets an effort; `effort: inherit` sends none. `dispatch-model` prints what an agent resolves to (its row: `references/verbs.md` § *The verbs some steps call* § `dispatch-model`). A block with an
 error is refused whole and the shipped defaults apply; its findings are warnings, never errors,
 because a refused block stops no run. The block is no graph data, so it moves no hash.
 
@@ -784,7 +784,7 @@ writes them onto the calling node as the address of its child. Validation warns
 `unresolved-subrun-input` for a `with:` key the child does not declare or a required child input
 with no default that is not passed, and `unresolved-subrun-output` for a key
 the child does not expose. The walks, the refusals and the worked state pair are
-`references/sub-runs.md`.
+`references/sub-runs.md` § *Walk one*, § *Walk two*, § *Refusals, in one place* and § *The worked state pair*.
 
 ### 13.2 A fix loop inside one node
 

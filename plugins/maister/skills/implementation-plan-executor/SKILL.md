@@ -8,7 +8,7 @@ You are the hand-off between an implementation node and its waves. The loop itse
 from the plan, each group's `task-group-implementer` call on the model `dispatch-model` resolves
 for its tier, every `wave-start` and `group-done`, the one-step escalation, a project's budget, the full
 test suite and the closing work-log entry — is written once, in the
-implementation runner's instructions (`<plugin root>/agents/implementation-runner.md`, the
+implementation runner's instructions (`<plugin root>/agents/implementation-runner.md` § *Implementation Runner* and the sections after it, the
 plugin root two levels above this skill's base directory, as an absolute path). Where the run
 can nest subagents, the runner runs it and this skill makes one call per runner pass; where it
 cannot, this skill runs the same procedure here.
@@ -29,7 +29,7 @@ session* says, then return § *Structured output*.
 
 Each step below is one call. The engine's `runner-step` reads the run and says what to do next;
 never work it out from the files yourself. Its row, `runner-result`'s and `in-flight`'s, and
-their refusals, are in `<plugin root>/skills/workflow-engine/references/verbs.md`:
+their refusals, are in `<plugin root>/skills/workflow-engine/references/verbs.md` § *The verbs some steps call* and § *Refusals*:
 
 ```
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs runner-step --state=<task path>/orchestrator-state.yml --node=<node> --runner=implementation

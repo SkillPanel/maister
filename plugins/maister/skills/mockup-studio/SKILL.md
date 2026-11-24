@@ -14,7 +14,7 @@ another round runs another turn; a caller's own gate is where a person approves 
 The bookkeeping is code. The model writes one input file per turn, `vNNN/.turn.json` (and, for a
 prototype, `vNNN/prototype.html`); the scripts allocate the version, render the pages and the
 gallery, write every manifest and index, and refresh the flat view. Every shape a script writes is
-in `<plugin root>/skills/mockup-studio/references/turn-contract.md`.
+in `<plugin root>/skills/mockup-studio/references/turn-contract.md` § *Layout*, § *The input file*, § *The written scope* and § *The files a turn writes*.
 
 The skill runs in the main agent: it dispatches the ASCII agent, and its look pass drives whatever
 browser tool the session has. So does `finish`, which opens the gallery (step 6): no subagent runs
@@ -128,7 +128,7 @@ The steps say what each one does; the references say how.
      are reserved.
    - **sketch:** write `vNNN/.turn.json` with the file tool: the note, format and fidelity,
      `against` exactly as `begin` printed it, `scope`, the grounding digest and staleness, the
-     screens, `drop`, any degraded codes and the notes. Its keys are in `references/turn-contract.md`.
+     screens, `drop`, any degraded codes and the notes. Its keys are in `references/turn-contract.md` § *The input file*.
    - **scope:** write `vNNN/scope.md` by the grammar in `references/turn-contract.md` (*The written
      scope*): the first round has no marks, and a round on a written version starts from the
      earlier scope, `against_scope`, with its marks removed, and marks each difference. Then write
@@ -190,7 +190,7 @@ The steps say what each one does; the references say how.
    Publishing an `html` or a written version also opens its page once, as a file in the person's default
    browser, when a person is at the terminal: no run at all, or a run with no driver or a terminal
    one. Never under a cockpit or dispatch driver. The script reads that and does this, so no step
-   here or in a caller opens it again (`references/turn-contract.md`). Opening is best effort: a
+   here or in a caller opens it again (`references/turn-contract.md` § *Layout*). Opening is best effort: a
    failed open changes nothing and is not degradation, and the close still names the path.
 7. **Stop the viewer** if step 5 started one, and return.
 
@@ -218,7 +218,7 @@ waits. The codes are a closed set:
 ### The no-Node path
 
 Reachable only from a terminal inline turn or an inline call: an engine run always has Node. The
-turn writes by hand, in the shapes `references/turn-contract.md` spells: a written turn writes
+turn writes by hand, in the shapes `references/turn-contract.md` § *The files a turn writes* spells: a written turn writes
 `scope.md`, and any other format writes ASCII. A written turn never falls back to ASCII.
 
 - the version is one above the highest number among the `versions/` folders and the

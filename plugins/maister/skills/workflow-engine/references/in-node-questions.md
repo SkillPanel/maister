@@ -1,7 +1,7 @@
 # In-node questions
 
 The workflow engine's rules for a question a node asks inside itself. `area-brief` names
-*Decision areas from the brainstorm*, and `finding-brief --patch-file` names *Findings that need a decision*. Both verbs' rows, and `import`'s, are in `references/verbs.md`.
+*Decision areas from the brainstorm*, and `finding-brief --patch-file` names *Findings that need a decision*. Both verbs' rows, and `import`'s, are in `references/verbs.md` § *The verbs some steps call*.
 
 A gate is not the only question a run asks. A node's prose may ask its own — a clarification,
 an opt-in that decides whether a later stretch runs, a decision between approaches, or a loop
@@ -342,7 +342,8 @@ with `finding-brief`:
   "recommended": 0, "reason": "One guard closes the crash"}]}
 ```
 
-`id` is kebab-case and unique; `severity` one of critical, high, medium, low, warning, info;
+`id` is kebab-case, unique, and short enough that `<node>-findings-<id>` keeps the question id rule
+(*When a question suspends*); `severity` one of critical, high, medium, low, warning, info;
 `options` one to three, the reviewer's proposed change first, then the alternatives it names;
 `recommended` an option's index, `"accept"`, or null; `reason` required with a recommendation;
 `cites`, optional, the places the finding rests on — each file with the line range it names,
@@ -524,6 +525,11 @@ taking their defaults. These rules hold:
   back to a fresh session, which continues from the files.
 - **No cap.** A set holds as many questions as the node has. The four-to-a-page limit belongs to
   the terminal picker, which pages a long set in one turn; it is never written into a request.
+- **Each question's `id` keeps the question id rule**: a lower-case letter first, then lower-case
+  letters, digits and hyphens, 2 to 41 characters in all — the shape of a node id. A declared id
+  with a suffix counts whole (`<node>-findings-<finding id>`, `convergence-decisions-<area id>`),
+  and a set with an id outside the rule is refused before anything is asked, the rule in the
+  message.
 - **Each question carries its own context**, by the floor above: `question` the question itself,
   `why` what makes it matter, each option's `description` what choosing it does or costs, and
   `recommended` on the recommended option, its reason in its description. A "(Recommended)" typed

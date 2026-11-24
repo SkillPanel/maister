@@ -26,7 +26,7 @@ catches it with `on:`) before anything is created:
 5. a key the node declares under `outputs:` has no entry of that name in the child definition's
    workflow-level `outputs:` → `subrun-output-unmatched`.
 
-**The first three are run by the `subrun-path` verb (its row and refusals: `references/verbs.md`);
+**The first three are run by the `subrun-path` verb (its row and refusals: `references/verbs.md` § *The verbs some steps call* § `subrun-path` and § *Refusals*);
 the last two by the driver, from this prose.** `subrun-path --state=<parent state> --node=<node>` — the call that gives the child its
 directory (*The child directory name*) — refuses with the code of the first of checks 1–3 that
 fails, exit `1`, so a driver that has its directory has passed them. Checks 4 and 5 need the
@@ -68,7 +68,7 @@ Nor does W2 send `features`: the writer copies the parent's driver features into
 freeze, as it copies the autonomy ceiling, so a child of a cockpit that shows question sets asks
 its in-node questions too, and never gains a feature its parent lacks — nor `question-sets` from
 a parent that does not carry them, such as the legacy `kind: dispatch`, whatever it lists
-(`references/in-node-questions.md`, the driver table). A dispatched cockpit parent that lists it passes it on.
+(`references/in-node-questions.md` § *In-node questions*, the driver table). A dispatched cockpit parent that lists it passes it on.
 
 Then, and only then:
 

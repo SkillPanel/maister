@@ -57,7 +57,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { DETAILS_CUT, MORE_DETAILS_ID, PREVIEW_BUDGET, RECOMMENDED_MARK, clip, detailsPreview, markedLabel, unmarked, unrecommended } from './checkpoint.mjs';
-import { clipHeader } from './question-set.mjs';
+import { QUESTION_ID, clipHeader } from './question-set.mjs';
 
 /** The id every area's answer is recorded under, before the area's own id. */
 export const QUESTION_PREFIX = 'convergence-decisions-';
@@ -86,6 +86,7 @@ const FAULT = {
   empty: 'empty',
   notOneLine: 'not-one-line',
   badId: 'bad-id',
+  idTooLong: 'id-too-long',
   duplicate: 'duplicate',
   tooFew: 'too-few',
   reservedId: 'reserved-id',
@@ -256,6 +257,8 @@ function checkArea(area, at, ids) {
   map(area, at);
   keys(area, AREA_KEYS, at);
   slug(area.id, `${at}.id`);
+  // The area is asked as `convergence-decisions-<area id>`, which keeps the question id rule whole.
+  if (!QUESTION_ID.test(`${QUESTION_PREFIX}${area.id}`)) throw new Fault(FAULT.idTooLong, `${at}.id`);
   if (ids.has(area.id)) throw new Fault(FAULT.duplicate, `${at}.id`);
   ids.add(area.id);
   line(area.area, `${at}.area`);

@@ -81,7 +81,7 @@ import { Refusal, openTemp } from '../../../../lib/canonical.mjs';
 import { parse, isPlainObject } from './state-read.mjs';
 import { definitionPathOf, projectRootOf } from './state.mjs';
 import { declaredQuestionIds } from './question-triage.mjs';
-import { clipHeader } from './question-set.mjs';
+import { QUESTION_ID, QUESTION_ID_MAX, clipHeader } from './question-set.mjs';
 import { oneLine } from './items.mjs';
 import { checkCites, citesKey, evidenceKey, isCite, repositoryOf } from './evidence.mjs';
 
@@ -168,7 +168,7 @@ export function findingBrief({ state, node, findingsFile, patchFile = null }) {
       + `Ask the findings as the node's prose says, or declare "${declared}" on its With and Without question sets lines`);
   }
 
-  const loaded = loadFindings(findingsFile, runDir);
+  const loaded = loadFindings(findingsFile, runDir, declared);
   if (loaded.warning) return fallback(loaded.warning);
   if (loaded.invalid) {
     return refuse('finding-brief-list-invalid',
@@ -200,7 +200,7 @@ export function findingBrief({ state, node, findingsFile, patchFile = null }) {
  * relative path is resolved against the run directory, then the project root,
  * and must stay inside the run directory.
  */
-function loadFindings(given, runDir) {
+function loadFindings(given, runDir, declared) {
   const inside = file => {
     const relative = path.relative(runDir, file);
     return relative !== '' && relative.split(path.sep)[0] !== '..' && !path.isAbsolute(relative);
@@ -229,13 +229,17 @@ function loadFindings(given, runDir) {
   } catch {
     return { invalid: { where, fault: 'not-json' } };
   }
-  const fault = shapeFault(data);
+  const fault = shapeFault(data, declared);
   if (fault !== null) return { invalid: { where, fault } };
   return { findings: data.findings, record: path.relative(repositoryOf(runDir), file).split(path.sep).join('/') };
 }
 
-/** The location of the first shape violation, or null when the list is sound. */
-function shapeFault(data) {
+/**
+ * The location of the first shape violation, or null when the list is sound.
+ * A finding's id becomes the question id `<declared>-<id>`, which keeps the
+ * question id rule whole, so an id that would push it past the rule is one.
+ */
+function shapeFault(data, declared) {
   if (!isPlainObject(data)) return '(root)';
   const extra = Object.keys(data).find(key => !FINDINGS_KEYS.includes(key));
   if (extra !== undefined) return extra;
@@ -247,6 +251,9 @@ function shapeFault(data) {
     const unknown = Object.keys(finding).find(key => !FINDING_KEYS.includes(key));
     if (unknown !== undefined) return `${at}.${unknown}`;
     if (typeof finding.id !== 'string' || !ID.test(finding.id) || ids.has(finding.id)) return `${at}.id`;
+    if (!QUESTION_ID.test(`${declared}-${finding.id}`)) {
+      return `${at}.id: its question id ${declared}-${finding.id} would pass the ${QUESTION_ID_MAX} characters a question id holds, so a finding id here has at most ${Math.max(0, QUESTION_ID_MAX - declared.length - 1)}`;
+    }
     ids.add(finding.id);
     if (!SEVERITIES.includes(finding.severity)) return `${at}.severity`;
     if (!isLine(finding.title)) return `${at}.title`;

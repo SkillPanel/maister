@@ -15,8 +15,8 @@ the checks the validator does not make, and it draws the graph readably. It is a
 assistant, not a runner.
 
 **The grammar is the authority.** Every key, rule and recipe is in the workflow engine's
-`references/grammar.md` (two levels above this skill's base directory, then
-`skills/workflow-engine/references/grammar.md`). Read the section a step needs, cite it to the
+`references/grammar.md` § 1 to § 14 (two levels above this skill's base directory, then
+`skills/workflow-engine/references/grammar.md` § <its number>). Read the section a step needs, cite it to the
 author by number, and never restate it here or in a file you write — a second copy drifts.
 
 ---

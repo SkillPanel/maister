@@ -4,7 +4,7 @@ Use when creating a NEW built-in workflow or auditing an existing one. Not loade
 execution. Every built-in workflow is a definition the workflow engine runs: a graph
 (`workflow-engine/workflows/<name>.yml`), its node prose (`<name>.md` beside it), a generated
 diagram (`<name>.mmd`) and a thin hand-off skill. The grammar is
-`workflow-engine/references/grammar.md`; this list is what a built-in adds on top of it.
+`workflow-engine/references/grammar.md` § 1 to § 14; this list is what a built-in adds on top of it.
 
 ---
 

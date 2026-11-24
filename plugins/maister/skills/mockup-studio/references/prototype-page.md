@@ -72,7 +72,7 @@ row's description.
 **When the export refuses**, the version still finishes: the turn writes sketch screens drawn from
 the same scenes, records `fidelity: sketch` with the degraded code (`render-touches-dom` for a DOM
 access, `render-failed` for anything else), and keeps `prototype.html`. Each code and its recovery
-is in `turn-contract.md`. The usual causes are a `render` that reaches for the DOM, an async
+is in `turn-contract.md` § *Refusals*. The usual causes are a `render` that reaches for the DOM, an async
 `render`, or a scenes script that is a module.
 
 **A prototype is HTML and needs Node.** With the `ascii` format, or without Node, the turn draws a

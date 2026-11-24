@@ -73,7 +73,7 @@ The recorded paths never include `INDEX.md` itself or any file under `standards/
 
 When the context input names a context pack — a file or a directory handed over
 by whatever started the run — bring it under `analysis/work-context/` as it is
-with `import` (its row: the engine's `references/verbs.md`), never a shell copy, and
+with `import` (its row: the engine's `references/verbs.md` § *The verbs some steps call* § `import`), never a shell copy, and
 record `research_context.work_reference` with its `path` as given. It is
 background for the brief, the plan and the gatherers, never a substitute for
 the question or for evidence they gather themselves. When the path is missing
@@ -297,7 +297,7 @@ first area and a recommendation line for the rest:
 <!-- plain-picker
 - **the call**: the area is a question set of one question, its options the
   alternatives with their descriptions, the recommended one marked, asked from
-  `gate-brief --ask --patch-file` (`references/in-node-questions.md`), which
+  `gate-brief --ask --patch-file` (`references/in-node-questions.md` § *When a question suspends*), which
   carries each description and the recommendation into the form; the
   question is plain text, with no `**` or list markers, which the form shows
   as typed;
@@ -362,7 +362,7 @@ decisions", its change "revise this step".
 **Asks.** One question per decision area, in the file's order.
 
 **With question sets** (`convergence-decisions`): one question per area, from
-`area-brief` (its row: the engine's `references/verbs.md`) or, on a `decision-areas-*` warning, from the composed areas; an
+`area-brief` (its row: the engine's `references/verbs.md` § *The verbs some steps call* § `area-brief`) or, on a `decision-areas-*` warning, from the composed areas; an
 area whose choice depends on another names that area in its question. Each
 answer is recorded as an operator decision and as the area's
 `chosen_approach`.

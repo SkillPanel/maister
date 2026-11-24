@@ -155,7 +155,7 @@ preview says what it measures and where.
 <!-- /rich-picker -->
 <!-- plain-picker
 The page is one call of three properties, from `gate-brief --ask --patch-file`
-(`references/in-node-questions.md`), which puts each option's reason in its
+(`references/in-node-questions.md` § *When a question suspends*), which puts each option's reason in its
 property's description, since the tool shows no option descriptions.
 -->
 
