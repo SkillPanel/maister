@@ -77,6 +77,8 @@ test('each guide consolidates, writes the candidates file and asks nothing about
     assert.ok(close.includes('never one per candidate; with no candidates there is no such line'), `${workflow}: once, and only with candidates`);
     assert.ok(close.includes('each lesson it attached to an earlier run\'s candidate'), `${workflow}: the close lists the attachments`);
     assert.ok(consolidate.includes('keeps at most five new lessons'), `${workflow}: the cap is asked for`);
+    assert.ok(consolidate.includes('pairs queued candidates that teach one lesson for merging'), `${workflow}: consolidation pairs the queue's duplicates`);
+    assert.ok(consolidate.includes('for each merge pair consolidation returned, run `node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs merge --into=<id> --id=<id>…`'), `${workflow}: each pair is merged after filing`);
     assert.ok(close.includes('how many new lessons were dropped over the cap of five'), `${workflow}: the close says the dropped count`);
     return [consolidate, close];
   });
@@ -93,7 +95,8 @@ test('the candidate description lives in one reference that every other step poi
     '`version`', '`attached`', '`seen_in`', '`--json`', '`{id, evidence, line}`', '<id> [<action>; seen in <N>] <label>: <rule>',
     '`.maister/standard-candidates/`', '`*.json merge=union`', 'meant to be committed with the standards', '`{run, date, evidence}`', '`store`',
     'folding in again adds nothing', 'never under `standards/`',
-    '`dropped`', '**Keep at most five new lessons.**', '`guards`', '`caught_by`', '`dismissed`', '`{reason, by, date}`', '**expired**', '`{queue, closed, problems}`']) {
+    '`dropped`', '**Keep at most five new lessons.**', '`guards`', '`caught_by`', '`dismissed`', '`{reason, by, date}`', '**expired**', '`{queue, closed, problems}`',
+    '**merged**', '`{into, date}`', '`merges`', 'a merge pair', '`{applied, dismissed, expired, merged}`']) {
     assert.ok(reference.includes(field), `the file shape names ${field}`);
   }
   const pointers = {
@@ -130,6 +133,10 @@ test('standards-update, given nothing, offers the latest run\'s candidates throu
   assert.ok(skill.includes('`.maister/standard-candidates/`'), 'the skill names the store');
   assert.ok(skill.includes('"Keep them open (Recommended)"'), 'keeping the rest open is the recommended answer');
   assert.ok(skill.includes('until it is dismissed or expires'), 'an unchosen candidate is offered again only until it closes');
+  assert.ok(skill.includes('**Merge likely duplicates first.**'), 'likely duplicates are found before the offer');
+  assert.ok(skill.includes('with the open queue (`node <plugin root>/skills/standards-update/scripts/candidates.mjs queue`)'), 'against the open queue too');
+  assert.ok(skill.includes('options "Merge them (Recommended)"'), 'merging is the recommended answer');
+  assert.ok(skill.includes('`node <plugin root>/skills/standards-update/scripts/candidates.mjs merge --into=<oldest id> --id=<id> …` once per group'), 'a merge per group, into the oldest');
 });
 
 test('standards-update scans back far enough to reach a run\'s close and takes that run\'s candidates from its file', () => {

@@ -768,7 +768,8 @@ than retried.
    the engine's `references/verbs.md` § *Model and effort on every agent call*): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]. Open
    queue: [the queue's lines as printed, or none]." It merges duplicates,
-   attaches a lesson the open queue already holds to that candidate, matches the
+   attaches a lesson the open queue already holds to that candidate, pairs
+   queued candidates that teach one lesson for merging, matches the
    rest against what the project's standards and documents already hold,
    suggests a destination, keeps at most five new lessons and returns each with
    its evidence and how many it dropped, as docs-manager's
@@ -784,7 +785,10 @@ than retried.
    and this run as one more sighting of each candidate it attached to — and
    records their store ids in the run's file. The store is the project's,
    committed with its standards: whichever commit carries the change carries
-   the files it wrote. The run applies none of them and asks nothing about
+   the files it wrote. Then, for each merge pair consolidation returned, run
+   `node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs merge --into=<id> --id=<id>…`
+   from the project root: the duplicates close as merged into the oldest, which
+   counts their sightings as its own. The run applies none of them and asks nothing about
    them: a person adds the ones worth keeping afterwards, with standards-update.
 5. **Refresh the grounding pack when the change touched it.** Mockups are drawn
    from the project's grounding pack, which records the theme, shell and string
