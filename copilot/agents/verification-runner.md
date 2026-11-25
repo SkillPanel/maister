@@ -221,7 +221,7 @@ budget of two automatic re-checks, when to stop and hand a decision back, and th
   as a standard candidate — stated as the general hazard the fix guards against, never as the fix
   itself, and ending `caught by: <the check>` when a check's own failure already said what to
   do — one line as docs-manager's `references/standard-candidates.md`
-  (`<plugin root>/skills/docs-manager/references/standard-candidates.md`) describes it, for
+  (`<plugin root>/skills/docs-manager/references/standard-candidates.md` § *How one is written*) describes it, for
   finalization to consolidate and hand over to standards-update.
 
 **Hand back a decision** when one of these holds — an issue that needs a person (`fixable: false`),
