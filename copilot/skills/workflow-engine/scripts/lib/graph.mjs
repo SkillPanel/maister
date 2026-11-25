@@ -3075,6 +3075,17 @@ export function nodeKindIn(byId) {
   return (id) => (byId.has(id) ? (byId.get(id)?.type === 'gate' ? 'gate' : 'task') : null);
 }
 
+/**
+ * The id of a gate's one plain continue — the only continue it offers, setting
+ * no value and granting nothing — or null when it has none or more than one.
+ * The one option a project's `config.yml` may take for it (`auto_continue`):
+ * config never grants a permission and never picks between continues.
+ */
+export function plainContinueOf(node) {
+  if (!isMap(node) || node.type !== 'gate' || !pureConfirmation(node)) return null;
+  return Object.entries(node.options).find(([, option]) => optionEffect(option) === 'continue')[0];
+}
+
 /** One continue, setting no value and granting nothing; any revise or stop beside it. */
 function pureConfirmation(node) {
   const options = isMap(node.options) ? Object.values(node.options) : [];

@@ -130,7 +130,9 @@ Keys are node ids; values list the node's artifact keys, the names under `output
 The owed page is the declared path with `.html` in place of `.md`. Who writes it follows from
 how the node runs and is never declared.
 
-**Merge.** The base, then each overlay's block, then the selected profile's. A later list
+**Merge.** The base, then each overlay's block, then the selected profile's, then the
+project's own, `workflows.<name>.html_companions` in `.maister/config.yml`, which the freeze
+records for the run (`references/writing-state.md` § *Project configuration*). A later list
 replaces the earlier one for its node, and `[]` clears it. A node an overlay or the profile
 disables owes nothing.
 

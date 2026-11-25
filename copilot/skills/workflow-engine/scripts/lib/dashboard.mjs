@@ -218,6 +218,12 @@ export function render(view, { now }) {
     phases: phasesOf(state, icons, titles, labels, gates, progress, declared, verifier, executor, where),
     verification: verificationOf(state),
   };
+  // The key documents whose HTML page the project's config turned off, by
+  // declared path: the page drops their cards and keeps them under their
+  // phase. Present only when there are any; a page that predates the key
+  // ignores it.
+  const off = Array.isArray(source.companionsOff) ? source.companionsOff.filter(each => typeof each === 'string' && each !== '') : [];
+  if (off.length) data.companions_off = off;
   return `window.MAISTER_DATA = ${JSON.stringify(data, null, 1)};\n`;
 }
 
