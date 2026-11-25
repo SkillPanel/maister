@@ -32,7 +32,7 @@ Everything here is optional. A project with no `.maister/config.yml` runs on the
 
 `/maister:init` writes the file. If you already have one, init adds the `subagents` and `project`
 blocks when they are missing and leaves everything else as it is; run init again later to be offered
-any other key that is missing. Four keys are read:
+any other key that is missing. Five keys are read:
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
@@ -40,6 +40,7 @@ any other key that is missing. Four keys are read:
 | `mockup_format` | `html` or `ascii` | `html` | How UI mockups are drawn when a run makes them: HTML pages with a gallery, or ASCII in the terminal, which needs no browser. A written scope is chosen per turn, never here. Details: [Mockups](mockups.md). |
 | `subagents` | map | Maister's own table | Which model and effort each subagent runs on, per host. See [Subagent models](#subagent-models). |
 | `project` | map | none | What the project is, so the reviewers check what applies to it. See [The project profile](#the-project-profile). |
+| `workflows` | map | none | Per workflow, which of its steps write an HTML page and which of its approvals are taken without asking. See [Turning off a workflow's pages and approvals](#turning-off-a-workflows-pages-and-approvals). |
 
 A run reads the file when it starts and keeps what it read. An edit applies to the next run, never
 to one already under way, including one you resume.
@@ -51,8 +52,8 @@ html_output: true
 mockup_format: html
 ```
 
-`/maister:run <workflow> --check` validates the `subagents` and `project` keys along with the
-workflow, and starts nothing.
+`/maister:run <workflow> --check` validates the `subagents`, `project` and `workflows` keys along
+with the workflow, and starts nothing.
 
 ## Task directories
 
@@ -105,7 +106,65 @@ With `html_output` on, the main documents also get an `.html` page beside the `.
 the specification, the plan and the verification report in development, performance and
 migration, and the browser check reports in development; the research report, the research explainer, the solution
 exploration, the design and the decision log in research; the alternatives, the design decisions,
-the specification and the brief in product design.
+the specification and the brief in product design. The `workflows` key can turn any of these off
+for one workflow; see the next section.
+
+## Turning off a workflow's pages and approvals
+
+The `workflows` key changes a workflow, built-in or your own, without a custom workflow or an
+overlay. Each entry is keyed by the workflow's name:
+
+```yaml
+workflows:
+  development:
+    html_companions:
+      planning: []                     # no HTML page for the implementation plan
+    auto_continue: [planning-approval] # take the gate's continue option without asking
+```
+
+- **`html_companions`** says which documents of a step get an HTML page. It works like the
+  `html_companions` block of a workflow definition: a step's list of document names replaces the
+  workflow's own, and an empty list means no page. Its document stays a Markdown file, and no
+  page is written for it, which saves the run the work of writing one. The step and document
+  names of each built-in workflow are in the [Built-in workflow reference](workflow-reference.md).
+- **`auto_continue`** lists approvals (gates) the run takes without asking. At a listed gate the
+  run takes its continue option, records it as decided by the project's config (`by: config`), and
+  goes on.
+
+**Which gates may be listed.** Only a gate with exactly one continue option, one that grants
+nothing. A gate whose continue grants something is never taken for you: for example,
+`planning-approval-publish`, which also allows the push and the pull request. A gate with a choice
+between two ways on, such as `verification-approval`, is not taken for you either. Such a gate, a
+gate the workflow doesn't have and a step that isn't a gate each print a warning, and the gate is
+asked as usual.
+
+**When a listed gate is still asked.** The run asks as usual, and says why in one line, when:
+
+- the step before the gate recommends revising or stopping;
+- the step before the gate recorded a risk that calls for stopping;
+- a choice made earlier in the run is waiting for your approval.
+
+The project's config never stands in for you on any of those. Two more things stay as they are:
+
+- A gate that a choice made at the start skips stays skipped. For example, `planning-approval` is
+  skipped when you asked the run to publish.
+- Questions asked inside a step, such as a scope choice or what to do about a finding, are still
+  asked. `auto_continue` covers gates only.
+
+**What you see.** In the session, one line instead of the question, for example "Implementation
+plan approved by the project's config". On the dashboard, the same line on that gate's phase, with
+a *Project config* tag on the decision. A key document whose page is turned off is dropped from
+the cards at the top of the dashboard, since it isn't meant for review there; it is still listed
+under its phase.
+
+**Under every driver.** A run driven from another tool takes a listed gate the same way, and
+records it the same way, as a decision by the project's config.
+
+**When it takes effect.** A run reads the block when it starts and keeps it, so an edit applies to
+the next run, never to one under way or one you resume. A bad entry, such as an unknown workflow,
+step or gate, or a gate that grants something, is a warning naming the file and the key. The entry
+is ignored, and the run still starts. `/maister:run <workflow> --check` and
+`/maister:workflow-author check` show the warnings without starting anything.
 
 ## Subagent models
 
