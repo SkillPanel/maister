@@ -95,16 +95,16 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, parseDefinition, readDefinition } from './definition.mjs';
-import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardOperands, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
+import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardOperands, guardReadsTask, locateWorkflow, nodeKindIn, plainContinueOf, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { companionsOf, owedCompanions } from './companions.mjs';
 import { placedArtifacts, whereOf } from './artifact-paths.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isHostAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
+import { ARTIFACT_ROLES, BY_CONFIG, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isHostAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { GENERATED_WORKFLOW, ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { frozenSubagents } from './subagents.mjs';
-import { frozenWorkflowConfig } from './workflow-config.mjs';
+import { autoContinued, frozenWorkflowConfig } from './workflow-config.mjs';
 import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
 import { SUMMARY_WRITER_KEYS, keysOf } from './interface-shapes.mjs';
@@ -2663,6 +2663,37 @@ function typeMismatch(type, value) {
   return null;
 }
 
+/** Whether a decisions item says the project's config settled it. */
+function isConfigDecision(item) {
+  return isPlainObject(item) && item.by === BY_CONFIG;
+}
+
+/**
+ * A decision recorded `by: config`, held to the one thing the project's
+ * config may settle: the plain continue of a gate the run froze in its
+ * `workflow_config.auto_continue`, proven against the definition. Anything
+ * else — a step's decision, a gate not listed, another option, a definition
+ * the run cannot prove — is refused `state-config-decision-invalid`: a config
+ * decision never grants a permission, picks between continues or stands for a
+ * person.
+ */
+function assertConfigDecisions(id, decisions, { gate, resolved, listed }) {
+  decisions.forEach((decision, index) => {
+    if (!isConfigDecision(decision)) return;
+    const at = `node_summaries.${id}.decisions[${index}]`;
+    const refuse = why => {
+      throw new Refusal('state-config-decision-invalid',
+        `${at} is recorded by: config, but ${why}. Nothing was written. Only the engine records a decision by the project's config, `
+        + 'at a gate the run froze in its workflow_config.auto_continue; record a person\'s answer, or the step\'s own decision, without by: config');
+    };
+    if (!gate) refuse(`${id} is not a gate`);
+    if (!listed.includes(id)) refuse(`the run froze no auto_continue for ${id}`);
+    const plain = plainContinueOf(resolved);
+    if (plain === null) refuse(`${id}'s plain continue cannot be proven against the definition the run froze`);
+    if (decision.option !== plain) refuse(`the option ${JSON.stringify(decision.option ?? null)} is not ${id}'s plain continue, ${plain}`);
+  });
+}
+
 /**
  * A gate's recorded answer, held to the options the gate offers. Only a
  * decision that carries an `option` is an answer; a string or a decision in
@@ -3708,6 +3739,14 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
       }
     }
     assertItems(`node_summaries.${key}`, entry);
+    if (Array.isArray(entry.decisions) && entry.decisions.some(isConfigDecision)) {
+      recorded ??= recordedNodes(doc);
+      assertConfigDecisions(key, entry.decisions, {
+        gate: isGateSummary(recorded, key),
+        resolved: graphOf === null ? null : resolvedNode(graphOf(), key),
+        listed: autoContinued(workflowConfigOf(typedNow())),
+      });
+    }
     if (Array.isArray(entry.decisions)) {
       recorded ??= recordedNodes(doc);
       if (isGateSummary(recorded, key)) {
@@ -3866,7 +3905,7 @@ function assertItems(at, entry) {
   if (Array.isArray(entry.decisions)) {
     entry.decisions.forEach((decision, index) => {
       if (!isPlainObject(decision)) return;
-      if (Object.hasOwn(decision, 'by') && !DECISION_BY.includes(decision.by)) {
+      if (Object.hasOwn(decision, 'by') && !DECISION_BY.includes(decision.by) && decision.by !== BY_CONFIG) {
         refuse(`decisions[${index}].by`, decision.by, `one of ${DECISION_BY.join(', ')}`);
       }
       if (Object.hasOwn(decision, 'as_recommended') && decision.as_recommended !== null && typeof decision.as_recommended !== 'boolean') {
@@ -4530,6 +4569,9 @@ function assertPersonAnswered({ typed, prior, patch, evidence, judged, fresh, re
   for (const [id, entry] of Object.entries(nodes)) {
     if (id === HELD_APPROVAL || !isGate(id) || !isPlainObject(entry) || entry.status === before[id]) continue;
     if (entry.status === 'completed' && !answered.includes(id)) {
+      // A continue the project's config took was held to the run's frozen
+      // auto_continue before this check: no person is asked for it.
+      if (gateAnswer(isPlainObject(summaries[id]) ? summaries[id].decisions : null)?.by === BY_CONFIG) continue;
       // A person answered, but the write carries no answer item to hold it:
       // the shape is wrong, not the answer, so the refusal names the shape.
       if (evidence.person && gateAnswer(isPlainObject(summaries[id]) ? summaries[id].decisions : null) === null) throw answerItemMissing(id);

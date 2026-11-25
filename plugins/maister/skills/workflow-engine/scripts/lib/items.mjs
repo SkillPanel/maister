@@ -44,6 +44,15 @@ import { sentence } from './display.mjs';
 /** Who settled a decision: a person, the run's own analysis, an audit, or a default taken for nobody. */
 export const DECISION_BY = ['operator', 'run', 'audit', 'default'];
 
+/**
+ * A gate continued by the project's `config.yml` (`auto_continue`): the run
+ * records it, never a step, so it is no value a step's closing write offers.
+ */
+export const BY_CONFIG = 'config';
+
+/** Every source a reader knows a decision by: a step's four and the config's. */
+export const DECISION_SOURCES = [...DECISION_BY, BY_CONFIG];
+
 /** What a host calls itself in an answer's `actor.id`, as a reader names it. */
 export const HOST_LABELS = { copilot: 'Copilot' };
 
@@ -158,7 +167,7 @@ export function decisionOf(item, labelFor = null) {
     return { decision: text.replace(SLUG_KEY, ''), by: 'run' };
   }
   if (!isMap(item)) return null;
-  const known = by => (DECISION_BY.includes(by) ? by : null);
+  const known = by => (DECISION_SOURCES.includes(by) ? by : null);
   const text = oneLine(item.decision);
   if (text !== '') {
     const by = known(item.by) ?? (typeof item.option === 'string' ? 'operator' : 'run');

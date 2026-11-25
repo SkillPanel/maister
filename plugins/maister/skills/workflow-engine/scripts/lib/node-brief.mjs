@@ -155,10 +155,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse, isPlainObject } from './state-read.mjs';
-import { BUILT_IN_AGENTS, guardReadsTask, guideRows, nodeKindIn, proseSection, readerRows, sectionNameOf } from './graph.mjs';
-import { driftClause, atClose, closingCandidates, evaluate, readinessOf, reread } from './gate-brief.mjs';
+import { BUILT_IN_AGENTS, guardReadsTask, guideRows, nodeKindIn, plainContinueOf, proseSection, readerRows, sectionNameOf } from './graph.mjs';
+import { driftClause, atClose, closingCandidates, evaluate, gateBrief, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
-import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, startBanner, writeState } from './state.mjs';
+import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, startBanner, workflowConfigOf, writeState } from './state.mjs';
+import { autoContinued, configContinueLine } from './workflow-config.mjs';
 import { owedCompanions } from './companions.mjs';
 import { STYLE_GUIDE } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
@@ -167,7 +168,7 @@ import { canAsk, isDispatchedRun, isTerminalDriver, questionSets } from './drive
 import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestionIds, outstandingHeld } from './question-triage.mjs';
 import { CLASSES, ceilingOf, loadPolicy, questionFamilies } from './policy.mjs';
 import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
-import { DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
+import { BY_CONFIG, DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
 import { conventionsShown, markConventionsShown, publishBrief } from './display-files.mjs';
 import { runRoot } from './resume-check.mjs';
 
@@ -335,9 +336,16 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
   if (resolved === null) {
     lines.push(gate ? askIt : current.graph === null ? UNKNOWN_SECTION : GONE_SECTION);
   } else if (gate) {
-    // An exception still asks the gate: the call comes first, the exception after it.
-    lines.push(askIt);
-    if (/^\*\*Exception\.\*\*/m.test(printed ?? '')) lines.push('', printed);
+    // A gate the project's config continues is recorded here and asks nothing;
+    // one it would continue but its brief advises against is asked, the reason first.
+    const auto = configContinue({ state, node, doc, resolved, nodes, context, title, warnings });
+    if (auto.lines) lines.push(...auto.lines);
+    else {
+      if (auto.say) lines.push(auto.say);
+      // An exception still asks the gate: the call comes first, the exception after it.
+      lines.push(askIt);
+      if (/^\*\*Exception\.\*\*/m.test(printed ?? '')) lines.push('', printed);
+    }
   } else {
     lines.push(printed ?? NO_SECTION);
   }
@@ -419,6 +427,65 @@ function readyToStart(node, resolved, nodes, context) {
   }
   const earlier = nodes.slice(0, nodes.findIndex(entry => entry.id === node));
   return !earlier.some(entry => context.status.get(entry.id) === 'pending' && readinessOf(entry, context.status) !== 'waiting');
+}
+
+/**
+ * A gate the run froze in its `workflow_config.auto_continue` (the project's
+ * `config.yml`), continued here instead of asked: `{lines}` when its plain
+ * continue was recorded `by: config` — the decision, the line to show and the
+ * node due next — `{say}` when the config would continue but the gate's own
+ * brief advises against it, so it is asked with the reason first, and `{}`
+ * otherwise. Under every driver: the config is the project's standing answer,
+ * it grants nothing, and the record reads the same wherever the run is driven.
+ *
+ * Only a gate that is due now — pending, its needs settled, its guard true,
+ * nothing earlier left to run — is continued; a gate its guard skips takes the
+ * usual skip. Its brief must recommend the continue or nothing: a recommended
+ * revise or stop, a stop risk a closing node recorded, or a choice held for a
+ * person's approval asks it, since config never stands for a person.
+ */
+function configContinue({ state, node, doc, resolved, nodes, context, title, warnings }) {
+  if (!autoContinued(workflowConfigOf(doc)).includes(node)) return {};
+  const option = plainContinueOf(resolved);
+  if (option === null || !readyToStart(node, resolved, nodes, context)) return {};
+  const brief = gateBrief({ state, node, form: 'verdict', doc });
+  if (!brief.ok || brief.verdict.drift) return {};
+  const { verdict } = brief;
+  const closing = lowered(titleOf(verdict.titles, verdict.closing));
+  const against = verdict.stop ? `${closing} recorded a risk that recommends stopping`
+    : verdict.effect === 'revise' ? `${closing} recommends revising`
+      : verdict.effect === 'stop' ? `${closing} recommends stopping`
+        : verdict.held > 0 ? `${verdict.held === 1 ? 'a choice is' : `${verdict.held} choices are`} held for your approval`
+          : null;
+  if (against !== null) return { say: `say: The project's config would continue, but ${against}; the gate is asked as usual.` };
+  const line = configContinueLine(title);
+  const written = writeState({
+    state,
+    patch: {
+      nodes: { [node]: { status: 'completed' } },
+      node_summaries: { [node]: { headline: line, decisions: [{ option, by: BY_CONFIG }] } },
+    },
+  });
+  if (!written.ok) {
+    warnings.push(`node-brief-config-continue-refused: ${written.errors.map(error => error.code).join(', ')}; the gate is asked as usual`);
+    return {};
+  }
+  const name = typeof doc.workflow?.name === 'string' ? doc.workflow.name : '<workflow>';
+  const next = written.next === undefined ? []
+    : written.next.id === null ? ['next: none — write the closing patch with task.status, then run run-complete']
+      : [`next: ${written.next.id} (${written.next.title}) — run node-brief for it`];
+  return {
+    lines: [
+      `decided: ${node} — ${option}, by the project's config (workflows.${name}.auto_continue); nothing to ask, nothing to write`,
+      `say: ${line}`,
+      ...next,
+    ],
+  };
+}
+
+/** A title as it reads mid-sentence: its first letter lowered. */
+function lowered(text) {
+  return typeof text === 'string' && text !== '' ? `${text[0].toLowerCase()}${text.slice(1)}` : text;
 }
 
 /**
