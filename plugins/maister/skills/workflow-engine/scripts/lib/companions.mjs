@@ -50,7 +50,9 @@ export function isCompanionList(value) {
  * Base first, then each overlay's own block in order, then the block of each
  * overlay's selected profile — the order the resolver applies operations in, so
  * an overlay can declare companions for the nodes it adds and change the
- * base's, and a profile has the last word. A later list replaces the earlier
+ * base's — and last `config`, the project's own block for this workflow as
+ * the run recorded it at its freeze (`workflow-config.mjs`), which has the
+ * last word. A later list replaces the earlier
  * one for its node whole; an empty list clears the node, which then owes
  * nothing and is left out of the map.
  *
@@ -66,7 +68,7 @@ export function isCompanionList(value) {
  * `definition` and each overlay are the `{file, doc}` pairs the reader returns;
  * a bare document is accepted too.
  */
-export function companionsOf({ definition = null, overlays = [], profile = null } = {}) {
+export function companionsOf({ definition = null, overlays = [], profile = null, config = null } = {}) {
   const merged = Object.create(null);
   const blocks = [docOf(definition)?.html_companions];
   for (const overlay of overlays) blocks.push(docOf(overlay)?.html_companions);
@@ -76,6 +78,7 @@ export function companionsOf({ definition = null, overlays = [], profile = null 
       if (isMap(profiles) && isMap(profiles[profile])) blocks.push(profiles[profile].html_companions);
     }
   }
+  blocks.push(config);
   for (const block of blocks) {
     if (!isMap(block)) continue;
     for (const [id, keys] of Object.entries(block)) {

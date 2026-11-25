@@ -104,6 +104,7 @@ import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, 
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { GENERATED_WORKFLOW, ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { frozenSubagents } from './subagents.mjs';
+import { frozenWorkflowConfig } from './workflow-config.mjs';
 import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
 import { SUMMARY_WRITER_KEYS, keysOf } from './interface-shapes.mjs';
@@ -1071,7 +1072,8 @@ function displayOfRun(doc, runDir) {
 /**
  * The HTML companions a run owes: `{merged, definition}`, where `merged` is the
  * `html_companions:` block of the definition the run froze, merged with its
- * overlays' and the selected profile's (`companionsOf`), and `definition` the
+ * overlays', the selected profile's and, last, the project config's the freeze
+ * recorded (`companionsOf`, `workflowConfigOf`), and `definition` the
  * folded document the run executes, which `owedCompanions` reads the declared
  * paths from. Null when no definition is found or the base cannot be read, so
  * a caller can tell "owes nothing" from "cannot say".
@@ -1088,7 +1090,8 @@ export function companionsOfRun(doc, runDir, read = undefined) {
     if (sources === null || !isPlainObject(sources.definition.doc)) return null;
     const definition = definitionOf(doc, runDir);
     if (definition === null) return null;
-    return { merged: companionsOf({ ...sources, overlays: sources.overlays.filter(overlay => overlay.doc) }), definition };
+    const config = workflowConfigOf(doc)?.html_companions ?? null;
+    return { merged: companionsOf({ ...sources, overlays: sources.overlays.filter(overlay => overlay.doc), config }), definition };
   } catch {
     return null;
   }
@@ -1356,12 +1359,14 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   // Before `applyScalars`, which would otherwise write the values as sent.
   orchestrator = dropSubagents(orchestrator, notes);
   orchestrator = dropProject(orchestrator, notes);
+  orchestrator = dropWorkflowConfig(orchestrator, notes);
   orchestrator = narrowDelegation(doc, orchestrator, freezing, notes);
   if (freezing) {
     orchestrator = seedCeiling(orchestrator, policyNow, parentNow, writeWarnings);
     orchestrator = seedFeatures(orchestrator, parentNow, writeWarnings);
     orchestrator = seedSubagents(orchestrator, patch.workflow, runDir, writeWarnings);
     orchestrator = seedProject(orchestrator, runDir, writeWarnings);
+    orchestrator = seedWorkflowConfig(orchestrator, patch.workflow, runDir, writeWarnings);
     orchestrator = seedConfigOptions(orchestrator, runDir, writeWarnings);
     orchestrator = seedDelegation(orchestrator, host);
     orchestrator = seedTaskPath(orchestrator, runDir, notes);
@@ -3131,6 +3136,57 @@ function dropProject(orchestrator, notes) {
 }
 
 /**
+ * `orchestrator.options.workflow_config`, the entry for this workflow in the
+ * `workflows:` block of the project's `config.yml` — which steps' HTML pages a
+ * run writes and which gates it continues without asking — judged against the
+ * definition folded with the run's overlays and profile (`workflow-config.mjs`).
+ * Written only when something survives the judgement, so a project with no
+ * block freezes exactly the keys it always did; each entry dropped is one
+ * warning. Readers take this copy, never the file, so an edit reaches the next
+ * run and a resumed run keeps what it started with.
+ */
+function seedWorkflowConfig(orchestrator, workflow, runDir, writeWarnings) {
+  if (runDir === null || !isPlainObject(workflow) || typeof workflow.name !== 'string') return orchestrator;
+  let sources = null;
+  try {
+    sources = sourcesOf(workflow, runDir);
+  } catch {
+    sources = null;
+  }
+  if (sources === null || !isPlainObject(sources.definition?.doc)) return orchestrator;
+  const { config, warnings } = frozenWorkflowConfig({
+    project: projectRootOf(runDir),
+    name: workflow.name,
+    definition: sources.definition,
+    overlays: sources.overlays.filter(overlay => overlay.doc !== null),
+    profile: sources.profile ?? null,
+  });
+  writeWarnings.push(...warnings);
+  if (config === null) return orchestrator;
+  const base = isPlainObject(orchestrator) ? orchestrator : {};
+  const options = isPlainObject(base.options) ? base.options : {};
+  return { ...base, options: { ...options, workflow_config: config } };
+}
+
+/**
+ * A patch's own `options.workflow_config`, dropped with a note on every write:
+ * the freeze records it from the file, and no write after it changes it.
+ */
+function dropWorkflowConfig(orchestrator, notes) {
+  if (!isPlainObject(orchestrator) || !isPlainObject(orchestrator.options) || !Object.hasOwn(orchestrator.options, 'workflow_config')) return orchestrator;
+  const { workflow_config: _sent, ...kept } = orchestrator.options;
+  notes.push(WORKFLOW_CONFIG_NOTE);
+  const { options: _options, ...rest } = orchestrator;
+  return Object.keys(kept).length ? { ...rest, options: kept } : rest;
+}
+
+/** The run's recorded `workflow_config`, or null: the copy every reader takes. */
+export function workflowConfigOf(doc) {
+  const value = doc?.orchestrator?.options?.workflow_config;
+  return isPlainObject(value) ? value : null;
+}
+
+/**
  * `orchestrator.options.html_output` and `orchestrator.options.mockup_format`,
  * read at the freeze from the top-level keys of the project's `config.yml`,
  * each only when the freeze patch sends none: a value the patch sends stands as
@@ -3344,6 +3400,7 @@ function isNarrowing(sent) {
 /** The notes `apply` returns for a writer-owned value it dropped. */
 const DELEGATION_NOTE = 'ignored the supplied orchestrator.options.delegation; the freeze records it from the host it names, so no patch sets it — after the freeze a nested run may only narrow it, as {mode: inline, reason}';
 const SUBAGENTS_NOTE = 'ignored the supplied orchestrator.options.subagents; the freeze records it from the project\'s config.yml, the overlays and the profile, so no patch sets it';
+const WORKFLOW_CONFIG_NOTE = 'ignored the supplied orchestrator.options.workflow_config; the freeze records it from the workflows block of the project\'s config.yml, so no patch sets it';
 const PROJECT_NOTE = 'ignored the supplied orchestrator.options.project; the freeze records it from the project key of the project\'s config.yml, so no patch sets it';
 const FACT_NOTE = 'ignored the supplied orchestrator.classes_questions; the freeze records it from the policy it applied, so no patch sets it';
 const CEILING_NOTE = 'ignored the supplied orchestrator.options.ceiling; the autonomy ceiling may narrow after the freeze, never widen';

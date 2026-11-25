@@ -797,6 +797,20 @@ async function runValidate(flags) {
   // value is a warning, and the run starts with the field left out.
   const profile = await loadModule('project-profile.mjs');
   result.warnings.push(...entryOf(profile, 'projectProfile', 'project-profile.mjs')(entryOf(module, 'projectRoot', VERBS.validate.module)()).warnings);
+  // The project's workflows block, for the workflow these files define: its
+  // entry judged against the folded graph as the freeze would judge it, and
+  // any entry naming no workflow. A warning each: the run drops the entry and
+  // asks the gate as usual.
+  if (flags.definition && sources.definition?.doc) {
+    const config = await loadModule('workflow-config.mjs');
+    result.warnings.push(...entryOf(config, 'workflowsWarnings', 'workflow-config.mjs')({
+      project: entryOf(module, 'projectRoot', VERBS.validate.module)(),
+      name: sources.definition.doc.name,
+      definition: sources.definition,
+      overlays: sources.overlays,
+      profile: flags.profile ?? null,
+    }));
+  }
   report(result);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
