@@ -382,6 +382,27 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   const advised = revisions.spent ? null : advisedRevise(doc, options, closing);
   const withheld = withheldContinue(doc, recorded, byId, closing);
   const recommended = settling?.option ?? recommend(options, closing.risks, preferred, advised, withheld);
+  // What a gate the project's config would continue reads before it is
+  // continued (node-brief): the option recommended and its effect, whether a
+  // closing node recorded a stop risk, how many choices are held for a
+  // person, and whether the definition still proves.
+  if (form === 'verdict') {
+    const chosen = recommended !== null && options !== null && Object.hasOwn(options, recommended) ? options[recommended] : null;
+    return {
+      ok: true,
+      verdict: {
+        recommended,
+        effect: chosen === null ? null : isPlainObject(chosen) ? chosen.effect : chosen,
+        stop: closing.risks.some(isStopRisk),
+        held: held.length,
+        drift: Boolean(current.drift),
+        closing: closing.id,
+        titles: current.display.titles,
+      },
+      errors: [],
+      warnings,
+    };
+  }
   // The recommended continue walked first, as the pickers list it, so every
   // form's per-continue Next lines read in the options' order.
   const continues = continuesOf(options).sort(([a], [b]) => (b === recommended) - (a === recommended));
@@ -1639,6 +1660,8 @@ function buildCheckpoint({ doc, runDir, node, recorded, byId, titles, display, c
         }));
         continue;
       }
+      // A gate the project's config continued is no step's decision to report.
+      if (!Array.isArray(decisions[decision.by])) continue;
       decisions[decision.by].push(compact({
         decision: decision.decision,
         rationale: typeof decision.rationale === 'string' && decision.rationale.trim() !== '' ? decision.rationale.trim() : undefined,

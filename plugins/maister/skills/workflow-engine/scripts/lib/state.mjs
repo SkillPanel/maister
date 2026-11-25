@@ -95,15 +95,16 @@ import * as dashboard from './dashboard.mjs';
 // while the code tested one, and a second copy of that resolution rule here would
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, parseDefinition, readDefinition } from './definition.mjs';
-import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardOperands, guardReadsTask, locateWorkflow, nodeKindIn, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
+import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardOperands, guardReadsTask, locateWorkflow, nodeKindIn, plainContinueOf, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
 import { companionsOf, owedCompanions } from './companions.mjs';
 import { placedArtifacts, whereOf } from './artifact-paths.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
-import { ARTIFACT_ROLES, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isHostAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
+import { ARTIFACT_ROLES, BY_CONFIG, DECISION_BY, HEADLINE_MAX, RISK_TAGS, PROVENANCE_KEYS, attemptNumber, decisionOf, fittedHeadline, fixOf, gateAnswer, isEarlierAnswer, isHostAnswer, isPlaceholderName, oneLine, provenanceOf, withPersonActor, withProvenance } from './items.mjs';
 import { checkSet, foldAnswer, requestQuestions } from './question-set.mjs';
 import { GENERATED_WORKFLOW, ceilingOf, effectiveCeiling, loadPolicy, narrowerLevel, triageFor } from './policy.mjs';
 import { frozenSubagents } from './subagents.mjs';
+import { autoContinued, frozenWorkflowConfig } from './workflow-config.mjs';
 import { projectProfile } from './project-profile.mjs';
 import { baseAtFreeze } from './git-tree.mjs';
 import { SUMMARY_WRITER_KEYS, keysOf } from './interface-shapes.mjs';
@@ -861,6 +862,7 @@ function project(state, text, now, changed, warnings) {
       verifier: dashboard.verifierNodeOf(definition),
       executor: dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc),
       place: { runDir, root: projectRootOf(runDir) },
+      companionsOff: companionsOffOf(doc, runDir),
     };
     canonical.commit({
       target,
@@ -1071,7 +1073,8 @@ function displayOfRun(doc, runDir) {
 /**
  * The HTML companions a run owes: `{merged, definition}`, where `merged` is the
  * `html_companions:` block of the definition the run froze, merged with its
- * overlays' and the selected profile's (`companionsOf`), and `definition` the
+ * overlays', the selected profile's and, last, the project config's the freeze
+ * recorded (`companionsOf`, `workflowConfigOf`), and `definition` the
  * folded document the run executes, which `owedCompanions` reads the declared
  * paths from. Null when no definition is found or the base cannot be read, so
  * a caller can tell "owes nothing" from "cannot say".
@@ -1082,16 +1085,46 @@ function displayOfRun(doc, runDir) {
  * left out of the merge, as `definitionOf` leaves it out of the fold. A caller
  * that has already read them passes `sources`, so they are read once.
  */
-export function companionsOfRun(doc, runDir, read = undefined) {
+export function companionsOfRun(doc, runDir, read = undefined, { withConfig = true } = {}) {
   try {
     const sources = read !== undefined ? read : sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
     if (sources === null || !isPlainObject(sources.definition.doc)) return null;
     const definition = definitionOf(doc, runDir);
     if (definition === null) return null;
-    return { merged: companionsOf({ ...sources, overlays: sources.overlays.filter(overlay => overlay.doc) }), definition };
+    const config = withConfig ? workflowConfigOf(doc)?.html_companions ?? null : null;
+    return { merged: companionsOf({ ...sources, overlays: sources.overlays.filter(overlay => overlay.doc), config }), definition };
   } catch {
     return null;
   }
+}
+
+/**
+ * The markdown artifacts whose HTML page the project's config turned off for
+ * this run: owed by the definition, its overlays and the profile, and no
+ * longer once the recorded `workflow_config.html_companions` is laid over
+ * them. Declared paths, task-relative, in node order; [] when the run recorded
+ * no such block or the definition cannot be read. The dashboard drops a key
+ * document's card for each, since a document with no page is not meant for
+ * review there.
+ */
+export function companionsOffOf(doc, runDir) {
+  if (!isPlainObject(workflowConfigOf(doc)?.html_companions)) return [];
+  let sources;
+  try {
+    sources = sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
+  } catch {
+    return [];
+  }
+  const kept = companionsOfRun(doc, runDir, sources);
+  const owed = companionsOfRun(doc, runDir, sources, { withConfig: false });
+  if (kept === null || owed === null) return [];
+  const ids = isPlainObject(owed.definition?.nodes) ? Object.keys(owed.definition.nodes) : [];
+  const off = [];
+  for (const id of ids) {
+    const still = new Set(owedCompanions(kept, id).map(each => each.md));
+    for (const { md } of owedCompanions(owed, id)) if (!still.has(md) && !off.includes(md)) off.push(md);
+  }
+  return off;
 }
 
 /**
@@ -1356,12 +1389,14 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   // Before `applyScalars`, which would otherwise write the values as sent.
   orchestrator = dropSubagents(orchestrator, notes);
   orchestrator = dropProject(orchestrator, notes);
+  orchestrator = dropWorkflowConfig(orchestrator, notes);
   orchestrator = narrowDelegation(doc, orchestrator, freezing, notes);
   if (freezing) {
     orchestrator = seedCeiling(orchestrator, policyNow, parentNow, writeWarnings);
     orchestrator = seedFeatures(orchestrator, parentNow, writeWarnings);
     orchestrator = seedSubagents(orchestrator, patch.workflow, runDir, writeWarnings);
     orchestrator = seedProject(orchestrator, runDir, writeWarnings);
+    orchestrator = seedWorkflowConfig(orchestrator, patch.workflow, runDir, writeWarnings);
     orchestrator = seedConfigOptions(orchestrator, runDir, writeWarnings);
     orchestrator = seedDelegation(orchestrator, host);
     orchestrator = seedTaskPath(orchestrator, runDir, notes);
@@ -2658,6 +2693,37 @@ function typeMismatch(type, value) {
   return null;
 }
 
+/** Whether a decisions item says the project's config settled it. */
+function isConfigDecision(item) {
+  return isPlainObject(item) && item.by === BY_CONFIG;
+}
+
+/**
+ * A decision recorded `by: config`, held to the one thing the project's
+ * config may settle: the plain continue of a gate the run froze in its
+ * `workflow_config.auto_continue`, proven against the definition. Anything
+ * else — a step's decision, a gate not listed, another option, a definition
+ * the run cannot prove — is refused `state-config-decision-invalid`: a config
+ * decision never grants a permission, picks between continues or stands for a
+ * person.
+ */
+function assertConfigDecisions(id, decisions, { gate, resolved, listed }) {
+  decisions.forEach((decision, index) => {
+    if (!isConfigDecision(decision)) return;
+    const at = `node_summaries.${id}.decisions[${index}]`;
+    const refuse = why => {
+      throw new Refusal('state-config-decision-invalid',
+        `${at} is recorded by: config, but ${why}. Nothing was written. Only the engine records a decision by the project's config, `
+        + 'at a gate the run froze in its workflow_config.auto_continue; record a person\'s answer, or the step\'s own decision, without by: config');
+    };
+    if (!gate) refuse(`${id} is not a gate`);
+    if (!listed.includes(id)) refuse(`the run froze no auto_continue for ${id}`);
+    const plain = plainContinueOf(resolved);
+    if (plain === null) refuse(`${id}'s plain continue cannot be proven against the definition the run froze`);
+    if (decision.option !== plain) refuse(`the option ${JSON.stringify(decision.option ?? null)} is not ${id}'s plain continue, ${plain}`);
+  });
+}
+
 /**
  * A gate's recorded answer, held to the options the gate offers. Only a
  * decision that carries an `option` is an answer; a string or a decision in
@@ -3131,6 +3197,57 @@ function dropProject(orchestrator, notes) {
 }
 
 /**
+ * `orchestrator.options.workflow_config`, the entry for this workflow in the
+ * `workflows:` block of the project's `config.yml` — which steps' HTML pages a
+ * run writes and which gates it continues without asking — judged against the
+ * definition folded with the run's overlays and profile (`workflow-config.mjs`).
+ * Written only when something survives the judgement, so a project with no
+ * block freezes exactly the keys it always did; each entry dropped is one
+ * warning. Readers take this copy, never the file, so an edit reaches the next
+ * run and a resumed run keeps what it started with.
+ */
+function seedWorkflowConfig(orchestrator, workflow, runDir, writeWarnings) {
+  if (runDir === null || !isPlainObject(workflow) || typeof workflow.name !== 'string') return orchestrator;
+  let sources = null;
+  try {
+    sources = sourcesOf(workflow, runDir);
+  } catch {
+    sources = null;
+  }
+  if (sources === null || !isPlainObject(sources.definition?.doc)) return orchestrator;
+  const { config, warnings } = frozenWorkflowConfig({
+    project: projectRootOf(runDir),
+    name: workflow.name,
+    definition: sources.definition,
+    overlays: sources.overlays.filter(overlay => overlay.doc !== null),
+    profile: sources.profile ?? null,
+  });
+  writeWarnings.push(...warnings);
+  if (config === null) return orchestrator;
+  const base = isPlainObject(orchestrator) ? orchestrator : {};
+  const options = isPlainObject(base.options) ? base.options : {};
+  return { ...base, options: { ...options, workflow_config: config } };
+}
+
+/**
+ * A patch's own `options.workflow_config`, dropped with a note on every write:
+ * the freeze records it from the file, and no write after it changes it.
+ */
+function dropWorkflowConfig(orchestrator, notes) {
+  if (!isPlainObject(orchestrator) || !isPlainObject(orchestrator.options) || !Object.hasOwn(orchestrator.options, 'workflow_config')) return orchestrator;
+  const { workflow_config: _sent, ...kept } = orchestrator.options;
+  notes.push(WORKFLOW_CONFIG_NOTE);
+  const { options: _options, ...rest } = orchestrator;
+  return Object.keys(kept).length ? { ...rest, options: kept } : rest;
+}
+
+/** The run's recorded `workflow_config`, or null: the copy every reader takes. */
+export function workflowConfigOf(doc) {
+  const value = doc?.orchestrator?.options?.workflow_config;
+  return isPlainObject(value) ? value : null;
+}
+
+/**
  * `orchestrator.options.html_output` and `orchestrator.options.mockup_format`,
  * read at the freeze from the top-level keys of the project's `config.yml`,
  * each only when the freeze patch sends none: a value the patch sends stands as
@@ -3344,6 +3461,7 @@ function isNarrowing(sent) {
 /** The notes `apply` returns for a writer-owned value it dropped. */
 const DELEGATION_NOTE = 'ignored the supplied orchestrator.options.delegation; the freeze records it from the host it names, so no patch sets it — after the freeze a nested run may only narrow it, as {mode: inline, reason}';
 const SUBAGENTS_NOTE = 'ignored the supplied orchestrator.options.subagents; the freeze records it from the project\'s config.yml, the overlays and the profile, so no patch sets it';
+const WORKFLOW_CONFIG_NOTE = 'ignored the supplied orchestrator.options.workflow_config; the freeze records it from the workflows block of the project\'s config.yml, so no patch sets it';
 const PROJECT_NOTE = 'ignored the supplied orchestrator.options.project; the freeze records it from the project key of the project\'s config.yml, so no patch sets it';
 const FACT_NOTE = 'ignored the supplied orchestrator.classes_questions; the freeze records it from the policy it applied, so no patch sets it';
 const CEILING_NOTE = 'ignored the supplied orchestrator.options.ceiling; the autonomy ceiling may narrow after the freeze, never widen';
@@ -3651,6 +3769,14 @@ function applySummaries(doc, summaries, nodePatch, changed, runDir = null, graph
       }
     }
     assertItems(`node_summaries.${key}`, entry);
+    if (Array.isArray(entry.decisions) && entry.decisions.some(isConfigDecision)) {
+      recorded ??= recordedNodes(doc);
+      assertConfigDecisions(key, entry.decisions, {
+        gate: isGateSummary(recorded, key),
+        resolved: graphOf === null ? null : resolvedNode(graphOf(), key),
+        listed: autoContinued(workflowConfigOf(typedNow())),
+      });
+    }
     if (Array.isArray(entry.decisions)) {
       recorded ??= recordedNodes(doc);
       if (isGateSummary(recorded, key)) {
@@ -3809,7 +3935,7 @@ function assertItems(at, entry) {
   if (Array.isArray(entry.decisions)) {
     entry.decisions.forEach((decision, index) => {
       if (!isPlainObject(decision)) return;
-      if (Object.hasOwn(decision, 'by') && !DECISION_BY.includes(decision.by)) {
+      if (Object.hasOwn(decision, 'by') && !DECISION_BY.includes(decision.by) && decision.by !== BY_CONFIG) {
         refuse(`decisions[${index}].by`, decision.by, `one of ${DECISION_BY.join(', ')}`);
       }
       if (Object.hasOwn(decision, 'as_recommended') && decision.as_recommended !== null && typeof decision.as_recommended !== 'boolean') {
@@ -4473,6 +4599,9 @@ function assertPersonAnswered({ typed, prior, patch, evidence, judged, fresh, re
   for (const [id, entry] of Object.entries(nodes)) {
     if (id === HELD_APPROVAL || !isGate(id) || !isPlainObject(entry) || entry.status === before[id]) continue;
     if (entry.status === 'completed' && !answered.includes(id)) {
+      // A continue the project's config took was held to the run's frozen
+      // auto_continue before this check: no person is asked for it.
+      if (gateAnswer(isPlainObject(summaries[id]) ? summaries[id].decisions : null)?.by === BY_CONFIG) continue;
       // A person answered, but the write carries no answer item to hold it:
       // the shape is wrong, not the answer, so the refusal names the shape.
       if (evidence.person && gateAnswer(isPlainObject(summaries[id]) ? summaries[id].decisions : null) === null) throw answerItemMissing(id);

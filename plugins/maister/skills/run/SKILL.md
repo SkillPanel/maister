@@ -216,6 +216,7 @@ report says so.
 | `overlay-ignored:` | fold the overlay's changes into the eject, or delete one of the two |
 | `unresolved-subrun-input:` | pass the child's required input in `with:`, or remove the key the child does not declare |
 | `project-profile:` | correct the named field of the `project:` key in `.maister/config.yml` to one of the values the message lists, or delete the line; the run starts either way, with that field left out of the profile its reviewers read |
+| `workflows-config:` | correct or delete the named entry under `workflows:` in `.maister/config.yml`; the run starts either way, that entry ignored and the gate it names asked as usual |
 | `undecidable-value-type:` | declare the value `bool`, `id` or an `enum` when it is a handle rather than prose |
 | `skip-guard-not-pure:` | guard the gate on an input or on a gate's value, or make it a single continue with no `sets` and no `grants`; until then it is asked whatever its guard reads |
 | `subagent-artifact-name:` | rename the artifact for its subject, as the message suggests — a name that does not start with report, summary, findings or analysis — and the prose that names it |

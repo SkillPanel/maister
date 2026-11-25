@@ -1,0 +1,71 @@
+# The project-config definition: steps owing HTML pages, a plain approval
+# behind a guard, its publishing twin whose continue grants, a gate offering
+# two continues, and steps around them — what a project's `workflows:` block
+# in config.yml can turn off, continue, or must leave asked.
+name: config-workflow
+version: 1
+inputs:
+  publish: {type: bool, required: false, default: false}
+
+display:
+  titles:
+    plan-approval: "Approve implementation plan"
+    plan-approval-publish: "Approve implementation plan and publish"
+    route: "Choose the route"
+
+html_companions:
+  spec: [spec]
+  plan: [plan]
+
+nodes:
+  spec:
+    uses: direct:spec
+    needs: []
+    outputs:
+      artifacts:
+        spec: implementation/spec.md
+
+  plan:
+    uses: direct:plan
+    needs: [spec]
+    outputs:
+      artifacts:
+        plan: implementation/implementation-plan.md
+        notes: implementation/notes.md
+
+  plan-approval:
+    type: gate
+    needs: [plan]
+    when: "!${inputs.publish}"
+    ask: "Plan complete. Continue to the build?"
+    options:
+      continue-to-build: continue
+      revise-plan: {effect: revise, reruns: plan}
+      stop-here: stop
+
+  plan-approval-publish:
+    type: gate
+    needs: [plan-approval]
+    when: "${inputs.publish}"
+    ask: "Plan complete. Continue to the build, then publish?"
+    options:
+      continue-to-build: {effect: continue, grants: [push, pr-create]}
+      revise-plan: {effect: revise, reruns: plan}
+      stop-here: stop
+
+  build:
+    uses: direct:build
+    needs: [plan-approval-publish]
+
+  route:
+    type: gate
+    needs: [build]
+    ask: "Build complete. Which way on?"
+    options:
+      go-fast: {effect: continue, sets: {fast: true}}
+      go-slow: {effect: continue, sets: {fast: false}}
+      stop-here: stop
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [route]

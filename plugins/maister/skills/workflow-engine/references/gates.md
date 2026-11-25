@@ -397,6 +397,22 @@ a write may be refused naming a different, abandoned run. The operator clears it
 its request file and pending marker). Do neither on the operator's behalf: report the
 offending path and let the operator choose.
 
+## A gate the project's config continues
+
+A project lists gates under `workflows.<name>.auto_continue` in `.maister/config.yml`; the
+freeze keeps only gates with one plain continue that sets nothing and grants nothing, and
+records them in `orchestrator.options.workflow_config`. At such a gate, once it is due,
+`node-brief` records that continue itself, `by: config` with the line as the gate's headline,
+and prints `decided:`, a `say:` line and the next node in place of `ask it:`. Show the `say:`
+line and brief the next node; write nothing for the gate. It does so under every driver, and
+no gate request is written.
+
+The gate is asked as usual, a `say:` line naming why above `ask it:`, when its brief
+recommends a revise or a stop, a step it closes recorded a stop risk, or a choice is held for
+approval: config never stands for a person. A gate its guard skips keeps the usual skip.
+Only the engine records `by: config`; the writer refuses it anywhere else
+(`state-config-decision-invalid`).
+
 ## Driver-suspended mode — the write order
 
 With `driver.kind` `cockpit` or `dispatch` the engine does not ask. It suspends, in this
