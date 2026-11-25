@@ -2,7 +2,7 @@
  * The project's standard candidate store: the knowledge finished workflow runs
  * handed over, kept in one folder the project commits, one file per candidate.
  * The store is the queue's one source of truth: every verb here reads it, and
- * only `file`, `applied`, `dismiss` and the import write it.
+ * only `file`, `applied`, `dismiss`, `merge` and the import write it.
  *
  *   node <path to this file> file --run=<task dir> [--tasks=<dir>] [--today=<YYYY-MM-DD>]
  *   node <path to this file> close --run=<task dir> [--tasks=<dir>] [--today=<YYYY-MM-DD>]
@@ -11,6 +11,7 @@
  *   node <path to this file> show --run=<task dir> [--tasks=<dir>] [--today=<YYYY-MM-DD>]
  *   node <path to this file> applied --id=<id> [--id=<id> ...] [--tasks=<dir>] [--today=<YYYY-MM-DD>]
  *   node <path to this file> dismiss (--id=<id> ... | --run=<task dir> --all) --reason=<text> --by=<name> [--tasks=<dir>] [--today=<YYYY-MM-DD>]
+ *   node <path to this file> merge --into=<id> --id=<id> [--id=<id> ...] [--tasks=<dir>] [--today=<YYYY-MM-DD>]
  *   node <path to this file> import [--tasks=<dir>]
  *
  * `--tasks` defaults to `.maister/tasks` under the current directory, so a
@@ -20,9 +21,10 @@
  * two shapes and the close (*The candidate store*, *The run's candidates
  * file*, *The open queue*, *The close*).
  *
- * A candidate's file holds what it says, its stored state (`open`, `applied`
- * or `dismissed`, with `closed` recording the day and, for a dismissal, the
- * reason and who) and `seen_in`, one `{run, date, evidence}` line per run that
+ * A candidate's file holds what it says, its stored state (`open`, `applied`,
+ * `dismissed` or `merged`, with `closed` recording the day and, for a
+ * dismissal, the reason and who, for a merge the candidate it went into) and
+ * `seen_in`, one `{run, date, evidence}` line per run that
  * met it, the run that filed it first. `expired` is worked out on read: open,
  * seen in one run only, that sighting dated more than 30 days before `--today`
  * (default: today, in UTC). A run is named `<type>/<name>`, its task
@@ -47,7 +49,10 @@
  * nothing. `close` prints the lines a run's close carries. `queue`, `latest`
  * and `show` report from the store. `applied` and `dismiss` close candidates
  * by their store ids; `dismiss --all` takes every candidate the run named
- * filed that is not applied.
+ * filed that is neither applied nor merged. `merge` closes candidates that
+ * teach the lesson another one does as merged into it, adding their sightings
+ * to it; a merged candidate's sightings count for the one it went into,
+ * wherever they were written, and an attachment naming it is filed on that one.
  *
  * Before any verb, run folders whose candidates file was written before the
  * store (no `version`, or 1 or 2) are folded in: their candidates, their
@@ -60,8 +65,8 @@
  * sighting), is one string: text as it is, a list of text joined with `, `.
  * Anything else is a problem named with its file's path and read as none.
  *
- * Exit 0 when the verb did its work, 1 when `file`, `applied` or `dismiss`
- * refused, 2 on a usage error or a file this script could not write. Exec
+ * Exit 0 when the verb did its work, 1 when `file`, `applied`, `dismiss` or
+ * `merge` refused, 2 on a usage error or a file this script could not write. Exec
  * form, no shebang, zero dependencies, `node:` builtins only, Node >= 20.
  */
 
@@ -84,9 +89,10 @@ const USAGE = [
   '| show --run=<task dir> [--tasks=<dir>] [--today=<YYYY-MM-DD>]',
   '| applied --id=<id> [--id=<id> ...] [--tasks=<dir>] [--today=<YYYY-MM-DD>]',
   '| dismiss (--id=<id> ... | --run=<task dir> --all) --reason=<text> --by=<name> [--tasks=<dir>] [--today=<YYYY-MM-DD>]',
+  '| merge --into=<id> --id=<id> [--id=<id> ...] [--tasks=<dir>] [--today=<YYYY-MM-DD>]',
   '| import [--tasks=<dir>]',
 ].join(' ');
-const VERBS = ['file', 'close', 'queue', 'latest', 'show', 'applied', 'dismiss', 'import'];
+const VERBS = ['file', 'close', 'queue', 'latest', 'show', 'applied', 'dismiss', 'merge', 'import'];
 
 /** Days a candidate seen in one run only stays open. */
 const EXPIRY_DAYS = 30;
@@ -100,7 +106,7 @@ const REQUIRED = ['id', 'label', 'line', 'destination'];
 
 /** The store file's keys before `seen_in`, in the order they are written. */
 const KEYS = ['id', 'label', 'line', 'action', 'extends', 'destination', 'guards', 'caught_by', 'state', 'closed'];
-const STATES = ['open', 'applied', 'dismissed'];
+const STATES = ['open', 'applied', 'dismissed', 'merged'];
 const GUARDS = { security: 'security', 'data-loss': 'data loss' };
 
 const GITATTRIBUTES = [
@@ -120,19 +126,20 @@ function parseArgs(argv) {
       flags[arg.slice(2)] = true;
       continue;
     }
-    const match = /^--(tasks|run|id|skip|today|reason|by)=(.+)$/.exec(arg);
+    const match = /^--(tasks|run|id|skip|today|reason|by|into)=(.+)$/.exec(arg);
     if (!match) throw new UsageError(`unknown argument ${arg}`);
     const [, name, value] = match;
     if (name === 'id') flags.ids.push(value);
     else flags[name] = value;
   }
-  const given = { run: flags.run, id: flags.ids.length, skip: flags.skip, json: flags.json, tasks: flags.tasks, today: flags.today, reason: flags.reason, by: flags.by, all: flags.all };
+  const given = { run: flags.run, id: flags.ids.length, skip: flags.skip, json: flags.json, tasks: flags.tasks, today: flags.today, reason: flags.reason, by: flags.by, all: flags.all, into: flags.into };
   const only = allowed => Object.entries(given).every(([name, value]) => !value || allowed.includes(name));
   if ((verb === 'file' || verb === 'close' || verb === 'show') && (!flags.run || !only(['run', 'tasks', 'today']))) throw new UsageError(`${verb} takes --run and optionally --tasks and --today`);
   if (verb === 'latest' && !only(['tasks', 'today'])) throw new UsageError('latest takes only --tasks and --today');
   if (verb === 'queue' && !only(['tasks', 'skip', 'today', 'json'])) throw new UsageError('queue takes --tasks, --skip, --today and --json, each optional');
   if (verb === 'import' && !only(['tasks'])) throw new UsageError('import takes only --tasks');
   if (verb === 'applied' && (!flags.ids.length || !only(['id', 'tasks', 'today']))) throw new UsageError('applied takes at least one --id, and optionally --tasks and --today');
+  if (verb === 'merge' && (!flags.into || !flags.ids.length || !only(['into', 'id', 'tasks', 'today']))) throw new UsageError('merge takes --into and at least one --id, and optionally --tasks and --today');
   if (verb === 'dismiss') {
     const scoped = flags.all ? Boolean(flags.run) && !flags.ids.length : flags.ids.length > 0 && !flags.run;
     if (!scoped || !flags.reason?.trim() || !flags.by?.trim() || !only(['run', 'id', 'all', 'reason', 'by', 'tasks', 'today'])) {
@@ -380,10 +387,29 @@ function recordOf(entry, evidence, run, date, settled = null) {
   };
 }
 
-/** The candidate an attachment names: a store id, else an earlier file's `{run, id}`. */
+/**
+ * The candidate a merged one went into, followed to one that is not merged:
+ * `record` itself when it is not merged, null when the chain breaks or loops.
+ */
+function finalOf(records, record) {
+  const passed = new Set();
+  let at = record;
+  while (at.state === 'merged') {
+    if (passed.has(at.id)) return null;
+    passed.add(at.id);
+    at = isText(at.closed?.into) ? records.get(at.closed.into) : null;
+    if (!at) return null;
+  }
+  return at;
+}
+
+/**
+ * The candidate an attachment names: a store id, else an earlier file's
+ * `{run, id}`; a merged one is followed to the candidate it went into.
+ */
 function targetOf(records, entry) {
-  if (records.has(entry.id)) return records.get(entry.id);
-  return isText(entry.run) ? filedAs(records, entry.run, entry.id) : null;
+  const named = records.has(entry.id) ? records.get(entry.id) : isText(entry.run) ? filedAs(records, entry.run, entry.id) : null;
+  return named ? finalOf(records, named) ?? named : null;
 }
 
 /** Add `run`'s sighting to `record` unless it is there; whether it was added. */
@@ -470,12 +496,31 @@ function loadStore(tasks, problems) {
 
 /**
  * The store as the reports read it, the run `skip` names left out: its
- * candidates are not read, and its sightings do not count.
+ * candidates are not read, and its sightings do not count. A merged
+ * candidate's sightings count for the candidate it went into, one a run, so a
+ * sighting written to it on another branch after the merge still counts.
  */
 function indexOf(tasks, records, { skip = null, today }) {
   const candidates = [...records.values()].filter(record => record.seen_in[0].run !== skip);
   const byAge = (a, b) => a.date.localeCompare(b.date) || a.run.localeCompare(b.run);
-  const sightings = record => [record.seen_in[0], ...record.seen_in.slice(1).filter(each => each.run !== skip).sort(byAge)];
+  const folded = new Map();
+  for (const record of records.values()) {
+    const into = record.state === 'merged' ? finalOf(records, record) : null;
+    if (!into) continue;
+    if (!folded.has(into.id)) folded.set(into.id, []);
+    folded.get(into.id).push(...record.seen_in);
+  }
+  const sightings = record => {
+    const first = record.seen_in[0];
+    const met = new Set([first.run]);
+    const rest = [];
+    for (const each of [...record.seen_in.slice(1), ...(folded.get(record.id) ?? [])]) {
+      if (each.run === skip || met.has(each.run)) continue;
+      met.add(each.run);
+      rest.push(each);
+    }
+    return [first, ...rest.sort(byAge)];
+  };
   const runs = new Map();
   for (const record of candidates) {
     for (const each of sightings(record)) {
@@ -500,7 +545,7 @@ function stateOf(index, record) {
 
 /** How many candidates are closed, by state. */
 function closedOf(index) {
-  const closed = { applied: 0, dismissed: 0, expired: 0 };
+  const closed = { applied: 0, dismissed: 0, expired: 0, merged: 0 };
   for (const record of index.candidates) {
     const state = stateOf(index, record);
     if (state !== 'open') closed[state] += 1;
@@ -542,10 +587,15 @@ function openOf(index, run) {
   return [...rest.filter(each => each.recommended), ...rest.filter(each => !each.recommended), ...caught];
 }
 
-/** The candidates `run` met again, each with its state and the candidate while it is open. */
+/**
+ * The candidates `run` met again, each with its state and the candidate while
+ * it is open. A merged one is left out: its sightings count for the candidate
+ * it went into, which is listed instead.
+ */
 function attachedOf(index, run, lines = new Map()) {
   const out = [];
   for (const record of [...index.candidates].sort(byId)) {
+    if (record.state === 'merged') continue;
     const sighting = index.sightings(record).slice(1).find(each => each.run === run);
     if (!sighting) continue;
     const state = stateOf(index, record);
@@ -642,7 +692,7 @@ function queueLine(entry) {
   return `${entry.id} [${action}; seen in ${entry.seen_in.length}] ${entry.label}: ${entry.rule}`;
 }
 
-// --- writing: file, applied, dismiss --------------------------------------------
+// --- writing: file, applied, dismiss, merge --------------------------------------
 
 /**
  * File the run at `dir` in the store: its first five new candidates, and its
@@ -691,14 +741,23 @@ function file(dir, tasks) {
   return { ok: true, run, filed, attached, dropped, problems };
 }
 
-/** How many candidates in the store are neither applied nor dismissed. */
+/** How many candidates in the store are still open: neither applied, dismissed nor merged. */
 const leftOf = records => [...records.values()].filter(record => record.state === 'open').length;
+
+/** Why a closed candidate cannot be taken: what closed it. */
+function closedAs(record) {
+  if (record.state === 'applied') return `${record.id} is already applied`;
+  if (record.state === 'merged') return `${record.id} is merged into ${record.closed?.into ?? 'another candidate'}`;
+  return `${record.id} is dismissed`;
+}
 
 function applied(tasks, ids, today) {
   const problems = [];
   const { store, records } = loadStore(tasks, problems);
   const unknown = ids.filter(id => !records.has(id));
   if (unknown.length) return { ok: false, refused: unknown.map(id => `${id} is not a candidate in the store`) };
+  const merged = [...new Set(ids)].filter(id => records.get(id).state === 'merged');
+  if (merged.length) return { ok: false, refused: merged.map(id => closedAs(records.get(id))) };
   const changed = new Set();
   for (const id of ids) {
     const record = records.get(id);
@@ -715,10 +774,10 @@ function dismiss(tasks, { ids, all, run, reason, by, today }) {
   const problems = [];
   const { store, records } = loadStore(tasks, problems);
   const owner = all ? runId(path.resolve(run)) : null;
-  const chosen = all ? [...records.values()].filter(record => record.seen_in[0].run === owner && record.state !== 'applied').map(record => record.id).sort() : [...new Set(ids)];
+  const chosen = all ? [...records.values()].filter(record => record.seen_in[0].run === owner && record.state !== 'applied' && record.state !== 'merged').map(record => record.id).sort() : [...new Set(ids)];
   const refused = [
     ...chosen.filter(id => !records.has(id)).map(id => `${id} is not a candidate in the store`),
-    ...chosen.filter(id => records.get(id)?.state === 'applied').map(id => `${id} is already applied`),
+    ...chosen.filter(id => ['applied', 'merged'].includes(records.get(id)?.state)).map(id => closedAs(records.get(id))),
   ];
   if (refused.length) return { ok: false, refused };
   for (const id of chosen) {
@@ -728,6 +787,39 @@ function dismiss(tasks, { ids, all, run, reason, by, today }) {
   }
   writeStore(store, records, new Set(chosen));
   return { ok: true, dismissed: chosen, left: leftOf(records) };
+}
+
+/**
+ * Close each of `ids` as merged into `into`, its sightings added to `into`'s,
+ * one a run. A candidate already merged into `into` is skipped, so merging
+ * again writes nothing.
+ */
+function merge(tasks, into, ids, today) {
+  const problems = [];
+  const { store, records } = loadStore(tasks, problems);
+  const chosen = [...new Set(ids)];
+  const refused = [
+    ...[into, ...chosen].filter(id => !records.has(id)).map(id => `${id} is not a candidate in the store`),
+    ...(chosen.includes(into) ? [`${into} cannot be merged into itself`] : []),
+  ];
+  if (refused.length) return { ok: false, refused };
+  const target = records.get(into);
+  const todo = chosen.filter(id => !(records.get(id).state === 'merged' && records.get(id).closed?.into === into));
+  refused.push(...todo.filter(id => records.get(id).state !== 'open').map(id => closedAs(records.get(id))));
+  if (todo.length && target.state !== 'open') refused.push(`${closedAs(target)}, so nothing can be merged into it`);
+  if (refused.length) return { ok: false, refused };
+  const changed = new Set();
+  for (const id of todo) {
+    const record = records.get(id);
+    for (const each of record.seen_in) {
+      if (sight(target, each.run, each.date, each.evidence)) changed.add(into);
+    }
+    record.state = 'merged';
+    record.closed = { into, date: today };
+    changed.add(id);
+  }
+  writeStore(store, records, changed);
+  return { ok: true, into, merged: chosen, seen_in: target.seen_in.length, left: leftOf(records) };
 }
 
 // --- the close ------------------------------------------------------------
@@ -747,21 +839,36 @@ function close(dir, tasks, today) {
   const met = attachedOf(index, run);
   const dropped = Number.isInteger(extras.doc?.dropped) ? extras.doc.dropped : 0;
   const unconsolidated = extras.doc?.consolidated === false;
-  if (!own.length && !met.length && !extras.already_held.length && !dropped) return { lines: [], problems };
+  const merges = [];
+  for (const entry of Array.isArray(extras.doc?.merges) ? extras.doc.merges : []) {
+    const target = isText(entry?.into) ? records.get(entry.into) : null;
+    const ids = (Array.isArray(entry?.ids) ? entry.ids : []).filter(id => records.get(id)?.state === 'merged' && records.get(id).closed?.into === entry.into);
+    if (target && ids.length) merges.push({ target, ids });
+  }
+  if (!own.length && !met.length && !merges.length && !extras.already_held.length && !dropped) return { lines: [], problems };
   const where = path.relative(process.cwd(), store).split(path.sep).join('/') || '.';
-  const closedNote = state => (state === 'open' ? '' : ` (${state})`);
+  const closedNote = (state, record) => {
+    if (state === 'open') return '';
+    return state === 'merged' ? ` (merged into ${record.closed?.into ?? 'another candidate'})` : ` (${state})`;
+  };
   const lines = [`Standard candidates of ${run} (${dir}), filed in ${where}/:`];
   for (const record of own) {
     const each = decorate(index, record);
     const kind = each.action === 'extend' ? `Extend${each.extends ? ` ${each.extends}` : ''}` : 'New';
     const backing = each.recommended ? `recommended (${each.reason})` : `seen in ${plural(each.seen_in.length, 'run')}${each.caught_by ? `, caught by ${each.caught_by}` : ''}`;
-    lines.push(`- ${kind}, ${backing}: ${each.label} → ${each.destination}; evidence: ${each.evidence || 'none named'} [${each.id}]${closedNote(each.state)}`);
+    lines.push(`- ${kind}, ${backing}: ${each.label} → ${each.destination}; evidence: ${each.evidence || 'none named'} [${each.id}]${closedNote(each.state, record)}`);
   }
   for (const each of met) {
     const record = records.get(each.id);
     const decorated = decorate(index, record);
     const backing = decorated.recommended ? `, recommended (${decorated.reason})` : '';
-    lines.push(`- Seen again: ${record.label}, now seen in ${plural(decorated.seen_in.length, 'run')}${backing} [${each.id}]${closedNote(each.state)}`);
+    lines.push(`- Seen again: ${record.label}, now seen in ${plural(decorated.seen_in.length, 'run')}${backing} [${each.id}]${closedNote(each.state, record)}`);
+  }
+  for (const { target, ids } of merges) {
+    const decorated = decorate(index, target);
+    const backing = decorated.recommended ? `, recommended (${decorated.reason})` : '';
+    const labels = ids.map(id => records.get(id).label).join('; ');
+    lines.push(`- Merged as one lesson: ${labels} into ${target.label}, now seen in ${plural(decorated.seen_in.length, 'run')}${backing} [${ids.join(', ')} → ${target.id}]${closedNote(decorated.state, target)}`);
   }
   for (const held of extras.already_held) lines.push(`- Already held: ${ruleOf(held.line)} — held by ${held.held_by ?? 'an existing rule'}`);
   if (dropped) lines.push(`- Dropped over the cap of five: ${plural(dropped, 'new lesson')}`);
@@ -790,6 +897,7 @@ function main() {
     else if (flags.verb === 'queue') result = queue(tasks, flags.skip ? path.resolve(flags.skip) : null, today);
     else if (flags.verb === 'applied') result = applied(tasks, flags.ids, today);
     else if (flags.verb === 'dismiss') result = dismiss(tasks, { ...flags, today });
+    else if (flags.verb === 'merge') result = merge(tasks, flags.into, flags.ids, today);
     else {
       const problems = [];
       const store = path.join(path.dirname(tasks), STORE);

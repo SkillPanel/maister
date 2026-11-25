@@ -186,7 +186,7 @@ function storeId(run, localId, label) {
 
 /** The day the fixtures' runs are judged on, unless a test names another: inside every 2026-01 run's window. */
 const TODAY = '--today=2026-01-10';
-const DATED = ['latest', 'show', 'queue', 'dismiss', 'applied', 'close'];
+const DATED = ['latest', 'show', 'queue', 'dismiss', 'applied', 'close', 'merge'];
 
 function script(where, args) {
   const dated = DATED.includes(args[0]) && !args.some(arg => arg.startsWith('--today=')) ? [...args, TODAY] : args;
@@ -294,7 +294,7 @@ test('import: run folders from before the store are folded in once — candidate
   assert.deepEqual(queued.queue.map(each => [each.id, each.seen_in]), [
     [a, ['development/2026-01-05-first', 'development/2026-01-06-second']], [d, ['development/2026-01-06-second']],
   ], 'a version 3 run is never folded in: it is filed');
-  assert.deepEqual(queued.closed, { applied: 1, dismissed: 1, expired: 0 });
+  assert.deepEqual(queued.closed, { applied: 1, dismissed: 1, expired: 0, merged: 0 });
   assert.deepEqual([record(where, b).state, record(where, b).closed], ['applied', { date: '2026-01-08' }], 'applied on the day its file was written');
   assert.deepEqual([record(where, c).state, record(where, c).closed], ['dismissed', { reason: 'not here', by: 'Dana', date: '2026-01-07' }]);
   assert.match(queued.problems.map(each => each.message).join('\n'), /attachment development\/2026-01-01-gone#x names no candidate/);
@@ -414,7 +414,7 @@ test('merge: two branches closing one candidate differently still parse, the las
   assert.equal(storeText(where, a).match(/"state":/g).length, 2, 'union kept both sides\' lines');
   const queued = script(where, ['queue', '--json']).report;
   assert.deepEqual(queued.problems, []);
-  assert.deepEqual(queued.closed, { applied: 1, dismissed: 0, expired: 0 }, 'the last state wins');
+  assert.deepEqual(queued.closed, { applied: 1, dismissed: 0, expired: 0, merged: 0 }, 'the last state wins');
   script(where, ['dismiss', `--id=${b}`, '--reason=x', '--by=Dana']);
   script(where, ['applied', `--id=${a}`, '--today=2026-01-11']);
   assert.equal(storeText(where, a).match(/"state":/g).length, 2, 'a write that changes nothing leaves it as it is');
@@ -443,6 +443,59 @@ test('merge: two branches filing the same run\'s sighting twice read as one sigh
   assert.deepEqual(script(where, ['queue', '--json']).report.queue[0].seen_in, ['development/2026-01-05-first', 'development/2026-01-06-again'], 'one sighting a run');
   script(where, ['applied', `--id=${id}`]);
   assert.equal((storeText(where, id).match(/2026-01-06-again/g) ?? []).length, 1, 'the next write leaves one line');
+});
+
+test('merge: two branches filing the same lesson merge cleanly, and merging the pair afterwards gives one candidate seen in both, recommended', t => {
+  const where = repo(t, () => {});
+  branch(where, 'one', () => filedRun(where, 'development', '2026-01-05-one', { candidates: [candidate('a', { label: 'Reject bad options early' })] }));
+  branch(where, 'two', () => filedRun(where, 'development', '2026-01-06-two', { candidates: [candidate('a', { label: 'Validate options first' })] }));
+  merge(where, 'one', 'two');
+  const [older, newer] = script(where, ['queue', '--json']).report.queue;
+  assert.deepEqual([older.seen_in.length, older.recommended, newer.seen_in.length, newer.recommended], [1, false, 1, false], 'nothing links the two after the git merge');
+  const merged = script(where, ['merge', `--into=${older.id}`, `--id=${newer.id}`]);
+  assert.equal(merged.code, 0, merged.stderr);
+  const queued = script(where, ['queue', '--json']).report;
+  assert.deepEqual(queued.queue.map(each => [each.id, each.seen_in, each.reason]), [[older.id, ['development/2026-01-05-one', 'development/2026-01-06-two'], 'seen in 2 runs']]);
+  assert.deepEqual(queued.closed, { applied: 0, dismissed: 0, expired: 0, merged: 1 });
+});
+
+test('merge: a merge on one branch and sightings on another merge cleanly, and every sighting counts for the candidate the merged one went into', t => {
+  const where = repo(t, where => {
+    filedRun(where, 'development', '2026-01-05-one', { candidates: [candidate('a', { label: 'Reject bad options early' })] });
+    filedRun(where, 'development', '2026-01-06-two', { candidates: [candidate('a', { label: 'Validate options first' })] });
+  });
+  const into = storeId('development/2026-01-05-one', 'a', 'Reject bad options early');
+  const dup = storeId('development/2026-01-06-two', 'a', 'Validate options first');
+  branch(where, 'merging', () => script(where, ['merge', `--into=${into}`, `--id=${dup}`]));
+  branch(where, 'attaching', () => {
+    filedRun(where, 'performance', '2026-01-07-three', { attached: [{ id: dup, evidence: 'fix 1' }] });
+    filedRun(where, 'development', '2026-01-08-four', { attached: [{ id: into, evidence: 'group 2' }] });
+  });
+  merge(where, 'merging', 'attaching');
+  assert.equal(record(where, dup).state, 'merged');
+  assert.ok(record(where, dup).seen_in.some(each => each.run === 'performance/2026-01-07-three'), 'the other branch\'s sighting stays where it was written');
+  const queued = script(where, ['queue', '--json']).report;
+  assert.deepEqual(queued.problems, []);
+  assert.deepEqual(queued.queue.map(each => [each.id, each.seen_in, each.reason]), [[into, ['development/2026-01-05-one', 'development/2026-01-06-two', 'performance/2026-01-07-three', 'development/2026-01-08-four'], 'seen in 4 runs']]);
+  const three = path.join(where.tasks, 'performance', '2026-01-07-three');
+  assert.deepEqual(script(where, ['show', `--run=${three}`]).report.attached.map(each => [each.id, each.state]), [[into, 'open']], 'the run that met the merged one is shown the one it went into');
+});
+
+test('merge: two branches merging the same pair merge cleanly and read as one merge', t => {
+  const where = repo(t, where => {
+    filedRun(where, 'development', '2026-01-05-one', { candidates: [candidate('a', { label: 'Reject bad options early' })] });
+    filedRun(where, 'development', '2026-01-06-two', { candidates: [candidate('a', { label: 'Validate options first' })] });
+  });
+  const into = storeId('development/2026-01-05-one', 'a', 'Reject bad options early');
+  const dup = storeId('development/2026-01-06-two', 'a', 'Validate options first');
+  branch(where, 'one', () => script(where, ['merge', `--into=${into}`, `--id=${dup}`]));
+  branch(where, 'two', () => script(where, ['merge', `--into=${into}`, `--id=${dup}`, '--today=2026-01-11']));
+  merge(where, 'one', 'two');
+  const queued = script(where, ['queue', '--json']).report;
+  assert.deepEqual(queued.problems, []);
+  assert.deepEqual(queued.queue.map(each => [each.id, each.seen_in.length]), [[into, 2]]);
+  assert.deepEqual(queued.closed, { applied: 0, dismissed: 0, expired: 0, merged: 1 });
+  assert.equal(record(where, dup).closed.into, into);
 });
 
 test('a store file that does not parse is a problem named with its path, never a failure', t => {
@@ -490,7 +543,7 @@ test('applied and dismiss close candidates by their store ids: the record, the r
 
   const all = script(where, ['dismiss', `--run=${first.dir}`, '--all', '--reason=settled in review', '--by=Dana']);
   assert.deepEqual(all.report, { ok: true, dismissed: [b, c].sort(), left: 0 }, '--all takes every candidate the run filed that is not applied');
-  assert.deepEqual(script(where, ['queue', '--json']).report.closed, { applied: 1, dismissed: 2, expired: 0 });
+  assert.deepEqual(script(where, ['queue', '--json']).report.closed, { applied: 1, dismissed: 2, expired: 0, merged: 0 });
 });
 
 test('expired: one run alone and more than 30 days past its sighting; a later sighting keeps an old candidate open; nothing written', t => {
@@ -503,7 +556,7 @@ test('expired: one run alone and more than 30 days past its sighting; a later si
   assert.deepEqual(script(where, ['queue', '--json', '--today=2026-02-04']).report.queue.map(each => each.id), [lonely, met], 'thirty days on, still open');
   const after = script(where, ['queue', '--json', '--today=2026-02-05']).report;
   assert.deepEqual(after.queue.map(each => each.id), [met], 'filed more than 30 days ago, seen again since: open');
-  assert.deepEqual(after.closed, { applied: 0, dismissed: 0, expired: 1 });
+  assert.deepEqual(after.closed, { applied: 0, dismissed: 0, expired: 1, merged: 0 });
   assert.equal(script(where, ['queue', '--json', '--today=2027-01-01']).report.queue.length, 1, 'seen in two runs, it never expires');
   assert.equal(script(where, ['show', `--run=${path.join(where.tasks, 'development', '2026-01-05-lonely')}`, '--today=2026-02-05']).report.candidates.length, 0, 'an expired candidate is not offered');
   assert.deepEqual(snapshotStore(where), before, 'expiry writes nothing');
@@ -529,7 +582,7 @@ test('queue: text and --json from the store, oldest run first; the shape of an e
 
   const json = script(where, ['queue', '--json']).report;
   assert.deepEqual(Object.keys(json).sort(), ['closed', 'problems', 'queue']);
-  assert.deepEqual(json.closed, { applied: 1, dismissed: 0, expired: 0 });
+  assert.deepEqual(json.closed, { applied: 1, dismissed: 0, expired: 0, merged: 0 });
   assert.deepEqual(json.queue, [{
     run: 'development/2026-01-05-first', dir: first.dir, date: '2026-01-05', id: a, label: 'Atomic writes', rule: 'Rule a',
     action: 'new', extends: null, destination: 'standards/global/conventions.md',
@@ -642,6 +695,68 @@ test('close: the lines a run\'s close carries, in its file\'s order, and nothing
   assert.equal(script(where, ['close', `--run=${empty.dir}`]).stdout, '');
 });
 
+test('merge: the lesson two runs filed apart becomes one candidate seen in both, the other closed as merged into it; again writes nothing; the refusals', t => {
+  const where = project(t);
+  const one = filedRun(where, 'development', '2026-01-05-one', { candidates: [candidate('a', { label: 'Reject bad options early' })] });
+  const two = filedRun(where, 'development', '2026-01-06-two', { candidates: [candidate('a', { label: 'Validate options first' }), candidate('b')] });
+  const [into] = one.filed;
+  const [dup, other] = two.filed;
+  const merged = script(where, ['merge', `--into=${into}`, `--id=${dup}`]);
+  assert.equal(merged.code, 0, merged.stderr);
+  assert.deepEqual(merged.report, { ok: true, into, merged: [dup], seen_in: 2, left: 2 });
+  assert.deepEqual(record(where, into).seen_in.map(each => [each.run, each.evidence]), [['development/2026-01-05-one', 'group 1'], ['development/2026-01-06-two', 'group 1']]);
+  assert.deepEqual([record(where, dup).state, record(where, dup).closed], ['merged', { into, date: '2026-01-10' }]);
+  assert.deepEqual(record(where, dup).seen_in.map(each => each.run), ['development/2026-01-06-two'], 'the merged candidate keeps its own sightings');
+  const queued = script(where, ['queue', '--json']).report;
+  assert.deepEqual(queued.queue.map(each => [each.id, each.seen_in.length, each.reason]), [[into, 2, 'seen in 2 runs'], [other, 1, null]]);
+  assert.deepEqual(queued.closed, { applied: 0, dismissed: 0, expired: 0, merged: 1 });
+  const shown = script(where, ['show', `--run=${two.dir}`]).report;
+  assert.deepEqual(shown.candidates.map(each => each.id), [other], 'the merged one is not offered');
+  assert.deepEqual(shown.attached.map(each => [each.id, each.state, each.candidate?.recommended]), [[into, 'open', true]], 'the one it went into is offered in its place');
+  assert.equal(script(where, ['latest']).report.run.dir, two.dir);
+  assert.match(script(where, ['close', `--run=${two.dir}`]).stdout, new RegExp(`\\[${dup}\\] \\(merged into ${into}\\)\\n`));
+
+  const before = snapshotStore(where);
+  const again = script(where, ['merge', `--into=${into}`, `--id=${dup}`, '--today=2026-01-11']);
+  assert.equal(again.code, 0, again.stderr);
+  assert.deepEqual(snapshotStore(where), before, 'merging again writes nothing');
+
+  const refusedAs = args => {
+    const result = script(where, args);
+    assert.equal(result.code, 1, args.join(' '));
+    return result.report.refused;
+  };
+  assert.deepEqual(refusedAs(['merge', `--into=${into}`, `--id=${into}`]), [`${into} cannot be merged into itself`]);
+  assert.deepEqual(refusedAs(['merge', '--into=zzz', `--id=${other}`]), ['zzz is not a candidate in the store']);
+  assert.deepEqual(refusedAs(['merge', `--into=${other}`, `--id=${dup}`]), [`${dup} is merged into ${into}`]);
+  assert.deepEqual(refusedAs(['applied', `--id=${dup}`]), [`${dup} is merged into ${into}`]);
+  assert.deepEqual(refusedAs(['dismiss', `--id=${dup}`, '--reason=x', '--by=Dana']), [`${dup} is merged into ${into}`]);
+  assert.deepEqual(script(where, ['dismiss', `--run=${two.dir}`, '--all', '--reason=x', '--by=Dana']).report, { ok: true, dismissed: [other], left: 1 }, '--all leaves a merged one merged');
+  const third = filedRun(where, 'development', '2026-01-07-third', { candidates: [candidate('c')] });
+  assert.deepEqual(refusedAs(['merge', `--into=${into}`, `--id=${other}`]), [`${other} is dismissed`]);
+  assert.deepEqual(refusedAs(['merge', `--into=${other}`, `--id=${third.filed[0]}`]), [`${other} is dismissed, so nothing can be merged into it`]);
+  assert.equal(record(where, dup).state, 'merged', 'a refusal writes nothing');
+});
+
+test('merge: an attachment naming a merged candidate is filed on the one it went into, and the close names the merges the run made', t => {
+  const where = project(t);
+  const { filed: [into] } = filedRun(where, 'development', '2026-01-05-one', { candidates: [candidate('a', { label: 'Reject bad options early' })] });
+  const { filed: [dup] } = filedRun(where, 'development', '2026-01-06-two', { candidates: [candidate('a', { label: 'Validate options first' })] });
+  const third = filedRun(where, 'performance', '2026-01-07-third', { merges: [{ into, ids: [dup] }] });
+  assert.equal(script(where, ['close', `--run=${third.dir}`]).stdout, '', 'a merge the store does not hold is not claimed');
+  script(where, ['merge', `--into=${into}`, `--id=${dup}`]);
+  assert.deepEqual(script(where, ['close', `--run=${third.dir}`]).stdout.split('\n').filter(Boolean), [
+    `Standard candidates of performance/2026-01-07-third (${third.dir}), filed in .maister/standard-candidates/:`,
+    `- Merged as one lesson: Validate options first into Reject bad options early, now seen in 2 runs, recommended (seen in 2 runs) [${dup} → ${into}]`,
+  ]);
+  const fourth = filedRun(where, 'development', '2026-01-08-fourth', { attached: [{ id: dup, evidence: 'group 4' }] });
+  assert.deepEqual(fourth.attached, [into]);
+  assert.deepEqual(record(where, into).seen_in.map(each => each.run), ['development/2026-01-05-one', 'development/2026-01-06-two', 'development/2026-01-08-fourth']);
+  assert.equal(record(where, dup).seen_in.length, 1, 'nothing is written to the merged one');
+  const runFile = JSON.parse(fs.readFileSync(path.join(fourth.dir, 'standard-candidates.json'), 'utf8'));
+  assert.equal(runFile.attached[0].id, into, 'the run\'s file names the candidate it was filed on');
+});
+
 test('usage: a missing or misused flag is a usage error, exit 2', t => {
   const where = project(t);
   for (const args of [
@@ -650,6 +765,7 @@ test('usage: a missing or misused flag is a usage error, exit 2', t => {
     ['dismiss', '--id=b', '--by=Dana'], ['dismiss', '--id=b', '--reason=x'], ['dismiss', '--reason=x', '--by=Dana'],
     ['dismiss', '--id=b', '--all', '--run=x', '--reason=x', '--by=Dana'], ['dismiss', '--all', '--reason=x', '--by=Dana'], ['dismiss', '--run=x', '--id=b', '--reason=x', '--by=Dana'],
     ['latest', '--today=2026-02-30'], ['queue', '--today=yesterday'],
+    ['merge'], ['merge', '--id=a'], ['merge', '--into=a'], ['merge', '--into=a', '--id=b', '--run=x'], ['applied', '--into=a', '--id=b'],
   ]) {
     const usage = script(where, args);
     assert.equal(usage.code, 2, args.join(' '));
