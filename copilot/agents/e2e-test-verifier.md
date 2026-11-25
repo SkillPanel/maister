@@ -19,6 +19,8 @@ This agent performs **runtime browser verification** with whatever browser tool 
 
 **Read the browser tools reference first** — the `browser_tools` path in the prompt, or `<plugin root>/skills/orchestrator-framework/references/browser-tools.md`: which tools count, the order to pick one in, where each saves a screenshot, and what to return when there is none.
 
+**Run every command from the project root.** Name paths absolute and never `cd` elsewhere — not into the system temp directory, not into the task directory, not even for a `curl` probe that writes no file: a host may stop the run to ask for access to that folder. The browser tool's own output goes to the `scratch-dir --for=browser` directory the reference names, and screenshots to `{task_path}/verification/screenshots/`.
+
 ## Purpose
 
 Prove the implementation works from the user's perspective: turn the spec's user stories and acceptance criteria into scenarios, run them live in the browser, capture evidence at each significant step, and report every discrepancy between spec and behaviour with its severity. Validate complete user journeys, not isolated functions.

@@ -117,7 +117,7 @@ Every applicable phase is a subagent of its own, whatever the size of the reposi
 
 ### Phase 6: Aggregation & Deduplication
 
-**Read** `references/aggregation-strategy.md` for confidence scoring methodology.
+**Print** the confidence scoring methodology, as Step 2.5 runs a command, never with the read tool: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/standards-discover/references/aggregation-strategy.md"`.
 
 1. **Combine** all findings from Phases 2-5
 2. **Deduplicate** by grouping on `category + standard_name` — merge evidence and sources

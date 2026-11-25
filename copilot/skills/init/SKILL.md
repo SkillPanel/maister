@@ -222,11 +222,11 @@ Leave out any field the analysis or a correction does not settle; a guess is wor
 
 **IMPORTANT**: Only generate docs selected in Phase 3.
 
-For each selected doc type, read the corresponding reference template:
-- Vision selected → Read `references/vision-templates.md`, select template by project type (new/existing/legacy)
-- Roadmap selected → Read `references/roadmap-templates.md`, select template by project type
-- Tech Stack (always) → Read `references/tech-stack-template.md`
-- Architecture selected → Read `references/architecture-template.md`
+Print the template of each selected doc type, all in one command from the project root: `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference`, the plugin root two levels above this skill's base directory, as an absolute path, with one `--at` per template below. Never open the files with the read tool: they sit outside the project, and a host may stop the run to ask before that read.
+- Vision selected → `--at="skills/init/references/vision-templates.md"`, select template by project type (new/existing/legacy)
+- Roadmap selected → `--at="skills/init/references/roadmap-templates.md"`, select template by project type
+- Tech Stack (always) → `--at="skills/init/references/tech-stack-template.md"`
+- Architecture selected → `--at="skills/init/references/architecture-template.md"`
 
 Fill templates using:
 - Analysis report data (tech stack, age, structure)

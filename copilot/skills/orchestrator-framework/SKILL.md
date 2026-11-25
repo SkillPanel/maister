@@ -23,8 +23,8 @@ Reduce duplication across orchestrators by documenting common patterns once:
 
 ## How Orchestrators Use This
 
-The workflow engine's Step 1 reads `../workflow-engine/references/node-summaries.md`, the shape
-of every step's summary. The framework file holds § 2, the gate rule, and § 7, the artifact
+The workflow engine's Step 1 prints `../workflow-engine/references/node-summaries.md` with the
+`reference` verb, the shape of every step's summary. The framework file holds § 2, the gate rule, and § 7, the artifact
 summary contract, and its index names where each of its other former sections now lives:
 
 1. `../orchestrator-framework/references/orchestrator-patterns.md`

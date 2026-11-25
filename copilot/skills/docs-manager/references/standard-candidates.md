@@ -1,9 +1,7 @@
 # Standard Candidates
 
-The one description of a standard candidate. The implementer and the fix loop write candidates
-to it, finalization consolidates them against it and the open queue of earlier runs and files
-them in the project's candidate store, and `standards-update` and the project's `.github/copilot-instructions.md` block
-point here rather than restating it.
+The one description of a standard candidate: the implementer and the fix loop write them to it,
+finalization consolidates and files them by it, and every other step points here.
 
 ## What a candidate is
 
@@ -97,7 +95,9 @@ candidates over. It never writes a document.
    met in — is that candidate seen again. It is not offered again: it becomes an attachment
    naming the queued candidate by the id its queue line opens with, with this run's evidence and
    wording (`attached` in *The run's candidates file*). With no queue passed, every line goes on
-   to the next step.
+   to the next step. Then match the queue's candidates against each other the same way: two or
+   more that teach one lesson, as runs on separate branches leave, are a merge pair, the oldest
+   (first in the queue) its target.
 3. **Match against what the project holds.** Scan INDEX.md and read the standards and project
    documents it points to that touch each candidate's topic — their text, not only their
    headings.
@@ -121,7 +121,7 @@ candidates over. It never writes a document.
 7. **Return** each candidate offered — its label, line, action and the rule it extends,
    destination and evidence, with `guards` and `caught_by` when they apply, as *The run's
    candidates file* describes them — then each attachment, each already-held line with the rule
-   that holds it, and how many new lessons were dropped over the cap.
+   that holds it, how many new lessons were dropped over the cap, and each merge pair.
 
 The person still chooses: consolidation orders and places, it never decides what is kept.
 
@@ -131,8 +131,8 @@ A workflow run never writes a standard and asks nothing about its candidates. Fi
 what consolidation returned to `standard-candidates.json` in the task directory, then files it in
 the project's candidate store with
 `node <plugin root>/skills/standards-update/scripts/candidates.mjs file --run=<task dir>` from the
-project root, prints its close's candidate lines with `close --run=<task dir>` (*The close*), and
-names `/maister:standards-update` once under **Next**. Run with no argument, standards-update
+project root, relays the candidate lines its wrap-up carries (*The close*), and names
+`/maister:standards-update` once under **Next**. Run with no argument, standards-update
 offers that run's candidates in the same session, and in a fresh one the most recent run that
 still has something to apply — its own candidates and the open ones it attached to; a closed
 candidate (*Closing a candidate*) is never offered again.
@@ -157,6 +157,8 @@ what every later step reads. The file is JSON:
 - `already_held` — each `{line, held_by}`: the rule that already says it.
 - `dropped` — how many new lessons were left out over the cap of five; 0 or absent when none
   were. Filing keeps the first five new candidates of the file and adds any more to this count.
+- `merges` — each `{into, ids}`: a merge pair, `into` its target. After filing, finalization
+  runs `candidates.mjs merge --into=<into> --id=<id>…` for each.
 - `consolidated` — false when consolidation failed and the lines are the work log's as written
   (each then `action` `new`, its destination the likeliest file by *Where one belongs*, and no
   `guards`).
@@ -168,11 +170,10 @@ the same run again adds nothing.
 
 `.maister/standard-candidates/`, beside `.maister/docs/` and never under `standards/`, so it is
 neither read nor indexed as a standard. It holds one file per candidate, `<id>.json`, and is the
-open queue's one source of truth: filing, the queue, the offer, applying and dismissing read and
-write it, and nothing else does. The folder is meant to be committed
+open queue's one source of truth: filing, the queue, the offer, applying, dismissing and merging
+read and write it, and nothing else does. The folder is meant to be committed
 with the standards, its `.gitattributes` included, so the queue is the same in every clone and
-worktree and a teammate's candidates, sightings and dismissals reach everyone once merged,
-whether or not the project commits its task folders.
+worktree and a teammate's candidates, sightings and dismissals reach everyone once merged.
 
 **The id** is `<run date>-<label slug>-<hash>`: the filing run's date, the label in lowercase
 words joined by hyphens (at most 40 characters), and the first six hex digits of sha256 over
@@ -194,51 +195,54 @@ branches too, and stable: filing the same run again finds its file by the hash.
 ```
 
 Its keys, in this order: `id`, `label`, `line`, `action`, `extends`, `destination`, `guards`,
-`caught_by` (each as the run's file gives it, null when absent), `state` (`open`, `applied` or
-`dismissed`), `closed` (null while open; `{date}` when applied; `{reason, by, date}` when
-dismissed) and `seen_in`, one `{run, date, evidence}` per run that met it, the filing run first.
+`caught_by` (each as the run's file gives it, null when absent), `state` (`open`, `applied`,
+`dismissed` or `merged`), `closed` (null while open; `{date}` when applied; `{reason, by, date}`
+when dismissed; `{into, date}` when merged) and `seen_in`, one `{run, date, evidence}` per run that met it, the filing run first.
 A run is named `<type>/<name>`, its task directory's last two folders, always with a forward
 slash, and dated by the `YYYY-MM-DD` that opens its name, else the day its candidates file was
 last written. No other date or time is written.
 
-**Merging.** A new candidate is a new file, so two branches filing candidates never conflict.
+**Merging branches.** A new candidate is a new file, so two branches filing candidates never conflict.
 Two branches that attach to the same candidate each add a sighting at the same place, just
 before the closing bracket; each sighting after the first opens with its comma, and the store's
 `.gitattributes` (`*.json merge=union`, written once with the folder and never overwritten) has
 git keep both lines, which still parse. Two branches that close the same candidate differently
-keep both sides' `state` and `closed` lines; the later line wins on read. Reading takes one
-sighting a run, the first in the file, and the next write to that file — filing, applying,
-dismissing or the fold-in — leaves it in shape. A file that does not parse is named under the
+keep both sides' `state` and `closed` lines; the later line wins on read. A merge is the same:
+closing lines on the merged file, appended sightings on its target. Reading takes one
+sighting a run, the first in the file, and the next write to that file leaves it in shape. A file that does not parse is named under the
 script's problems and left out, never a failure.
 
 ## Folding in earlier runs
 
-The first time any verb of the script runs in a project with run folders written before the
-store, the store takes their candidates in: each valid candidate becomes a store file with its
-run's sighting, applied when the run's `standard-candidates-applied.json` lists it (dated by that
-file's day) and dismissed with its reason, who and day when it records one; then each attachment
-`{run, id}` adds its run's sighting to the candidate it names. A candidate or sighting already in
-the store is skipped, so folding in again adds nothing and, with nothing missing, writes nothing;
-`candidates.mjs import` runs it alone. A version 3 file is never folded in: it is filed by
-`file`. The earlier files stay as they are.
+Any verb of the script first takes in run folders written before the store: each valid candidate
+becomes a store file with its run's sighting, applied or dismissed as the run's
+`standard-candidates-applied.json` records it; then each attachment `{run, id}` adds its run's
+sighting to the candidate it names. Anything already in the store is skipped, so folding in again
+adds nothing and, with nothing missing, writes nothing; `candidates.mjs import` runs it alone. A
+version 3 file is never folded in: `file` files it. The earlier files stay as they are.
 
 ## Closing a candidate
 
-A candidate stays open until one of three things closes it — the first two stored in its file,
-the third worked out each time the script reads it:
+A candidate stays open until one of four things closes it — the first three stored in its file,
+the fourth worked out each time the script reads it:
 
 1. **applied** — a person wrote it into a standard or document through standards-update.
 2. **dismissed** — a person reviewed it and declined it, with a reason.
-3. **expired** — no second run has met it (`seen_in` holds its filing run alone) and that
+3. **merged** — it teaches another candidate's lesson, and `merge --into=<id> --id=<id>…` closed
+   it into that one: its sightings join the target's, one a run, and count for it even when
+   written to it later. Refused for an unknown id, itself, or a closed candidate or target;
+   merging again writes nothing.
+4. **expired** — no second run has met it (`seen_in` holds its filing run alone) and that
    sighting, its newest, is dated more than 30 days before today. Nothing is written or deleted:
    it stays in the store, reported as expired, and a later run that meets the same lesson files
    it as new, since the queue no longer holds it.
-4. otherwise **open** — offered, and listed in the queue.
+5. otherwise **open** — offered, and listed in the queue.
 
 A run's attachment shares the state of the candidate it names, so closing a candidate closes
-every attachment to it. The script's `applied` and `dismiss` verbs are the only writers, by store
-id; `dismiss --run=<task dir> --all` takes every candidate that run filed and is not applied.
-Applying a dismissed candidate takes its dismissal back; dismissing an applied one is refused.
+every attachment to it. The script's `applied`, `dismiss` and `merge` verbs are the only writers,
+by store id; `dismiss --run=<task dir> --all` takes every candidate that run filed and is open or
+dismissed. Applying a dismissed candidate takes its dismissal back; applying or dismissing a
+merged one, or dismissing an applied one, is refused.
 
 **`recommended`** is never written: the script works it out on read, with its `reason`. A
 candidate is recommended when it has been seen in two runs or more (`reason`: "seen in N runs"),
@@ -277,16 +281,17 @@ an entry that is not a candidate or an attachment, is one line on stderr,
   `action` (`new` or `extend`), `extends` (null for `new`), `destination`, `seen_in` (run names,
   the filing run first), `recommended`, `reason` (null when not recommended) and `caught_by`
   (null when no check catches it).
-- `closed` — `{applied, dismissed, expired}`: how many candidates in the store each state holds.
+- `closed` — `{applied, dismissed, expired, merged}`: how many candidates each state holds.
 - `problems` — each `{path, message}`, as stderr names them in the text form.
 
 ## The close
 
 `node <plugin root>/skills/standards-update/scripts/candidates.mjs close --run=<task dir>` prints
-the lines a run's close carries about its candidates, read from the store and the run's file: a
-line naming the run, its task directory and the store; each candidate it filed, in its file's
-order, with its action, its reason for being recommended or its count of runs, the check that
-catches it, its label, destination, evidence and store id, and whether it is already closed;
-each candidate it met again, with how many runs have now seen it; each already-held line with its
-rule; how many new lessons were dropped over the cap of five; and a line when consolidation
-failed. A run that filed nothing prints nothing. The close copies the lines as printed.
+the lines a run's close carries about its candidates, from the store and the run's file: a line
+naming the run, its task directory and the store; each candidate it filed, in its file's order,
+with its action, why it is recommended or how many runs saw it, the check that catches it, its
+label, destination, evidence and store id, and whether it is closed; each candidate it met again
+and each merge it made, with how many runs have now seen it; each already-held line with its
+rule; how many lessons were dropped over the cap; and a line when consolidation failed. A run
+that filed nothing prints nothing. `run-complete` prints these lines in the wrap-up, below its
+pointer, and the close relays them as printed.
