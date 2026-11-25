@@ -772,3 +772,67 @@ test('run-complete: the wrap-up line names the six sections writing-state.md lab
   assert.equal(labels.length, 6, labels.join(', '));
   assert.ok(WRAP_UP.startsWith(`wrap-up sections: ${labels.join(', ')} — `), `${labels.join(', ')} vs ${WRAP_UP}`);
 });
+
+// The wrap-up carries the run's standard candidate lines, as the store's close prints them.
+
+const CANDIDATES = path.join(ENGINE_DIR, '..', 'standards-update', 'scripts', 'candidates.mjs');
+
+/** The store script's verb for `run`, its tasks folder named, so the store is the scratch project's. */
+const candidates = (run, verbName) => runScript(CANDIDATES, [verbName, `--run=${run.dir}`, `--tasks=${path.join(run.root, '.maister', 'tasks')}`]);
+
+/** Write `doc` as the run's candidates file and file it in the project's store, as finalization does. */
+function filedCandidates(run, doc) {
+  fs.writeFileSync(path.join(run.dir, 'standard-candidates.json'), JSON.stringify({ version: 3, ...doc }));
+  const filed = runScript(CANDIDATES, ['file', `--run=${run.dir}`, `--tasks=${path.join(run.root, '.maister', 'tasks')}`]);
+  assert.equal(filed.code, 0, filed.stderr);
+}
+
+const LESSON = {
+  id: 'c1', label: 'Reject bad options early', line: '- Reject a bad option before the database opens — why: it left a lock behind; where: every command',
+  action: 'new', destination: 'standards/global/conventions.md', evidence: 'group 1',
+};
+
+test('wrap-up: a run that filed standard candidates prints their lines after the pointer, on stderr, as the store\'s close prints them', t => {
+  const run = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE });
+  filedCandidates(run, { candidates: [LESSON], already_held: [{ line: '- Held — why: x', held_by: 'standards/global/errors.md § Errors' }] });
+  const close = candidates(run, 'close');
+  assert.equal(close.code, 0, close.stderr);
+  assert.match(close.stdout, /^Standard candidates of development\/2026-01-05-sample \(/);
+  assert.match(close.stdout, /\n- New, seen in 1 run: Reject bad options early → /);
+  assert.equal(close.stdout.split('\n').filter(Boolean).length, 3);
+  const result = complete(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n', 'stdout stays the marker');
+  assert.equal(result.stderr, WRAP_UP + close.stdout);
+});
+
+test('wrap-up: a run that filed nothing prints the pointer alone, and a candidates file the store cannot read is a warning', t => {
+  const empty = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE });
+  filedCandidates(empty, { candidates: [] });
+  assert.equal(complete(empty).stderr, WRAP_UP);
+
+  const broken = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE });
+  fs.writeFileSync(path.join(broken.dir, 'standard-candidates.json'), '{ not json');
+  const result = complete(broken);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  const [pointer, ...rest] = result.stderr.split('\n').filter(Boolean);
+  assert.equal(`${pointer}\n`, WRAP_UP);
+  assert.equal(rest.length, 1, result.stderr);
+  assert.match(rest[0], /^warning: candidates: .*standard-candidates\.json: could not read the candidates/);
+});
+
+test('wrap-up: a child run and a driven run print no candidate lines', t => {
+  const { child } = subRun(t);
+  put(child.dir, 'analysis/findings.md');
+  filedCandidates(child, { candidates: [LESSON] });
+  const closed = closeWith(child, { scan: { status: 'completed', values: { blocking: false } } });
+  assert.equal(closed.code, 0, closed.stderr);
+  assert.equal(closed.stderr, CHILD_LINE);
+
+  const driven = ended(t, { task: { status: 'completed' }, nodes: SAMPLE_DONE }, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  filedCandidates(driven, { candidates: [LESSON] });
+  const result = complete(driven);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, '');
+});

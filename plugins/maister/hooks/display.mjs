@@ -43,9 +43,10 @@
  * what is drawn. Only a clean call collapses — no error, no refusal, nothing
  * on stderr, not interrupted — and the decision is made once, when the call
  * returns, so a row redrawn later or replayed from an earlier session draws
- * as it always did. One stderr line still counts as clean: the close's own
+ * as it always did. One stderr block still counts as clean: the close's own
  * pointer to the wrap-up (`SUCCESS_STDERR`), which the engine prints on
- * stderr on every successful close so that stdout stays the marker alone; a
+ * stderr on every successful close so that stdout stays the marker alone,
+ * with the run's standard candidate lines below it when it filed any; a
  * warning beside it draws in full. A call whose line would say nothing — a
  * write that moved no step — or say again what the last line said draws
  * nothing at all.
@@ -107,12 +108,14 @@ const BY_NAME = {
 };
 
 /**
- * The one stderr line a verb prints on success, by verb: a successful close
- * points at the wrap-up there (or says a child run has none), so that stdout
- * stays the marker alone. Anything else on stderr is not clean.
+ * What a verb prints on stderr on success, by verb: a successful close points
+ * at the wrap-up there (or says a child run has none), and below the pointer
+ * come the run's standard candidate lines — a line naming the run, then one
+ * `- ` line each — so that stdout stays the marker alone. Anything else on
+ * stderr is not clean.
  */
 const SUCCESS_STDERR = {
-  'run-complete': /^(?:wrap-up sections: |child run: no wrap-up)[^\n]*\n?$/,
+  'run-complete': /^(?:wrap-up sections: [^\n]*(?:\nStandard candidates of [^\n]*(?:\n- [^\n]*)*)?|child run: no wrap-up[^\n]*)\n?$/,
 };
 
 /** A call of the engine's script: the interpreter, the script, bare or quoted, and the verb. */

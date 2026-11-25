@@ -426,7 +426,8 @@ candidates file, and **always runs**.
    the engine's `references/verbs.md` § *Model and effort on every agent call*): "Consolidate standard candidates.
    Candidates: [each work-log line, with the group or fix it came from]. Open
    queue: [the queue's lines as printed, or none]." It merges duplicates,
-   attaches a lesson the open queue already holds to that candidate, matches the
+   attaches a lesson the open queue already holds to that candidate, pairs
+   queued candidates that teach one lesson for merging, matches the
    rest against what the project's standards and documents already hold,
    suggests a destination, keeps at most five new lessons and returns each with
    its evidence and how many it dropped, as docs-manager's
@@ -442,7 +443,10 @@ candidates file, and **always runs**.
    and this run as one more sighting of each candidate it attached to — and
    records their store ids in the run's file. The store is the project's,
    committed with its standards: whichever commit carries the change carries
-   the files it wrote. The run applies none of them and asks nothing about
+   the files it wrote. Then, for each merge pair consolidation returned, run
+   `node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs merge --into=<id> --id=<id>…`
+   from the project root: the duplicates close as merged into the oldest, which
+   counts their sightings as its own. The run applies none of them and asks nothing about
    them: a person adds the ones worth keeping afterwards, with standards-update.
 5. **Set the task status to completed**.
 6. **Guide the next steps**, this workflow's own four: exercise the migrated
@@ -456,13 +460,13 @@ candidates file, and **always runs**.
 the wrap-up* says. **Next** holds every one of step 6's next steps, a line each — all four,
 then the fresh-session suggestion, none dropped or merged.
 
-**Standard candidates in the close**: when step 4 filed candidates, run
-`node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs close --run=<task path>`
-from the project root and copy every line it prints into the close as printed —
+**Standard candidates in the close**: when step 4 filed candidates,
+`run-complete` prints the run's candidate lines on stderr, right below its
+wrap-up pointer; relay that block under **Done**, every line as printed —
 the line naming the run's task directory, each new candidate with its
 destination, its evidence and whether it is recommended or how many runs have
 seen it, each lesson it attached to an earlier run's candidate with how many
-runs have now seen it, each already-held line, how many new lessons were
+runs have now seen it, each merge it made, each already-held line, how many new lessons were
 dropped over the cap of five and, when consolidation failed, that line too —
 never retold, merged or left out; **Next** ends, after the fresh-session
 suggestion, with one line more: `/maister:standards-update`, run with no

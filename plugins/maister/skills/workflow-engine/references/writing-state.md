@@ -506,7 +506,8 @@ with one wrap-up message that fits one screen and is the last thing the run prin
 sections, in this order, and nothing else.
 
 - **Done:** the outcome in plain words — completed, stopped at a named checkpoint with the
-  option taken, or failed at a named phase;
+  option taken, or failed at a named phase — then, when the run filed standard candidates, the
+  lines `run-complete` prints below its pointer, every one as printed;
 - **Needs you:** each `open` risk still open, one line each — what is open and where to take
   it — or "nothing". Every `missing-artifact:` and `missing-companion:` line goes here too,
   restated as a file a named phase should have written and did not. Never ask a question

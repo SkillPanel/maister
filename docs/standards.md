@@ -189,6 +189,12 @@ branches that add to the same candidate merge without a conflict. A project whos
 candidates in their task folders has them moved into the folder the first time a run or
 `/maister:standards-update` looks for candidates; the old files stay as a record.
 
+**The same lesson from two branches.** Runs on separate branches can each note the same lesson
+before either is merged, so it is filed twice, each seen in one run. The next run's finalization
+notices candidates that teach one lesson and merges them, and `/maister:standards-update` offers to
+merge likely duplicates before it offers anything. The older candidate stays and counts both
+sightings, so the lesson can be recommended; the other is closed as merged and not offered again.
+
 **From another project.** `--from=PATH` compares that project's `.maister/docs/standards/` with
 yours, lists what is new and what differs, and lets you choose. For a file that differs you can
 merge in the new rules (keeping your edits), replace it, or skip it.
