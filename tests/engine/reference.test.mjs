@@ -302,6 +302,66 @@ test('every pointer the main session reads to a file past the cap names a sectio
   }
 });
 
+/** A plugin file in a code span: opening with the plugin root, `../` or one of the plugin's folders, or the skill file itself. */
+const PLUGIN_PATH = String.raw`(?:(?:${ROOT_PREFIX}|\.\.\/|references\/|assets\/|scripts\/|workflows\/|skills\/|agents\/)[^\`\s]*|SKILL\.md)`;
+
+/** A read verb, then nothing but spaces, emphasis or "the" before a plugin file's code span. */
+const READ_VERB = new RegExp(String.raw`\b(?:read|reads|view|views|open|opens|load|loads)\b(?:\*{1,2}|\s|\bthe\b)*\`${PLUGIN_PATH}\``, 'gi');
+
+/** A code span that prints a plugin file through a shell reader instead of the reference verb. */
+const SHELL_READ = new RegExp(String.raw`\`(?:cat|type|Get-Content|head|tail|less|more)\s[^\`]*?${PLUGIN_PATH}[^\`]*\``, 'g');
+
+/**
+ * Each place in `text` that sends the main session to a plugin file with the
+ * read tool, or with a shell reader, rather than printing it with `reference`:
+ * the plugin sits outside the project, and a host asks before such a read.
+ */
+function readPointers(text) {
+  const folded = text.replace(/\s+/g, ' ');
+  return [...folded.matchAll(READ_VERB), ...folded.matchAll(SHELL_READ)].map(match => match[0]);
+}
+
+/** The texts the main session follows in the plugin tree at `root`: each skill file, workflow guide, engine reference and command. */
+function mainSessionTexts(root) {
+  return fs.readdirSync(root, { recursive: true }).map(String).filter(file => {
+    const parts = file.split(/[\\/]/);
+    if (!file.endsWith('.md')) return false;
+    if (parts.length === 3 && parts[0] === 'skills' && parts[2] === 'SKILL.md') return true;
+    if (parts.length === 4 && parts[0] === 'skills' && parts[1] === 'workflow-engine') return parts[2] === 'workflows' || parts[2] === 'references';
+    return parts.length === 2 && parts[0] === 'commands';
+  }).map(file => path.join(root, file));
+}
+
+test('the read-pointer matcher finds a read of a plugin file and passes a print, a project file and a prose read', () => {
+  const caught = [
+    'Vision selected → Read `references/vision-templates.md`, select template by project type',
+    '**Read** `references/aggregation-strategy.md` for confidence scoring methodology.',
+    'The workflow engine\'s Step 1 reads `../workflow-engine/references/node-summaries.md`, the shape',
+    'View the `<plugin root>/skills/init/references/roadmap-templates.md` file',
+    'run `cat <plugin root>/skills/init/SKILL.md` first',
+  ];
+  for (const line of caught) assert.equal(readPointers(line).length, 1, line);
+  const passed = [
+    'Print it with `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/init/references/vision-templates.md"`, never the read tool.',
+    '**Close for whoever reads the end**, as `references/writing-state.md` § *Ending the run*',
+    'Never open the files with the read tool: they sit outside the project.',
+    'Read `.maister/docs/INDEX.md` only if it is not already in your context.',
+    'read each one that passes using the Read tool to collect findings',
+  ];
+  for (const line of passed) assert.deepEqual(readPointers(line), [], line);
+});
+
+test('no main-session text sends the session to a plugin file with the read tool, on both builds', () => {
+  // The session prints a plugin file with `reference`; a read of it, outside the project, stops the run for a prompt.
+  for (const [tree, root] of [['source', PLUGIN], ['Copilot build', variantRoot()]]) {
+    const files = mainSessionTexts(root);
+    assert.ok(files.length >= 30, `${tree}: ${files.length} main-session texts were found`);
+    const found = files.flatMap(file => readPointers(fs.readFileSync(file, 'utf8'))
+      .map(snippet => `${path.relative(root, file).split(path.sep).join('/')}: ${snippet}`));
+    assert.deepEqual(found, [], `${tree}: texts that send the session to read a plugin file:\n${found.join('\n')}`);
+  }
+});
+
 test('a file under the cap on the source tree and past it on the Copilot build fails its bare pointer there', t => {
   // Build step 5 rewrites CLAUDE.md to .github/copilot-instructions.md in skills, 22 characters
   // longer each time: a file just under the cap at the source grows past it in the build.

@@ -222,7 +222,7 @@ Use this to ensure the project's CLAUDE.md properly integrates with the document
 2. If it doesn't exist, create it — the integration is mandatory — and name it in the result
 3. Look for a documentation reference section in CLAUDE.md
 4. If the section doesn't exist or is incomplete:
-   - Read `references/claude-md-template.md` for the template
+   - Print the template from the project root with `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/docs-manager/references/claude-md-template.md"`, the plugin root two levels above this skill's base directory, as an absolute path — never the read tool, since the plugin sits outside the project
    - Add the template section to CLAUDE.md
 5. Ensure the documentation section is placed prominently in CLAUDE.md (near the top)
 6. Verify that the INDEX.md path is correct and the file exists, reading the path from the folder the instructions file sits in

@@ -38,9 +38,11 @@ for a whole step, and say in the step's report which one it was.
 Browser steps that run one after another in a run share the tool and its browser: never drive
 it from two steps at once.
 
-**A browser step leaves nothing git sees but the files it was asked for.** `playwright-cli`
-otherwise writes its page snapshots and console logs into `.playwright-cli/` under the folder it
-runs from, which is the project root. So at the step's start make one directory with
+**A browser step leaves nothing git sees but the files it was asked for.** Every command of the
+step, the browser tool's and a probe's alike, runs from the project root and never `cd`s
+elsewhere, the system temp directory least of all: a host may stop the run to ask for access to
+that folder. `playwright-cli` otherwise writes its page snapshots and console logs into
+`.playwright-cli/` under the folder it runs from, the project root. So at the step's start make one directory with
 `node <plugin root>/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=browser`, adding
 `--state=<the run's orchestrator-state.yml>` in a run, and set
 `PLAYWRIGHT_MCP_OUTPUT_DIR=<that directory>` on the `open` call (setting it on every call does no
