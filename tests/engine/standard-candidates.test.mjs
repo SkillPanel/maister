@@ -9,8 +9,9 @@ import { ENGINE_DIR, ROOT, git, run } from '../helpers.mjs';
 
 // A workflow run never writes standards and asks nothing about its standard
 // candidates: finalization consolidates them, writes them to the run's
-// candidates file, files them in the project's candidate store, copies the
-// close lines the script prints and names standards-update once under Next.
+// candidates file, files them in the project's candidate store, relays the
+// close lines run-complete prints with the wrap-up and names standards-update
+// once under Next.
 // standards-update, run bare, takes a run's close it finds in the session to
 // that run's candidates in the store, and in a fresh session finds the latest
 // run with something left to apply. Pinned here: the three guides word that
@@ -70,8 +71,10 @@ test('each guide consolidates, writes the candidates file and asks nothing about
     assert.ok(consolidate.includes('`node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs file --run=<task path>`'), `${workflow}: the run's file is filed in the store`);
     assert.ok(consolidate.includes('candidate store, `.maister/standard-candidates/`'), `${workflow}: the store is named`);
     assert.ok(consolidate.includes('committed with its standards: whichever commit carries the change carries the files it wrote'), `${workflow}: the store's files go with the change`);
-    assert.ok(close.includes('`node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs close --run=<task path>`'), `${workflow}: the close's lines come from the script`);
-    assert.ok(close.includes('copy every line it prints into the close as printed'), `${workflow}: the lines are copied as printed`);
+    assert.ok(close.includes('`run-complete` prints the run\'s candidate lines on stderr, right below its wrap-up pointer'), `${workflow}: the close's lines come with the wrap-up`);
+    assert.ok(!section.includes('candidates.mjs close'), `${workflow}: the close runs no script of its own for them`);
+    assert.ok(close.includes('relay that block under **Done**, every line as printed'), `${workflow}: the lines are relayed as printed`);
+    assert.ok(close.includes('each merge it made'), `${workflow}: the merges are relayed too`);
     assert.ok(close.includes('never retold, merged or left out'), `${workflow}: and never retold`);
     assert.ok(close.includes('run with no argument in this session or a fresh one'), `${workflow}: the command works in the same session too`);
     assert.ok(close.includes('never one per candidate; with no candidates there is no such line'), `${workflow}: once, and only with candidates`);

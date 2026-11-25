@@ -923,6 +923,21 @@ describe('quiet bookkeeping', () => {
     expect((await row($, 'terminal', seen.ids[2])).drawn).not.toMatchObject({ type: 'engine' })
   })
 
+  test('a run\'s close that prints its standard candidate lines below the pointer still collapses, and one with a warning among them draws in full', async ($: any, on: any) => {
+    const block = 'wrap-up sections: Done, Needs you, Follow-ups, Next, Files, Dashboard — one last message\n'
+      + 'Standard candidates of development/2026-01-05-sample (/work/.maister/tasks/development/2026-01-05-sample), filed in .maister/standard-candidates/:\n'
+      + '- New, seen in 1 run: Reject bad options early → standards/global/conventions.md; evidence: group 1 [2026-01-05-reject-bad-options-early-b9a336]\n'
+      + '- Already held: Held — held by standards/global/errors.md § Errors\n'
+    const seen = beneath(on, files(), { shells: [
+      { stdout: 'RUN-COMPLETE\n', stderr: block },
+      { stdout: 'RUN-COMPLETE\n', stderr: `${block}warning: candidates: /work/.maister/standard-candidates/x.json: could not read the candidate\n` },
+    ] })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} run-complete --state=${RUN}/orchestrator-state.yml` })
+    await $.tool.call({ tool: 'Bash', command: `${ENGINE} run-complete --state=${RUN}/orchestrator-state.yml` })
+    expect((await row($, 'terminal', seen.ids[0])).texts).toEqual(['· maister · wrapped up the run', 'maister'])
+    expect((await row($, 'terminal', seen.ids[1])).drawn).toMatchObject({ type: 'engine' })
+  })
+
   test('a findings brief or a run\'s close that errored or warned draws in full', async ($: any, on: any) => {
     const seen = beneath(on, files(), { shells: [
       { error: 'Exit code 1\nfinding-brief-list-invalid: analysis/findings.json is not a findings list' },

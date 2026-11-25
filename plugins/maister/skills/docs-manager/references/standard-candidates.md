@@ -1,9 +1,7 @@
 # Standard Candidates
 
-The one description of a standard candidate. The implementer and the fix loop write candidates
-to it, finalization consolidates them against it and the open queue of earlier runs and files
-them in the project's candidate store, and `standards-update` and the project's `CLAUDE.md` block
-point here rather than restating it.
+The one description of a standard candidate: the implementer and the fix loop write them to it,
+finalization consolidates and files them by it, and every other step points here.
 
 ## What a candidate is
 
@@ -133,8 +131,8 @@ A workflow run never writes a standard and asks nothing about its candidates. Fi
 what consolidation returned to `standard-candidates.json` in the task directory, then files it in
 the project's candidate store with
 `node <plugin root>/skills/standards-update/scripts/candidates.mjs file --run=<task dir>` from the
-project root, prints its close's candidate lines with `close --run=<task dir>` (*The close*), and
-names `/maister:standards-update` once under **Next**. Run with no argument, standards-update
+project root, relays the candidate lines its wrap-up carries (*The close*), and names
+`/maister:standards-update` once under **Next**. Run with no argument, standards-update
 offers that run's candidates in the same session, and in a fresh one the most recent run that
 still has something to apply — its own candidates and the open ones it attached to; a closed
 candidate (*Closing a candidate*) is never offered again.
@@ -289,10 +287,11 @@ an entry that is not a candidate or an attachment, is one line on stderr,
 ## The close
 
 `node <plugin root>/skills/standards-update/scripts/candidates.mjs close --run=<task dir>` prints
-the lines a run's close carries about its candidates, read from the store and the run's file: a
-line naming the run, its task directory and the store; each candidate it filed, in its file's
-order, with its action, its reason for being recommended or its count of runs, the check that
-catches it, its label, destination, evidence and store id, and whether it is already closed;
-each candidate it met again, with how many runs have now seen it; each already-held line with its
-rule; how many new lessons were dropped over the cap of five; and a line when consolidation
-failed. A run that filed nothing prints nothing. The close copies the lines as printed.
+the lines a run's close carries about its candidates, from the store and the run's file: a line
+naming the run, its task directory and the store; each candidate it filed, in its file's order,
+with its action, why it is recommended or how many runs saw it, the check that catches it, its
+label, destination, evidence and store id, and whether it is closed; each candidate it met again
+and each merge it made, with how many runs have now seen it; each already-held line with its
+rule; how many lessons were dropped over the cap; and a line when consolidation failed. A run
+that filed nothing prints nothing. `run-complete` prints these lines in the wrap-up, below its
+pointer, and the close relays them as printed.

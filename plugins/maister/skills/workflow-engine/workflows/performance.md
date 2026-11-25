@@ -430,13 +430,13 @@ candidates file, and always runs.
 the wrap-up* says. **Next** holds every one of step 6's next steps, a line each — all four,
 then the fresh-session suggestion, none dropped or merged.
 
-**Standard candidates in the close**: when step 4 filed candidates, run
-`node ${CLAUDE_PLUGIN_ROOT}/skills/standards-update/scripts/candidates.mjs close --run=<task path>`
-from the project root and copy every line it prints into the close as printed —
+**Standard candidates in the close**: when step 4 filed candidates,
+`run-complete` prints the run's candidate lines on stderr, right below its
+wrap-up pointer; relay that block under **Done**, every line as printed —
 the line naming the run's task directory, each new candidate with its
 destination, its evidence and whether it is recommended or how many runs have
 seen it, each lesson it attached to an earlier run's candidate with how many
-runs have now seen it, each already-held line, how many new lessons were
+runs have now seen it, each merge it made, each already-held line, how many new lessons were
 dropped over the cap of five and, when consolidation failed, that line too —
 never retold, merged or left out; **Next** ends, after the fresh-session
 suggestion, with one line more: `/maister:standards-update`, run with no

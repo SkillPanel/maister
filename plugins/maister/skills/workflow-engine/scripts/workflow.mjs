@@ -240,6 +240,7 @@
  * engine exists to remove.
  */
 
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -491,6 +492,31 @@ const RULES = {
  * detail of each stays in writing-state.md § *Ending the run — the wrap-up*.
  */
 const WRAP_UP = 'wrap-up sections: Done, Needs you, Follow-ups, Next, Files, Dashboard — one last message, these six labelled in this order and nothing else; a missing- line goes under Needs you in words, never raw';
+
+/** The project's standard candidate store, whose `close` verb prints the lines a run's close carries. */
+const CANDIDATES_SCRIPT = path.join(PLUGIN_ROOT, 'skills', 'standards-update', 'scripts', 'candidates.mjs');
+
+/**
+ * The lines about the standard candidates a closing run filed, as the store's
+ * `close` verb prints them, for the wrap-up to carry as printed; and a warning
+ * for each problem it names. The script is spawned rather than imported: the
+ * engine relies on that verb's printed contract alone, never on the store's
+ * code, and a store that cannot be read costs a warning, never the close. A run
+ * whose task directory holds no candidates file prints nothing and spawns
+ * nothing.
+ */
+function candidateLines(state) {
+  const runDir = path.dirname(path.resolve(state));
+  if (!fs.existsSync(path.join(runDir, 'standard-candidates.json'))) return { lines: [], warnings: [] };
+  const tasks = path.dirname(path.dirname(runDir));
+  const ran = spawnSync(process.execPath, [CANDIDATES_SCRIPT, 'close', `--run=${runDir}`, `--tasks=${tasks}`], { encoding: 'utf8', timeout: 60_000 });
+  const said = (ran.stderr || '').split('\n').filter(line => line.trim() !== '');
+  if (ran.error || ran.status !== 0) {
+    const why = ran.error ? ran.error.message : said[0] ?? `exit ${ran.status}`;
+    return { lines: [], warnings: [`the run's standard candidate lines could not be printed (${why}); its candidates are filed in the store all the same`] };
+  }
+  return { lines: (ran.stdout || '').split('\n').filter(line => line.trim() !== ''), warnings: said };
+}
 
 /** One pointer's value: the file's absolute path, then `§` and the heading. */
 function rulesOf(moment) {
@@ -1306,6 +1332,9 @@ function consume(input) {
  * on disk, then one `missing-companion:` line per owed HTML companion not on
  * disk, then a stopped run's notice — go above the marker, never below it.
  * A warning goes to stderr, opening with `warning:`, and moves no exit code.
+ * A top-level run's successful close under a terminal driver points at the
+ * wrap-up on stderr, and the run's standard candidate lines follow that
+ * pointer there, so stdout stays the marker.
  */
 async function runRunComplete(flags) {
   if (!flags.state) throw new UsageError('run-complete needs --state');
@@ -1322,8 +1351,13 @@ async function runRunComplete(flags) {
   for (const line of result.missing || []) process.stdout.write(`${line}\n`);
   if (result.notice) process.stdout.write(`${result.notice}\n`);
   process.stdout.write(`${result.marker}\n`);
-  if (result.wrap_up === 'run') process.stderr.write(`${WRAP_UP}\n`);
-  else if (result.wrap_up === 'child') process.stderr.write('child run: no wrap-up — the parent\'s walk goes on\n');
+  if (result.wrap_up === 'run') {
+    process.stderr.write(`${WRAP_UP}\n`);
+    // The run's standard candidate lines follow the pointer, in the block the wrap-up relays.
+    const candidates = candidateLines(flags.state);
+    for (const line of candidates.lines) process.stderr.write(`${line}\n`);
+    for (const warning of candidates.warnings) process.stderr.write(`warning: ${warning}\n`);
+  } else if (result.wrap_up === 'child') process.stderr.write('child run: no wrap-up — the parent\'s walk goes on\n');
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
