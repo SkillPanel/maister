@@ -862,6 +862,7 @@ function project(state, text, now, changed, warnings) {
       verifier: dashboard.verifierNodeOf(definition),
       executor: dashboard.executorNodeOf(definition) ?? fallbackExecutor(doc),
       place: { runDir, root: projectRootOf(runDir) },
+      companionsOff: companionsOffOf(doc, runDir),
     };
     canonical.commit({
       target,
@@ -1084,17 +1085,46 @@ function displayOfRun(doc, runDir) {
  * left out of the merge, as `definitionOf` leaves it out of the fold. A caller
  * that has already read them passes `sources`, so they are read once.
  */
-export function companionsOfRun(doc, runDir, read = undefined) {
+export function companionsOfRun(doc, runDir, read = undefined, { withConfig = true } = {}) {
   try {
     const sources = read !== undefined ? read : sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
     if (sources === null || !isPlainObject(sources.definition.doc)) return null;
     const definition = definitionOf(doc, runDir);
     if (definition === null) return null;
-    const config = workflowConfigOf(doc)?.html_companions ?? null;
+    const config = withConfig ? workflowConfigOf(doc)?.html_companions ?? null : null;
     return { merged: companionsOf({ ...sources, overlays: sources.overlays.filter(overlay => overlay.doc), config }), definition };
   } catch {
     return null;
   }
+}
+
+/**
+ * The markdown artifacts whose HTML page the project's config turned off for
+ * this run: owed by the definition, its overlays and the profile, and no
+ * longer once the recorded `workflow_config.html_companions` is laid over
+ * them. Declared paths, task-relative, in node order; [] when the run recorded
+ * no such block or the definition cannot be read. The dashboard drops a key
+ * document's card for each, since a document with no page is not meant for
+ * review there.
+ */
+export function companionsOffOf(doc, runDir) {
+  if (!isPlainObject(workflowConfigOf(doc)?.html_companions)) return [];
+  let sources;
+  try {
+    sources = sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
+  } catch {
+    return [];
+  }
+  const kept = companionsOfRun(doc, runDir, sources);
+  const owed = companionsOfRun(doc, runDir, sources, { withConfig: false });
+  if (kept === null || owed === null) return [];
+  const ids = isPlainObject(owed.definition?.nodes) ? Object.keys(owed.definition.nodes) : [];
+  const off = [];
+  for (const id of ids) {
+    const still = new Set(owedCompanions(kept, id).map(each => each.md));
+    for (const { md } of owedCompanions(owed, id)) if (!still.has(md) && !off.includes(md)) off.push(md);
+  }
+  return off;
 }
 
 /**

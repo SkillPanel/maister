@@ -224,6 +224,7 @@
   .src.audit { background: var(--info-soft); color: var(--info); }
   .src.approved { background: var(--ok-soft); color: var(--ok); }
   .src.held { background: var(--warn-soft); color: var(--warn); }
+  .src.config { background: var(--info-soft); color: var(--info); }
   .src.cls { font-weight: 500; }
   .tag { margin: 0 6px 0 0; text-transform: uppercase; letter-spacing: .03em; }
   .tag.open { background: var(--warn-soft); color: var(--warn); }
@@ -325,7 +326,7 @@ function riskOf(r) {
 function isResolvedRisk(r) { return riskOf(r).tag === "resolved"; }
 const TAG_ORDER = ["stop", "open", "tradeoff", "followup", "resolved"];
 const TAG_LABEL = { stop: "stop", open: "open", tradeoff: "trade-off", followup: "follow-up", resolved: "resolved" };
-const SOURCE_LABEL = { run: "Analysis", audit: "Audit", default: "Default", operator: "You" };
+const SOURCE_LABEL = { run: "Analysis", audit: "Audit", default: "Default", operator: "You", config: "Project config" };
 /* A question a host answered while nobody was there: the host's own name, by its actor id. */
 const HOST_LABEL = { copilot: "Copilot" };
 /* A triage class as a reader names it, by the policy's class id; an unknown id reads as itself. */
@@ -520,8 +521,13 @@ function renderHeroes(d, phases) {
   const type = d.task && d.task.type;
   const map = Object.prototype.hasOwnProperty.call(HERO_MAP, type) ? HERO_MAP[type] : null;
   if (!map) return "";
+  // A key document whose HTML page the project's config turned off is not
+  // meant for review here: its card is dropped, the document stays under its phase.
+  const off = Array.isArray(d.companions_off) ? d.companions_off : [];
+  const shown = map.filter(h => !off.some(p => String(p).endsWith(h.match)));
+  if (!shown.length) return "";
   const v = d.verification || {};
-  const cards = map.map(h => {
+  const cards = shown.map(h => {
     const hit = findArtifact(phases, h.match);
     if (!hit) {
       // verification hero lights up from verification.status even before the report artifact is registered
