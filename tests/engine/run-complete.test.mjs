@@ -667,14 +667,17 @@ test('a hand-edited absence with no reason sanctions nothing', t => {
  * definition no longer has is left out of the replay: the run recorded it,
  * the graph it is replayed against has no such node to write.
  *
- * The recorded run predates its two optional stretches being decided at a
- * gate: the audit and browser-check choices were values of `specification` and
- * `verification-options`, and the specification gate had one continue. Those
- * values are dropped from the task nodes, and the gate answer is replayed as
- * the continue that sets what the run recorded.
+ * The recorded run predates two changes of the graph. The audit and
+ * browser-check choices were values of `specification` and
+ * `verification-options`; those values are dropped from the task nodes. And
+ * the specification gate stood before the audit, with an approval of the
+ * audit's own after it; the audit now runs before the one specification
+ * approval, whose continue goes on to planning, so the recorded answer is
+ * replayed as that continue and the audit's own approval, which the shipped
+ * graph no longer has, is left out.
  */
 const MOVED_VALUES = { specification: ['spec_audit_enabled'], 'verification-options': ['browser_tests_enabled'] };
-const SPLIT_ANSWERS = { 'specification-approval': { 'continue-past-specification': 'continue-to-spec-audit' } };
+const SPLIT_ANSWERS = { 'specification-approval': { 'continue-past-specification': 'continue-to-planning' } };
 
 function replayRecorded(t, absent = {}) {
   const run = scratch(t, { fixture: 'free-delivery-threshold', name: '2026-09-30-free-delivery-threshold-per-country' });
@@ -711,7 +714,7 @@ test('recorded run: as it closed, five conditional artifacts and the two explain
     'missing-artifact: intake analysis/design-context/INDEX.md',
     'missing-artifact: intake analysis/research-context',
     'missing-artifact: intake analysis/work-context',
-    'missing-artifact: specification implementation/spec-explainer.html',
+    'missing-artifact: spec-audit implementation/spec-explainer.html',
     'missing-artifact: planning implementation/visual-coverage.md',
     'missing-artifact: finalization verification/change-explainer.html',
     'RUN-COMPLETE',
@@ -728,7 +731,7 @@ test('recorded run: with the absences its nodes sanction recorded, it ends on RU
       work_context: 'no context pack was passed in',
     },
     planning: { visual_coverage: 'no design index exists, so there is nothing to cover' },
-    specification: { explainer: 'HTML output is off for this run.' },
+    'spec-audit': { explainer: 'HTML output is off for this run.' },
     finalization: { explainer: 'HTML output is off for this run.' },
   });
   const result = complete(run);

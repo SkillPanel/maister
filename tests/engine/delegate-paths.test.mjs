@@ -13,8 +13,10 @@ import { ROOT, ENGINE_DIR, verb } from '../helpers.mjs';
 const AGENTS = path.join(ROOT, 'plugins/maister/agents');
 const BUILT_INS = ['development', 'research', 'product-design', 'performance', 'migration', 'mockup-studio'];
 
-// Declared artifacts the node itself writes, not its agent.
-const NODE_WRITTEN = new Set(['development:gap-analysis:scope']);
+// Declared artifacts the node itself writes, not its agent: the audit's step
+// writes the spec explainer once its fix pass is done, through the explainer
+// writer, never the auditor.
+const NODE_WRITTEN = new Set(['development:gap-analysis:scope', 'development:spec-audit:explainer']);
 
 function resolved(name) {
   const result = verb(['resolve', `--definition=${path.join(ENGINE_DIR, 'workflows', `${name}.yml`)}`]);

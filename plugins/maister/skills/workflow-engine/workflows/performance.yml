@@ -1,6 +1,6 @@
 # The performance workflow, as a graph.
 #
-# Ten nodes named for what they do and six named for what they approve, in one
+# Ten nodes named for what they do and five named for what they approve, in one
 # linear chain. Gates serialize the run, so a wider fan-in would buy nothing.
 #
 # There is no `when` anywhere in this file, and that is the whole shape of it.
@@ -15,10 +15,14 @@
 # makes each gate's stop option actually end the run: nothing after it is ever
 # ready.
 #
+# The specification is approved once, after its audit: the audit runs between
+# the specification and its approval, so the operator approves the
+# specification as the audit left it.
+#
 # The one way back is a revise option. The gates that close the bottleneck
-# analysis, the specification (at its own approval and after its audit) and the
-# plan can send the run back to re-run that node with the operator's note.
-# Verification keeps its in-node fix loop instead.
+# analysis, the specification (at its approval, after its audit, so a revise
+# runs the audit again) and the plan can send the run back to re-run that node
+# with the operator's note. Verification keeps its in-node fix loop instead.
 #
 # Target names are bare on purpose. Resolution is rooted at the plugin root and
 # the provider prefix is applied at invocation, so this one file is correct
@@ -52,9 +56,8 @@ display:
     bottleneck-analysis:           analysis
     bottleneck-approval:           analysis
     specification:                 spec
-    specification-approval:        spec
     spec-audit:                    verify
-    spec-audit-approval:           verify
+    specification-approval:        spec
     planning:                      plan
     planning-approval:             plan
     implementation:                code
@@ -69,9 +72,8 @@ display:
     bottleneck-analysis:           "Bottleneck analysis"
     bottleneck-approval:           "Approve bottleneck analysis"
     specification:                 "Specification"
-    specification-approval:        "Approve specification"
     spec-audit:                    "Specification audit"
-    spec-audit-approval:           "Approve specification audit"
+    specification-approval:        "Approve specification"
     planning:                      "Implementation planning"
     planning-approval:             "Approve implementation plan"
     implementation:                "Implementation"
@@ -86,10 +88,6 @@ display:
       revise-analysis: "Revise the bottleneck analysis"
       stop-performance: "Stop here"
     specification-approval:
-      continue-to-spec-audit: "Continue to the specification audit"
-      revise-specification: "Revise the specification"
-      stop-performance: "Stop here"
-    spec-audit-approval:
       continue-to-planning: "Continue to implementation planning"
       revise-specification: "Revise the specification"
       stop-performance: "Stop here"
@@ -106,7 +104,6 @@ display:
   headers:
     bottleneck-approval:            "Bottlenecks"
     specification-approval:         "Spec"
-    spec-audit-approval:            "Spec audit"
     planning-approval:              "Plan"
     implementation-approval:        "Implemented"
     verification-approval:          "Verification"
@@ -195,18 +192,9 @@ nodes:
         requirements: analysis/requirements.md
         spec: implementation/spec.md
 
-  specification-approval:
-    type: gate
-    needs: [specification]
-    ask: "Specification complete. Continue to specification audit?"
-    options:
-      continue-to-spec-audit: continue
-      revise-specification: {effect: revise, reruns: specification}
-      stop-performance: stop
-
   spec-audit:
     uses: agent:spec-auditor
-    needs: [specification-approval]
+    needs: [specification]
     with:
       spec: "${specification.artifacts.spec}"
       requirements: "${specification.artifacts.requirements}"
@@ -215,22 +203,23 @@ nodes:
       artifacts:
         audit: verification/spec-audit.md
 
-  spec-audit-approval:
+  specification-approval:
     type: gate
     needs: [spec-audit]
-    ask: "Specification audit complete. Continue to implementation planning?"
+    ask: "Specification written and audited. Continue to implementation planning?"
     options:
       continue-to-planning: continue
       revise-specification: {effect: revise, reruns: specification}
       stop-performance: stop
 
+  # The audit report is read from disk, never through `with:`: an overlay may
+  # disable the audit, and a reference to a node it removed is an error.
   planning:
     uses: agent:implementation-planner
-    needs: [spec-audit-approval]
+    needs: [specification-approval]
     with:
       task_description: "${inputs.task_description}"
       spec: "${specification.artifacts.spec}"
-      audit: "${spec-audit.artifacts.audit}"
       performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
     outputs:
       artifacts:

@@ -153,7 +153,8 @@ Every command and flag is in the [command reference](commands.md).
 | `--from=PHASE`, `--reset-attempts` (all workflows) | Honoured | Declined by name; the run continues without them. Resume with the task directory alone. To go back inside a run, choose "revise" at a checkpoint |
 | `--type=bug\|enhancement\|feature` on development | Documented | Removed. The analysis finds out whether the task fixes a reproducible defect, and writes a failing test first if so |
 | `--code-review` on development | Documented | Removed. The three reviews always run in verification |
-| `--e2e` / `--no-e2e`, `--audit` / `--no-audit` on development | Forced or skipped the step | Set which answer the checkpoint recommends. The checkpoint is always asked |
+| `--e2e` / `--no-e2e` on development | Forced or skipped the step | Set which answer the checkpoint recommends. The checkpoint is always asked |
+| `--audit` / `--no-audit` on development | Forced or skipped the step | Not taken: every specification is audited before you approve it |
 | `--brainstorm` / `--no-brainstorm`, `--design` / `--no-design` on research | Forced or skipped the step | Set which answer the checkpoint recommends |
 | `--no-visual` on product design | Present | Removed. Set `mockup_format: ascii` in `.maister/config.yml` for mockups drawn as text |
 | `--context=PATH` on development, research, product design | Not available | New: a file or folder read as background at every step |

@@ -15,7 +15,7 @@ import { ENGINE_DIR, ROOT, verb } from '../helpers.mjs';
 
 const WORKFLOWS = path.join(ENGINE_DIR, 'workflows');
 const AGENTS = path.join(ROOT, 'plugins/maister/agents');
-const DEVELOPMENT_HASH = 'sha256:04620850b3a9445c3dc9e8607c94bd7a613dce8a24aa507e55c36cc980d0b79e';
+const DEVELOPMENT_HASH = 'sha256:e0219aa6c15534d7e0cb8a117943c6eec8036a5ee06d89f0b83ac5cede1056d4';
 
 /** A file's text with its line wrapping gone, so a sentence is matched wherever it breaks. */
 function flat(text) {

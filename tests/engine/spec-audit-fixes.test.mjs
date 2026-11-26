@@ -8,11 +8,14 @@ import { ENGINE_DIR, freeze, readState, scratch, verb, delegating, write as writ
 // every write here sends them as a session that dispatched them would.
 const write = (run, patch) => writeState(run, delegating(patch));
 
-// The specification audit fixes the findings that have one obvious fix before
-// its gate asks: each fix is recorded on the audit's node summary in
+// The specification audit runs on every run, between the specification and
+// its one approval, and fixes the findings that have one obvious fix before
+// that approval asks: each fix is recorded on the audit's node summary in
 // `fixes_applied`, never as a decision, and only the findings left are open
-// risks. The gate shows the fixes as fixed by the run, apart from what the
-// audit decided, and its revise suggestions come from the open findings alone.
+// risks. The approval shows the audit and the specification together — the
+// fixes as fixed by the run, apart from what the audit decided, the findings
+// still open, the specification's own open assumptions and the stories nobody
+// confirmed — and its revise suggestions come from the open items alone.
 
 const WORKFLOWS = path.join(ENGINE_DIR, 'workflows');
 
@@ -31,31 +34,43 @@ const AUDIT = {
   reaudit_count: 0,
 };
 
+const SPECIFICATION = {
+  status: 'completed',
+  headline: 'The spec adds tag filtering to the notes list, with 6 requirements.',
+  summary: 'Tag filtering on list(), scoped to the notes list.',
+  risks: [{ risk: 'Tags are matched case-insensitively', tag: 'open', change: 'match tags exactly' }],
+  stories: ['user-story-filter: a reader filters the notes list by one tag'],
+};
+
 /**
- * A run of `workflow` paused at `spec-audit-approval`: every node before the
- * gate ended — the specification gate having chosen the audit where it decides
- * it — and the audit's summary recorded as its fix pass leaves it.
+ * A run of `workflow` paused at `specification-approval`: every node before the
+ * gate ended, the specification's summary and the audit's recorded as its fix
+ * pass leaves it.
  */
-function atAuditApproval(t, workflow) {
+function atSpecApproval(t, workflow) {
   const run = scratch(t, { type: workflow });
   const graph = freeze(run, { definition: path.join(WORKFLOWS, `${workflow}.yml`), inputs: { task_description: 'Tag the notes' } });
   const nodes = {};
   for (const node of graph.nodes) {
-    if (node.id === 'spec-audit-approval') break;
+    if (node.id === 'specification-approval') break;
     nodes[node.id] = { status: 'completed' };
   }
-  const continues = Object.keys(graph.nodes.find(node => node.id === 'specification-approval').options);
-  if (continues.includes('continue-to-spec-audit')) nodes['specification-approval'].decisions = [{ option: 'continue-to-spec-audit' }];
-  write(run, { nodes, node_summaries: { 'spec-audit': AUDIT } });
+  write(run, { nodes, node_summaries: { specification: SPECIFICATION, 'spec-audit': AUDIT } });
   return run;
 }
 
+const specBrief = run => {
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=specification-approval', '--json']);
+  assert.equal(result.code, 0, result.stderr);
+  return JSON.parse(result.stdout);
+};
+
 for (const workflow of ['development', 'performance']) {
-  test(`${workflow}: the audit gate lists the fixes as fixed by the run, apart from its decisions, and the open finding as open`, t => {
-    const run = atAuditApproval(t, workflow);
-    const result = verb(['gate-brief', `--state=${run.state}`, '--node=spec-audit-approval', '--json']);
-    assert.equal(result.code, 0, result.stderr);
-    const brief = JSON.parse(result.stdout);
+  test(`${workflow}: the specification approval shows the audit's fixes apart from its decisions, its open finding and the spec's own open items`, t => {
+    const brief = specBrief(atSpecApproval(t, workflow));
+    // One approval, closing both steps: the audit leads and the specification follows it.
+    assert.match(brief.more_details, /\*\*Specification audit\*\*\n[^\n]+\n\n?\*\*Specification\*\*\n/);
+    assert.match(brief.more_details, /^Next: Implementation planning$/m);
     const [settled, open] = brief.more_details.split('**Open**');
     const fixed = FIXES.map(fix => `- ${fix.finding} → ${fix.change}`);
     assert.ok(settled.includes(['**Fixed by the run**', ...fixed].join('\n')), settled);
@@ -63,27 +78,27 @@ for (const workflow of ['development', 'performance']) {
     assert.doesNotMatch(settled, /Decided by the run/, 'no fix is a decision the run made');
     for (const fix of FIXES) assert.ok(!open.includes(fix.finding.slice(0, 40)), `the fix "${fix.finding}" is not open`);
     assert.match(open, /^- Export size is unbounded → cap the export at 10,000 rows$/m);
+    assert.match(open, /^- Tags are matched case-insensitively → match tags exactly$/m, 'the specification\'s open assumption is open too');
+    assert.match(brief.more_details, /user-story-filter: a reader filters the notes list by one tag/);
     // The recommended continue's preview is what the picker shows first.
     const preview = brief.options[0].preview;
+    assert.equal(brief.options[0].id, 'continue-to-planning');
     assert.match(preview, /Open risks:\n- Export size is unbounded/);
-    // The glance has the room for every item whole: what the audit found, the risk, both fixes and the decision.
-    assert.match(preview, /^Found: Pass with concerns: three findings, two fixed by the run, one left\.$/m);
+    assert.match(preview, /Tags are matched case-insensitively/);
     assert.ok(preview.includes(['Fixed by the run: 2', ...fixed].join('\n')), preview);
     assert.match(preview, /^Decided by the audit:\n- The export stays CSV-only, as the codebase already writes it — audit$/m);
+    assert.match(preview, /user-story-filter/);
   });
 
-  test(`${workflow}: the revise suggestions come from the open finding alone, never from a fix`, t => {
-    const run = atAuditApproval(t, workflow);
-    const result = verb(['gate-brief', `--state=${run.state}`, '--node=spec-audit-approval', '--json']);
-    assert.equal(result.code, 0, result.stderr);
-    const revise = JSON.parse(result.stdout).options.find(option => option.id === 'revise-specification');
+  test(`${workflow}: the revise suggestions come from the open items alone, never from a fix`, t => {
+    const revise = specBrief(atSpecApproval(t, workflow)).options.find(option => option.id === 'revise-specification');
     const notes = [...(revise.suggestions ?? []).map(each => each.note), revise.note_question?.question ?? ''].join('\n');
     assert.match(notes, /Export size is unbounded/);
     for (const fix of FIXES) assert.doesNotMatch(notes, new RegExp(fix.finding.slice(0, 20)));
   });
 
   test(`${workflow}: the audit's node summary keeps its fixes when a later write sends only its risks`, t => {
-    const run = atAuditApproval(t, workflow);
+    const run = atSpecApproval(t, workflow);
     write(run, { node_summaries: { 'spec-audit': { risks: [{ risk: 'Export size is unbounded', tag: 'resolved' }] } } });
     const summary = readState(run).node_summaries['spec-audit'];
     assert.deepEqual(summary.fixes_applied, FIXES);

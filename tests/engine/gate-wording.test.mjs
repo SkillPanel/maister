@@ -104,7 +104,6 @@ test('gate wording: continues that set different values never print the same con
   assertDistinct(checkpointOf(converging, 'convergence-approval'), 'research convergence-approval');
 
   for (const [gate, values] of [
-    ['specification-approval', { 'gap-analysis': { has_reproducible_defect: false, mockups_needed: false, risk_level: 'low' } }],
     ['verification-approval', { 'gap-analysis': { has_reproducible_defect: false, mockups_needed: false, risk_level: 'low', ui_heavy: true } }],
   ]) {
     const dev = scratch(t, { type: 'development', name: `2026-10-17-${gate}` });

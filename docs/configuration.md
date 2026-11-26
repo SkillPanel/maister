@@ -122,7 +122,7 @@ workflows:
     html_companions:
       planning: []                     # no HTML page for the implementation plan
     explainers:
-      specification: false             # no specification explainer
+      spec-audit: false                # no specification explainer
     auto_continue: [planning-approval] # take the gate's continue option without asking
 ```
 
@@ -134,9 +134,10 @@ workflows:
 - **`explainers`** turns an explainer page off for one step: the step's name, then `false`. The
   run skips that page and lists it as not produced, with the reason, and the other explainers stay
   on. `true`, the default, keeps a page on. Keyed by step because one workflow can write two
-  explainers for two different moments: development writes one at `specification` and one at
-  `finalization`, performance at `finalization`, product design at `brief`, research at
-  `research-foundation`. A step that writes no explainer, a gate, or a value other than `true` or
+  explainers for two different moments: development writes one at `spec-audit`, once the audit
+  has finished with the specification, and one at `finalization`, performance at `finalization`,
+  product design at `brief`, research at `research-foundation`. An overlay that disables
+  development's `spec-audit` drops the specification explainer with it. A step that writes no explainer, a gate, or a value other than `true` or
   `false` is a warning, and the entry is ignored.
 - **`auto_continue`** lists approvals (gates) the run takes without asking. At a listed gate the
   run takes its continue option, records it as decided by the project's config (`by: config`), and

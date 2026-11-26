@@ -293,19 +293,6 @@ the specification as an open risk.
 **Write the chosen approach to `task_context.architecture_decision`**, where
 later nodes read it.
 
-**Write the specification explainer** once the specification and its page are
-written, on every attempt and every re-run:
-`implementation/spec-explainer.html`, as the `writes an explainer` row says, when
-the brief's `explainer:` line names it, so the person reads it at
-`specification-approval`: one page answering "What will this change do, what does
-the spec commit to, and what should I check?", `stage: specification`, its suite
-label "Spec explainer". Sources: `implementation/spec.md`,
-`analysis/requirements.md` and `analysis/technical-clarifications.md` when it was
-written. Its checklist names each story and assumption nobody confirmed, as the
-marks in those files record it; where they record none, it says so and guesses
-nothing. The suite is the specification's page, or its markdown when the page
-was not written, and `analysis/requirements.md`.
-
 **Asks.** *Part A, technical and architecture clarification — conditional.*
 Skip it entirely for a simple, low-risk task with one obvious approach.
 
@@ -410,28 +397,20 @@ one line each (`<id>: <the story in a line>`), which the checkpoint lists under
 "Stories to confirm"; never in `risks` or `summary`. A story or assumption
 never asked records no decision. The entry carries the chosen approach and its
 rationale as a decision. Every decision and risk of Parts A and B goes on this
-one entry.
-
-Recommend the audit, never ask it. A set audit input's reason is "Asked for
-when the run started" or "Declined when the run started", and the gate is still
-asked. Unset, recommend `continue-to-spec-audit`, reason "Cheaper than finding
-the same gaps during implementation", or a reason in this change's own terms.
-Recommend `continue-to-planning` only when this specification has nothing an
-audit would check, and say why ("A one-line configuration change with no open
-assumption").
+one entry. The audit runs next, on every run, and the specification approval
+after it shows this entry beside the audit's.
 
 **Re-run.** Record what changed in `analysis/technical-clarifications.md` or
-`analysis/requirements.md`. When the audit already ran, recommend it again only
-when the revision changed what it checked, and say so; when the note asks for or
-against the audit, recommend what it says. Hand the creator the audit's findings still open — never the ones
-its fix pass applied.
+`analysis/requirements.md`. Hand the creator the audit's findings still open —
+never the ones its fix pass applied. The audit runs again after the re-run.
 
 **Budget.** Regenerate the specification on the second attempt with the gaps
 named in the context.
 
 ## `spec-audit`
 
-**Does.** The auditor checks the spec's claims against the codebase rather than
+**Does.** Runs on every run, between the specification and its approval, so the
+person approves the specification as the audit left it. The auditor checks the spec's claims against the codebase rather than
 trusting them. Hand it the user's earlier answers — `analysis/requirements.md`
 and `analysis/technical-clarifications.md` when it exists — plus the
 `prior-context --background --node=spec-audit` output for the decisions, so it
@@ -458,10 +437,28 @@ the audit report and every fix written first.
 **Without question sets** (`spec-audit-findings`): nothing is asked; a finding
 the policy does not class stays an `open` risk.
 
-**Summary.** A failing verdict does not end the run on its own: the gate's stop
-option is the route out. The `headline` gives the final verdict, how many
-findings the run fixed and what is left for planning ("The audit passes the
-spec after three fixes; one concern is left, not blocking a plan"). In
+**Writes.** The specification explainer is this step's, never the auditor's:
+once the fix pass and the amend pass for the decided findings are done, on every
+attempt and every re-run, write `implementation/spec-explainer.html` as the
+`writes an explainer` row says, when the brief's `explainer:` line names it, so
+the person reads it at `specification-approval`: one page answering "What will
+this change do, what does the audited spec commit to, and what should I check?",
+`stage: specification`, its suite label "Spec explainer". Sources:
+`implementation/spec.md`, `analysis/requirements.md`,
+`analysis/technical-clarifications.md` when it was written, and
+`verification/spec-audit.md`. It says what the audit fixed, as this step's
+`fixes_applied` records it. Its checklist names each finding still open and each
+story and assumption nobody confirmed, as the marks in those files record them;
+where they record none, it says so and guesses nothing. The suite is the
+specification's page, or its markdown when the page was not written,
+`analysis/requirements.md` and `verification/spec-audit.md`.
+
+**Summary.** A failing verdict does not end the run on its own: the
+specification approval's stop option is the route out. This entry leads that
+approval, so the `headline` names what the specification settles, then the
+audit's final verdict and what is left ("The spec adds tag filtering to list()
+and CSV export; the audit passes it after three fixes, with one concern left,
+not blocking a plan"). In
 `summary`, the verdict, the issue counts by severity, how many were fixed and
 the findings still open in plain words; when no re-audit ran, say that the
 report still lists the findings the run fixed. In `decisions`, only a point the
@@ -471,12 +468,13 @@ findings still open as that fix pass's step 6 hands them, their `change` what a 
 the specification would do. The entry carries the verdict as `verdict`.
 
 **Budget.** None: an audit that returns is an audit, whatever its verdict; a
-fix pass that fails leaves its findings open for the gate.
+fix pass that fails leaves its findings open for the specification approval.
 
 ## `planning`
 
-**Does.** The planner reads the specification and, when the audit ran, its
-findings. When a design index exists, it must enumerate every screen and
+**Does.** The planner reads the specification and the audit's findings: hand
+it `verification/spec-audit.md` when it exists (a project's overlay may disable
+the audit). When a design index exists, it must enumerate every screen and
 component in it, map each task group to the ones it implements through the
 visual-reference field, and produce `implementation/visual-coverage.md` proving
 every screen is covered by at least one group. When no design index exists,
@@ -779,10 +777,10 @@ than retried.
 
 **Does.** It always runs and ends the workflow.
 
-1. **Inventory the outputs**: the specification, the plan and the verification
-   report always; the TDD gate artifacts, the mockups and their index, the
-   audit, the browser reports and the user guide when the stretches that produce
-   them ran. Say plainly which stretches were skipped and why. Take the
+1. **Inventory the outputs**: the specification, its audit, the plan and the
+   verification report always (the audit unless a project's overlay disabled
+   it); the TDD gate artifacts, the mockups and their index, the browser reports
+   and the user guide when the stretches that produce them ran. Say plainly which stretches were skipped and why. Take the
    inventory from disk: `run-complete` names a declared artifact or page that never reached it,
    and any path a summary lists beyond the declarations is checked too (the engine's *Recording
    an outcome*).

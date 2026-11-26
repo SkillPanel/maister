@@ -60,8 +60,9 @@ Without a description, the task is taken from your conversation.
 6. Specification: requirements, then `spec.md`. It asks only the real choices still open (an
    approach, a story with two plausible behaviours, an assumption the analysis could not settle);
    every other story and assumption is written into the spec as drafted or assumed, and you review
-   them at the specification checkpoint, which lists the stories nobody confirmed
-7. Specification audit *(when you choose it at the specification checkpoint)*
+   them at the specification checkpoint after the audit, which lists the stories nobody confirmed
+7. Specification audit: an independent check of every specification against the codebase, which
+   fixes what has one obvious fix and asks you each finding that needs a decision
 8. Implementation planning: task groups, each with its tests
 9. Implementation: task groups in parallel waves (one at a time with `--sequential`)
 10. Passing test *(when the task fixes a bug)*: the failing test now passes
@@ -78,9 +79,9 @@ Without a description, the task is taken from your conversation.
 Always asked:
 
 - **Gap analysis** — continue, revise the gap analysis, or stop.
-- **Specification** — *Continue to the specification audit* or *Continue to planning, skip the
-  audit*; revise the specification; or stop. `--audit` / `--no-audit` set which continue is
-  recommended.
+- **Specification**, after its audit — continue to the implementation plan, revise the
+  specification (the audit runs again), or stop. It shows what the audit fixed, the findings still
+  open and the stories nobody confirmed.
 - **Implementation plan** — continue to the implementation, revise the plan, or stop. With
   `--publish`, continuing also approves publishing (below).
 - **Implementation** — continue or stop.
@@ -88,8 +89,7 @@ Always asked:
   stop. `--e2e` / `--no-e2e` set which continue is recommended.
 
 Asked when their step ran: **Failing test** (continue or stop), **UI mockups** (continue, revise
-the mockups, or stop), **Specification audit** (continue, revise the specification, or stop),
-**Browser checks** (continue or stop), **User documentation** (continue or stop).
+the mockups, or stop), **Browser checks** (continue or stop), **User documentation** (continue or stop).
 
 ### Building on earlier work
 
@@ -118,8 +118,9 @@ optional steps that ran (layout: [Configuration](configuration.md)). With HTML p
 explainer pages too, each one page that answers one question from several documents, every figure
 one a source states and every section linked to its evidence:
 
-- `implementation/spec-explainer.html`, written before the specification checkpoint: what the
-  change will do, what the spec commits to, and which stories and assumptions nobody confirmed.
+- `implementation/spec-explainer.html`, written once the audit is done, before the specification
+  checkpoint: what the change will do, what the audited spec commits to, what the audit fixed, and
+  which findings, stories and assumptions are still open or unconfirmed.
 - `verification/change-explainer.html`, written at finalization, when every report is in: what was
   built, whether it is safe to merge, and what is left.
 
@@ -179,7 +180,7 @@ there inform the analysis; an empty folder means static analysis alone.
 
 ### Checkpoints
 
-All always asked: **Bottleneck analysis**, **Specification**, **Specification audit** and
+All always asked: **Bottleneck analysis**, **Specification** (after its audit) and
 **Implementation plan** (each: continue, revise, or stop), then **Implementation** and
 **Verification** (continue or stop).
 

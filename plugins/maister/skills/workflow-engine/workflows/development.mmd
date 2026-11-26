@@ -1,6 +1,6 @@
 %% generated from the workflow definition — regenerate, do not edit
 %% workflow: development
-%% graph_hash: sha256:04620850b3a9445c3dc9e8607c94bd7a613dce8a24aa507e55c36cc980d0b79e
+%% graph_hash: sha256:e0219aa6c15534d7e0cb8a117943c6eec8036a5ee06d89f0b83ac5cede1056d4
 
 flowchart TD
   n_intake["Intake<br/>intake<br/>direct:intake"]
@@ -12,9 +12,8 @@ flowchart TD
   n_ui_mockups{"UI mockups<br/>ui-mockups<br/>skill:mockup-studio<br/>when: ${gap-analysis.values.mockups_needed}"}
   n_mockup_approval{{"Approve UI mockups<br/>mockup-approval<br/>gate<br/>UI mockups complete. Continue to specification?<br/>continue-to-specification: continue, revise-mockups: revise → ui-mockups, stop-development: stop<br/>when: ${gap-analysis.values.mockups_needed}"}}
   n_specification["Specification<br/>specification<br/>direct:specification"]
-  n_specification_approval{{"Approve specification<br/>specification-approval<br/>gate<br/>Specification complete. Continue?<br/>continue-to-planning: continue, continue-to-spec-audit: continue, revise-specification: revise → specification, stop-development: stop"}}
-  n_spec_audit{"Specification audit<br/>spec-audit<br/>agent:spec-auditor<br/>when: ${specification-approval.values.spec_audit_enabled}"}
-  n_spec_audit_approval{{"Approve specification audit<br/>spec-audit-approval<br/>gate<br/>Specification audit complete. Continue to implementation planning?<br/>continue-to-planning: continue, revise-specification: revise → specification, stop-development: stop<br/>when: ${specification-approval.values.spec_audit_enabled}"}}
+  n_spec_audit["Specification audit<br/>spec-audit<br/>agent:spec-auditor"]
+  n_specification_approval{{"Approve specification<br/>specification-approval<br/>gate<br/>Specification written and audited. Continue to implementation planning?<br/>continue-to-planning: continue, revise-specification: revise → specification, stop-development: stop"}}
   n_planning["Implementation planning<br/>planning<br/>agent:implementation-planner"]
   n_planning_approval{{"Approve implementation plan<br/>planning-approval<br/>gate<br/>Implementation plan complete. Continue to implementation?<br/>continue-to-implementation: continue, revise-plan: revise → planning, stop-development: stop<br/>when: !${inputs.publish}"}}
   n_planning_approval_publish{{"Approve implementation plan and publish<br/>planning-approval-publish<br/>gate<br/>Implementation plan complete. Continue to implementation, then push the branch and open a pull request?<br/>continue-to-implementation: continue, revise-plan: revise → planning, stop-development: stop<br/>when: ${inputs.publish}"}}
@@ -37,10 +36,9 @@ flowchart TD
   n_tdd_red_approval --> n_ui_mockups
   n_ui_mockups --> n_mockup_approval
   n_mockup_approval --> n_specification
-  n_specification --> n_specification_approval
-  n_specification_approval --> n_spec_audit
-  n_spec_audit --> n_spec_audit_approval
-  n_spec_audit_approval --> n_planning
+  n_specification --> n_spec_audit
+  n_spec_audit --> n_specification_approval
+  n_specification_approval --> n_planning
   n_planning --> n_planning_approval
   n_planning_approval --> n_planning_approval_publish
   n_planning_approval_publish --> n_implementation
@@ -54,5 +52,5 @@ flowchart TD
   n_e2e_approval --> n_user_docs
   n_user_docs --> n_docs_approval
   n_docs_approval --> n_finalization
-  class n_gap_approval,n_tdd_red_approval,n_mockup_approval,n_specification_approval,n_spec_audit_approval,n_planning_approval,n_planning_approval_publish,n_implementation_approval,n_verification_approval,n_e2e_approval,n_docs_approval gate
-  class n_tdd_red,n_tdd_red_approval,n_ui_mockups,n_mockup_approval,n_spec_audit,n_spec_audit_approval,n_planning_approval,n_planning_approval_publish,n_tdd_green,n_e2e_verification,n_e2e_approval,n_user_docs,n_docs_approval conditional
+  class n_gap_approval,n_tdd_red_approval,n_mockup_approval,n_specification_approval,n_planning_approval,n_planning_approval_publish,n_implementation_approval,n_verification_approval,n_e2e_approval,n_docs_approval gate
+  class n_tdd_red,n_tdd_red_approval,n_ui_mockups,n_mockup_approval,n_planning_approval,n_planning_approval_publish,n_tdd_green,n_e2e_verification,n_e2e_approval,n_user_docs,n_docs_approval conditional

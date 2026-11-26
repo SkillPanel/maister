@@ -193,11 +193,12 @@ named in the context.
 
 ## `spec-audit`
 
-**Does.** Runs on every run. Hand the auditor the
+**Does.** Runs on every run, between the specification and its approval, so
+the person approves the specification as the audit left it. Hand the auditor the
 `prior-context --background --node=spec-audit` output for the decisions, so it
 can tell a finding with one obvious fix from one that needs a decision. **The
 obvious fixes are made without asking**, as the engine's `references/in-node-questions.md` § *The specification audit's fix pass* says. A failing verdict does not end the
-run: the gate's stop option is the route out.
+run: the specification approval's stop option is the route out.
 
 **Asks.** Each finding that needs a decision after the fix pass is its own
 question (the engine's `references/in-node-questions.md` § *Findings that need a decision*): write the auditor's decision findings, as its
@@ -216,20 +217,22 @@ outcome the classing write gives it.
 the file does not exist, write that text to the path verbatim, once; never
 append to it, edit it or annotate it. Record the verdict in state.
 
-**Summary.** The `headline` — the final verdict, how many findings the run fixed
-and what it means for planning; the verdict, the counts by severity and how
+**Summary.** This entry leads the specification approval, so the `headline`
+names what the specification plans, then the audit's final verdict, how many
+findings the run fixed and what it means for planning; the verdict, the counts by severity and how
 many were fixed in `summary`; each finding the audit settled as a `by: audit`
 decision. The risks follow that fix pass, step 6.
 
 **Budget.** None — an audit that returns is an audit, whatever its verdict; a
-fix pass that fails leaves its findings open for the gate.
+fix pass that fails leaves its findings open for the specification approval.
 
 ---
 
 ## `planning`
 
 **Does.** Whatever the task's size, the planner reads the specification, the
-audit findings and the performance analysis, and sequences the optimizations so
+audit findings — hand it `verification/spec-audit.md` when it exists, since a
+project's overlay may disable the audit — and the performance analysis, and sequences the optimizations so
 that a change whose measurement depends on an earlier one lands after it.
 
 **Summary.** The `headline` — the groups, the steps and the waves they run in;

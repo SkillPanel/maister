@@ -103,7 +103,7 @@ you the checkpoint at a glance:
 You answer with one of three kinds of option:
 
 - **Continue.** Where the next step is optional, the checkpoint has one continue for each way on,
-  for example *Continue to the specification audit* and *Continue to planning, skip the audit*. The
+  for example *Continue to the browser checks* and *Continue without browser checks*. The
   recommended one gives its reason.
 - **Revise** (at some checkpoints): send the step back with a note. See
   [Sending a step back](#sending-a-step-back).
@@ -115,13 +115,14 @@ In a development run, these checkpoints are always asked:
 | Checkpoint | What you approve | Options |
 |---|---|---|
 | Gap analysis | What has to change, and the decisions it needed | Continue, revise the gap analysis, stop |
-| Specification | `implementation/spec.md` | Continue to the audit, or to planning without it; revise the specification; stop |
+| Specification | `implementation/spec.md`, after its audit fixed what it could and asked you the rest | Continue to the implementation plan, revise the specification, stop |
 | Implementation plan | `implementation/implementation-plan.md` | Continue to the implementation, revise the plan, stop |
 | Implementation | The code the task groups wrote | Continue, stop |
 | Verification | The verification report | Continue to the browser checks, or without them; stop |
 
-Steps that ran only for this task, such as the failing test of a bug fix, the UI mockups or the
-specification audit, add a checkpoint of their own.
+Steps that ran only for this task, such as the failing test of a bug fix or the UI mockups, add a
+checkpoint of their own. The specification audit has none: it runs on every specification, before
+the specification checkpoint, which shows what it fixed and what it left open.
 
 ## Answering a question
 

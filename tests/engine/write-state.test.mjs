@@ -141,7 +141,7 @@ test('banner: the freeze prints the task, its directory, the dashboard and the f
     'Show the person the lines below now, as a visible message of your own — the next thing you write, before any other call, never only in your thinking — each line copied as printed.',
     'Maister run started: Development',
     'Task: Fix the parser',
-    'Checkpoints: up to 11 where you decide',
+    'Checkpoints: up to 10 where you decide',
     `Directory: ${run.dir}`,
     `Dashboard: ${pathToFileURL(path.join(run.dir, 'dashboard.html')).href}`,
     'First phase: Intake',
@@ -164,7 +164,7 @@ test('banner: a freeze that leaves nodes out for the writer to fill prints the s
     return result.stdout.split('\n\n')[0].split('\n').filter(line => !line.startsWith('Directory: ') && !line.startsWith('Dashboard: '));
   };
   const expected = bannerOf(full, true);
-  assert.ok(expected.includes('Checkpoints: up to 11 where you decide'), expected.join('\n'));
+  assert.ok(expected.includes('Checkpoints: up to 10 where you decide'), expected.join('\n'));
   assert.ok(expected.includes('First phase: Intake'));
   assert.deepEqual(bannerOf(bare, false), expected);
   assert.equal(Object.keys(readState(bare).workflow.nodes).length, resolved.nodes.length, 'the writer filled every node');

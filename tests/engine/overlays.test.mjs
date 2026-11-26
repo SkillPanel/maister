@@ -171,7 +171,7 @@ test('before: makes the named nodes wait for an added phase, so it runs ahead of
   ]);
   const { code, report } = run('resolve', DEVELOPMENT, [overlay]);
   assert.equal(code, 0, JSON.stringify(report.errors));
-  assert.deepEqual(needsOf(report, 'planning'), ['spec-audit-approval', 'threat-model']);
+  assert.deepEqual(needsOf(report, 'planning'), ['specification-approval', 'threat-model']);
   assert.ok(positionOf(report, 'threat-model') < positionOf(report, 'planning'));
   assert.ok(positionOf(report, 'threat-model') < positionOf(report, 'implementation'));
 });
