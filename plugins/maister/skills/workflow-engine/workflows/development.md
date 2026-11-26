@@ -275,8 +275,9 @@ retry.
 
 ## `specification`
 
-**Does.** Three parts: the technical questions and the drafted stories with the
-assumptions page (Asks), then the specification itself, written every time by
+**Does.** Three parts: the technical questions, then the drafted stories and
+assumptions, of which only the open choices are asked (Asks), then the
+specification itself, written every time by
 the `maister:specification-creator` agent, handed the `with:` values, Parts A
 and B and the `prior-context --node=specification` output. The creator is this
 node's declared delegate: its call carries the model and effort the brief's
@@ -307,28 +308,47 @@ An area the architecture input already decides is not asked. Save what was
 asked to `analysis/technical-clarifications.md`, then set
 `task_context.tech_clarified` to true — also when this part was skipped.
 
+*Part B asks only real choices.* By now the person has answered the analysis's
+clarifications and approved the gap analysis, and the specification approval
+that follows shows every story and assumption. So each story and assumption is
+written down, and one is asked only when it is a choice by the fact-or-choice
+test (engine `references/in-node-questions.md`, *A fact is what no answer would
+change*): two plausible behaviours, a scope fork, a rule the task does not
+settle. In a run whose policy classes questions, the classing write still
+carries every drafted story and assumption, and the policy decides which are
+asked: this test never lowers a class.
+
 *Part B, the stories.* Each behaviour a user or a calling system triggers and
 then observes is one topic, drafted into one story by engine
 `references/in-node-questions.md` (*One topic is one drafted story*) from the
 analysis, the scope answers and the design context, under id
-`user-story-<topic>`. A story the design brief already carries
+`user-story-<topic>`. Every story is written to `analysis/requirements.md`; only
+a choice is asked. A story the design brief already carries
 (`analysis/design-context/brief.md`), or a behaviour the quick-design decision
-already settles (`analysis/design-context/decision.md`), is not asked again. A
-story whose framing depends on another's answer waits for the next page. A
-refactor, or a defect fix the failing test already pins, has no stories.
+(`analysis/design-context/decision.md`) or an earlier answer already settles,
+is never asked. A story not asked is marked drafted, not confirmed. A story
+whose framing depends on another's answer waits for the next page. A refactor,
+or a defect fix the failing test already pins, has no stories.
 
-*Part B, the assumptions tab.* Frame the specification questions as
-confirmable assumptions, the count adapted to how much the invocation already
-said: a brief description earns six to eight, a standard one four to six, a
-detailed one two or three, asked as engine `references/in-node-questions.md`
-§ *In-node questions* asks assumptions. Two are always among them: which existing components and
-patterns the change should reuse, and whether any visual assets exist that have
-not been ingested yet. A third, how users reach
-the feature and which personas it serves, only when the run drafted no story.
-The visual-assets assumption is not asked when the gap analysis recorded the
-task as not UI-heavy and intake found no design source;
-`analysis/requirements.md` then says "no visual assets: the change has no user
-interface". Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
+*Part B, the assumptions tab.* Write what the specification assumes to
+`analysis/requirements.md` as stated assumptions, the count adapted to how much
+the invocation already said: a brief description earns six to eight, a
+standard one four to six, a detailed one two or three. Among them, as the
+analysis found them: which existing components and patterns the change reuses,
+and whether visual assets exist that were not ingested; and, only when the run
+drafted no story, how users reach the feature and which personas it serves.
+Only the assumptions that are choices make the tab, asked as engine
+`references/in-node-questions.md` § *In-node questions* asks assumptions —
+reuse when two existing components could serve, visual assets when the design
+source is ambiguous. With none open, the tab is not asked. When the gap
+analysis recorded the task as not UI-heavy and intake found no design source,
+`analysis/requirements.md` says "no visual assets: the change has no user
+interface".
+
+*Part B, the marks.* `analysis/requirements.md`, and the specification after
+it, mark each story confirmed by the person or drafted, not confirmed, and each
+assumption confirmed by the person or a stated assumption rather than settled
+fact, so the specification approval shows what nobody confirmed.
 
 **With question sets** (`technical-questions`): in this node's first request,
 each architecture area its own question beside the technical ones.
@@ -338,8 +358,8 @@ each technical question and the recommended approach for each architecture area.
 A choice with no recommendation is not invented: it is written to
 `analysis/technical-clarifications.md` as open and recorded as an `open` risk.
 
-**With question sets** (`user-story`): each story is its own question in the
-same request as the technical questions. Each draft, its corrections and its
+**With question sets** (`user-story`): each story Part B asks is its own
+question in the same request as the technical questions. Each draft, its corrections and its
 alternative are in `analysis/requirements.md` before the node suspends, so the
 answer is applied from the file.
 
@@ -347,9 +367,9 @@ answer is applied from the file.
 recorded `by: default` under its own id. `analysis/requirements.md` marks it
 drafted, not confirmed, and the specification carries it that way.
 
-**With question sets** (`specification-requirements`): in the same request as
-the technical questions; going through the assumptions one by one is not
-offered.
+**With question sets** (`specification-requirements`): the open assumptions,
+in the same request as the technical questions; going through them one by one
+is not offered.
 
 **Without question sets** (`specification-requirements`): the assumptions stand
 as framed, recorded in `analysis/requirements.md` and carried into the
@@ -368,13 +388,16 @@ with 11 requirements and no breaking change"). In `summary`, the specification
 title and the scope boundaries. In `decisions`, the architecture approach the
 analysis settled without asking, `by: run`, and the decisions the architecture
 input settled for this repository, named as taken from it, `by: run`. In
-`risks`, each assumption the specification makes as `open`, its `change` what
+`risks`, each assumption nobody confirmed as `open`, its `change` what
 would change if it is wrong ("CSV cells are never quoted", change: "quote cells
-that hold a comma") — never a bare "Assumption: …"; a story taken as drafted is
-one such assumption, its `change` the correction Part B listed for it; each
-conflict with the architecture input as `open`, its `change` what would follow
-either way. The entry carries the chosen approach and its rationale as a
-decision. Every decision and risk of Parts A and B goes on this one entry.
+that hold a comma") — never a bare "Assumption: …"; each conflict with the
+architecture input as `open`, its `change` what would follow either way. Each
+story nobody confirmed — not asked, or taken as drafted — goes in `stories`,
+one line each (`<id>: <the story in a line>`), which the checkpoint lists under
+"Stories to confirm"; never in `risks` or `summary`. A story or assumption
+never asked records no decision. The entry carries the chosen approach and its
+rationale as a decision. Every decision and risk of Parts A and B goes on this
+one entry.
 
 Recommend the audit, never ask it. A set audit input's reason is "Asked for
 when the run started" or "Declined when the run started", and the gate is still
