@@ -31,6 +31,11 @@
  * - `run-context-unknown-node` — `--node` is not a node of the run's frozen
  *   graph; `held-approval`, which delegates nothing, is refused too.
  *
+ * A node that declares an explainer page (`companions.mjs`, `explainerOf`)
+ * gets an `explainer:` line under `html:` — the page's path, or `off` with the
+ * reason its step records — and the `html:` line names the style guide while
+ * the page is to be written, whether or not the node owes a companion.
+ *
  * One warning, never a refusal: `run-context-definition-unread`, when HTML
  * output is on and the definition the run froze cannot be re-read, so which
  * companions the node owes cannot be said.
@@ -47,7 +52,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 // the project root is and what the run owes; this module asks it rather than
 // keeping a second answer that could drift from the checks that hold a node to
 // the same companions.
-import { companionsOfRun, htmlOutput, isContextBlock, projectRootOf, sourcesOf } from './state.mjs';
+import { companionsOfRun, explainerState, htmlOutput, isContextBlock, projectRootOf, sourcesOf } from './state.mjs';
 import { isMarkdown, owedCompanions } from './companions.mjs';
 import { changesCodeOf } from './graph.mjs';
 import { HELD_APPROVAL } from './question-triage.mjs';
@@ -184,6 +189,11 @@ export function runContext({ state, node }) {
       }
     }
   }
+  // The explainer page the node declares, when it declares one: the page to
+  // write, or why it is not written. A page to write needs the style guide even
+  // where the node owes no companion, as a closing step's explainer does.
+  const explainer = owing === null || entry.kind === 'gate' || isDispatch(entry) ? null : explainerState(doc, runDir, node, owing.definition);
+  if (explainer !== null && !explainer.off) html = STYLE_GUIDE;
 
   const docs = docsOf(doc, root);
   const pack = path.resolve(root, GROUNDING_PACK);
@@ -192,6 +202,7 @@ export function runContext({ state, node }) {
     '',
     `task_path: ${taskPathOf(doc, runDir, root)}`,
     `html: ${html}`,
+    ...(explainer === null ? [] : [explainerLine(explainer)]),
     ...(docs.length ? ['docs (read-only):', ...docs.map(file => `- ${file}`)] : ['docs: none']),
     ...(isDirectory(pack) && (sources === null || changesCode(sources)) ? [groundingPackLine(pack)] : []),
     scratchLine(state),
@@ -199,6 +210,15 @@ export function runContext({ state, node }) {
     ...companions,
   ];
   return { ok: true, text: `${text.join('\n')}\n`, errors: [], warnings };
+}
+
+/**
+ * The `explainer:` line: the declared page, relative to the task directory, or
+ * `off` with the reason the step records under `absent`. `node-brief` prints
+ * the same line.
+ */
+export function explainerLine(explainer) {
+  return explainer.off ? `explainer: off — ${explainer.off}` : `explainer: ${explainer.path}`;
 }
 
 /** The run's sources (`sourcesOf`), or null when they, or the definition among them, cannot be read. */
