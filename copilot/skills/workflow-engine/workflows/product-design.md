@@ -560,6 +560,17 @@ adopted once `direction-approval` continued.
    agreed some, is not ready to approve.
 5. **Write the HTML page `outputs/product-brief.html` before this node completes**,
    through the companion writer when `html_output` is on; `brief-approval` reviews it.
+6. **Write the product explainer**, `outputs/product-explainer.html`, the page that
+   goes to stakeholders, as the `writes an explainer` row says, when the brief's
+   `explainer:` line names it: one page answering "What are we building, what did
+   we decide, and why?", `stage: convergence`, `decisions` the chosen approach per
+   area and the ideas deferred, as `analysis/design-decisions.md` records them.
+   Sources: `analysis/scope.md`, `analysis/design-decisions.md`, the final screens
+   — the latest version folder under `analysis/mockups/versions/`, or
+   `analysis/mockups/ascii-mockups.md` — when `screens` completed, and
+   `outputs/product-brief.md`. The suite is the run's pages: the scope, the problem,
+   the personas, the alternatives, the design decisions, the feature specification
+   when written and the brief, by their `.html` pages where written.
 
 **Writes.** `outputs/delivery-scope.yml` carries its fixed shape and no artifact summary
 block.
@@ -577,7 +588,8 @@ their own entries, so an earlier step's risk is not restated here, in its words 
 others, and one this step settles is retagged `resolved` on that step's own entry. The
 node entry adds `brief_layers`.
 
-**Re-run.** Apply the note, check the scope again and rewrite the page.
+**Re-run.** Apply the note, check the scope again and rewrite the page and the
+explainer.
 
 **Budget.** Re-assemble the brief and the scope from the documents on disk.
 

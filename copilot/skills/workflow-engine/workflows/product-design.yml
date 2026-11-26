@@ -203,6 +203,8 @@ brief:
   screens:
     budget: 2
   brief:
+    absent:
+      explainer: "HTML output is off for this run, the project's config turns this explainer off, or the explainer writer failed twice; the step's summary says which."
     budget: 1
 
 nodes:
@@ -352,6 +354,7 @@ nodes:
         brief: outputs/product-brief.md
         # Written on every path: one member for a single repository.
         delivery_scope: outputs/delivery-scope.yml
+        explainer: outputs/product-explainer.html
 
   brief-approval:
     type: gate

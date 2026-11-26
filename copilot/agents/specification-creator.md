@@ -135,8 +135,12 @@ Create `implementation/spec.md` using this template:
 [1-2 sentences — core objective]
 
 ## User Stories
-[When requirements.md has User stories: every one, by its id and whole — actor, entry point, action, resulting state change (stored and audited), what is visible afterwards — a drafted one marked drafted, never shortened or reworded]
+[When requirements.md has User stories: every one, by its id and whole — actor, entry point, action, resulting state change (stored and audited), what is visible afterwards — each marked as requirements.md settled it (confirmed by the person, or drafted, not confirmed), never shortened or reworded]
 [Otherwise: As a [user], I want to [action] so that [benefit]]
+
+## Assumptions
+[Each assumption requirements.md states, marked as it settled it (confirmed by the person, or a stated assumption rather than settled fact)]
+[Omit section entirely when none]
 
 ## Core Requirements
 [User-facing capabilities to implement — numbered list, each naming the story it serves by id where one does]
@@ -187,7 +191,7 @@ After writing spec.md, write `implementation/spec.html` — the user-facing comp
 Your companion follows the `html:` line of the run context in your prompt. With a path, read that guide and write `implementation/spec.html`. With `off`, write only the markdown and return `companion: disabled`. With no `html:` line at all, write the markdown, return `companion: not-requested` and add a warning saying the run context was missing from the prompt — never read the absence as off. A companion that fails never fails the markdown: keep the md and return `companion: failed` with the reason in warnings. `html_path` is null unless the companion is written.
 
 1. **Follow the style guide**: self-contained single file, standard CSS block, no external resources, relative links only.
-2. **Lead with** the TL;DR block and scope in/out side-by-side; then requirements table (id, requirement, priority), user-story cards, reusable-vs-new components table, visual-design references (link mockup files relatively when design-context exists), collapsed `<details>` for technical depth. Link to `spec.md` in the header.
+2. **Lead with** the TL;DR block and scope in/out side-by-side; then requirements table (id, requirement, priority), user-story cards and assumptions, each marked confirmed or drafted, reusable-vs-new components table, visual-design references (link mockup files relatively when design-context exists), collapsed `<details>` for technical depth. Link to `spec.md` in the header.
 3. **Same content as the md** — restructure and visualize, never add findings or requirements absent from spec.md.
 
 ### Phase 4: Coverage

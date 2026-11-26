@@ -179,7 +179,7 @@ html_companions:
 brief:
   research-foundation:
     absent:
-      explainer: "HTML output is off for this run, or the explainer writer failed twice; the step's summary says which."
+      explainer: "HTML output is off for this run, the project's config turns this explainer off, or the explainer writer failed twice; the step's summary says which."
       work_context: "No context pack was named, or it could not be read."
     delegates: [research-planner, information-gatherer, research-synthesizer]
     recommends:

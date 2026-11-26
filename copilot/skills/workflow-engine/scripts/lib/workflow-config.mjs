@@ -7,11 +7,19 @@
  *     development:
  *       html_companions:
  *         planning: []                     # no HTML page for the plan
+ *       explainers:
+ *         spec-audit: false                # no explainer page for the spec
  *       auto_continue: [planning-approval] # take the gate's continue
  *
  * `html_companions` has the shape and meaning of a definition's block: a
  * step's list replaces the one the definition, its overlays and the profile
  * left, and an empty list means no page. It is the last layer.
+ *
+ * `explainers` maps a step that declares an explainer page (an artifact whose
+ * path ends in `-explainer.html`, `companions.mjs`) to true or false; false
+ * turns that page off, and the step records it absent with the config's
+ * reason. Keyed by step rather than one switch per workflow, because a
+ * workflow may write two explainers for two different moments.
  *
  * `auto_continue` lists gates whose one plain continue the run takes without
  * asking, recorded `by: config`. Only a gate with exactly one continue, which
@@ -33,13 +41,13 @@ import path from 'node:path';
 
 import { parseDefinition } from './definition.mjs';
 import { foldDefinition, locateWorkflow, plainContinueOf } from './graph.mjs';
-import { isCompanionList } from './companions.mjs';
+import { EXPLAINER_SUFFIX, explainerOf, isCompanionList } from './companions.mjs';
 
 /** Where a project's config lives, relative to its root. */
 const CONFIG = path.join('.maister', 'config.yml');
 
 /** The keys one workflow's entry takes. */
-export const WORKFLOW_CONFIG_KEYS = ['html_companions', 'auto_continue'];
+export const WORKFLOW_CONFIG_KEYS = ['html_companions', 'explainers', 'auto_continue'];
 
 /**
  * The `workflows` block of a project's `config.yml`: `{file, block, errors}`,
@@ -121,6 +129,36 @@ export function judgeWorkflowConfig({ entry, name, folded, file, project }) {
         if (keys.length === 0 || listed.length) kept[id] = listed;
       }
       if (Object.keys(kept).length) config.html_companions = kept;
+    }
+  }
+
+  if (Object.hasOwn(entry, 'explainers')) {
+    const block = entry.explainers;
+    if (!isMap(block)) {
+      warn(`${at}.explainers`, `a mapping of step id to true or false is expected, not ${describe(block)}; it is ignored, and every explainer is written`);
+    } else {
+      const kept = {};
+      for (const [id, value] of Object.entries(block)) {
+        const where = `${at}.explainers.${id}`;
+        if (typeof value !== 'boolean') {
+          warn(where, `true or false is expected, not ${describe(value)}; the entry is ignored`);
+          continue;
+        }
+        if (!isMap(nodes[id])) {
+          warn(where, `${name} has no step ${id}; the entry is ignored`);
+          continue;
+        }
+        if (nodes[id].type === 'gate') {
+          warn(where, `${id} is a gate, which writes no page; the entry is ignored`);
+          continue;
+        }
+        if (explainerOf(nodes[id]) === null) {
+          warn(where, `${id} declares no explainer page (an artifact ending in ${EXPLAINER_SUFFIX}); the entry is ignored`);
+          continue;
+        }
+        kept[id] = value;
+      }
+      if (Object.keys(kept).length) config.explainers = kept;
     }
   }
 

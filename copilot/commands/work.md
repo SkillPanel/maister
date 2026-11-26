@@ -3,7 +3,7 @@ name: work
 description: Unified entry point — auto-classifies tasks and routes to appropriate workflow. ALWAYS execute when invoked via slash command.
 ---
 
-**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
+**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`, and a model printed as `session` replaced by your own model id. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.
 
 **NOTE**: This is a multi-step workflow that invokes the task-classifier subagent and orchestrator skills at specific steps. The `<command-name>` tag refers to THIS command only — you MUST still use the Skill tool to invoke those other skills when instructed below. Follow ALL steps in order.
 

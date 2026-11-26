@@ -127,9 +127,10 @@ node.
 
 ### Step 5 — explain (delegate)
 
-Runs when the `html:` line of this node's `run-context` output is a style-guide
-path. When it reads `off`, the writer is not dispatched and the page is
-recorded absent, as the Writes part below says.
+Runs when the `explainer:` line of this node's `run-context` output names the
+page. When it reads `off` — HTML output is off, or the project's config turns
+the explainer off — the writer is not dispatched and the page is recorded
+absent, as the Writes part below says.
 
 Delegate to the `maister:explainer-writer` agent through the Task tool, with the
 model and effort
@@ -178,9 +179,9 @@ back in.
 step 5 left it on disk; the report, `outputs/research-report.md`, `primary`,
 with its page; the synthesis, `analysis/synthesis.md`, `review`; the brief and
 the plan, `review`. Without the page the others keep this order, and the
-summary carries `absent: {explainer: "<reason>"}` with exactly one of two
-reasons: "HTML output is off for this run." or "The explainer writer failed
-twice: <reason>.". When step 5 dispatched the writer, the closing write lists
+summary carries `absent: {explainer: "<reason>"}` with exactly one of three
+reasons: "HTML output is off for this run.", "The project's config turns this
+explainer off." or "The explainer writer failed twice: <reason>.". When step 5 dispatched the writer, the closing write lists
 `explainer-writer` under `delegated` beside the three declared delegates.
 
 **Summary.** For example: "Adopting the adapter keeps the public API intact;
@@ -321,9 +322,9 @@ over by a state write. The chosen combination goes in this node's summary entry;
 `selected_approach` is the converged approach's identifier, not the per-area
 choices.
 
-**Once every area is recorded, refresh the explainer** when the `html:` line of
-`run-context --node=research-foundation` is a path; when it reads `off`, the
-writer is not dispatched and nothing is registered for the page. First write
+**Once every area is recorded, refresh the explainer** when the `explainer:` line
+of `run-context --node=research-foundation` names the page; when it reads `off`,
+the writer is not dispatched and nothing is registered for the page. First write
 the `decisions` text — the chosen approach per area and the deferred ideas — to
 a file in the directory
 `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs scratch-dir --for=decisions --state=<task path>/orchestrator-state.yml`
@@ -437,8 +438,8 @@ key decision, and the integration points with the existing system, if any.
 
 ### Part D — explainer (delegate)
 
-Runs when the `html:` line of `run-context --node=research-foundation` is a
-path; when it reads `off`, the writer is not dispatched and nothing is
+Runs when the `explainer:` line of `run-context --node=research-foundation`
+names the page; when it reads `off`, the writer is not dispatched and nothing is
 registered for the page. First write the `decisions` text — the convergence's
 chosen combination when it ran, read from its summary entry, this node's key
 decisions and the Part A constraints answer — to a file in the directory

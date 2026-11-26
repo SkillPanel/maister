@@ -186,11 +186,12 @@ named in the context.
 
 ## `spec-audit`
 
-**Does.** Runs on every run. Hand the auditor the
+**Does.** Runs on every run, between the specification and its approval, so
+the person approves the specification as the audit left it. Hand the auditor the
 `prior-context --background --node=spec-audit` output for the decisions, so it
 can tell a finding with one obvious fix from one that needs a decision. **The
 obvious fixes are made without asking**, as the engine's `references/in-node-questions.md` § *The specification audit's fix pass* says. A failing verdict does not end the
-run: the gate's stop option is the route out.
+run: the specification approval's stop option is the route out.
 
 **Asks.** Each finding that needs a decision after the fix pass is its own
 question (the engine's `references/in-node-questions.md` § *Findings that need a decision*): write the auditor's decision findings, as its
@@ -209,20 +210,22 @@ outcome the classing write gives it.
 the file does not exist, write that text to the path verbatim, once; never
 append to it, edit it or annotate it. Record the verdict in state.
 
-**Summary.** The `headline` — the final verdict, how many findings the run fixed
-and what it means for planning; the verdict, the counts by severity and how
+**Summary.** This entry leads the specification approval, so the `headline`
+names what the specification plans, then the audit's final verdict, how many
+findings the run fixed and what it means for planning; the verdict, the counts by severity and how
 many were fixed in `summary`; each finding the audit settled as a `by: audit`
 decision. The risks follow that fix pass, step 6.
 
 **Budget.** None — an audit that returns is an audit, whatever its verdict; a
-fix pass that fails leaves its findings open for the gate.
+fix pass that fails leaves its findings open for the specification approval.
 
 ---
 
 ## `planning`
 
 **Does.** Whatever the task's size, the planner reads the specification, the
-audit findings and the performance analysis, and sequences the optimizations so
+audit findings — hand it `verification/spec-audit.md` when it exists, since a
+project's overlay may disable the audit — and the performance analysis, and sequences the optimizations so
 that a change whose measurement depends on an earlier one lands after it.
 
 **Summary.** The `headline` — the groups, the steps and the waves they run in;
@@ -363,17 +366,27 @@ proceed.
 
 ## `finalization`
 
-**Does.** Writes no files of its own beyond the roadmap ticks and the run's
-candidates file, and always runs.
+**Does.** Writes no files of its own beyond the explainer, the roadmap ticks and
+the run's candidates file, and always runs.
 
 1. **Inventory the outputs**: the performance analysis, the requirements, the
    specification, the audit, the plan, the work log and the verification report.
    Nothing in this workflow is conditional, so an absent one is a defect to name.
    `run-complete` checks the declared ones on disk (the engine's *Recording an
    outcome*); check by hand only a path a summary lists beyond them.
-2. **Present the executive summary**: which bottlenecks were found, which
-   optimizations landed, the verification verdict with any issues left open, and
-   whether the ranking rested on profiling data or on static analysis alone.
+2. **Write the performance explainer, then present the executive summary.** The
+   explainer is `verification/performance-explainer.html`, written as the
+   `writes an explainer` row says when the brief's `explainer:` line names it:
+   one page answering "What was slow, what changed, and how much faster is it?",
+   `stage: wrap-up`. Sources: the performance analysis, the plan, the
+   verification report with the measurements it records, and
+   `analysis/user-profiling-data/` when it holds files. Every figure is one those
+   sources measured or state, never a gain worked out from two of them. The suite
+   is the run's pages: the specification, the plan and the verification report,
+   by their `.html` pages where written. The executive summary: which
+   bottlenecks were found, which optimizations landed, the verification verdict
+   with any issues left open, and whether the ranking rested on profiling data
+   or on static analysis alone; the explainer, when written, is named first.
 3. **Tick the roadmap** when the project keeps one at
    `.maister/docs/project/roadmap.md`: mark done the items this run completed,
    matched against the specification, and say which, or that none matched. A

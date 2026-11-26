@@ -157,7 +157,8 @@ so every workflow states it the same way and an overlay can change one item:
 brief:
   specification:
     absent: {technical_clarifications: "Written only when clarifications were needed."}
-    recommends: {audit_flag: {"yes": continue-to-spec-audit, "no": continue-to-planning}}
+  verification:
+    recommends: {browser_tests_flag: {"yes": continue-to-browser-checks, "no": continue-past-verification}}
 ```
 
 Keys are node ids; each entry holds any of these keys:

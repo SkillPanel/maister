@@ -275,8 +275,9 @@ retry.
 
 ## `specification`
 
-**Does.** Three parts: the technical questions and the drafted stories with the
-assumptions page (Asks), then the specification itself, written every time by
+**Does.** Three parts: the technical questions, then the drafted stories and
+assumptions, of which only the open choices are asked (Asks), then the
+specification itself, written every time by
 the `maister:specification-creator` agent, handed the `with:` values, Parts A
 and B and the `prior-context --node=specification` output. The creator is this
 node's declared delegate: its call carries the model and effort the brief's
@@ -307,28 +308,47 @@ An area the architecture input already decides is not asked. Save what was
 asked to `analysis/technical-clarifications.md`, then set
 `task_context.tech_clarified` to true — also when this part was skipped.
 
+*Part B asks only real choices.* By now the person has answered the analysis's
+clarifications and approved the gap analysis, and the specification approval
+that follows shows every story and assumption. So each story and assumption is
+written down, and one is asked only when it is a choice by the fact-or-choice
+test (engine `references/in-node-questions.md`, *A fact is what no answer would
+change*): two plausible behaviours, a scope fork, a rule the task does not
+settle. In a run whose policy classes questions, the classing write still
+carries every drafted story and assumption, and the policy decides which are
+asked: this test never lowers a class.
+
 *Part B, the stories.* Each behaviour a user or a calling system triggers and
 then observes is one topic, drafted into one story by engine
 `references/in-node-questions.md` (*One topic is one drafted story*) from the
 analysis, the scope answers and the design context, under id
-`user-story-<topic>`. A story the design brief already carries
+`user-story-<topic>`. Every story is written to `analysis/requirements.md`; only
+a choice is asked. A story the design brief already carries
 (`analysis/design-context/brief.md`), or a behaviour the quick-design decision
-already settles (`analysis/design-context/decision.md`), is not asked again. A
-story whose framing depends on another's answer waits for the next page. A
-refactor, or a defect fix the failing test already pins, has no stories.
+(`analysis/design-context/decision.md`) or an earlier answer already settles,
+is never asked. A story not asked is marked drafted, not confirmed. A story
+whose framing depends on another's answer waits for the next page. A refactor,
+or a defect fix the failing test already pins, has no stories.
 
-*Part B, the assumptions tab.* Frame the specification questions as
-confirmable assumptions, the count adapted to how much the invocation already
-said: a brief description earns six to eight, a standard one four to six, a
-detailed one two or three, asked as engine `references/in-node-questions.md`
-§ *In-node questions* asks assumptions. Two are always among them: which existing components and
-patterns the change should reuse, and whether any visual assets exist that have
-not been ingested yet. A third, how users reach
-the feature and which personas it serves, only when the run drafted no story.
-The visual-assets assumption is not asked when the gap analysis recorded the
-task as not UI-heavy and intake found no design source;
-`analysis/requirements.md` then says "no visual assets: the change has no user
-interface". Before treating an answer as settled, apply the fact-or-choice test (engine `references/in-node-questions.md`, *A fact is what no answer would change*).
+*Part B, the assumptions tab.* Write what the specification assumes to
+`analysis/requirements.md` as stated assumptions, the count adapted to how much
+the invocation already said: a brief description earns six to eight, a
+standard one four to six, a detailed one two or three. Among them, as the
+analysis found them: which existing components and patterns the change reuses,
+and whether visual assets exist that were not ingested; and, only when the run
+drafted no story, how users reach the feature and which personas it serves.
+Only the assumptions that are choices make the tab, asked as engine
+`references/in-node-questions.md` § *In-node questions* asks assumptions —
+reuse when two existing components could serve, visual assets when the design
+source is ambiguous. With none open, the tab is not asked. When the gap
+analysis recorded the task as not UI-heavy and intake found no design source,
+`analysis/requirements.md` says "no visual assets: the change has no user
+interface".
+
+*Part B, the marks.* `analysis/requirements.md`, and the specification after
+it, mark each story confirmed by the person or drafted, not confirmed, and each
+assumption confirmed by the person or a stated assumption rather than settled
+fact, so the specification approval shows what nobody confirmed.
 
 **With question sets** (`technical-questions`): in this node's first request,
 each architecture area its own question beside the technical ones.
@@ -338,8 +358,8 @@ each technical question and the recommended approach for each architecture area.
 A choice with no recommendation is not invented: it is written to
 `analysis/technical-clarifications.md` as open and recorded as an `open` risk.
 
-**With question sets** (`user-story`): each story is its own question in the
-same request as the technical questions. Each draft, its corrections and its
+**With question sets** (`user-story`): each story Part B asks is its own
+question in the same request as the technical questions. Each draft, its corrections and its
 alternative are in `analysis/requirements.md` before the node suspends, so the
 answer is applied from the file.
 
@@ -347,9 +367,9 @@ answer is applied from the file.
 recorded `by: default` under its own id. `analysis/requirements.md` marks it
 drafted, not confirmed, and the specification carries it that way.
 
-**With question sets** (`specification-requirements`): in the same request as
-the technical questions; going through the assumptions one by one is not
-offered.
+**With question sets** (`specification-requirements`): the open assumptions,
+in the same request as the technical questions; going through them one by one
+is not offered.
 
 **Without question sets** (`specification-requirements`): the assumptions stand
 as framed, recorded in `analysis/requirements.md` and carried into the
@@ -368,34 +388,29 @@ with 11 requirements and no breaking change"). In `summary`, the specification
 title and the scope boundaries. In `decisions`, the architecture approach the
 analysis settled without asking, `by: run`, and the decisions the architecture
 input settled for this repository, named as taken from it, `by: run`. In
-`risks`, each assumption the specification makes as `open`, its `change` what
+`risks`, each assumption nobody confirmed as `open`, its `change` what
 would change if it is wrong ("CSV cells are never quoted", change: "quote cells
-that hold a comma") — never a bare "Assumption: …"; a story taken as drafted is
-one such assumption, its `change` the correction Part B listed for it; each
-conflict with the architecture input as `open`, its `change` what would follow
-either way. The entry carries the chosen approach and its rationale as a
-decision. Every decision and risk of Parts A and B goes on this one entry.
-
-Recommend the audit, never ask it. A set audit input's reason is "Asked for
-when the run started" or "Declined when the run started", and the gate is still
-asked. Unset, recommend `continue-to-spec-audit`, reason "Cheaper than finding
-the same gaps during implementation", or a reason in this change's own terms.
-Recommend `continue-to-planning` only when this specification has nothing an
-audit would check, and say why ("A one-line configuration change with no open
-assumption").
+that hold a comma") — never a bare "Assumption: …"; each conflict with the
+architecture input as `open`, its `change` what would follow either way. Each
+story nobody confirmed — not asked, or taken as drafted — goes in `stories`,
+one line each (`<id>: <the story in a line>`), which the checkpoint lists under
+"Stories to confirm"; never in `risks` or `summary`. A story or assumption
+never asked records no decision. The entry carries the chosen approach and its
+rationale as a decision. Every decision and risk of Parts A and B goes on this
+one entry. The audit runs next, on every run, and the specification approval
+after it shows this entry beside the audit's.
 
 **Re-run.** Record what changed in `analysis/technical-clarifications.md` or
-`analysis/requirements.md`. When the audit already ran, recommend it again only
-when the revision changed what it checked, and say so; when the note asks for or
-against the audit, recommend what it says. Hand the creator the audit's findings still open — never the ones
-its fix pass applied.
+`analysis/requirements.md`. Hand the creator the audit's findings still open —
+never the ones its fix pass applied. The audit runs again after the re-run.
 
 **Budget.** Regenerate the specification on the second attempt with the gaps
 named in the context.
 
 ## `spec-audit`
 
-**Does.** The auditor checks the spec's claims against the codebase rather than
+**Does.** Runs on every run, between the specification and its approval, so the
+person approves the specification as the audit left it. The auditor checks the spec's claims against the codebase rather than
 trusting them. Hand it the user's earlier answers — `analysis/requirements.md`
 and `analysis/technical-clarifications.md` when it exists — plus the
 `prior-context --background --node=spec-audit` output for the decisions, so it
@@ -422,10 +437,28 @@ the audit report and every fix written first.
 **Without question sets** (`spec-audit-findings`): nothing is asked; a finding
 the policy does not class stays an `open` risk.
 
-**Summary.** A failing verdict does not end the run on its own: the gate's stop
-option is the route out. The `headline` gives the final verdict, how many
-findings the run fixed and what is left for planning ("The audit passes the
-spec after three fixes; one concern is left, not blocking a plan"). In
+**Writes.** The specification explainer is this step's, never the auditor's:
+once the fix pass and the amend pass for the decided findings are done, on every
+attempt and every re-run, write `implementation/spec-explainer.html` as the
+`writes an explainer` row says, when the brief's `explainer:` line names it, so
+the person reads it at `specification-approval`: one page answering "What will
+this change do, what does the audited spec commit to, and what should I check?",
+`stage: specification`, its suite label "Spec explainer". Sources:
+`implementation/spec.md`, `analysis/requirements.md`,
+`analysis/technical-clarifications.md` when it was written, and
+`verification/spec-audit.md`. It says what the audit fixed, as this step's
+`fixes_applied` records it. Its checklist names each finding still open and each
+story and assumption nobody confirmed, as the marks in those files record them;
+where they record none, it says so and guesses nothing. The suite is the
+specification's page, or its markdown when the page was not written,
+`analysis/requirements.md` and `verification/spec-audit.md`.
+
+**Summary.** A failing verdict does not end the run on its own: the
+specification approval's stop option is the route out. This entry leads that
+approval, so the `headline` names what the specification settles, then the
+audit's final verdict and what is left ("The spec adds tag filtering to list()
+and CSV export; the audit passes it after three fixes, with one concern left,
+not blocking a plan"). In
 `summary`, the verdict, the issue counts by severity, how many were fixed and
 the findings still open in plain words; when no re-audit ran, say that the
 report still lists the findings the run fixed. In `decisions`, only a point the
@@ -435,12 +468,13 @@ findings still open as that fix pass's step 6 hands them, their `change` what a 
 the specification would do. The entry carries the verdict as `verdict`.
 
 **Budget.** None: an audit that returns is an audit, whatever its verdict; a
-fix pass that fails leaves its findings open for the gate.
+fix pass that fails leaves its findings open for the specification approval.
 
 ## `planning`
 
-**Does.** The planner reads the specification and, when the audit ran, its
-findings. When a design index exists, it must enumerate every screen and
+**Does.** The planner reads the specification and the audit's findings: hand
+it `verification/spec-audit.md` when it exists (a project's overlay may disable
+the audit). When a design index exists, it must enumerate every screen and
 component in it, map each task group to the ones it implements through the
 visual-reference field, and produce `implementation/visual-coverage.md` proving
 every screen is covered by at least one group. When no design index exists,
@@ -743,16 +777,30 @@ than retried.
 
 **Does.** It always runs and ends the workflow.
 
-1. **Inventory the outputs**: the specification, the plan and the verification
-   report always; the TDD gate artifacts, the mockups and their index, the
-   audit, the browser reports and the user guide when the stretches that produce
-   them ran. Say plainly which stretches were skipped and why. Take the
+1. **Inventory the outputs**: the specification, its audit, the plan and the
+   verification report always (the audit unless a project's overlay disabled
+   it); the TDD gate artifacts, the mockups and their index, the browser reports
+   and the user guide when the stretches that produce them ran. Say plainly which stretches were skipped and why. Take the
    inventory from disk: `run-complete` names a declared artifact or page that never reached it,
    and any path a summary lists beyond the declarations is checked too (the engine's *Recording
    an outcome*).
-2. **Present the executive summary**: what was built, which task groups landed,
-   the verification verdict with any issues left open, and the risk level the
-   gap analysis recorded.
+2. **Write the change explainer, then present the executive summary.** The
+   explainer is `verification/change-explainer.html`, written as the
+   `writes an explainer` row says when the brief's `explainer:` line names it:
+   one page answering "What was built, is it safe to merge, and what's left?",
+   `stage: wrap-up`. Sources: the specification, the plan, the work log, the
+   verification report, the three review reports in `verification/`
+   (`spec-conformance-review.md`, `code-risk-review.md`, `simplicity-review.md`,
+   each with its latest re-check when one exists), and the browser check reports
+   when they are on disk. The suite is the run's pages: the specification, the
+   plan, the verification report and the browser checks, by their `.html` pages
+   where written. It is written here, not before the verification approval,
+   because only here is every source on disk — the browser checks and the user
+   guide come after that gate — and the merge decision it serves is made once
+   the run ends. The executive summary: what was built, which task groups
+   landed, the verification verdict with any issues left open, and the risk
+   level the gap analysis recorded; the explainer, when written, is named first
+   as the one page to read before merging.
 3. **Tick the roadmap** when the project keeps one at
    `.maister/docs/project/roadmap.md`: mark done the items this run completed,
    matched against the specification, and say which, or that none matched. A
