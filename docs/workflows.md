@@ -114,7 +114,16 @@ instructions such as `Implement only phase 1`.
 ### What it leaves behind
 
 The specification, the plan, the work log and the verification report, plus the reports of the
-optional steps that ran (layout: [Configuration](configuration.md)). The run does not commit. It
+optional steps that ran (layout: [Configuration](configuration.md)). With HTML pages on, two
+explainer pages too, each one page that answers one question from several documents, every figure
+one a source states and every section linked to its evidence:
+
+- `implementation/spec-explainer.html`, written before the specification checkpoint: what the
+  change will do, what the spec commits to, and which stories and assumptions nobody confirmed.
+- `verification/change-explainer.html`, written at finalization, when every report is in: what was
+  built, whether it is safe to merge, and what is left.
+
+The run does not commit. It
 writes the commit message to `commit-message.txt` in the task directory and names the next steps:
 commit, review the diff, open a pull request, deploy.
 
@@ -175,7 +184,9 @@ All always asked: **Bottleneck analysis**, **Specification**, **Specification au
 **Verification** (continue or stop).
 
 It leaves the bottleneck analysis, the specification, the plan, the work log, the verification
-report and `standard-candidates.json`.
+report and `standard-candidates.json`. With HTML pages on, finalization also writes
+`verification/performance-explainer.html`: one page on what was slow, what changed and how much
+faster it is, every figure one the analysis or the verification measured or states.
 
 ---
 
@@ -315,7 +326,8 @@ screens. The mockups follow `mockup_format` in `.maister/config.yml`: HTML by de
 
 `outputs/product-brief.md`, which ends with a delivery scope (what changes and in what order, and
 anything left out with the reason), also written as `outputs/delivery-scope.yml`. Approving the brief
-approves the scope. The final screens replace the sketches in `analysis/mockups/`, and every version
+approves the scope. With HTML pages on, `outputs/product-explainer.html` beside it is the page for
+stakeholders: what is being built, what was decided and why, on one page linked to its evidence. The final screens replace the sketches in `analysis/mockups/`, and every version
 stays under `analysis/mockups/versions/`. Pass the task directory to development:
 
 ```

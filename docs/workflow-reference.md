@@ -141,7 +141,7 @@ Artifact paths are relative to the run's task directory.
 | `gap-analysis` | `gap`: `analysis/gap-analysis.md`<br>`scope`: `analysis/scope-clarifications.md` | `has_reproducible_defect` (bool)<br>`mockups_needed` (bool)<br>`risk_level` (one of high, medium, low) |
 | `tdd-red` | `red_gate`: `implementation/tdd-red-gate.md` |  |
 | `ui-mockups` | `index`: `analysis/design-context/INDEX.md`<br>`mockups`: `analysis/design-context` |  |
-| `specification` | `requirements`: `analysis/requirements.md`<br>`spec`: `implementation/spec.md`<br>`technical_clarifications`: `analysis/technical-clarifications.md` |  |
+| `specification` | `explainer`: `implementation/spec-explainer.html`<br>`requirements`: `analysis/requirements.md`<br>`spec`: `implementation/spec.md`<br>`technical_clarifications`: `analysis/technical-clarifications.md` |  |
 | `spec-audit` | `audit`: `verification/spec-audit.md` |  |
 | `planning` | `plan`: `implementation/implementation-plan.md`<br>`visual_coverage`: `implementation/visual-coverage.md` |  |
 | `implementation` | `work_log`: `implementation/work-log.md` |  |
@@ -150,6 +150,7 @@ Artifact paths are relative to the run's task directory.
 | `verification` | `report`: `verification/implementation-verification.md` |  |
 | `e2e-verification` | `e2e`: `verification/e2e-verification-report.md`<br>`fidelity`: `verification/visual-fidelity.md` |  |
 | `user-docs` | `guide`: `documentation/user-guide.md` |  |
+| `finalization` | `explainer`: `verification/change-explainer.html` |  |
 
 ## research
 
@@ -322,6 +323,7 @@ Artifact paths are relative to the run's task directory.
 | `planning` | `plan`: `implementation/implementation-plan.md` |  |
 | `implementation` | `work_log`: `implementation/work-log.md` |  |
 | `verification` | `report`: `verification/implementation-verification.md` |  |
+| `finalization` | `explainer`: `verification/performance-explainer.html` |  |
 
 ## migration
 
@@ -477,7 +479,7 @@ Artifact paths are relative to the run's task directory.
 | `convergence` | `decisions`: `analysis/design-decisions.md` |  |
 | `specification` | `spec`: `analysis/feature-spec.md` |  |
 | `screens` | `mockups`: `analysis/mockups` |  |
-| `brief` | `brief`: `outputs/product-brief.md`<br>`delivery_scope`: `outputs/delivery-scope.yml` |  |
+| `brief` | `brief`: `outputs/product-brief.md`<br>`delivery_scope`: `outputs/delivery-scope.yml`<br>`explainer`: `outputs/product-explainer.html` |  |
 
 ### What a run hands back
 

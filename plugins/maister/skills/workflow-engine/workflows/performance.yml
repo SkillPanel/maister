@@ -136,6 +136,9 @@ brief:
     budget: 5
   verification:
     budget: 3
+  finalization:
+    absent:
+      explainer: "HTML output is off for this run, the project's config turns this explainer off, or the explainer writer failed twice; the step's summary says which."
 
 nodes:
   intake:
@@ -297,3 +300,6 @@ nodes:
       performance_analysis: "${bottleneck-analysis.artifacts.performance_analysis}"
       report: "${verification.artifacts.report}"
       work_log: "${implementation.artifacts.work_log}"
+    outputs:
+      artifacts:
+        explainer: verification/performance-explainer.html

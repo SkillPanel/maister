@@ -25,6 +25,10 @@
  *   and under it the lines that call's prompt carries — the style guide's
  *   absolute path once and each owed page's markdown by its absolute path. A
  *   writer dispatched without them went looking for its style guide on disk.
+ * - A step that declares an explainer page gets the `explainer:` line
+ *   `run-context` prints — the page, or `off` with the reason to record — and,
+ *   for a page to write, the explainer writer's call and the check script, and
+ *   the `writes an explainer` row.
  * - The `direct:` row only when the step owes a page or has no section — run
  *   inline from the section is what `runs:` and the section already say.
  * - `every step` only when the step declares an artifact or a value.
@@ -158,10 +162,10 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { BUILT_IN_AGENTS, guardReadsTask, guideRows, nodeKindIn, plainContinueOf, proseSection, readerRows, sectionNameOf } from './graph.mjs';
 import { driftClause, atClose, closingCandidates, evaluate, gateBrief, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
-import { attemptOf, companionsOfRun, htmlOutput, projectRootOf, sourcesOf, startBanner, workflowConfigOf, writeState } from './state.mjs';
+import { attemptOf, companionsOfRun, explainerState, htmlOutput, projectRootOf, sourcesOf, startBanner, workflowConfigOf, writeState } from './state.mjs';
 import { autoContinued, configContinueLine } from './workflow-config.mjs';
 import { owedCompanions } from './companions.mjs';
-import { STYLE_GUIDE } from './run-context.mjs';
+import { STYLE_GUIDE, explainerLine } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
@@ -580,6 +584,8 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   const { lines: writes, pages } = writeLines(node, resolved, entry, brief, context, sources);
   if (writes.length) lines.push('writes:', ...writes);
   if (pages.length) lines.push(...companionLines(node, context.doc, pages));
+  const explainer = dispatched ? null : explainerState(context.doc, context.runDir, node, { nodes: { [node]: resolved } });
+  if (explainer !== null) lines.push(...explainerLines(node, context.doc, explainer));
 
   const values = isPlainObject(resolved.outputs?.values) ? resolved.outputs.values : {};
   if (Object.keys(values).length) {
@@ -589,6 +595,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   const keys = [];
   if (known && (scheme !== 'direct' || section === null || pages.length)) keys.push(known.row);
   if (writes.length || Object.keys(values).length) keys.push('every step');
+  if (explainer !== null) keys.push(EXPLAINER_ROW);
 
   const asks = askLines(origin, resolved, context, node);
   if (asks.length) {
@@ -716,6 +723,30 @@ function companionLines(node, doc, pages) {
 
 /** The agent that writes an owed page a step did not write itself. */
 const COMPANION_WRITER = 'html-companion-writer';
+
+/**
+ * The lines for the explainer page a step declares: the `explainer:` line
+ * `run-context` prints too — the page, or `off` with the reason to record —
+ * and, for a page to write, the explainer writer's call with its model and
+ * effort and the check script the step runs on the page. Printed beside the
+ * step's other pages, because which explainer is off, and why, is the run's
+ * answer and not the prose's.
+ */
+function explainerLines(node, doc, explainer) {
+  if (explainer.off) return [explainerLine(explainer)];
+  return [
+    explainerLine(explainer),
+    `explainer writer: ${dispatchName(EXPLAINER_WRITER)}, ${modelText(EXPLAINER_WRITER, node, doc)} — the call that writes the page, as the \`${EXPLAINER_ROW}\` row says; its prompt carries the step's run-context and this check script as check_script`,
+    `- check_script: ${CHECK_EXPLAINER}`,
+  ];
+}
+
+/** The agent that writes an explainer page, and the row that says how a step runs it. */
+const EXPLAINER_WRITER = 'explainer-writer';
+const EXPLAINER_ROW = 'writes an explainer';
+
+/** The explainer check, beside the style guide in the orchestrator framework. */
+const CHECK_EXPLAINER = fileURLToPath(new URL('../../../orchestrator-framework/scripts/check-explainer.mjs', import.meta.url));
 
 /**
  * The `delegates:` line: the agents a `direct:` step's brief declares, each

@@ -79,7 +79,7 @@ test('research declares the explainer first on the foundation and in the workflo
 test('the foundation brief records the explainer absence in one fixed line', () => {
   const absent = research().brief['research-foundation'].absent;
   assert.equal(absent.explainer,
-    'HTML output is off for this run, or the explainer writer failed twice; the step\'s summary says which.');
+    'HTML output is off for this run, the project\'s config turns this explainer off, or the explainer writer failed twice; the step\'s summary says which.');
 });
 
 test('companions and delegates are unchanged and the later nodes declare no explainer', () => {
@@ -208,15 +208,21 @@ test('the other research hero entries keep their order and every other workflow 
     '{ match: "outputs/decision-log.md", label: "Decision Log" }',
   ]);
   const verification = '{ match: "verification/implementation-verification.md", label: "Verification", verdictFallback: true }';
-  const implementation = [
-    '{ match: "implementation/spec.md", label: "Specification" }',
-    '{ match: "implementation/implementation-plan.md", label: "Implementation Plan" }',
+  const spec = '{ match: "implementation/spec.md", label: "Specification" }';
+  const plan = '{ match: "implementation/implementation-plan.md", label: "Implementation Plan" }';
+  // Development, performance and product design lead with their own explainers
+  // (explainers.test.mjs); migration has none.
+  assert.deepEqual(heroLines(html, 'development'), [
+    '{ match: "verification/change-explainer.html", label: "Explainer" }',
+    spec,
+    '{ match: "implementation/spec-explainer.html", label: "Spec Explainer" }',
+    plan,
     verification,
-  ];
-  assert.deepEqual(heroLines(html, 'development'), implementation);
-  assert.deepEqual(heroLines(html, 'performance'), implementation);
-  assert.deepEqual(heroLines(html, 'migration'), implementation);
+  ]);
+  assert.deepEqual(heroLines(html, 'performance'), ['{ match: "verification/performance-explainer.html", label: "Explainer" }', spec, plan, verification]);
+  assert.deepEqual(heroLines(html, 'migration'), [spec, plan, verification]);
   assert.deepEqual(heroLines(html, 'product-design'), [
+    '{ match: "outputs/product-explainer.html", label: "Explainer" }',
     '{ match: "outputs/product-brief.md", label: "Product Brief" }',
     '{ match: "analysis/feature-spec.md", label: "Feature Spec" }',
     '{ match: "analysis/design-decisions.md", label: "Design Decisions" }',

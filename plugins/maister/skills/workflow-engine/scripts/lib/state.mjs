@@ -96,7 +96,7 @@ import * as dashboard from './dashboard.mjs';
 // make a workspace eject invisible to the projection and decisive at run time.
 import { KNOWN_VERSION, parseDefinition, readDefinition } from './definition.mjs';
 import { BUILT_IN_AGENTS, MORE_DETAILS_ID, TARGET_NAME, TARGET_REF, foldDefinition, guardOperands, guardReadsTask, locateWorkflow, nodeKindIn, plainContinueOf, resolve as resolveGraph, skipGuardAsks } from './graph.mjs';
-import { companionsOf, owedCompanions } from './companions.mjs';
+import { companionsOf, explainerOf, explainerOff, owedCompanions } from './companions.mjs';
 import { placedArtifacts, whereOf } from './artifact-paths.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { displayOf, humanize, labelOf, titleOf } from './display.mjs';
@@ -1108,7 +1108,8 @@ export function companionsOfRun(doc, runDir, read = undefined, { withConfig = tr
  * review there.
  */
 export function companionsOffOf(doc, runDir) {
-  if (!isPlainObject(workflowConfigOf(doc)?.html_companions)) return [];
+  const config = workflowConfigOf(doc);
+  if (!isPlainObject(config?.html_companions) && !isPlainObject(config?.explainers)) return [];
   let sources;
   try {
     sources = sourcesOf(isPlainObject(doc.workflow) ? doc.workflow : {}, runDir);
@@ -1118,13 +1119,44 @@ export function companionsOffOf(doc, runDir) {
   const kept = companionsOfRun(doc, runDir, sources);
   const owed = companionsOfRun(doc, runDir, sources, { withConfig: false });
   if (kept === null || owed === null) return [];
-  const ids = isPlainObject(owed.definition?.nodes) ? Object.keys(owed.definition.nodes) : [];
+  const nodes = isPlainObject(owed.definition?.nodes) ? owed.definition.nodes : {};
   const off = [];
-  for (const id of ids) {
+  for (const id of Object.keys(nodes)) {
     const still = new Set(owedCompanions(kept, id).map(each => each.md));
     for (const { md } of owedCompanions(owed, id)) if (!still.has(md) && !off.includes(md)) off.push(md);
+    // An explainer page the config turned off is a key page not meant for
+    // review either: its declared path joins the list, so its card goes too.
+    const explainer = explainerOf(nodes[id]);
+    if (explainer !== null && explainerOff(config, id) && !off.includes(explainer.path)) off.push(explainer.path);
   }
   return off;
+}
+
+/** The reasons an explainer page is not written, each the sentence the step records under `absent`. */
+export const EXPLAINER_OFF = Object.freeze({
+  html: 'HTML output is off for this run.',
+  config: "The project's config turns this explainer off.",
+});
+
+/**
+ * The explainer page `node` declares, as the step that writes it reads it:
+ * `{key, path}` with the page's declared path, relative to the task directory,
+ * when it is to be written, and `{key, path, off}` with `off` the reason to
+ * record when it is not — the run's
+ * `html_output` is off, or the project's config turned it off — and null when
+ * the node declares none, is a gate or a dispatch, or the definition cannot be
+ * read. `definition` is the folded document the run executes, when the caller
+ * has already read it.
+ */
+export function explainerState(doc, runDir, node, definition = undefined) {
+  const folded = definition !== undefined ? definition : definitionOf(doc, runDir);
+  const declared = isPlainObject(folded?.nodes) && isPlainObject(folded.nodes[node]) ? folded.nodes[node] : null;
+  if (declared === null || declared.type === 'gate' || (typeof declared.dir === 'string' && declared.dir !== '')) return null;
+  const explainer = explainerOf(declared);
+  if (explainer === null) return null;
+  if (!htmlOutput(doc)) return { ...explainer, off: EXPLAINER_OFF.html };
+  if (explainerOff(workflowConfigOf(doc), node)) return { ...explainer, off: EXPLAINER_OFF.config };
+  return explainer;
 }
 
 /**

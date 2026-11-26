@@ -127,6 +127,37 @@ export function isMarkdown(value) {
   return typeof value === 'string' && value.endsWith('.md') && value.length > '.md'.length && !value.includes('${');
 }
 
+/** The file-name ending that marks a declared artifact as the node's explainer page. */
+export const EXPLAINER_SUFFIX = '-explainer.html';
+
+/**
+ * The explainer page a node declares: `{key, path}` for the first declared
+ * artifact whose literal path ends in `-explainer.html`, or null. An explainer
+ * is one designed page built from several documents (the HTML style guide's
+ * *Explainer page*), and the guide names it `<subject>-explainer.html`; that
+ * name is what marks it, so a definition declares one as it declares any other
+ * artifact, and a project's own workflow gets the same handling by naming its
+ * page the same way. `node` is a node of the folded definition.
+ */
+export function explainerOf(node) {
+  const artifacts = isMap(node) && isMap(node.outputs) && isMap(node.outputs.artifacts) ? node.outputs.artifacts : {};
+  for (const [key, value] of Object.entries(artifacts)) {
+    if (typeof value === 'string' && value.endsWith(EXPLAINER_SUFFIX) && value.length > EXPLAINER_SUFFIX.length && !value.includes('${')) {
+      return { key, path: value };
+    }
+  }
+  return null;
+}
+
+/**
+ * Whether the project's config, as a run recorded it (`workflow-config.mjs`),
+ * turns off the explainer of `nodeId`: only a literal `false` does.
+ */
+export function explainerOff(config, nodeId) {
+  const block = isMap(config) && isMap(config.explainers) ? config.explainers : null;
+  return block !== null && Object.hasOwn(block, nodeId) && block[nodeId] === false;
+}
+
 function docOf(source) {
   if (!isMap(source)) return null;
   return isMap(source.doc) ? source.doc : Object.hasOwn(source, 'doc') ? null : source;

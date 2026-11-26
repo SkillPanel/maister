@@ -205,11 +205,11 @@ const WORKFLOWS = path.join(ENGINE_DIR, 'workflows');
 // first nodes take, and research's again when its outputs gained the explainer
 // page.
 const BASELINE_HASHES = {
-  development: 'sha256:70d3e772419b0fc36af0a4971ec8eefef6319a37e3355abab4e3d5d69f5b660b',
+  development: 'sha256:04620850b3a9445c3dc9e8607c94bd7a613dce8a24aa507e55c36cc980d0b79e',
   research: 'sha256:6d352a1b4abd26a4b844c31bfdfb744c9f3bc7ecdd3510d545e7a34480fa9bc6',
-  performance: 'sha256:183605fc3986554aedd5cf5b92ce001ef65302858909b2984d96d0b8fbbcce62',
+  performance: 'sha256:57a66b20b3ed01a3d22a0a2ddd1d6816356af682bc338f4a2a67db392f4b24e6',
   migration: 'sha256:04f475d1cb380017e6a30a1038448b5af8fb5ecb874ce98b5e67ed5d4ebc1546',
-  'product-design': 'sha256:3df73263e2843e68dbb621dbe6a9c0204cc93d526c580570d069a4b6b2261ade',
+  'product-design': 'sha256:8636c7ae25a08e83388772286b7b2fca0f10fb4180db57ee4e45912e61dd2131',
 };
 
 const BUILT_IN_COMPANIONS = {

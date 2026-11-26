@@ -293,6 +293,19 @@ the specification as an open risk.
 **Write the chosen approach to `task_context.architecture_decision`**, where
 later nodes read it.
 
+**Write the specification explainer** once the specification and its page are
+written, on every attempt and every re-run:
+`implementation/spec-explainer.html`, as the `writes an explainer` row says, when
+the brief's `explainer:` line names it, so the person reads it at
+`specification-approval`: one page answering "What will this change do, what does
+the spec commit to, and what should I check?", `stage: specification`, its suite
+label "Spec explainer". Sources: `implementation/spec.md`,
+`analysis/requirements.md` and `analysis/technical-clarifications.md` when it was
+written. Its checklist names each story and assumption nobody confirmed, as the
+marks in those files record it; where they record none, it says so and guesses
+nothing. The suite is the specification's page, or its markdown when the page
+was not written, and `analysis/requirements.md`.
+
 **Asks.** *Part A, technical and architecture clarification — conditional.*
 Skip it entirely for a simple, low-risk task with one obvious approach.
 
@@ -773,9 +786,23 @@ than retried.
    inventory from disk: `run-complete` names a declared artifact or page that never reached it,
    and any path a summary lists beyond the declarations is checked too (the engine's *Recording
    an outcome*).
-2. **Present the executive summary**: what was built, which task groups landed,
-   the verification verdict with any issues left open, and the risk level the
-   gap analysis recorded.
+2. **Write the change explainer, then present the executive summary.** The
+   explainer is `verification/change-explainer.html`, written as the
+   `writes an explainer` row says when the brief's `explainer:` line names it:
+   one page answering "What was built, is it safe to merge, and what's left?",
+   `stage: wrap-up`. Sources: the specification, the plan, the work log, the
+   verification report, the three review reports in `verification/`
+   (`spec-conformance-review.md`, `code-risk-review.md`, `simplicity-review.md`,
+   each with its latest re-check when one exists), and the browser check reports
+   when they are on disk. The suite is the run's pages: the specification, the
+   plan, the verification report and the browser checks, by their `.html` pages
+   where written. It is written here, not before the verification approval,
+   because only here is every source on disk — the browser checks and the user
+   guide come after that gate — and the merge decision it serves is made once
+   the run ends. The executive summary: what was built, which task groups
+   landed, the verification verdict with any issues left open, and the risk
+   level the gap analysis recorded; the explainer, when written, is named first
+   as the one page to read before merging.
 3. **Tick the roadmap** when the project keeps one at
    `.maister/docs/project/roadmap.md`: mark done the items this run completed,
    matched against the specification, and say which, or that none matched. A

@@ -159,7 +159,7 @@ test('validate (--check) reports each bad entry with its file and dotted key, an
   const at = '.maister/config.yml';
   assert.deepEqual(report.warnings.filter(each => each.startsWith('workflows-config:')), [
     `workflows-config:${at}:workflows.nonesuch-workflow — no workflow named nonesuch-workflow; the entry is ignored`,
-    `workflows-config:${at}:workflows.config-workflow.approve — not a key here, so it is ignored; the accepted keys are html_companions, auto_continue`,
+    `workflows-config:${at}:workflows.config-workflow.approve — not a key here, so it is ignored; the accepted keys are html_companions, explainers, auto_continue`,
     `workflows-config:${at}:workflows.config-workflow.html_companions.plan — a list of the step's artifact keys, none twice, is expected, not a list; the entry is ignored`,
     `workflows-config:${at}:workflows.config-workflow.html_companions.ghost — config-workflow has no step ghost; the entry is ignored`,
     `workflows-config:${at}:workflows.config-workflow.auto_continue.0 — plan-approval-publish's continue grants push, pr-create; the project's config never grants a permission, so the gate is asked as usual`,

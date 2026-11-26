@@ -97,7 +97,7 @@ test('the gate-rule sentence occurs exactly once', () => {
 // Tests for the rows of the node conventions table go here.
 //
 // `references/node-conventions.md` under `# Node conventions` holds every node's default behaviour, once: one
-// `| Applies to | Convention |` table whose first cell is one of ten fixed
+// `| Applies to | Convention |` table whose first cell is one of eleven fixed
 // keys, by which a reader selects the rows that apply to a node. A missing key
 // fails. The table is no home for the gate rule: it carries neither the
 // sentence nor its tail.
@@ -113,6 +113,7 @@ const CONVENTION_KEYS = [
   'every step',
   'asks',
   'feeds a checkpoint',
+  'writes an explainer',
   'named by a revise',
   'has a budget',
 ];
@@ -162,7 +163,7 @@ test('the conventions table holds each of the ten keys as a first cell, once', (
   for (const key of CONVENTION_KEYS) {
     assert.equal(keys.filter(found => found === key).length, 1, `the table has one row for ${key}`);
   }
-  assert.deepEqual([...keys].sort(), [...CONVENTION_KEYS].sort(), 'no row outside the ten keys');
+  assert.deepEqual([...keys].sort(), [...CONVENTION_KEYS].sort(), 'no row outside the eleven keys');
 });
 
 test('every convention row says something', () => {
