@@ -126,19 +126,25 @@ requirements Part A wrote, `analysis/requirements.md`, and the migration facts
 in state — `migration_context.current_system`, `target_system`, `risk_level`
 and `breaking_changes` — which the specification names, never rediscovers.
 
-**Asks.** Frame three to five confirmable assumptions from the gap analysis —
+**Asks.** Frame three to five assumptions from the gap analysis —
 *"I assume X"* — covering the scope and its boundaries, the rollback
 expectations and downtime tolerance, and the existing code or configuration to
 preserve; the data specifics only when the gap analysis classified the
 migration as `data`, the dual-run requirements only when it recommended
-dual-run. Ask them as one question listing each assumption on its own line with
-what it rests on, offering **"Accept all N as stated (Recommended)"** first —
-each follows from the approved gap analysis — then "Go through them one by
-one", one tab each, and More details. Save the round to
-`analysis/requirements.md`.
+dual-run. Write every one to `analysis/requirements.md` as a stated
+assumption; ask only those that are choices by the fact-or-choice test (engine
+`references/in-node-questions.md`, *A fact is what no answer would change*) —
+the approved gap analysis already settles the rest. Ask them as one question
+listing each open assumption on its own line with what it rests on, offering
+**"Accept all N as stated (Recommended)"** first, then "Go through them one by
+one", one tab each, and More details. With none open, nothing is asked. In a
+run whose policy classes questions, the classing write still carries every
+assumption, and the policy decides. `analysis/requirements.md`, and the
+specification after it, mark each assumption confirmed by the person or a
+stated assumption rather than settled fact.
 
-**With question sets** (`specification-requirements`): asked through the
-cockpit, in this node's first request; "Go through them one by one" would need a
+**With question sets** (`specification-requirements`): the open assumptions,
+asked through the cockpit, in this node's first request; "Go through them one by one" would need a
 round per assumption, so it is not offered.
 
 **Without question sets** (`specification-requirements`): the

@@ -57,7 +57,10 @@ Without a description, the task is taken from your conversation.
 3. Gap analysis: what has to change, and the decisions it needs
 4. Failing test *(when the task fixes a bug)*: a test that shows the bug, written first
 5. UI mockups *(when the change is UI-heavy)*
-6. Specification: requirements, then `spec.md`
+6. Specification: requirements, then `spec.md`. It asks only the real choices still open (an
+   approach, a story with two plausible behaviours, an assumption the analysis could not settle);
+   every other story and assumption is written into the spec as drafted or assumed, and you review
+   them at the specification checkpoint, which lists the stories nobody confirmed
 7. Specification audit *(when you choose it at the specification checkpoint)*
 8. Implementation planning: task groups, each with its tests
 9. Implementation: task groups in parallel waves (one at a time with `--sequential`)
@@ -192,7 +195,8 @@ The migration type (`code`, `data`, `architecture` or `general`) sets the risk f
 1. Intake
 2. Current state analysis
 3. Gap analysis: the target state, and the strategy it recommends (incremental, big-bang or dual-run)
-4. Specification, with the rollback plan beside it
+4. Specification, with the rollback plan beside it. It asks only the assumptions that are real
+   choices; the rest are written into the spec as stated assumptions, for the specification checkpoint
 5. Migration planning: each task group leaves the system in a state the rollback plan can still undo
 6. Migration execution
 7. Verification, with compatibility tests and, for a data migration, data integrity checks

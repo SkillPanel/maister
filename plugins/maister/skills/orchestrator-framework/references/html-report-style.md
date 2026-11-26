@@ -127,7 +127,7 @@ details > summary { cursor:pointer; font-weight:600; }
 
 | Companion | Lead with | Visual elements |
 |-----------|-----------|-----------------|
-| `spec.html` | TL;DR + scope in/out side-by-side | Requirements table (id, requirement, priority), user-story cards, visual-design references with mockup thumbnails when present, collapsed `<details>` for technical depth |
+| `spec.html` | TL;DR + scope in/out side-by-side | Requirements table (id, requirement, priority), user-story cards and assumptions, each marked confirmed or drafted, visual-design references with mockup thumbnails when present, collapsed `<details>` for technical depth |
 | `implementation-plan.html` | Group count, dependency overview | Task-group cards with dependency arrows (inline SVG or arrow glyphs), per-group checklists, files-to-modify as `<code>` chips, wave/parallelism hints |
 | `implementation-verification.html` | Verdict banner (pass / pass-with-issues / fail) | Findings table sorted critical→info with `.sev` badges, per-check section status, fixes-applied list with ✓ |
 | `e2e-verification-report.html` | Pass/fail scenario counts | Scenario cards with embedded screenshots (`img.shot`, relative paths), step status lists |
