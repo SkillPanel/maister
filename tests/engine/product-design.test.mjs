@@ -60,6 +60,9 @@ function replayRecorded(t, absent = null, { inputs = {}, unrun = [] } = {}) {
   }
   const summaries = JSON.parse(JSON.stringify(recorded.node_summaries));
   for (const id of unrun) delete summaries[id];
+  // The recorded run predates the product explainer: its brief records the
+  // page absent, with a reason its brief: block sanctions.
+  if (summaries.brief) summaries.brief.absent = { ...summaries.brief.absent, explainer: 'HTML output is off for this run.' };
   if (absent !== null) {
     for (const [id, entries] of Object.entries(absent)) {
       if (entries === null) delete summaries[id].absent;
@@ -530,7 +533,7 @@ test('guards: draws false skips the sketches and the screens, and the run comple
     'analysis/scope.md', 'analysis/explore/project.md', 'analysis/problem-statement.md', 'analysis/personas.md',
     'analysis/alternatives.md', 'analysis/alternatives.html', 'analysis/decision-areas.json',
     'analysis/design-decisions.md', 'analysis/design-decisions.html',
-    'outputs/product-brief.md', 'outputs/product-brief.html', 'outputs/delivery-scope.yml',
+    'outputs/product-brief.md', 'outputs/product-brief.html', 'outputs/delivery-scope.yml', 'outputs/product-explainer.html',
   ]) {
     const at = path.join(run.dir, file);
     fs.mkdirSync(path.dirname(at), { recursive: true });

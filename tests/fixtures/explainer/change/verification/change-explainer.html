@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tag filter change explainer</title>
+<style>
+  :root { --bg: #f6f7f9; --fg: #1a1d23; --accent: #4f46e5; --card: #fff; --line: #e2e5ea; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111318; --fg: #e5e7eb; --accent: #818cf8; --card: #1b1e25; --line: #2b2f38; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 32px; }
+  .big { font-size: 56px; font-weight: 700; color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+  a.evidence { font-size: 12.5px; color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+<nav class="crumbs"><a href="../dashboard.html">&larr; Dashboard</a><span class="here">Explainer</span><a href="implementation-verification.html">Verification</a><a class="md" href="implementation-verification.md">verification md &#8599;</a></nav>
+
+<header>
+  <h1>The tag filter and CSV export are built and passed verification with two warnings left</h1>
+  <div class="big">412 tests</div><p>ran and 412 passed.</p>
+  <div class="tiles"><span>7 issues found</span> <span>5 fixed</span> <span>2 remain</span> <span>11 requirements</span></div>
+  <a class="evidence" href="implementation-verification.html#verdict">Evidence: verification &sect; Verdict &rarr;</a>
+</header>
+
+<section>
+  <h2>What was built</h2>
+  <p>A tag filter on the task list and a CSV export of the filtered list, with no breaking change.</p>
+  <a class="evidence" href="../implementation/spec.md#summary">Evidence: spec &sect; Summary &rarr;</a>
+</section>
+
+<section>
+  <h2>What is left</h2>
+  <div class="card"><b>Open</b> CSV cells holding a comma are not quoted.</div>
+  <div class="card"><b>Open</b> The tag menu has no empty state.</div>
+  <a class="evidence" href="implementation-verification.html#issues-left-open">Evidence: verification &sect; Issues left open &rarr;</a>
+</section>
+</main>
+</body>
+</html>

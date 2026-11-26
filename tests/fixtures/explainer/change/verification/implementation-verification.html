@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Implementation verification</title>
+<style>
+  :root { --bg: #f6f7f9; --fg: #1a1d23; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111318; --fg: #e5e7eb; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<nav class="crumbs"><a href="../dashboard.html">&larr; Dashboard</a><a href="change-explainer.html">Explainer</a><span class="here">Verification</span><a class="md" href="implementation-verification.md">md twin &#8599;</a></nav>
+<h1 id="implementation-verification">Implementation verification</h1>
+<h2 id="verdict">Verdict</h2>
+<p>Passed with issues. The suite ran 412 tests and 412 passed. Of 7 issues found, 5 were fixed and 2 remain, both warnings.</p>
+<h2 id="issues-left-open">Issues left open</h2>
+<ul><li>CSV cells holding a comma are not quoted (warning).</li><li>The tag menu has no empty state (warning).</li></ul>
+</body>
+</html>

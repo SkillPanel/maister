@@ -84,7 +84,7 @@ test('run-context: the exact block, HTML on, for a node owing two companions', t
 test('run-context: a node owing nothing, and a gate, print html off and no companions', t => {
   const run = scratch(t);
   freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
-  for (const node of ['finalization', 'gap-approval']) {
+  for (const node of ['verification-options', 'gap-approval']) {
     const result = runContext(run, node);
     assert.equal(result.code, 0, result.stderr);
     // No task_path recorded: the run directory itself. Neither declares a
@@ -220,17 +220,17 @@ test('run-context: a project with a grounding pack gets one line after the docs,
   const pack = path.join(docs, 'design-context');
 
   // No pack: no line, as every exact block above shows.
-  assert.doesNotMatch(runContext(run, 'finalization').stdout, /grounding pack/);
+  assert.doesNotMatch(runContext(run, 'verification-options').stdout, /grounding pack/);
 
   // A file of that name is not a pack.
   fs.mkdirSync(docs, { recursive: true });
   fs.writeFileSync(pack, 'not a folder\n');
-  assert.doesNotMatch(runContext(run, 'finalization').stdout, /grounding pack/);
+  assert.doesNotMatch(runContext(run, 'verification-options').stdout, /grounding pack/);
   fs.rmSync(pack);
 
   fs.mkdirSync(pack);
   fs.writeFileSync(path.join(docs, 'INDEX.md'), '# Index\n');
-  const result = runContext(run, 'finalization');
+  const result = runContext(run, 'verification-options');
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, block({ taskPath: run.dir, html: 'off', docs: [path.join(docs, 'INDEX.md')], pack, contract: false }));
   const line = result.stdout.split('\n').find(each => each.startsWith('grounding pack'));

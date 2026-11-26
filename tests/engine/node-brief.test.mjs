@@ -142,7 +142,7 @@ test('node-brief: a step of a fresh development run — the lines that always pr
   assert.ok(!again.includes(row('named by a revise')), 'a retry is no revise');
   assert.ok(again.includes('convention (named by a revise): see rules'));
 
-  // A direct step that owes no page, keeps its section, declares no output, asks nothing and feeds no checkpoint: its header is its facts and the pointer.
+  // A direct step that owes no companion, keeps its section, asks nothing and feeds no checkpoint, and declares only its explainer page: its header is its facts, the page with its writer, and the pointer.
   const finalization = nodeBrief(dev.state, 'finalization').stdout;
   const finalHeader = finalization.slice(0, finalization.indexOf('\n\n')).split('\n');
   assert.deepEqual(finalHeader.filter(line => !line.startsWith('- ')), [
@@ -150,7 +150,12 @@ test('node-brief: a step of a fresh development run — the lines that always pr
     '## Node: finalization — Finalization',
     'runs: direct:finalization — inline',
     'with:',
-    closing('finalization'),
+    'writes:',
+    'explainer: verification/change-explainer.html',
+    'explainer writer: maister:explainer-writer, model omit, effort omit (source: shipped default) — the call that writes the page, as the `writes an explainer` row says; its prompt carries the step\'s run-context and this check script as check_script',
+    row('every step'),
+    row('writes an explainer'),
+    closing('finalization', undefined, ', "absent": {"explainer": "<reason, only when not written>"}'),
     RULES,
   ]);
 

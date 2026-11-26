@@ -92,7 +92,7 @@ test('the explainer-writer adds its crumb to the suite pages after its page is w
   assert.ok(write >= 0, 'the workflow has a step that writes the page');
   assert.ok(link > write, 'the crumb step comes after the page is written');
   const step = workflow.slice(link).split(/^\d+\. \*\*/m)[1] ?? '';
-  assert.ok(step.includes('`<a href="<file name>">Explainer</a>`'), 'the step names the crumb link it inserts');
+  assert.ok(step.includes('`<a href="<file name>"><this page\'s label></a>`'), 'the step names the crumb link it inserts, labelled as the page is in the suite');
   assert.match(step, /`report_suite`/, 'the crumb goes into the report_suite pages');
   assert.match(step, /directly after the Dashboard link/, 'the crumb sits after the Dashboard link');
   assert.match(step, /first in the bar/, 'the crumb opens a bar with no Dashboard link');

@@ -141,6 +141,8 @@ test('work reference: the context pack is the only thing that moved product desi
   delete doc.nodes.intake.outputs.artifacts.work_context;
   delete doc.brief.intake.absent.work_context;
   for (const node of READERS) delete doc.nodes[node].with.work_context;
+  // The product explainer came later, and moved the graph on its own.
+  delete doc.nodes.brief.outputs.artifacts.explainer;
   const result = resolve({ definition });
   assert.equal(result.ok, true, JSON.stringify(result.errors));
   assert.equal(result.graph_hash, 'sha256:dcd41a6601fe2810194304cf2182a34cab7cacaa27b4c2c86b2b06afda75ee5b');

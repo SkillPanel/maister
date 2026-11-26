@@ -703,7 +703,7 @@ function replayRecorded(t, absent = {}) {
   return run;
 }
 
-test('recorded run: as it closed, five conditional artifacts read as missing', t => {
+test('recorded run: as it closed, five conditional artifacts and the two explainers it predates read as missing', t => {
   const result = complete(replayRecorded(t));
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stdout, [
@@ -711,7 +711,9 @@ test('recorded run: as it closed, five conditional artifacts read as missing', t
     'missing-artifact: intake analysis/design-context/INDEX.md',
     'missing-artifact: intake analysis/research-context',
     'missing-artifact: intake analysis/work-context',
+    'missing-artifact: specification implementation/spec-explainer.html',
     'missing-artifact: planning implementation/visual-coverage.md',
+    'missing-artifact: finalization verification/change-explainer.html',
     'RUN-COMPLETE',
     '',
   ].join('\n'));
@@ -726,6 +728,8 @@ test('recorded run: with the absences its nodes sanction recorded, it ends on RU
       work_context: 'no context pack was passed in',
     },
     planning: { visual_coverage: 'no design index exists, so there is nothing to cover' },
+    specification: { explainer: 'HTML output is off for this run.' },
+    finalization: { explainer: 'HTML output is off for this run.' },
   });
   const result = complete(run);
   assert.equal(result.code, 0, result.stderr);

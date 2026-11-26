@@ -46,11 +46,11 @@ const labels = text => [...text.matchAll(/<div class="h-label">([^<]*)<\/div>/g)
 test('hero row: a key document whose page the config turned off loses its card; the data without the key draws every card', () => {
   const render = heroes();
   const task = { type: 'development' };
-  assert.deepEqual(labels(render({ task, verification: {} }, PHASES)), ['Specification', 'Implementation Plan', 'Verification']);
+  assert.deepEqual(labels(render({ task, verification: {} }, PHASES)), ['Explainer', 'Specification', 'Spec Explainer', 'Implementation Plan', 'Verification']);
   const off = render({ task, verification: {}, companions_off: ['implementation/implementation-plan.md'] }, PHASES);
-  assert.deepEqual(labels(off), ['Specification', 'Verification']);
+  assert.deepEqual(labels(off), ['Explainer', 'Specification', 'Spec Explainer', 'Verification']);
   // Every card turned off draws no row at all.
-  const none = render({ task, verification: {}, companions_off: ['implementation/spec.md', 'implementation/implementation-plan.md', 'verification/implementation-verification.md'] }, PHASES);
+  const none = render({ task, verification: {}, companions_off: ['verification/change-explainer.html', 'implementation/spec.md', 'implementation/spec-explainer.html', 'implementation/implementation-plan.md', 'verification/implementation-verification.md'] }, PHASES);
   assert.equal(none, '');
 });
 
