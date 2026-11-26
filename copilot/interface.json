@@ -291,6 +291,7 @@
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
           "state-freeze-unproven",
+          "state-gate-config-continued",
           "state-gate-option-unknown",
           "state-gate-pending-form",
           "state-gate-values-sent",
@@ -338,6 +339,7 @@
           "state"
         ],
         "refusals": [
+          "gate-brief-already-answered",
           "gate-brief-no-graph",
           "gate-brief-no-summary",
           "gate-brief-not-a-gate",
@@ -363,6 +365,7 @@
           "state"
         ],
         "refusals": [
+          "gate-brief-already-answered",
           "gate-brief-no-graph",
           "gate-brief-no-summary",
           "gate-brief-not-a-gate",
@@ -411,6 +414,7 @@
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
           "state-freeze-unproven",
+          "state-gate-config-continued",
           "state-gate-option-unknown",
           "state-gate-pending-form",
           "state-gate-values-sent",
@@ -475,6 +479,7 @@
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
           "state-freeze-unproven",
+          "state-gate-config-continued",
           "state-gate-option-unknown",
           "state-gate-pending-form",
           "state-gate-values-sent",
@@ -574,6 +579,7 @@
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
           "state-freeze-unproven",
+          "state-gate-config-continued",
           "state-gate-option-unknown",
           "state-gate-pending-form",
           "state-gate-values-sent",
@@ -632,6 +638,7 @@
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
           "state-freeze-unproven",
+          "state-gate-config-continued",
           "state-gate-option-unknown",
           "state-gate-pending-form",
           "state-gate-values-sent",
@@ -882,6 +889,7 @@
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
           "state-freeze-unproven",
+          "state-gate-config-continued",
           "state-gate-option-unknown",
           "state-gate-pending-form",
           "state-gate-values-sent",
@@ -943,6 +951,7 @@
           "state-freeze-name-mismatch",
           "state-freeze-nodes-mismatch",
           "state-freeze-unproven",
+          "state-gate-config-continued",
           "state-gate-option-unknown",
           "state-gate-pending-form",
           "state-gate-values-sent",
@@ -1270,7 +1279,7 @@
     },
     "modules": []
   },
-  "interface_version": "2.12",
+  "interface_version": "2.13",
   "mcp": {
     "servers": [],
     "tools": [

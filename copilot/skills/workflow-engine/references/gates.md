@@ -384,6 +384,10 @@ recommends a revise or a stop, a step it closes recorded a stop risk, or a choic
 approval: config never stands for a person. A gate its guard skips keeps the usual skip.
 Only the engine records `by: config`; the writer refuses it anywhere else
 (`state-config-decision-invalid`).
+Once the gate is continued, `gate-brief` and `gate-request` refuse it in every form,
+`gate-brief-already-answered`, with the line and the node due next — as they refuse any gate
+already answered — and the writer refuses a decision or a status change over the config's
+(`state-gate-config-continued`): show the line and go on.
 
 ## Driver-suspended mode — the write order
 
