@@ -84,7 +84,10 @@ function closeSpecification(run, { stories = STORIES, decisions = [] } = {}) {
         summary: 'Specification: Tag the notes. In scope: tagging and filtering; out of scope: tag renaming.',
         stories,
         decisions,
-        absent: { technical_clarifications: 'One obvious approach, so Part A asked nothing.' },
+        absent: {
+          technical_clarifications: 'One obvious approach, so Part A asked nothing.',
+          explainer: 'HTML output is off for this run.',
+        },
         risks: [{ risk: 'Tags are stored lowercase', tag: 'open', change: 'Keep the case the owner typed' }],
         recommends: { option: 'continue-to-planning', reason: 'A small change with one open assumption the checkpoint shows' },
         artifacts: [{ path: 'implementation/spec.md', html: 'implementation/spec.html', role: 'primary' }],
