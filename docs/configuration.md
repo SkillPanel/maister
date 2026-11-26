@@ -95,19 +95,21 @@ them runs.
 
 | Workflow | Folders and main files |
 |---|---|
-| development | `analysis/`: codebase analysis, clarifications, gap analysis, requirements; `research-context/`, `design-context/`, `architecture-context/` and `work-context/` when you pass a research task, a design, an architecture or a context pack; the UI mockups in `design-context/`. `implementation/`: `spec.md`, `implementation-plan.md`, `work-log.md`, the failing-test and passing-test records for a bug fix. `verification/`: the specification audit, `implementation-verification.md`, the browser check reports and `screenshots/`. `documentation/`: `user-guide.md` and its `screenshots/`. At the root: `commit-message.txt` and `standard-candidates.json`. |
-| performance | `analysis/`: codebase analysis, `performance-analysis.md`, requirements, `user-profiling-data/` for files you add. `implementation/`: spec, plan, work log. `verification/`: the specification audit and `implementation-verification.md`. At the root: `standard-candidates.json`. |
+| development | `analysis/`: codebase analysis, clarifications, gap analysis, requirements; `research-context/`, `design-context/`, `architecture-context/` and `work-context/` when you pass a research task, a design, an architecture or a context pack; the UI mockups in `design-context/`. `implementation/`: `spec.md`, `spec-explainer.html` (with `html_output` on), `implementation-plan.md`, `work-log.md`, the failing-test and passing-test records for a bug fix. `verification/`: the specification audit, `implementation-verification.md`, the review reports, the browser check reports and `screenshots/`, and `change-explainer.html` (with `html_output` on). `documentation/`: `user-guide.md` and its `screenshots/`. At the root: `commit-message.txt` and `standard-candidates.json`. |
+| performance | `analysis/`: codebase analysis, `performance-analysis.md`, requirements, `user-profiling-data/` for files you add. `implementation/`: spec, plan, work log. `verification/`: the specification audit, `implementation-verification.md` and `performance-explainer.html` (with `html_output` on). At the root: `standard-candidates.json`. |
 | migration | `analysis/`: current state, target state plan, requirements, `rollback-plan.md`. `implementation/`: spec, plan, work log. `verification/`: `implementation-verification.md`, `compatibility-test-results.md`. `documentation/migration-guide.md` with `--user-docs`. At the root: `standard-candidates.json`. |
 | research | `planning/`: research brief, plan, sources. `analysis/`: `findings/`, `synthesis.md`, `work-context/` when you pass a context pack. `outputs/`: `research-report.md`, `research-explainer.html` (with `html_output` on), and with brainstorming or a design `solution-exploration.md`, `high-level-design.md`, `decision-log.md`. |
-| product-design | `context/research-context/` when you name a research task. `analysis/`: `scope.md`, `explore/`, problem statement, personas, alternatives, design decisions, the feature specification when you ask for one, `work-context/` when you pass a context pack, and `mockups/` with every version under `mockups/versions/`. `outputs/`: `product-brief.md` and `delivery-scope.yml`. |
+| product-design | `context/research-context/` when you name a research task. `analysis/`: `scope.md`, `explore/`, problem statement, personas, alternatives, design decisions, the feature specification when you ask for one, `work-context/` when you pass a context pack, and `mockups/` with every version under `mockups/versions/`. `outputs/`: `product-brief.md`, `delivery-scope.yml` and `product-explainer.html` (with `html_output` on). |
 | mockup-studio | The run's state and `turn-result.json`; the mockups under `analysis/mockups/versions/vNNN/`, or under the folder you name. See [Mockups](mockups.md). |
 
 With `html_output` on, the main documents also get an `.html` page beside the `.md`, for reading:
 the specification, the plan and the verification report in development, performance and
 migration, and the browser check reports in development; the research report, the research explainer, the solution
 exploration, the design and the decision log in research; the alternatives, the design decisions,
-the specification and the brief in product design. The `workflows` key can turn any of these off
-for one workflow; see the next section.
+the specification and the brief in product design. Some steps also write an explainer, one page
+that answers one question from several documents: the research explainer, the specification and
+change explainers in development, the performance explainer, and the product explainer in product
+design. The `workflows` key can turn any of these off for one workflow; see the next section.
 
 ## Turning off a workflow's pages and approvals
 
@@ -119,6 +121,8 @@ workflows:
   development:
     html_companions:
       planning: []                     # no HTML page for the implementation plan
+    explainers:
+      specification: false             # no specification explainer
     auto_continue: [planning-approval] # take the gate's continue option without asking
 ```
 
@@ -127,6 +131,13 @@ workflows:
   workflow's own, and an empty list means no page. Its document stays a Markdown file, and no
   page is written for it, which saves the run the work of writing one. The step and document
   names of each built-in workflow are in the [Built-in workflow reference](workflow-reference.md).
+- **`explainers`** turns an explainer page off for one step: the step's name, then `false`. The
+  run skips that page and lists it as not produced, with the reason, and the other explainers stay
+  on. `true`, the default, keeps a page on. Keyed by step because one workflow can write two
+  explainers for two different moments: development writes one at `specification` and one at
+  `finalization`, performance at `finalization`, product design at `brief`, research at
+  `research-foundation`. A step that writes no explainer, a gate, or a value other than `true` or
+  `false` is a warning, and the entry is ignored.
 - **`auto_continue`** lists approvals (gates) the run takes without asking. At a listed gate the
   run takes its continue option, records it as decided by the project's config (`by: config`), and
   goes on.
@@ -153,16 +164,17 @@ The project's config never stands in for you on any of those. Two more things st
 
 **What you see.** In the session, one line instead of the question, for example "Implementation
 plan approved by the project's config". On the dashboard, the same line on that gate's phase, with
-a *Project config* tag on the decision. A key document whose page is turned off is dropped from
-the cards at the top of the dashboard, since it isn't meant for review there; it is still listed
-under its phase.
+a *Project config* tag on the decision. A key document whose page is turned off, or an explainer
+turned off, is dropped from the cards at the top of the dashboard, since it isn't meant for review
+there; a document is still listed under its phase.
 
 **Under every driver.** A run driven from another tool takes a listed gate the same way, and
 records it the same way, as a decision by the project's config.
 
 **When it takes effect.** A run reads the block when it starts and keeps it, so an edit applies to
 the next run, never to one under way or one you resume. A bad entry, such as an unknown workflow,
-step or gate, or a gate that grants something, is a warning naming the file and the key. The entry
+step or gate, a gate that grants something, or an explainer entry for a step that writes none, is
+a warning naming the file and the key. The entry
 is ignored, and the run still starts. `/maister:run <workflow> --check` and
 `/maister:workflow-author check` show the warnings without starting anything.
 
