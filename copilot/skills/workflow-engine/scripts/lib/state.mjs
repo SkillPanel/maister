@@ -399,6 +399,20 @@ const MIDNIGHT = /^\d{4}-\d{2}-\d{2}T00:00:00Z$/;
 const BLOCK_KEY = /^[A-Za-z0-9._-]+$/;
 
 /**
+ * The positions that hold a person's own words: the task's title, description
+ * and key, and every value under `orchestrator.options.inputs` — the task text,
+ * a research question, a note, whatever a workflow declares a person types.
+ * They are written as given, quotes, backslashes, brackets and line breaks
+ * included, through the emitter's person-text mode (`canonical.scalar`), and
+ * never refused: a refusal there is what pushes a session to reword the
+ * person's text to get past it. Only the shared reader reads these positions,
+ * and it decodes the JSON spelling that mode uses back byte for byte. Every
+ * other position keeps the strict emitter.
+ */
+const TASK_TEXT = new Set(['title', 'description', 'key']);
+const PERSON_TEXT = Object.freeze({ text: true });
+
+/**
  * The nested mappings under `orchestrator:` that merge key by key instead of
  * replacing whole, and the reason each one is on the list rather than an
  * accident of shape.
@@ -1689,7 +1703,8 @@ function applyScalars(doc, section, values, changed) {
       mergeMap(doc, section, key, value, changed);
       continue;
     }
-    doc.set([section, key], [`  ${key}: ${flow(value, `${section}.${key}`)}`]);
+    const options = section === 'task' && TASK_TEXT.has(key) ? PERSON_TEXT : undefined;
+    doc.set([section, key], [`  ${key}: ${flow(value, `${section}.${key}`, options)}`]);
     changed.push(`${section}.${key}`);
   }
 }
@@ -1861,7 +1876,10 @@ function mergeMap(doc, section, key, value, changed) {
 
   const existing = found ? splitFlowMap(found.inline, where) : { entries: [], trailing: '' };
   const merged = new Map(existing ? existing.entries : []);
-  for (const [name, item] of entries) merged.set(name, flow(item, `${where}.${name}`));
+  for (const [name, item] of entries) {
+    const options = where === 'orchestrator.options' && name === 'inputs' ? PERSON_TEXT : undefined;
+    merged.set(name, flow(item, `${where}.${name}`, options));
+  }
   const parts = [...merged].map(([name, raw]) => `${name}: ${raw}`);
   doc.set([section, key], [`  ${key}: {${parts.join(', ')}}${existing ? existing.trailing : ''}`]);
   if (!entries.length) changed.push(where);
@@ -3400,7 +3418,7 @@ function seedTaskKey(doc, graph, changed) {
   const inputs = isPlainObject(state.orchestrator?.options?.inputs) ? state.orchestrator.options.inputs : {};
   const value = inputs[name];
   if ((typeof value !== 'string' || value.trim() === '') && typeof value !== 'number') return false;
-  doc.set(['task', 'key'], [`  key: ${flow(String(value).trim(), 'task.key')}`]);
+  doc.set(['task', 'key'], [`  key: ${flow(String(value).trim(), 'task.key', PERSON_TEXT)}`]);
   changed.push('task.key');
   return true;
 }
@@ -6403,9 +6421,9 @@ function blockScalar(value) {
   if (typeof value === 'boolean') return String(value);
   if (typeof value === 'number') return String(value);
   const text = String(value);
-  const risky = text === '' || /[:#"'\n\r\t]/.test(text) || /^[-?,[\]{}&*!|>%@`]/.test(text)
+  const risky = text === '' || /[:#"'\n\r\t\u2028\u2029]/.test(text) || /^[-?,[\]{}&*!|>%@`]/.test(text)
     || text !== text.trim() || RESERVED.test(text) || NUMBERISH.test(text);
-  return risky ? JSON.stringify(text) : text;
+  return risky ? canonical.jsonString(text) : text;
 }
 
 // ---------------------------------------------------------------------------

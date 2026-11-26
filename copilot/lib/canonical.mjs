@@ -16,9 +16,13 @@
  * cosmetic defect. So a value that cannot be emitted flow-safely is refused,
  * and the refusal carries `where`, the dotted location, because a state file
  * with forty nodes gives a caller no other way to find the offending value.
- * The one exception is prose — an author's text in a dispatch envelope, which
- * only the definition reader reads: there a double quote is spelled in YAML's
- * single-quoted form rather than refused (see `scalar`).
+ * There are two exceptions. Prose — an author's text in a dispatch envelope,
+ * which only the definition reader reads: there a double quote is spelled in
+ * YAML's single-quoted form rather than refused. And person text — a task
+ * description or an input a person typed, in positions only the shared state
+ * reader reads, which decodes a double-quoted scalar as JSON: there a value is
+ * spelled as a JSON string rather than refused, so nobody is ever pushed to
+ * reword what a person wrote (see `scalar`).
  *
  * Why the publish path is exclusive and self-healing. The temp names are fixed
  * per writer, so exclusivity has to come from the open rather than a unique
@@ -72,7 +76,7 @@ const FLOW_KEY = /^[A-Za-z0-9._-]+$/;
  * that a caller emitting a lone value need not invent one; every caller inside
  * a document supplies it, and `flow` extends it key by key on the way down.
  */
-export function scalar(value, where = 'the value', { prose = false } = {}) {
+export function scalar(value, where = 'the value', { prose = false, text: personText = false } = {}) {
   if (value === undefined || value === null) return 'null';
   if (typeof value === 'boolean') return String(value);
   if (typeof value === 'number') {
@@ -81,6 +85,19 @@ export function scalar(value, where = 'the value', { prose = false } = {}) {
   }
 
   const text = String(value);
+  // A person's own words — a task description, a research question, any input
+  // a person typed — are stored as written and never refused: a refusal there
+  // invites whoever holds the text to reword it. These positions are read only
+  // by the shared state reader, which decodes a double-quoted scalar as JSON,
+  // so a value the rules below would refuse or misread (a quote, a line break
+  // or another control character, or a sentence that opens like a flow
+  // collection) takes the JSON spelling: one line, a valid YAML double-quoted
+  // scalar, read back byte for byte. U+2028 and U+2029 are escaped too, since
+  // a YAML 1.1 reader takes them for line breaks. Every other value keeps the
+  // bytes the rules below give it.
+  if (personText && (/["\u0000-\u001f\u007f\u2028\u2029]/.test(text) || /^[[{]/.test(text))) {
+    return jsonString(text);
+  }
   if (/[\n\r]/.test(text) || (!prose && text.includes('"'))) {
     throw new Refusal('value-not-flow-safe',
       `${where} carries a quote, a newline or a carriage return, which the one-line reader cannot parse`);
@@ -116,6 +133,16 @@ export function scalar(value, where = 'the value', { prose = false } = {}) {
   // whole of what the writers emit today — keeps its double-quoted bytes.
   if (text.includes('\\')) return `'${text.replace(/'/g, "''")}'`;
   return `"${text}"`;
+}
+
+/**
+ * A string as a JSON string literal on one line, with U+2028 and U+2029
+ * escaped as well: `JSON.stringify` leaves them raw, and a reader that splits
+ * lines with a multiline regex, or a YAML 1.1 parser, takes either for a line
+ * break. `JSON.parse` reads it back exactly.
+ */
+export function jsonString(text) {
+  return JSON.stringify(String(text)).replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
 /**

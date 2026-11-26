@@ -175,6 +175,7 @@ import { modelShown, resolveAgent, shippedHost, shippedPluginName } from './suba
 import { BY_CONFIG, DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
 import { conventionsShown, markConventionsShown, publishBrief } from './display-files.mjs';
 import { runRoot } from './resume-check.mjs';
+import { jsonString } from '../../../../lib/canonical.mjs';
 
 /** The engine's entry script, which the `ask with:` line names by its absolute path. */
 const ENGINE = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
@@ -578,7 +579,10 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   const withs = isPlainObject(resolved.with) ? resolved.with : {};
   const missing = [];
   const filled = Object.fromEntries(Object.entries(withs).map(([key, value]) => [key, interpolate(value, { ...context, missing })]));
-  if (Object.keys(filled).length) lines.push('with:', ...Object.entries(filled).map(([key, value]) => `- ${key}: ${shown(value)}`));
+  if (Object.keys(filled).length) {
+    lines.push('with:', ...Object.entries(filled).map(([key, value]) => `- ${key}: ${shownLine(value)}`));
+    lines.push(...Object.entries(filled).filter(([, value]) => spansLines(value)).map(([key]) => spansNote(key)));
+  }
   lines.push(...missingLines(missing));
 
   const { lines: writes, pages } = writeLines(node, resolved, entry, brief, context, sources);
@@ -615,7 +619,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
     const value = Object.hasOwn(filled, key) ? filled[key] : MISSING;
     if (value === MISSING || value === null || value === '') continue;
     const text = String(value);
-    if (!Object.hasOwn(mapping, text)) lines.push(`recommends: ${key} = ${text} — the section decides`);
+    if (!Object.hasOwn(mapping, text)) lines.push(`recommends: ${key} = ${shownLine(text)} — the section decides`);
     else if (continues.has(mapping[text])) lines.push(`recommends: ${key} = ${text} → ${mapping[text]}`);
   }
   if (Number.isInteger(brief.budget)) lines.push(`budget: ${brief.budget} attempt${brief.budget === 1 ? '' : 's'} — a prose rule; nothing enforces it`);
@@ -1197,6 +1201,24 @@ function recordedValue(reference, context) {
     return where.child ? MISSING : placed(path_, where);
   }
   return MISSING;
+}
+
+/**
+ * A value on one brief line. A string that spans lines — a person's multi-line
+ * task text — would spill into the lines below and read as directives, so it
+ * is spelled as a JSON string instead, deterministically, and `spansNote` says
+ * so; decoded, it is the text exactly as written. Everything else is `shown`.
+ */
+function shownLine(value) {
+  return spansLines(value) ? jsonString(value) : shown(value);
+}
+
+function spansLines(value) {
+  return typeof value === 'string' && /[\n\r\u2028\u2029]/.test(value);
+}
+
+function spansNote(key) {
+  return `note: ${key} spans lines, so it is written as a JSON string; pass it on decoded, word for word`;
 }
 
 function shown(value) {
