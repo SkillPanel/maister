@@ -60,24 +60,26 @@ analysis → ◆ → specification → ◆ → plan → ◆ → implementation �
 ◆  a checkpoint: you decide whether the run goes on
 ```
 
-The task shapes the run. A bug gets a failing test before the fix. A change to the user interface gets mockups before the specification. A specification audit, browser checks and a user guide with screenshots are offered along the way.
+The task shapes the run. A bug gets a failing test before the fix. A change to the user interface gets mockups before the specification. Every specification is audited by an independent agent before you approve it. Browser checks and a user guide with screenshots are offered along the way.
 
 At a checkpoint, the question arrives with what you need to answer it:
 
 ```text
 Approve specification? Type "details" for the full brief.
 
-❯ Continue to the specification audit (Recommended)
-  Continue to planning, skip the audit
+❯ Continue to the implementation plan (Recommended)
   Revise the specification
   Stop here
 
   Done: Specified a CSV export of the filtered orders list: 9 requirements and
-        2 user stories, reusing the existing report streamer.
-  Next: Specification audit
+        2 user stories; the audit passes it after one fix.
+  Next: Implementation planning
   Review: implementation/spec.md (HTML beside it)
   Open risks:
   - Excel misreads UTF-8 CSV without a byte-order mark; the spec adds one
+
+  Fixed by the run: 1
+  - No test covered an empty filter → added the test case to the spec
 
   Decided by the run:
   - Stream the file instead of building it in memory — specification
@@ -112,7 +114,7 @@ A run changes your working tree and commits nothing. It ends with a summary, a c
 | What goes wrong with a coding agent | What Maister does about it |
 |---|---|
 | It starts coding before it understands the codebase | Analysis and a gap analysis come first, and you approve them before anything is specified |
-| It builds something other than what you meant | You approve a specification, and can have an independent agent audit it, before a plan exists |
+| It builds something other than what you meant | You approve a specification after an independent agent has audited it, before a plan exists |
 | It ignores how your team writes code | Standards are discovered from your repository and read while specifying, planning and coding |
 | It reports success too early | The full test suite, your lint, type and build checks and three reviews run first. Clear fixes are made and re-checked |
 | A long session loses the thread | Work is done by subagents, state lives in files, and a run resumes from its task directory |

@@ -144,7 +144,6 @@ when it does; there is no task-type flag.
 
 | Flag | Description |
 |------|-------------|
-| `--audit` / `--no-audit` | Recommend running or skipping the specification audit; the checkpoint before it is still asked |
 | `--e2e` / `--no-e2e` | Recommend running or skipping the browser checks; the verification checkpoint is still asked |
 | `--user-docs` / `--no-user-docs` | Write or skip user documentation without being asked (asked when omitted) |
 | `--research=PATH` | Start from a completed research task |

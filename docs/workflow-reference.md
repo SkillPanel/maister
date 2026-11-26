@@ -15,7 +15,7 @@ The ids in these tables are what an overlay names: `needs` and `before` of a ste
 
 ## development
 
-Builds a change to the code — a new feature, an enhancement, a bug fix or a refactor — from analysis through specification, planning, implementation and verification, with an operator gate after each phase. Use it for any task that modifies code; the optional stretches (a failing test written before the fix, UI mockups, a specification audit, browser checks, user documentation) run only when the task calls for them.
+Builds a change to the code — a new feature, an enhancement, a bug fix or a refactor — from analysis through specification, planning, implementation and verification, with an operator gate after each phase. Use it for any task that modifies code; every specification is audited before its approval, and the optional stretches (a failing test written before the fix, UI mockups, browser checks, user documentation) run only when the task calls for them.
 
 Started with `/maister:development`. Definition: `plugins/maister/skills/workflow-engine/workflows/development.yml`.
 
@@ -28,7 +28,6 @@ Started with `/maister:development`. Definition: `plugins/maister/skills/workflo
 | `context` | path | no |  |
 | `design` | path | no |  |
 | `architecture` | path | no |  |
-| `audit` | string | no |  |
 | `browser_tests` | string | no |  |
 | `user_docs` | string | no |  |
 | `sequential` | bool | no | `false` |
@@ -47,23 +46,22 @@ Started with `/maister:development`. Definition: `plugins/maister/skills/workflo
 | 7 | `ui-mockups` | UI mockups | step | `skill:mockup-studio` | `tdd-red-approval` | `${gap-analysis.values.mockups_needed}` |
 | 8 | `mockup-approval` | Approve UI mockups | checkpoint |  | `ui-mockups` | `${gap-analysis.values.mockups_needed}` |
 | 9 | `specification` | Specification | step | `direct:specification` | `mockup-approval` | always |
-| 10 | `specification-approval` | Approve specification | checkpoint |  | `specification` | always |
-| 11 | `spec-audit` | Specification audit | step | `agent:spec-auditor` | `specification-approval` | `${specification-approval.values.spec_audit_enabled}` |
-| 12 | `spec-audit-approval` | Approve specification audit | checkpoint |  | `spec-audit` | `${specification-approval.values.spec_audit_enabled}` |
-| 13 | `planning` | Implementation planning | step | `agent:implementation-planner` | `spec-audit-approval` | always |
-| 14 | `planning-approval` | Approve implementation plan | checkpoint |  | `planning` | `!${inputs.publish}` |
-| 15 | `planning-approval-publish` | Approve implementation plan and publish | checkpoint |  | `planning-approval` | `${inputs.publish}` |
-| 16 | `implementation` | Implementation | step | `skill:implementation-plan-executor` | `planning-approval-publish` | always |
-| 17 | `implementation-approval` | Approve implementation | checkpoint |  | `implementation` | always |
-| 18 | `tdd-green` | Passing test | step | `direct:tdd-green` | `implementation-approval` | `${gap-analysis.values.has_reproducible_defect}` |
-| 19 | `verification-options` | Choosing the checks | step | `direct:verification-options` | `tdd-green` | always |
-| 20 | `verification` | Verification | step | `skill:implementation-verifier` | `verification-options` | always |
-| 21 | `verification-approval` | Approve verification | checkpoint |  | `verification` | always |
-| 22 | `e2e-verification` | Browser checks | step | `agent:e2e-test-verifier` | `verification-approval` | `${verification-approval.values.browser_tests_enabled}` |
-| 23 | `e2e-approval` | Approve browser checks | checkpoint |  | `e2e-verification` | `${verification-approval.values.browser_tests_enabled}` |
-| 24 | `user-docs` | User documentation | step | `agent:user-docs-generator` | `e2e-approval` | `${verification-options.values.user_docs_enabled}` |
-| 25 | `docs-approval` | Approve documentation | checkpoint |  | `user-docs` | `${verification-options.values.user_docs_enabled}` |
-| 26 | `finalization` | Finalization | step | `direct:finalization` | `docs-approval` | always |
+| 10 | `spec-audit` | Specification audit | step | `agent:spec-auditor` | `specification` | always |
+| 11 | `specification-approval` | Approve specification | checkpoint |  | `spec-audit` | always |
+| 12 | `planning` | Implementation planning | step | `agent:implementation-planner` | `specification-approval` | always |
+| 13 | `planning-approval` | Approve implementation plan | checkpoint |  | `planning` | `!${inputs.publish}` |
+| 14 | `planning-approval-publish` | Approve implementation plan and publish | checkpoint |  | `planning-approval` | `${inputs.publish}` |
+| 15 | `implementation` | Implementation | step | `skill:implementation-plan-executor` | `planning-approval-publish` | always |
+| 16 | `implementation-approval` | Approve implementation | checkpoint |  | `implementation` | always |
+| 17 | `tdd-green` | Passing test | step | `direct:tdd-green` | `implementation-approval` | `${gap-analysis.values.has_reproducible_defect}` |
+| 18 | `verification-options` | Choosing the checks | step | `direct:verification-options` | `tdd-green` | always |
+| 19 | `verification` | Verification | step | `skill:implementation-verifier` | `verification-options` | always |
+| 20 | `verification-approval` | Approve verification | checkpoint |  | `verification` | always |
+| 21 | `e2e-verification` | Browser checks | step | `agent:e2e-test-verifier` | `verification-approval` | `${verification-approval.values.browser_tests_enabled}` |
+| 22 | `e2e-approval` | Approve browser checks | checkpoint |  | `e2e-verification` | `${verification-approval.values.browser_tests_enabled}` |
+| 23 | `user-docs` | User documentation | step | `agent:user-docs-generator` | `e2e-approval` | `${verification-options.values.user_docs_enabled}` |
+| 24 | `docs-approval` | Approve documentation | checkpoint |  | `user-docs` | `${verification-options.values.user_docs_enabled}` |
+| 25 | `finalization` | Finalization | step | `direct:finalization` | `docs-approval` | always |
 
 ### Checkpoint answers
 
@@ -84,14 +82,7 @@ Started with `/maister:development`. Definition: `plugins/maister/skills/workflo
 - `revise-mockups`: revise: sends the run back to `ui-mockups`
 - `stop-development`: stop: ends the run
 
-**`specification-approval`** asks: "Specification complete. Continue?"
-
-- `continue-to-planning`: continue; sets `spec_audit_enabled: false`
-- `continue-to-spec-audit`: continue; sets `spec_audit_enabled: true`
-- `revise-specification`: revise: sends the run back to `specification`
-- `stop-development`: stop: ends the run
-
-**`spec-audit-approval`** asks: "Specification audit complete. Continue to implementation planning?"
+**`specification-approval`** asks: "Specification written and audited. Continue to implementation planning?"
 
 - `continue-to-planning`: continue
 - `revise-specification`: revise: sends the run back to `specification`
@@ -141,8 +132,8 @@ Artifact paths are relative to the run's task directory.
 | `gap-analysis` | `gap`: `analysis/gap-analysis.md`<br>`scope`: `analysis/scope-clarifications.md` | `has_reproducible_defect` (bool)<br>`mockups_needed` (bool)<br>`risk_level` (one of high, medium, low) |
 | `tdd-red` | `red_gate`: `implementation/tdd-red-gate.md` |  |
 | `ui-mockups` | `index`: `analysis/design-context/INDEX.md`<br>`mockups`: `analysis/design-context` |  |
-| `specification` | `explainer`: `implementation/spec-explainer.html`<br>`requirements`: `analysis/requirements.md`<br>`spec`: `implementation/spec.md`<br>`technical_clarifications`: `analysis/technical-clarifications.md` |  |
-| `spec-audit` | `audit`: `verification/spec-audit.md` |  |
+| `specification` | `requirements`: `analysis/requirements.md`<br>`spec`: `implementation/spec.md`<br>`technical_clarifications`: `analysis/technical-clarifications.md` |  |
+| `spec-audit` | `audit`: `verification/spec-audit.md`<br>`explainer`: `implementation/spec-explainer.html` |  |
 | `planning` | `plan`: `implementation/implementation-plan.md`<br>`visual_coverage`: `implementation/visual-coverage.md` |  |
 | `implementation` | `work_log`: `implementation/work-log.md` |  |
 | `tdd-green` | `green_gate`: `implementation/tdd-green-gate.md` |  |
@@ -261,17 +252,16 @@ Started with `/maister:performance`. Definition: `plugins/maister/skills/workflo
 | 3 | `bottleneck-analysis` | Bottleneck analysis | step | `agent:bottleneck-analyzer` | `codebase-analysis` | always |
 | 4 | `bottleneck-approval` | Approve bottleneck analysis | checkpoint |  | `bottleneck-analysis` | always |
 | 5 | `specification` | Specification | step | `direct:specification` | `bottleneck-approval` | always |
-| 6 | `specification-approval` | Approve specification | checkpoint |  | `specification` | always |
-| 7 | `spec-audit` | Specification audit | step | `agent:spec-auditor` | `specification-approval` | always |
-| 8 | `spec-audit-approval` | Approve specification audit | checkpoint |  | `spec-audit` | always |
-| 9 | `planning` | Implementation planning | step | `agent:implementation-planner` | `spec-audit-approval` | always |
-| 10 | `planning-approval` | Approve implementation plan | checkpoint |  | `planning` | always |
-| 11 | `implementation` | Implementation | step | `skill:implementation-plan-executor` | `planning-approval` | always |
-| 12 | `implementation-approval` | Approve implementation | checkpoint |  | `implementation` | always |
-| 13 | `verification-options` | Choosing the checks | step | `direct:verification-options` | `implementation-approval` | always |
-| 14 | `verification` | Verification | step | `skill:implementation-verifier` | `verification-options` | always |
-| 15 | `verification-approval` | Approve verification | checkpoint |  | `verification` | always |
-| 16 | `finalization` | Finalization | step | `direct:finalization` | `verification-approval` | always |
+| 6 | `spec-audit` | Specification audit | step | `agent:spec-auditor` | `specification` | always |
+| 7 | `specification-approval` | Approve specification | checkpoint |  | `spec-audit` | always |
+| 8 | `planning` | Implementation planning | step | `agent:implementation-planner` | `specification-approval` | always |
+| 9 | `planning-approval` | Approve implementation plan | checkpoint |  | `planning` | always |
+| 10 | `implementation` | Implementation | step | `skill:implementation-plan-executor` | `planning-approval` | always |
+| 11 | `implementation-approval` | Approve implementation | checkpoint |  | `implementation` | always |
+| 12 | `verification-options` | Choosing the checks | step | `direct:verification-options` | `implementation-approval` | always |
+| 13 | `verification` | Verification | step | `skill:implementation-verifier` | `verification-options` | always |
+| 14 | `verification-approval` | Approve verification | checkpoint |  | `verification` | always |
+| 15 | `finalization` | Finalization | step | `direct:finalization` | `verification-approval` | always |
 
 ### Checkpoint answers
 
@@ -281,13 +271,7 @@ Started with `/maister:performance`. Definition: `plugins/maister/skills/workflo
 - `revise-analysis`: revise: sends the run back to `bottleneck-analysis`
 - `stop-performance`: stop: ends the run
 
-**`specification-approval`** asks: "Specification complete. Continue to specification audit?"
-
-- `continue-to-spec-audit`: continue
-- `revise-specification`: revise: sends the run back to `specification`
-- `stop-performance`: stop: ends the run
-
-**`spec-audit-approval`** asks: "Specification audit complete. Continue to implementation planning?"
+**`specification-approval`** asks: "Specification written and audited. Continue to implementation planning?"
 
 - `continue-to-planning`: continue
 - `revise-specification`: revise: sends the run back to `specification`
