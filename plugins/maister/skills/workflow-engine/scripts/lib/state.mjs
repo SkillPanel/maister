@@ -1434,6 +1434,9 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
     intended.add('workflow');
     if (freezing && seedTaskKey(doc, frozen, changed)) intended.add('task');
   }
+  // A gate the project's config continued keeps that decision: judged on the
+  // run as it stood before this write, ahead of every answer rule below.
+  assertConfigContinueKept(doc, patch, regress);
   // Each gate answer the patch sends, as the run held it before this write:
   // what tells a newly recorded continue from one re-sent (`approveHeld`).
   const answering = answeringIds(patch);
@@ -2696,6 +2699,43 @@ function typeMismatch(type, value) {
 /** Whether a decisions item says the project's config settled it. */
 function isConfigDecision(item) {
   return isPlainObject(item) && item.by === BY_CONFIG;
+}
+
+/**
+ * A gate the project's config continued — recorded `completed`, its answer
+ * `by: config` — is not answered again: a write that sends it a decision, a
+ * flat answer or another status is refused `state-gate-config-continued`, so
+ * an answer asked by mistake never replaces the config's. Sending `completed`
+ * again, or a summary field that is no answer, still lands. A gate a revise's
+ * reset sends back (`regress`) is the engine's own write, and is let through:
+ * once pending it is continued again, or asked, as any due gate is.
+ */
+function assertConfigContinueKept(doc, patch, regress) {
+  const nodes = isPlainObject(patch.nodes) ? patch.nodes : {};
+  const sent = isPlainObject(patch.node_summaries) ? patch.node_summaries : {};
+  const ids = [...new Set([...Object.keys(nodes), ...Object.keys(sent)])]
+    .filter(id => id !== HELD_APPROVAL && !(regress !== null && regress.has(id)));
+  if (ids.length === 0 || !doc.has('workflow')) return;
+  const typed = typedOf(doc);
+  const recorded = isPlainObject(typed.workflow?.nodes) ? typed.workflow.nodes : {};
+  const summaries = isPlainObject(typed.node_summaries) ? typed.node_summaries : {};
+  for (const id of ids) {
+    const entry = Object.hasOwn(recorded, id) && isPlainObject(recorded[id]) ? recorded[id] : {};
+    if (entry.kind !== 'gate' || entry.status !== 'completed') continue;
+    const held = Object.hasOwn(summaries, id) && isPlainObject(summaries[id]) ? summaries[id] : {};
+    if (gateAnswer(held.decisions)?.by !== BY_CONFIG) continue;
+    const summary = Object.hasOwn(sent, id) && isPlainObject(sent[id]) ? sent[id] : {};
+    const node = Object.hasOwn(nodes, id) && isPlainObject(nodes[id]) ? nodes[id] : {};
+    const sends = Array.isArray(summary.decisions) && summary.decisions.length > 0 ? 'it sends decisions for the gate'
+      : typeof summary.answer === 'string' && summary.answer.trim() !== '' ? 'it sends an answer for the gate'
+        : Object.hasOwn(node, 'status') && node.status !== 'completed' ? `it sends the gate status ${JSON.stringify(node.status)}`
+          : null;
+    if (sends === null) continue;
+    const name = typeof typed.workflow?.name === 'string' && typed.workflow.name !== '' ? typed.workflow.name : '<workflow>';
+    throw new Refusal('state-gate-config-continued',
+      `${id} was continued by the project's config (workflows.${name}.auto_continue), recorded by: config, and this write would replace `
+      + `that decision: ${sends}. Nothing was written. A gate the config continued is not asked or answered again; go on with the node due next`);
+  }
 }
 
 /**

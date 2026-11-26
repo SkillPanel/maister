@@ -191,3 +191,108 @@ test('on the Copilot build, a gate continued by config needs no person', t => {
   assert.match(out, /^decided: plan-approval/m, out);
   assert.equal(readState(run).workflow.nodes['plan-approval'].status, 'completed');
 });
+
+// A gate the config continued is never asked again, and its decision is never
+// replaced: gate-brief and gate-request refuse it in every form, and the writer
+// refuses an answer or a status change over it. Nothing is written either way.
+
+/** The run's state as bytes, to prove a refusal wrote nothing. */
+const bytes = run => fs.readFileSync(run.state, 'utf8');
+
+const ASK_FORMS = [[], ['--json', '--picker=rich'], ['--ask'], ['--ask', '--details'], ['--checkpoint'], ['--request'], ['--oneline']];
+
+test('every gate-brief form refuses a gate the config continued, names the line and the next node, and writes nothing', t => {
+  const { run } = frozen(t);
+  planned(run);
+  brief(run, 'plan-approval');
+  const before = bytes(run);
+  for (const form of ASK_FORMS) {
+    const result = verb(['gate-brief', `--state=${run.state}`, '--node=plan-approval', ...form]);
+    const label = form.join(' ') || 'plain';
+    assert.equal(result.code, 1, label);
+    assert.match(result.stderr, /^gate-brief-already-answered: --node=plan-approval was continued by the project's config \(workflows\.config-workflow\.auto_continue\)/, label);
+    assert.ok(result.stderr.includes(LINE), label);
+    assert.ok(result.stderr.includes('next: plan-approval-publish (Approve implementation plan and publish) — run node-brief for it'), label);
+    assert.doesNotMatch(result.stdout, /"options"|decision/, label);
+  }
+  assert.equal(bytes(run), before);
+  assert.equal(fs.existsSync(path.join(run.dir, '.ask.json')), false, 'no question call is kept');
+});
+
+test('gate-request refuses a gate the config continued, built from the node or sent whole, and writes no request', t => {
+  const { run } = frozen(t, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  planned(run);
+  brief(run, 'plan-approval');
+  const before = bytes(run);
+  const built = verb(['gate-request', `--state=${run.state}`, '--node=plan-approval']);
+  assert.equal(built.code, 1);
+  assert.match(built.stderr, /^gate-brief-already-answered: --node=plan-approval was continued by the project's config/);
+  const sent = verb(['gate-request', `--state=${run.state}`], { node: 'plan-approval', question: 'Approve?' });
+  assert.equal(sent.code, 1);
+  assert.match(sent.stderr, /^gate-brief-already-answered: --node=plan-approval was continued by the project's config/);
+  assert.equal(bytes(run), before);
+  assert.equal(fs.existsSync(path.join(run.dir, 'gates', 'plan-approval.request.yml')), false);
+});
+
+test('a gate a person answered is refused as already answered', t => {
+  const { run } = frozen(t, { config: 'html_output: false\n' });
+  planned(run);
+  const answered = send(run, {
+    nodes: { 'plan-approval': { status: 'completed' } },
+    node_summaries: { 'plan-approval': { decisions: [{ option: 'continue-to-build' }] } },
+  });
+  assert.equal(answered.code, 0, answered.stderr);
+  const result = verb(['gate-brief', `--state=${run.state}`, '--node=plan-approval', '--ask']);
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /^gate-brief-already-answered: --node=plan-approval is already answered \(continue-to-build\); a gate is asked once per attempt/);
+  assert.ok(result.stderr.includes('next: plan-approval-publish'));
+});
+
+test('the writer refuses an answer or a status change over a decision the config recorded, and writes nothing', t => {
+  const { run } = frozen(t);
+  planned(run);
+  brief(run, 'plan-approval');
+  const before = bytes(run);
+  for (const patch of [
+    // The write a session sends after asking the gate by mistake.
+    { nodes: { 'plan-approval': { status: 'completed' } }, node_summaries: { 'plan-approval': { decisions: [{ option: 'continue-to-build' }] } } },
+    { node_summaries: { 'plan-approval': { answer: 'continue-to-build' } } },
+    { nodes: { 'plan-approval': { status: 'skipped' } } },
+  ]) {
+    const result = send(run, patch);
+    assert.equal(result.code, 1, JSON.stringify(patch));
+    assert.match(result.stderr, /^state-gate-config-continued: plan-approval was continued by the project's config \(workflows\.config-workflow\.auto_continue\)/, JSON.stringify(patch));
+  }
+  assert.equal(bytes(run), before);
+  // Completed again, with nothing else, is no answer: it lands.
+  assert.equal(send(run, { nodes: { 'plan-approval': { status: 'completed' } } }).code, 0);
+  assert.equal(readState(run).node_summaries['plan-approval'].decisions.at(-1).by, 'config');
+});
+
+test('a revise cannot re-open a gate the config continued', t => {
+  const { run } = frozen(t);
+  planned(run);
+  brief(run, 'plan-approval');
+  const before = bytes(run);
+  const result = verb(['gate-revise', `--state=${run.state}`, '--node=plan-approval', '--option=revise-plan'], { note: 'Add the migration.' });
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /^revise-gate-not-current: .*it is recorded completed/);
+  assert.equal(bytes(run), before);
+});
+
+test('on the Copilot build, a person\'s answer still does not replace the config\'s decision', t => {
+  const engine = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
+  const { run } = frozen(t, { engine });
+  walkTo(run, ['plan']);
+  assert.equal(send(run, { nodes: { plan: { status: 'completed' } }, node_summaries: { plan: { summary: 'Planned.' } } }, engine).code, 0);
+  assert.match(brief(run, 'plan-approval', engine), /^decided: plan-approval/m);
+  const asked = call(['gate-brief', `--state=${run.state}`, '--node=plan-approval', '--ask'], undefined, {}, engine);
+  assert.equal(asked.code, 1);
+  assert.match(asked.stderr, /^gate-brief-already-answered:/);
+  fs.writeFileSync(path.join(run.dir, '.ask.result.json'), `${JSON.stringify({ outcome: 'person', at: new Date().toISOString(), questions: ['decision'] })}\n`);
+  const before = bytes(run);
+  const written = send(run, { nodes: { 'plan-approval': { status: 'completed' } }, node_summaries: { 'plan-approval': { decisions: [{ option: 'continue-to-build' }] } } }, engine);
+  assert.equal(written.code, 1);
+  assert.match(written.stderr, /^state-gate-config-continued:/);
+  assert.equal(bytes(run), before);
+});

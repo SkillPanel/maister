@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { ENGINE_DIR, SAMPLE, freeze, scratch, verb, write } from '../helpers.mjs';
 import { grantsText } from '../../plugins/maister/skills/workflow-engine/scripts/lib/checkpoint.mjs';
+import { gateBrief } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 
 // A version 1 document is closed: everything the file in hand can decide is
@@ -483,9 +484,10 @@ function atGateWithFollowers(t, statuses) {
 }
 
 function nextAt(run) {
-  const result = verb(['gate-brief', `--state=${run.state}`, '--node=review-approval']);
-  assert.equal(result.code, 0, result.stderr);
-  return result.stdout.split('\n').find(line => line.startsWith('Next: '));
+  // The gate is answered by now, which the verb refuses to brief: its walk is read in process.
+  const result = gateBrief({ state: run.state, node: 'review-approval', briefAnswered: true });
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  return result.text.split('\n').find(line => line.startsWith('Next: '));
 }
 
 test('on: failure is skipped when every need completed, rather than running on the happy path', t => {

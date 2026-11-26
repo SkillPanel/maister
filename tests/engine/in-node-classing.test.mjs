@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { FIXTURES, ROOT, freezePatch, readDashboard, readState, run as runScript, scratch, sharedPlugin, sibling, publishOutbox, verb } from '../helpers.mjs';
-import { atClose, heldApprovalBefore, skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
+import { atClose, gateBrief, heldApprovalBefore, skippedAgain } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-brief.mjs';
 import { checkpointOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/display-files.mjs';
 import { provenGraph } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state.mjs';
 import { refreshIndex } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-index.mjs';
@@ -1370,7 +1370,8 @@ test('held-approval: the writer records its status alone, and every reader of th
   assert.deepEqual(owedOf(marked), owedOf(bare));
   assert.deepEqual(checkpointOf(readState(marked), {}), checkpointOf(readState(bare), {}));
   assert.ok(provenGraph(readState(marked).workflow, marked.dir).graph, 'the graph still proves');
-  const progressOf = each => JSON.parse(gateBriefOf(each, 'outline-approval', '--checkpoint').stdout).progress;
+  // The gate is answered by now, which the verb refuses to brief: its checkpoint is read in process.
+  const progressOf = each => gateBrief({ state: each.state, node: 'outline-approval', form: 'checkpoint', briefAnswered: true }).checkpoint.progress;
   assert.deepEqual(progressOf(marked), progressOf(bare));
   // The dashboard draws a card per frozen node, never one for the reserved entry.
   const cardsOf = each => readDashboard(each).phases.map(phase => phase.id);

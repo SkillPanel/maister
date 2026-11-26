@@ -28,7 +28,10 @@
  * `gate-brief-value-missing` and `gate-guard-false` (the gate's guard reads
  * false and neither the skip-guard rule nor a held choice asks it, so the
  * write records it skipped — refused in every form, and by `gate-request` too,
- * through `requestGuardRefusal`). Five name no write: `gate-brief-unknown-node`,
+ * through `requestGuardRefusal`). Six name no write: `gate-brief-already-answered`
+ * (the gate is recorded `completed`, so it is never asked again — a gate the
+ * project's config continued says so and names the node due next — refused in
+ * every form, and by `gate-request` too), `gate-brief-unknown-node`,
  * `gate-brief-not-a-gate` and `gate-brief-reask-not-revise` (the invocation is
  * wrong), `state-unreadable`, and
  * `gate-brief-no-graph` (nothing the gate closes — its needs name no step, or
@@ -123,7 +126,8 @@ import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
 import { SUITE_RUNS, attemptOf, definitionPathOf, htmlOutput, isStalePage, policyWorkflowOf, projectRootOf } from './state.mjs';
 import { STORIES_HEADING, approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
-import { artifactOf, classWords, decisionOf, decisionText, fixOf, fixText, headlineOf as entryHeadline, isEarlierAnswer, isHostAnswer, riskOf, riskText } from './items.mjs';
+import { BY_CONFIG, artifactOf, classWords, decisionOf, decisionText, fixOf, fixText, gateAnswer, headlineOf as entryHeadline, isEarlierAnswer, isHostAnswer, riskOf, riskText } from './items.mjs';
+import { configContinueLine } from './workflow-config.mjs';
 import { questionSets } from './driver.mjs';
 import { areasProducer } from './decision-areas.mjs';
 import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked, setForm, sharedOpenings } from './question-set.mjs';
@@ -237,7 +241,7 @@ const SUMMARY_FLOOR = 400;
  * by the `picker` profile — beside the plain text. `doc` is the state already
  * parsed, read in place of the file.
  */
-export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask = null, questions = undefined, doc: given = null }) {
+export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask = null, questions = undefined, doc: given = null, briefAnswered = false }) {
   let doc = given;
   if (doc === null) {
     try {
@@ -278,6 +282,13 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   }
   const graph = current.graph;
   const byId = new Map((graph?.nodes ?? []).map(entry => [entry.id, entry]));
+
+  // A gate already answered is never asked again, in any form: a gate asks
+  // once per attempt, and a revise or a re-ask sets it pending first.
+  if (!briefAnswered) {
+    const answered = answeredRefusal({ doc, recorded, node, runDir, titles: current.display.titles });
+    if (answered) return { ...answered, warnings: [...warnings, ...answered.warnings] };
+  }
 
   // A gate its guard skips is never asked, in any form: the skip is the write.
   const skippedByGuard = guardFalse({ doc, recorded, node, current });
@@ -522,7 +533,7 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
  */
 export function renderedLabels({ doc, runDir, node }) {
   try {
-    const result = gateBrief({ state: path.join(runDir, 'orchestrator-state.yml'), doc, node, form: 'checkpoint' });
+    const result = gateBrief({ state: path.join(runDir, 'orchestrator-state.yml'), doc, node, form: 'checkpoint', briefAnswered: true });
     if (!result.ok || !isPlainObject(result.checkpoint) || !Array.isArray(result.checkpoint.options)) return null;
     return new Map(result.checkpoint.options.map(option => [option.id, option.label]));
   } catch {
@@ -1424,8 +1435,37 @@ export function requestGuardRefusal({ state, node }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   if (entryOf(recorded, node).kind !== 'gate') return null;
-  const current = reread(doc, workflow, path.dirname(path.resolve(state)));
-  return guardFalse({ doc, recorded, node, current });
+  const runDir = path.dirname(path.resolve(state));
+  const current = reread(doc, workflow, runDir);
+  return answeredRefusal({ doc, recorded, node, runDir, titles: current.display.titles }) ?? guardFalse({ doc, recorded, node, current });
+}
+
+/**
+ * The `gate-brief-already-answered` refusal for a gate the run recorded
+ * `completed`, or null: a gate is asked once per attempt, and the ways to ask
+ * it again — a revise's reset, a driven revise asked again for its note — set
+ * it `pending` first. A gate the project's config continued (its answer
+ * recorded `by: config`) says so, with the line `node-brief` showed; any other
+ * says it is answered. Both name the node due next, as `node-brief` does.
+ */
+function answeredRefusal({ doc, recorded, node, runDir, titles }) {
+  if (entryOf(recorded, node).status !== 'completed') return null;
+  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+  const summary = Object.hasOwn(summaries, node) && isPlainObject(summaries[node]) ? summaries[node] : {};
+  const answer = gateAnswer(summary.decisions);
+  const due = dueNext({ doc, runDir });
+  const next = due === null ? ''
+    : due.id === null ? ' — next: none — write the closing patch with task.status, then run run-complete'
+      : ` — next: ${due.id} (${due.title}) — run node-brief for it`;
+  if (answer?.by === BY_CONFIG) {
+    const line = typeof summary.headline === 'string' && summary.headline.trim() !== '' ? summary.headline.trim().replace(/\.$/, '') : configContinueLine(titleOf(titles, node));
+    return refuse('gate-brief-already-answered',
+      `--node=${node} was continued by the project's config (workflows.${workflowName(doc)}.auto_continue): ${line}. `
+      + `There is nothing to ask and nothing to write. Show that line and go on${next}`);
+  }
+  return refuse('gate-brief-already-answered',
+    `--node=${node} is already answered${answer ? ` (${answer.option})` : ''}; a gate is asked once per attempt, so it is not asked again. `
+    + `Nothing was written. Go on${next}`);
 }
 
 /**
