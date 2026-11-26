@@ -183,7 +183,13 @@ function parseSeq(lines, cur, indent) {
   return items;
 }
 
-const KEY = /^(?:"([^"]*)"|'([^']*)'|([^:#'"]+?))\s*:(?:\s+(.*))?$/;
+/**
+ * A `key: value` line. Lines are already split on `\n`, so the `s` flag only
+ * lets the value hold U+2028 or U+2029, which `.` would otherwise refuse to
+ * match: a file an earlier writer left with one raw inside a quoted value
+ * still reads, and today's writers escape both.
+ */
+const KEY = /^(?:"([^"]*)"|'([^']*)'|([^:#'"]+?))\s*:(?:\s+(.*))?$/s;
 
 function splitKey(body) {
   const hit = KEY.exec(body);
