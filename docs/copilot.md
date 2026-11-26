@@ -387,6 +387,10 @@ the `deep` tier for the groups that need it, with a `budget`.
   create a folder before writing into it.
 - **The guard is a plugin hook.** Copilot loads it from the plugin and runs it with Node, so it
   needs no setup.
+- **Commit messages may carry a Copilot trailer.** Copilot's own instructions ask the model to end
+  a commit message with a `Co-authored-by: Copilot` line, so the commit message a run proposes may
+  carry one, although Maister adds no attribution unless your project asks for it. Delete the line
+  from the proposed message before you commit, or ask the session to leave it out.
 - **`MAISTER_PLUGIN_ROOT` is optional.** Copilot tells each skill where it lives, and the scripts
   find the plugin from their own location. Set the variable only if a model keeps guessing the
   plugin's folder wrong, pointing it at the folder that holds `.claude-plugin/plugin.json`
