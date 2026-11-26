@@ -10,7 +10,9 @@ import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scr
 import { explainerOf, explainerOff } from '../../plugins/maister/skills/workflow-engine/scripts/lib/companions.mjs';
 
 // The explainer pages beside research's: development's specification and
-// change explainers, performance's and product design's. Each is a declared
+// change explainers, performance's and product design's. Development's
+// specification explainer is the audit's to write, once its fix pass is done,
+// so the page shows the specification its approval is asked about. Each is a declared
 // artifact whose path ends in `-explainer.html`, which is what the engine reads
 // as an explainer; its absence is sanctioned in `brief:`; `run-context` and
 // `node-brief` say whether it is written, and why not; the project's config
@@ -22,7 +24,7 @@ const definition = name => readDefinition(path.join(WORKFLOWS, `${name}.yml`)).d
 const plain = value => JSON.parse(JSON.stringify(value));
 
 const EXPLAINERS = {
-  development: { specification: 'implementation/spec-explainer.html', finalization: 'verification/change-explainer.html' },
+  development: { 'spec-audit': 'implementation/spec-explainer.html', finalization: 'verification/change-explainer.html' },
   performance: { finalization: 'verification/performance-explainer.html' },
   'product-design': { brief: 'outputs/product-explainer.html' },
   research: { 'research-foundation': 'outputs/research-explainer.html' },
@@ -99,10 +101,15 @@ test('run-context: an explainer to write prints its page, and the style guide ev
   assert.equal(line(finalization, 'explainer'), 'explainer: verification/change-explainer.html');
   assert.match(line(finalization, 'html'), STYLE);
   assert.match(finalization, /^companions: none$/m);
+  const audit = context(runDir, 'spec-audit');
+  assert.equal(line(audit, 'explainer'), 'explainer: implementation/spec-explainer.html');
+  assert.match(line(audit, 'html'), STYLE);
+  assert.match(audit, /^companions: none$/m);
+  // A node declaring none prints no explainer line, and a gate never does: the
+  // specification owes its page and no longer the explainer.
   const spec = context(runDir, 'specification');
-  assert.equal(line(spec, 'explainer'), 'explainer: implementation/spec-explainer.html');
+  assert.equal(line(spec, 'explainer'), null);
   assert.match(spec, /implementation\/spec\.html/);
-  // A node declaring none prints no explainer line, and a gate never does.
   assert.equal(line(context(runDir, 'planning'), 'explainer'), null);
   assert.equal(line(context(runDir, 'verification-approval'), 'explainer'), null);
 });
@@ -112,16 +119,17 @@ test('run-context: with HTML output off every explainer is off, with that reason
   const finalization = context(runDir, 'finalization');
   assert.equal(line(finalization, 'explainer'), 'explainer: off — HTML output is off for this run.');
   assert.equal(line(finalization, 'html'), 'html: off');
-  assert.equal(line(context(runDir, 'specification'), 'explainer'), 'explainer: off — HTML output is off for this run.');
+  assert.equal(line(context(runDir, 'spec-audit'), 'explainer'), 'explainer: off — HTML output is off for this run.');
 });
 
 test('the config turns one explainer off and leaves the others; the step that owes a companion keeps its style guide', t => {
-  const { run: runDir, result } = frozen(t, { text: 'workflows:\n  development:\n    explainers:\n      specification: false\n      finalization: true\n' });
+  const { run: runDir, result } = frozen(t, { text: 'workflows:\n  development:\n    explainers:\n      spec-audit: false\n      finalization: true\n' });
   assert.equal(result.stderr, '');
-  assert.deepEqual(readState(runDir).orchestrator.options.workflow_config, { explainers: { specification: false, finalization: true } });
-  const spec = context(runDir, 'specification');
-  assert.equal(line(spec, 'explainer'), "explainer: off — The project's config turns this explainer off.");
-  assert.match(line(spec, 'html'), STYLE, 'the spec companion is still owed');
+  assert.deepEqual(readState(runDir).orchestrator.options.workflow_config, { explainers: { 'spec-audit': false, finalization: true } });
+  const audit = context(runDir, 'spec-audit');
+  assert.equal(line(audit, 'explainer'), "explainer: off — The project's config turns this explainer off.");
+  assert.equal(line(audit, 'html'), 'html: off', 'the audit owes no other page');
+  assert.match(line(context(runDir, 'specification'), 'html'), STYLE, 'the spec companion is still owed');
   assert.equal(line(context(runDir, 'finalization'), 'explainer'), 'explainer: verification/change-explainer.html');
 });
 
@@ -133,7 +141,7 @@ test('a closing step whose only page is turned off reads html off', t => {
 });
 
 test('node-brief: a page to write prints the writer call, the check script and the row; an off page only its line', t => {
-  const { run: runDir } = frozen(t, { text: 'workflows:\n  development:\n    explainers:\n      specification: false\n' });
+  const { run: runDir } = frozen(t, { text: 'workflows:\n  development:\n    explainers:\n      spec-audit: false\n' });
   const finalization = brief(runDir, 'finalization');
   assert.ok(finalization.includes('\nexplainer: verification/change-explainer.html\n'));
   assert.match(finalization, /^explainer writer: maister:explainer-writer, model \S+, effort \S+ /m);
@@ -141,9 +149,9 @@ test('node-brief: a page to write prints the writer call, the check script and t
   assert.ok(script !== null, 'the check script line');
   assert.ok(fs.existsSync(script.slice('- check_script: '.length)), 'the check script exists where the line says');
   assert.match(finalization, /^convention \(writes an explainer\): /m);
-  const spec = brief(runDir, 'specification');
-  assert.ok(spec.includes("\nexplainer: off — The project's config turns this explainer off.\n"));
-  assert.doesNotMatch(spec, /^explainer writer:/m);
+  const audit = brief(runDir, 'spec-audit');
+  assert.ok(audit.includes("\nexplainer: off — The project's config turns this explainer off.\n"));
+  assert.doesNotMatch(audit, /^explainer writer:/m);
   // A step declaring no explainer gets neither the line nor the row.
   const planning = brief(runDir, 'planning');
   assert.doesNotMatch(planning, /^explainer/m);
@@ -166,7 +174,8 @@ test('the freeze drops each bad explainers entry with a warning naming file and 
     'workflows:',
     '  development:',
     '    explainers:',
-    '      specification: maybe',
+    '      spec-audit: maybe',
+    '      specification: false',
     '      planning: false',
     '      specification-approval: false',
     '      ghost: false',
@@ -176,7 +185,8 @@ test('the freeze drops each bad explainers entry with a warning naming file and 
   assert.deepEqual(readState(runDir).orchestrator.options.workflow_config, { explainers: { finalization: false } });
   const at = 'workflows-config:.maister/config.yml:workflows.development.explainers';
   assert.deepEqual(configWarnings(result.stderr), [
-    `${at}.specification — true or false is expected, not "maybe"; the entry is ignored`,
+    `${at}.spec-audit — true or false is expected, not "maybe"; the entry is ignored`,
+    `${at}.specification — specification declares no explainer page (an artifact ending in -explainer.html); the entry is ignored`,
     `${at}.planning — planning declares no explainer page (an artifact ending in -explainer.html); the entry is ignored`,
     `${at}.specification-approval — specification-approval is a gate, which writes no page; the entry is ignored`,
     `${at}.ghost — development has no step ghost; the entry is ignored`,
@@ -241,10 +251,10 @@ test('hero rows: each workflow with an explainer leads with it, and a turned-off
 });
 
 test('projection: companions_off carries each explainer the config turned off, and only then', t => {
-  const off = readDashboard(frozen(t, { text: 'workflows:\n  development:\n    explainers:\n      finalization: false\n      specification: true\n' }).run);
+  const off = readDashboard(frozen(t, { text: 'workflows:\n  development:\n    explainers:\n      finalization: false\n      spec-audit: true\n' }).run);
   assert.deepEqual(off.companions_off, ['verification/change-explainer.html']);
   assert.equal(Object.hasOwn(readDashboard(frozen(t, { text: 'html_output: true\n' }).run), 'companions_off'), false);
-  const both = readDashboard(frozen(t, { text: 'workflows:\n  development:\n    html_companions:\n      planning: []\n    explainers:\n      specification: false\n' }).run);
+  const both = readDashboard(frozen(t, { text: 'workflows:\n  development:\n    html_companions:\n      planning: []\n    explainers:\n      spec-audit: false\n' }).run);
   assert.deepEqual(both.companions_off, ['implementation/spec-explainer.html', 'implementation/implementation-plan.md']);
 });
 

@@ -89,8 +89,6 @@ function atPlanGate(t, gate, inputs) {
     nodes: {
       'gap-analysis': { values: { has_reproducible_defect: false, mockups_needed: false, risk_level: 'low' } },
       'specification-approval': { decisions: [{ option: 'continue-to-planning' }] },
-      'spec-audit': { status: 'skipped' },
-      'spec-audit-approval': { status: 'skipped' },
     },
     node_summaries: { planning: { status: 'completed', headline: 'Two task groups.', summary: 'Planned.' } },
   });

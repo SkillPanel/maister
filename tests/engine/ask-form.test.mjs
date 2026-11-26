@@ -15,7 +15,7 @@ const write = (run, patch) => writeState(run, delegating(patch));
 const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
 const CALL_KEYS = ['message', 'requestedSchema'];
 
-/** A development run waiting at the specification gate, its spec recommending the audit. */
+/** A development run waiting at the specification gate after the audit, the audit recommending planning. */
 function atSpecGate(t) {
   const run = scratch(t);
   const graph = freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Tag the notes' } });
@@ -29,8 +29,11 @@ function atSpecGate(t) {
     node_summaries: {
       specification: {
         summary: 'The spec is written.',
-        recommends: { option: 'continue-to-spec-audit', reason: 'Cheaper than finding the gaps later' },
         risks: [{ risk: 'Tags are assumed lowercase', tag: 'open', change: 'Fold tag case on input' }, { risk: 'No migration is assumed', tag: 'open', change: 'Backfill old notes' }],
+      },
+      'spec-audit': {
+        summary: 'The audit passes the spec.',
+        recommends: { option: 'continue-to-planning', reason: 'The audit left nothing that blocks a plan' },
       },
     },
   });
@@ -69,10 +72,10 @@ test('ask: a gate prints its call alone — the plain profile\'s form, every cho
   assert.ok(Object.hasOwn(json, 'options') && Object.hasOwn(json, 'question'));
   const decision = call.requestedSchema.properties.decision;
   assert.equal(decision.enum, undefined, 'never a bare list of ids');
-  assert.deepEqual(decision.oneOf.map(choice => choice.const), ['continue-to-spec-audit', 'continue-to-planning', 'revise-specification', 'stop-development', 'more-details']);
+  assert.deepEqual(decision.oneOf.map(choice => choice.const), ['continue-to-planning', 'revise-specification', 'stop-development', 'more-details']);
   assert.ok(decision.oneOf.every(choice => typeof choice.title === 'string' && choice.title !== choice.const), 'every choice has a title of its own');
   assert.match(decision.oneOf[0].title, /\(Recommended\)$/);
-  assert.equal(decision.default, 'continue-to-spec-audit');
+  assert.equal(decision.default, 'continue-to-planning');
   assert.equal(call.message.split('\n').at(-1), 'Approve specification?', 'the ask is the message\'s last line');
 });
 

@@ -73,10 +73,12 @@ function putSpecification(run, confirmed = []) {
 /**
  * The specification step's closing write: `stories` nobody confirmed, the
  * assumption an open risk, Part A's file sanctioned absent as one obvious
- * approach leaves it.
+ * approach leaves it. Then the audit's, which runs on every run before the
+ * specification approval: it found nothing, and with HTML output off it writes
+ * no explainer.
  */
 function closeSpecification(run, { stories = STORIES, decisions = [] } = {}) {
-  return write(run, {
+  write(run, {
     nodes: { specification: { status: 'completed' } },
     node_summaries: {
       specification: {
@@ -84,13 +86,23 @@ function closeSpecification(run, { stories = STORIES, decisions = [] } = {}) {
         summary: 'Specification: Tag the notes. In scope: tagging and filtering; out of scope: tag renaming.',
         stories,
         decisions,
-        absent: {
-          technical_clarifications: 'One obvious approach, so Part A asked nothing.',
-          explainer: 'HTML output is off for this run.',
-        },
+        absent: { technical_clarifications: 'One obvious approach, so Part A asked nothing.' },
         risks: [{ risk: 'Tags are stored lowercase', tag: 'open', change: 'Keep the case the owner typed' }],
-        recommends: { option: 'continue-to-planning', reason: 'A small change with one open assumption the checkpoint shows' },
         artifacts: [{ path: 'implementation/spec.md', html: 'implementation/spec.html', role: 'primary' }],
+      },
+    },
+  });
+  put(run, 'verification/spec-audit.md', '# Specification audit\n\nVerdict: pass.\n');
+  return write(run, {
+    nodes: { 'spec-audit': { status: 'completed' } },
+    node_summaries: {
+      'spec-audit': {
+        headline: 'The audit passes the spec; nothing is left for planning.',
+        summary: 'Pass: no findings.',
+        verdict: 'pass',
+        absent: { explainer: 'HTML output is off for this run.' },
+        recommends: { option: 'continue-to-planning', reason: 'A small change with one open assumption the checkpoint shows' },
+        artifacts: [{ path: 'verification/spec-audit.md', role: 'review' }],
       },
     },
   });

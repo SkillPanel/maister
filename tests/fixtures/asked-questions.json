@@ -63,19 +63,9 @@
             ],
             "transport": "gate-request"
           },
-          "spec-audit-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-planning",
-              "revise-specification",
-              "stop-development"
-            ],
-            "transport": "gate-request"
-          },
           "specification-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-spec-audit",
               "continue-to-planning",
               "revise-specification",
               "stop-development"
@@ -220,19 +210,9 @@
             ],
             "transport": "gate-request"
           },
-          "spec-audit-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-planning",
-              "revise-specification",
-              "stop-development"
-            ],
-            "transport": "gate-request"
-          },
           "specification-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-spec-audit",
               "continue-to-planning",
               "revise-specification",
               "stop-development"
@@ -377,21 +357,12 @@
             ],
             "transport": "picker"
           },
-          "spec-audit-approval": {
+          "specification-approval": {
             "options": [
               "continue-to-planning",
               "revise-specification",
               "stop-development",
               "more-details"
-            ],
-            "transport": "picker"
-          },
-          "specification-approval": {
-            "options": [
-              "continue-to-spec-audit",
-              "continue-to-planning",
-              "revise-specification",
-              "stop-development"
             ],
             "transport": "picker"
           },
@@ -498,15 +469,6 @@
       },
       {
         "id": "specification-approval",
-        "options": [
-          "continue-to-planning",
-          "continue-to-spec-audit",
-          "revise-specification",
-          "stop-development"
-        ]
-      },
-      {
-        "id": "spec-audit-approval",
         "options": [
           "continue-to-planning",
           "revise-specification",
@@ -973,19 +935,10 @@
             ],
             "transport": "gate-request"
           },
-          "spec-audit-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-planning",
-              "revise-specification",
-              "stop-performance"
-            ],
-            "transport": "gate-request"
-          },
           "specification-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-spec-audit",
+              "continue-to-planning",
               "revise-specification",
               "stop-performance"
             ],
@@ -1066,19 +1019,10 @@
             ],
             "transport": "gate-request"
           },
-          "spec-audit-approval": {
-            "kind": "gate",
-            "options": [
-              "continue-to-planning",
-              "revise-specification",
-              "stop-performance"
-            ],
-            "transport": "gate-request"
-          },
           "specification-approval": {
             "kind": "gate",
             "options": [
-              "continue-to-spec-audit",
+              "continue-to-planning",
               "revise-specification",
               "stop-performance"
             ],
@@ -1159,18 +1103,9 @@
             ],
             "transport": "picker"
           },
-          "spec-audit-approval": {
-            "options": [
-              "continue-to-planning",
-              "revise-specification",
-              "stop-performance",
-              "more-details"
-            ],
-            "transport": "picker"
-          },
           "specification-approval": {
             "options": [
-              "continue-to-spec-audit",
+              "continue-to-planning",
               "revise-specification",
               "stop-performance",
               "more-details"
@@ -1236,14 +1171,6 @@
       },
       {
         "id": "specification-approval",
-        "options": [
-          "continue-to-spec-audit",
-          "revise-specification",
-          "stop-performance"
-        ]
-      },
-      {
-        "id": "spec-audit-approval",
         "options": [
           "continue-to-planning",
           "revise-specification",

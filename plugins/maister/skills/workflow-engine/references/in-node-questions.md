@@ -52,7 +52,7 @@ has one, starts with the words that tell it from the question's other options, b
 wording it shares with them: "Keep their own sessions, and look again later" against "Run them
 inside the step's session" — never two options that open with the same words and differ only at
 their ends, which a reader scanning the list takes for the same option. A short shared verb whose
-next word already differs ("Continue to planning" / "Continue to the specification audit") is
+next word already differs ("Continue to the browser checks" / "Continue without browser checks") is
 fine; a shared clause is not. Only the opening is governed: an option may still bundle several
 decisions. This holds for every option a person reads — a gate label in a definition, a question
 asked in session, a set that suspends. A set whose two options of one question share their first
@@ -427,7 +427,7 @@ requirements or an earlier answer already implies — or *needs decision*, and n
    changes go to the specification creator in one more amend pass, with no re-audit; an accepted
    risk becomes a `tradeoff` risk; a finding nobody could be asked about stays open unless the
    policy classes it.
-6. **What the gate is handed**: only the findings still open — undecided, not applied, or found
+6. **What the specification approval is handed**: only the findings still open — undecided, not applied, or found
    by the re-audit — as `open` risks with their `change`, the critical ones first; a finding
    about something outside the change as a `followup`. The gate's revise suggestions come from
    those alone, never from a fix already made.

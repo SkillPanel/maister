@@ -45,8 +45,11 @@ const SKIP_MOCKUPS = { 'ui-mockups': { status: 'skipped' }, 'mockup-approval': {
 
 test('subject: the specification gate names the specification, and the request carries it in its checkpoint only', t => {
   const run = scratch(t);
-  walkTo(run, DEVELOPMENT, 'specification-approval', 'specification', SKIP_MOCKUPS);
+  // The gate closes the audit, which declares no subject key; the
+  // specification behind it is the subject, and the audit's report is not.
+  walkTo(run, DEVELOPMENT, 'specification-approval', 'spec-audit', SKIP_MOCKUPS);
   onDisk(run, 'implementation/spec.md');
+  onDisk(run, 'verification/spec-audit.md');
   const checkpoint = gateBrief(run, 'specification-approval', '--checkpoint');
   assert.deepEqual(checkpoint.subject, { path: 'implementation/spec.md', kind: 'specification' });
   assert.ok(checkpoint.review.some(each => each.path === checkpoint.subject.path), 'the subject is one of the files up for review');
@@ -66,7 +69,7 @@ test('subject: a gate whose stretch declares no subject key carries no subject',
 
 test('subject: a declared subject that is not on disk is no subject', t => {
   const run = scratch(t);
-  walkTo(run, DEVELOPMENT, 'specification-approval', 'specification', SKIP_MOCKUPS);
+  walkTo(run, DEVELOPMENT, 'specification-approval', 'spec-audit', SKIP_MOCKUPS);
   assert.equal(Object.hasOwn(gateBrief(run, 'specification-approval', '--checkpoint'), 'subject'), false);
 });
 

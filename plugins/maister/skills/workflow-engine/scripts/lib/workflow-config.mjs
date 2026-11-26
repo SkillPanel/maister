@@ -8,7 +8,7 @@
  *       html_companions:
  *         planning: []                     # no HTML page for the plan
  *       explainers:
- *         specification: false             # no explainer page for the spec
+ *         spec-audit: false                # no explainer page for the spec
  *       auto_continue: [planning-approval] # take the gate's continue
  *
  * `html_companions` has the shape and meaning of a definition's block: a
