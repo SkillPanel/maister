@@ -370,17 +370,27 @@ proceed.
 
 ## `finalization`
 
-**Does.** Writes no files of its own beyond the roadmap ticks and the run's
-candidates file, and always runs.
+**Does.** Writes no files of its own beyond the explainer, the roadmap ticks and
+the run's candidates file, and always runs.
 
 1. **Inventory the outputs**: the performance analysis, the requirements, the
    specification, the audit, the plan, the work log and the verification report.
    Nothing in this workflow is conditional, so an absent one is a defect to name.
    `run-complete` checks the declared ones on disk (the engine's *Recording an
    outcome*); check by hand only a path a summary lists beyond them.
-2. **Present the executive summary**: which bottlenecks were found, which
-   optimizations landed, the verification verdict with any issues left open, and
-   whether the ranking rested on profiling data or on static analysis alone.
+2. **Write the performance explainer, then present the executive summary.** The
+   explainer is `verification/performance-explainer.html`, written as the
+   `writes an explainer` row says when the brief's `explainer:` line names it:
+   one page answering "What was slow, what changed, and how much faster is it?",
+   `stage: wrap-up`. Sources: the performance analysis, the plan, the
+   verification report with the measurements it records, and
+   `analysis/user-profiling-data/` when it holds files. Every figure is one those
+   sources measured or state, never a gain worked out from two of them. The suite
+   is the run's pages: the specification, the plan and the verification report,
+   by their `.html` pages where written. The executive summary: which
+   bottlenecks were found, which optimizations landed, the verification verdict
+   with any issues left open, and whether the ranking rested on profiling data
+   or on static analysis alone; the explainer, when written, is named first.
 3. **Tick the roadmap** when the project keeps one at
    `.maister/docs/project/roadmap.md`: mark done the items this run completed,
    matched against the specification, and say which, or that none matched. A

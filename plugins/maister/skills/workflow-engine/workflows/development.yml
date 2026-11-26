@@ -244,6 +244,7 @@ brief:
   specification:
     absent:
       technical_clarifications: "One obvious approach, so Part A asked nothing."
+      explainer: "HTML output is off for this run, the project's config turns this explainer off, or the explainer writer failed twice; the step's summary says which."
     budget: 2
     delegates: [specification-creator]
     recommends:
@@ -267,6 +268,9 @@ brief:
   e2e-verification:
     absent:
       fidelity: "No design index, so no mockups to compare against."
+  finalization:
+    absent:
+      explainer: "HTML output is off for this run, the project's config turns this explainer off, or the explainer writer failed twice; the step's summary says which."
 
 nodes:
   intake:
@@ -391,6 +395,7 @@ nodes:
         requirements: analysis/requirements.md
         spec: implementation/spec.md
         technical_clarifications: analysis/technical-clarifications.md
+        explainer: implementation/spec-explainer.html
 
   specification-approval:
     type: gate
@@ -578,3 +583,6 @@ nodes:
       task_description: "${inputs.task_description}"
       report: "${verification.artifacts.report}"
       work_log: "${implementation.artifacts.work_log}"
+    outputs:
+      artifacts:
+        explainer: verification/change-explainer.html

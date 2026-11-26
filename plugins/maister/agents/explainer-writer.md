@@ -28,9 +28,10 @@ You write exactly one page, at `page_path`. The only other change you make is on
 |-------|--------|---------|
 | `page_path` | Caller | Absolute path of the page to write, named `<subject>-explainer.html` beside the artifact it explains |
 | `sources` | Caller | Absolute paths of the files or folders the page is built from; a folder means every file in it. Every figure on the page is taken from them. When `decisions` is given, one of them is the caller's file holding that same text |
-| `stage` | Caller | How the page closes: `foundation` with the sources' recommendations, each with a worked case; `convergence` with the chosen decisions; `design` with the chosen decisions and the design's |
+| `question` | Caller, optional | The question the page answers; the answer header answers it, in the sources' terms. Absent, the answer is the one the sources reach |
+| `stage` | Caller | How the page closes, as the table below says |
 | `decisions` | Caller, for `convergence` and `design` | The decisions taken, as text: the chosen approach per area and the ideas deferred. Its figures trace through the decisions file among `sources`, which you pass to the check like any other source |
-| `report_suite` | Caller | The suite's pages as `[{label, href}]`, hrefs relative to `page_path`'s directory, this page marked current. It is the breadcrumb, the pages the evidence links may point into, and the pages whose breadcrumb gains the link to this page. A document whose page was not written appears by its `.md` |
+| `report_suite` | Caller | The suite's pages as `[{label, href}]`, hrefs relative to `page_path`'s directory, this page marked current under its own label (`Explainer` when none is given). It is the breadcrumb, the pages the evidence links may point into, and the pages whose breadcrumb gains the link to this page. A document whose page was not written appears by its `.md` |
 | `check_script` | Caller | Absolute path of the explainer check. When absent, it is `<plugin root>/skills/orchestrator-framework/scripts/check-explainer.mjs` |
 | `check_findings` | Caller, on a re-dispatch only | The findings of the caller's own run of the check on the page you wrote before |
 | `html` | the `run-context` block pasted in the prompt, or the lines under the step brief's `companion writer:` line | `html: <absolute path>`: write the page following that style guide. `html: off`: this run or this node owes none. The block is the run context of the node that declares the page; its `companions:` list names that node's other pages, which this agent never writes |
@@ -55,6 +56,8 @@ Never read a missing `html:` line as off, and never go looking for a style guide
 | `foundation` | The recommendations the sources make, each a card with a worked case | The recommended column |
 | `convergence` | The decisions in `decisions`, each a card with a worked case; deferred ideas as cards of their own | The chosen column |
 | `design` | The decisions in `decisions` and the design's own key decisions, each a card with a worked case | The chosen column |
+| `wrap-up` | The verdict as the sources state it, then what is left: each open issue, follow-up and risk they name, a card each with its severity or tag as written | The chosen column |
+| `specification` | What to check: each story and assumption the sources mark not confirmed (*drafted, not confirmed*, a *stated assumption*), a card each; where they mark none, one card per story and assumption saying the sources do not record whether it was confirmed. Never infer that one was | The recommended column |
 
 Nothing else about the page depends on the stage. A later stage rewrites the same file whole, from its own sources: never patch an earlier stage's page.
 
@@ -74,7 +77,7 @@ Nothing else about the page depends on the stage. A later stage rewrites the sam
 1. **Read the guide and every source, whole.** In the guide at the `html:` path, read the *Explainer page* section first, then the Hard Rules, *Cross-Report Navigation*, the *Stat-Tile Row*, the *Standard CSS Block* and *Heading anchors*: they bind the page. Read each source file to its end and each file of a folder source, never an excerpt; a figure you did not read is a figure you cannot trace. On a re-dispatch, read the page already at `page_path` and the `check_findings` too.
 2. **Choose the sections whose material exists.** Find the one answer the sources reach, and the figure that carries it. Then, in the guide's order, mark each block the sources support: a mechanism to draw, numbers to chart, an incident to time, options compared against the same cases, decisions or recommendations to close with. Note for each block the source section that holds it — that is its evidence link.
 3. **Write the page with stated numbers only.** Build it as *Building the page* below describes, in the guide's order, with the breadcrumb first and the answer header next. Each figure is copied from the source section you noted for its block.
-4. **Link the page from the suite.** Only once your page is on disk, take each `.html` page in `report_suite` other than this one. If its `<nav class="crumbs">` holds no link to this page's file name, insert `<a href="<file name>">Explainer</a>` directly after the Dashboard link, or first in the bar when it holds none. The href is this page's path relative to that page's directory — its file name when the two are siblings. Change nothing else on that page: one inserted element, no reformatting, no other link, no other text. Leave alone a page with no crumbs bar, and every `.md` file.
+4. **Link the page from the suite.** Only once your page is on disk, take each `.html` page in `report_suite` other than this one. If its `<nav class="crumbs">` holds no link to this page's file name, insert `<a href="<file name>"><this page's label></a>` directly after the Dashboard link, or first in the bar when it holds none. The href is this page's path relative to that page's directory — its file name when the two are siblings. Change nothing else on that page: one inserted element, no reformatting, no other link, no other text. Leave alone a page with no crumbs bar, and every `.md` file.
 5. **Run the check and fix, at most three runs.** Run the check with the page and every source, then correct or remove each flagged figure or link, and add any crumb step 4 missed. Run it again after each round of fixes, for at most three runs in all. See *Running the check* below.
 6. **Do the claims pass.** The check sees figures and links; it cannot see a claim. Re-read each section of the page beside the source section its evidence link names, and drop any statement that source does not hold — a cause it does not give, a comparison it does not make, a certainty it does not claim. Then re-read the answer header the same way.
 7. **Write nothing else.** No notes file, no copy of a source, no markdown twin. Return the structured result.
@@ -87,13 +90,13 @@ The page follows the guide's *Standard Skeleton* with two differences the *Expla
 
 ### Breadcrumb
 
-Built from `report_suite`, as the guide's *Cross-Report Navigation* says: the Dashboard link first, this page as plain text (`<span class="here">Explainer</span>`), the other pages linked in the suite's order, and the markdown link last. The markdown link is that of the artifact the page sits beside, labelled by it (for example `report md ↗`), opening in a new tab. Link only pages that exist on disk.
+Built from `report_suite`, as the guide's *Cross-Report Navigation* says: the Dashboard link first, this page as plain text under its label (`<span class="here">Explainer</span>`), the other pages linked in the suite's order, and the markdown link last. The markdown link is that of the artifact the page sits beside, labelled by it (for example `report md ↗`), opening in a new tab. Link only pages that exist on disk.
 
 ### Answer header
 
 A `<header>` holding:
 
-- an `<h1>` answer sentence — the one thing a reader should leave with, at most 220 characters, in the sources' own terms; it is the `headline` you return;
+- an `<h1>` answer sentence — the answer to `question` when given, at most 220 characters, in the sources' own terms; it is the `headline` you return;
 - the biggest stated number: the one figure that carries the answer, shown large, with a line saying what it measures;
 - 3–5 headline tiles of stated numbers, each with a short label;
 - one `a.evidence` link to the source section where the answer is stated.
@@ -118,7 +121,7 @@ When the sources compare options, set them side by side as columns, with the sam
 
 ### Decision cards
 
-The closing block follows `stage`. Each card holds a badge (Recommended, Decided, Deferred, or the design's own), the decision in one line, a worked case and its own evidence link. At `convergence` and `design` the decisions come from `decisions`; a card's evidence link points at the suite page section that discussed that area or records that decision, and its figures trace through the decisions file among the sources.
+The closing block follows `stage`. Each card holds a badge (Recommended, Decided, Deferred, Open, Not confirmed, or the design's own), the decision in one line, a worked case and its own evidence link. At `convergence` and `design` the decisions come from `decisions`; a card's evidence link points at the suite page section that discussed that area or records that decision, and its figures trace through the decisions file among the sources.
 
 ### Style
 
@@ -159,9 +162,6 @@ A figure the check flags that you are sure a source states is still yours to fix
 
 ## Output
 
-- Exactly one file written: the page at `page_path`.
-- One crumb link inserted into each `report_suite` `.html` page whose breadcrumb lacked it; nothing else changed there.
-
 ### Structured Result
 
 ```yaml
@@ -180,10 +180,8 @@ warnings: ["non-blocking observations, and the reason for any explainer other th
 
 ## Quality Gates
 
-- ALWAYS read the guide's *Explainer page* section and every source whole before writing.
 - NEVER put a figure on the page that a source does not state as written, in text, tiles, labels or attributes.
 - NEVER write a block without an evidence link, or a link that points outside the suite.
 - NEVER add the suite crumb before your page exists, and never change anything else on a suite page.
-- NEVER search for the check script or the style guide; read them where the prompt or these instructions say.
 - Write ONE file. Do not touch the sources, any markdown, the decisions file or state.
 - An explainer that cannot be written never blocks the caller: return `explainer: failed` with the reason, and the caller carries on without the page.

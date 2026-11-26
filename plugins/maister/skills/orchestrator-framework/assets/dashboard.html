@@ -263,11 +263,14 @@
 /* ===== hero artifact importance map, per workflow type ===== */
 const HERO_MAP = {
   development: [
+    { match: "verification/change-explainer.html", label: "Explainer" },
     { match: "implementation/spec.md", label: "Specification" },
+    { match: "implementation/spec-explainer.html", label: "Spec Explainer" },
     { match: "implementation/implementation-plan.md", label: "Implementation Plan" },
     { match: "verification/implementation-verification.md", label: "Verification", verdictFallback: true }
   ],
   performance: [
+    { match: "verification/performance-explainer.html", label: "Explainer" },
     { match: "implementation/spec.md", label: "Specification" },
     { match: "implementation/implementation-plan.md", label: "Implementation Plan" },
     { match: "verification/implementation-verification.md", label: "Verification", verdictFallback: true }
@@ -285,6 +288,7 @@ const HERO_MAP = {
     { match: "outputs/decision-log.md", label: "Decision Log" }
   ],
   "product-design": [
+    { match: "outputs/product-explainer.html", label: "Explainer" },
     { match: "outputs/product-brief.md", label: "Product Brief" },
     { match: "analysis/feature-spec.md", label: "Feature Spec" },
     { match: "analysis/design-decisions.md", label: "Design Decisions" }
