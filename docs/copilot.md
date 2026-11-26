@@ -325,7 +325,9 @@ agent calls maister makes; the explore agents Copilot's own plan mode starts are
 Copilot two things differ:
 
 - **A `copilot` cell is a model id**, as `/model` lists them: `claude-sonnet-5.5`, not `sonnet`,
-  or `inherit` for the session's model.
+  or `inherit` for the session's model. For a Maister agent, `inherit` sends no model, and the
+  agent runs on the session's. Copilot's built-in agents, such as `explore`, have a default model
+  of their own, so for them the session passes its own model id on the call.
   Copilot accepts a short alias without a word and runs another model in its place, so the engine
   refuses an alias in a `copilot` cell, and the whole block with it, falling back to maister's
   defaults with a warning.

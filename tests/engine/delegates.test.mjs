@@ -250,3 +250,18 @@ test('the Copilot build names a per-host delegate under the plugin name', t => {
   assert.equal(result.code, 0, result.stderr);
   assert.match(result.stdout, /^- maister:implementation-planner: /m);
 });
+
+test('on the Copilot build a built-in delegate that inherits carries the session\'s own model id; a plugin agent still omits it', t => {
+  const delegates = { claude: ['Explore', 'Plan', 'gap-analyzer'], copilot: ['Explore', 'Plan', 'gap-analyzer'] };
+  const run = perHostRun(t, delegates, 'copilot');
+  const variant = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
+  const result = runScript(variant, ['node-brief', `--state=${run.state}`, '--node=step']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^- Explore: model claude-haiku-5\.5, effort high \(source: shipped agents\.Explore, tier light\)$/m);
+  assert.match(result.stdout, /^- Plan: model session \(your own model id\), effort omit \(source: shipped default\)$/m);
+  assert.match(result.stdout, /^- maister:gap-analyzer: model omit, effort omit \(source: shipped default\)$/m);
+  // On Claude Code a call without a model already runs on the session's.
+  const own = brief(perHostRun(t, delegates, 'claude'), 'step');
+  assert.equal(own.code, 0, own.stderr);
+  assert.match(own.stdout, /^- Plan: model omit, effort omit \(source: shipped default\)$/m);
+});

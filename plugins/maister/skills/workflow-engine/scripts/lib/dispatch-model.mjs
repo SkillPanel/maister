@@ -19,10 +19,12 @@
  *
  * The text, one line per agent, in the order asked:
  *
- *     <agent>: model <model|omit>, effort <effort|omit> — source: <level>
+ *     <agent>: model <model|omit|session (your own model id)>, effort <effort|omit> — source: <level>
  *
  * `omit` means the call carries no such field and the host's own order
- * applies. Notes follow after one blank line, each opening `note:`.
+ * applies; `session`, printed only for a built-in agent type on Copilot,
+ * means the call carries the session's own model id (`subagents.mjs`,
+ * precedence item 4). Notes follow after one blank line, each opening `note:`.
  *
  * Refusals, each with a recovery row in the engine skill:
  * - `dispatch-model-state-unreadable` — `--state` cannot be read or parsed.
@@ -38,7 +40,7 @@ import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { projectRoot } from './graph.mjs';
 import { projectRootOf } from './state.mjs';
-import { currentProjectBlock, frozenSubagents, projectPart, resolveAgent, rungsUsed, sameBlock } from './subagents.mjs';
+import { currentProjectBlock, frozenSubagents, modelShown, projectPart, resolveAgent, rungsUsed, sameBlock } from './subagents.mjs';
 
 const CHANGED = "note: .maister/config.yml's subagents block changed since this run started; this run keeps the settings it froze, and the edits apply to the next run";
 
@@ -86,7 +88,7 @@ export function dispatchModel({ state = null, agents, node = null, tier = null, 
   const ignored = [];
   for (const agent of agents) {
     const answer = resolveAgent(agent, { block, workflow, node, tier, host, used });
-    lines.push(`${agent}: model ${answer.model}, effort ${answer.effort} — source: ${answer.source}`);
+    lines.push(`${agent}: model ${modelShown(answer.model)}, effort ${answer.effort} — source: ${answer.source}`);
     if (answer.budget) notes.push(budgetNote(agent, answer.budget));
     if (answer.tierIgnored) ignored.push(agent);
   }

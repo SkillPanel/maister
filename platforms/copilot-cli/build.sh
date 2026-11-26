@@ -441,7 +441,7 @@ done
 #     the task tool refuses a call without `name`, and it names the effort
 #     field `reasoning_effort`, so the rule spells out the call's fields where
 #     a passage names only the agent.
-TASK_RULE='**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.'
+TASK_RULE='**Dispatch every agent this names, with every field the task tool requires.** On this host the task tool refuses a call without `name`: each agent call carries `agent_type` (the agent named), `name` (a short id you pick, such as `docs-init`), `description` and `prompt`, plus `model` and `reasoning_effort` copied from the `dispatch-model` line printed for that agent, each left out when printed as `omit`, and a model printed as `session` replaced by your own model id. An agent named here is always dispatched, whatever the size of the project or the task, never its work done in this session.'
 find "$OUT/skills" -name "SKILL.md" | sort | while read f; do
   awk -v dirrule="$DIR_RULE" -v taskrule="$TASK_RULE" '
     NR==1 && $0=="---" { fm=1; print; next }

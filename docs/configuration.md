@@ -221,8 +221,10 @@ This is a shortened copy of what init writes; init's file lists every agent it a
 - **`tiers`** — the ladder: `light`, `standard` and `deep`, each with a model per host. A `claude`
   cell is `haiku`, `sonnet`, `opus` or `fable`. A `copilot` cell is a model id as Copilot's
   `/model` lists it; mark one billed above one request with `premium: true`. `inherit`, in a cell
-  or as an entry's `model`, means your session's model. Only the project's `config.yml` can remap
-  the ladder.
+  or as an entry's `model`, means your session's model: the agent call carries no model, and the
+  agent runs on the session's. On Copilot, a call to one of Copilot's built-in agents, such as
+  `explore`, carries the session's own model id instead, because a built-in agent called without
+  a model runs on a default of its own. Only the project's `config.yml` can remap the ladder.
 - **`agents`** — an entry per agent: a `tier`, a `preset`, or a `model` with an `effort`. A tier
   can differ by host: `{ claude: deep, copilot: standard }`. When a per-host tier leaves a host out,
   the entry is passed over there and the next entry or default answers.
