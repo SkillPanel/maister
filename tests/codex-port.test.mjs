@@ -12,6 +12,13 @@ const plugin = path.join(root, 'plugins/maister-codex');
 const server = path.join(plugin, 'skills/maister-mockup-studio/server/index.mjs');
 const hooks = JSON.parse(fs.readFileSync(path.join(plugin, 'hooks/hooks.json'), 'utf8'));
 
+function runPackagedHook(hook, options) {
+  if (process.platform === 'win32') {
+    return spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', hook.commandWindows ?? hook.command], options);
+  }
+  return spawnSync('/bin/sh', ['-c', hook.command], options);
+}
+
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-codex-test-'));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -61,16 +68,20 @@ async function startServer(t, task) {
 }
 
 test('destructive guard handles documented payloads without identity exemptions', () => {
-  const command = hooks.hooks.PreToolUse[0].hooks[0].command;
+  const hook = hooks.hooks.PreToolUse[0].hooks[0];
   for (const identity of [{}, { agent_type: 'maister-task-group-implementer' }, { agent_type: 'maister-test-suite-runner' }]) {
-    const input = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git reset --hard' }, ...identity });
-    for (const [binary, args] of [[process.execPath, [path.join(plugin, 'hooks/block-destructive-commands.mjs')]], ['/bin/sh', ['-c', command]]]) {
-      const result = spawnSync(binary, args, { input, encoding: 'utf8' });
-      assert.equal(result.status, 0, result.stderr);
-      assert.equal(JSON.parse(result.stdout || '{}').hookSpecificOutput?.permissionDecision, 'deny');
-    }
+    const options = {
+      input: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git reset --hard' }, ...identity }),
+      encoding: 'utf8',
+    };
+    const source = spawnSync(process.execPath, [path.join(plugin, 'hooks/block-destructive-commands.mjs')], options);
+    const packaged = runPackagedHook(hook, options);
+    assert.equal(source.status, 0, source.stderr);
+    assert.equal(packaged.status, 0, packaged.stderr);
+    assert.equal(JSON.parse(source.stdout).hookSpecificOutput?.permissionDecision, 'deny');
+    assert.deepEqual(JSON.parse(packaged.stdout), JSON.parse(source.stdout));
   }
-  const safe = spawnSync('/bin/sh', ['-c', command], {
+  const safe = runPackagedHook(hook, {
     input: JSON.stringify({ tool_input: { command: 'git status --short' } }), encoding: 'utf8',
   });
   assert.equal(safe.status, 0);
@@ -87,7 +98,7 @@ test('packaged lifecycle commands emit the same context as their sources', t => 
   ]) {
     const options = { input: JSON.stringify({ cwd: task }), encoding: 'utf8' };
     const source = spawnSync(process.execPath, [path.join(plugin, 'hooks', file)], options);
-    const packaged = spawnSync('/bin/sh', ['-c', group.hooks[0].command], options);
+    const packaged = runPackagedHook(group.hooks[0], options);
     assert.equal(source.status, 0, source.stderr);
     assert.equal(packaged.status, 0, packaged.stderr);
     assert.deepEqual(JSON.parse(packaged.stdout), JSON.parse(source.stdout));

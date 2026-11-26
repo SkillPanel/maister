@@ -23,3 +23,15 @@ jobs:
         run: python -m pip install PyYAML==6.0.2
       - name: Validate package and runtime contracts
         run: make validate
+
+  windows-hooks:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check generated hook commands
+        run: node scripts/sync-codex-hooks.mjs
+      - name: Verify packaged hooks under PowerShell
+        run: node --test --test-name-pattern 'destructive guard|packaged lifecycle' tests/codex-port.test.mjs

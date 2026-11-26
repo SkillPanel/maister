@@ -11,11 +11,16 @@ const sources = [
 ];
 let changed = false;
 for (const [group, file] of sources) {
-  const source = fs.readFileSync(new URL(file, hooksDir), 'utf8');
+  const source = fs.readFileSync(new URL(file, hooksDir), 'utf8').replaceAll('\r\n', '\n');
   // A quoted shell argument preserves imports, whitespace, $, and backticks.
   const command = `node --input-type=module -e '${source.replaceAll("'", "'\\''")}'`;
-  if (group.hooks[0].command !== command) {
-    group.hooks[0].command = command;
+  // PowerShell parses POSIX escapes differently. Transport the same module as shell-safe ASCII.
+  const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source, 'utf8').toString('base64');
+  const commandWindows = `node --input-type=module -e "await import('${moduleUrl}')"`;
+  const hook = group.hooks[0];
+  if (hook.command !== command || hook.commandWindows !== commandWindows) {
+    hook.command = command;
+    hook.commandWindows = commandWindows;
     changed = true;
   }
 }
