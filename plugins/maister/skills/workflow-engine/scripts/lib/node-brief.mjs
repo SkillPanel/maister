@@ -167,7 +167,7 @@ import { openRevision } from './revise.mjs';
 import { canAsk, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
 import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestionIds, outstandingHeld } from './question-triage.mjs';
 import { CLASSES, ceilingOf, loadPolicy, questionFamilies } from './policy.mjs';
-import { resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
+import { modelShown, resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { BY_CONFIG, DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
 import { conventionsShown, markConventionsShown, publishBrief } from './display-files.mjs';
 import { runRoot } from './resume-check.mjs';
@@ -518,7 +518,8 @@ function refuse(code, message) {
 /**
  * The model and effort an `agent:` step's call carries, as `dispatch-model`
  * resolves them from the block the run froze, for the host this plugin ships
- * for — `omit` leaving the field off the call.
+ * for — `omit` leaving the field off the call, and `session` putting the
+ * session's own model id on it.
  */
 function modelText(agent, node, doc) {
   const options = isPlainObject(doc.orchestrator) && isPlainObject(doc.orchestrator.options) ? doc.orchestrator.options : {};
@@ -528,7 +529,7 @@ function modelText(agent, node, doc) {
     node,
     host: shippedHost(),
   });
-  return `model ${answer.model}, effort ${answer.effort} (source: ${answer.source})`;
+  return `model ${modelShown(answer.model)}, effort ${answer.effort} (source: ${answer.source})`;
 }
 
 function entryOf(recorded, id) {

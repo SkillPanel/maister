@@ -454,6 +454,40 @@ test('the subagents block init writes holds exactly the built-in values', t => {
   }
 });
 
+test('on Copilot inherit puts a built-in agent on the session\'s own model id, which the call carries; every other agent and Claude Code still omit it', t => {
+  // A Copilot built-in agent keeps a default model of its own when its call
+  // carries none, and no engine process can learn the session's model: the
+  // session names its own id, so the line says to pass it.
+  const run = scratch(t);
+  config(run, [
+    'subagents:',
+    '  tiers:',
+    '    light: { claude: haiku, copilot: inherit }',
+    '    standard: { claude: sonnet, copilot: inherit }',
+    '    deep: { claude: opus, copilot: inherit }',
+    '  agents:',
+    '    Explore: { tier: light }',
+    '    Plan: { model: inherit }',
+    '',
+  ].join('\n'));
+  freezeRun(run);
+  const session = 'session (your own model id)';
+  const copilot = dispatch(run, ['--agent=Explore,explore,Plan,general-purpose,code-risk-review'], { host: 'copilot' });
+  assert.equal(copilot.code, 0, copilot.stderr);
+  assert.equal(copilot.stdout, `Explore: model ${session}, effort high — source: project agents.Explore, tier light\n`
+    + `explore: model ${session}, effort high — source: project agents.Explore, tier light\n`
+    + `Plan: model ${session}, effort omit — source: project agents.Plan\n`
+    + `general-purpose: model ${session}, effort omit — source: shipped default\n`
+    + 'code-risk-review: model omit, effort omit — source: shipped agents.code-risk-review, tier standard\n');
+  // Claude Code is unchanged: there a call without a model runs on the session's.
+  assert.equal(lineOf(run, 'Explore'), 'Explore: model haiku, effort high — source: project agents.Explore, tier light');
+  assert.equal(lineOf(run, 'Plan'), 'Plan: model omit, effort omit — source: project agents.Plan');
+  // A model id named for a built-in is printed as it is.
+  const named = scratch(t);
+  config(named, 'subagents:\n  tiers:\n    light: { copilot: gpt-6-luna }\n');
+  assert.equal(lineOf(named, 'explore', [], { state: false, host: 'copilot' }), 'explore: model gpt-6-luna, effort high — source: shipped agents.Explore, tier light');
+});
+
 test('level 9: the shipped default inherits, so the call carries no model and no effort', t => {
   const run = scratch(t);
   freezeRun(run);

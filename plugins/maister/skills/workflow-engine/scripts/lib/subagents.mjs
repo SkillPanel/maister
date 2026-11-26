@@ -43,6 +43,11 @@
  *      entry's `tier` or `model`, or a `claude` or `copilot` cell of a rung or
  *      a preset: the call then carries no model and the host's own order
  *      applies. `inherit` is never a Copilot alias and never a premium model.
+ *      One exception: on Copilot a built-in agent type has a default model of
+ *      its own, which a call without a model keeps, and no process the engine
+ *      runs can learn the session's model id. The session can — its own
+ *      instructions name it — so for a built-in agent there the answer is
+ *      `SESSION`: the call carries the session's own model id.
  *
  * An effort applies on both hosts, and neither checks the value, so the
  * judgement below does. A rung's effort is the default for whatever runs on
@@ -99,6 +104,13 @@ const INHERIT = 'inherit';
 
 /** What a resolved `inherit` prints: the call carries no such field. */
 export const OMIT = 'omit';
+
+/**
+ * What a resolved `inherit` model prints for a built-in agent type on
+ * Copilot: the call carries the session's own model id, which the session
+ * reads from its instructions (precedence item 4).
+ */
+export const SESSION = 'session';
 
 /** The one `choose` policy. */
 const BY_PLAN_TIER = 'by-plan-tier';
@@ -625,7 +637,21 @@ function stable(value) {
  * caller passed (null for none), `host` one of `HOSTS`, and `used` the count of
  * groups already run per rung, or null when there is no run to count in.
  */
-export function resolveAgent(agent, { block = null, workflow = null, node = null, tier = null, host, used = null }) {
+export function resolveAgent(agent, options) {
+  const answer = resolveOwn(agent, options);
+  if (options.host === 'copilot' && answer.model === OMIT && builtInOf(bareAgent(agent)) !== null) return { ...answer, model: SESSION };
+  return answer;
+}
+
+/**
+ * A model as a dispatch line prints it: `session` with the few words that
+ * say what the call carries instead, any other value as it is.
+ */
+export function modelShown(model) {
+  return model === SESSION ? `${SESSION} (your own model id)` : model;
+}
+
+function resolveOwn(agent, { block = null, workflow = null, node = null, tier = null, host, used = null }) {
   const name = bareAgent(agent);
   const frozen = isMap(block) ? block : {};
   const layers = [
