@@ -561,7 +561,7 @@ the writer's is ever sent: the writer drops it with a `note:` line (the opening 
 - `orchestrator.classes_questions` — the writer's, recorded at the freeze (§ *What the freeze write adds*).
 - `orchestrator.gate_pending` — the suspended gate's marker, set and cleared only as `references/gates.md` § *Driver-suspended mode — the write order* says.
 - `orchestrator.parent` — a child run's link to its parent, sent by its freeze (`references/sub-runs.md` § *Walk one*).
-- `task.title`, `task.description`, `task.key` — the freeze patch (engine Step 4).
+- `task.title`, `task.description`, `task.key` — the freeze patch (engine Step 4). These and every value under `orchestrator.options.inputs` are a person's words: send them exactly as the person wrote them. The writer stores them as given, with quotes, apostrophes, backslashes, brackets and line breaks, and never refuses one, so never reword them.
 - `task.status` — the writer's at the first node start, then the closing patch's (the opening section).
 - `task.base_commit` — the writer's, recorded at the freeze and moved only by `move-base`.
 
