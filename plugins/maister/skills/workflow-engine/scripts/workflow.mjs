@@ -932,13 +932,16 @@ async function runWriteState(flags) {
 /**
  * The last stdout paragraph of a write that completed or skipped a node: the
  * node due next, which the session briefs before anything else, or, with
- * nothing left, the closing patch and the close. A write that leaves nothing
+ * nothing left or a checkpoint answered with a stop, the closing patch and the
+ * close. A write that leaves nothing
  * due while the run is not done — a step waiting on its child run — has none.
  */
 function printNext(next) {
-  process.stdout.write(next.id === null
-    ? '\nnext: none — write the closing patch with task.status, then run run-complete\n'
-    : `\nnext: ${next.id} (${next.title}) — run node-brief for it\n`);
+  process.stdout.write(next.stop
+    ? `\nnext: none — ${next.stop} was answered with a stop: write the closing patch with task.status stopped and every node not yet run stopped, then run run-complete\n`
+    : next.id === null
+      ? '\nnext: none — write the closing patch with task.status, then run run-complete\n'
+      : `\nnext: ${next.id} (${next.title}) — run node-brief for it\n`);
 }
 
 /**

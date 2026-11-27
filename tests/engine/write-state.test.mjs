@@ -1396,10 +1396,11 @@ test('refusal: state-summary-item-invalid — a recommends naming no continue or
 });
 
 // ---------------------------------------------------------------------------
-// task.status: in progress from the first step's start
+// task.status: in progress from the freeze, and from the first step's start
+// for a state frozen without it
 // ---------------------------------------------------------------------------
 
-/** A run frozen as the engine freezes one: no task status recorded. */
+/** A run frozen from a patch that sends no task status. */
 function freezeUnstarted(run, options = {}) {
   const { patch, graph } = freezePatch(options);
   delete patch.task.status;
@@ -1407,10 +1408,32 @@ function freezeUnstarted(run, options = {}) {
   return graph;
 }
 
-test('task status: the freeze records none, and the first write that starts a step records the run in progress', t => {
+/** The state file as a run frozen before the freeze recorded a status left it. */
+function withoutTaskStatus(run) {
+  const text = fs.readFileSync(run.state, 'utf8');
+  const stripped = text.replace(/^(task:\n(?: {2}.*\n)*?) {2}status: .*\n/m, '$1');
+  assert.notEqual(stripped, text, 'the freeze recorded a status to strip');
+  fs.writeFileSync(run.state, stripped);
+  assert.equal(readState(run).task.status, undefined);
+}
+
+test('task status: the freeze records the run in progress when its patch sends no status', t => {
   const run = scratch(t);
   freezeUnstarted(run);
-  assert.equal(readState(run).task.status, undefined, 'the freeze runs nothing');
+  assert.equal(readState(run).task.status, 'in_progress');
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  assert.equal(readState(run).task.status, 'in_progress', 'the first step leaves it as it is');
+});
+
+test('task status: a state frozen without one still resumes, and its first step start records the run in progress', t => {
+  const run = scratch(t);
+  freezeUnstarted(run);
+  withoutTaskStatus(run);
+  const resumed = verb(['resume-check', `--state=${run.state}`, '--no-open']);
+  assert.equal(resumed.code, 0, resumed.stderr);
+  const check = JSON.parse(resumed.stdout);
+  assert.equal(check.ok, true);
+  assert.equal(check.status, null, 'resume-check reports what the file holds');
   write(run, { context: { note: 'before any step' } });
   assert.equal(readState(run).task.status, undefined, 'a write that starts no step leaves it unset');
   const result = write(run, { nodes: { analysis: { status: 'running' } } });
@@ -1436,7 +1459,7 @@ test('task status: a status the patch sends wins, and an ending is never overwri
   }
 });
 
-test('task status: a sub-run records itself in progress at its own first step, as a top-level run does', t => {
+test('task status: a sub-run records itself in progress at its own freeze, as a top-level run does', t => {
   const parent = scratch(t);
   freezeUnstarted(parent);
   write(parent, { nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'completed' }, research: { status: 'running' } } });
@@ -1447,7 +1470,7 @@ test('task status: a sub-run records itself in progress at its own first step, a
     inputs: { question: 'What did the implementation leave open?', embedded: true },
     orchestrator: { driver: { kind: 'terminal' }, parent: { run: parent.path, node: 'research' } },
   });
-  assert.equal(readState(child).task.status, undefined);
+  assert.equal(readState(child).task.status, 'in_progress', 'its own freeze records it');
   write(child, { nodes: { [graph.nodes[0].id]: { status: 'running' } } });
   assert.equal(readState(child).task.status, 'in_progress');
   assert.equal(readState(parent).task.status, 'in_progress');
@@ -1503,4 +1526,67 @@ test('next: a write that leaves only a waiting step prints no next line', t => {
   const result = verb(['write-state', `--state=${run.state}`], { nodes: { implementation: { status: 'completed' }, research: { status: 'waiting' } } });
   assert.equal(result.code, 0, result.stderr);
   assert.deepEqual(nextLines(result.stdout), [], result.stdout);
+});
+
+// ---------------------------------------------------------------------------
+// A run that ends stopped or failed records the nodes it never ran stopped
+// ---------------------------------------------------------------------------
+
+/** A development run at its gap checkpoint, mockups off and no reproducible defect. */
+function atGapApproval(t) {
+  const run = scratch(t);
+  freeze(run, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  reach(run, { nodes: { 'gap-analysis': { status: 'completed', values: { has_reproducible_defect: false, mockups_needed: false, risk_level: 'low' } } } });
+  return run;
+}
+
+/** Every node the run has not recorded an end for, sent `skipped`. */
+function skippingTheRest(run) {
+  const nodes = readState(run).workflow.nodes;
+  return Object.fromEntries(Object.keys(nodes).filter(id => nodes[id].status === 'pending').map(id => [id, { status: 'skipped' }]));
+}
+
+test('stop close: the nodes a stop left unexecuted, sent skipped, are recorded stopped; one a false guard took off the path keeps skipped', t => {
+  const run = atGapApproval(t);
+  const stop = write(run, { nodes: { 'gap-approval': { status: 'completed' } }, node_summaries: { 'gap-approval': { decisions: [{ option: 'stop-development' }] } } });
+  assert.match(stop.stdout, /^next: none — gap-approval was answered with a stop: write the closing patch with task\.status stopped and every node not yet run stopped, then run run-complete$/m);
+
+  const rest = skippingTheRest(run);
+  const close = write(run, { task: { status: 'stopped' }, nodes: rest });
+  const nodes = readState(run).workflow.nodes;
+  for (const id of ['ui-mockups', 'mockup-approval', 'tdd-red', 'tdd-red-approval']) {
+    assert.equal(nodes[id].status, 'skipped', `${id}: its false guard keeps it off the path`);
+  }
+  for (const id of ['specification', 'specification-approval', 'planning', 'implementation']) {
+    assert.equal(nodes[id].status, 'stopped', `${id}: still on the path, so the stop leaves it stopped`);
+  }
+  assert.deepEqual(Object.keys(rest).filter(id => !['skipped', 'stopped'].includes(nodes[id].status)), []);
+  assert.match(close.stderr, /^note: recorded specification, .*specification-approval.* stopped, not skipped: a run that ends stopped records each node it never ran stopped$/m);
+  assert.equal(readState(run).task.status, 'stopped');
+
+  const complete = verb(['run-complete', `--state=${run.state}`]);
+  assert.equal(complete.code, 0, complete.stderr);
+  assert.match(complete.stdout, /^run stopped: gap-approval - /m);
+  assert.match(complete.stdout, /RUN-COMPLETE\n$/);
+  const resumed = verb(['resume-check', `--state=${run.state}`, '--no-open']);
+  assert.equal(JSON.parse(resumed.stdout).status, 'stopped');
+});
+
+test('stop close: a failed close records its unexecuted nodes stopped too, and a node that already ended keeps its record', t => {
+  const run = atGapApproval(t);
+  write(run, { nodes: { 'gap-approval': { status: 'completed' } }, node_summaries: { 'gap-approval': { decisions: [{ option: 'continue-past-analysis' }] } } });
+  const close = write(run, { task: { status: 'failed' }, nodes: { 'gap-approval': { status: 'skipped' }, specification: { status: 'skipped' }, 'specification-approval': { status: 'skipped' } } });
+  const nodes = readState(run).workflow.nodes;
+  assert.equal(nodes['gap-approval'].status, 'completed', 'an answered checkpoint keeps its answer');
+  assert.equal(nodes.specification.status, 'stopped');
+  assert.equal(nodes['specification-approval'].status, 'stopped');
+  assert.match(close.stderr, /^note: recorded specification, specification-approval stopped, not skipped: a run that ends failed records each node it never ran stopped; kept gap-approval completed as recorded: a node that already ended keeps its record when the run ends$/m);
+});
+
+test('stop close: a skip in a write that does not end the run stopped or failed is recorded as sent', t => {
+  const run = atGapApproval(t);
+  write(run, { nodes: { 'gap-approval': { status: 'completed' } }, node_summaries: { 'gap-approval': { decisions: [{ option: 'continue-past-analysis' }] } } });
+  const result = write(run, { nodes: { specification: { status: 'skipped' } } });
+  assert.equal(readState(run).workflow.nodes.specification.status, 'skipped');
+  assert.doesNotMatch(result.stderr, /stopped, not skipped/);
 });

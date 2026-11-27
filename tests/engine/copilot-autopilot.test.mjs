@@ -209,6 +209,80 @@ test('autopilot (variant): a checkpoint\'s answer sent with the skips it causes 
   assert.equal(readState(runDir).workflow.nodes['audit-approval'].status, 'skipped');
 });
 
+const DEVELOPMENT = path.join(ENGINE_DIR, 'workflows/development.yml');
+
+/** A development run at its gap checkpoint, mockups off and no reproducible defect. */
+function atGapApproval(t) {
+  const runDir = scratch(t);
+  freeze(runDir, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  reach(runDir, { nodes: { 'gap-analysis': { status: 'completed', values: { has_reproducible_defect: false, mockups_needed: false, risk_level: 'low' } } } });
+  return runDir;
+}
+
+const STOP_AT_GAP = { nodes: { 'gap-approval': { status: 'completed' } }, node_summaries: { 'gap-approval': { decisions: [{ option: 'stop-development' }] } } };
+
+/** Every node the run has not recorded an end for, sent `skipped`, as a session sent its stop. */
+function skippingTheRest(runDir) {
+  const nodes = readState(runDir).workflow.nodes;
+  return Object.fromEntries(Object.keys(nodes).filter(id => nodes[id].status === 'pending').map(id => [id, { status: 'skipped' }]));
+}
+
+test('autopilot (variant): a person\'s stop closes the run even when its unexecuted nodes, checkpoints included, arrive skipped', t => {
+  const runDir = atGapApproval(t);
+  note(runDir.dir, 'person', ['decision']);
+  const stop = wrote(variantEngine(), runDir, STOP_AT_GAP);
+  assert.match(stop.stdout, /^next: none — gap-approval was answered with a stop: write the closing patch with task\.status stopped and every node not yet run stopped, then run run-complete$/m);
+
+  // The close the session sent: the person's note is used up, so the
+  // checkpoints still on the path would read as passed without an answer.
+  const rest = skippingTheRest(runDir);
+  assert.ok(Object.hasOwn(rest, 'specification-approval'));
+  const close = wrote(variantEngine(), runDir, { task: { status: 'stopped' }, nodes: rest });
+  assert.doesNotMatch(close.stderr, /state-answer-needs-person|autopilot/);
+  assert.match(close.stderr, /^note: recorded .*specification-approval.* stopped, not skipped/m);
+  const nodes = readState(runDir).workflow.nodes;
+  for (const id of ['specification', 'specification-approval', 'planning', 'implementation']) assert.equal(nodes[id].status, 'stopped', id);
+  assert.equal(readState(runDir).task.status, 'stopped');
+
+  const complete = run(variantEngine(), ['run-complete', `--state=${runDir.state}`]);
+  assert.equal(complete.code, 0, complete.stderr);
+  assert.match(complete.stdout, /^run stopped: gap-approval - /m);
+  assert.match(complete.stdout, /RUN-COMPLETE\n$/);
+  const resumed = run(variantEngine(), ['resume-check', `--state=${runDir.state}`, '--no-open']);
+  assert.equal(JSON.parse(resumed.stdout).status, 'stopped');
+});
+
+test('autopilot (variant): a stop answer sent with its close, or a close that sends the answered checkpoint skipped, lands the same way', t => {
+  const together = atGapApproval(t);
+  note(together.dir, 'person', ['decision']);
+  const rest = skippingTheRest(together);
+  delete rest['gap-approval'];
+  wrote(variantEngine(), together, { task: { status: 'stopped' }, nodes: { ...STOP_AT_GAP.nodes, ...rest }, node_summaries: STOP_AT_GAP.node_summaries });
+  assert.equal(readState(together).workflow.nodes['specification-approval'].status, 'stopped');
+  assert.equal(readState(together).node_summaries['gap-approval'].decisions[0].by, 'operator');
+
+  const resent = atGapApproval(t);
+  note(resent.dir, 'person', ['decision']);
+  wrote(variantEngine(), resent, STOP_AT_GAP);
+  const close = wrote(variantEngine(), resent, { task: { status: 'stopped' }, nodes: { 'gap-approval': { status: 'skipped' }, ...skippingTheRest(resent) } });
+  assert.equal(readState(resent).workflow.nodes['gap-approval'].status, 'completed', 'the answered checkpoint keeps its answer');
+  assert.match(close.stderr, /kept gap-approval completed as recorded/);
+});
+
+test('autopilot (variant): a checkpoint skipped on the path in a write that does not stop the run is still refused for want of a person', t => {
+  for (const [label, patch] of [
+    ['no ending', { nodes: { 'review-approval': { status: 'skipped' } } }],
+    ['a completed ending', { task: { status: 'completed' }, nodes: { 'review-approval': { status: 'skipped' } } }],
+  ]) {
+    const runDir = atCheckpoint(t);
+    note(runDir.dir, 'host');
+    const before = fs.readFileSync(runDir.state, 'utf8');
+    const result = writeVia(variantEngine(), runDir, patch);
+    needsPerson(result, runDir, before, label);
+    assert.match(result.stderr, /records review-approval skipped while it is still on the run's path.*under Copilot's autopilot/s, label);
+  }
+});
+
 test('the order row: writing-state.md tells a session to record the answer before the skips it causes', () => {
   const text = fs.readFileSync(path.join(ENGINE_DIR, 'references/writing-state.md'), 'utf8');
   const row = text.split('\n').find(line => line.startsWith('| `state-skip-before-answer` |'));
