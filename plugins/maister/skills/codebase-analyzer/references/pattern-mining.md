@@ -1,11 +1,16 @@
 # Pattern Mining — Prompt Template
 
-Primarily for features, usable for enhancements. Replace `[description]` with the actual task description.
+Primarily for features, usable for enhancements. Put the task description in place of `[description]` word for word: every line, quote and backslash as the person typed it, never escaped and never wrapped in quotes.
 
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Find similar implementations and reusable patterns for: "[description]"
+Find similar implementations and reusable patterns for the task below.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Find the most similar existing feature/component in the codebase

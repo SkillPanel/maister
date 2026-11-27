@@ -7,7 +7,12 @@ When merging multiple roles into a single agent, integrate concerns logically ra
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Explore and analyze the codebase for: "[description]"
+Explore and analyze the codebase for the task below.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 1. Find files where the bug likely occurs (search for error keywords, related functionality)
 2. Trace the code path through these files - entry points, handlers, processing logic

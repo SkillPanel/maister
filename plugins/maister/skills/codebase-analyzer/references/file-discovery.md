@@ -1,12 +1,17 @@
 # File Discovery — Prompt Templates
 
-Replace `[description]` with the actual task description.
+Put the task description in place of `[description]` word for word: every line, quote and backslash as the person typed it, never escaped and never wrapped in quotes.
 
 ## Bug
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Explore the codebase to find files related to: "[description]"
+Explore the codebase to find files related to the task below.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Find files where the bug likely occurs (search for error keywords, related functionality)
@@ -22,7 +27,12 @@ Be thorough - check multiple naming conventions (PascalCase, kebab-case, snake_c
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Explore the codebase to find files that implement: "[description]"
+Explore the codebase to find files that implement what the task below enhances.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Find the main files for this feature (components, services, controllers)
@@ -38,7 +48,12 @@ Include file paths, approximate line counts, and why each file is relevant.
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Explore the codebase to find patterns and integration points for: "[description]"
+Explore the codebase to find patterns and integration points for the task below.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Find similar existing features/components to use as templates
