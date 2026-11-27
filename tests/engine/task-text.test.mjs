@@ -124,7 +124,12 @@ test('freeze: a two-line task with quotes, sent as the engine skill spells the f
   const run = scratch(t);
   const { patch } = freezePatch({ definition: DEVELOPMENT, task: { title: 'Status output', description: text }, inputs: { task_description: text } });
   const json = JSON.stringify(patch).replace(/'/g, "'\\''");
-  const here = spawnSync('bash', ['-c', `"$0" "$1" write-state "--state=$2" <<< '${json}'`, process.execPath, ENGINE, run.state],
+  // The command goes in a script file, not `bash -c`: on Windows a command-line
+  // argument is re-quoted on its way to bash, which mangles the backslashes
+  // and escaped quotes the here-string has to carry byte for byte.
+  const script = path.join(run.dir, 'freeze.sh');
+  fs.writeFileSync(script, `"$1" "$2" write-state "--state=$3" <<< '${json}'\n`);
+  const here = spawnSync('bash', [script, process.execPath, ENGINE, run.state],
     { encoding: 'utf8', env: { ...process.env, MAISTER_STDIN_IDLE_MS: '5000' }, timeout: 30000 });
   assert.equal(here.status, 0, here.stdout + here.stderr);
 
