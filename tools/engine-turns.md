@@ -94,6 +94,7 @@ Three refinements:
 | Figure | Claude Code | Copilot CLI |
 |---|---|---|
 | Tool call | `assistant` record, `message.content[]` block `tool_use` (`id`, `name`, `input`); result in a `user` record's `tool_result` with `tool_use_id` | `assistant.message` `data.toolRequests[]` (`toolCallId`, `name`, `arguments`); `tool.execution_start` and `tool.execution_complete` |
+| A response's usage | on its `assistant` records (`message.usage`) | the `session.usage_record` whose `usage.apiCallId` is the message's `apiCallId`; where a host version writes no such field, `usage.accounting.usageId` holds the same id |
 | Request start | the `api-request` record joined by `id` to the `assistant` record's `requestRef` | the usage record's `timestamp` minus `data.usage.duration` |
 | Input, not cached | `message.usage.input_tokens` | `inputTokens − cacheReadTokens − cacheWriteTokens` (Copilot's `inputTokens` is the whole prompt) |
 | Cache read / write | `cache_read_input_tokens` / `cache_creation_input_tokens` | `cacheReadTokens` / `cacheWriteTokens` |

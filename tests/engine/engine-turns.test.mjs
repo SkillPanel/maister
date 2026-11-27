@@ -199,8 +199,12 @@ const COPILOT_TOOL = {
   search: () => ['grep', { pattern: RESULT_WORD }],
 };
 
-/** One Copilot events file: a subagent's events sit in it under a top-level `agentId`. */
-function copilotTranscript(dir, turns) {
+/**
+ * One Copilot events file: a subagent's events sit in it under a top-level `agentId`. `shape` is
+ * the usage record's: `1.0.114` keys it by `usage.apiCallId`; `1.0.116` writes no such field, flags
+ * `apiCallIdFromUsageId` and carries the message's `apiCallId` as `usage.accounting.usageId`.
+ */
+function copilotTranscript(dir, turns, shape = '1.0.114') {
   const tick = clock();
   const events = [];
   const totals = {};
@@ -219,7 +223,8 @@ function copilotTranscript(dir, turns) {
         return { toolCallId: `call-${id}-${i}`, name, arguments: args };
       });
       event('assistant.message', { apiCallId: `api-${id}`, messageId: `m-${id}`, model, content: calls.length ? '' : `done ${RESULT_WORD}`, reasoningText: 'x', toolRequests: requests }, agentId);
-      event('session.usage_record', { usage: { apiCallId: `api-${id}`, model, inputTokens: u.input + u.cache_read + u.cache_write, cacheReadTokens: u.cache_read, cacheWriteTokens: u.cache_write, outputTokens: u.output, reasoningTokens: u.thinking, duration: 400, reasoningEffort: 'medium' } }, agentId);
+      const key = shape === '1.0.116' ? { accounting: { usageId: `api-${id}`, totalNanoAiu: 1 } } : { apiCallId: `api-${id}` };
+      event('session.usage_record', { ...(shape === '1.0.116' ? { apiCallIdFromUsageId: true } : {}), usage: { ...key, model, inputTokens: u.input + u.cache_read + u.cache_write, cacheReadTokens: u.cache_read, cacheWriteTokens: u.cache_write, outputTokens: u.output, reasoningTokens: u.thinking, duration: 400, reasoningEffort: 'medium' } }, agentId);
       calls.forEach((call, i) => {
         const toolCallId = requests[i].toolCallId;
         event('tool.execution_start', { toolCallId }, agentId);
@@ -247,8 +252,9 @@ function copilotTranscript(dir, turns) {
 // ---------------------------------------------------------------- running the script
 
 const HOSTS = {
-  claude: { gate: 'question', transcript: claudeTranscript },
-  copilot: { gate: 'request', transcript: copilotTranscript },
+  claude: { host: 'claude', gate: 'question', transcript: claudeTranscript },
+  copilot: { host: 'copilot', gate: 'request', transcript: copilotTranscript },
+  'copilot 1.0.116': { host: 'copilot', gate: 'request', transcript: (dir, turns) => copilotTranscript(dir, turns, '1.0.116') },
 };
 
 /** Measure one form of the run on one host; returns the report, the table and the scratch folder. */
@@ -270,7 +276,7 @@ for (const host of Object.keys(HOSTS)) {
     const { report } = measured(t, host, 'brief-call');
     const main = report.sessions[0];
     assert.equal(report.schema, 2);
-    assert.equal(main.host, host);
+    assert.equal(main.host, HOSTS[host].host);
     assert.deepEqual(momentsOf(main), ['start', 'node intake', 'node context', 'node locate', 'gate locate-approval', 'node checks', 'gate checks-approval', 'sub-run probe', 'node wrap', 'end']);
     assert.equal(main.totals.engine_skips, 0);
     assert.equal(main.totals.engine_calls_by_verb['node-brief'], 6);
@@ -294,7 +300,7 @@ for (const host of Object.keys(HOSTS)) {
       const main = measured(t, host, form).report.sessions[0];
       const gate = main.segments.find(s => s.node === 'locate-approval');
       assert.equal(gate.moment, 'gate', form);
-      assert.equal(gate.gate_mode, host === 'claude' ? 'terminal' : 'driven', form);
+      assert.equal(gate.gate_mode, HOSTS[host].gate === 'question' ? 'terminal' : 'driven', form);
       const subRun = main.segments.find(s => s.node === 'probe');
       assert.equal(subRun.moment, 'sub-run', form);
       assert.equal(subRun.engine_calls_by_verb['subrun-handoff'], 1, form);
@@ -320,6 +326,12 @@ for (const host of Object.keys(HOSTS)) {
     assert.deepEqual([sub.dispatched_by.moment, sub.dispatched_by.node], ['node', 'locate']);
     assert.equal(main.segments.find(s => s.node === 'locate').delegated.turns, 2);
     assert.equal(report.total.turns, main.totals.turns + sub.totals.turns);
+    assert.ok(main.totals.tokens.output > 0 && main.totals.tokens.cache_read > 0, 'every usage record paired with its response');
+    if (HOSTS[host].host === 'copilot') {
+      // Generation time is each usage record's duration, which only a paired record gives.
+      assert.equal(main.start_source, 'usage-duration');
+      assert.equal(main.totals.gen_ms, 400 * main.totals.turns);
+    }
     if (host === 'claude') {
       assert.notEqual(main.totals.output_tokens_if_summed_per_record, main.totals.tokens.output, 'usage repeats on every record of a response');
       assert.ok(main.totals.records > main.totals.turns);

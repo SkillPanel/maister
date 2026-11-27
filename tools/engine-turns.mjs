@@ -276,7 +276,13 @@ function applyClaudeMeta(thread, file) {
 }
 
 // ---- Copilot CLI: one `assistant.message` per response, its usage in the `session.usage_record`
-// ---- sharing `apiCallId`; a subagent's events sit in the same file under a top-level `agentId`.
+// ---- sharing its `apiCallId`; a subagent's events sit in the same file under a top-level `agentId`.
+
+/**
+ * The response a usage record belongs to: `usage.apiCallId` where the host writes it (1.0.114),
+ * else `usage.accounting.usageId`, the same string as the message's `apiCallId` (1.0.116).
+ */
+const usageKey = u => (u && (u.apiCallId || (u.accounting && u.accounting.usageId))) || null;
 
 function parseCopilot(file, { subagents }) {
   const records = readJsonl(file);
@@ -313,7 +319,7 @@ function parseCopilot(file, { subagents }) {
         turnStart.set(th.key, t);
         break;
       case 'session.usage_record':
-        if (d.usage && d.usage.apiCallId) usage.set(d.usage.apiCallId, { u: d.usage, at: t });
+        if (usageKey(d.usage)) usage.set(usageKey(d.usage), { u: d.usage, at: t });
         break;
       case 'assistant.message': {
         const turn = newTurn(d.apiCallId || d.messageId || r.id, d.model);
