@@ -36,10 +36,10 @@ able to write:
   `resume-check` refuses it. The four **open
   maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
   — merge key by key instead: a write recording `user_docs_enabled` leaves an `html_output` an
-  earlier node set alone. `task.status` is the writer's at one moment: the first write that
-  moves a node off `pending` records `in_progress` when the status is absent or `pending`; a
-  status already set otherwise, or one the same patch sends, is left alone, and the run's
-  ending is the closing patch's to record.
+  earlier node set alone. `task.status` is the writer's at the freeze, which records
+  `in_progress` — as does the first write that moves a node off `pending`, for a state frozen
+  without one — when the status is absent or `pending`; a status already set otherwise, or one
+  the same patch sends, is left alone, and the run's ending is the closing patch's to record.
 - `workflow` and `nodes` — the workflow block installed whole, and its one-line node entries
   edited in place afterwards. Never send a node's `started` or `completed`, or
   `orchestrator.updated`: the writer stamps all three from its own clock on each status change
@@ -161,6 +161,9 @@ workflow it classes by the run's `workflow.name`, with one reserved name: a run 
 file in `.maister/workflows/generated/` is classed by the rows under `generated`, whatever its file
 and `name:` are, while its own name, task directory and recorded source stay as they are. A value a patch sends
 is ignored with a `note:` line, a sub-run's freeze records its own, and no later write changes it — `move-base` alone moves `task.base_commit` (below).
+
+**It records `task.status: in_progress`** when the patch sends no status: a frozen run is under
+way from the freeze on.
 
 **It records `task.base_commit`** — where the run starts: `{sha, dirty}`, HEAD at the freeze and
 the paths already modified, staged or untracked then, the project's `.maister/` left out.
@@ -567,7 +570,7 @@ the writer's is ever sent: the writer drops it with a `note:` line (the opening 
 - `orchestrator.gate_pending` — the suspended gate's marker, set and cleared only as `references/gates.md` § *Driver-suspended mode — the write order* says.
 - `orchestrator.parent` — a child run's link to its parent, sent by its freeze (`references/sub-runs.md` § *Walk one*).
 - `task.title`, `task.description`, `task.key` — the freeze patch (engine Step 4). These and every value under `orchestrator.options.inputs` are a person's words: send them exactly as the person wrote them. The writer stores them as given, with quotes, apostrophes, backslashes, brackets and line breaks, and never refuses one, so never reword them.
-- `task.status` — the writer's at the first node start, then the closing patch's (the opening section).
+- `task.status` — the writer's at the freeze, then the closing patch's (the opening section).
 - `task.base_commit` — the writer's, recorded at the freeze and moved only by `move-base`.
 
 ## The verification block

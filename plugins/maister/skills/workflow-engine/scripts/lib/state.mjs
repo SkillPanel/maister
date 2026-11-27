@@ -1496,7 +1496,7 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
   if (regress !== null) clearClassed(doc, regress, changed);
   if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings, () => outstandingHeld(typedOf(doc)).length > 0);
-  if (patch.nodes && markStarted(doc, patch, changed)) intended.add('task');
+  if ((patch.nodes || freezing) && markStarted(doc, patch, changed, freezing)) intended.add('task');
   // The retired phase-summary mirror, sent top-level or nested under `context`:
   // dropped whole, with one note, so a session still sending it loses nothing
   // else of its write.
@@ -1551,18 +1551,19 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
 }
 
 /**
- * `task.status: in_progress`, written by the first write that moves a node off
- * `pending`: the moment the run starts executing. The freeze sets the run up and
- * runs nothing, so it writes no status, and nothing else ever wrote this one —
- * a run read as starting from its first step to its last. Every kind of run
- * records its nodes through this writer, so a sub-run and a chain run get it
- * the same way a top-level run does. A status already recorded other than
- * `pending` is left alone — the endings a closing patch writes above all — and
- * so is a write that sends `task.status` itself. Whether it wrote.
+ * `task.status: in_progress`, written by the freeze — a frozen run is under
+ * way, and every reader of its state finds a status from the start — and by
+ * the first write that moves a node off `pending`, for a state frozen before
+ * the freeze recorded one, which still reads and resumes without it. Every
+ * kind of run freezes and records its nodes through this writer, so a sub-run
+ * and a chain run get it the same way a top-level run does. A status already
+ * recorded other than `pending` is left alone — the endings a closing patch
+ * writes above all — and so is a write that sends `task.status` itself.
+ * Whether it wrote.
  */
-function markStarted(doc, patch, changed) {
+function markStarted(doc, patch, changed, freezing = false) {
   if (isPlainObject(patch.task) && Object.hasOwn(patch.task, 'status')) return false;
-  const moved = Object.values(patch.nodes).some(entry => isPlainObject(entry)
+  const moved = freezing || Object.values(patch.nodes ?? {}).some(entry => isPlainObject(entry)
     && typeof entry.status === 'string' && entry.status !== 'pending');
   if (!moved) return false;
   const status = parseState(doc.text()).task?.status;

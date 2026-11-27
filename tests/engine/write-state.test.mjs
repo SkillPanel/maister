@@ -1396,10 +1396,11 @@ test('refusal: state-summary-item-invalid — a recommends naming no continue or
 });
 
 // ---------------------------------------------------------------------------
-// task.status: in progress from the first step's start
+// task.status: in progress from the freeze, and from the first step's start
+// for a state frozen without it
 // ---------------------------------------------------------------------------
 
-/** A run frozen as the engine freezes one: no task status recorded. */
+/** A run frozen from a patch that sends no task status. */
 function freezeUnstarted(run, options = {}) {
   const { patch, graph } = freezePatch(options);
   delete patch.task.status;
@@ -1407,10 +1408,32 @@ function freezeUnstarted(run, options = {}) {
   return graph;
 }
 
-test('task status: the freeze records none, and the first write that starts a step records the run in progress', t => {
+/** The state file as a run frozen before the freeze recorded a status left it. */
+function withoutTaskStatus(run) {
+  const text = fs.readFileSync(run.state, 'utf8');
+  const stripped = text.replace(/^(task:\n(?: {2}.*\n)*?) {2}status: .*\n/m, '$1');
+  assert.notEqual(stripped, text, 'the freeze recorded a status to strip');
+  fs.writeFileSync(run.state, stripped);
+  assert.equal(readState(run).task.status, undefined);
+}
+
+test('task status: the freeze records the run in progress when its patch sends no status', t => {
   const run = scratch(t);
   freezeUnstarted(run);
-  assert.equal(readState(run).task.status, undefined, 'the freeze runs nothing');
+  assert.equal(readState(run).task.status, 'in_progress');
+  write(run, { nodes: { analysis: { status: 'running' } } });
+  assert.equal(readState(run).task.status, 'in_progress', 'the first step leaves it as it is');
+});
+
+test('task status: a state frozen without one still resumes, and its first step start records the run in progress', t => {
+  const run = scratch(t);
+  freezeUnstarted(run);
+  withoutTaskStatus(run);
+  const resumed = verb(['resume-check', `--state=${run.state}`, '--no-open']);
+  assert.equal(resumed.code, 0, resumed.stderr);
+  const check = JSON.parse(resumed.stdout);
+  assert.equal(check.ok, true);
+  assert.equal(check.status, null, 'resume-check reports what the file holds');
   write(run, { context: { note: 'before any step' } });
   assert.equal(readState(run).task.status, undefined, 'a write that starts no step leaves it unset');
   const result = write(run, { nodes: { analysis: { status: 'running' } } });
@@ -1436,7 +1459,7 @@ test('task status: a status the patch sends wins, and an ending is never overwri
   }
 });
 
-test('task status: a sub-run records itself in progress at its own first step, as a top-level run does', t => {
+test('task status: a sub-run records itself in progress at its own freeze, as a top-level run does', t => {
   const parent = scratch(t);
   freezeUnstarted(parent);
   write(parent, { nodes: { analysis: { status: 'completed' }, approval: { status: 'completed' }, implementation: { status: 'completed' }, research: { status: 'running' } } });
@@ -1447,7 +1470,7 @@ test('task status: a sub-run records itself in progress at its own first step, a
     inputs: { question: 'What did the implementation leave open?', embedded: true },
     orchestrator: { driver: { kind: 'terminal' }, parent: { run: parent.path, node: 'research' } },
   });
-  assert.equal(readState(child).task.status, undefined);
+  assert.equal(readState(child).task.status, 'in_progress', 'its own freeze records it');
   write(child, { nodes: { [graph.nodes[0].id]: { status: 'running' } } });
   assert.equal(readState(child).task.status, 'in_progress');
   assert.equal(readState(parent).task.status, 'in_progress');
