@@ -199,3 +199,82 @@ test('gate brief: a scope rewritten off its shape after the close is refused, no
   }
   assert.equal(fs.readFileSync(run.state, 'utf8'), before);
 });
+
+// ---------------------------------------------------------------------------
+// who is held to a scope: sub-runs and sanctioned absences
+// ---------------------------------------------------------------------------
+
+const HOLDERS = path.join(FIXTURES, 'definitions/delivery-scope.yml');
+
+/** A run of the holders' definition with every node before `id` closed. */
+function atHolder(t, id) {
+  const run = scratch(t, { type: 'delivery-scope', name: '2026-11-27-holders' });
+  freeze(run, { definition: HOLDERS });
+  walkTo(run, [id]);
+  return run;
+}
+
+function close(run, id, summary = {}) {
+  return verb(['write-state', `--state=${run.state}`], { nodes: { [id]: { status: 'completed' } }, node_summaries: { [id]: { summary: 'Done.', ...summary } } });
+}
+
+function putScope(run, relative, from) {
+  fs.mkdirSync(path.dirname(path.join(run.dir, relative)), { recursive: true });
+  fs.copyFileSync(from, path.join(run.dir, relative));
+}
+
+test('holders: a sub-run node declaring the scope completes with no file in the parent run, and a file of that name there is not judged', t => {
+  const run = atHolder(t, 'design');
+  const result = close(run, 'design');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(readState(run).workflow.nodes.design.status, 'completed');
+
+  // The parent's file of the same name is not the child's: the child's close judged its own.
+  const other = atHolder(t, 'design');
+  putScope(other, SCOPE, MAP_FORM);
+  assert.equal(close(other, 'design').code, 0);
+});
+
+test('holders: a scope the brief lets go unwritten completes with no file and no absence recorded', t => {
+  const run = atHolder(t, 'investigation');
+  const result = close(run, 'investigation');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(readState(run).workflow.nodes.investigation.status, 'completed');
+});
+
+test('holders: a scope the closing summary records absent completes with no file; without the absence it is refused', t => {
+  const bare = atHolder(t, 'hand-off');
+  const refused = close(bare, 'hand-off');
+  assert.equal(refused.code, 1);
+  assert.match(refused.stderr, /^delivery-scope-invalid: the file is missing/);
+
+  const run = atHolder(t, 'hand-off');
+  const result = close(run, 'hand-off', { absent: { delivery_scope: 'Product design writes the scope in this chain.' } });
+  assert.equal(result.code, 0, result.stderr);
+  // The gate after it is asked: the backstop holds a sanctioned absence to nothing either.
+  const asked = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--json', '--picker=rich']);
+  assert.equal(asked.code, 0, asked.stderr);
+});
+
+test('holders: a scope that is on disk is held to its shape, whether the brief or the summary sanctions its absence', t => {
+  const briefed = atHolder(t, 'investigation');
+  putScope(briefed, 'outputs/investigation-scope.yml', MAP_FORM);
+  const first = close(briefed, 'investigation');
+  assert.equal(first.code, 1);
+  assert.ok(first.stderr.split('\n').includes(`delivery-scope-invalid: ${MEMBERS_MAP}`), first.stderr);
+
+  const recorded = atHolder(t, 'hand-off');
+  putScope(recorded, SCOPE, MAP_FORM);
+  const second = close(recorded, 'hand-off', { absent: { delivery_scope: 'Product design writes the scope in this chain.' } });
+  assert.equal(second.code, 1);
+  assert.ok(second.stderr.split('\n').includes(`delivery-scope-invalid: ${MEMBERS_MAP}`), second.stderr);
+});
+
+test('holders: the gate brief judges a scope written off its shape after a sanctioned close', t => {
+  const run = atHolder(t, 'hand-off');
+  assert.equal(close(run, 'hand-off', { absent: { delivery_scope: 'Product design writes the scope in this chain.' } }).code, 0);
+  putScope(run, SCOPE, MAP_FORM);
+  const asked = verb(['gate-brief', `--state=${run.state}`, '--node=approval', '--json', '--picker=rich']);
+  assert.notEqual(asked.code, 0);
+  assert.match(asked.stdout + asked.stderr, /delivery-scope-invalid: members is a map keyed by member name/);
+});

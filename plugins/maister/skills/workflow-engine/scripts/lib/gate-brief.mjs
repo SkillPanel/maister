@@ -123,7 +123,7 @@ import { parse, isPlainObject } from './state-read.mjs';
 import { KNOWN_VERSION, readDefinition } from './definition.mjs';
 import { MORE_DETAILS_ID, closedBy, downstreamOf, grantOrder, guardOperands, guardReadsTask, guardTerms, nodeKindIn, resolve, reviseStretch, skipGuardAsks } from './graph.mjs';
 import { displayOf, headerOf, humanize, labelOf, titleOf } from './display.mjs';
-import { SUITE_RUNS, attemptOf, definitionPathOf, htmlOutput, isStalePage, policyWorkflowOf, projectRootOf } from './state.mjs';
+import { SUITE_RUNS, attemptOf, definitionPathOf, htmlOutput, isStalePage, policyWorkflowOf, projectRootOf, sanctionedAbsences } from './state.mjs';
 import { STORIES_HEADING, approvesHeld, formOf, grantsText, lowered, moreDetails, panelOf, plainPicker, questionPanelOf, requestOf, richPicker } from './checkpoint.mjs';
 import { phaseOf } from './display-files.mjs';
 import { BY_CONFIG, artifactOf, classWords, decisionOf, decisionText, fixOf, fixText, gateAnswer, headlineOf as entryHeadline, isEarlierAnswer, isHostAnswer, riskOf, riskText } from './items.mjs';
@@ -136,7 +136,8 @@ import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked,
 export { noteForm } from './checkpoint.mjs';
 import { checkCites, checkEvidence, citesKey, evidenceKey } from './evidence.mjs';
 import { subjectKey, subjectOf } from './gate-subject.mjs';
-import { declaredScopePath, scopeProblems, scopeRefusalText } from './delivery-scope.mjs';
+import { heldScopePath, scopeProblems, scopeRefusalText } from './delivery-scope.mjs';
+import { briefOfRun } from './brief.mjs';
 import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, REVISION_CEILING, frozenIds, gateHeldRevises, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
@@ -340,10 +341,14 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
   // the closing write checks it, but a file rewritten after the close, or a
   // step closed before that check existed, would otherwise reach the person.
   // An answered gate read back for its labels is not asked, so not judged.
-  if (!briefAnswered) {
-    for (const id of candidates) {
-      if (entryOf(recorded, id).status !== 'completed') continue;
-      const relative = declaredScopePath(byId.get(id));
+  // A `workflow:` node, or a missing scope whose absence is sanctioned, holds
+  // nobody here either: the closing write's rule (`heldScopePath`).
+  const scopeHolders = briefAnswered ? [] : candidates.filter(id => entryOf(recorded, id).status === 'completed');
+  if (scopeHolders.length) {
+    const briefs = briefOfRun(doc, runDir);
+    const absences = sanctionedAbsences(doc);
+    for (const id of scopeHolders) {
+      const relative = heldScopePath({ graphNode: byId.get(id), briefEntry: briefs?.[id] ?? null, absences: absences(id), runDir });
       if (relative === null) continue;
       const problems = scopeProblems({ file: path.join(runDir, relative), projectRoot: projectRootOf(runDir) });
       if (!problems.length) continue;

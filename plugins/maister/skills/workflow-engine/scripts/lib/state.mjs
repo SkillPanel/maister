@@ -110,7 +110,7 @@ import { baseAtFreeze } from './git-tree.mjs';
 import { SUMMARY_WRITER_KEYS, keysOf } from './interface-shapes.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredClarificationIds, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
-import { declaredScopePath, scopeProblems, scopeRefusalText } from './delivery-scope.mjs';
+import { heldScopePath, scopeProblems, scopeRefusalText } from './delivery-scope.mjs';
 import { projectRootOf, runPlace } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
@@ -5495,7 +5495,9 @@ function assertDelegates(doc, before, runDir, graphOf) {
  *
  * Read off the frozen graph's declared output key, never a file name or a node
  * id, so an eject or an overlay that keeps the key is held to it too. A graph
- * that cannot be read holds nobody.
+ * that cannot be read holds nobody, and neither does a `workflow:` node or a
+ * missing file whose absence the brief or the closing summary sanctions
+ * (`heldScopePath`); a file on disk is always held to its shape.
  */
 function assertDeliveryScope(doc, before, runDir, graphOf) {
   if (graphOf === null) return;
@@ -5504,8 +5506,11 @@ function assertDeliveryScope(doc, before, runDir, graphOf) {
   const completing = Object.entries(nodes)
     .filter(([id, entry]) => isPlainObject(entry) && entry.status === 'completed' && before[id] !== 'completed')
     .map(([id]) => id);
+  if (!completing.length) return;
+  const brief = briefOfRun(typed, runDir);
+  const absences = sanctionedAbsences(typed);
   for (const id of completing) {
-    const relative = declaredScopePath(resolvedNode(graphOf(), id));
+    const relative = heldScopePath({ graphNode: resolvedNode(graphOf(), id), briefEntry: brief?.[id] ?? null, absences: absences(id), runDir });
     if (relative === null) continue;
     const problems = scopeProblems({ file: path.join(runDir, relative), projectRoot: projectRootOf(runDir) });
     if (!problems.length) continue;
