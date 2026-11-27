@@ -20,15 +20,19 @@ skip-guard rule never asks the gate.
 1. **A seed project**: a clone of one commit of a small repository with a fast test suite, its
    remote removed. Copy the four files of `story/` into its `.maister/workflows/`.
 2. **The plugin, named by directory**, never the installed one:
-   - Claude Code: `claude --plugin-dir <repo>/plugins/maister --setting-sources project,local --model <full model id> --session-id <uuid>`.
+   - Claude Code: `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1 claude --plugin-dir <repo>/plugins/maister --setting-sources project,local --model <full model id> --session-id <uuid>`.
+     Without the variable the host titles the session with a background model call that its
+     totals count and no transcript holds, so the host totals check fails on every session.
    - Copilot CLI: build the variant (`bash platforms/copilot-cli/build.sh --out <dir>/copilot`),
-     then `COPILOT_PLUGIN_DIR_ONLY=1 copilot --plugin-dir <dir>/copilot --add-dir <dir>/copilot --model <full model id>`,
+     then `COPILOT_PLUGIN_DIR_ONLY=true copilot --plugin-dir <dir>/copilot --add-dir <dir>/copilot --model <full model id>`,
      with the session id chosen beforehand.
 3. **Start it** in that session: `/maister:run turn-cost-story topic=<one fixed topic>`.
 4. **Answer the same way each run**: `continue-to-checks` at `locate-approval`, `settle-findings` at
-   the child's `settle`. A gate asked in the terminal needs an interactive session (print mode has
-   no question tool on either host), driven by a terminal multiplexer script that accepts the
-   recommended option.
+   the child's `settle` — these two even when the gate recommends another option, which a model
+   sometimes does; the recommended option at any other question. A gate asked in the terminal
+   needs an interactive session (print mode has no question tool on either host), driven by a
+   terminal multiplexer script that picks those two options by their labels and otherwise the
+   recommended one.
 5. **The interruption**, when the run is to cover a resume: end the session after
    `locate-approval` is answered, start a new one and run `/maister:run <task folder>`.
 6. Keep fixed between runs: the plugin directory, the model id, the permission mode, the seed
