@@ -140,8 +140,8 @@ candidate (*Closing a candidate*) is never offered again.
 The run's file stays in its task directory as the record of what that run found; the store is
 what every later step reads. The file is JSON:
 
-- `version` — `3` for a file written to this description; a file without it, or with `1` or `2`,
-  predates the store and is folded into it once (*Folding in earlier runs*).
+- `version` — `3` for a file written to this description, or folded in; a file without it, or
+  with `1` or `2`, predates the store and is folded into it once (*Folding in earlier runs*).
 - `candidates` — each one offered: `id` (short, unique in the file), `label` (its few words),
   `line` (the candidate line), `action` (`new` or `extend`), `extends` (the rule's file and
   heading, for `extend`), `destination` (the suggested file), `evidence` (which groups or fixes
@@ -214,12 +214,15 @@ script's problems and left out, never a failure.
 
 ## Folding in earlier runs
 
-Any verb of the script first takes in run folders written before the store: each valid candidate
-becomes a store file with its run's sighting, applied or dismissed as the run's
-`standard-candidates-applied.json` records it; then each attachment `{run, id}` adds its run's
-sighting to the candidate it names. Anything already in the store is skipped, so folding in again
-adds nothing and, with nothing missing, writes nothing; `candidates.mjs import` runs it alone. A
-version 3 file is never folded in: `file` files it. The earlier files stay as they are.
+Any verb of the script first takes in run folders written before the store, and only what would
+still read as open: a valid candidate that its run's `standard-candidates-applied.json` neither
+applies nor dismisses, and that another earlier run attached to or whose run is dated 30 days or
+less before `--today` (*Closing a candidate*), becomes a store file with its run's sighting; then
+each attachment `{run, id}` onto one adds its run's sighting. The rest are left out, no file
+written for them, and one line on stderr counts them. Each folded run's file is then written back as version 3, every entry kept, each one
+in the store given `store`, with `folded: {expired, closed}` counting what was left out; so no
+later verb folds it in again, and `file` files only the entries it names in the store.
+`candidates.mjs import` folds in alone and the same way; anything already in the store is skipped.
 
 ## Closing a candidate
 

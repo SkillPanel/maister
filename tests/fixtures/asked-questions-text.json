@@ -5416,6 +5416,9 @@
             },
             "run": []
           },
+          "evidence": [
+            ".maister/tasks/product-design/2026-10-09-product-design-cockpit/outputs/delivery-scope.yml"
+          ],
           "fixes": [],
           "grants": {},
           "header": "Brief",
@@ -5476,7 +5479,9 @@
               "consequence": "Ends the run here.",
               "effect": "stop",
               "id": "stop-design",
-              "keeps": [],
+              "keeps": [
+                "outputs/delivery-scope.yml"
+              ],
               "label": "Stop here",
               "not_run": {
                 "next": "Completion",
@@ -5495,13 +5500,24 @@
             "option": "approve-brief",
             "reason": "nothing open blocks completion"
           },
-          "review": [],
+          "review": [
+            {
+              "html": null,
+              "label": null,
+              "path": "outputs/delivery-scope.yml",
+              "role": null
+            }
+          ],
           "risks": {
             "followup": [],
             "open": [],
             "resolved": [],
             "stop": [],
             "tradeoff": []
+          },
+          "subject": {
+            "kind": "delivery-scope",
+            "path": "outputs/delivery-scope.yml"
           },
           "truncated": false,
           "version": 1
@@ -5907,6 +5923,9 @@
             },
             "run": []
           },
+          "evidence": [
+            ".maister/tasks/product-design/2026-10-09-product-design-dispatch/outputs/delivery-scope.yml"
+          ],
           "fixes": [],
           "grants": {},
           "header": "Brief",
@@ -5967,7 +5986,9 @@
               "consequence": "Ends the run here.",
               "effect": "stop",
               "id": "stop-design",
-              "keeps": [],
+              "keeps": [
+                "outputs/delivery-scope.yml"
+              ],
               "label": "Stop here",
               "not_run": {
                 "next": "Completion",
@@ -5986,13 +6007,24 @@
             "option": "approve-brief",
             "reason": "nothing open blocks completion"
           },
-          "review": [],
+          "review": [
+            {
+              "html": null,
+              "label": null,
+              "path": "outputs/delivery-scope.yml",
+              "role": null
+            }
+          ],
           "risks": {
             "followup": [],
             "open": [],
             "resolved": [],
             "stop": [],
             "tradeoff": []
+          },
+          "subject": {
+            "kind": "delivery-scope",
+            "path": "outputs/delivery-scope.yml"
           },
           "truncated": false,
           "version": 1

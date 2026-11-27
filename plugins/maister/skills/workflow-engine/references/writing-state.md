@@ -36,10 +36,10 @@ able to write:
   `resume-check` refuses it. The four **open
   maps** under `orchestrator:` — `options`, `task_ids`, `auto_fix_attempts`, `skipped_phases`
   — merge key by key instead: a write recording `user_docs_enabled` leaves an `html_output` an
-  earlier node set alone. `task.status` is the writer's at one moment: the first write that
-  moves a node off `pending` records `in_progress` when the status is absent or `pending`; a
-  status already set otherwise, or one the same patch sends, is left alone, and the run's
-  ending is the closing patch's to record.
+  earlier node set alone. `task.status` is the writer's at the freeze, which records
+  `in_progress` — as does the first write that moves a node off `pending`, for a state frozen
+  without one — when the status is absent or `pending`; a status already set otherwise, or one
+  the same patch sends, is left alone, and the run's ending is the closing patch's to record.
 - `workflow` and `nodes` — the workflow block installed whole, and its one-line node entries
   edited in place afterwards. Never send a node's `started` or `completed`, or
   `orchestrator.updated`: the writer stamps all three from its own clock on each status change
@@ -161,6 +161,9 @@ workflow it classes by the run's `workflow.name`, with one reserved name: a run 
 file in `.maister/workflows/generated/` is classed by the rows under `generated`, whatever its file
 and `name:` are, while its own name, task directory and recorded source stay as they are. A value a patch sends
 is ignored with a `note:` line, a sub-run's freeze records its own, and no later write changes it — `move-base` alone moves `task.base_commit` (below).
+
+**It records `task.status: in_progress`** when the patch sends no status: a frozen run is under
+way from the freeze on.
 
 **It records `task.base_commit`** — where the run starts: `{sha, dirty}`, HEAD at the freeze and
 the paths already modified, staged or untracked then, the project's `.maister/` left out.
@@ -347,8 +350,11 @@ number of entries ride in one patch. There are four moments:
   node is ever recorded as started while a node the walk already passed still reads
   `pending`.
 - **A run ends.** The closing node's outcome and `task.status` are one patch; a stop option is
-  likewise one patch carrying `task.status: stopped` and every unexecuted node. `run-complete`
-  follows it and publishes nothing, so it is not a write and never merges with one.
+  likewise one patch carrying `task.status: stopped` and every unexecuted node recorded
+  `stopped`. In a patch that ends the run `stopped` or `failed`, the writer records a node sent
+  `skipped` that is still on the run's path `stopped`, and keeps the record of one that already
+  ended, with a `note:` line. `run-complete` follows it and publishes nothing, so it is not a
+  write and never merges with one.
 
 That leaves two writes around a node, one before the delegation and one after.
 
@@ -409,6 +415,7 @@ Exit `2` carries no code at all and has the table's last rows:
 | `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. While choices are held, a frozen gate also offers a `revise-<node>` for each step behind it holding one (`references/gates.md` § *For a held choice*), and only while it does. At `held-approval` the options are the ones its brief offers — continue, a `revise-<node>` per node holding a choice, stop — and only continue and stop once its revises are spent; while a held question with no choice yet waits there is no continue — only the revises and stop, and stop alone once the revises are spent too. |
 | `state-absent-invalid` | A node summary's `absent` map is not a map, names an artifact the node does not declare, or gives an entry no reason (§ *Recording an outcome — the detail*). The message lists the declared keys. Nothing was written. Name each artifact by its declared key, never by its path, give the reason in a few words, and send the write again. An artifact the node was meant to produce and did not is not an absence to sanction: the node has not completed. |
 | `state-delegates-unrecorded` | A write completes a `direct:` step whose `brief:` declares `delegates` for the run's host, and the step's summary does not list each of them under `delegated`. The message names the missing agents. Nothing was written. Dispatch each one through the Task tool as the brief's `delegates:` line says — never do its work in the session, whatever the size of the project — then send the closing write again listing every agent dispatched. |
+| `delivery-scope-invalid` | A write completes a step that declares the output `delivery_scope`, and the file at its path is missing or breaks the shape product design's delivery-scope reference defines (§ *The shape*). One line per problem names the key and what to write instead; the last names the step and the file. Nothing was written. Rewrite the file as the lines say — lists of entries, each with its `name`, never a map keyed by member name — then send the same closing write again. Never drop or rename the output, record it absent, or change the check to get past it. |
 | `state-summary-artifact-outside` | A summary's `artifacts` entry names a `path` or an `html` outside the task folder and every recorded sub-run's folder: a repository file such as `.maister/docs/INDEX.md`, a `../` path that climbs out, or an absolute path elsewhere (§ *Recording an outcome — the detail*). The message names the entry and the task folder. Nothing was written. Name the file relative to the task folder (`outputs/research-report.md`), or leave it out of the summary; a file outside the task folder is not the run's artifact. |
 | `state-summary-item-invalid` | A typed field of a summary holds a value no reader knows: a decision's `by` outside `operator`, `run`, `audit` and `default`; a risk object with no `risk` text, or a `tag` outside `open`, `tradeoff`, `followup`, `stop` and `resolved`; an artifact `role` outside `primary`, `review`, `evidence` and `log`; a `headline` that is empty or not text (one that spans lines or runs past 220 characters is fitted with a `note:` line instead); an `as_recommended` that is not true, false or null; an `on_behalf_of` that is not a name on one line; a `metrics` entry without a label and a value; a `decision_areas` that is not a list of `{area, alternatives_count, chosen_approach}` maps; a `delegated` that is not a list of agent names or built-in agent types; or a `recommends` whose option is neither null nor a continue or revise option of a gate waiting on the node, or that carries no one-line reason. On Copilot it also refuses a checkpoint recorded `completed` after a person answered it with no answer item among its `decisions`; the message spells the shape, and the answer is sent again in it. The message names the field and the allowed values. Nothing was written. Correct that one value and send the write again. A string item is always accepted, so a source or tag you cannot place can be written as plain text. |
 | `state-on-behalf-of-not-operator` | A decision carries `on_behalf_of` but was recorded by `run`, `audit` or `default`, or has a shape that reads as the run's. `on_behalf_of` names the person a relaying side says gave an answer, so it belongs only on an answer a person gave. The message names the decision. Nothing was written. If a person gave the answer, send it as theirs, either `by: operator` or the answer shape, keeping `on_behalf_of`. If the run decided it, drop `on_behalf_of`. Never move a decision the run made over to the operator just to keep the name. |
@@ -564,7 +571,7 @@ the writer's is ever sent: the writer drops it with a `note:` line (the opening 
 - `orchestrator.gate_pending` — the suspended gate's marker, set and cleared only as `references/gates.md` § *Driver-suspended mode — the write order* says.
 - `orchestrator.parent` — a child run's link to its parent, sent by its freeze (`references/sub-runs.md` § *Walk one*).
 - `task.title`, `task.description`, `task.key` — the freeze patch (engine Step 4). These and every value under `orchestrator.options.inputs` are a person's words: send them exactly as the person wrote them. The writer stores them as given, with quotes, apostrophes, backslashes, brackets and line breaks, and never refuses one, so never reword them.
-- `task.status` — the writer's at the first node start, then the closing patch's (the opening section).
+- `task.status` — the writer's at the freeze, then the closing patch's (the opening section).
 - `task.base_commit` — the writer's, recorded at the freeze and moved only by `move-base`.
 
 ## The verification block

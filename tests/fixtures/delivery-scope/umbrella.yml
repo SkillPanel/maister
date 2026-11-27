@@ -1,0 +1,5 @@
+# A workspace manifest of three members, the names workspace.yml scopes.
+members:
+  api: {}
+  web: {}
+  mobile: {}

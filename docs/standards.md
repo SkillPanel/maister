@@ -186,8 +186,9 @@ second run has met within 30 days is closed as expired, though its file stays.
 standards, its `.gitattributes` included: then a candidate, a repeat sighting or a dismissal made in
 one clone, worktree or teammate's branch reaches everyone once that work is merged, and two
 branches that add to the same candidate merge without a conflict. A project whose runs kept their
-candidates in their task folders has them moved into the folder the first time a run or
-`/maister:standards-update` looks for candidates; the old files stay as a record.
+candidates in their task folders has the ones still open moved into the folder the first time a run
+or `/maister:standards-update` looks for candidates. Expired, added and dismissed ones are left
+out and counted in one line; the old files stay as a record, each marked as moved.
 
 **The same lesson from two branches.** Runs on separate branches can each note the same lesson
 before either is merged, so it is filed twice, each seen in one run. The next run's finalization

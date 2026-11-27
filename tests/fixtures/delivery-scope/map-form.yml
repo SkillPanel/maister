@@ -1,0 +1,14 @@
+# The shape a workspace design run wrote: members and out_of_scope as maps keyed
+# by member name, the workspace manifest's own shape, where the delivery scope
+# holds lists of entries, each carrying its name. The check refuses it.
+version: 1
+members:
+  api:
+    statement: "Add the guest-sharing endpoint and its permission check"
+    depends_on: []
+  web:
+    statement: "Add the share dialog and the guest calendar view"
+    depends_on: [api]
+out_of_scope:
+  mobile:
+    reason: "Guests use the web view; the app is unchanged"

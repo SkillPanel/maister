@@ -39,12 +39,19 @@ No name appears twice across the two lists. The file is written in the YAML subs
 engine reads (the grammar reference beside the engine skill, § 2): no block scalars, no anchors,
 a flow collection or a quoted scalar on one line.
 
+The engine checks the file against this shape and these rules when the step that writes it
+closes, and again before the scope is put up for approval. A file off the shape is refused
+`delivery-scope-invalid`, one line per problem naming the key and what to write instead; the
+step rewrites the file and closes again.
+
 ## Where the names come from
 
 **In a workspace** — the project root holds the workspace manifest, `.maister/umbrella.yml` — the
 names are the keys of the manifest's `members:` map, spelled exactly as there. Every member the
 manifest declares appears exactly once, in scope or out of it, so the operator who approves the
-scope sees what was left out and why.
+scope sees what was left out and why. Only the names come from the manifest, never its shape:
+the manifest keys its members by name, while both lists here hold entries, each carrying its
+own `name`.
 
 **In a single repository** — no manifest — the scope has one member: the repository's directory
 name (the top level of its git checkout, or the project root when it is not one), the feature in
