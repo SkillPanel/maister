@@ -157,6 +157,10 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   the request file. Send the patch the message names through `write-state` — the gate, and each
   pending node of its stretch whose guard reads false, recorded `skipped` — and go on with the
   ready set. Never ask the gate in session instead.
+- **`delivery-scope-invalid`**: a delivery scope this gate would approve breaks its shape — the
+  file was rewritten after its step closed, or the step closed before the closing write checked
+  it. One line per problem names the key and what to write instead. Nothing is written and nothing
+  is asked. Rewrite the file as the lines say, then run the verb again; never ask the gate meanwhile.
 - **`gate-brief-unknown-node` or `gate-brief-not-a-gate`**: the `--node` argument is wrong;
   correct it. Nothing is written. A question a node asks inside itself is not a gate: it is
   briefed from its question set (`references/in-node-questions.md` § *In-node questions*).

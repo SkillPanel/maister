@@ -86,8 +86,20 @@ function freshRun(t, inputs = {}, driver = null) {
   return run;
 }
 
-/** One write of a walk, with the delegates a session that dispatched them would list. */
+/** The single-repository scope the recorded run wrote, which a walked brief writes before it closes. */
+const SINGLE_SCOPE = path.join(FIXTURES, 'runs/team-calendar-sharing/outputs/delivery-scope.yml');
+
+/**
+ * One write of a walk, with the delegates a session that dispatched them would
+ * list; a write closing `brief` first writes the delivery scope it owes, when
+ * none is on disk, since the closing write refuses a brief without one.
+ */
 function walk(run, patch) {
+  const scope = path.join(run.dir, 'outputs/delivery-scope.yml');
+  if (patch.nodes?.brief?.status === 'completed' && !fs.existsSync(scope)) {
+    fs.mkdirSync(path.dirname(scope), { recursive: true });
+    fs.copyFileSync(SINGLE_SCOPE, scope);
+  }
   return write(run, delegating(patch, run));
 }
 
@@ -819,7 +831,7 @@ test('brief-approval: change-screens-and-brief resets a skipped specification an
   for (const id of ['specification', 'screens', 'brief']) assert.equal(statusOf(written, id), 'completed', id);
 });
 
-test('brief-approval: its labels and header, the review naming the brief and the mockups folder, and change-brief re-runs the brief alone', t => {
+test('brief-approval: its labels and header, the review naming the delivery scope it approves and the mockups folder, and change-brief re-runs the brief alone', t => {
   const run = atBriefApproval(t);
   for (const file of ['outputs/product-brief.md', 'analysis/mockups/index.html']) {
     fs.mkdirSync(path.dirname(path.join(run.dir, file)), { recursive: true });
@@ -835,7 +847,8 @@ test('brief-approval: its labels and header, the review naming the brief and the
   assert.equal(rich.header, 'Brief');
   const review = rich.brief.split('\n').find(line => line.startsWith('Review:'));
   assert.ok(review, rich.brief);
-  assert.match(review, /outputs\/product-brief\.md/);
+  // The scope the closing write checked leads the review: it is the gate's subject.
+  assert.match(review, /outputs\/delivery-scope\.yml/);
   assert.match(review, /analysis\/mockups\//);
 
   const result = revise(run, 'brief-approval', 'change-brief', 'Tighten the scope section');

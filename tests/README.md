@@ -44,6 +44,9 @@ control characters through `write-state`, and reads them back with the engine's 
   runs it walks to each of that workflow's gates. It carries no phase-summary mirror: each step's values sit
   on its `node_summaries` entry. Its `outputs/delivery-scope.yml` is kept whole: it is the
   single-repository scope, read beside `fixtures/delivery-scope/workspace.yml`, a workspace's.
+  `delivery-scope.test.mjs` checks both against the engine's scope check, with
+  `fixtures/delivery-scope/umbrella.yml` as the workspace manifest and `map-form.yml` as the
+  lists-written-as-maps shape the check refuses.
   Its `analysis/decision-areas.json` is stamped with the SHA-256 of `analysis/alternatives.md`, so an
   edit to that file re-stamps it. Its `analysis/mockups/` holds the final screens' flat pages, empty,
   and `versions/index.json`, without the version folders.

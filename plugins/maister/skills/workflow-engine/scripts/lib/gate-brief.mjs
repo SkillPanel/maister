@@ -136,6 +136,7 @@ import { ROUNDS_MAX, checkSet, questionCheckpoint, questionRequest, roundsAsked,
 export { noteForm } from './checkpoint.mjs';
 import { checkCites, checkEvidence, citesKey, evidenceKey } from './evidence.mjs';
 import { subjectKey, subjectOf } from './gate-subject.mjs';
+import { declaredScopePath, scopeProblems, scopeRefusalText } from './delivery-scope.mjs';
 import { CHECKPOINT_KIND, CHECKPOINT_VERSION } from './interface-shapes.mjs';
 import { loadPolicy, triageFor } from './policy.mjs';
 import { HELD_APPROVAL, REVISION_CEILING, frozenIds, gateHeldRevises, heldApprovalBlockers, heldApprovalLabel, heldApprovalOptions, isHeld, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
@@ -333,6 +334,22 @@ export function gateBrief({ state, node, form = 'plain', picker = 'rich', reask 
       code: 'gate-brief-needs-unknown',
       message: `gate-brief-needs-unknown: what this gate closes is unknown, so the summary is ${closing.id}'s, the nearest node before it that carries one`,
     });
+  }
+
+  // A delivery scope this gate would approve holds its shape, read again here:
+  // the closing write checks it, but a file rewritten after the close, or a
+  // step closed before that check existed, would otherwise reach the person.
+  // An answered gate read back for its labels is not asked, so not judged.
+  if (!briefAnswered) {
+    for (const id of candidates) {
+      if (entryOf(recorded, id).status !== 'completed') continue;
+      const relative = declaredScopePath(byId.get(id));
+      if (relative === null) continue;
+      const problems = scopeProblems({ file: path.join(runDir, relative), projectRoot: projectRootOf(runDir) });
+      if (!problems.length) continue;
+      return refuse('delivery-scope-invalid', scopeRefusalText([...problems,
+        `--node=${node} cannot be asked while ${relative}, which ${id} wrote, breaks the delivery scope's shape. Nothing was written and nothing is asked: rewrite the file as each line above says, then run gate-brief again`]), warnings);
+    }
   }
 
   // The options only when the current definition still holds this node as a
