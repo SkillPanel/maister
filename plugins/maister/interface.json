@@ -828,6 +828,7 @@
           "state"
         ],
         "refusals": [
+          "delivery-scope-invalid",
           "edition-collision",
           "gate-brief-value-missing",
           "gate-temp-exists",
@@ -1354,7 +1355,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.14",
+  "interface_version": "2.15",
   "mcp": {
     "servers": [],
     "tools": [

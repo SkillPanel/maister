@@ -260,7 +260,8 @@ function start(run, node, doc, { begun }) {
   const childState = path.join(childDir, 'orchestrator-state.yml');
   if (where.existing !== 'adopt') {
     fs.mkdirSync(childDir, { recursive: true });
-    const task = { title: titleOf(current.display?.titles, node), status: 'in_progress' };
+    // The writer records the status a freeze starts a run with.
+    const task = { title: titleOf(current.display?.titles, node) };
     if (typeof doc.task?.description === 'string' && doc.task.description !== '') task.description = doc.task.description;
     const parentDriver = doc.orchestrator?.driver;
     const driver = isTerminalDriver(doc) ? { kind: 'terminal' } : { kind: parentDriver.kind, cwd: root };

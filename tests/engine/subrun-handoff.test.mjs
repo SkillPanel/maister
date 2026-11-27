@@ -113,6 +113,7 @@ test('the first child starts in one call: W1, the freeze into the derived direct
   assert.deepEqual(frozen.orchestrator.options.inputs, { subject: 'the store', embedded: true });
   assert.equal(frozen.task.title, 'First probe');
   assert.equal(frozen.task.description, 'Probe the store twice.');
+  assert.equal(frozen.task.status, 'in_progress', 'the writer records the status the freeze starts a run with');
   assert.equal(frozen.workflow.source, CHILD_SOURCE);
   assert.match(result.stdout, /A sub-run's banner: do not relay it/);
 });
@@ -162,7 +163,7 @@ test('parity: one call leaves the state the separate W4, skip, W1, W2 and W3 wri
   fs.mkdirSync(next.dir, { recursive: true });
   const resolved = JSON.parse(verb(['resolve', `--definition=${path.join(run.root, ...CHILD_SOURCE.split('/'))}`]).stdout);
   write(next, {
-    task: { title: 'Second probe', status: 'in_progress', description: 'Probe the store twice.' },
+    task: { title: 'Second probe', description: 'Probe the store twice.' },
     workflow: { source: CHILD_SOURCE, overlays: [], profile: null, graph_hash: resolved.graph_hash, grammar_version: 1, name: 'handoff-child' },
     orchestrator: { options: { inputs: { subject: 'the store', embedded: true } }, driver: { kind: 'terminal' }, parent: { run: run.path, node: 'second' } },
   });
@@ -238,7 +239,7 @@ test('a crash between W1 and W3: the running node goes on from its child\'s dire
   fs.mkdirSync(child.dir, { recursive: true });
   const resolved = JSON.parse(verb(['resolve', `--definition=${path.join(crashed.root, ...CHILD_SOURCE.split('/'))}`]).stdout);
   write(child, {
-    task: { title: 'First probe', status: 'in_progress' },
+    task: { title: 'First probe' },
     workflow: { source: CHILD_SOURCE, overlays: [], profile: null, graph_hash: resolved.graph_hash, grammar_version: 1, name: 'handoff-child' },
     orchestrator: { options: { inputs: { subject: 'the store', embedded: true } }, driver: { kind: 'terminal' }, parent: { run: crashed.path, node: 'first' } },
   });
