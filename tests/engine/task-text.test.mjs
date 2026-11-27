@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 
-import { ENGINE_DIR, FIXTURES, delegating, freeze, reach, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
+import { spawnSync } from 'node:child_process';
+
+import { ENGINE, ENGINE_DIR, FIXTURES, delegating, freeze, freezePatch, reach, readDashboard, readState, scratch, sibling, verb, write } from '../helpers.mjs';
 import { Refusal, scalar } from '../../plugins/maister/lib/canonical.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
@@ -111,6 +113,29 @@ test('node-brief: a one-line task text is printed as written; a multi-line one a
     assert.equal(JSON.parse(withValue(result.stdout, 'task_description')), text, JSON.stringify(text));
     assert.match(result.stdout, /^note: task_description spans lines, so it is written as a JSON string; pass it on decoded, word for word$/m);
   }
+});
+
+test('freeze: a two-line task with quotes, sent as the engine skill spells the freeze, a here-string, is stored exactly', t => {
+  if (spawnSync('bash', ['-c', 'exit 0']).status !== 0) return t.diagnostic('bash is not available: the here-string is not checked');
+  // The task as a person pastes it: two lines, double quotes, an apostrophe,
+  // braces and a backslash. The here-string is single-quoted, so the
+  // apostrophe is written '\'' and every other character goes as JSON spells it.
+  const text = '[status] print "nothing running" when no task is open\nand {"total": n} with --json; it\'s docs\\reports as typed';
+  const run = scratch(t);
+  const { patch } = freezePatch({ definition: DEVELOPMENT, task: { title: 'Status output', description: text }, inputs: { task_description: text } });
+  const json = JSON.stringify(patch).replace(/'/g, "'\\''");
+  const here = spawnSync('bash', ['-c', `"$0" "$1" write-state "--state=$2" <<< '${json}'`, process.execPath, ENGINE, run.state],
+    { encoding: 'utf8', env: { ...process.env, MAISTER_STDIN_IDLE_MS: '5000' }, timeout: 30000 });
+  assert.equal(here.status, 0, here.stdout + here.stderr);
+
+  const state = readState(run);
+  assert.equal(state.task.description, text);
+  assert.equal(state.orchestrator.options.inputs.task_description, text);
+  assert.equal(readDashboard(run).task.description.split('\n').length, 2, 'the dashboard keeps both lines');
+  const brief = verb(['node-brief', `--state=${run.state}`, '--node=gap-analysis']);
+  assert.equal(brief.code, 0, brief.stderr);
+  assert.equal(JSON.parse(withValue(brief.stdout, 'task_description')), text);
+  assert.match(brief.stdout, /^note: task_description spans lines, so it is written as a JSON string; pass it on decoded, word for word$/m);
 });
 
 test('run-context, gate-brief and the dashboard read a run whose task text carries every awkward character', t => {

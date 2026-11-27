@@ -16,7 +16,9 @@ This workflow runs on the workflow engine, which interprets its definition,
 
 **Hand the run over before Initialization.** Invoke the `maister:workflow-engine` skill with the
 Skill tool, naming the workflow `builtin:performance` and passing the task description, the resume
-target and the invocation's flags. The engine owns the run from there: it probes for Node 20,
+target and the invocation's flags. The description goes last, word for word as the person typed
+it, on the lines after a `task:` line: every line break, quote and backslash kept, never joined
+onto one line, reworded or put in quotes. The engine owns the run from there: it probes for Node 20,
 which this workflow requires, freezes the graph, runs the nodes and asks every gate.
 **The run's first message tells the user what the engine's start banner says**: the workflow
 and the task, how many checkpoints they will be asked at, the run's directory, its dashboard
