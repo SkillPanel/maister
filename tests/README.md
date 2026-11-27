@@ -90,6 +90,16 @@ control characters through `write-state`, and reads them back with the engine's 
   allowlist. `browser-tool-lint.test.mjs` runs it on the repository and on scratch roots it plants
   at test time, one offence each.
 
+- `benchmark/` — not a fixture set of the engine's: the engine-turn benchmark's story, a parent
+  workflow and its sub-run child, written as a project authors its own (`benchmark/README.md` says
+  how to run it on each host). `turn-cost-story.test.mjs` copies it into a scratch project's
+  `.maister/workflows/`, validates both definitions and checks that the guarded gate is never asked
+  with the default input. `engine-turns.test.mjs` runs `tools/engine-turns.mjs` as a subprocess on
+  a Claude Code session file (with a subagent file) and a Copilot events file it writes at test
+  time, nothing real in them: both forms of a step's start, `skipped:` lines, a gate, a sub-run
+  hand-off, the engine-only turn count, the token totals against the host's totals record,
+  `compare`, and that no path, prompt, result or session id reaches the output.
+
 The tests that read the Copilot CLI build get it from `variantRoot()` in `helpers.mjs`. `make test`
 builds the variant once into a scratch folder and names it in `MAISTER_TEST_VARIANT`; a test file
 run on its own with that variable unset builds its own copy, once per process, into a temp folder
