@@ -1,0 +1,44 @@
+# The benchmark story's child, started by `turn-cost-story` as a sub-run: one step, one gate
+# whose answer sets a value the parent reads, and a wrap-up the embedded run skips.
+name: turn-cost-probe
+version: 1
+description: "Probes one subject and settles what it found; started by the turn-cost story as a sub-run."
+inputs:
+  subject: {type: string, required: true}
+  embedded: {type: bool, required: false, default: false}
+
+outputs:
+  artifacts:
+    notes: probe.artifacts.notes
+  values:
+    settled: settle.values.settled
+
+nodes:
+  probe:
+    uses: direct:probe
+    needs: []
+    with:
+      subject: "${inputs.subject}"
+    outputs:
+      artifacts:
+        notes: notes/probe-notes.md
+
+  settle:
+    type: gate
+    needs: [probe]
+    ask: "Probe finished. Settle its findings?"
+    options:
+      settle-findings: {effect: continue, sets: {settled: true}}
+      leave-open: {effect: continue, sets: {settled: false}}
+      stop-here: stop
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [settle]
+    when: "!${inputs.embedded}"
+
+display:
+  titles:
+    probe: Probe
+    settle: Settle the findings
+    wrap-up: Wrap-up

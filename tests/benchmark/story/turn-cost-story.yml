@@ -1,0 +1,91 @@
+# The benchmark story's parent: every moment of a run in the fewest steps. A start, a step
+# run inline, a step that always hands its search to one agent, a gate, a step that is an
+# agent, a sub-run, and a closing step. Each step's work is one short file, so nearly every
+# turn the run costs is a turn spent driving the engine. One step and one gate are guarded on
+# `extras`, false unless given, so every run crosses a skipped step and a skipped gate; the
+# guard reads an input, so the skip-guard rule never asks the gate.
+name: turn-cost-story
+version: 1
+description: "Notes one fact about the project, has it located and checked, probes it in a child run, and closes."
+inputs:
+  topic: {type: string, required: true}
+  extras: {type: bool, required: false, default: false}
+
+brief:
+  locate:
+    delegates: [Explore]
+
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+    outputs:
+      artifacts:
+        note: analysis/intake.md
+
+  context:
+    uses: direct:context
+    needs: [intake]
+    when: "${inputs.extras}"
+
+  locate:
+    uses: direct:locate
+    needs: [context]
+    with:
+      topic: "${inputs.topic}"
+    outputs:
+      artifacts:
+        places: analysis/places.md
+
+  locate-approval:
+    type: gate
+    needs: [locate]
+    ask: "The places are listed. Continue?"
+    options:
+      continue-to-checks: continue
+      stop-here: stop
+
+  checks:
+    uses: agent:test-suite-runner
+    needs: [locate-approval]
+    outputs:
+      artifacts:
+        results: verification/test-results.md
+
+  checks-approval:
+    type: gate
+    needs: [checks]
+    when: "${inputs.extras}"
+    ask: "The checks ran. Continue to the probe?"
+    options:
+      continue-to-probe: continue
+      stop-here: stop
+
+  probe:
+    uses: workflow:turn-cost-probe
+    needs: [checks-approval]
+    with:
+      subject: "${inputs.topic}"
+    outputs:
+      artifacts:
+        notes: notes/probe-notes.md
+      values:
+        settled: bool
+
+  wrap:
+    uses: direct:wrap
+    needs: [probe]
+    outputs:
+      artifacts:
+        summary: outputs/summary.md
+
+display:
+  titles:
+    intake: Intake
+    context: Context
+    locate: Locate
+    locate-approval: Approve the places
+    checks: Run the checks
+    checks-approval: Approve the checks
+    probe: Probe
+    wrap: Wrap
