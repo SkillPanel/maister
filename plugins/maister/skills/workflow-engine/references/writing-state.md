@@ -347,8 +347,11 @@ number of entries ride in one patch. There are four moments:
   node is ever recorded as started while a node the walk already passed still reads
   `pending`.
 - **A run ends.** The closing node's outcome and `task.status` are one patch; a stop option is
-  likewise one patch carrying `task.status: stopped` and every unexecuted node. `run-complete`
-  follows it and publishes nothing, so it is not a write and never merges with one.
+  likewise one patch carrying `task.status: stopped` and every unexecuted node recorded
+  `stopped`. In a patch that ends the run `stopped` or `failed`, the writer records a node sent
+  `skipped` that is still on the run's path `stopped`, and keeps the record of one that already
+  ended, with a `note:` line. `run-complete` follows it and publishes nothing, so it is not a
+  write and never merges with one.
 
 That leaves two writes around a node, one before the delegation and one after.
 
