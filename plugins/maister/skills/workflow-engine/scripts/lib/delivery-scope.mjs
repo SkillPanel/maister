@@ -19,6 +19,8 @@
  * the manifest declares appearing exactly once, under its manifest name. A key
  * the shape does not name is not refused, so a file written to the shape by an
  * earlier version still passes; a manifest that does not read judges nothing.
+ * Which nodes are held to it, and when a missing file is sanctioned, is
+ * `heldScopePath`'s to say.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -160,6 +162,30 @@ export function declaredScopePath(graphNode) {
   if (typeof relative !== 'string' || relative === '' || relative.includes('${')) return null;
   if (path.isAbsolute(relative) || relative.split(/[\\/]+/).includes('..')) return null;
   return relative;
+}
+
+/**
+ * The run-relative scope path a completed node is held to, or null when it is
+ * held to none. Three cases hold nobody:
+ *
+ * - a `workflow:` node: its artifacts are its child run's, and the child's own
+ *   close checked them;
+ * - a node that declares no literal scope path;
+ * - a scope that is not on disk when its absence is sanctioned — by the node's
+ *   `brief:` block listing the key under `absent`, or by the closing summary
+ *   recording it under `absent` with a reason (`absences`, the set the state
+ *   writer's `sanctionedAbsences` gives for the node, the rule `run-complete`
+ *   and the companion check read too).
+ *
+ * A scope that is on disk is always held to its shape, sanctioned or not.
+ */
+export function heldScopePath({ graphNode, briefEntry = null, absences = new Set(), runDir }) {
+  if (typeof graphNode?.uses === 'string' && graphNode.uses.startsWith('workflow:')) return null;
+  const relative = declaredScopePath(graphNode);
+  if (relative === null) return null;
+  if (fs.existsSync(path.join(runDir, relative))) return relative;
+  const briefAbsent = isMap(briefEntry) && isMap(briefEntry.absent) && Object.hasOwn(briefEntry.absent, DELIVERY_SCOPE_KEY);
+  return briefAbsent || absences.has(DELIVERY_SCOPE_KEY) ? null : relative;
 }
 
 /** `doc[key]` as a list, or null with the problem recorded; a map gets the line naming its fix. */

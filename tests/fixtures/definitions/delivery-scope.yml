@@ -1,0 +1,42 @@
+# The delivery scope check's definition: a step whose brief lets its scope go
+# unwritten, a sub-run whose scope is its child's — the child is never run, so
+# its reference stays unresolved — and a step that may record its scope absent
+# in its summary, before a gate that approves it.
+name: delivery-scope
+version: 1
+
+brief:
+  investigation:
+    absent:
+      delivery_scope: "Written only when the investigation scopes the work itself; product design writes the scope in this chain."
+
+nodes:
+  investigation:
+    uses: direct:investigation
+    needs: []
+    outputs:
+      artifacts:
+        findings: analysis/findings.md
+        delivery_scope: outputs/investigation-scope.yml
+
+  design:
+    uses: workflow:delivery-scope-child
+    needs: [investigation]
+    outputs:
+      artifacts:
+        delivery_scope: outputs/delivery-scope.yml
+
+  hand-off:
+    uses: direct:hand-off
+    needs: [design]
+    outputs:
+      artifacts:
+        delivery_scope: outputs/delivery-scope.yml
+
+  approval:
+    type: gate
+    needs: [hand-off]
+    ask: "The hand-off is ready. Continue?"
+    options:
+      approve-hand-off: continue
+      stop-here: stop
