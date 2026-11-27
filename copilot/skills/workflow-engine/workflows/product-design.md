@@ -205,8 +205,9 @@ story still fits.
 
 **Exception.** Its stop, "Use quick-design instead", ends the run with the engine's
 wrap-up, and the **Next** line is
-`/maister:quick-design "<the question from design_context.quick_design_question, else the task>"`,
-in place of the development command.
+`/maister:quick-design` followed by the question from `design_context.quick_design_question`,
+else the task, exactly as written — never inside quotes, never escaped — in place of the
+development command.
 
 ---
 

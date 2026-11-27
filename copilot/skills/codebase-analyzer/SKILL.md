@@ -94,7 +94,7 @@ Print the template for each selected role before launching — the templates hol
 
 If combining roles into one agent, also print the merging guidance: `--at="skills/codebase-analyzer/references/combined.md § Merging Principles"` and `--at="skills/codebase-analyzer/references/combined.md § Example"`.
 
-**3b. Adapt templates** — Replace `[description]` with the actual task description. The section printed is already the task type's.
+**3b. Adapt templates** — Put the task description in place of `[description]` word for word, every line, quote and backslash as the person typed it: the template's marker lines keep it apart from the instructions, so it is never escaped and never wrapped in quotes. The section printed is already the task type's.
 
 **3c. Launch agents** — Use the Task tool with `agent_type="explore"` — one call per selected role, all in ONE message.
 
@@ -123,7 +123,11 @@ Task tool:
   prompt: |
     You are the codebase-analysis-reporter. Merge these raw findings into a structured analysis report.
 
-    Task description: [description]
+    The task, exactly as the person wrote it, between the marker lines:
+    --- task ---
+    [description]
+    --- end of task ---
+
     Agent roles used: [list of roles]
     Agent count: [N]
     Output path: [task_path]/analysis/[artifact_name]

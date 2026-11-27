@@ -24,7 +24,7 @@ the engine does all of that, under its own rules, and a second copy of them here
 | Argument | Meaning |
 |---|---|
 | `<name>` | The workflow to start — the file name under `.maister/workflows/` without `.yml`, or a built-in's name |
-| `"title"` | Free text: the run's title and task description |
+| `"title"` | Free text: the run's title and task description. It may also come unquoted on the lines after the first, where it is the rest of the arguments; either way it is taken exactly as written |
 | `key=value` | One declared input. Quote a value holding spaces: `team="Payments Core"` |
 | `--profile=NAME` | A profile one of the run's overlays declares |
 | `--overlay=PATH` | An extra overlay file, laid over the definition after any overlay the lookup finds; repeatable, applied in the order given |
@@ -140,7 +140,8 @@ Invoke the `workflow-engine` skill with the Skill tool, passing:
 - the inputs, as a map of input name to value;
 - the overlays, located ones first and then the operator's, in order;
 - the profile, when one was given;
-- the title and, when there is free text, the task description.
+- the title and, when there is free text, the task description, word for word as typed: every
+  line break, quote and backslash kept, never put in quotes or escaped.
 
 The engine owns the run from here: it re-resolves the name, freezes the graph with these inputs,
 creates the run's task directory under `.maister/tasks/<name>/`, relays its startup banner, runs

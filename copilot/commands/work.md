@@ -169,10 +169,15 @@ Use Task tool:
   agent_type: "maister:task-classifier"
   name: "task-classifier"
   description: "Classify task type"
-  prompt: "Classify this task into a workflow type: [task description].
-           [When step 0 kept any:] The project's own workflows, candidates beside
-           the five types: [one line each — name, title, summary].
-           Return structured YAML classification result."
+  prompt: |
+    Classify this task into a workflow type. The task, exactly as the person
+    wrote it, between the marker lines:
+    --- task ---
+    [task description]
+    --- end of task ---
+    [When step 0 kept any:] The project's own workflows, candidates beside
+    the five types: [one line each — name, title, summary].
+    Return structured YAML classification result.
 ```
 
    The agent asks nothing. It fetches any issue the description names, and returns `type`,
@@ -196,7 +201,10 @@ Use Task tool:
    - **`needs_description`**: ask the no-argument question of Step 1.
 
 3. **Start the workflow** with the Skill tool — `<type>` with the description as `args`,
-   or `run` with `args: "<workflow_name> \"<description>\""` for a project workflow.
+   or `run` with `args` holding the workflow's name on the first line and the description
+   on the lines after it for a project workflow. Either way the description goes word for word,
+   as the person typed it: every line break, quote and backslash kept, never put in quotes or
+   escaped.
 
 ---
 

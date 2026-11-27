@@ -273,7 +273,8 @@ it has.
 **The freeze patch carries, and nothing else:**
 - `workflow`: `source`, `overlays`, `profile`, `graph_hash` and `name` exactly as `resolve`
   printed them, `grammar_version: 1`, no `nodes`; one here-string, never scripted from a file;
-- `task.title` and `task.description`;
+- `task.title` and `task.description`, the description copied whole from the person's own words,
+  each line break a `\n` in the JSON;
 - `orchestrator.options.inputs`, the run's inputs; with none, no key;
 - `orchestrator.options.ceiling`, when a dispatched run's seed names one;
 - `context`, the fields known before the first node runs, when the definition's prose names a seed.

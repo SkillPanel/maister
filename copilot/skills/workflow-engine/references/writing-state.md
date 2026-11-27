@@ -516,7 +516,9 @@ sections, in this order, and nothing else.
 - **Follow-ups:** each `followup` risk, one line each, or "none";
 - **Next:** every next step, one line each: the workflow's own as the real command with its
   real flags (`/maister:development --research=<task-dir>`), then the rest its closing node
-  names;
+  names. A command that repeats a person's text — the task, a question, a note — carries it
+  exactly as they typed it, after the command and its flags: never inside quotes, never
+  escaped, a text of several lines on the lines below the command;
 - **Files:** the key files the run wrote, from the project root; anything long goes into a
   file in the task directory, named here;
 - **Dashboard:** `<link>`, or none when the run has none. Nothing follows it.
