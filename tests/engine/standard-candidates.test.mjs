@@ -97,7 +97,7 @@ test('the candidate description lives in one reference that every other step poi
   for (const field of ['`id`', '`label`', '`line`', '`destination`', '`evidence`', '`recommended`', '`already_held`', '`standard-candidates-applied.json`',
     '`version`', '`attached`', '`seen_in`', '`--json`', '`{id, evidence, line}`', '<id> [<action>; seen in <N>] <label>: <rule>',
     '`.maister/standard-candidates/`', '`*.json merge=union`', 'meant to be committed with the standards', '`{run, date, evidence}`', '`store`',
-    'folding in again adds nothing', 'never under `standards/`',
+    'folds in alone and the same way', '`folded: {expired, closed}`', 'never under `standards/`',
     '`dropped`', '**Keep at most five new lessons.**', '`guards`', '`caught_by`', '`dismissed`', '`{reason, by, date}`', '**expired**', '`{queue, closed, problems}`',
     '**merged**', '`{into, date}`', '`merges`', 'a merge pair', '`{applied, dismissed, expired, merged}`']) {
     assert.ok(reference.includes(field), `the file shape names ${field}`);
@@ -196,7 +196,7 @@ function storeId(run, localId, label) {
 
 /** The day the fixtures' runs are judged on, unless a test names another: inside every 2026-01 run's window. */
 const TODAY = '--today=2026-01-10';
-const DATED = ['latest', 'show', 'queue', 'dismiss', 'applied', 'close', 'merge'];
+const DATED = ['file', 'import', 'latest', 'show', 'queue', 'dismiss', 'applied', 'close', 'merge'];
 
 function script(where, args) {
   const dated = DATED.includes(args[0]) && !args.some(arg => arg.startsWith('--today=')) ? [...args, TODAY] : args;
@@ -286,7 +286,7 @@ test('file: an attachment adds the run to the candidate\'s seen_in once, on a li
   assert.match(masked(refused.report.refused.join('\n')), /could not read the candidates/);
 });
 
-test('import: run folders from before the store are folded in once — candidates, applied, dismissed, attachments — and folding in again writes nothing', t => {
+test('import: run folders from before the store are folded in once — open candidates and attachments, applied and dismissed left out — each run marked, and folding in again writes nothing', t => {
   const where = project(t);
   assert.equal(script(where, ['queue']).stdout, '');
   assert.equal(fs.existsSync(where.store), false, 'no earlier run, no store');
@@ -298,40 +298,162 @@ test('import: run folders from before the store are folded in once — candidate
   runWith(where, 'development', '2026-01-06-second', { version: 2, candidates: [candidate('d')], attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: 'group 2' }, { run: 'development/2026-01-01-gone', id: 'x', evidence: 'group 1' }] });
   runWith(where, 'development', '2026-01-07-third', { version: 3, candidates: [candidate('e')] });
 
-  const queued = script(where, ['queue', '--json']).report;
+  const folding = script(where, ['queue', '--json']);
+  const queued = folding.report;
   const [a, b, c] = ['a', 'b', 'c'].map(id => storeId('development/2026-01-05-first', id, `Label ${id}`));
   const d = storeId('development/2026-01-06-second', 'd', 'Label d');
   assert.deepEqual(queued.queue.map(each => [each.id, each.seen_in]), [
     [a, ['development/2026-01-05-first', 'development/2026-01-06-second']], [d, ['development/2026-01-06-second']],
   ], 'a version 3 run is never folded in: it is filed');
-  assert.deepEqual(queued.closed, { applied: 1, dismissed: 1, expired: 0, merged: 0 });
-  assert.deepEqual([record(where, b).state, record(where, b).closed], ['applied', { date: '2026-01-08' }], 'applied on the day its file was written');
-  assert.deepEqual([record(where, c).state, record(where, c).closed], ['dismissed', { reason: 'not here', by: 'Dana', date: '2026-01-07' }]);
+  assert.deepEqual(queued.closed, { applied: 0, dismissed: 0, expired: 0, merged: 0 }, 'applied and dismissed in their run: left out, nothing written');
+  assert.deepEqual([b, c].map(id => fs.existsSync(path.join(where.store, `${id}.json`))), [false, false]);
   assert.match(queued.problems.map(each => each.message).join('\n'), /attachment development\/2026-01-01-gone#x names no candidate/);
+  assert.equal(folding.stderr, 'candidates: left out 2 closed candidates from 1 older run\n', 'one line counts what was left out');
+  const marked = JSON.parse(fs.readFileSync(path.join(first, 'standard-candidates.json'), 'utf8'));
+  assert.deepEqual([marked.version, marked.folded, marked.consolidated], [3, { expired: 0, closed: 2 }, true], 'the run marked as folded in, its other keys kept');
+  assert.deepEqual(marked.candidates.map(each => [each.id, each.store ?? null]), [['a', a], ['b', null], ['c', null]], 'every entry kept, the one in the store naming it');
 
   const before = snapshotStore(where);
   const again = script(where, ['import']);
   assert.equal(again.code, 0, again.stderr);
-  assert.deepEqual([again.report.imported, again.report.attached], [[], []]);
+  assert.deepEqual([again.report.imported, again.report.attached, again.report.left_out], [[], [], { expired: 0, closed: 0, runs: 0 }]);
+  assert.equal(again.stderr, '', 'nothing left out again, no line');
   script(where, ['latest']);
   script(where, ['queue']);
   assert.deepEqual(snapshotStore(where), before, 'nothing missing, nothing rewritten');
 });
 
+/** Older runs as a long-lived project holds them: ten long expired, one of them holding 1,001 candidates, two inside the window, one candidate applied. */
+function olderRuns(where) {
+  const dirs = [];
+  for (let day = 1; day <= 10; day += 1) {
+    const count = day === 1 ? 1_001 : 3;
+    const doc = { candidates: Array.from({ length: count }, (_, index) => candidate(`old${index}`)) };
+    dirs.push(runWith(where, 'development', `2025-06-${String(day).padStart(2, '0')}-old`, doc));
+  }
+  const recent = runWith(where, 'development', '2026-01-01-recent', { version: 2, candidates: [candidate('r1'), candidate('r2')] });
+  fs.writeFileSync(path.join(recent, 'standard-candidates-applied.json'), JSON.stringify({ applied: ['r2'] }));
+  dirs.push(recent, runWith(where, 'performance', '2026-01-02-newer', { candidates: [candidate('n1'), candidate('n2')] }));
+  return dirs;
+}
+
+const storeFiles = where => fs.readdirSync(where.store).filter(name => name.endsWith('.json')).sort();
+/** Each run's candidates file with its text and time, for a test that nothing was rewritten. */
+const snapshotRuns = dirs => dirs.map(dir => {
+  const file = path.join(dir, 'standard-candidates.json');
+  return [fs.readFileSync(file, 'utf8'), fs.statSync(file).mtimeMs];
+});
+
+test('fold-in: of many older runs only the candidates still open are written, the rest counted in one line', t => {
+  const where = project(t);
+  olderRuns(where);
+  const folded = script(where, ['import']);
+  assert.equal(folded.code, 0, folded.stderr);
+  const live = [storeId('development/2026-01-01-recent', 'r1', 'Label r1'), storeId('performance/2026-01-02-newer', 'n1', 'Label n1'), storeId('performance/2026-01-02-newer', 'n2', 'Label n2')];
+  assert.deepEqual(storeFiles(where), live.map(id => `${id}.json`).sort(), 'one file a live candidate, none for an expired or applied one');
+  assert.deepEqual(folded.report.imported.sort(), [...live].sort());
+  assert.deepEqual(folded.report.left_out, { expired: 1_028, closed: 1, runs: 11 });
+  assert.equal(folded.stderr, 'candidates: left out 1,028 expired and 1 closed candidates from 11 older runs\n');
+  assert.deepEqual(script(where, ['queue', '--json']).report.closed, { applied: 0, dismissed: 0, expired: 0, merged: 0 }, 'nothing left out reads as closed');
+});
+
+test('fold-in: a second verb after it neither rescans nor rewrites, and every older run is marked', t => {
+  const where = project(t);
+  const dirs = olderRuns(where);
+  assert.equal(script(where, ['queue']).code, 0);
+  const runs = dirs.map(dir => JSON.parse(fs.readFileSync(path.join(dir, 'standard-candidates.json'), 'utf8')));
+  assert.deepEqual(runs.map(doc => doc.version), dirs.map(() => 3));
+  assert.deepEqual(runs.map(doc => doc.folded), [{ expired: 1_001, closed: 0 }, ...Array(9).fill({ expired: 3, closed: 0 }), { expired: 0, closed: 1 }, { expired: 0, closed: 0 }]);
+  assert.equal(runs[0].candidates.length, 1_001, 'the run\'s own record keeps every entry');
+  assert.deepEqual(runs[10].candidates.map(each => each.store ?? null), [storeId('development/2026-01-01-recent', 'r1', 'Label r1'), null]);
+
+  const before = [snapshotStore(where), snapshotRuns(dirs)];
+  for (const args of [['queue'], ['latest'], ['import'], ['queue', '--json', '--today=2027-01-01']]) {
+    const again = script(where, args);
+    assert.equal(again.code, 0, again.stderr);
+    assert.doesNotMatch(again.stderr, /left out/, args.join(' '));
+  }
+  assert.deepEqual([snapshotStore(where), snapshotRuns(dirs)], before, 'no store file and no run file written again');
+});
+
+test('fold-in: an old candidate another older run met is imported with that sighting; an attachment onto a left-out one is no problem', t => {
+  const where = project(t);
+  runWith(where, 'development', '2025-06-01-first', { candidates: [candidate('old', { label: 'Atomic writes' })] });
+  const done = runWith(where, 'development', '2025-06-02-done', { candidates: [candidate('done')] });
+  fs.writeFileSync(path.join(done, 'standard-candidates-applied.json'), JSON.stringify({ applied: ['done'] }));
+  runWith(where, 'performance', '2025-06-05-again', { version: 2, attached: [
+    { run: 'development/2025-06-01-first', id: 'old', evidence: 'fix 1' }, { run: 'development/2025-06-02-done', id: 'done', evidence: 'fix 2' },
+  ] });
+  const id = storeId('development/2025-06-01-first', 'old', 'Atomic writes');
+  const folded = script(where, ['import']);
+  assert.equal(folded.code, 0, folded.stderr);
+  assert.deepEqual([folded.report.imported, folded.report.attached, folded.report.problems], [[id], [id], []]);
+  assert.deepEqual(storeFiles(where), [`${id}.json`]);
+  assert.deepEqual(record(where, id).seen_in, [
+    { run: 'development/2025-06-01-first', date: '2025-06-01', evidence: 'group 1' },
+    { run: 'performance/2025-06-05-again', date: '2025-06-05', evidence: 'fix 1' },
+  ]);
+  assert.deepEqual(script(where, ['queue', '--json']).report.queue.map(each => [each.id, each.seen_in.length, each.recommended]), [[id, 2, true]], 'seen in two runs: open, and recommended');
+});
+
+test('fold-in: a folded run filed or closed again files nothing new, keeps every entry and prints only what is in the store', t => {
+  const where = project(t);
+  const dir = runWith(where, 'development', '2026-01-05-mixed', { candidates: [candidate('live')] });
+  const applied = path.join(dir, 'standard-candidates-applied.json');
+  script(where, ['import']);
+  const id = storeId('development/2026-01-05-mixed', 'live', 'Label live');
+  // An entry the fold-in left out: added to the marked file as if it had been applied there.
+  const marked = JSON.parse(fs.readFileSync(path.join(dir, 'standard-candidates.json'), 'utf8'));
+  marked.candidates.push(candidate('gone'));
+  marked.folded = { expired: 0, closed: 1 };
+  fs.writeFileSync(path.join(dir, 'standard-candidates.json'), JSON.stringify(marked));
+  fs.writeFileSync(applied, JSON.stringify({ applied: ['gone'] }));
+  const before = snapshotStore(where);
+  const filed = script(where, ['file', `--run=${dir}`]);
+  assert.equal(filed.code, 0, filed.stderr);
+  assert.deepEqual([filed.report.filed, filed.report.dropped], [[id], 0]);
+  assert.deepEqual(snapshotStore(where), before, 'nothing new in the store');
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'standard-candidates.json'), 'utf8')).candidates.map(each => each.id), ['live', 'gone']);
+  const closed = script(where, ['close', `--run=${dir}`]);
+  assert.equal(closed.code, 0, closed.stderr);
+  assert.deepEqual(closed.stdout.trim().split('\n').slice(1).map(line => line.slice(line.lastIndexOf('['))), [`[${id}]`]);
+});
+
+test('fold-in: the 30-day edge — thirty days on a run is still imported, thirty-one left out, by its name\'s date or else its file\'s day', t => {
+  for (const [today, kept] of [['2026-02-04', true], ['2026-02-05', false]]) {
+    const where = project(t);
+    runWith(where, 'development', '2026-01-05-named', { candidates: [candidate('a')] });
+    // No date in its name: dated by its file's day, 2026-01-05.
+    const undated = runWith(where, 'development', 'undated', { candidates: [candidate('b')] }, Date.UTC(2026, 0, 5, 12) / 1000);
+    const folded = script(where, ['import', `--today=${today}`]);
+    assert.equal(folded.code, 0, folded.stderr);
+    assert.equal(fs.statSync(path.join(undated, 'standard-candidates.json')).mtimeMs, Date.UTC(2026, 0, 5, 12), 'marked, the file keeps the day it is dated by');
+    const ids = [storeId('development/2026-01-05-named', 'a', 'Label a'), `2026-01-05-label-b-${crypto.createHash('sha256').update('development/undated#b').digest('hex').slice(0, 6)}`];
+    assert.deepEqual(folded.report.imported.sort(), kept ? ids.sort() : [], today);
+    assert.deepEqual(folded.report.left_out, kept ? { expired: 0, closed: 0, runs: 0 } : { expired: 2, closed: 0, runs: 2 }, today);
+    assert.equal(folded.stderr, kept ? '' : 'candidates: left out 2 expired candidates from 2 older runs\n', today);
+    if (kept) assert.deepEqual(script(where, ['queue', '--json', `--today=${today}`]).report.queue.length, 2, 'and read as open');
+  }
+});
+
 test('evidence: a list is joined with commas on import and on filing, an empty sighting left by an earlier import is filled in once, and any other type is a problem', t => {
   const where = project(t);
   const listed = ['group 1', 'group 2'];
-  runWith(where, 'development', '2026-01-05-first', { version: 2, candidates: [candidate('a', { evidence: listed })] });
-  const second = runWith(where, 'development', '2026-01-06-second', { version: 2, candidates: [], attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: ['fix 1', 'fix 2'] }] });
+  const firstDoc = { version: 2, candidates: [candidate('a', { evidence: listed })] };
+  const secondDoc = { version: 2, candidates: [], attached: [{ run: 'development/2026-01-05-first', id: 'a', evidence: ['fix 1', 'fix 2'] }] };
+  runWith(where, 'development', '2026-01-05-first', firstDoc);
+  const second = runWith(where, 'development', '2026-01-06-second', secondDoc);
   const a = storeId('development/2026-01-05-first', 'a', 'Label a');
   const imported = script(where, ['import']);
   assert.equal(imported.code, 0, imported.stderr);
   assert.deepEqual(imported.report.problems, []);
   assert.deepEqual(record(where, a).seen_in.map(each => each.evidence), ['group 1, group 2', 'fix 1, fix 2'], 'a version 2 run\'s list evidence, candidate and attachment, joined');
 
-  // The store as an import that dropped list evidence left it: both sightings empty.
+  // The store as an import that dropped list evidence left it: both sightings empty, the run files not marked.
   const file = path.join(where.store, `${a}.json`);
   fs.writeFileSync(file, storeText(where, a).replace('"evidence":"group 1, group 2"', '"evidence":""').replace('"evidence":"fix 1, fix 2"', '"evidence":""'));
+  runWith(where, 'development', '2026-01-05-first', firstDoc);
+  runWith(where, 'development', '2026-01-06-second', secondDoc);
   assert.deepEqual(record(where, a).seen_in.map(each => each.evidence), ['', '']);
   const repaired = script(where, ['queue', '--json']);
   assert.equal(repaired.code, 0, repaired.stderr);
@@ -771,7 +893,7 @@ test('usage: a missing or misused flag is a usage error, exit 2', t => {
   const where = project(t);
   for (const args of [
     [], ['nonsense'], ['applied'], ['applied', '--run=x', '--id=a'], ['latest', '--id=a'], ['latest', '--json'], ['show'], ['file'], ['close'],
-    ['queue', '--id=a'], ['queue', '--run=x'], ['import', '--today=2026-01-01'],
+    ['queue', '--id=a'], ['queue', '--run=x'], ['import', '--run=x'],
     ['dismiss', '--id=b', '--by=Dana'], ['dismiss', '--id=b', '--reason=x'], ['dismiss', '--reason=x', '--by=Dana'],
     ['dismiss', '--id=b', '--all', '--run=x', '--reason=x', '--by=Dana'], ['dismiss', '--all', '--reason=x', '--by=Dana'], ['dismiss', '--run=x', '--id=b', '--reason=x', '--by=Dana'],
     ['latest', '--today=2026-02-30'], ['queue', '--today=yesterday'],

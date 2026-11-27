@@ -12,7 +12,7 @@
  *   node <path to this file> applied --id=<id> [--id=<id> ...] [--tasks=<dir>] [--today=<YYYY-MM-DD>]
  *   node <path to this file> dismiss (--id=<id> ... | --run=<task dir> --all) --reason=<text> --by=<name> [--tasks=<dir>] [--today=<YYYY-MM-DD>]
  *   node <path to this file> merge --into=<id> --id=<id> [--id=<id> ...] [--tasks=<dir>] [--today=<YYYY-MM-DD>]
- *   node <path to this file> import [--tasks=<dir>]
+ *   node <path to this file> import [--tasks=<dir>] [--today=<YYYY-MM-DD>]
  *
  * `--tasks` defaults to `.maister/tasks` under the current directory, so a
  * caller runs this from the project root; the store is the folder beside it,
@@ -55,10 +55,16 @@
  * wherever they were written, and an attachment naming it is filed on that one.
  *
  * Before any verb, run folders whose candidates file was written before the
- * store (no `version`, or 1 or 2) are folded in: their candidates, their
- * applied and dismissed states (`standard-candidates-applied.json`) and their
- * attachments. A candidate or sighting already there is skipped, so folding
- * in twice adds nothing; `import` does it alone. A sighting already there
+ * store (no `version`, or 1 or 2) are folded in: the candidates that would
+ * still read as open — neither applied nor dismissed in the run's
+ * `standard-candidates-applied.json`, and seen in two runs or dated 30 days
+ * or less before `--today` — and the attachments onto them. The rest are
+ * left out, nothing written for them, and one line on stderr counts them.
+ * Each folded run's file is then written back as version 3, each candidate
+ * in the store naming its store id, with `folded: {expired, closed}` counting
+ * what was left out, so no later verb folds it in again; `file` files only
+ * the candidates such a file names in the store. A candidate or sighting
+ * already there is skipped; `import` folds in alone. A sighting already there
  * that holds no evidence where the run's file gives a list is filled in.
  *
  * Evidence, wherever it is read (a run's candidates and attachments, a store
@@ -90,13 +96,19 @@ const USAGE = [
   '| applied --id=<id> [--id=<id> ...] [--tasks=<dir>] [--today=<YYYY-MM-DD>]',
   '| dismiss (--id=<id> ... | --run=<task dir> --all) --reason=<text> --by=<name> [--tasks=<dir>] [--today=<YYYY-MM-DD>]',
   '| merge --into=<id> --id=<id> [--id=<id> ...] [--tasks=<dir>] [--today=<YYYY-MM-DD>]',
-  '| import [--tasks=<dir>]',
+  '| import [--tasks=<dir>] [--today=<YYYY-MM-DD>]',
 ].join(' ');
 const VERBS = ['file', 'close', 'queue', 'latest', 'show', 'applied', 'dismiss', 'merge', 'import'];
 
 /** Days a candidate seen in one run only stays open. */
 const EXPIRY_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Whether a sighting dated `newest` is more than 30 days before `today`, both `YYYY-MM-DD`. */
+const expiredOn = (newest, today) => (Date.parse(`${today}T00:00:00Z`) - Date.parse(`${newest}T00:00:00Z`)) / DAY_MS > EXPIRY_DAYS;
+
+/** Lines for stderr that are neither the result nor a problem: what a fold-in left out. */
+const notices = [];
 
 /** New candidates one run files at most. */
 const CAP = 5;
@@ -137,7 +149,7 @@ function parseArgs(argv) {
   if ((verb === 'file' || verb === 'close' || verb === 'show') && (!flags.run || !only(['run', 'tasks', 'today']))) throw new UsageError(`${verb} takes --run and optionally --tasks and --today`);
   if (verb === 'latest' && !only(['tasks', 'today'])) throw new UsageError('latest takes only --tasks and --today');
   if (verb === 'queue' && !only(['tasks', 'skip', 'today', 'json'])) throw new UsageError('queue takes --tasks, --skip, --today and --json, each optional');
-  if (verb === 'import' && !only(['tasks'])) throw new UsageError('import takes only --tasks');
+  if (verb === 'import' && !only(['tasks', 'today'])) throw new UsageError('import takes only --tasks and --today');
   if (verb === 'applied' && (!flags.ids.length || !only(['id', 'tasks', 'today']))) throw new UsageError('applied takes at least one --id, and optionally --tasks and --today');
   if (verb === 'merge' && (!flags.into || !flags.ids.length || !only(['into', 'id', 'tasks', 'today']))) throw new UsageError('merge takes --into and at least one --id, and optionally --tasks and --today');
   if (verb === 'dismiss') {
@@ -332,23 +344,17 @@ function readRun(dir, problems) {
   return { file, doc, version, candidates, attached, mtime: fs.statSync(file).mtimeMs };
 }
 
-/** What an earlier run's `standard-candidates-applied.json` settled: applied ids, with the file's day, and dismissed ids with their records. */
+/** The ids an earlier run's `standard-candidates-applied.json` records as applied or dismissed. */
 function settledOf(dir, problems) {
   const file = path.join(dir, APPLIED);
-  const none = { applied: new Set(), day: null, dismissed: new Map() };
-  if (!fs.existsSync(file)) return none;
+  if (!fs.existsSync(file)) return new Set();
   try {
     const doc = readJson(file);
-    const applied = new Set(Array.isArray(doc?.applied) ? doc.applied.filter(id => typeof id === 'string') : []);
-    const dismissed = new Map();
-    const recorded = doc?.dismissed && typeof doc.dismissed === 'object' && !Array.isArray(doc.dismissed) ? doc.dismissed : {};
-    for (const [id, record] of Object.entries(recorded)) {
-      if (record && typeof record === 'object') dismissed.set(id, { reason: String(record.reason ?? ''), by: String(record.by ?? ''), date: String(record.date ?? '') });
-    }
-    return { applied, day: new Date(fs.statSync(file).mtimeMs).toISOString().slice(0, 10), dismissed };
+    const dismissed = doc?.dismissed && typeof doc.dismissed === 'object' && !Array.isArray(doc.dismissed) ? Object.keys(doc.dismissed) : [];
+    return new Set([...(Array.isArray(doc?.applied) ? doc.applied.filter(id => typeof id === 'string') : []), ...dismissed]);
   } catch (error) {
     problems.push({ path: file, message: `could not read what was applied: ${error.message}` });
-    return none;
+    return new Set();
   }
 }
 
@@ -367,23 +373,14 @@ function runDirs(tasks) {
 }
 
 /** A run file's candidate as a new store record, filed by `run` on `date`. */
-function recordOf(entry, evidence, run, date, settled = null) {
+function recordOf(entry, evidence, run, date) {
   const label = entry.label.trim();
   const id = `${date}-${slugOf(label)}-${hashOf(run, entry.id)}`;
-  let state = 'open';
-  let closed = null;
-  if (settled?.applied.has(entry.id)) {
-    state = 'applied';
-    closed = { date: settled.day };
-  } else if (settled?.dismissed.has(entry.id)) {
-    state = 'dismissed';
-    closed = settled.dismissed.get(entry.id);
-  }
   return {
     id, label, line: entry.line, action: entry.action === 'extend' ? 'extend' : 'new',
     extends: entry.action === 'extend' && isText(entry.extends) ? entry.extends : null, destination: entry.destination,
     guards: Object.hasOwn(GUARDS, entry.guards) ? entry.guards : null, caught_by: isText(entry.caught_by) ? entry.caught_by : null,
-    state, closed, seen_in: [{ run, date, evidence }],
+    state: 'open', closed: null, seen_in: [{ run, date, evidence }],
   };
 }
 
@@ -432,25 +429,37 @@ function repair(record, run, { evidence, listed }) {
 }
 
 /**
- * Fold every run folder written before the store into it: candidates first,
- * with their applied and dismissed states, then attachments as sightings.
- * Anything already there is skipped. Returns the ids created and attached.
+ * Fold every run folder written before the store into it: the candidates that
+ * would still read as open, then attachments onto them as sightings; then mark
+ * each folded run's file as version 3, so it is never folded in again. A
+ * candidate applied or dismissed in its run, or seen in that run alone and
+ * dated more than 30 days before `today`, is left out and counted. Anything
+ * already in the store is skipped. Returns the ids created and attached, and
+ * what was left out.
  */
-function foldIn(tasks, store, records, problems) {
+function foldIn(tasks, store, records, problems, today) {
   const runs = [];
   for (const dir of runDirs(tasks)) {
-    // A version 3 file is filed by `file`, never folded in: its problems are that verb's to name.
+    // A version 3 file is filed by `file`, or already folded in: its problems are not this fold-in's to name.
     const found = [];
     const read = readRun(dir, found);
     if (read?.version >= RUN_VERSION) continue;
     problems.push(...found);
     if (!read) continue;
-    runs.push({ dir, run: runId(dir), date: runDate(path.basename(dir), read.mtime), read });
+    runs.push({ dir, run: runId(dir), date: runDate(path.basename(dir), read.mtime), read, expired: 0, closed: 0 });
   }
   runs.sort((a, b) => a.date.localeCompare(b.date) || a.run.localeCompare(b.run));
+  // Each earlier candidate another earlier run attached to, as `<run>#<its id in the run's file>`: a second run keeps it open.
+  const metAgain = new Set();
+  for (const each of runs) {
+    for (const { entry } of each.read.attached) {
+      if (isText(entry.run) && entry.run !== each.run) metAgain.add(`${entry.run}#${entry.id}`);
+    }
+  }
   const changed = new Set();
   const imported = [];
   const attached = [];
+  const leftOut = new Set();
   for (const each of runs) {
     const settled = settledOf(each.dir, problems);
     for (const read of each.read.candidates) {
@@ -458,17 +467,27 @@ function foldIn(tasks, store, records, problems) {
       const filed = filedAs(records, each.run, entry.id);
       if (filed) {
         if (repair(filed, each.run, read)) changed.add(filed.id);
+        entry.store = filed.id;
         continue;
       }
-      const record = recordOf(entry, read.evidence, each.run, each.date, settled);
-      records.set(record.id, record);
-      changed.add(record.id);
-      imported.push(record.id);
+      const key = `${each.run}#${entry.id}`;
+      if (settled.has(entry.id)) each.closed += 1;
+      else if (!metAgain.has(key) && expiredOn(each.date, today)) each.expired += 1;
+      else {
+        const record = recordOf(entry, read.evidence, each.run, each.date);
+        records.set(record.id, record);
+        changed.add(record.id);
+        imported.push(record.id);
+        entry.store = record.id;
+        continue;
+      }
+      leftOut.add(key);
     }
   }
   for (const each of runs) {
     for (const read of each.read.attached) {
       const { entry } = read;
+      if (isText(entry.run) && leftOut.has(`${entry.run}#${entry.id}`)) continue;
       const target = targetOf(records, entry);
       if (!target) {
         problems.push({ path: each.read.file, message: `attachment ${entry.run}#${entry.id} names no candidate` });
@@ -481,14 +500,36 @@ function foldIn(tasks, store, records, problems) {
     }
   }
   writeStore(store, records, changed);
-  return { imported, attached };
+  for (const each of runs) {
+    const doc = { ...each.read.doc, version: RUN_VERSION, folded: { expired: each.expired, closed: each.closed } };
+    try {
+      writeWhole(each.read.file, `${JSON.stringify(doc, null, 2)}\n`);
+      // A run with no date in its name is dated by this file's day: the mark keeps it.
+      fs.utimesSync(each.read.file, new Date(), new Date(each.read.mtime));
+    } catch (error) {
+      problems.push({ path: each.read.file, message: `could not mark the run as folded in: ${error.message}` });
+    }
+  }
+  const short = runs.filter(each => each.expired || each.closed);
+  const left_out = {
+    expired: short.reduce((sum, each) => sum + each.expired, 0),
+    closed: short.reduce((sum, each) => sum + each.closed, 0),
+    runs: short.length,
+  };
+  if (short.length) {
+    const count = number => number.toLocaleString('en-US');
+    const kinds = [['expired', left_out.expired], ['closed', left_out.closed]].filter(([, n]) => n).map(([kind, n]) => `${count(n)} ${kind}`).join(' and ');
+    const noun = left_out.expired + left_out.closed === 1 ? 'candidate' : 'candidates';
+    notices.push(`left out ${kinds} ${noun} from ${count(left_out.runs)} older run${left_out.runs === 1 ? '' : 's'}`);
+  }
+  return { imported, attached, left_out };
 }
 
-/** The store, earlier run folders folded in first. */
-function loadStore(tasks, problems) {
+/** The store, earlier run folders folded in first, expiry judged on `today`. */
+function loadStore(tasks, problems, today) {
   const store = path.join(path.dirname(tasks), STORE);
   const records = readStore(store, problems);
-  foldIn(tasks, store, records, problems);
+  foldIn(tasks, store, records, problems, today);
   return { store, records };
 }
 
@@ -539,8 +580,7 @@ function stateOf(index, record) {
   if (record.state !== 'open') return record.state;
   const seen = index.sightings(record);
   const newest = seen.map(each => each.date).sort().at(-1);
-  const age = (Date.parse(`${index.today}T00:00:00Z`) - Date.parse(`${newest}T00:00:00Z`)) / DAY_MS;
-  return seen.length < 2 && age > EXPIRY_DAYS ? 'expired' : 'open';
+  return seen.length < 2 && expiredOn(newest, index.today) ? 'expired' : 'open';
 }
 
 /** How many candidates are closed, by state. */
@@ -648,7 +688,7 @@ function report(index, chosen, problems) {
 
 function latest(tasks, today) {
   const problems = [];
-  const { records } = loadStore(tasks, problems);
+  const { records } = loadStore(tasks, problems, today);
   const index = indexOf(tasks, records, { today });
   const chosen = [...index.runs.values()].filter(each => offers(index, each.run)).sort(newestFirst)[0] ?? null;
   return report(index, chosen, problems);
@@ -656,7 +696,7 @@ function latest(tasks, today) {
 
 function show(dir, tasks, today) {
   const problems = [];
-  const { records } = loadStore(tasks, problems);
+  const { records } = loadStore(tasks, problems, today);
   const index = indexOf(tasks, records, { today });
   const run = runId(dir);
   let chosen = index.runs.get(run) ?? null;
@@ -668,7 +708,7 @@ function show(dir, tasks, today) {
 
 function queue(tasks, skip, today) {
   const problems = [];
-  const { records } = loadStore(tasks, problems);
+  const { records } = loadStore(tasks, problems, today);
   const index = indexOf(tasks, records, { skip: skip ? runId(skip) : null, today });
   const owners = [...index.runs.values()].sort((a, b) => a.date.localeCompare(b.date) || a.run.localeCompare(b.run));
   const entries = [];
@@ -697,18 +737,20 @@ function queueLine(entry) {
 /**
  * File the run at `dir` in the store: its first five new candidates, and its
  * sighting on each candidate it attached to; then write its candidates file
- * back as version 3, each candidate naming its store id.
+ * back as version 3, each candidate naming its store id. A file a fold-in
+ * marked files only the candidates it names in the store, and keeps the rest.
  */
-function file(dir, tasks) {
+function file(dir, tasks, today) {
   const problems = [];
   const read = readRun(dir, problems);
   if (!read) return { ok: false, refused: problems.map(problem => problem.message) };
-  const { store, records } = loadStore(tasks, problems);
+  const { store, records } = loadStore(tasks, problems, today);
   const run = runId(dir);
   const date = runDate(path.basename(dir), read.mtime);
   const changed = new Set();
-  const kept = read.candidates.slice(0, CAP);
-  const over = read.candidates.length - kept.length;
+  const folded = Boolean(read.doc.folded);
+  const kept = folded ? read.candidates.filter(each => isText(each.entry.store)) : read.candidates.slice(0, CAP);
+  const over = folded ? 0 : read.candidates.length - kept.length;
   const filed = [];
   for (const { entry, evidence } of kept) {
     let record = filedAs(records, run, entry.id);
@@ -735,7 +777,7 @@ function file(dir, tasks) {
   }
   writeStore(store, records, changed);
   const dropped = (Number.isInteger(read.doc.dropped) ? read.doc.dropped : 0) + over;
-  const doc = { ...read.doc, version: RUN_VERSION, candidates: kept.map(each => each.entry), dropped };
+  const doc = { ...read.doc, version: RUN_VERSION, candidates: folded ? read.doc.candidates : kept.map(each => each.entry), dropped };
   const text = `${JSON.stringify(doc, null, 2)}\n`;
   if (fs.readFileSync(read.file, 'utf8') !== text) writeWhole(read.file, text);
   return { ok: true, run, filed, attached, dropped, problems };
@@ -753,7 +795,7 @@ function closedAs(record) {
 
 function applied(tasks, ids, today) {
   const problems = [];
-  const { store, records } = loadStore(tasks, problems);
+  const { store, records } = loadStore(tasks, problems, today);
   const unknown = ids.filter(id => !records.has(id));
   if (unknown.length) return { ok: false, refused: unknown.map(id => `${id} is not a candidate in the store`) };
   const merged = [...new Set(ids)].filter(id => records.get(id).state === 'merged');
@@ -772,7 +814,7 @@ function applied(tasks, ids, today) {
 
 function dismiss(tasks, { ids, all, run, reason, by, today }) {
   const problems = [];
-  const { store, records } = loadStore(tasks, problems);
+  const { store, records } = loadStore(tasks, problems, today);
   const owner = all ? runId(path.resolve(run)) : null;
   const chosen = all ? [...records.values()].filter(record => record.seen_in[0].run === owner && record.state !== 'applied' && record.state !== 'merged').map(record => record.id).sort() : [...new Set(ids)];
   const refused = [
@@ -796,7 +838,7 @@ function dismiss(tasks, { ids, all, run, reason, by, today }) {
  */
 function merge(tasks, into, ids, today) {
   const problems = [];
-  const { store, records } = loadStore(tasks, problems);
+  const { store, records } = loadStore(tasks, problems, today);
   const chosen = [...new Set(ids)];
   const refused = [
     ...[into, ...chosen].filter(id => !records.has(id)).map(id => `${id} is not a candidate in the store`),
@@ -829,7 +871,7 @@ const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
 /** The lines a run's close carries about its candidates, in its candidates file's order. */
 function close(dir, tasks, today) {
   const problems = [];
-  const { store, records } = loadStore(tasks, problems);
+  const { store, records } = loadStore(tasks, problems, today);
   const index = indexOf(tasks, records, { today });
   const run = runId(dir);
   const extras = runExtras(dir);
@@ -890,7 +932,7 @@ function main() {
     const tasks = path.resolve(flags.tasks ?? DEFAULT_TASKS);
     const today = flags.today ?? new Date().toISOString().slice(0, 10);
     const runDir = flags.run ? path.resolve(flags.run) : null;
-    if (flags.verb === 'file') result = file(runDir, tasks);
+    if (flags.verb === 'file') result = file(runDir, tasks, today);
     else if (flags.verb === 'close') result = close(runDir, tasks, today);
     else if (flags.verb === 'latest') result = latest(tasks, today);
     else if (flags.verb === 'show') result = show(runDir, tasks, today);
@@ -901,12 +943,13 @@ function main() {
     else {
       const problems = [];
       const store = path.join(path.dirname(tasks), STORE);
-      result = { ...foldIn(tasks, store, readStore(store, problems), problems), problems };
+      result = { ...foldIn(tasks, store, readStore(store, problems), problems, today), problems };
     }
   } catch (error) {
     process.stderr.write(`candidates: ${error.message}\n`);
     return EXIT.INTERNAL;
   }
+  for (const notice of notices) process.stderr.write(`candidates: ${notice}\n`);
   if ((flags.verb === 'queue' && !flags.json) || flags.verb === 'close') {
     for (const problem of result.problems) process.stderr.write(`candidates: ${problem.path}: ${problem.message}\n`);
     const lines = flags.verb === 'close' ? result.lines : result.queue.map(queueLine);
