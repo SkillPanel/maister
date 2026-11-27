@@ -2759,6 +2759,33 @@ export function dueNext({ doc, runDir }) {
   return ids.some(id => status.get(id) !== 'pending' && !ENDED.has(status.get(id))) ? null : { id: null };
 }
 
+/**
+ * Whether the node `dueNext` names is off the path the run took, so the walk
+ * records it `skipped` without running or asking it: an `on: failure` node with
+ * nothing failed, or a guard that reads false. By `atClose`'s rule for one
+ * node: a gate the skip-guard rule asks, a guard reading a task's value while a
+ * choice is held for approval, a guard not yet decidable, and anything under
+ * drift stay on the path — their briefs decide them. For `subrun-handoff`,
+ * which records the skips a sub-run's adoption leaves due.
+ */
+export function offPath({ doc, runDir, id }) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const current = reread(doc, workflow, runDir);
+  if (current.drift || current.graph === null) return false;
+  const byId = new Map(current.graph.nodes.map(entry => [entry.id, entry]));
+  const status = new Map(frozenIds(recorded).map(each => [each, entryOf(recorded, each).status ?? 'pending']));
+  const decision = readiness(needsOf(recorded, byId, id).map(need => status.get(need)), byId.get(id)?.on);
+  if (decision === 'skip') return true;
+  if (decision !== 'ready') return false;
+  const when = byId.get(id)?.when;
+  if (typeof when !== 'string') return false;
+  if (skipGuardAsks(byId.get(id), nodeKindIn(byId))) return false;
+  if (outstandingHeld(doc).length && guardReadsTask(byId.get(id), nodeKindIn(byId))) return false;
+  const guard = evaluate(when, { byId, recorded, status, inputs: inputsOf(doc), defaults: current.defaults });
+  return guard.ok && !guard.value;
+}
+
 /** The `task.status` values a run's closing patch records. */
 const RUN_ENDINGS = new Set(['completed', 'failed', 'stopped']);
 

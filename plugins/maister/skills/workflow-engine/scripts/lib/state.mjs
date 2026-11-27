@@ -6218,7 +6218,7 @@ function answerBehind(operand, nodes, graph, runDir) {
 }
 
 /** A child run's directory and parsed state, by the `task_path` its parent recorded; null when it cannot be read. */
-function childRun(taskPath, runDir) {
+export function childRun(taskPath, runDir) {
   if (typeof taskPath !== 'string' || taskPath === '' || path.isAbsolute(taskPath)) return null;
   const root = projectRootOf(runDir);
   const dir = path.resolve(root, taskPath);

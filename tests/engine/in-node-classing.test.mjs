@@ -1725,6 +1725,18 @@ test('a sub-run after a step holding a question with no choice does not start: h
   assert.equal(statusesOf(run).audit, 'pending');
 });
 
+test('subrun-handoff refuses the start of a sub-run after a step holding a question with no choice: the writer\'s state-subrun-held-open, nothing written', t => {
+  const run = heldClosing(t, { owners: ['choosing'], audit: 'completed', upTo: 'audit', open: true });
+  const before = fs.readFileSync(run.state, 'utf8');
+  const result = runScript(QUESTIONS.engine, ['subrun-handoff', `--state=${run.state}`, '--node=audit']);
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.code, 'state-subrun-held-open');
+  assert.match(report.message, /^W1 starting audit: the sub-run audit follows choosing/);
+  assert.equal(fs.readFileSync(run.state, 'utf8'), before, 'nothing was written');
+  assert.ok(!fs.existsSync(path.join(run.root, '.maister', 'tasks', 'closing-child')), 'no child directory was made');
+});
+
 test('control: a sub-run after a step holding a provisional choice, or after a step holding nothing, starts as before', t => {
   const provisional = heldClosing(t, { owners: ['choosing'], audit: 'completed', upTo: 'audit' });
   assert.equal(heldApprovalBefore({ doc: readState(provisional), runDir: provisional.dir }), null);

@@ -325,7 +325,7 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
         lines.splice(2, 0, ...startRefused(started.errors));
       }
     } else {
-      lines.splice(2, 0, startYours(node));
+      lines.splice(2, 0, startYours(node, state));
     }
   }
   // A run's first brief, before any node started, repeats the start banner as a
@@ -375,9 +375,13 @@ function firstBrief(doc, node, context) {
   return [...context.status.values()].every(status => status === 'pending');
 }
 
-/** The line a ready step whose start the brief did not record prints in its place. */
-function startYours(node) {
-  return `start: yours — send {"nodes": {${JSON.stringify(node)}: {"status": "running"}}}`;
+/**
+ * The line a ready step whose start the brief did not record prints in its
+ * place: a `workflow:` step's start, its child's freeze and the link are one
+ * `subrun-handoff` call (sub-runs reference, *The hand-off verb*).
+ */
+function startYours(node, state) {
+  return `start: yours — run node ${quoted(ENGINE)} subrun-handoff --state=${quoted(path.resolve(state))} --node=${node}`;
 }
 
 /** The writing-state section holding a refused write's recovery. */
@@ -1146,6 +1150,37 @@ const IN_FORCE_TAIL = 'printed whole by an earlier brief of this session; follow
 // ---------------------------------------------------------------------------
 // interpolation (references/grammar.md § 9)
 // ---------------------------------------------------------------------------
+
+/**
+ * A node's `with:` filled in from the run's state exactly as its brief prints
+ * it: `{values, missing}`, `missing` naming each `${…}` reference that found
+ * nothing as `{owner, key}`. For `subrun-handoff`, which freezes a child with
+ * these values; null when the definition the run froze cannot be re-read.
+ */
+export function filledWith({ state, node }) {
+  const doc = parse(fs.readFileSync(state, 'utf8'));
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const runDir = path.dirname(path.resolve(state));
+  const current = reread(doc, workflow, runDir);
+  if (current.graph === null) return null;
+  const byId = new Map(current.graph.nodes.map(entry => [entry.id, entry]));
+  const context = {
+    doc,
+    state: path.resolve(state),
+    runDir,
+    root: projectRootOf(runDir),
+    recorded,
+    byId,
+    inputs: inputsOf(doc),
+    defaults: current.defaults,
+    status: new Map(Object.keys(recorded).filter(id => id !== HELD_APPROVAL).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
+    missing: [],
+  };
+  const withs = isPlainObject(byId.get(node)?.with) ? byId.get(node).with : {};
+  const values = Object.fromEntries(Object.entries(withs).map(([key, value]) => [key, interpolate(value, context)]));
+  return { values, missing: context.missing };
+}
 
 /**
  * A `with:` value with every `${…}` filled in from state. A reference that is

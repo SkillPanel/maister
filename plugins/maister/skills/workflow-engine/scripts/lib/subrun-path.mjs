@@ -37,7 +37,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
-import { checkSubrunStart } from './graph.mjs';
+import { SUBRUN_REFUSAL, checkSubrunStart } from './graph.mjs';
 import { driftClause, reread } from './gate-brief.mjs';
 import { projectRootOf } from './state.mjs';
 import { HELD_APPROVAL } from './question-triage.mjs';
@@ -106,7 +106,7 @@ export function subrunPath({ state, node }) {
   const taskPath = `.maister/tasks/${taskTypeOf(name)}/${childName(basename(parentRun), node)}`;
   const existing = existingAt(path.join(root, ...taskPath.split('/')), parentRun, node);
   if (existing.foreign) {
-    return refuse('subrun-child-foreign',
+    return refuse(SUBRUN_REFUSAL.childForeign,
       `${taskPath} holds a run whose parent link names ${existing.foreign}, not ${parentRun} node ${node}. Nothing is overwritten: move that run away, or settle with its owner, before this node starts its child.`);
   }
   return { ok: true, node, workflow: name, task_path: taskPath, run_id: basename(taskPath), parent, recorded: false, existing: existing.state, warnings };

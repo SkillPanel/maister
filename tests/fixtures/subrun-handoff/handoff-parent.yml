@@ -1,0 +1,62 @@
+# A parent written into a project's .maister/workflows/ that probes one topic
+# twice through a child workflow of its own. After the first probe a step its
+# guard skips and a confirmation the child's answer skips stand between the
+# two sub-runs, so one hand-off adopts the first child, records both skips and
+# starts the second child.
+name: handoff-parent
+version: 1
+description: "Takes a topic in, probes it twice through a child workflow, and wraps up."
+inputs:
+  topic: {type: string, required: true}
+
+nodes:
+  intake:
+    uses: direct:intake
+    needs: []
+
+  first:
+    uses: workflow:handoff-child
+    needs: [intake]
+    with:
+      subject: "${inputs.topic}"
+    outputs:
+      artifacts:
+        notes: notes/probe-notes.md
+        extra: notes/extra.md
+      values:
+        blocking: bool
+        settled: bool
+
+  remedy:
+    uses: direct:remedy
+    needs: [first]
+    when: "${first.values.blocking}"
+
+  confirm:
+    type: gate
+    needs: [remedy]
+    when: "!${first.values.settled}"
+    ask: "The probe's findings were left open. Continue anyway?"
+    options:
+      continue-past-probe: continue
+      stop-at-probe: stop
+
+  second:
+    uses: workflow:handoff-child
+    needs: [confirm]
+    with:
+      subject: "${inputs.topic}"
+
+  wrap:
+    uses: direct:wrap
+    needs: [second]
+    on: always
+
+display:
+  titles:
+    intake: Intake
+    first: First probe
+    remedy: Remedy
+    confirm: Confirm the probe
+    second: Second probe
+    wrap: Wrap
