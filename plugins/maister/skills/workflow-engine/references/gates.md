@@ -519,7 +519,9 @@ above.
 `task.status` is the outcome, and when they disagree the state decides and the line is ignored.
 A parent woken `completed` by a child still running stays waiting; a parent woken `failed` by a
 child that completed completes. A re-drive carrying no `SUB-RUN-DONE` at all reaches the same
-waiting node and takes the same path.
+waiting node and takes the same path. That path is one call, `subrun-handoff` with `--node` and
+the line's `--at` (`references/sub-runs.md` § *The hand-off verb*): it reads
+the child, adopts it and starts the next child, or says the node still waits.
 
 While the gate is pending a host may deny the engine's shell calls, so the decision is recorded with
 editor tools, on the files this step writes and no others — the one sanctioned exception to

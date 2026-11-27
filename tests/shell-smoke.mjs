@@ -253,6 +253,14 @@ try {
   check('subrun-path names the child directory with /, under the project root',
     placed.code === 0 && child?.ok === true && /^\.maister\/tasks\/research\/[^/\\]+-research$/.test(child.task_path ?? '') && child.existing === 'absent', show(placed));
 
+  // --- subrun-handoff -------------------------------------------------------
+  // A node that starts no child: the verb reads the run from a path holding a
+  // space and refuses as JSON on stdout, writing nothing.
+  const before = fs.readFileSync(statePath, 'utf8');
+  const handed = call('subrun-handoff', [flag('state', statePath), '--node=analysis']);
+  check('subrun-handoff refuses a node that is no sub-run as JSON, from a path holding a space, writing nothing',
+    handed.code === 1 && json(handed.stdout)?.code === 'subrun-path-not-a-subrun' && fs.readFileSync(statePath, 'utf8') === before, show(handed));
+
   // --- dispatch-model -------------------------------------------------------
   const modelled = call('dispatch-model', [flag('state', statePath), '--agent=task-classifier,gap-analyzer', '--host=claude']);
   check('dispatch-model prints one line per agent from a run in a path holding a space',

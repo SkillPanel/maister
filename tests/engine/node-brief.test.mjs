@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, readState, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, write } from '../helpers.mjs';
+import { ENGINE, ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, readState, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, write } from '../helpers.mjs';
 
 // The brief a step reads before it runs: the facts the engine derives for it —
 // how it runs, its guard, its attempt, its inputs filled in, the files it
@@ -874,17 +874,18 @@ test('node-brief: every brief, step and gate alike, opens on the engine skill to
 });
 
 test('node-brief: start: yours prints for a ready step whose start the brief does not record, never for one not ready or dispatched', t => {
-  const START = node => `start: yours — send {"nodes": {"${node}": {"status": "running"}}}`;
+  // The start of a workflow: step, its child's freeze and the link are one subrun-handoff call.
+  const START = (node, state) => `start: yours — run node ${ENGINE} subrun-handoff --state=${state} --node=${node}`;
   const STARTED = 'started: recorded running by this brief — the start needs no write of its own';
   const has = (text, prefix) => text.split('\n').some(line => line.startsWith(prefix));
 
-  // A workflow: step: its start brackets its child's freeze, so a ready one is told the start is its write.
+  // A workflow: step: its start brackets its child's freeze, so a ready one is told the call that makes it.
   const child = scratch(t);
   freeze(child);
   assert.ok(!has(nodeBrief(child.state, 'research').stdout, 'start: '), 'needs unmet: no start line');
   reach(child, { nodes: { implementation: { status: 'completed' } } });
   const ready = fromHeader(nodeBrief(child.state, 'research').stdout);
-  assert.equal(ready[2], START('research'));
+  assert.equal(ready[2], START('research', path.resolve(child.state)));
   assert.ok(!ready.includes(STARTED), 'never beside started:');
 
   // A step whose start the brief records prints started:, never start: yours.

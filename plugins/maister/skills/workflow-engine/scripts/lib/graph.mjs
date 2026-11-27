@@ -381,10 +381,12 @@ const WARN = {
  * The sub-run refusal codes this module owns, spelled once so the engine and
  * every report quote one vocabulary rather than a copy of it.
  *
- * Spelling is all this module owns. Only the fourth is raised from here:
- * `checkSubrun` fails on it at validate time. The other three are run-level
+ * Spelling is all this module owns. Only `outputReserved` is raised from here:
+ * `checkSubrun` fails on it at validate time. The first three are run-level
  * refusals decided by `checkSubrunStart` below, which the `subrun-path` verb
- * runs before it names a child's directory. All four live here rather than in a message literal for one
+ * runs before it names a child's directory; `childForeign` is that verb's too.
+ * The rest are raised by the `subrun-handoff` verb, which adopts a child and
+ * starts the next. All live here rather than in a message literal for one
  * reason: a code a caller greps for must have exactly one spelling.
  */
 export const SUBRUN_REFUSAL = {
@@ -392,6 +394,12 @@ export const SUBRUN_REFUSAL = {
   recursion: 'subrun-recursion',
   targetUnresolved: 'subrun-target-unresolved',
   outputReserved: 'subrun-output-reserved',
+  childForeign: 'subrun-child-foreign',
+  stateMissing: 'subrun-state-missing',
+  graphDrifted: 'subrun-graph-drifted',
+  inputMissing: 'subrun-input-missing',
+  inputUnknown: 'subrun-input-unknown',
+  outputUnmatched: 'subrun-output-unmatched',
 };
 
 /** The scheme a sub-run node names, and the one prefix `uses` may carry for it. */

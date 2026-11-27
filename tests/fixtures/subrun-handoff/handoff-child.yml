@@ -1,0 +1,58 @@
+# The child `handoff-parent` starts as a sub-run: embeddable, exposing the
+# notes its probe writes, the extra notes a guarded step writes, the value its
+# probe records and the value its gate's answer sets.
+name: handoff-child
+version: 1
+description: "Probes one subject, settles what it found, and closes; started by a hand-off parent as a sub-run."
+inputs:
+  subject: {type: string, required: true}
+  embedded: {type: bool, required: false, default: false}
+
+outputs:
+  artifacts:
+    notes: probe.artifacts.notes
+    extra: deepen.artifacts.extra
+  values:
+    blocking: probe.values.blocking
+    settled: settle.values.settled
+
+nodes:
+  probe:
+    uses: direct:probe
+    needs: []
+    with:
+      subject: "${inputs.subject}"
+    outputs:
+      artifacts:
+        notes: notes/probe-notes.md
+      values:
+        blocking: bool
+
+  deepen:
+    uses: direct:deepen
+    needs: [probe]
+    when: "${probe.values.blocking}"
+    outputs:
+      artifacts:
+        extra: notes/extra.md
+
+  settle:
+    type: gate
+    needs: [deepen]
+    ask: "Probe finished. Settle its findings?"
+    options:
+      settle-findings: {effect: continue, sets: {settled: true}}
+      leave-open: {effect: continue, sets: {settled: false}}
+      stop-here: stop
+
+  wrap-up:
+    uses: direct:wrap-up
+    needs: [settle]
+    when: "!${inputs.embedded}"
+
+display:
+  titles:
+    probe: Probe
+    deepen: Deepen
+    settle: Settle the findings
+    wrap-up: Wrap-up
