@@ -131,7 +131,9 @@ before each wave's fan-out (`<plugin_root>/skills/workflow-engine/references/ver
    `in-flight --state=<state> --node=<node> --runner=implementation
    --record=group-<A>:implementation/group-reports/group-<A>.md,group-<B>:…`. It clears each
    group's old report, so a report on disk always answers this dispatch. Every later send of a
-   group — an escalation, a retry — is recorded the same way first.
+   group — an escalation, a retry — is recorded the same way first. `--groups` takes each group
+   id as its heading writes it (`3`, `2b.1`, `M.1`); in an agent id, a question id or a report
+   name it is lower-case with each dot a hyphen (`group-m-1`).
 3. **Prepare each group's prompt** (§ *The implementer's prompt*): its plan section with any
    `Visual References`, the spec excerpt it needs, the standards that apply to it, and the
    design context when `analysis/design-context/` exists — paths to mockups, never their HTML
@@ -169,8 +171,8 @@ Without waiting for its siblings:
   `- [~] N.1 SKIPPED: <reason>`, the reason the answer's own words or the report's), "Stop".
 - **Record it with `group-done`**: write the group's entry body (§ *Work-log entries*) to
   `<task_path>/implementation/.work-log-entry.md` and run `group-done --plan=<plan>
-  --groups=<N> --entry-file=<that file>` **in the same message**. Members back together are
-  recorded together: one call with `--groups=<N>,<M>` and one `## Group N` part each. A
+  --groups=<id> --entry-file=<that file>` **in the same message**. Members back together are
+  recorded together: one call with `--groups=<id>,<id>` and one `## Group <id>` part each. A
   `warning: plan-sync-missed` is already in the work log; add nothing.
 
 A member that returns failed waits until the whole wave is back. Never cancel a sibling: a peer

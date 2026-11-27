@@ -7,7 +7,7 @@ exposes the keys the child's definition declares. A `workflow:` node that *does*
 keeps its dispatch meaning and is not a sub-run at all — one scheme, two mechanisms, told apart by
 one key, which is why the first refusal below exists rather than a silent choice between them.
 
-The engine's `SKILL.md` carries the summary; the walks, the matrix and the refusal table are here.
+The engine's `SKILL.md` carries the summary; the hand-off verb, the walks, the matrix and the refusal table are here.
 
 ---
 
@@ -26,30 +26,77 @@ catches it with `on:`) before anything is created:
 5. a key the node declares under `outputs:` has no entry of that name in the child definition's
    workflow-level `outputs:` → `subrun-output-unmatched`.
 
-**The first three are run by the `subrun-path` verb (its row and refusals: `references/verbs.md` § *The verbs some steps call* § `subrun-path` and § *Refusals*);
-the last two by the driver, from this prose.** `subrun-path --state=<parent state> --node=<node>` — the call that gives the child its
-directory (*The child directory name*) — refuses with the code of the first of checks 1–3 that
-fails, exit `1`, so a driver that has its directory has passed them. Checks 4 and 5 need the
-interpolated `with:` and the child's declared interface, which the driver holds at that moment, so
-they stay prose. Every code has one spelling, an exported constant in the graph module, so this
+**All five are run by the `subrun-handoff` verb (*The hand-off verb*, below); the first three
+through `subrun-path` (both verbs' rows and refusals: `references/verbs.md` § *The verbs a sub-run calls* and § *Refusals*).**
+`subrun-path --state=<parent state> --node=<node>` — what gives the child its directory (*The child
+directory name*) — refuses with the code of the first of checks 1–3 that fails, exit `1`. Checks 4
+and 5 need the interpolated `with:` and the child's declared interface, which the hand-off verb
+reads after W1. Every code has one spelling, an exported constant in the graph module, so this
 file and the code that raises them cannot drift into two names for one refusal. Checks 4 and 5 also
 run at validate time, as warnings, whenever the child definition resolves: the warnings are what an
 author sees first, the refusals are what fail a run.
 
 ---
 
+## The hand-off verb
+
+**A driver starts and adopts a child with one call, never by composing the writes below.**
+`subrun-handoff --state=<parent state> --node=<the workflow: node> [--at=<the wake-up line's at=>]`
+takes every step of a hand-off, in order, each the one write the walk gives it through the state
+writer, so the state on disk is the state the separate writes leave:
+
+1. read the child at the node's recorded `task_path` — gone, `subrun-state-missing`; its parent link
+   naming another run or node, `subrun-child-foreign`;
+2. let the child's `task.status` decide — not ended, or a cockpit child pending on a gate with no
+   session yet (A10): nothing is written;
+3. re-resolve the definition the child's own state names and compare hashes — `subrun-graph-drifted`;
+4. W4, the adoption, by the ending table below;
+5. record `skipped` each node due next that a false guard, or the `on: failure` rule, takes off the
+   path — a gate the child's answer skipped carries its `answered_in`;
+6. when the node due next is a `workflow:` node: W1, checks 1–5, the child's directory, W2 (skipped
+   for `existing: adopt`) and W3.
+
+**It continues from disk, whatever the node's status.** A `waiting` node is adopted; one already
+adopted goes on at step 5; a `running` one (W1 landed, no link yet) at step 6 after W1; a `pending`
+one the walk is due at starts at W1 — the first child as much as the next. So a re-run after a
+crash anywhere is never an error: it finishes what the last call left. `--at` is the wake-up
+line's stamp; no write of a hand-off records a decision time, so it is recorded nowhere.
+
+**It ends on one line, after a blank line, below the paths each write changed:**
+
+| Line | Then |
+|---|---|
+| `waiting: <node> run=<child-run-id> — the sub-run has not ended; nothing was written` | under a cockpit or dispatch driver, type the waiting marker from it and end the turn (A2) |
+| `started: <node> run=<child-run-id> — the sub-run is frozen and linked` | walk one: run the child in session; walk two: type the waiting marker from it and end the turn |
+| `stopped: <node> run=<child-run-id> — the sub-run stopped and the stop patch is written: run run-complete` | run `run-complete`; no `RUN-FAILED` (A7) |
+| the writer's own `next:` line | brief that node, or close the run — a failed child with no `on:` node to take it is the closing patch, then `run-complete`, which prints the pinned reason |
+
+A refusal is exit `1` and `{ok: false, code, message}` on stdout; the message names the writes
+of this call that landed before it, and nothing after them was written. A refusal of checks 1–5
+comes after W1, as it always has: the driver fails the node on it. The writer's own refusals —
+`state-subrun-held-open` before W1 among them — come back with their own codes.
+
+**The verb never prints `WAITING-SUBRUN`, nor any `RUN-` marker.** Who writes W1–W4 changed; who
+asserts the marker did not (*Walk two*). The writer still takes the separate writes, so a run left
+mid-hand-off by an earlier version continues; nothing else should send them.
+
+---
+
 ## Walk one — a terminal driver, one turn, no marker
+
+Every write below is the hand-off verb's (*The hand-off verb*); the table is what each one carries
+and what a crash between two of them leaves on disk.
 
 | Moment | The write | What it carries |
 |---|---|---|
 | **W1 — the node starts** | `write-state` against the **parent** state | `nodes.<node>`: `kind: workflow`, `status: running`. The writer stamps `started`. It refuses `state-subrun-held-open` while a step the node follows holds a question with no choice yet: settle it first (`references/gates.md` § *The closing checkpoint `held-approval`*), since no revise can re-run that step once the child has run |
-| — | *no write* | run `subrun-path` for the node (checks 1–3 and the child's directory), interpolate `with:`, run checks 4 and 5, create the directory it prints unless it reports `existing: adopt`, `validate` and `resolve` the child definition |
-| **W2 — the child freezes** | one `write-state` against the **child** state (engine Step 4) | `task` (title, description, status `in_progress`; the writer records `task.key` when the child marks a tracker key input); `workflow` (`source`, `overlays`, `profile`, `graph_hash` exactly as `resolve` printed it, `grammar_version`, `name`) **together with** its `nodes`; `orchestrator.options.inputs` (the interpolated `with:`, plus `embedded: true` when the child declares that input); `orchestrator.driver` (`{kind: terminal}`); `orchestrator.parent` (`{run, node}`, exactly as `subrun-path` printed it as `parent`: `run` is the parent's directory relative to the project root, never its bare run id, and a freeze sending anything outside `.maister/` is refused `state-patch-invalid`); `orchestrator.completed_phases` and `orchestrator.failed_phases`, both `[]`, which the writer seeds at the top of the block when the patch omits them; and `orchestrator.created`, which the writer stamps from its own clock when the patch omits it, as it does at any run's freeze — a driver drives no run without one. `updated` is the writer's own: it stamps it *after* applying the patch, by the same append rule that lands a key the region does not already carry at the end of it, so the block ends with `updated` below `parent`. A child's freeze is necessarily that run's first write: a state file carrying no `workflow:` block is refused `state-incomplete`, so there is no initialise-first, freeze-second two-step to spread it over. Its output opens with a line saying not to relay the banner: the parent never relays it, and its walk goes on. |
+| — | *no write* | the verb runs `subrun-path` for the node (checks 1–3 and the child's directory), interpolates `with:`, runs checks 4 and 5, creates the directory unless it reports `existing: adopt`, and validates and resolves the child definition |
+| **W2 — the child freezes** | one `write-state` against the **child** state (engine Step 4) | `task` (title and description; the writer records status `in_progress`, and `task.key` when the child marks a tracker key input); `workflow` (`source`, `overlays`, `profile`, `graph_hash` exactly as `resolve` printed it, `grammar_version`, `name`) **together with** its `nodes`; `orchestrator.options.inputs` (the interpolated `with:`, plus `embedded: true` when the child declares that input); `orchestrator.driver` (`{kind: terminal}`); `orchestrator.parent` (`{run, node}`, exactly as `subrun-path` printed it as `parent`: `run` is the parent's directory relative to the project root, never its bare run id, and a freeze sending anything outside `.maister/` is refused `state-patch-invalid`); `orchestrator.completed_phases` and `orchestrator.failed_phases`, both `[]`, which the writer seeds at the top of the block when the patch omits them; and `orchestrator.created`, which the writer stamps from its own clock when the patch omits it, as it does at any run's freeze — a driver drives no run without one. `updated` is the writer's own: it stamps it *after* applying the patch, by the same append rule that lands a key the region does not already carry at the end of it, so the block ends with `updated` below `parent`. A child's freeze is necessarily that run's first write: a state file carrying no `workflow:` block is refused `state-incomplete`, so there is no initialise-first, freeze-second two-step to spread it over. Its output opens with a line saying not to relay the banner: the parent never relays it, and its walk goes on. |
 | **W3 — the parent records the link** | `write-state` against the **parent** state | `nodes.<node>`: `status: waiting`, `values: {task_path, run_id}`, both exactly as `subrun-path` printed them. From here on every write to the child is held to that `task_path`: a child state in any other directory is refused `state-subrun-path-mismatch`. A freeze sent before W3 is held to the task-directory shape instead — `.maister/tasks/<type>/<name>` under the project root — so a child frozen beside another kind of run, or inside its parent's directory, is refused the same way |
 | — | *the child runs, in session* | the ordinary engine loop against the child's state. Child gates are asked with the host's question tool and answered in the same turn; the child's own close-out runs `run-complete` with no wrap-up, since the parent's own ending carries it |
-| — | *no write: the re-resolve* | read the child's state, re-resolve the definition **it** names, compare hashes, read its declared `outputs:` and the producing nodes' declared paths |
+| — | *no write: the re-resolve* | the verb reads the child's state, re-resolves the definition **it** names, compares hashes, reads its declared `outputs:` and the producing nodes' declared paths |
 | **W4 — the parent adopts the outcome** | `write-state` against the **parent** state | `nodes.<node>`: the mapped status, `values` re-sent whole as `{task_path, run_id, …copied values}`; `node_summaries.<node>`, onto which the writer appends every artifact the node declares that the child wrote, spelled relative to the parent's run directory, and whose `absent` names each declared artifact the child never wrote because a guard skipped the child node that writes it |
-| — | continue | the parent resumes its ready-set walk; `${<node>.artifacts.<key>}` and `${<node>.values.<key>}` resolve |
+| — | continue | the verb records the skips due next, then starts the next child or prints the `next:` line; `${<node>.artifacts.<key>}` and `${<node>.values.<key>}` resolve |
 
 **`WAITING-SUBRUN` is never printed under a terminal driver.** That is a rule, not an implication.
 The turn does not end at W3, so a marker printed there would be a line nobody will ever answer and
@@ -82,9 +129,10 @@ markers come out of the `run-complete` verb — that is why the rule elsewhere i
 line and never to type a marker it did not give you — but nothing the engine ships prints the
 string `WAITING-SUBRUN`: not a verb, not a module, not a constant. A driver that goes looking for
 a tool to produce it will not find one, and a search of the scripts for it will not find it
-either. The line above is composed by the driver from two things it has just written: the node id
-and the child's `values.run_id`. Hence the grammar is pinned in prose rather than deferred to a
-tool's output, and hence the ordering rule that W2 and W3 both land before step 4.
+either. The line above is composed by the driver from the hand-off verb's `started:` or `waiting:` line —
+the node id and the child's run id, which W3 recorded as `values.run_id`. Hence the grammar is
+pinned in prose rather than deferred to a tool's output, and hence the ordering rule that W2 and
+W3 both land before step 4: the verb returns only after W3.
 
 The distinction matters to whoever is about to trust one of these lines. A verb marker is printed
 by the engine's own tooling at the point a run closes, after the closing write has landed and
@@ -142,12 +190,12 @@ straight to the child that carries the reason.
 state holds no declaration.** A node entry carries a fixed key set and the workflow block six
 scalars beside its nodes; neither holds `uses`, neither holds `outputs`, so the mapping from an
 exposed key to a producing node and its declared path exists in exactly one place — the child's
-definition file. Between the child's terminal status and W4: read the child's state with a
-read-only tool; re-resolve the definition **the child's own state names** — its `workflow.source`,
+definition file. Between the child's terminal status and W4 the hand-off verb reads the child's
+state; re-resolves the definition **the child's own state names** — its `workflow.source`,
 `workflow.overlays` and `workflow.profile`, never a path composed by the parent, because a caller
-that could name the definition could name a different one; compare the freshly resolved
-`graph_hash` with the recorded one and refuse `subrun-graph-drifted` on any disagreement; then
-resolve each declared entry to its producing node and take the path and the recorded value there.
+that could name the definition could name a different one; compares the freshly resolved
+`graph_hash` with the recorded one and refuses `subrun-graph-drifted` on any disagreement; then
+resolves each declared entry to its producing node and takes the path and the recorded value there.
 
 This is the dispatch runtime's rule, not a new one: it re-resolves at every dispatch for the same
 reason and refuses `dispatch-graph-drifted` on a mismatch. Two runtimes that read a definition
@@ -288,11 +336,11 @@ Neither family joins the writer's twenty-seven refusal codes: nothing here is a 
 | `subrun-child-foreign` | run-level | the derived child directory holds a run whose parent link names another run or another node |
 | `subrun-state-missing` | run-level | the child directory or state file is absent at the recorded `task_path` |
 
-The four codes the graph module spells — the three pre-start ones and the reserved-name one — are
-exported from it under one name, so this table and any code that raises them share one vocabulary
-rather than two that drift. The reserved-name code is raised at validate time; the three pre-start
-refusals, and `subrun-child-foreign`, are raised by `subrun-path` and carried by the driver into
-`RUN-FAILED: <code>`. Validate-time warnings keep the shape the existing
+Every run-level code and the reserved-name one are exported from the graph module under one name,
+so this table and any code that raises them share one vocabulary rather than two that drift. The
+reserved-name code is raised at validate time; the three pre-start refusals and
+`subrun-child-foreign` by `subrun-path`; every run-level code by the hand-off verb, and carried by
+the driver into `RUN-FAILED: <code>`. Validate-time warnings keep the shape the existing
 unresolved-reference warning has: `unresolved-subrun-input:<node>:<name>` and
 `unresolved-subrun-output:<node>:<name>`.
 
@@ -363,15 +411,15 @@ status: it is mapped from the dispatch's close-out grade (`references/in-node-qu
 
 | # | Interruption | Required behaviour |
 |---|---|---|
-| A1 | crash after W2, before W3 | the re-driven parent runs `subrun-path` again, which prints the same directory with `existing: adopt` — the child's `orchestrator.parent` names this run and this node — so the parent **adopts** it and writes W3. Exactly one child exists |
-| A2 | a re-drive arrives while the child still runs | no write — nothing changed, so the last projection is still current. `WAITING-SUBRUN` is re-printed unchanged and the turn ends. Repeatable without limit and without a second child |
+| A1 | crash after W2, before W3 | the re-driven parent runs the hand-off verb again; its `subrun-path` step prints the same directory with `existing: adopt` — the child's `orchestrator.parent` names this run and this node — so it **adopts** the child and writes W3. Exactly one child exists |
+| A2 | a re-drive arrives while the child still runs | no write — the hand-off verb prints `waiting:`, nothing changed, so the last projection is still current. `WAITING-SUBRUN` is re-printed unchanged and the turn ends. Repeatable without limit and without a second child |
 | A3 | a duplicate wake-up after the node already completed | `SUB-RUN-ALREADY-DONE` is printed, nothing is written — the node keeps its recorded status and values, and the last projection is still current |
-| A4 | the child directory is missing at the recorded `task_path` | `RUN-FAILED: subrun-state-missing`, and **no write**: the node stays `waiting` with its recorded values and the last projection is still current, so every later re-drive reaches the same refusal until an operator restores the directory or edits the run. The child is never re-created and the run never silently re-started |
+| A4 | the child directory is missing at the recorded `task_path` | the hand-off verb refuses `subrun-state-missing`: `RUN-FAILED: subrun-state-missing`, and **no write**: the node stays `waiting` with its recorded values and the last projection is still current, so every later re-drive reaches the same refusal until an operator restores the directory or edits the run. The child is never re-created and the run never silently re-started |
 | A5 | the parent run is stopped while a child is waiting | the child keeps running and finishes as an ordinary run; its parent link dangles, which is tolerated. Nothing tells the child, and nothing should |
 | A6 | the child fails | the parent node is `failed`; the run ends `RUN-FAILED` unless a downstream node declares `on: failure` or `on: always` |
 | A7 | the child is stopped | the parent node is `stopped`, `task.status` becomes `stopped`, every unexecuted node is recorded `stopped` in one patch, and **no `RUN-FAILED` is printed**. The parent node's own summary is written and mirrors `stopped` to `skipped`; the unexecuted nodes carry none |
 | A8 | a child gate is raised while a parent write is outstanding | cannot happen: W3 completes before the child executes. Verified by reading the write order in the captured state pair |
-| A9 | the child's definition is edited between W2 and W4 | `RUN-FAILED: subrun-graph-drifted`. The parent copies nothing from an interface the child never froze. With the child's definition put back, a resumed parent adopts the child; nothing re-freezes either run |
+| A9 | the child's definition is edited between W2 and W4 | the hand-off verb refuses `subrun-graph-drifted`: `RUN-FAILED: subrun-graph-drifted`. The parent copies nothing from an interface the child never froze. With the child's definition put back, a resumed parent adopts the child; nothing re-freezes either run |
 | A10 | a cockpit child raises a gate before the daemon has written `driver.session` | a pending gate with no session holds back **every** session's writes, so the parent's next write would not land — the protection is the write order: every parent write is finished before the turn ends, so there is no write left to hold back. A re-driven parent treats a child pending with no session as non-terminal, re-prints the marker and ends, and **never** writes the child's `driver.session` itself. If the window persists the operator answers the child's gate directly, exactly as for any other pending run |
 | A11 | the parent stops or fails while a cockpit child is frozen but **not yet adopted** | the child is an ordinary frozen run: the sweep still adopts it and it runs to its own terminal status with a dangling parent link. The engine deletes nothing — a frozen run an operator can drive by hand is not garbage to collect |
 

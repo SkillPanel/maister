@@ -23,21 +23,25 @@
  * **Never a blocker.** No companion, or a run whose `html_output` is off, is a
  * no-op that says so. A plan id with no marker in the companion is reported,
  * not refused — an older or partly generated companion is a warning for the
- * caller to log, never a reason to stop a wave. A group's own `N.0` checkbox
- * is the one exception: the companion marks the group with `data-group="N"`,
- * so an `N.0` with no step marker of its own is not missing.
+ * caller to log, never a reason to stop a wave. A group's own `<id>.0` checkbox
+ * is the one exception: the companion marks the group with `data-group="<id>"`,
+ * so an `<id>.0` with no step marker of its own is not missing.
  *
- * Refusal codes: `plan-unreadable`, `companion-unreadable`,
- * `companion-unwritable`.
+ * Group ids follow `group-id.mjs`: `3`, `2b.1`, `M.1`. A plan whose headings
+ * name one group twice is refused rather than synced half one way.
+ *
+ * Refusal codes: `plan-unreadable`, `plan-duplicate-group`,
+ * `companion-unreadable`, `companion-unwritable`.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
-// The group rule is the dashboard's: a `### Task Group N:` section is done when
+// The group rule is the dashboard's: a `### Task Group <id>:` section is done when
 // it holds a checkbox and none of them is the empty one.
-import { CHECKBOX, GROUP_HEADING, SECTION_HEADING } from './dashboard.mjs';
+import { CHECKBOX, SECTION_HEADING } from './dashboard.mjs';
+import { GROUP_HEADING, duplicateGroups, duplicateMessage, groupAlternation } from './group-id.mjs';
 import { isPlainObject, parse as parseState } from './state-read.mjs';
 
 /** The companion's name beside the plan — the planner's fixed artifact name. */
@@ -46,11 +50,14 @@ const COMPANION = 'implementation-plan.html';
 /** The state file one level above `implementation/`, when the plan belongs to a run. */
 const STATE_FILE = 'orchestrator-state.yml';
 
-/** A step checkbox with its `N.M` label: the mark and the label are both captured. */
-const STEP = new RegExp(`${CHECKBOX.source}\\s*(\\d+\\.\\d+)\\b`, 'gm');
+/**
+ * A step checkbox with its `<id>.M` label, for a plan whose groups `group`
+ * matches (`groupAlternation`): the mark and the label are both captured.
+ */
+const STEP = group => new RegExp(`${CHECKBOX.source}\\s*(${group}\\.\\d+)\\b`, 'gm');
 
-/** A group's own checkbox, `N.0`, which the planner writes above the group's steps. */
-const GROUP_CHECKBOX = /^\d+\.0$/;
+/** A group's own checkbox, `<id>.0`, which the planner writes above the group's steps. */
+const GROUP_CHECKBOX = group => new RegExp(`^${group}\\.0$`);
 
 /**
  * Set every marker in the plan's companion to the plan's checkbox state.
@@ -79,7 +86,8 @@ export function syncPlan({ plan }) {
     return refuse('companion-unreadable', `${companion} cannot be read: ${err.message}`);
   }
 
-  const { groups, steps } = readPlan(planText);
+  const { groups, steps, duplicates, group } = readPlan(planText);
+  if (duplicates.length) return refuse('plan-duplicate-group', duplicateMessage(plan, duplicates));
   let next = html;
   const missingGroups = [];
   const missingSteps = [];
@@ -91,7 +99,7 @@ export function syncPlan({ plan }) {
   for (const [id, done] of steps) {
     const set = setMarker(next, 'step', id, done);
     if (set !== null) next = set;
-    else if (!GROUP_CHECKBOX.test(id)) missingSteps.push(id);
+    else if (!GROUP_CHECKBOX(group).test(id)) missingSteps.push(id);
   }
 
   const written = next !== html;
@@ -124,18 +132,23 @@ export function syncPlan({ plan }) {
  * A group section runs from its heading to the next `### ` heading, the same
  * boundary the dashboard's progress count uses. A step is done when its mark is
  * not the empty one — `[x]` and a justified `[~]` skip both settle it.
+ * `duplicates` are the heading ids that name one group twice (`duplicateGroups`);
+ * `group` is the pattern of this plan's ids, for the step labels.
  */
 export function readPlan(text) {
   const boundaries = [...text.matchAll(SECTION_HEADING)].map(match => match.index);
+  const headings = [...text.matchAll(GROUP_HEADING)];
+  const ids = headings.map(heading => heading[1]);
+  const group = groupAlternation(ids);
   const groups = new Map();
-  for (const heading of text.matchAll(GROUP_HEADING)) {
+  for (const heading of headings) {
     const end = boundaries.find(index => index > heading.index) ?? text.length;
     const marks = [...text.slice(heading.index, end).matchAll(CHECKBOX)].map(match => match[1]);
     if (marks.length > 0) groups.set(heading[1], marks.every(mark => mark !== ' '));
   }
   const steps = new Map();
-  for (const step of text.matchAll(STEP)) steps.set(step[2], step[1] !== ' ');
-  return { groups, steps };
+  for (const step of text.matchAll(STEP(group))) steps.set(step[2], step[1] !== ' ');
+  return { groups, steps, duplicates: duplicateGroups(ids), group };
 }
 
 /**

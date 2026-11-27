@@ -132,6 +132,12 @@
  *                  project root, and its run id: the one the parent recorded,
  *                  else the one the sub-run naming rule gives, with what that
  *                  directory holds now) — read-only over a run
+ *   subrun-handoff --state (the parent's), --node, optional --at
+ *                                                            the writes' paths,
+ *                  then one line: waiting:, started:, stopped: or next:
+ *                  (adopts the child that ended — W4 — records the skips a
+ *                  false guard leaves due, starts the next child — W1, W2,
+ *                  W3) — writes the run and the child; JSON on a refusal
  *   import         --state, --to (a folder of the run), repeatable --from,
  *                  optional --as                            JSON on stdout
  *                  (each source copied into the run byte for byte, a
@@ -252,6 +258,7 @@ import { SHIPPED_HOST } from '../../../lib/host.mjs';
 // Shared with the umbrella runtime's `--input-file`: one rule for a document
 // read from a fixed file instead of stdin.
 import { anchoredFile, consume as consumeFile, readFileText } from '../../../lib/input-file.mjs';
+import { GROUP_ID_RULE, parseGroupList } from './lib/group-id.mjs';
 // Shared with the umbrella runtime too: one bounded read of a document on stdin.
 import { readStdin, STDIN_IDLE_MS } from '../../../lib/stdin.mjs';
 
@@ -368,6 +375,11 @@ const VERBS = {
   // directory, its definition and the project root — is found from the state,
   // so no driver composes the child's path by hand.
   'subrun-path': { module: 'subrun-path.mjs', flags: ['state', 'node'] },
+  // The parent's whole hand-off in one call: it adopts the child that ended
+  // and starts the next one, each step one write through the state writer.
+  // `--at` is the wake-up line's stamp, accepted and recorded nowhere: no
+  // write of the hand-off records a decision time.
+  'subrun-handoff': { module: 'subrun-handoff.mjs', flags: ['state', 'node', 'at'] },
   // Context brought into the run from elsewhere, copied by the one script a
   // driven session can always run, never by a shell copy its permissions may
   // refuse. `--from` repeats, one source each; `--as` renames the one source,
@@ -426,8 +438,8 @@ const USAGE = {
   resolve: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>]',
   diagram: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>] [--out=<file>]',
   locate: '[--name=<workflow name> [--overlay=<overlay file>…] [--profile=<name>]]',
-  'wave-start': '--plan=<implementation-plan.md> --wave=<wave number> --groups=<N>[,<M>…]',
-  'group-done': '--plan=<implementation-plan.md> --groups=<N>[,<M>…] --entry-file=<plan folder>/.work-log-entry.md',
+  'wave-start': '--plan=<implementation-plan.md> --wave=<wave number> --groups=<id>[,<id>…]',
+  'group-done': '--plan=<implementation-plan.md> --groups=<id>[,<id>…] --entry-file=<plan folder>/.work-log-entry.md',
   'write-state': '--state=<orchestrator-state.yml> [--patch-file=<patch file> | the patch as JSON on stdin] [--host=<claude or copilot>, at the freeze] [--no-open]',
   'gate-request': '--state=<orchestrator-state.yml> (--patch-file=<request file> | the request as JSON on stdin | --node=<gate or running node> (--reask=<revise option> | --patch-file=<the node\'s question set>))',
   'gate-revise': '--state=<orchestrator-state.yml> --node=<gate> --option=<revise option> [--patch-file=<note file> | the note as JSON on stdin]',
@@ -442,6 +454,7 @@ const USAGE = {
   'finding-brief': '--state=<orchestrator-state.yml> --node=<reviewing node> --findings-file=<findings file in the run> [--patch-file=<patch file>]',
   'resume-check': '[--state=<orchestrator-state.yml>] [--no-open]',
   'subrun-path': '--state=<the parent\'s orchestrator-state.yml> --node=<its workflow: node>',
+  'subrun-handoff': '--state=<the parent\'s orchestrator-state.yml> --node=<its workflow: node> [--at=<the wake-up line\'s at= stamp>]',
   import: '--state=<orchestrator-state.yml> --to=<folder of the run> --from=<file or directory>… [--as=<file or folder name>, with one --from]',
   'sync-plan': '--plan=<implementation-plan.md>',
   'dispatch-model': '--agent=<name>[,<name>…] --host=<claude or copilot> [--state=<orchestrator-state.yml> [--node=<node>]] [--tier=<light, standard or deep>]',
@@ -1810,11 +1823,11 @@ async function runGroupDone(flags) {
   return code;
 }
 
-/** `--groups=3` or `--groups=2,3`: group numbers as the plan writes them. */
+/** `--groups=3` or `--groups=2b.1,M.1`: group ids as the plan's headings write them. */
 function groupsOf(flags, verb) {
-  const list = String(flags.groups ?? '').replace(/\s+/g, '');
-  if (!/^[1-9]\d*(?:,[1-9]\d*)*$/.test(list)) throw new UsageError(`${verb} needs --groups, the group numbers separated by commas`);
-  return [...new Set(list.split(','))];
+  const groups = parseGroupList(flags.groups);
+  if (groups === null) throw new UsageError(`${verb} needs --groups, the group ids separated by commas, ${GROUP_ID_RULE}`);
+  return groups;
 }
 
 function reportProgress(result) {
@@ -1866,6 +1879,39 @@ async function runSubrunPath(flags) {
   report(result);
   for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
+/**
+ * `subrun-handoff` reports each write it made as `write-state` reports one —
+ * the child's freeze opening its dashboard as any freeze does — then, after a
+ * blank line, its one closing line: `waiting:`, `started:` or `stopped:` as
+ * the module spells it, or the writer's own `next:` line. A refusal is JSON on
+ * stdout, like `subrun-path`, after the writes that landed before it.
+ */
+async function runSubrunHandoff(flags) {
+  if (!flags.state) throw new UsageError('subrun-handoff needs --state');
+  if (!flags.node) throw new UsageError('subrun-handoff needs --node');
+  const at = flags.at === undefined ? null : flags.at;
+  if (at !== null && (at.length !== 1 || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(at[0]))) {
+    throw new UsageError('subrun-handoff takes one --at, the wake-up line\'s UTC stamp (YYYY-MM-DDTHH:MM:SSZ)');
+  }
+  const module = await loadModule(VERBS['subrun-handoff'].module);
+  const state = await loadModule(VERBS['write-state'].module);
+  if (refusedForEditions(state, flags)) return EXIT.REJECTED;
+  const handoff = entryOf(module, 'subrunHandoff', VERBS['subrun-handoff'].module);
+  const result = handoff({ state: flags.state, node: flags.node, at: at === null ? null : at[0] });
+  for (const { target, result: written } of result.writes) {
+    if (written.banner) written.banner = state.bannerAfterOpen(written.banner, await openAfter({ state: target }));
+    reportWrite(written, {}, 'writeRefused');
+  }
+  for (const warning of result.warnings) process.stderr.write(`warning: ${warning}\n`);
+  if (!result.ok) {
+    report({ ok: false, code: result.code, message: result.message });
+    return EXIT.REJECTED;
+  }
+  if (result.next) printNext(result.next);
+  else process.stdout.write(`\n${result.line}\n`);
+  return EXIT.OK;
 }
 
 /**
@@ -2154,6 +2200,7 @@ const RUNNERS = {
   'finding-brief': runFindingBrief,
   'resume-check': runResumeCheck,
   'subrun-path': runSubrunPath,
+  'subrun-handoff': runSubrunHandoff,
   import: runImport,
   'sync-plan': runSyncPlan,
   'dispatch-model': runDispatchModel,

@@ -187,7 +187,7 @@ after a re-drive if it took one (the `every step` row); a false guard records it
 satisfies `needs`; a hard failure with no operator path is `failed`, and `run-complete` ends the
 run `RUN-FAILED`; a spent budget is the `has a budget` row's. **An outcome that comes from
 elsewhere is mapped, never judged**: a `workflow:` node's is its child's `task.status`
-(`references/sub-runs.md` § *Ending, and the re-resolve that precedes W4*), and a dispatched
+adopted by `subrun-handoff` (`references/sub-runs.md` § *The hand-off verb*), and a dispatched
 node's (`dir:`) its close-out grade, the held `partial` question included
 (`references/in-node-questions.md` § *A dispatch closed out partial*). Any path a summary lists
 beyond the declarations, and a non-null `.html` beside it, is checked on disk too.
@@ -306,5 +306,5 @@ drop one silently.**
 ## When to use
 
 Only when a workflow's own skill or `/maister:run` hands a run over, or a node starts a child run
-(`references/sub-runs.md` § *Walk one* or § *Walk two*, by the driver). A dispatch goes through the umbrella runtime's `envelope` verb, which opens the
+(`subrun-handoff`, `references/sub-runs.md` § *The hand-off verb*). A dispatch goes through the umbrella runtime's `envelope` verb, which opens the
 dispatch's ledger entry itself; a run never writes `create-entry` for a dispatch.
