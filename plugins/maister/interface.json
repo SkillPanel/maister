@@ -463,6 +463,7 @@
           "gate-brief-value-missing",
           "gate-temp-exists",
           "gate-unwritable",
+          "group-done-duplicate-group",
           "group-done-entry-invalid",
           "group-done-log-unreadable",
           "group-done-log-unwritable",
@@ -471,6 +472,7 @@
           "group-done-plan-unwritable",
           "group-done-unknown-group",
           "move-base-no-base",
+          "plan-duplicate-group",
           "plan-unreadable",
           "state-absent-invalid",
           "state-answer-needs-person",
@@ -916,6 +918,7 @@
         "refusals": [
           "companion-unreadable",
           "companion-unwritable",
+          "plan-duplicate-group",
           "plan-unreadable"
         ]
       },
@@ -998,6 +1001,7 @@
           "state-workflow-without-nodes",
           "state-workflow-without-task",
           "value-not-flow-safe",
+          "wave-start-duplicate-group",
           "wave-start-group-done",
           "wave-start-log-unreadable",
           "wave-start-log-unwritable",
@@ -1355,7 +1359,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.15",
+  "interface_version": "2.16",
   "mcp": {
     "servers": [],
     "tools": [

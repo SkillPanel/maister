@@ -48,6 +48,7 @@ import { ICON_HINTS, delegationOf, labelOf as optionLabelOf, titleOf } from './d
 import * as items from './items.mjs';
 import { placedArtifacts, whereOf } from './artifact-paths.mjs';
 import { approvalKey, approvalsOf, frozenIds } from './question-triage.mjs';
+import { GROUP_HEADING, duplicateGroups, groupAlternation, groupIdsIn, groupKey, groupValue } from './group-id.mjs';
 
 // ---------------------------------------------------------------------------
 // the frozen vocabularies
@@ -704,21 +705,12 @@ function nodeUsing(definitionDoc, target) {
 // the plan and work-log contracts
 // ---------------------------------------------------------------------------
 
-// The three plan patterns are exported because the plan companion's sync
+// The plan patterns are exported because the plan companion's sync
 // (`plan-sync.mjs`) must call a group done by exactly the rule the dashboard
 // counts it by — two readers of one plan that disagreed would show the operator
-// two different progress figures for the same run.
-
-/**
- * A task group's heading, and the number that labels it.
- *
- * Matches `### Task Group 6: Progress derivation` — the shape
- * `implementation-planner.md` writes and the executor reads back. It does not
- * match `#### Task Group 6:` or a mention of the phrase mid-sentence, because
- * the count of these headings **is** `groups_total` and a prose reference to a
- * group is not a group.
- */
-export const GROUP_HEADING = /^### Task Group (\d+):/gm;
+// two different progress figures for the same run. The group heading and the
+// id grammar live in `group-id.mjs`, shared with the verbs that read `--groups`.
+export { GROUP_HEADING };
 
 /**
  * Any `### ` heading, which is where a group's section ends.
@@ -743,14 +735,15 @@ export const SECTION_HEADING = /^### /gm;
 export const CHECKBOX = /^[ \t]*-\s\[([ x~])\]/gm;
 
 /**
- * A skipped step, with its group number and its reason.
+ * A skipped step, with its group id and its reason, for a plan whose groups
+ * `group` matches (`groupAlternation`).
  *
  * Matches `- [~] 6.1 SKIPPED: no test harness on this platform`, the form the
- * executor writes for a skipped step. The group number comes from the step's own
- * `N.M` label rather than from the enclosing section, because the label is what
+ * executor writes for a skipped step. The group id comes from the step's own
+ * `<id>.M` label rather than from the enclosing section, because the label is what
  * the roll-up keys by and a step is never labelled out of its group.
  */
-const SKIPPED_STEP = /^[ \t]*-\s\[~\]\s*(\d+)\.\d+\s+SKIPPED:\s*(.+)$/gm;
+const SKIPPED_STEP = group => new RegExp(`^[ \\t]*-\\s\\[~\\]\\s*(${group})\\.\\d+\\s+SKIPPED:\\s*(.+)$`, 'gm');
 
 /**
  * A work-log entry announcing a group's wave.
@@ -763,7 +756,7 @@ const SKIPPED_STEP = /^[ \t]*-\s\[~\]\s*(\d+)\.\d+\s+SKIPPED:\s*(.+)$/gm;
  * Headings this cannot account for — `## … Group 1 attempt 1 aborted
  * (infrastructure)` — are simply not matches, never errors.
  */
-const WAVE_HEADING = /^##\s.*\bGroup \d+ (?:Complete|Reverted) \(wave\s*(\d+)/gim;
+const WAVE_HEADING = group => new RegExp(`^##\\s.*\\bGroup ${group} (?:Complete|Reverted) \\(wave\\s*(\\d+)`, 'gim');
 
 /**
  * A work-log entry announcing a reverted group, with its reason.
@@ -773,7 +766,7 @@ const WAVE_HEADING = /^##\s.*\bGroup \d+ (?:Complete|Reverted) \(wave\s*(\d+)/gi
  * "Rollback changes" recovery option. The reason is required here: an entry
  * with no reason is prose about a revert rather than the record of one.
  */
-const REVERT_HEADING = /^##\s.*\bGroup (\d+) Reverted \(wave\s*\d+\):\s*(.+)$/gim;
+const REVERT_HEADING = group => new RegExp(`^##\\s.*\\bGroup (${group}) Reverted \\(wave\\s*\\d+\\):\\s*(.+)$`, 'gim');
 
 /**
  * A work-log entry announcing a wave's start, with its number and its groups.
@@ -781,7 +774,8 @@ const REVERT_HEADING = /^##\s.*\bGroup (\d+) Reverted \(wave\s*\d+\):\s*(.+)$/gi
  * Matches `## 2026-09-20 14:02 - Wave 2 Started: Groups 4, 5` — the entry the
  * executor writes before it dispatches a wave, so the groups it names are the
  * ones running until each is finished or reverted. The group list is read as
- * every number after the colon, so `Groups 4 and 5` and `Group 4` read too.
+ * every group id after the colon (`groupIdsIn`), so `Groups 4 and 5` and
+ * `Group 4` read too.
  */
 export const WAVE_START = /^##\s.*\bWave (\d+) Started:([^\n]*)$/gim;
 
@@ -791,8 +785,9 @@ const GROUP_LABEL = (group, reason) => `Group ${group} — ${reason}`;
 /**
  * The executor phase's interior progress, from the plan and the work log.
  *
- * `null` on **plan-side doubt only** — no `### Task Group N:` heading anywhere,
- * or a group section carrying no checkbox — and `project` then omits the
+ * `null` on **plan-side doubt only** — no `### Task Group <id>:` heading anywhere,
+ * two headings naming one group (`duplicateGroups`), or a group section
+ * carrying no checkbox — and `project` then omits the
  * `progress` key entirely rather than publishing a count nobody can stand
  * behind. A guess there is worse than an absence: this file's whole purpose is
  * to stop looking plausible the moment it is not current.
@@ -821,6 +816,9 @@ export function deriveProgress(planText, logText) {
 
   const headings = [...plan.matchAll(GROUP_HEADING)];
   if (headings.length === 0) return null;
+  const ids = headings.map(heading => heading[1]);
+  if (duplicateGroups(ids).length) return null;
+  const group = groupAlternation(ids);
 
   // Every `### ` in the file, so a section's end is a lookup rather than a
   // second scan per group.
@@ -835,35 +833,34 @@ export function deriveProgress(planText, logText) {
     if (marks.length === 0) return null;
     if (marks.every(mark => mark !== ' ')) {
       done += 1;
-      finished.set(heading[1], marks.includes('~') ? 'skipped' : 'done');
+      finished.set(groupKey(heading[1]), marks.includes('~') ? 'skipped' : 'done');
     }
   }
 
   // Insertion order is document order, and the first skipped step in a group is
   // the one whose reason labels that group.
   const reasons = new Map();
-  for (const step of plan.matchAll(SKIPPED_STEP)) {
+  for (const step of plan.matchAll(SKIPPED_STEP(group))) {
     if (!reasons.has(step[1])) reasons.set(step[1], step[2].trim());
   }
 
-  const waves = [...log.matchAll(WAVE_HEADING)];
+  const waves = [...log.matchAll(WAVE_HEADING(group))];
   const last = waves.length === 0 ? null : waves[waves.length - 1][1];
-  const reverts = [...log.matchAll(REVERT_HEADING)];
+  const reverts = [...log.matchAll(REVERT_HEADING(group))];
 
   // The groups of the last wave started, less those finished in the plan or
   // reverted since it started: the wave is running while any of them is left.
   const started = [...log.matchAll(WAVE_START)].at(-1);
   const running = new Set();
   if (started) {
-    const revertedSince = new Set(reverts.filter(entry => entry.index > started.index).map(entry => entry[1]));
-    for (const number of started[2].match(/\d+/g) ?? []) {
-      const group = String(Number(number));
-      if (!finished.has(group) && !revertedSince.has(group)) running.add(group);
+    const revertedSince = new Set(reverts.filter(entry => entry.index > started.index).map(entry => groupKey(entry[1])));
+    for (const key of groupIdsIn(started[2], ids)) {
+      if (!finished.has(key) && !revertedSince.has(key)) running.add(key);
     }
   }
-  const everReverted = new Set(reverts.map(entry => entry[1]));
-  const stateOf = group => finished.get(group)
-    ?? (running.has(group) ? 'running' : everReverted.has(group) ? 'reverted' : 'to_run');
+  const everReverted = new Set(reverts.map(entry => groupKey(entry[1])));
+  const stateOf = key => finished.get(key)
+    ?? (running.has(key) ? 'running' : everReverted.has(key) ? 'reverted' : 'to_run');
 
   return {
     groups_done: done,
@@ -872,7 +869,7 @@ export function deriveProgress(planText, logText) {
     skipped: [...reasons].map(([group, reason]) => GROUP_LABEL(group, reason)),
     reverted: reverts.map(entry => GROUP_LABEL(entry[1], entry[2].trim())),
     running_wave: running.size > 0 ? Number(started[1]) : null,
-    groups: headings.map(heading => ({ group: Number(heading[1]), state: stateOf(heading[1]) })),
+    groups: ids.map(id => ({ group: groupValue(id), state: stateOf(groupKey(id)) })),
   };
 }
 

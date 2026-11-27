@@ -1,0 +1,212 @@
+[
+  {
+    "progress": {
+      "groups_done": 0,
+      "groups_total": 3,
+      "current_wave": null,
+      "skipped": [
+        "Group 2 — no fixture for the Windows path yet"
+      ],
+      "reverted": [],
+      "running_wave": null,
+      "groups": [
+        {
+          "group": 1,
+          "state": "to_run"
+        },
+        {
+          "group": 2,
+          "state": "to_run"
+        },
+        {
+          "group": 10,
+          "state": "to_run"
+        }
+      ]
+    }
+  },
+  {
+    "args": [
+      "wave-start",
+      "--wave=1",
+      "--groups=1"
+    ],
+    "code": 0,
+    "stdout": "{\n  \"ok\": true,\n  \"wave\": 1,\n  \"groups\": [\n    1\n  ],\n  \"logged\": true,\n  \"reprojected\": \"no-run\",\n  \"errors\": []\n}\n",
+    "stderr": ""
+  },
+  {
+    "progress": {
+      "groups_done": 0,
+      "groups_total": 3,
+      "current_wave": null,
+      "skipped": [
+        "Group 2 — no fixture for the Windows path yet"
+      ],
+      "reverted": [],
+      "running_wave": 1,
+      "groups": [
+        {
+          "group": 1,
+          "state": "running"
+        },
+        {
+          "group": 2,
+          "state": "to_run"
+        },
+        {
+          "group": 10,
+          "state": "to_run"
+        }
+      ]
+    }
+  },
+  {
+    "args": [
+      "group-done",
+      "--groups=1"
+    ],
+    "code": 0,
+    "stdout": "{\n  \"ok\": true,\n  \"groups\": [\n    {\n      \"group\": 1,\n      \"wave\": 1,\n      \"marked\": 3,\n      \"logged\": true\n    }\n  ],\n  \"sync\": {\n    \"ok\": true,\n    \"written\": true,\n    \"missing_groups\": []\n  },\n  \"reprojected\": \"no-run\",\n  \"errors\": []\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "wave-start",
+      "--wave=2",
+      "--groups=2,10"
+    ],
+    "code": 0,
+    "stdout": "{\n  \"ok\": true,\n  \"wave\": 2,\n  \"groups\": [\n    2,\n    10\n  ],\n  \"logged\": true,\n  \"reprojected\": \"no-run\",\n  \"errors\": []\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "wave-start",
+      "--wave=2",
+      "--groups=10,2"
+    ],
+    "code": 0,
+    "stdout": "{\n  \"ok\": true,\n  \"wave\": 2,\n  \"groups\": [\n    10,\n    2\n  ],\n  \"logged\": false,\n  \"reprojected\": \"no-run\",\n  \"errors\": []\n}\n",
+    "stderr": ""
+  },
+  {
+    "progress": {
+      "groups_done": 1,
+      "groups_total": 3,
+      "current_wave": 1,
+      "skipped": [
+        "Group 2 — no fixture for the Windows path yet"
+      ],
+      "reverted": [],
+      "running_wave": 2,
+      "groups": [
+        {
+          "group": 1,
+          "state": "done"
+        },
+        {
+          "group": 2,
+          "state": "running"
+        },
+        {
+          "group": 10,
+          "state": "running"
+        }
+      ]
+    }
+  },
+  {
+    "args": [
+      "group-done",
+      "--groups=2,10"
+    ],
+    "code": 0,
+    "stdout": "{\n  \"ok\": true,\n  \"groups\": [\n    {\n      \"group\": 2,\n      \"wave\": 2,\n      \"marked\": 3,\n      \"logged\": true\n    },\n    {\n      \"group\": 10,\n      \"wave\": 2,\n      \"marked\": 2,\n      \"logged\": true\n    }\n  ],\n  \"sync\": {\n    \"ok\": true,\n    \"written\": true,\n    \"missing_groups\": []\n  },\n  \"reprojected\": \"no-run\",\n  \"errors\": []\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "group-done",
+      "--groups=1"
+    ],
+    "code": 0,
+    "stdout": "{\n  \"ok\": true,\n  \"groups\": [\n    {\n      \"group\": 1,\n      \"wave\": 1,\n      \"marked\": 0,\n      \"logged\": false\n    }\n  ],\n  \"sync\": {\n    \"ok\": true,\n    \"written\": false,\n    \"missing_groups\": []\n  },\n  \"reprojected\": \"no-run\",\n  \"errors\": []\n}\n",
+    "stderr": ""
+  },
+  {
+    "args": [
+      "sync-plan"
+    ],
+    "code": 0,
+    "stdout": "{\n  \"ok\": true,\n  \"companion\": \"<dir>/implementation-plan.html\",\n  \"written\": false,\n  \"groups_done\": [\n    \"1\",\n    \"2\",\n    \"10\"\n  ],\n  \"groups_todo\": [],\n  \"missing_groups\": [],\n  \"missing_steps\": [],\n  \"errors\": []\n}\n",
+    "stderr": ""
+  },
+  {
+    "progress": {
+      "groups_done": 3,
+      "groups_total": 3,
+      "current_wave": 2,
+      "skipped": [
+        "Group 2 — no fixture for the Windows path yet"
+      ],
+      "reverted": [],
+      "running_wave": null,
+      "groups": [
+        {
+          "group": 1,
+          "state": "done"
+        },
+        {
+          "group": 2,
+          "state": "skipped"
+        },
+        {
+          "group": 10,
+          "state": "done"
+        }
+      ]
+    }
+  },
+  {
+    "progress": {
+      "groups_done": 2,
+      "groups_total": 3,
+      "current_wave": 2,
+      "skipped": [
+        "Group 2 — no fixture for the Windows path yet"
+      ],
+      "reverted": [
+        "Group 10 — docs build broke"
+      ],
+      "running_wave": 3,
+      "groups": [
+        {
+          "group": 1,
+          "state": "done"
+        },
+        {
+          "group": 2,
+          "state": "skipped"
+        },
+        {
+          "group": 10,
+          "state": "running"
+        }
+      ]
+    }
+  },
+  {
+    "args": [
+      "sync-plan"
+    ],
+    "code": 0,
+    "stdout": "{\n  \"ok\": true,\n  \"companion\": \"<dir>/implementation-plan.html\",\n  \"written\": true,\n  \"groups_done\": [\n    \"1\",\n    \"2\"\n  ],\n  \"groups_todo\": [\n    \"10\"\n  ],\n  \"missing_groups\": [],\n  \"missing_steps\": [],\n  \"errors\": []\n}\n",
+    "stderr": ""
+  },
+  {
+    "plan": "# Implementation Plan\n\n### Task Group 1: Parser\n**Dependencies:** None\n\n- [x] 1.0 Complete the parser layer\n  - [x] 1.1 Write the parser tests\n  - [x] 1.2 Implement the parser\n\n### Task Group 2: Writer\n**Dependencies:** 1\n\n- [x] 2.0 Complete the writer layer\n  - [x] 2.1 Write the writer tests\n  - [~] 2.2 SKIPPED: no fixture for the Windows path yet\n  - [x] 2.3 Implement the writer\n\n### Task Group 10: Documentation\n\n- [ ] 10.1 Document the parser\n- [x] 10.2 Document the writer\n\n### Acceptance Criteria\n\n- [ ] Not a step: a section that closes Task Group 10\n",
+    "log": "# Work Log\n\n## <stamp> - Implementation Started\n\n**Total Steps**: 8\n\n## <stamp> - Wave 1 Started: Group 1\n\n## <stamp> - Group 1 Complete (wave 1)\n\n**Steps**: 1.1 through 1.2 completed\n\n## <stamp> - Wave 2 Started: Groups 2, 10\n\n## <stamp> - Group 2 Complete (wave 2)\n\nWriter done.\n\n## <stamp> - Group 10 Complete (wave 2)\n\nDocs done.\n\n## <stamp> - Group 10 Reverted (wave 2): docs build broke\n\n## <stamp> - Wave 3 Started: Groups 10 and 99 (retry)\n",
+    "html": "<html><body>\n<section data-group=\"1\" class=\"group done\"><ul>\n<li data-step=\"1.1\" class=\"step done\">a</li><li data-step=\"1.2\" class=\"step done\">b</li></ul></section>\n<section data-group=\"2\" class=\"group done card\"><ul>\n<li data-step=\"2.1\" class=\"step done\">a</li><li data-step=\"2.2\" class=\"done step\">b</li><li data-step=\"2.3\" class=\"step done\">c</li></ul></section>\n<section class=\"group todo\" data-group=\"10\"><ul>\n<li data-step=\"10.1\" class=\"step todo\">a</li><li data-step=\"10.2\" class=\"step done\">b</li></ul></section>\n</body></html>\n"
+  }
+]

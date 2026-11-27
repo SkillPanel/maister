@@ -196,6 +196,7 @@ import { ROUNDS_MAX, checkSet, roundsAsked } from './question-set.mjs';
 import { isClassedItem } from './question-triage.mjs';
 import { hostSession } from './display-files.mjs';
 import { stamp } from '../../../../lib/canonical.mjs';
+import { GROUP_ID_PATTERN, groupSlug } from './group-id.mjs';
 
 /** The loops a runner carries, each in its own folder of the run. */
 export const RUNNERS = ['verification', 'implementation'];
@@ -942,18 +943,18 @@ function backTest(runDir, runner) {
     if (typeof entry.output === 'string' && written(path.resolve(runDir, entry.output), entry.kept)) return true;
     const group = GROUP_ID.exec(id);
     const sent = Date.parse(entry.dispatched);
-    const at = group === null ? undefined : logged.get(String(Number(group[1])));
+    const at = group === null ? undefined : logged.get(groupSlug(group[1]));
     return at !== undefined && Number.isFinite(sent) && at > sent;
   };
 }
 
-/** An implementation agent's id: `group-<N>`. */
-const GROUP_ID = /^group-(\d+)$/;
+/** An implementation agent's id: `group-<slug>`, the group id lower-cased with each dot a hyphen (`group-m-1`). */
+const GROUP_ID = /^group-([a-z0-9-]+)$/;
 
-/** A work-log heading recording a group taken in: `## <time> - Group N Complete (wave K)`, or Reverted. */
-const LOGGED_GROUP = /^##\s+(.+?)\s+-\s+Group (\d+) (?:Complete|Reverted) \(wave\b/gim;
+/** A work-log heading recording a group taken in: `## <time> - Group <id> Complete (wave K)`, or Reverted. */
+const LOGGED_GROUP = new RegExp(`^##\\s+(.+?)\\s+-\\s+Group (${GROUP_ID_PATTERN}) (?:Complete|Reverted) \\(wave\\b`, 'gim');
 
-/** The latest time the work log records each group complete or reverted, by group number; empty without a log. */
+/** The latest time the work log records each group complete or reverted, by the group's slug; empty without a log. */
 function loggedGroups(runDir) {
   let text;
   try {
@@ -964,7 +965,7 @@ function loggedGroups(runDir) {
   const latest = new Map();
   for (const match of text.matchAll(LOGGED_GROUP)) {
     const at = Date.parse(match[1]);
-    const group = String(Number(match[2]));
+    const group = groupSlug(match[2]);
     if (Number.isFinite(at) && !(latest.get(group) >= at)) latest.set(group, at);
   }
   return latest;

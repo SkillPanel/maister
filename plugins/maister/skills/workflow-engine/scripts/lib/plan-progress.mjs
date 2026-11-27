@@ -31,7 +31,8 @@
  * them by the next state write whichever one it is.
  *
  * Refusal codes (`group-done-…` and `wave-start-…`): `plan-unreadable`,
- * `plan-unwritable`, `log-unreadable`, `log-unwritable`, `unknown-group`;
+ * `plan-unwritable`, `log-unreadable`, `log-unwritable`, `unknown-group`,
+ * `duplicate-group`;
  * `group-done-no-wave`, `group-done-entry-invalid`; `wave-start-group-done`.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
@@ -40,7 +41,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { CHECKBOX, GROUP_HEADING, SECTION_HEADING, WAVE_START } from './dashboard.mjs';
+import { CHECKBOX, SECTION_HEADING, WAVE_START } from './dashboard.mjs';
+import {
+  GROUP_HEADING, GROUP_ID_PATTERN, duplicateGroups, duplicateMessage, groupIdsIn, groupKey, groupValue,
+} from './group-id.mjs';
 import { syncPlan } from './plan-sync.mjs';
 import { writeState } from './state.mjs';
 import { stamp } from '../../../../lib/canonical.mjs';
@@ -51,8 +55,8 @@ const WORK_LOG = 'work-log.md';
 /** The state file one level above `implementation/`, when the plan belongs to a run. */
 const STATE_FILE = 'orchestrator-state.yml';
 
-/** A line opening one group's part of a multi-group entry: `## Group 3`. */
-const OPENER = /^##\s+Group\s+(\d+)\s*$/;
+/** A line opening one group's part of a multi-group entry: `## Group 3`, `## Group M.1`. */
+const OPENER = new RegExp(`^##\\s+Group\\s+(${GROUP_ID_PATTERN})\\s*$`);
 
 /** A `#` or `##` heading, which an entry body may not carry: the log's own headings are this module's. */
 const STRAY_HEADING = /^#{1,2}\s/;
@@ -64,24 +68,27 @@ const OPEN_BOX = /^([ \t]*-\s)\[ \]/gm;
  * Record groups the orchestrator accepted: tick their steps, sync the
  * companion, log one entry per group under its wave, re-project.
  *
- * `groups` are group numbers as strings; `entry` is the entry file's text.
+ * `groups` are group ids as `--groups` wrote them; `entry` is the entry file's text.
  * Returns `{ok, groups: [{group, wave, marked, logged}], sync, reprojected,
  * warnings, errors}`; `logged` is false for a group whose entry was already in
  * the log.
  */
-export function groupDone({ plan, groups, entry }) {
+export function groupDone({ plan, groups: given, entry }) {
   const verb = 'group-done';
+  const groups = keysOf(given);
   const read = readBoth(verb, plan);
   if (!read.ok) return read;
   let { planText, logText } = read;
 
-  const sections = sectionsOf(planText);
+  const parsed = planSections(verb, plan, planText);
+  if (!parsed.ok) return parsed;
+  const { sections, ids } = parsed;
   const unknown = groups.filter(group => !sections.has(group));
   if (unknown.length) return unknownGroups(verb, plan, unknown);
 
   const waves = new Map();
   for (const group of groups) {
-    const started = lastStartNaming(logText, group);
+    const started = lastStartNaming(logText, group, ids);
     if (started === null) {
       return refuse(`${verb}-no-wave`, `no "Wave K Started:" heading in ${logOf(plan)} names Group ${group}, so its wave is unknown. `
         + 'Nothing was written. Run wave-start for the wave that dispatched it, then this call again.');
@@ -97,7 +104,7 @@ export function groupDone({ plan, groups, entry }) {
   const counts = new Map();
   let marked = planText;
   for (const group of groups) {
-    const { start, end } = sectionsOf(marked).get(group);
+    const { start, end } = sectionsOf(marked).sections.get(group);
     const section = marked.slice(start, end);
     counts.set(group, [...section.matchAll(OPEN_BOX)].length);
     marked = marked.slice(0, start) + section.replace(OPEN_BOX, '$1[x]') + marked.slice(end);
@@ -124,7 +131,7 @@ export function groupDone({ plan, groups, entry }) {
       const missed = sync.missing_groups?.includes(group) ? `\n\nHTML plan sync missed markers for Group ${group}.` : '';
       appended += `\n## ${stamp()} - Group ${group} Complete (wave ${wave})\n\n${bodies.of.get(group)}${missed}\n`;
     }
-    outcome.push({ group: Number(group), wave, marked: counts.get(group), logged });
+    outcome.push({ group: groupValue(group), wave, marked: counts.get(group), logged });
   }
   if (outcome.some(each => each.logged)) {
     const written = replaceFile(logOf(plan), appended);
@@ -147,13 +154,16 @@ export function groupDone({ plan, groups, entry }) {
  * appends nothing. Returns `{ok, wave, groups, logged, reprojected, warnings,
  * errors}`.
  */
-export function waveStart({ plan, wave, groups }) {
+export function waveStart({ plan, wave, groups: given }) {
   const verb = 'wave-start';
+  const groups = keysOf(given);
   const read = readBoth(verb, plan);
   if (!read.ok) return read;
   const { planText, logText } = read;
 
-  const sections = sectionsOf(planText);
+  const parsed = planSections(verb, plan, planText);
+  if (!parsed.ok) return parsed;
+  const { sections, ids } = parsed;
   const unknown = groups.filter(group => !sections.has(group));
   if (unknown.length) return unknownGroups(verb, plan, unknown);
   const done = groups.filter(group => sections.get(group).done);
@@ -164,7 +174,7 @@ export function waveStart({ plan, wave, groups }) {
 
   const last = [...logText.matchAll(WAVE_START)].at(-1);
   const same = last !== undefined && Number(last[1]) === wave
-    && sameSet(numbersIn(last[2]), groups);
+    && sameSet(groupIdsIn(last[2], ids), groups);
   if (!same) {
     const label = groups.length === 1 ? `Group ${groups[0]}` : `Groups ${groups.join(', ')}`;
     const written = replaceFile(logOf(plan), `${logText.replace(/\s*$/, '\n')}\n## ${stamp()} - Wave ${wave} Started: ${label}\n`);
@@ -176,12 +186,17 @@ export function waveStart({ plan, wave, groups }) {
 
   const warnings = [];
   const reprojected = reproject(plan, warnings, `wave ${wave} start`);
-  return { ok: true, wave, groups: groups.map(Number), logged: !same, reprojected, warnings, errors: [] };
+  return { ok: true, wave, groups: groups.map(groupValue), logged: !same, reprojected, warnings, errors: [] };
 }
 
 // ---------------------------------------------------------------------------
 // reading
 // ---------------------------------------------------------------------------
+
+/** The call's group ids as the plan's sections are keyed, each once. */
+function keysOf(groups) {
+  return [...new Set(groups.map(groupKey))];
+}
 
 function logOf(plan) {
   return path.join(path.dirname(plan), WORK_LOG);
@@ -206,37 +221,47 @@ function readBoth(verb, plan) {
 }
 
 /**
- * Each `### Task Group N:` section by its number: where it starts and ends, the
- * dashboard's boundary, and whether it is done — a checkbox in it and none empty.
+ * Each `### Task Group <id>:` section by its id's key: where it starts and
+ * ends, the dashboard's boundary, and whether it is done — a checkbox in it and
+ * none empty. `ids` are the headings' ids as written, in plan order.
  */
 function sectionsOf(text) {
   const boundaries = [...text.matchAll(SECTION_HEADING)].map(match => match.index);
   const sections = new Map();
+  const ids = [];
   for (const heading of text.matchAll(GROUP_HEADING)) {
     const end = boundaries.find(index => index > heading.index) ?? text.length;
     const marks = [...text.slice(heading.index, end).matchAll(CHECKBOX)].map(match => match[1]);
-    sections.set(String(Number(heading[1])), {
+    ids.push(heading[1]);
+    sections.set(groupKey(heading[1]), {
       start: heading.index, end, done: marks.length > 0 && marks.every(mark => mark !== ' '),
     });
   }
-  return sections;
+  return { sections, ids };
+}
+
+/** The plan's sections, or the refusal of a plan whose headings name one group twice. */
+function planSections(verb, plan, text) {
+  const { sections, ids } = sectionsOf(text);
+  const duplicates = duplicateGroups(ids);
+  if (duplicates.length) {
+    return refuse(`${verb}-duplicate-group`, duplicateMessage(plan, duplicates));
+  }
+  return { ok: true, sections, ids };
 }
 
 /** The last `Wave K Started:` heading naming `group`, as `{wave, index}`, or null. */
-function lastStartNaming(log, group) {
-  const starts = [...log.matchAll(WAVE_START)].filter(match => numbersIn(match[2]).includes(group));
+function lastStartNaming(log, group, ids) {
+  const starts = [...log.matchAll(WAVE_START)].filter(match => groupIdsIn(match[2], ids).includes(group));
   const last = starts.at(-1);
   return last === undefined ? null : { wave: Number(last[1]), index: last.index };
 }
 
-/** Whether a `Group N Complete (wave K)` heading follows the wave's start. */
+/** Whether a `Group <id> Complete (wave K)` heading follows the wave's start. */
 function alreadyLogged(log, group, { wave, index }) {
-  const heading = new RegExp(`^##\\s.*\\bGroup ${group} Complete \\(wave\\s*${wave}\\b`, 'gim');
+  const id = group.replace(/\./g, '\\.');
+  const heading = new RegExp(`^##\\s.*\\bGroup ${id} Complete \\(wave\\s*${wave}\\b`, 'gim');
   return [...log.matchAll(heading)].some(match => match.index > index);
-}
-
-function numbersIn(text) {
-  return (text.match(/\d+/g) ?? []).map(number => String(Number(number)));
 }
 
 function sameSet(a, b) {
@@ -258,7 +283,7 @@ function entryBodies(entry, groups) {
     const opener = line.match(OPENER);
     if (opener) {
       parts.push(current);
-      current = { group: String(Number(opener[1])), lines: [] };
+      current = { group: groupKey(opener[1]), lines: [] };
       continue;
     }
     if (STRAY_HEADING.test(line)) {
@@ -361,8 +386,8 @@ function reproject(plan, warnings, after) {
 }
 
 function unknownGroups(verb, plan, groups) {
-  return refuse(`${verb}-unknown-group`, `${plan} has no "### Task Group N:" section for Group ${groups.join(', ')}. Nothing was written. `
-    + 'Name the groups exactly as the plan numbers them.');
+  return refuse(`${verb}-unknown-group`, `${plan} has no "### Task Group <id>:" section for Group ${groups.join(', ')}. Nothing was written. `
+    + 'Name each group by the id its heading carries, exactly as written.');
 }
 
 function refuse(code, message) {

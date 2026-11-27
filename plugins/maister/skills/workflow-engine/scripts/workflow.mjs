@@ -258,6 +258,7 @@ import { SHIPPED_HOST } from '../../../lib/host.mjs';
 // Shared with the umbrella runtime's `--input-file`: one rule for a document
 // read from a fixed file instead of stdin.
 import { anchoredFile, consume as consumeFile, readFileText } from '../../../lib/input-file.mjs';
+import { GROUP_ID_RULE, parseGroupList } from './lib/group-id.mjs';
 // Shared with the umbrella runtime too: one bounded read of a document on stdin.
 import { readStdin, STDIN_IDLE_MS } from '../../../lib/stdin.mjs';
 
@@ -437,8 +438,8 @@ const USAGE = {
   resolve: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>]',
   diagram: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>] [--out=<file>]',
   locate: '[--name=<workflow name> [--overlay=<overlay file>…] [--profile=<name>]]',
-  'wave-start': '--plan=<implementation-plan.md> --wave=<wave number> --groups=<N>[,<M>…]',
-  'group-done': '--plan=<implementation-plan.md> --groups=<N>[,<M>…] --entry-file=<plan folder>/.work-log-entry.md',
+  'wave-start': '--plan=<implementation-plan.md> --wave=<wave number> --groups=<id>[,<id>…]',
+  'group-done': '--plan=<implementation-plan.md> --groups=<id>[,<id>…] --entry-file=<plan folder>/.work-log-entry.md',
   'write-state': '--state=<orchestrator-state.yml> [--patch-file=<patch file> | the patch as JSON on stdin] [--host=<claude or copilot>, at the freeze] [--no-open]',
   'gate-request': '--state=<orchestrator-state.yml> (--patch-file=<request file> | the request as JSON on stdin | --node=<gate or running node> (--reask=<revise option> | --patch-file=<the node\'s question set>))',
   'gate-revise': '--state=<orchestrator-state.yml> --node=<gate> --option=<revise option> [--patch-file=<note file> | the note as JSON on stdin]',
@@ -1822,11 +1823,11 @@ async function runGroupDone(flags) {
   return code;
 }
 
-/** `--groups=3` or `--groups=2,3`: group numbers as the plan writes them. */
+/** `--groups=3` or `--groups=2b.1,M.1`: group ids as the plan's headings write them. */
 function groupsOf(flags, verb) {
-  const list = String(flags.groups ?? '').replace(/\s+/g, '');
-  if (!/^[1-9]\d*(?:,[1-9]\d*)*$/.test(list)) throw new UsageError(`${verb} needs --groups, the group numbers separated by commas`);
-  return [...new Set(list.split(','))];
+  const groups = parseGroupList(flags.groups);
+  if (groups === null) throw new UsageError(`${verb} needs --groups, the group ids separated by commas, ${GROUP_ID_RULE}`);
+  return groups;
 }
 
 function reportProgress(result) {
