@@ -110,6 +110,7 @@ import { baseAtFreeze } from './git-tree.mjs';
 import { SUMMARY_WRITER_KEYS, keysOf } from './interface-shapes.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredClarificationIds, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
+import { heldScopePath, scopeProblems, scopeRefusalText } from './delivery-scope.mjs';
 import { projectRootOf, runPlace } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
@@ -1390,6 +1391,9 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   // null leaves every path below as it was.
   const prior = SHIPPED_HOST === 'copilot' && runDir !== null && doc.has('workflow') ? typedOf(doc) : null;
   out.evidence = prior === null ? null : answerEvidence(runDir, prior);
+  // Before any pass reads `patch.nodes`: a closing patch's unexecuted nodes
+  // sent `skipped` are recorded as the `stopped` a run's end leaves them.
+  patch = stopUnexecuted(doc, patch, runDir, notes);
   // A child run is written where its parent recorded it, or not at all.
   assertSubrunPath(doc, patch.orchestrator, runDir);
   // A top-level run is frozen only in a run folder, or not at all.
@@ -1493,7 +1497,7 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   if (patch.nodes) applyNodes(doc, patch.nodes, now, changed, ignored, graphOf, undeclared, regress);
   if (regress !== null) clearClassed(doc, regress, changed);
   if (patch.nodes) warnSkippedAsked(patch.nodes, graphOf, writeWarnings, () => outstandingHeld(typedOf(doc)).length > 0);
-  if (patch.nodes && markStarted(doc, patch, changed)) intended.add('task');
+  if ((patch.nodes || freezing) && markStarted(doc, patch, changed, freezing)) intended.add('task');
   // The retired phase-summary mirror, sent top-level or nested under `context`:
   // dropped whole, with one note, so a session still sending it loses nothing
   // else of its write.
@@ -1515,6 +1519,7 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   if (patch.nodes && runDir !== null) registerCompleted(doc, patch.node_summaries, out.before, runDir, changed);
   if (patch.nodes && runDir !== null) settleNeeds(doc, patch.nodes, out.before, runDir, now, out, graphOf);
   if (patch.nodes && runDir !== null) assertDelegates(doc, out.before, runDir, graphOf);
+  if (patch.nodes && runDir !== null) assertDeliveryScope(doc, out.before, runDir, graphOf);
   // The document as it now stands, parsed once for the passes below and again
   // only after a pass that changed it.
   let typed = null;
@@ -1548,18 +1553,19 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
 }
 
 /**
- * `task.status: in_progress`, written by the first write that moves a node off
- * `pending`: the moment the run starts executing. The freeze sets the run up and
- * runs nothing, so it writes no status, and nothing else ever wrote this one —
- * a run read as starting from its first step to its last. Every kind of run
- * records its nodes through this writer, so a sub-run and a chain run get it
- * the same way a top-level run does. A status already recorded other than
- * `pending` is left alone — the endings a closing patch writes above all — and
- * so is a write that sends `task.status` itself. Whether it wrote.
+ * `task.status: in_progress`, written by the freeze — a frozen run is under
+ * way, and every reader of its state finds a status from the start — and by
+ * the first write that moves a node off `pending`, for a state frozen before
+ * the freeze recorded one, which still reads and resumes without it. Every
+ * kind of run freezes and records its nodes through this writer, so a sub-run
+ * and a chain run get it the same way a top-level run does. A status already
+ * recorded other than `pending` is left alone — the endings a closing patch
+ * writes above all — and so is a write that sends `task.status` itself.
+ * Whether it wrote.
  */
-function markStarted(doc, patch, changed) {
+function markStarted(doc, patch, changed, freezing = false) {
   if (isPlainObject(patch.task) && Object.hasOwn(patch.task, 'status')) return false;
-  const moved = Object.values(patch.nodes).some(entry => isPlainObject(entry)
+  const moved = freezing || Object.values(patch.nodes ?? {}).some(entry => isPlainObject(entry)
     && typeof entry.status === 'string' && entry.status !== 'pending');
   if (!moved) return false;
   const status = parseState(doc.text()).task?.status;
@@ -1571,6 +1577,61 @@ function markStarted(doc, patch, changed) {
 
 /** The status a running run records. */
 const STARTED = 'in_progress';
+
+/** The `task.status` values that end a run with nodes it never ran. */
+const ENDS_UNEXECUTED = new Set(['stopped', 'failed']);
+
+/** The node statuses that record an end, which a closing patch never rewrites. */
+const NODE_ENDED = new Set(['completed', 'failed', 'skipped', 'stopped']);
+
+/**
+ * `patch` with a closing patch's skips put right. A patch that ends the run
+ * `stopped` or `failed` records every node it never ran `stopped`
+ * (`references/gates.md` § *Choosing a stop option*); one sent `skipped`
+ * instead would satisfy what waits on it, and a checkpoint so recorded while
+ * still on the run's path reads as a checkpoint passed without an answer. So,
+ * in such a patch only:
+ *
+ * - a node sent `skipped` that has not ended and that is still on the run's
+ *   path before the write (`atClose`, its `skipped` the off-path ones) is
+ *   recorded `stopped`; one a false guard took off the path keeps `skipped`;
+ * - a node sent `skipped` that already ended keeps its record, and leaves the
+ *   patch.
+ *
+ * Nothing here can carry a run past a checkpoint: `stopped` satisfies no need
+ * under the default `on:`, and moving a stopped checkpoint on later is judged
+ * as any answer is. One `note:` line says what was put right. Any other patch,
+ * or one with no frozen run to read, is returned as sent.
+ */
+function stopUnexecuted(doc, patch, runDir, notes) {
+  const ending = isPlainObject(patch.task) ? patch.task.status : null;
+  if (!ENDS_UNEXECUTED.has(ending) || !isPlainObject(patch.nodes) || runDir === null || !doc.has('workflow')) return patch;
+  const sentSkipped = Object.keys(patch.nodes).filter(id => isPlainObject(patch.nodes[id]) && patch.nodes[id].status === 'skipped');
+  if (!sentSkipped.length) return patch;
+  const prior = typedOf(doc);
+  const recorded = isPlainObject(prior.workflow?.nodes) ? prior.workflow.nodes : {};
+  const statusOf = id => (isPlainObject(recorded[id]) && typeof recorded[id].status === 'string' ? recorded[id].status : 'pending');
+  const offPath = new Set(atClose({ doc: prior, runDir }).skipped);
+  const nodes = { ...patch.nodes };
+  const stopped = [];
+  const kept = [];
+  for (const id of sentSkipped) {
+    if (NODE_ENDED.has(statusOf(id))) {
+      if (statusOf(id) === 'skipped') continue;
+      delete nodes[id];
+      kept.push(`${id} ${statusOf(id)}`);
+    } else if (!offPath.has(id)) {
+      nodes[id] = { ...nodes[id], status: 'stopped' };
+      stopped.push(id);
+    }
+  }
+  if (!stopped.length && !kept.length) return patch;
+  notes.push([
+    ...(stopped.length ? [`recorded ${stopped.join(', ')} stopped, not skipped: a run that ends ${ending} records each node it never ran stopped`] : []),
+    ...(kept.length ? [`kept ${kept.join(', ')} as recorded: a node that already ended keeps its record when the run ends`] : []),
+  ].join('; '));
+  return { ...patch, nodes };
+}
 
 /**
  * Which context block this write belongs in.
@@ -5421,6 +5482,43 @@ function assertDelegates(doc, before, runDir, graphOf) {
   }
 }
 
+/**
+ * The delivery scope check: a step that declares the output `delivery_scope`
+ * completes only while the file at that path holds the shape the
+ * delivery-scope reference defines (`delivery-scope.mjs`).
+ *
+ * It exists because a design step wrote the scope's lists as maps keyed by
+ * member name, the workspace manifest's shape, and nothing read the file until
+ * whatever planned the delivery refused it after the person had approved it.
+ * Refused here, the step cannot close, so the gate after it cannot be asked;
+ * every problem is one line naming the key and what to write instead.
+ *
+ * Read off the frozen graph's declared output key, never a file name or a node
+ * id, so an eject or an overlay that keeps the key is held to it too. A graph
+ * that cannot be read holds nobody, and neither does a `workflow:` node or a
+ * missing file whose absence the brief or the closing summary sanctions
+ * (`heldScopePath`); a file on disk is always held to its shape.
+ */
+function assertDeliveryScope(doc, before, runDir, graphOf) {
+  if (graphOf === null) return;
+  const typed = typedOf(doc);
+  const nodes = isPlainObject(typed.workflow) && isPlainObject(typed.workflow.nodes) ? typed.workflow.nodes : {};
+  const completing = Object.entries(nodes)
+    .filter(([id, entry]) => isPlainObject(entry) && entry.status === 'completed' && before[id] !== 'completed')
+    .map(([id]) => id);
+  if (!completing.length) return;
+  const brief = briefOfRun(typed, runDir);
+  const absences = sanctionedAbsences(typed);
+  for (const id of completing) {
+    const relative = heldScopePath({ graphNode: resolvedNode(graphOf(), id), briefEntry: brief?.[id] ?? null, absences: absences(id), runDir });
+    if (relative === null) continue;
+    const problems = scopeProblems({ file: path.join(runDir, relative), projectRoot: projectRootOf(runDir) });
+    if (!problems.length) continue;
+    throw new Refusal('delivery-scope-invalid', scopeRefusalText([...problems,
+      `${id} cannot complete while ${relative} breaks the delivery scope's shape. Nothing was written: rewrite the file as each line above says, then send the same closing write again`]));
+  }
+}
+
 /** Each frozen node's recorded status, by id, from a state file's text; {} when there is none to read. */
 function statusesOf(text) {
   let doc;
@@ -5512,12 +5610,38 @@ function nextCheck(text, runDir, before) {
   try {
     const doc = parseState(text);
     const nodes = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
-    const ended = Object.keys(nodes).some(id => isPlainObject(nodes[id])
+    const ended = Object.keys(nodes).filter(id => isPlainObject(nodes[id])
       && (nodes[id].status === 'completed' || nodes[id].status === 'skipped') && before[id] !== nodes[id].status);
-    return ended ? dueNext({ doc, runDir }) : null;
+    if (!ended.length) return null;
+    const stop = stopAnswered(doc, runDir, ended);
+    return stop === null ? dueNext({ doc, runDir }) : { id: null, stop };
   } catch {
     return null;
   }
+}
+
+/**
+ * The first of `ended` that is a frozen gate recorded `completed` with one of
+ * its stop options as its answer, or null. The walk would name the node after
+ * it, but a stop ends the run, so the write's `next:` line names the closing
+ * patch instead. Read against the graph the frozen block proves; a run whose
+ * graph cannot be proven gets the walk's line as before.
+ */
+function stopAnswered(doc, runDir, ended) {
+  const nodes = doc.workflow.nodes;
+  const gates = ended.filter(id => nodes[id].status === 'completed' && nodes[id].kind === 'gate');
+  if (!gates.length) return null;
+  const graph = provenGraph(doc.workflow, runDir).graph ?? null;
+  if (!graph) return null;
+  const byId = new Map(graph.nodes.map(node => [node.id, node]));
+  const summaries = isPlainObject(doc.node_summaries) ? doc.node_summaries : {};
+  return gates.find(id => {
+    const option = gateAnswer(isPlainObject(summaries[id]) ? summaries[id].decisions : null)?.option;
+    const offered = byId.get(id)?.options;
+    if (typeof option !== 'string' || !isPlainObject(offered) || !Object.hasOwn(offered, option)) return false;
+    const effect = isPlainObject(offered[option]) ? offered[option].effect : offered[option];
+    return effect === 'stop';
+  }) ?? null;
 }
 
 /**

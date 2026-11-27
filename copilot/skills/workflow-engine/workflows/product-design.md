@@ -555,6 +555,11 @@ adopted once `direction-approval` continued.
    `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs reference --at="skills/product-design/references/delivery-scope.md § The shape"` prints it. A member is
    in scope when the design changes something it owns. Draw every statement from the
    agreed points and the documents on disk, never from a guess about code nobody read.
+   In a workspace, take the member names from the manifest but not its shape: the
+   manifest's `members:` is a map keyed by name, while `members` and `out_of_scope`
+   here are lists of entries, each with its `name`. The closing write checks the file
+   and refuses one off the shape, `delivery-scope-invalid`, a line per problem: rewrite
+   the file as the lines say and close again.
 4. **Check the scope against the agreed points** — every one carried, or named as left
    out with why. Each point missing is an `open` risk naming it, with the `change` that
    would carry it. A scope that drops one, or states no exclusion after a run that
