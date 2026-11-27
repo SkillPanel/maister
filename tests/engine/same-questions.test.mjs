@@ -12,6 +12,14 @@ import { inNodeQuestions } from '../../plugins/maister/skills/workflow-engine/sc
 // every write here sends them as a session that dispatched them would.
 const write = (run, patch) => writeState(run, delegating(patch, run));
 
+/** A step that declares a delivery scope closes only with one on disk that holds its shape: write it first. */
+function scopeFor(run, node) {
+  const scope = node.outputs?.artifacts?.delivery_scope;
+  if (typeof scope !== 'string') return;
+  fs.mkdirSync(path.dirname(path.join(run.dir, scope)), { recursive: true });
+  fs.copyFileSync(path.join(FIXTURES, 'runs/team-calendar-sharing/outputs/delivery-scope.yml'), path.join(run.dir, scope));
+}
+
 // What every built-in asks, and how each question reaches a person under each
 // driver, pinned against a snapshot taken from the engine before the autonomy
 // model changed anything. A change that moves a gate, an option, an in-node
@@ -193,6 +201,7 @@ function gatesUnder(t, name, driverName) {
     const node_summaries = {};
     for (const earlier of graph.nodes.slice(done, index)) {
       nodes[earlier.id] = completedEntry(earlier);
+      scopeFor(run, earlier);
       node_summaries[earlier.id] = earlier.type === 'gate'
         ? { decisions: [{ option: firstContinue(earlier), answered_by: 'operator', at: '2026-10-09T09:00:00Z' }] }
         : SUMMARY;
@@ -278,6 +287,7 @@ function reachedUnder(t, name, driverName) {
         node_summaries: { [id]: { decisions: [{ option: firstContinue(current), answered_by: 'operator', at: '2026-10-09T09:00:00Z' }] } },
       });
     } else {
+      scopeFor(run, current);
       write(run, { nodes: { [id]: completedEntry(current) }, node_summaries: { [id]: SUMMARY } });
     }
     const step = walk({ graph, recorded: readState(run).workflow.nodes, gate: id, inputs, defaults });

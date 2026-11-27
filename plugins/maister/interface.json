@@ -272,6 +272,7 @@
           "task-path"
         ],
         "refusals": [
+          "delivery-scope-invalid",
           "findings-merge-no-cycle",
           "findings-merge-state-unreadable",
           "findings-merge-task-unreadable",
@@ -339,6 +340,7 @@
           "state"
         ],
         "refusals": [
+          "delivery-scope-invalid",
           "gate-brief-already-answered",
           "gate-brief-no-graph",
           "gate-brief-no-summary",
@@ -365,6 +367,7 @@
           "state"
         ],
         "refusals": [
+          "delivery-scope-invalid",
           "gate-brief-already-answered",
           "gate-brief-no-graph",
           "gate-brief-no-summary",
@@ -391,6 +394,7 @@
           "state"
         ],
         "refusals": [
+          "delivery-scope-invalid",
           "edition-collision",
           "gate-brief-value-missing",
           "gate-temp-exists",
@@ -455,6 +459,7 @@
         "refusals": [
           "companion-unreadable",
           "companion-unwritable",
+          "delivery-scope-invalid",
           "gate-brief-value-missing",
           "gate-temp-exists",
           "gate-unwritable",
@@ -556,6 +561,7 @@
           "to"
         ],
         "refusals": [
+          "delivery-scope-invalid",
           "edition-collision",
           "gate-brief-value-missing",
           "gate-temp-exists",
@@ -617,6 +623,7 @@
           "state"
         ],
         "refusals": [
+          "delivery-scope-invalid",
           "display-temp-exists",
           "display-unwritable",
           "gate-brief-value-missing",
@@ -873,6 +880,7 @@
           "wave"
         ],
         "refusals": [
+          "delivery-scope-invalid",
           "gate-brief-value-missing",
           "gate-temp-exists",
           "gate-unwritable",
@@ -934,6 +942,7 @@
           "state"
         ],
         "refusals": [
+          "delivery-scope-invalid",
           "edition-collision",
           "gate-brief-value-missing",
           "gate-temp-exists",
@@ -1275,7 +1284,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.13",
+  "interface_version": "2.14",
   "mcp": {
     "servers": [],
     "tools": [

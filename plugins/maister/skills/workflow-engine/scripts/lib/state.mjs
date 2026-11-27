@@ -110,6 +110,7 @@ import { baseAtFreeze } from './git-tree.mjs';
 import { SUMMARY_WRITER_KEYS, keysOf } from './interface-shapes.mjs';
 import { HELD_APPROVAL, approvalKey, classSet, frozenIds, classesQuestions, declaredClarificationIds, declaredQuestionIds, heldApprovalBlockers, heldApprovalLabel, heldApprovalCurrent, heldApprovalOptions, gateHeldRevises, isAppliedHeldRevise, isApproval, isClassedItem, isOpenHeld, openHeld, outstandingHeld } from './question-triage.mjs';
 import { FORM_PROPERTY, NOTE_PROPERTY, lowered } from './checkpoint.mjs';
+import { declaredScopePath, scopeProblems, scopeRefusalText } from './delivery-scope.mjs';
 import { projectRootOf, runPlace } from '../../../../lib/run-dirs.mjs';
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { QUESTION_SETS, canAsk, driverFeatures, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
@@ -1515,6 +1516,7 @@ function apply(doc, patch, now, runDir, out, regress = null, host = null, moveBa
   if (patch.nodes && runDir !== null) registerCompleted(doc, patch.node_summaries, out.before, runDir, changed);
   if (patch.nodes && runDir !== null) settleNeeds(doc, patch.nodes, out.before, runDir, now, out, graphOf);
   if (patch.nodes && runDir !== null) assertDelegates(doc, out.before, runDir, graphOf);
+  if (patch.nodes && runDir !== null) assertDeliveryScope(doc, out.before, runDir, graphOf);
   // The document as it now stands, parsed once for the passes below and again
   // only after a pass that changed it.
   let typed = null;
@@ -5418,6 +5420,38 @@ function assertDelegates(doc, before, runDir, graphOf) {
       + `does not list ${missing.join(', ')}. Nothing was written. Dispatch each missing agent through the Task tool as the `
       + `brief's delegates: line says — never do its work in the session — then send the closing write again with every `
       + 'dispatched agent in delegated');
+  }
+}
+
+/**
+ * The delivery scope check: a step that declares the output `delivery_scope`
+ * completes only while the file at that path holds the shape the
+ * delivery-scope reference defines (`delivery-scope.mjs`).
+ *
+ * It exists because a design step wrote the scope's lists as maps keyed by
+ * member name, the workspace manifest's shape, and nothing read the file until
+ * whatever planned the delivery refused it after the person had approved it.
+ * Refused here, the step cannot close, so the gate after it cannot be asked;
+ * every problem is one line naming the key and what to write instead.
+ *
+ * Read off the frozen graph's declared output key, never a file name or a node
+ * id, so an eject or an overlay that keeps the key is held to it too. A graph
+ * that cannot be read holds nobody.
+ */
+function assertDeliveryScope(doc, before, runDir, graphOf) {
+  if (graphOf === null) return;
+  const typed = typedOf(doc);
+  const nodes = isPlainObject(typed.workflow) && isPlainObject(typed.workflow.nodes) ? typed.workflow.nodes : {};
+  const completing = Object.entries(nodes)
+    .filter(([id, entry]) => isPlainObject(entry) && entry.status === 'completed' && before[id] !== 'completed')
+    .map(([id]) => id);
+  for (const id of completing) {
+    const relative = declaredScopePath(resolvedNode(graphOf(), id));
+    if (relative === null) continue;
+    const problems = scopeProblems({ file: path.join(runDir, relative), projectRoot: projectRootOf(runDir) });
+    if (!problems.length) continue;
+    throw new Refusal('delivery-scope-invalid', scopeRefusalText([...problems,
+      `${id} cannot complete while ${relative} breaks the delivery scope's shape. Nothing was written: rewrite the file as each line above says, then send the same closing write again`]));
   }
 }
 
