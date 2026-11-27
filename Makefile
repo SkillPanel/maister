@@ -94,6 +94,8 @@ validate:
 	@node tests/dispatch-command-lint.mjs --variant="$(VARIANT)"
 	@echo "Checking every agent and workflow guide names a plugin file under the plugin root..."
 	@node tests/plugin-path-lint.mjs --variant="$(VARIANT)"
+	@echo "Checking no prompt template or suggested command puts a person's text inside quotes..."
+	@node tests/person-text-lint.mjs --variant="$(VARIANT)"
 	@echo "Checking no prose lists the old four standards folders without the groups added beside them..."
 	@node tests/group-list-lint.mjs
 	@echo "Checking commands are flat (no subdirectories)..."

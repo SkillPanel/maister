@@ -1,12 +1,17 @@
 # Context Discovery — Prompt Templates
 
-Replace `[description]` with the actual task description.
+Put the task description in place of `[description]` word for word: every line, quote and backslash as the person typed it, never escaped and never wrapped in quotes.
 
 ## Bug
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Find testing and context information for: "[description]"
+Find testing and context information for the task below.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Find existing tests that cover this functionality
@@ -26,7 +31,12 @@ Output:
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Find dependencies and consumers for: "[description]"
+Find dependencies and consumers of the code the task below changes.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Find all files that import/use this feature (consumers)
@@ -46,7 +56,12 @@ Output:
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Find integration requirements for: "[description]"
+Find integration requirements for the task below.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Identify where this feature needs to be registered/routed

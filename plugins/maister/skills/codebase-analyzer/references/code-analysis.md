@@ -1,12 +1,17 @@
 # Code Analysis — Prompt Templates
 
-Replace `[description]` with the actual task description.
+Put the task description in place of `[description]` word for word: every line, quote and backslash as the person typed it, never escaped and never wrapped in quotes.
 
 ## Bug
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Analyze the code related to: "[description]"
+Analyze the code related to the task below.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Trace execution flow from input to output
@@ -26,7 +31,12 @@ Output:
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Analyze the existing implementation of: "[description]"
+Analyze the existing implementation the task below enhances.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Understand current functionality and capabilities
@@ -46,7 +56,12 @@ Output:
 ```
 IMPORTANT: Do NOT create, write, or modify any files. Output all findings as text in your response only.
 
-Analyze the codebase architecture for adding: "[description]"
+Analyze the codebase architecture for adding what the task below asks for.
+
+The task, exactly as the person wrote it, between the marker lines:
+--- task ---
+[description]
+--- end of task ---
 
 Focus on:
 1. Understand the overall project structure
