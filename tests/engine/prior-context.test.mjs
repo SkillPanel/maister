@@ -300,3 +300,15 @@ test('prior-context: a mirror whose entries hold no decision and no risk prints 
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
 });
+
+test('prior-context: a node recorded skipped with no summary is left out', t => {
+  const run = scratch(t);
+  freeze(run, { definition: path.join(FIXTURES, 'definitions/revise.yml') });
+  write(run, { nodes: { draft: { status: 'completed', values: { needs_figures: false } } }, node_summaries: { draft: { summary: 'Drafted the guide.' } } });
+  write(run, { nodes: { figures: { status: 'skipped' } } });
+  const result = priorContext(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^### draft$/m);
+  assert.doesNotMatch(result.stdout, /figures/i);
+  assert.match(result.stdout, /: 1 node, /);
+});

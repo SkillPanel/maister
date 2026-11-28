@@ -527,3 +527,15 @@ test('a terminal run\'s recorded answered_by stays in state; only the dashboard 
   assert.equal(readState(run).node_summaries.analysis.decisions[0].answered_by, 'lee');
   assert.equal(fs.readFileSync(path.join(run.dir, 'dashboard-data.js'), 'utf8').includes('lee'), false);
 });
+
+test('a node recorded skipped with no summary projects with skip_reason null', t => {
+  const run = scratch(t);
+  freeze(run, { definition: path.join(FIXTURES, 'definitions/revise.yml') });
+  write(run, { nodes: { draft: { status: 'completed', values: { needs_figures: false } } }, node_summaries: { draft: { summary: 'Drafted the guide.' } } });
+  write(run, { nodes: { figures: { status: 'skipped' } } });
+  assert.equal(Object.hasOwn(readState(run).node_summaries ?? {}, 'figures'), false);
+  const figures = readDashboard(run).phases.find(phase => phase.id === 'figures');
+  assert.equal(figures.status, 'skipped');
+  assert.equal(figures.skip_reason, null);
+  assert.equal(figures.summary, null);
+});

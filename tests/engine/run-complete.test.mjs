@@ -843,3 +843,45 @@ test('wrap-up: a child run and a driven run print no candidate lines', t => {
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, '');
 });
+
+test('a node recorded skipped with no summary owes no artifact and no companion at the close', t => {
+  const run = scratch(t, { type: 'closing', name: '2026-01-05-skip-reads' });
+  const definition = path.join(run.root, 'skip-reads.yml');
+  fs.writeFileSync(definition, [
+    'name: skip-reads',
+    'version: 1',
+    'html_companions:',
+    '  draft: [doc]',
+    '  extra: [notes]',
+    'nodes:',
+    '  draft:',
+    '    uses: direct:draft',
+    '    needs: []',
+    '    outputs:',
+    '      artifacts: {doc: outputs/draft.md}',
+    '      values: {wide: bool}',
+    '  extra:',
+    '    uses: direct:extra',
+    '    needs: [draft]',
+    '    when: "${draft.values.wide}"',
+    '    outputs:',
+    '      artifacts: {notes: outputs/extra.md}',
+    '  wrap-up:',
+    '    uses: direct:wrap-up',
+    '    needs: [extra]',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'skip-reads.md'),
+    ['# Skip reads', '', '## `draft`', '', 'Draft.', '', '## `extra`', '', 'Extra.', '', '## `wrap-up`', '', 'Wrap up.', ''].join('\n'));
+  freeze(run, { definition, orchestrator: { options: { html_output: true } } });
+  put(run.dir, 'outputs/draft.md');
+  put(run.dir, 'outputs/draft.html');
+  write(run, { nodes: { draft: { status: 'completed', values: { wide: false } } }, node_summaries: { draft: { summary: 'Drafted.' } } });
+  write(run, { nodes: { extra: { status: 'skipped' } } });
+  assert.equal(Object.hasOwn(readState(run).node_summaries, 'extra'), false);
+  write(run, { task: { status: 'completed' }, nodes: { 'wrap-up': { status: 'completed' } } });
+  const result = complete(run);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stdout, 'RUN-COMPLETE\n');
+  assert.doesNotMatch(result.stdout + result.stderr, /missing-(artifact|companion)/);
+});

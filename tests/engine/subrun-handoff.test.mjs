@@ -376,3 +376,25 @@ test('every code the verb raises is in its module header and has a verbs.md row;
     assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /WAITING-SUBRUN/, file);
   }
 });
+
+test('after a revise, a skip the hand-off writes drops the node\'s earlier summary and lists node_summaries.<id>', t => {
+  const { run, child } = waitingOnFirst(t);
+  // The parent as a revise leaves a reset node: its earlier attempt's summary
+  // still on file, its attempt counted up. No gate of this definition sends
+  // the run back, so the attempt is set by hand where the writer records it.
+  write(run, { node_summaries: { remedy: { summary: 'Patched the store on the first attempt.' } } });
+  const text = fs.readFileSync(run.state, 'utf8');
+  const reset = text.replace(/^( {4}remedy: \{)/m, '$1attempt: 2, ');
+  assert.notEqual(reset, text, text);
+  fs.writeFileSync(run.state, reset);
+  finish(child);
+
+  const result = handoff(run, 'first');
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  const lines = result.stdout.split('\n');
+  assert.ok(lines.includes('node_summaries.remedy'), result.stdout);
+  assert.equal(lines.includes('node_summaries.remedy.status'), false, result.stdout);
+  const state = readState(run);
+  assert.equal(state.workflow.nodes.remedy.status, 'skipped');
+  assert.equal(Object.hasOwn(state.node_summaries, 'remedy'), false);
+});

@@ -930,6 +930,62 @@ test('write-state: a later answer at a revised gate keeps the revise decisions b
   assert.deepEqual(readState(run).node_summaries['review-approval'].decisions, [folded(revise), folded(answer)]);
 });
 
+test('write-state: a reset node recorded skipped with no summary drops its earlier summary and lists node_summaries.<id>', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, { nodes: { draft: { status: 'completed', values: { needs_figures: true } } }, node_summaries: { draft: { summary: 'Drafted the guide.' } } });
+  write(run, { nodes: { figures: { status: 'completed' }, 'side-note': { status: 'completed' } }, node_summaries: { figures: { summary: 'Drew two figures.' } } });
+  write(run, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed the draft.' } } });
+  const revised = verb(['gate-revise', `--state=${run.state}`, '--node=review-approval', '--option=send-back'], { note: 'Drop the figures' });
+  assert.equal(revised.code, 0, revised.stderr);
+  write(run, { nodes: { draft: { status: 'completed', values: { needs_figures: false } } }, node_summaries: { draft: { summary: 'Drafted it again.' } } });
+
+  const result = write(run, { nodes: { figures: { status: 'skipped' } } });
+  const lines = result.stdout.split('\n');
+  assert.ok(lines.includes('node_summaries.figures'), result.stdout);
+  assert.equal(lines.includes('node_summaries.figures.status'), false, result.stdout);
+  assert.equal(result.stderr, '');
+  const state = readState(run);
+  assert.equal(state.workflow.nodes.figures.status, 'skipped');
+  assert.equal(Object.hasOwn(state.node_summaries, 'figures'), false);
+  assert.equal(state.node_summaries.draft.summary, 'Drafted it again.', 'only the skipped node\'s summary goes');
+});
+
+test('write-state: a revised gate its guard then skips keeps the revise decision its summary records', t => {
+  const run = scratch(t);
+  freeze(run, { definition: path.join(FIXTURES, 'definitions/optional-step.yml') });
+  const answer = option => ({ decisions: [{ option, answered_by: OPERATOR, at: '2026-01-05T09:00:00Z' }] });
+  const specified = option => {
+    write(run, { nodes: { specification: { status: 'completed' } }, node_summaries: { specification: { summary: 'Wrote the specification.' } } });
+    write(run, { nodes: { 'specification-approval': { status: 'completed' } }, node_summaries: { 'specification-approval': answer(option) } });
+  };
+  specified('continue-to-audit');
+  write(run, { nodes: { audit: { status: 'completed' } }, node_summaries: { audit: { summary: 'Audited: one gap.' } } });
+  const revised = verb(['gate-revise', `--state=${run.state}`, '--node=audit-approval', '--option=redo-specification'], { note: 'Close the gap' });
+  assert.equal(revised.code, 0, revised.stderr);
+  specified('continue-to-planning');
+
+  const result = write(run, { nodes: { audit: { status: 'skipped' }, 'audit-approval': { status: 'skipped' } } });
+  const lines = result.stdout.split('\n');
+  assert.ok(lines.includes('node_summaries.audit'), result.stdout);
+  assert.ok(lines.includes('node_summaries.audit-approval.status'), result.stdout);
+  const summaries = readState(run).node_summaries;
+  assert.equal(Object.hasOwn(summaries, 'audit'), false, 'the audit\'s earlier summary is dropped');
+  assert.deepEqual(summaries['audit-approval'].decisions.map(item => item.option), ['redo-specification'], 'the person\'s revise stays on record');
+});
+
+test('write-state: at its first attempt a node recorded skipped keeps the summary it wrote, its status mirrored as today', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, { nodes: { draft: { status: 'completed', values: { needs_figures: false } } }, node_summaries: { draft: { summary: 'Drafted the guide.' } } });
+  write(run, { node_summaries: { figures: { summary: 'Not needed for this guide.' } } });
+  const result = write(run, { nodes: { figures: { status: 'skipped' } } });
+  const lines = result.stdout.split('\n');
+  assert.ok(lines.includes('node_summaries.figures.status'), result.stdout);
+  assert.equal(lines.includes('node_summaries.figures'), false, result.stdout);
+  assert.equal(readState(run).node_summaries.figures.summary, 'Not needed for this guide.');
+});
+
 // ---------------------------------------------------------------------------
 // a node summary merges field by field, and the user's answers are history
 // ---------------------------------------------------------------------------

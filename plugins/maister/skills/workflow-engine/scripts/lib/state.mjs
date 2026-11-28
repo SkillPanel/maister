@@ -5351,15 +5351,44 @@ function registeredPath(node, nodeId, run) {
  * `node_summaries` entry already on disk and not written by this patch is
  * touched — one this patch wrote was mirrored as it was written — and only its
  * `status` line, so the prose beside it stays byte-identical.
+ *
+ * One exception: a node a revise reset (`attempt` 2 or more) that this write
+ * records `skipped` with no summary of its own. Its summary on file is the
+ * earlier attempt's, which no stamp tells apart, and a summary reads before
+ * `Skipped.` at the gate; so that summary is dropped whole, and the change
+ * listed as `node_summaries.<id>`. A judged skip sends its summary in the same
+ * write, and keeps it. A gate keeps its summary: the revise that reset it
+ * wrote the person's answer there, and a gate brief never reads a gate's
+ * summary as the summary of a step it closes.
  */
 function mirrorOntoRecorded(doc, nodePatch, summaryPatch, changed) {
   for (const [id, patchEntry] of Object.entries(nodePatch)) {
     if (isPlainObject(summaryPatch) && Object.hasOwn(summaryPatch, id)) continue;
     const mirrored = mirrorOf(patchEntry?.status);
     if (!mirrored || !doc.locate(['node_summaries', id])) continue;
+    if (patchEntry.status === 'skipped' && dropStaleSummary(doc, id)) {
+      if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+      continue;
+    }
     doc.set(['node_summaries', id, 'status'], [`    status: ${mirrored}`]);
     changed.push(`node_summaries.${id}.status`);
   }
+}
+
+/**
+ * Drop `id`'s summary when the node now stands `skipped` on a reset attempt;
+ * whether it did. An emptied block is written `node_summaries: {}`, the shape
+ * a run starts with.
+ */
+function dropStaleSummary(doc, id) {
+  const nodes = typedOf(doc).workflow?.nodes;
+  const entry = isPlainObject(nodes) ? nodes[id] : undefined;
+  if (!isPlainObject(entry) || entry.kind === 'gate' || entry.status !== 'skipped' || attemptOf(entry) < 2) return false;
+  const found = doc.locate(['node_summaries', id]);
+  doc.splice(found.start, found.end, []);
+  const block = doc.locate(['node_summaries']);
+  if (block && block.end === block.start + 1 && block.inline === '') doc.lines[block.start] = 'node_summaries: {}';
+  return true;
 }
 
 /**
