@@ -49,6 +49,9 @@ function brief(run, node, engine = undefined) {
 }
 
 const LINE = "Implementation plan approved by the project's config";
+// A due gate's question is folded into its brief: this line, then `ask again:`
+// and `details:`, and the question printed last below them.
+const QUESTION = 'question: printed last, below — ask it with the question tool exactly as printed, never rebuilt';
 
 test("a listed gate is recorded by: config with the line as its headline, and the brief asks nothing", t => {
   const { run } = frozen(t);
@@ -89,7 +92,8 @@ test('a gate whose step recommends revising is asked, the reason first', t => {
   const { run } = frozen(t);
   planned(run, { recommends: { option: 'revise-plan', reason: 'The plan misses the migration.' } });
   const out = brief(run, 'plan-approval');
-  assert.ok(out.includes("say: The project's config would continue, but plan recommends revising; the gate is asked as usual.\nask it: gate-brief"), out);
+  assert.doesNotMatch(out, /^ask it:/m);
+  assert.ok(out.includes(`say: The project's config would continue, but plan recommends revising; the gate is asked as usual.\n${QUESTION}\nask again: gate-brief `), out);
   assert.equal(readState(run).workflow.nodes['plan-approval'].status, 'pending');
 });
 
@@ -97,7 +101,8 @@ test('a gate whose step recorded a stop risk is asked, the reason first', t => {
   const { run } = frozen(t);
   planned(run, { risks: [{ risk: 'The plan deletes production data.', tag: 'stop' }] });
   const out = brief(run, 'plan-approval');
-  assert.ok(out.includes("say: The project's config would continue, but plan recorded a risk that recommends stopping; the gate is asked as usual.\nask it: gate-brief"), out);
+  assert.doesNotMatch(out, /^ask it:/m);
+  assert.ok(out.includes(`say: The project's config would continue, but plan recorded a risk that recommends stopping; the gate is asked as usual.\n${QUESTION}\nask again: gate-brief `), out);
   assert.equal(readState(run).workflow.nodes['plan-approval'].status, 'pending');
 });
 
@@ -115,7 +120,8 @@ test('a gate whose continue grants is dropped at the freeze and asked as usual',
   assert.match(skipped.stdout + skipped.stderr, /gate-guard-false/);
   send(run, { nodes: { 'plan-approval': { status: 'skipped' } } });
   const publish = brief(run, 'plan-approval-publish');
-  assert.match(publish, /^ask it: gate-brief /m);
+  assert.doesNotMatch(publish, /^ask it:/m);
+  assert.ok(publish.includes(`${QUESTION}\nask again: gate-brief `), publish);
   assert.doesNotMatch(publish, /^decided:/m);
 });
 
@@ -128,7 +134,9 @@ test('an unknown gate and a gate with two continues are reported at the freeze; 
   ]);
   assert.equal(readState(run).orchestrator.options.workflow_config, undefined);
   planned(run);
-  assert.match(brief(run, 'plan-approval'), /^ask it: gate-brief /m);
+  const out = brief(run, 'plan-approval');
+  assert.doesNotMatch(out, /^ask it:/m);
+  assert.ok(out.includes(`${QUESTION}\nask again: gate-brief `), out);
 });
 
 test('a gate not yet due is never continued', t => {
@@ -145,7 +153,9 @@ test('a resumed run keeps the auto_continue it started with', t => {
   const resumed = verb(['resume-check', `--state=${run.state}`], undefined, { CLAUDE_PROJECT_DIR: run.root });
   assert.equal(resumed.code, 0, resumed.stderr);
   planned(run);
-  assert.match(brief(run, 'plan-approval'), /^ask it: gate-brief /m);
+  const out = brief(run, 'plan-approval');
+  assert.doesNotMatch(out, /^ask it:/m);
+  assert.ok(out.includes(`${QUESTION}\nask again: gate-brief `), out);
 });
 
 test('a driven run continues the same way, recorded the same way, and writes no gate request', t => {
