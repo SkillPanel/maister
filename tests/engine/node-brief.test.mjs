@@ -1023,3 +1023,39 @@ test('node-brief: the ask it line is the whole call — the rich profile on Clau
     }
   }
 });
+
+// A gate its guard skips asks nothing: the brief names the skip write in place of
+// the `ask it:` line, on both builds and under every driver, and a gate whose
+// guard is true keeps its call word for word.
+
+function skipGuardRun(t, findings) {
+  const guarded = scratch(t);
+  freeze(guarded, { definition: path.join(DEFINITIONS, 'skip-guard.yml') });
+  write(guarded, {
+    nodes: { review: { status: 'completed', values: { findings_to_review: findings } } },
+    node_summaries: { review: { summary: 'Reviewed the work.' } },
+  });
+  return guarded;
+}
+
+test('node-brief: a gate its guard skips prints the skip line, never an ask it line, on both builds', t => {
+  const guarded = skipGuardRun(t, true);
+  const variant = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
+  const skipLine = 'skip it: its guard !${review.values.findings_to_review} reads false, so it is not asked — record it skipped through write-state: {"nodes":{"confirmation":{"status":"skipped"}}}';
+  for (const engine of [null, variant]) {
+    const lines = nodeBrief(guarded.state, 'confirmation', engine).stdout.split('\n');
+    assert.ok(lines.includes(skipLine), lines.join('\n'));
+    assert.ok(!lines.some(line => line.startsWith('ask it: ')), 'no ask it line');
+  }
+  assert.equal(fs.existsSync(path.join(guarded.dir, '.ask.json')), false);
+});
+
+test('node-brief: a driven gate whose guard is true keeps its gate-request line', t => {
+  const guarded = skipGuardRun(t, false);
+  for (const driver of [{ kind: 'cockpit', features: ['question-sets'] }, { kind: 'dispatch' }]) {
+    write(guarded, { orchestrator: { driver } });
+    const lines = nodeBrief(guarded.state, 'confirmation').stdout.split('\n');
+    assert.ok(lines.includes(`ask it: gate-request --state=${guarded.state} --node=confirmation`), driver.kind);
+    assert.ok(!lines.some(line => line.startsWith('skip it: ')), driver.kind);
+  }
+});

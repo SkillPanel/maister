@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, scratch, verb, write } from '../helpers.mjs';
+import { ENGINE, ENGINE_DIR, FIXTURES, freeze, run as runScript, scratch, variantRoot, verb, write } from '../helpers.mjs';
 
 const SKIP_GUARD = path.join(FIXTURES, 'definitions/skip-guard.yml');
 const QUESTIONS = path.join(FIXTURES, 'definitions/in-node-questions.yml');
@@ -108,4 +108,62 @@ test('control: gate-request for a gate that is asked goes on to the edition chec
   const result = verb(['gate-request', `--state=${run.state}`, `--patch-file=${patch}`]);
   assert.equal(result.code, 1);
   assert.match(result.stderr, /^gate-request-unavailable: /);
+});
+
+// node-brief of a gate its guard skips asks nothing either: the brief prints the
+// gate's guard line and the skip write, and no `ask it:` line, on both builds
+// and under every driver, and it writes no question file. A gate with a true
+// guard keeps its `ask it:` line.
+
+function nodeBriefOf(run, node, engine = ENGINE) {
+  return runScript(engine, ['node-brief', `--state=${run.state}`, `--node=${node}`]);
+}
+
+function variantEngine() {
+  return path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
+}
+
+const askLine = (text) => text.split('\n').find(line => line.startsWith('ask it: '));
+
+test('node-brief of a gate its guard skips prints the guard line and the skip write, and no ask it line, on both builds', t => {
+  const run = reviewed(t, true);
+  for (const engine of [ENGINE, variantEngine()]) {
+    const result = nodeBriefOf(run, 'confirmation', engine);
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, /^when: .* — now false$/m);
+    assert.equal(askLine(result.stdout), undefined, `no ask it line (${engine})`);
+    assert.match(result.stdout, /\{"nodes":\{"confirmation":\{"status":"skipped"\}\}\}/);
+    assert.equal(fs.existsSync(path.join(run.dir, '.ask.json')), false, 'no question file');
+  }
+  for (const driver of [{ kind: 'cockpit', features: ['question-sets'] }, { kind: 'dispatch' }]) {
+    write(run, { orchestrator: { driver } });
+    const result = nodeBriefOf(run, 'confirmation');
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(askLine(result.stdout), undefined, `no request line under ${driver.kind}`);
+  }
+});
+
+test('node-brief of an input-only gate that reads false names the skip write with its pending stretch, and asks nothing', t => {
+  const run = scratch(t);
+  freeze(run, { definition: QUESTIONS });
+  write(run, {
+    nodes: {
+      scoping: { status: 'completed', values: { wants_review: true, wants_notes: false } },
+      'review-approval': { status: 'skipped' },
+      'depth-approval': { status: 'skipped' },
+      drafting: { status: 'completed' },
+    },
+    node_summaries: { drafting: { summary: 'Drafted.' } },
+  });
+  const result = nodeBriefOf(run, 'notes-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(askLine(result.stdout), undefined);
+  assert.match(result.stdout, /\{"nodes":\{"notes-approval":\{"status":"skipped"\},"notes":\{"status":"skipped"\}\}\}/);
+});
+
+test('control: node-brief of a gate the skip-guard rule asks keeps its ask it line', t => {
+  const run = reviewed(t, false);
+  const result = nodeBriefOf(run, 'findings-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(askLine(result.stdout), `ask it: gate-brief --state=${run.state} --node=findings-approval --json --picker=rich`);
 });

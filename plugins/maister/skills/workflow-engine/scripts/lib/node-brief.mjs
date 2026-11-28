@@ -160,7 +160,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parse, isPlainObject } from './state-read.mjs';
 import { BUILT_IN_AGENTS, guardReadsTask, guideRows, nodeKindIn, plainContinueOf, proseSection, readerRows, sectionNameOf } from './graph.mjs';
-import { driftClause, atClose, closingCandidates, evaluate, gateBrief, readinessOf, reread } from './gate-brief.mjs';
+import { driftClause, atClose, closingCandidates, evaluate, gateBrief, guardSkipPatch, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
 import { attemptOf, companionsOfRun, explainerState, htmlOutput, projectRootOf, sourcesOf, startBanner, workflowConfigOf, writeState } from './state.mjs';
 import { autoContinued, configContinueLine } from './workflow-config.mjs';
@@ -338,8 +338,12 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
   // A marker that cannot be written only means the next brief prints the rows whole again.
   if (shown !== null && printedWhole.size) markConventionsShown({ root, rows: new Set([...shown, ...printedWhole]) });
   lines.push('');
+  let skip = null;
   if (resolved === null) {
     lines.push(gate ? askIt : current.graph === null ? UNKNOWN_SECTION : GONE_SECTION);
+  } else if (gate && (skip = guardSkipPatch({ doc, recorded, node, current })) !== null) {
+    // A gate its guard skips asks nothing, on any driver: the brief names the skip write.
+    lines.push(`skip it: its guard ${resolved.when} reads false, so it is not asked — record it skipped through write-state: ${skip}`);
   } else if (gate) {
     // A gate the project's config continues is recorded here and asks nothing;
     // one it would continue but its brief advises against is asked, the reason first.

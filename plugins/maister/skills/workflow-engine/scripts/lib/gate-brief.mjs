@@ -1407,6 +1407,29 @@ export function skippedAgain(id, stretch, guards) {
  * pending node it closes whose own guard reads false, recorded `skipped`.
  */
 function guardFalse({ doc, recorded, node, current }) {
+  const found = guardSkip({ doc, recorded, node, current });
+  if (found === null) return null;
+  const { gate, skips, patch, readsTask } = found;
+  const why = readsTask
+    ? 'it is a pure confirmation and no choice is held for approval'
+    : 'it reads only inputs or other gates\' values, which a held choice never overrides';
+  return refuse('gate-guard-false',
+    `--node=${node} is not asked: its guard ${gate.when} reads false, and ${why}. Nothing was written. `
+    + `Record it skipped${skips.length ? ' with its stretch' : ''} through write-state — ${patch} — and go on with the ready set`);
+}
+
+/**
+ * The skip write for a gate its guard skips, as the JSON patch `guardFalse`
+ * spells it, or null when the gate is asked: by the skip-guard rule, by the
+ * held-choice exception, because its guard reads true or cannot be read, or
+ * because it is answered or the graph is not trusted. Never refuses.
+ */
+export function guardSkipPatch({ doc, recorded, node, current }) {
+  return guardSkip({ doc, recorded, node, current })?.patch ?? null;
+}
+
+/** The guard of a gate its guard skips, with the skip write: the part `guardFalse` and `guardSkipPatch` share. */
+function guardSkip({ doc, recorded, node, current }) {
   if (current.drift || entryOf(recorded, node).status === 'completed') return null;
   const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
   const gate = byId.get(node);
@@ -1432,12 +1455,7 @@ function guardFalse({ doc, recorded, node, current }) {
     return read.ok && !read.value;
   });
   const patch = JSON.stringify({ nodes: Object.fromEntries([node, ...skips].map(id => [id, { status: 'skipped' }])) });
-  const why = readsTask
-    ? 'it is a pure confirmation and no choice is held for approval'
-    : 'it reads only inputs or other gates\' values, which a held choice never overrides';
-  return refuse('gate-guard-false',
-    `--node=${node} is not asked: its guard ${gate.when} reads false, and ${why}. Nothing was written. `
-    + `Record it skipped${skips.length ? ' with its stretch' : ''} through write-state — ${patch} — and go on with the ready set`);
+  return { gate, skips, patch, readsTask };
 }
 
 /**
