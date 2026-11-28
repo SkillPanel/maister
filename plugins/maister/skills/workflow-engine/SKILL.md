@@ -31,6 +31,13 @@ node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-request --st
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-revise --state=<run>/orchestrator-state.yml --node=<gate> --option=<revise option> <<< '<json>'
 ```
 
+<!-- claude-code -->
+A file write and the command that reads it may share a message — the patch file and its closing write above all — and so may calls that only read — unless a patch file a refused write left is still on disk: then write the corrected file and run the write in two messages.
+<!-- /claude-code -->
+<!-- copilot
+Calls where one needs the other's result never share a message; calls that only read may.
+-->
+
 **Run `node-brief` before every node** — the one a write's `next:` line names —
 `node-brief --state=<state> --node=<id>`, and read its output whole: how the node runs, its
 `with:` filled in, the conventions that apply and its section of the guide. At a gate, run the call its `ask it:` line prints — on its own, after the

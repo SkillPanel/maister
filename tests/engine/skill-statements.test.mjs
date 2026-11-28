@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR } from '../helpers.mjs';
+import { ENGINE_DIR, variantRoot } from '../helpers.mjs';
+import { reference } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
 
 // A few statements in the engine skill are contracts in their own right: the
 // reason `write-state` checks structure rather than a schema, and the Step 0
@@ -229,7 +230,7 @@ test('the gate rule is loaded first: a gate is asked from the call its brief pri
   assert.ok(before.includes('run the call its `ask it:` line prints'), 'Before anything else names the brief\'s ask it line');
   assert.ok(before.includes('never write a gate question by hand'), 'Before anything else keeps the never-by-hand rule');
   const raw = fs.readFileSync(SKILL, 'utf8');
-  assert.doesNotMatch(raw, /rich-picker|plain-picker/, 'no picker marker is left in the skill');
+  assert.doesNotMatch(raw, /rich-picker|plain-picker/, 'no picker marker is left in the skill (host markers are allowed)');
   for (const heading of ['### Gates and in-node questions', '### Interpolating', '### Ending a dispatched run', '## Sub-runs']) {
     assert.ok(!raw.split(/\r?\n/).some(line => line.startsWith(heading)), `the skill no longer carries ${heading}: its brief lines print it`);
   }
@@ -313,4 +314,34 @@ test('Starting a run batches its first calls and skips the checks a hand-over al
   for (const value of ['the located `definition` path, and that `validate` passed on it', 'the overlays, located ones first', 'the profile, when one was given']) {
     assert.ok(handOver.includes(value), value);
   }
+});
+
+// --- Calls in one message, said per host ---------------------------------------
+const P1 = 'A file write and the command that reads it may share a message — the patch file and its closing write above all — and so may calls that only read';
+const P3 = '— unless a patch file a refused write left is still on disk: then write the corrected file and run the write in two messages.';
+const P2 = 'Calls where one needs the other\'s result never share a message; calls that only read may.';
+
+/** The text outside every `<!-- … -->` comment, collapsed. */
+function outsideComments(raw) {
+  return collapse(raw.replace(/<!--[\s\S]*?-->/g, ''));
+}
+
+test('the source skill says in Claude Code\'s passage that calls may share a message, with the guard, and P2 only inside a comment', () => {
+  const raw = fs.readFileSync(SKILL, 'utf8');
+  assert.match(raw, /^<!-- claude-code -->\n[^\n]*\n<!-- \/claude-code -->\n<!-- copilot\n[^\n]*\n-->$/m, 'one marked pair');
+  assert.ok(collapse(raw).includes(`${P1} ${P3}`), 'P1 with P3 appended');
+  assert.ok(!outsideComments(raw).includes(P2), 'P2 is only in the copilot comment');
+  assert.ok(collapse(raw).includes(P2), 'P2 sits in the copilot comment');
+});
+
+test('the variant skill reads P2 and no P1 or P3 text, and stays within the Copilot budget', () => {
+  const root = variantRoot();
+  const raw = fs.readFileSync(path.join(root, 'skills/workflow-engine/SKILL.md'), 'utf8');
+  assert.ok(collapse(raw).includes(P2), 'P2 in the variant');
+  assert.ok(!raw.includes('may share a message'), 'no P1 text in the variant');
+  assert.ok(!raw.includes('two messages'), 'no P3 text in the variant');
+  assert.doesNotMatch(raw, /<!--\s*\/?(?:claude-code|copilot)/);
+  const printed = reference({ ats: ['SKILL.md'], pluginRoot: path.join(root, 'skills/workflow-engine') });
+  const length = printed.ok ? printed.text.length : raw.length;
+  assert.ok(length <= 19906, `the variant engine skill prints ${length} characters`);
 });
