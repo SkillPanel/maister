@@ -279,3 +279,25 @@ test('the rules a run needs mid-run come first, in order, and end inside what a 
   assert.ok(end > last + HEAD.at(-1).length, 'the last head section has a body');
   assert.ok(end < HEAD_LIMIT, `the head ends at body character ${end}, at or past ${HEAD_LIMIT}`);
 });
+
+// --- Resume, the conventions sentence and the skip rule -----------------------
+
+test('Resume names the step and section calls, with the limit on file reads', () => {
+  const text = skill();
+  assert.ok(text.includes('Brief what `step_call` names, print what `section_call` names; never read the state file or a reference page with the file tool to find the step or the section; the driven answer reads (`gates.md` step 1) are unchanged.'));
+  assert.ok(text.includes('prints the two *Driver-suspended mode* sections in one call'));
+  assert.ok(!text.includes('Read the reference with the read tool, never through a shell'), 'the old read-tool sentence is gone');
+});
+
+test('the brief-printing sentence for a rules: page is gone from the skill', () => {
+  const text = skill();
+  assert.ok(!text.includes('print it the first time in a session'));
+  assert.ok(!text.includes('again after a compaction, which drops what was read'));
+});
+
+test('The ready set says an engine-recorded skip needs no summary and a judged one keeps it', () => {
+  const lines = sectionLines('### The ready set').join(' ');
+  assert.match(collapse(lines), /A skip the engine records needs no summary; a skip you judge keeps one\./);
+  const state = collapse(fs.readFileSync(WRITING_STATE, 'utf8'));
+  assert.ok(state.includes('A skip the engine records needs no summary, and a skip the session judges keeps one.'));
+});

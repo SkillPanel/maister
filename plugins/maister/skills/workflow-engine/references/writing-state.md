@@ -345,7 +345,8 @@ number of entries ride in one patch. There are four moments:
   arrives first; a summary written with its own `status` keeps it until the node's status
   next changes.
 - **A ready-set walk skips nodes.** Every node a false guard skips goes in one patch, with
-  their summaries, however many there are. That patch lands no later than the next
+  their summaries, however many there are. A skip the engine records needs no summary, and a
+  skip the session judges keeps one. That patch lands no later than the next
   executed node's `running` patch — either earlier, or as part of that same patch — so no
   node is ever recorded as started while a node the walk already passed still reads
   `pending`.

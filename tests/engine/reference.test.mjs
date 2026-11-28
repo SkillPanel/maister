@@ -449,3 +449,10 @@ test('the guide sections this group edits print under the cap, on both trees', (
     }
   }
 });
+
+test('gates.md "What the reset leaves" names the summary the writer drops', () => {
+  const text = printed(reference(['references/gates.md § Revising at a gate'])).replace(/\s+/g, ' ');
+  assert.match(text, /What the reset leaves\./);
+  assert.ok(text.includes('the writer drops its earlier summary and lists it as `node_summaries.<id>`'));
+  assert.ok(text.includes("A gate's own summary stays"));
+});

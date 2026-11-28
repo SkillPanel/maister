@@ -785,7 +785,10 @@ attempt's answers as history (`references/in-node-questions.md` § *When a quest
 and its `attempt` one higher; a guarded node in it is judged again once the rerun node records
 its values, and a gate in it is asked again. The summaries stay until the nodes re-complete and
 rewrite them field by field, so the brief and the prior context still show what the previous
-attempt found (`references/writing-state.md` § *Writing state*). The gate's decisions keep every
+attempt found (`references/writing-state.md` § *Writing state*). The one exception is a node of
+the stretch, not a gate, that is then recorded `skipped` with no summary: the writer drops its
+earlier summary and lists it as `node_summaries.<id>`. A gate's own summary stays, for it holds
+the revise decision. The gate's decisions keep every
 revise, and a later answer at the gate is added after them, never over them.
 
 **A ceiling, not a budget.** A revise the user chooses is theirs to make as often as they want;
