@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { FIXTURES, ROOT, SAMPLE, delegating, freeze, freezePatch, readState, run, scratch, variantRoot, write } from '../helpers.mjs';
+import { FIXTURES, ROOT, SAMPLE, delegating, freeze, freezePatch, maskRoot, readState, run, scratch, variantRoot, write } from '../helpers.mjs';
 import { refreshIndex } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-index.mjs';
 import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
@@ -92,7 +92,7 @@ function writeFromFile(tree, runAt, patch, flags = []) {
 
 /** Each scratch root in `text` replaced by one placeholder, so two runs' prints compare. */
 function rooted(text, runAt) {
-  return text.split(runAt.root).join('<root>');
+  return maskRoot(text, runAt.root);
 }
 
 /** The closing walk of one tree, imported in this process. */
@@ -938,7 +938,7 @@ function unclocked(runAt) {
     if (value !== null && typeof value === 'object') {
       return Object.fromEntries(Object.entries(value).filter(([, each]) => !(typeof each === 'string' && CLOCK.test(each))).map(([key, each]) => [key, strip(each)]));
     }
-    return typeof value === 'string' ? value.split(runAt.root).join('<root>') : value;
+    return typeof value === 'string' ? maskRoot(value, runAt.root) : value;
   };
   return strip(readState(runAt));
 }

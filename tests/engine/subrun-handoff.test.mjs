@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, readState, run as runScript, scratch, sibling, snapshot, variantRoot, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, maskRoot, readState, run as runScript, scratch, sibling, snapshot, variantRoot, verb, write } from '../helpers.mjs';
 
 const AUTHORED = path.join(FIXTURES, 'subrun-handoff');
 const CHILD_SOURCE = '.maister/workflows/handoff-child.yml';
@@ -99,7 +99,7 @@ function waitingOnFirst(t, options = {}) {
   return { run, child };
 }
 
-const masked = (text, root) => text.replace(STAMP, '"<ts>"').replaceAll(root, '<root>');
+const masked = (text, root) => maskRoot(text.replace(STAMP, '"<ts>"'), root);
 
 test('the first child starts in one call: W1, the freeze into the derived directory with its parent link, W3', t => {
   const run = parent(t);

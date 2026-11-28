@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ENGINE, ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, readState, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, walkTo, write } from '../helpers.mjs';
+import { ENGINE, ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, maskRoot, reach, readState, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, walkTo, write } from '../helpers.mjs';
 
 // The brief a step reads before it runs: the facts the engine derives for it —
 // how it runs, its guard, its attempt, its inputs filled in, the files it
@@ -559,8 +559,7 @@ test('node-brief: a plain-picker passage at the end of a section is dropped ther
   const scope = nodeBrief(edited.state, 'scope');
   assert.equal(scope.code, 0, scope.stderr);
   assert.ok(scope.stdout.endsWith(`${RULES}\n\n**Does.** Settle what the note covers and record \`wants_audit\` and \`focus\`.\n`), scope.stdout);
-  const mask = (text, root) => text.split(root).join('<root>');
-  assert.equal(mask(nodeBrief(edited.state, 'draft').stdout, edited.root), mask(nodeBrief(baseline.state, 'draft').stdout, baseline.root));
+  assert.equal(maskRoot(nodeBrief(edited.state, 'draft').stdout, edited.root), maskRoot(nodeBrief(baseline.state, 'draft').stdout, baseline.root));
   assert.doesNotMatch(nodeBrief(edited.state, 'draft').stdout, /plain-picker|each focus|plain list of tones/);
 });
 
