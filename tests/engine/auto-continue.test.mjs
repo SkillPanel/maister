@@ -108,7 +108,7 @@ test('a gate whose continue grants is dropped at the freeze and asked as usual',
   planned(run);
   // The plain gate's guard reads false under publish: it keeps today's skip, and the brief says to record it.
   const plain = brief(run, 'plan-approval');
-  assert.match(plain, /^skip it: its guard .* reads false, so it is not asked — record it skipped through write-state: \{"nodes":\{"plan-approval":\{"status":"skipped"\}\}\}$/m);
+  assert.match(plain, /^skip it: its guard .* reads false, so it is not asked — record it skipped through write-state --next: \{"nodes":\{"plan-approval":\{"status":"skipped"\}\}\}$/m);
   assert.doesNotMatch(plain, /^ask it:/m);
   const skipped = verb(['gate-brief', `--state=${run.state}`, '--node=plan-approval', '--json', '--picker=rich']);
   assert.equal(skipped.code, 1);

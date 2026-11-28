@@ -1060,7 +1060,7 @@ function skipGuardRun(t, findings) {
 test('node-brief: a gate its guard skips prints the skip line, never an ask it line, on both builds', t => {
   const guarded = skipGuardRun(t, true);
   const variant = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
-  const skipLine = 'skip it: its guard !${review.values.findings_to_review} reads false, so it is not asked — record it skipped through write-state: {"nodes":{"confirmation":{"status":"skipped"}}}';
+  const skipLine = 'skip it: its guard !${review.values.findings_to_review} reads false, so it is not asked — record it skipped through write-state --next: {"nodes":{"confirmation":{"status":"skipped"}}}';
   for (const engine of [null, variant]) {
     const lines = nodeBrief(guarded.state, 'confirmation', engine).stdout.split('\n');
     assert.ok(lines.includes(skipLine), lines.join('\n'));
