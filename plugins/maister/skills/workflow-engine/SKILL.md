@@ -167,7 +167,7 @@ guard its brief reads `now false`, or an `on: failure` node with nothing failed,
 `skipped`, which satisfies everything downstream. A skip the engine records needs no summary; a
 skip you judge keeps one. On `next: none` — or a node failed with no `on:`
 downstream to take it, or a stop ended the run — write the closing patch with `task.status` and
-end through `run-complete`.
+end through `run-complete`, also after a step's patch that carries `task`.
 
 ### Recording an outcome
 

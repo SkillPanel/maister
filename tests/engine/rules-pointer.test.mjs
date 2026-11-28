@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { rowSuffix } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
 import { ENGINE_DIR, FIXTURES, briefOf, freeze, reach, scratch, verb, write } from '../helpers.mjs';
 
 // A verb that briefs a moment of the run, or refuses one, names the reference
@@ -214,7 +215,7 @@ test('write-state and run-complete: a refusal keeps its code first, then its mes
   const run = scratch(t);
   freeze(run);
   const written = verb(['write-state', `--state=${run.state}`], { nodes: { ghost: { status: 'completed' } } });
-  refusedWithPointer(written, 'state-node-unknown', WRITE_REFUSED);
+  refusedWithPointer(written, 'state-node-unknown', `${WRITE_REFUSED} § state-node-unknown`);
 
   const unended = verb(['run-complete', `--state=${run.state}`]);
   refusedWithPointer(unended, 'run-not-ended', COMPLETE_REFUSED);
@@ -295,7 +296,7 @@ test('the frozen-workflow refusal and an unfinished close each name the writing-
   freeze(run);
   const frozen = verb(['write-state', `--state=${run.state}`],
     { workflow: { name: 'development', nodes: { analysis: { kind: 'direct' } } } });
-  refusedWithPointer(frozen, 'state-workflow-frozen', WRITE_REFUSED);
+  refusedWithPointer(frozen, 'state-workflow-frozen', `${WRITE_REFUSED} § state-workflow-frozen`);
 
   write(run, { task: { status: 'completed' } });
   const unfinished = verb(['run-complete', `--state=${run.state}`]);
@@ -327,7 +328,7 @@ test('every existing pointer keeps its printed path, byte for byte, under the en
   const state = scratch(t);
   freeze(state);
   refusedWithPointer(verb(['write-state', `--state=${state.state}`], { nodes: { ghost: { status: 'completed' } } }),
-    'state-node-unknown', spelled('writing-state.md', 'When a write is refused'));
+    'state-node-unknown', `${spelled('writing-state.md', 'When a write is refused')} § state-node-unknown`);
   refusedWithPointer(verb(['run-complete', `--state=${state.state}`]),
     'run-not-ended', spelled('writing-state.md', 'When `run-complete` refuses'));
 });
@@ -389,4 +390,19 @@ test('write-state: the companion lines close on one pointer to their recovery, o
   const quiet = verb(['write-state', `--state=${run.state}`], { nodes: { review: { status: 'running' } } });
   assert.equal(quiet.code, 0, quiet.stderr);
   assert.ok(!quiet.stdout.includes('rules: '), quiet.stdout);
+});
+
+test('a writer refusal names its own row, and a code with no row keeps the bare section pointer', t => {
+  const run = scratch(t);
+  freeze(run);
+  // A code with a row: the pointer carries it, and a grouped row is found by any of its codes.
+  const decided = verb(['write-state', `--state=${run.state}`],
+    { nodes: { analysis: { status: 'completed' } }, node_summaries: { analysis: { headline: 'x', decisions: [{ decision: 'x', by: 'config' }] } } });
+  refusedWithPointer(decided, 'state-config-decision-invalid', `${WRITE_REFUSED} § state-config-decision-invalid`);
+  const file = path.join(REFERENCES, 'writing-state.md');
+  assert.equal(rowSuffix(file, 'When a write is refused', 'state-unwritable'), ' § state-unwritable');
+  // The two codes the interface lists for the writer that have no row keep today's pointer.
+  for (const code of ['move-base-no-base', 'gate-brief-value-missing', undefined, null]) {
+    assert.equal(rowSuffix(file, 'When a write is refused', code), '', String(code));
+  }
 });

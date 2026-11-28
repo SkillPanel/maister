@@ -259,6 +259,7 @@ import { SHIPPED_HOST } from '../../../lib/host.mjs';
 // read from a fixed file instead of stdin.
 import { anchoredFile, consume as consumeFile, readFileText } from '../../../lib/input-file.mjs';
 import { GROUP_ID_RULE, parseGroupList } from './lib/group-id.mjs';
+import { rowSuffix } from './lib/reference.mjs';
 // Shared with the umbrella runtime too: one bounded read of a document on stdin.
 import { readStdin, STDIN_IDLE_MS } from '../../../lib/stdin.mjs';
 
@@ -532,9 +533,10 @@ function candidateLines(state) {
 }
 
 /** One pointer's value: the file's absolute path, then `§` and the heading. */
-function rulesOf(moment) {
+function rulesOf(moment, code = null) {
   const [file, heading] = RULES[moment];
-  return `${path.join(PLUGIN_ROOT, 'skills/workflow-engine', file)} § ${heading}`;
+  const at = path.join(PLUGIN_ROOT, 'skills/workflow-engine', file);
+  return `${at} § ${heading}${moment === 'writeRefused' ? rowSuffix(at, heading, code) : ''}`;
 }
 
 /**
@@ -546,8 +548,8 @@ function printRules(moment) {
 }
 
 /** The pointer as a refusal's stderr line: after its message, before any `warning:` line. */
-function refuseRules(moment) {
-  process.stderr.write(`rules: ${rulesOf(moment)}\n`);
+function refuseRules(moment, code = null) {
+  process.stderr.write(`rules: ${rulesOf(moment, code)}\n`);
 }
 
 /** The flags that may be given more than once; every other flag is single-valued. */
@@ -1172,7 +1174,7 @@ function reportWrite(result, input, rules) {
   // A refusal is exit 1 and no rename happened: the state file on disk is
   // exactly what it was before the invocation.
   for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
-  refuseRules(rules);
+  refuseRules(rules, (result.errors || [])[0]?.code ?? null);
   return EXIT.REJECTED;
 }
 

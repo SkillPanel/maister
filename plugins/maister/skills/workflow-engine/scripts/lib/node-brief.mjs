@@ -169,13 +169,14 @@ import { STYLE_GUIDE, explainerLine } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
-import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestionIds, outstandingHeld } from './question-triage.mjs';
+import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestionIds, frozenIds, outstandingHeld } from './question-triage.mjs';
 import { CLASSES, ceilingOf, loadPolicy, questionFamilies } from './policy.mjs';
 import { modelShown, resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { BY_CONFIG, DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
 import { conventionsShown, markConventionsShown, publishBrief } from './display-files.mjs';
 import { runRoot } from './resume-check.mjs';
 import { jsonString } from '../../../../lib/canonical.mjs';
+import { rowSuffix } from './reference.mjs';
 
 /** The engine's entry script, which the `ask with:` line names by its absolute path. */
 const ENGINE = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
@@ -389,7 +390,7 @@ function startYours(node, state) {
 }
 
 /** The writing-state section holding a refused write's recovery. */
-const WRITE_REFUSED = `${quoted(fileURLToPath(new URL('../../references/writing-state.md', import.meta.url)))} § When a write is refused`;
+const WRITE_REFUSED_FILE = fileURLToPath(new URL('../../references/writing-state.md', import.meta.url));
 
 /**
  * The lines a ready step whose start write the writer refused prints instead
@@ -397,7 +398,7 @@ const WRITE_REFUSED = `${quoted(fileURLToPath(new URL('../../references/writing-
  */
 function startRefused(errors) {
   const [error] = errors;
-  return [`start: refused — ${error.code}: ${error.message}`, `rules: ${WRITE_REFUSED}`];
+  return [`start: refused — ${error.code}: ${error.message}`, `rules: ${quoted(WRITE_REFUSED_FILE)} § When a write is refused${rowSuffix(WRITE_REFUSED_FILE, 'When a write is refused', error.code)}`];
 }
 
 /** The terminal task statuses, after which nothing starts. */
@@ -639,7 +640,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (later.length && table !== null) lines.push(`convention (${later.join(', ')}): see rules`);
 
   if (section !== null) lines.push(...seeLines(section));
-  if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues, delegates));
+  if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues, delegates, closesRun(node, context.doc)));
   const closeOut = closeOutLine(node, context);
   if (closeOut) lines.push(closeOut);
   lines.push(`rules: ${rules}`);
@@ -698,7 +699,7 @@ function closeOutLine(node, { doc, runDir }) {
  * because a closing write guessed from memory is what the writer refused most:
  * a summary key misspelt, a context block or a re-sent `workflow` beside it.
  */
-function closingLine(node, values, brief, continues, delegates) {
+function closingLine(node, values, brief, continues, delegates, closes) {
   const typed = Object.entries(values).map(([key, type]) => `${JSON.stringify(key)}: ${placeholderOf(type)}`);
   const status = `"status": "completed"${typed.length ? `, "values": {${typed.join(', ')}}` : ''}`;
   const summary = [
@@ -714,7 +715,22 @@ function closingLine(node, values, brief, continues, delegates) {
   }
   if (delegates.length) summary.push(`"delegated": [${delegates.map(agent => JSON.stringify(agent)).join(', ')}]`);
   const id = JSON.stringify(node);
-  return `closing patch (fill each <…>; never re-send workflow): {"nodes": {${id}: {${status}}}, "node_summaries": {${id}: {${summary.join(', ')}}}}`;
+  const task = closes ? ', "task": {"status": "completed"}' : '';
+  return `closing patch (fill each <…>; never re-send workflow): {"nodes": {${id}: {${status}}}, "node_summaries": {${id}: {${summary.join(', ')}}}${task}}`;
+}
+
+/** The statuses of a frozen node that has ended. */
+const NODE_ENDED = new Set(['completed', 'skipped', 'failed', 'stopped']);
+
+/**
+ * Whether the step's closing write also closes the run: every other frozen
+ * node has ended, the run owes no close-out (it is not dispatched) and no
+ * choice is held for approval.
+ */
+function closesRun(node, doc) {
+  const recorded = doc.workflow?.nodes;
+  if (isDispatchedRun(doc) || outstandingHeld(doc).length > 0) return false;
+  return frozenIds(recorded).every(id => id === node || NODE_ENDED.has(recorded[id]?.status));
 }
 
 /**

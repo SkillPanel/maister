@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ENGINE, ENGINE_DIR, ROOT, run, scratchTree, variantRoot } from '../helpers.mjs';
-import { PRINT_MAX, reference as printReference } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
+import { PRINT_MAX, reference as printReference, rowSuffix } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
 
 // `reference` prints a section of the plugin's own Markdown, so a session
 // reads the plugin's rules through a command and never opens a file outside
@@ -455,4 +455,44 @@ test('gates.md "What the reset leaves" names the summary the writer drops', () =
   assert.match(text, /What the reset leaves\./);
   assert.ok(text.includes('the writer drops its earlier summary and lists it as `node_summaries.<id>`'));
   assert.ok(text.includes("A gate's own summary stays"));
+});
+
+test('every refusal code the interface lists for the writer\'s verbs has a pointer that resolves, its row when the section has one', () => {
+  const verbs = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'interface.json'), 'utf8')).engine.verbs;
+  const entry = name => (Array.isArray(verbs) ? verbs.find(each => each.name === name) : verbs[name]);
+  const file = path.join(ENGINE_DIR, 'references', 'writing-state.md');
+  const heading = 'When a write is refused';
+  const codes = new Set(['write-state', 'move-base', 'subrun-handoff'].flatMap(name => entry(name).refusals));
+  assert.ok(codes.has('state-config-decision-invalid'));
+  for (const code of codes) {
+    const suffix = rowSuffix(file, heading, code);
+    const result = reference([`${file} § ${heading}${suffix}`]);
+    if (suffix === '') {
+      // The section itself is past the cap and is read by row: its pointer resolves to the section, not to a missing heading.
+      refused(result, 'reference-too-long');
+    } else {
+      assert.equal(suffix, ` § ${code}`);
+      assert.match(printed(result), new RegExp(`^\\|[^|]*\`${code}\``, 'm'), code);
+    }
+  }
+  assert.equal(rowSuffix(file, heading, 'state-config-decision-invalid'), ' § state-config-decision-invalid');
+  assert.equal(rowSuffix(file, heading, 'move-base-no-base'), '');
+  assert.equal(rowSuffix(file, heading, 'gate-brief-value-missing'), '');
+});
+
+test('the write table\'s opening count equals the writer\'s codes with a row', () => {
+  const text = fs.readFileSync(path.join(ENGINE_DIR, 'references', 'writing-state.md'), 'utf8').replace(/\r\n?/g, '\n');
+  const section = text.slice(text.indexOf('## When a write is refused'));
+  const body = section.slice(0, section.indexOf('\n## ', 5));
+  const named = new Set();
+  for (const line of body.split('\n').filter(each => each.startsWith('| `'))) {
+    for (const [, code] of line.split('|')[1].matchAll(/`([a-z0-9]+(?:-[a-z0-9]+)+)`/g)) named.add(code);
+  }
+  // Raised before the writer runs, or by gate-request alone: the opening sentence names them apart.
+  const apart = ['edition-collision', 'gate-request-unavailable', 'gate-request-invalid', 'gate-request-exists', 'gate-request-pending'];
+  for (const code of apart) assert.ok(named.has(code), code);
+  const words = ['forty', 'forty-one', 'forty-two', 'forty-three', 'forty-four', 'forty-five', 'forty-six', 'forty-seven', 'forty-eight'];
+  const written = /The writer has\s+([a-z-]+),/.exec(body);
+  assert.ok(written, 'the opening count is spelled');
+  assert.equal(words.indexOf(written[1]) + 40, named.size - apart.length, written[1]);
 });

@@ -724,6 +724,25 @@ test('node-brief: the closing patch skeleton names the exact keys, and no gate o
   assert.doesNotMatch(child.stdout, /^closing patch/m, 'a child run\'s outcome is mapped, not written from a skeleton');
 });
 
+test('node-brief: the last step\'s closing patch carries task.status completed only when nothing else is owed', t => {
+  const TASK = ', "task": {"status": "completed"}}';
+  const patchOf = (run, node) => {
+    const result = nodeBrief(run.state, node);
+    assert.equal(result.code, 0, result.stderr);
+    return result.stdout.split('\n').find(line => line.startsWith('closing patch'));
+  };
+  // Every other node ended, the run owes no close-out and holds no choice: the patch closes the run.
+  const last = sampleRun(t);
+  reach(last, { nodes: { 'audit-approval': { status: 'completed' } } });
+  assert.ok(patchOf(last, 'wrap-up').endsWith(`]}}${TASK}`), patchOf(last, 'wrap-up'));
+  // A step with a node still to run after it, and a dispatched run, close nothing.
+  const early = sampleRun(t);
+  assert.ok(!patchOf(early, 'scope').includes('"task"'));
+  const dispatched = sampleRun(t);
+  reach(dispatched, { nodes: { 'audit-approval': { status: 'completed' } }, orchestrator: { driver: { kind: 'dispatch' } } });
+  assert.ok(!patchOf(dispatched, 'wrap-up').includes('"task"'));
+});
+
 test('node-brief: a step that owes a page names the companion writer\'s call with its model and effort, and the lines its prompt carries; with pages off it names none', t => {
   // The call line and the lines under it: the style guide once, then each owed page's markdown.
   const companionOf = result => {
@@ -927,7 +946,7 @@ test('node-brief: a start the writer refuses prints the refusal and its rules li
   assert.match(result.stderr, /^warning: node-brief-start-unrecorded: state-unwritable$/m);
   const lines = fromHeader(result.stdout);
   assert.match(lines[2], /^start: refused — state-unwritable: .*orchestrator-state\.yml could not be written: /, lines.join('\n'));
-  assert.equal(lines[3], `rules: ${path.join(ENGINE_DIR, 'references/writing-state.md')} § When a write is refused`);
+  assert.equal(lines[3], `rules: ${path.join(ENGINE_DIR, 'references/writing-state.md')} § When a write is refused § state-unwritable`);
   assert.ok(!lines.some(line => line.startsWith('start: yours') || line.startsWith('started: ')), lines.join('\n'));
 });
 
