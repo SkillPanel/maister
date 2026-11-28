@@ -345,3 +345,13 @@ test('the variant skill reads P2 and no P1 or P3 text, and stays within the Copi
   const length = printed.ok ? printed.text.length : raw.length;
   assert.ok(length <= 19906, `the variant engine skill prints ${length} characters`);
 });
+
+// --- The closing write walks on: the loop bullets -----------------------------
+
+test('Before anything else tells the session to close with --next and to call node-brief in four cases only', () => {
+  const before = collapse(sectionLines('## Before anything else').join('\n'));
+  assert.ok(before.includes('Close a step, record a skip (one you judged, or one a brief\'s `now false` or `skip it:` line gives), or record a gate\'s answer with `--next`. What follows the `next:` line is the next step\'s brief: act on it and never ask for it again.'));
+  for (const phrase of ['only after a run\'s first write', 'after a plain `run node-brief for it` line', 'after `resume-check` (its `step_call`)', 'after `gate-revise`']) {
+    assert.ok(before.includes(phrase), phrase);
+  }
+});

@@ -259,6 +259,12 @@ statuses are `pending`, `running`, `waiting`, `suspended`, `completed`, `skipped
 spelling `in_progress`, and a node the frozen graph does not carry is refused with
 `state-node-unknown`.
 
+**An outcome that comes from
+elsewhere is mapped, never judged**: a `workflow:` node's is its child's `task.status`
+adopted by `subrun-handoff` (`references/sub-runs.md` § *The hand-off verb*), and a dispatched
+node's (`dir:`) its close-out grade, the held `partial` question included
+(`references/in-node-questions.md` § *A dispatch closed out partial*).
+
 **A node's values are held to the outputs it declares.** Each declared type has one form:
 - `bool`: `true` or `false`;
 - `string` or `id`: a string;

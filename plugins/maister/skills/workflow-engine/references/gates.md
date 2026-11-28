@@ -543,7 +543,7 @@ an immediate re-validation through the writer.
    the decision was recorded. Every text value typed into the summary is double-quoted, as the
    writer spells it: `headline: "Approved: continue to close-out."`. A plain value holding
    `: ` is a nested mapping to a YAML parser, which then cannot read the file at all.
-5. The very next action is the **re-validation write**: `write-state --state=<state>` with
+5. The very next action is the **re-validation write**: `write-state --state=<state> --next` with
    `{}` as the patch file's body (engine § *The invocation contract*), described as
    re-validating the recorded answer. It is not a no-op: the writer reads
    back the file the editor tools wrote, self-checks it and re-publishes it, recording what the
@@ -551,6 +551,10 @@ an immediate re-validation through the writer.
    provenance keys copied from the request's answer block, and under a classifying policy the
    triage and settlement items — and regenerating `gates/index.yml`. It also re-emits, quoted, a
    summary entry holding a plain value a YAML parser would misread, with a note. None of that is drift.
+   What follows the `next:` line is acted on as the engine skill says. After a continue the walk
+   briefs the next step; after a stop it prints the stop line read from disk; after a revise at
+   `held-approval` it prints nothing more, because `gate-revise` comes first. Note that a continue or a stop at
+   `held-approval` prints nothing more, and the session carries on at the closing node's close-out step.
 6. A refusal at step 5 is `RUN-FAILED: <code>`, reported verbatim, and the run stops there:
    the operator repairs the directory or starts a new task. **Never repair the state file to get
    past it** — editing further with the same tools compounds the drift.
@@ -577,7 +581,7 @@ its work:
    what is written is refused the same way.
 2. **Record, in this order:** the answer block, whole **less `grants`**, in
    `gates/<node>.request.yml`; then the node's `status` back to **`running`** — never
-   `completed`; then `gate_pending: null` last. Then the empty-patch re-validation, as in step 5.
+   `completed`; then `gate_pending: null` last. Then the empty-patch re-validation, as in step 5, with `--next`. The node is `running` again, so nothing more is printed.
 3. **Then record the answers through the writer**: send
    `{"node_summaries": {"<node>": {"answer": <the answer block, whole>}}}`, the block copied
    from the answer file as it stands. The writer reads the questions from the node's request

@@ -38,10 +38,8 @@ A file write and the command that reads it may share a message — the patch fil
 Calls where one needs the other's result never share a message; calls that only read may.
 -->
 
-**Run `node-brief` before every node** — the one a write's `next:` line names —
-`node-brief --state=<state> --node=<id>`, and read its output whole: how the node runs, its
-`with:` filled in, the conventions that apply and its section of the guide. At a gate, run the call its `ask it:` line prints — on its own, after the
-closing write has returned — and ask what it prints; never write a gate question by hand.
+- Close a step, record a skip (one you judged, or one a brief's `now false` or `skip it:` line gives), or record a gate's answer with `--next`. What follows the `next:` line is the next step's brief: act on it and never ask for it again.
+- Call `node-brief --state=<state> --node=<id>` only after a run's first write, after a plain `run node-brief for it` line, after `resume-check` (its `step_call`) and after `gate-revise`; read its output whole. At a gate, run the call its `ask it:` line prints — on its own, after the closing write has returned — and ask what it prints; never write a gate question by hand.
 
 **Every delegate prompt carries the run's context, fetched**, in the turn that writes it:
 `run-context --state=<state> --node=<node>`, or `prior-context --node=<node>` where the delegate
@@ -169,9 +167,8 @@ Every verb's flags, output and refusals are a row each in `references/verbs.md` 
 
 ### The ready set
 
-Run one node at a time: the one a completing or skipping write names on its `next:` line. A
-guard its brief reads `now false`, or an `on: failure` node with nothing failed, is recorded
-`skipped`, which satisfies everything downstream. A skip the engine records needs no summary; a
+Run one node at a time: the one the `next:` line names. A guard its brief reads `now false`, or
+an `on: failure` node with nothing failed, is recorded `skipped`, which satisfies everything downstream. A skip the engine records needs no summary; a
 skip you judge keeps one. On `next: none` — or a node failed with no `on:`
 downstream to take it, or a stop ended the run — write the closing patch with `task.status` and
 end through `run-complete`, also after a step's patch that carries `task`.
@@ -183,11 +180,8 @@ declare (`references/writing-state.md` § *Recording an outcome — the detail*)
 anything else, and its refusal names the fix. A step is `completed` once its self-check passes,
 after a re-drive if it took one (the `every step` row); a false guard records it `skipped`, which
 satisfies `needs`; a hard failure with no operator path is `failed`, and `run-complete` ends the
-run `RUN-FAILED`; a spent budget is the `has a budget` row's. **An outcome that comes from
-elsewhere is mapped, never judged**: a `workflow:` node's is its child's `task.status`
-adopted by `subrun-handoff` (`references/sub-runs.md` § *The hand-off verb*), and a dispatched
-node's (`dir:`) its close-out grade, the held `partial` question included
-(`references/in-node-questions.md` § *A dispatch closed out partial*). Any path a summary lists
+run `RUN-FAILED`; a spent budget is the `has a budget` row's. **An outcome that comes from elsewhere is mapped, never judged** (`references/writing-state.md`
+§ *Recording an outcome — the detail*). Any path a summary lists
 beyond the declarations, and a non-null `.html` beside it, is checked on disk too.
 
 ### Delegation by scheme

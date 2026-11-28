@@ -496,3 +496,43 @@ test('the write table\'s opening count equals the writer\'s codes with a row', (
   assert.ok(written, 'the opening count is spelled');
   assert.equal(words.indexOf(written[1]) + 40, named.size - apart.length, written[1]);
 });
+
+// --- The closing write walks on: gates.md, verbs.md and the sizes -------------
+
+const RESUME = 'references/gates.md § Driver-suspended mode — resume';
+const WRITE_ORDER = 'references/gates.md § Driver-suspended mode — the write order';
+const collapsed = text => text.replace(/\s+/g, ' ');
+
+test('the resume section carries --next on both re-validation writes and the held-approval sentence, on both trees', () => {
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    const text = collapsed(printed(reference([RESUME], engine)));
+    assert.ok(text.includes('`write-state --state=<state> --next`'), 'step 5 carries --next');
+    assert.ok(text.includes('Then the empty-patch re-validation, as in step 5, with `--next`.'), 'the question set carries --next');
+    assert.ok(text.includes('A refusal at step 5 is `RUN-FAILED: <code>`'), 'step 6 stays');
+    assert.ok(text.includes('a continue or a stop at `held-approval` prints nothing more, and the session carries on at the closing node\'s close-out step'));
+  }
+});
+
+test('verbs.md names --next and what it prints on the write-state row, and the false guard on the node-brief row', () => {
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    const text = printed(reference(['references/verbs.md § The verbs every run calls'], engine));
+    const rows = text.split('\n');
+    const write = rows.find(line => line.startsWith('| `write-state` |'));
+    assert.ok(write.includes('--next'));
+    assert.ok(write.includes('`next: <id> (<title>) — its brief follows`'));
+    assert.ok(write.includes('`skipped: <id> (<title>) — its guard <expr> reads false`'));
+    assert.ok(write.includes('next-skip-refused'));
+    const brief = rows.find(line => line.startsWith('| `node-brief` |'));
+    assert.ok(brief.includes('skip it: its guard <expr> reads false'));
+  }
+});
+
+test('the resume section and the driven batch stay inside the print limits, on both trees', () => {
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    const resume = printed(reference([RESUME], engine));
+    // resume-check prints its JSON (about 2,000 characters) before this section: 20,000 together.
+    assert.ok(resume.length <= 18_000, `resume section: ${resume.length}`);
+    const batch = printed(reference([WRITE_ORDER, RESUME], engine));
+    assert.ok(batch.length <= 20_000, `driven batch: ${batch.length}`);
+  }
+});
