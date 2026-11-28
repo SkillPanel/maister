@@ -268,8 +268,8 @@ const EXIT = { OK: 0, REJECTED: 1, INTERNAL: 2 };
 
 /** Every verb, with the module that implements it and the flags it accepts. */
 const VERBS = {
-  validate: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile'] },
-  resolve: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile'] },
+  validate: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile', 'short'] },
+  resolve: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile', 'short'] },
   diagram: { module: 'diagram.mjs', flags: ['definition', 'overlay', 'profile', 'out'] },
   // The name lookup the three verbs above do not do: they take paths, and a
   // run starts from a name. Read-only, and the name is optional — without it
@@ -435,8 +435,8 @@ const VERBS = {
  * host) are spelled as placeholders here, so the line reads the same on both.
  */
 const USAGE = {
-  validate: '[--definition=<definition file>] [--overlay=<overlay file>…] [--profile=<name>], at least one of --definition and --overlay',
-  resolve: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>]',
+  validate: '[--definition=<definition file>] [--overlay=<overlay file>…] [--profile=<name>] [--short], at least one of --definition and --overlay',
+  resolve: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>] [--short]',
   diagram: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>] [--out=<file>]',
   locate: '[--name=<workflow name> [--overlay=<overlay file>…] [--profile=<name>]]',
   'wave-start': '--plan=<implementation-plan.md> --wave=<wave number> --groups=<id>[,<id>…]',
@@ -562,7 +562,7 @@ const REPEATABLE = new Set(['overlay', 'area', 'from', 'at']);
 const PICKERS = ['rich', 'plain'];
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open', 'fill', 'check']);
+const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open', 'fill', 'check', 'short']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -778,12 +778,14 @@ async function runValidate(flags) {
       profile: flags.profile ?? null,
       degraded: [NEWER_FORMAT],
     });
-    report({
-      ok: resolved.ok,
-      errors: resolved.errors,
-      warnings: [NEWER_FORMAT],
-      degraded: [NEWER_FORMAT],
-    });
+    report(flags.short
+      ? { ok: resolved.ok, errors: resolved.errors, warnings: [NEWER_FORMAT] }
+      : {
+        ok: resolved.ok,
+        errors: resolved.errors,
+        warnings: [NEWER_FORMAT],
+        degraded: [NEWER_FORMAT],
+      });
     return resolved.ok ? EXIT.OK : EXIT.REJECTED;
   }
 
@@ -826,7 +828,7 @@ async function runValidate(flags) {
       profile: flags.profile ?? null,
     }));
   }
-  report(result);
+  report(flags.short ? { ok: result.ok, errors: result.errors, warnings: result.warnings } : result);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
@@ -845,7 +847,12 @@ async function runResolve(flags) {
     profile: flags.profile ?? null,
     degraded: isNewerFormat(sources.definition) ? [NEWER_FORMAT] : [],
   });
-  report(result);
+  if (flags.short && result.ok) {
+    const { nodes, tracker_key: trackerKey, ...rest } = result;
+    report(rest);
+  } else {
+    report(result);
+  }
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 

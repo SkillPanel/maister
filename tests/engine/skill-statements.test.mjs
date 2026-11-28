@@ -301,3 +301,16 @@ test('The ready set says an engine-recorded skip needs no summary and a judged o
   const state = collapse(fs.readFileSync(WRITING_STATE, 'utf8'));
   assert.ok(state.includes('A skip the engine records needs no summary, and a skip the session judges keeps one.'));
 });
+
+test('Starting a run batches its first calls and skips the checks a hand-over already made', () => {
+  const text = collapse(skill());
+  assert.ok(text.includes('`validate --short --definition=<path> [--overlay=<path>…] [--profile=<name>]` and `resolve --short` with the same flags in one message'));
+  assert.ok(text.includes('in one `reference` call with one `--at` each'));
+  assert.ok(text.includes('references/gates.md` § *Before every gate — the gate brief*'));
+  assert.ok(text.includes('A run `/maister:run` hands over with the located definition, overlays, profile and a passed validation gets no second `locate` or `validate`.'));
+  // The hand-over carries each of those values.
+  const handOver = collapse(fs.readFileSync(path.join(ENGINE_DIR, '..', 'run', 'SKILL.md'), 'utf8'));
+  for (const value of ['the located `definition` path, and that `validate` passed on it', 'the overlays, located ones first', 'the profile, when one was given']) {
+    assert.ok(handOver.includes(value), value);
+  }
+});

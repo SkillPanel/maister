@@ -54,7 +54,8 @@ import { parse, isPlainObject } from './state-read.mjs';
 // the same companions.
 import { companionsOfRun, explainerState, htmlOutput, isContextBlock, projectRootOf, sourcesOf } from './state.mjs';
 import { isMarkdown, owedCompanions } from './companions.mjs';
-import { changesCodeOf } from './graph.mjs';
+import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
+import { changesCodeOf, pluginRoot } from './graph.mjs';
 import { HELD_APPROVAL } from './question-triage.mjs';
 // The host this tree is built for; the Copilot build switches the constant.
 import { SHIPPED_HOST } from '../../../../lib/host.mjs';
@@ -116,11 +117,35 @@ const ENGINE_SCRIPT = fileURLToPath(new URL('../workflow.mjs', import.meta.url))
  * the run, ignored by git, so a file is read back with no prompt for a path
  * outside the project.
  */
-function scratchLine(state) {
+function scratchLine(state, own) {
+  if (own) {
+    return `scratch: make any throwaway file in the directory node ${quoted(ENGINE_SCRIPT)} scratch-dir --for=<what it holds> --state=${quoted(path.resolve(state))} makes and prints, inside the run and ignored by git; `
+      + 'name every path absolute and never cd; your instructions carry the rest of the rule';
+  }
   return `scratch: make any throwaway file — a helper script, a copy, a probe, a benchmark — in the directory node ${quoted(ENGINE_SCRIPT)} scratch-dir --for=<what it holds> --state=${quoted(path.resolve(state))} makes and prints, inside the run and ignored by git, and leave it there; `
     + 'never the system temp directory or a literal /tmp path, which sit outside the project and can stop the run for a permission prompt — no cleanup step, no rm -rf. '
     + 'Name every path absolute and never cd, into it or into the task directory: a relative path is resolved from the project root, and a host may stop the run to ask for access to it; '
     + 'name any file you make for what it holds, never with a name that starts with report, summary, findings or analysis and ends in .md, which Claude Code refuses when a subagent writes it';
+}
+
+/**
+ * Whether the step's helpers are all this plugin's own: the set is the agent of
+ * an `agent:` step plus the delegates its brief declares, it is not empty, and
+ * each member, bare or as `maister:<name>`, names an agent file this plugin
+ * ships, which carries the scratch sentence itself. A host type such as Explore
+ * and a project's own agent are not.
+ */
+function helpersAreOwn(doc, runDir, sources, declared, node) {
+  const helpers = [];
+  if (typeof declared?.uses === 'string' && declared.uses.startsWith('agent:')) helpers.push(declared.uses.slice('agent:'.length));
+  const brief = sources === null ? null : briefOfRun(doc, runDir, sources);
+  helpers.push(...delegatesFor(brief?.[node], runHost(doc)));
+  if (!helpers.length) return false;
+  return helpers.every(helper => {
+    if (typeof helper !== 'string') return false;
+    const name = helper.startsWith('maister:') ? helper.slice('maister:'.length) : helper;
+    return /^[A-Za-z0-9_-]+$/.test(name) && fs.existsSync(path.join(pluginRoot(), 'agents', `${name}.md`));
+  });
 }
 
 /** A path as a shell reads it: bare, or in single quotes when it holds whitespace. */
@@ -205,7 +230,7 @@ export function runContext({ state, node }) {
     ...(explainer === null ? [] : [explainerLine(explainer)]),
     ...(docs.length ? ['docs (read-only):', ...docs.map(file => `- ${file}`)] : ['docs: none']),
     ...(isDirectory(pack) && (sources === null || changesCode(sources)) ? [groundingPackLine(pack)] : []),
-    scratchLine(state),
+    scratchLine(state, helpersAreOwn(doc, runDir, sources, declared, node)),
     ...(declared === null || writesMarkdown(declared) ? [CONTRACT] : []),
     ...companions,
   ];

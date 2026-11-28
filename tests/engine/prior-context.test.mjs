@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { DECLARED, FIXTURES, freeze, legacyMirror, scratch, verb, write } from '../helpers.mjs';
+import { DECLARED, ENGINE_DIR, FIXTURES, freeze, legacyMirror, scratch, verb, write } from '../helpers.mjs';
 import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 import { decisionOf } from '../../plugins/maister/skills/workflow-engine/scripts/lib/items.mjs';
 
@@ -311,4 +311,20 @@ test('prior-context: a node recorded skipped with no summary is left out', t => 
   assert.match(result.stdout, /^### draft$/m);
   assert.doesNotMatch(result.stdout, /figures/i);
   assert.match(result.stdout, /: 1 node, /);
+});
+
+test('prior-context --node: prints the short scratch line for a step whose helpers are all the plugin\'s own, and the whole line otherwise', t => {
+  const research = scratch(t);
+  freeze(research, { definition: path.join(ENGINE_DIR, 'workflows/research.yml'), inputs: { question: 'How does it work?' } });
+  const short = verb(['prior-context', `--state=${research.state}`, '--node=research-foundation']);
+  assert.equal(short.code, 0, short.stderr);
+  const shortLine = short.stdout.split('\n').find(line => line.startsWith('scratch:'));
+  assert.match(shortLine, /; your instructions carry the rest of the rule$/);
+  assert.doesNotMatch(shortLine, /never the system temp directory/);
+
+  const design = scratch(t);
+  freeze(design, { definition: path.join(ENGINE_DIR, 'workflows/product-design.yml'), inputs: { task_description: 'A thing' } });
+  const whole = verb(['prior-context', `--state=${design.state}`, '--node=intake']);
+  assert.equal(whole.code, 0, whole.stderr);
+  assert.match(whole.stdout.split('\n').find(line => line.startsWith('scratch:')), /never the system temp directory or a literal \/tmp path/);
 });

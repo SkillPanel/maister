@@ -196,7 +196,7 @@ test('the hooks and the engine skill point at reference, never at the read tool'
   const skill = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8').replace(/\s+/g, ' ');
   assert.ok(skill.includes('**Print what a `rules:` line names** before acting, with the `reference` verb'));
   assert.ok(skill.includes('adding ` § <the code>` after a refusal for that code\'s row'));
-  assert.ok(skill.includes('Print `references/node-summaries.md` § *Who settled a decision* and § *What a risk is* now'));
+  assert.ok(skill.includes('Print `references/node-summaries.md` § *Who settled a decision*, § *What a risk is* and `references/gates.md` § *Before every gate — the gate brief* now'));
   assert.doesNotMatch(skill, /Read `references\/node-summaries\.md` whole now/);
   for (const hook of ['post-compact-reminder.mjs', 'skill-invocation-reminder.mjs']) {
     const text = fs.readFileSync(path.join(PLUGIN, 'hooks', hook), 'utf8');
