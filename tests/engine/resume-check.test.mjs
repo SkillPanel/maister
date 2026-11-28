@@ -538,3 +538,39 @@ test('resume-check: the run folder is byte for byte the same after every check',
   named(run, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs'));
   assert.deepEqual(snapshot(run.dir), before);
 });
+
+test('resume-check: a terminal run with a revise not yet applied names no step and no section', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, {
+    nodes: { draft: { status: 'completed', values: { needs_figures: false } } },
+    node_summaries: { draft: { summary: 'Drafted.' } },
+  });
+  write(run, { nodes: { figures: { status: 'skipped' }, 'side-note': { status: 'completed' } } });
+  write(run, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed.' } } });
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'send-back', answered_by: 'tester', at: '2026-01-05T09:40:00Z' }] } },
+  });
+  write(run, { nodes: { publish: { status: 'running' } } });
+  assert.deepEqual(named(run), { step: null, step_title: null, step_call: null, section_call: null });
+});
+
+test('resume-check: with only the closing patch left, a driven run names the two-section call and no step', t => {
+  const run = scratch(t, { name: '2026-01-10-driven-closing' });
+  freeze(run, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  reach(run, { nodes: { research: { status: 'completed' } } });
+  assert.deepEqual(named(run), { step: null, step_title: null, step_call: null, section_call: DRIVEN_CALL(ENGINE) });
+});
+
+test('resume-check: a node due is named without its guard being read, on both trees', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE });
+  write(run, {
+    nodes: { draft: { status: 'completed', values: { needs_figures: false } } },
+    node_summaries: { draft: { summary: 'Drafted.' } },
+  });
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    assert.deepEqual(named(run, engine), { step: 'figures', step_title: 'Figures', step_call: call(engine, 'node-brief', run, 'figures'), section_call: null });
+  }
+});

@@ -1022,3 +1022,16 @@ for (const [name, treeOf] of TREES) {
     t.diagnostic(`largest combined print: ${largest.chars} characters, ${largest.bytes} bytes (${largest.at})`);
   });
 }
+
+for (const [name, treeOf] of TREES) {
+  test(`${name}: a landed write from the patch file with --next consumes that file, in the run's folder under its own name`, t => {
+    const tree = treeOf();
+    const runAt = frozenRun(t);
+    const { file, result } = writeFromFile(tree, runAt, COMPLETE_WORK, ['--next']);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(file, path.join(runAt.dir, '.state-patch.json'));
+    assert.equal(fs.existsSync(file), false, 'the patch file is consumed once the write landed');
+    assert.ok(result.stdout.includes('\nnext: review (Review) — its brief follows\n'), result.stdout);
+    assert.equal(statusOf(runAt, 'work'), 'completed');
+  });
+}

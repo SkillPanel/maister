@@ -1340,3 +1340,28 @@ for (const [name, host, treeOf] of FOLD_TREES) {
     assert.deepEqual(lib.foldedAsk(args), { lines: foldedLines(early.state, 'findings-approval', host), block: '{\n  "q": 1\n}' });
   });
 }
+
+for (const [name, host, treeOf] of FOLD_TREES) {
+  test(`node-brief (${name}): a gate in a run whose ending is recorded keeps the ask it line, and writes no question or panel`, t => {
+    const engine = engineOf(treeOf());
+    const ended = skipGuardRun(t, false);
+    write(ended, { task: { status: 'stopped' } });
+    const brief = nodeBrief(ended.state, 'review-approval', engine);
+    assert.equal(brief.code, 0, brief.stderr);
+    const lines = brief.stdout.split('\n');
+    const call = host === 'copilot' ? '--ask' : '--json --picker=rich';
+    assert.ok(lines.includes(`ask it: gate-brief --state=${ended.state} --node=review-approval ${call}`), brief.stdout);
+    assert.ok(!lines.includes(QUESTION_LINE));
+    assert.equal(fs.existsSync(path.join(ended.dir, '.ask.json')), false, 'no question record');
+    assert.equal(fs.existsSync(path.join(ended.dir, 'display', 'next.json')), false, 'no panel');
+  });
+}
+
+test('node-brief: the state writer takes the answer note\'s name from the question-record module, which holds the three file names', () => {
+  const lib = path.join(ROOT, 'plugins', 'maister', 'skills', 'workflow-engine', 'scripts', 'lib');
+  const record = fs.readFileSync(path.join(lib, 'ask-record.mjs'), 'utf8');
+  for (const name of ['.ask.json', '.ask.result.json', '.ask.result.used.json']) assert.ok(record.includes(`'${name}'`), `${name} is named in the module`);
+  const state = fs.readFileSync(path.join(lib, 'state.mjs'), 'utf8');
+  assert.match(state, /import \{[^}]*\bASK_RESULT\b[^}]*\} from '\.\/ask-record\.mjs'/);
+  assert.ok(!state.includes('.ask.result.json'), 'the writer holds no copy of the name');
+});
