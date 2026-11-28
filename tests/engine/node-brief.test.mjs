@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ENGINE, ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, readState, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, write } from '../helpers.mjs';
+import { ENGINE, ENGINE_DIR, FIXTURES, ROOT, freeze, freezePatch, reach, readState, scratch, scratchPlugin, sharedPlugin, run, sibling, variantRoot, verb, walkTo, write } from '../helpers.mjs';
 
 // The brief a step reads before it runs: the facts the engine derives for it —
 // how it runs, its guard, its attempt, its inputs filled in, the files it
@@ -1078,3 +1078,86 @@ test('node-brief: a driven gate whose guard is true keeps its gate-request line'
     assert.ok(!lines.some(line => line.startsWith('skip it: ')), driver.kind);
   }
 });
+
+// The config continue as a function of its own, which the closing walk runs
+// once per gate: `{lines}` (the decided: and say: lines only) when it recorded
+// the continue, `{say}` when the gate's brief advises against it, `{refused}`
+// when its write was refused and `{}` when the config does not continue the
+// gate. node-brief alone still attempts it and prints the inner next: line.
+
+const CONFIG_WORKFLOW = path.join(DEFINITIONS, 'config-workflow.yml');
+const CONTINUES = 'workflows:\n  config-workflow:\n    auto_continue: [plan-approval]\n';
+const CONTINUE_TREES = [['source', () => path.join(ROOT, 'plugins', 'maister')], ['variant', () => variantRoot()]];
+
+/** A run of the config workflow, the project's `config` beside it, its plan completed with `summary` in its summary. */
+function plannedRun(t, { config = CONTINUES, summary = {} } = {}) {
+  const run = scratch(t, { type: 'config-workflow', name: '2026-01-05-config' });
+  fs.mkdirSync(path.join(run.root, '.maister'), { recursive: true });
+  fs.writeFileSync(path.join(run.root, '.maister', 'config.yml'), config);
+  freeze(run, { definition: CONFIG_WORKFLOW, orchestrator: { options: { inputs: { publish: false }, html_output: false } } });
+  walkTo(run, ['plan']);
+  write(run, { nodes: { plan: { status: 'completed' } }, node_summaries: { plan: { summary: 'Planned.', ...summary } } });
+  return run;
+}
+
+/** The config continue one tree exports. */
+async function configContinueOf(tree) {
+  return (await import(pathToFileURL(path.join(tree, 'skills', 'workflow-engine', 'scripts', 'lib', 'node-brief.mjs')).href)).configContinue;
+}
+
+const CONFIG_DECIDED = "decided: plan-approval — continue-to-build, by the project's config (workflows.config-workflow.auto_continue); nothing to ask, nothing to write";
+const CONFIG_SAY = "say: Implementation plan approved by the project's config";
+
+for (const [name, treeOf] of CONTINUE_TREES) {
+  test(`node-brief (${name}): the exported configContinue returns {lines}, {say} or {}, and node-brief alone keeps the inner next: line`, async t => {
+    const configContinue = await configContinueOf(treeOf());
+    const engine = path.join(treeOf(), 'skills', 'workflow-engine', 'scripts', 'workflow.mjs');
+
+    const continued = plannedRun(t);
+    assert.deepEqual(configContinue({ state: continued.state, node: 'plan-approval' }), { lines: [CONFIG_DECIDED, CONFIG_SAY] });
+    assert.equal(readState(continued).workflow.nodes['plan-approval'].status, 'completed');
+    assert.equal(readState(continued).node_summaries['plan-approval'].decisions[0].by, 'config');
+
+    const advised = plannedRun(t, { summary: { recommends: { option: 'revise-plan', reason: 'The plan misses the migration.' } } });
+    assert.deepEqual(configContinue({ state: advised.state, node: 'plan-approval' }),
+      { say: "say: The project's config would continue, but plan recommends revising; the gate is asked as usual." });
+    assert.equal(readState(advised).workflow.nodes['plan-approval'].status, 'pending');
+
+    const unlisted = plannedRun(t, { config: 'html_output: false\n' });
+    assert.deepEqual(configContinue({ state: unlisted.state, node: 'plan-approval' }), {});
+    assert.deepEqual(configContinue({ state: unlisted.state, node: 'plan' }), {}, 'a step is never continued');
+    assert.equal(readState(unlisted).workflow.nodes['plan-approval'].status, 'pending');
+
+    // node-brief, with nothing handed in, attempts the continue itself and prints the node due next.
+    const briefed = plannedRun(t);
+    const result = nodeBrief(briefed.state, 'plan-approval', engine);
+    assert.equal(result.code, 0, result.stderr);
+    assert.ok(result.stdout.endsWith(`\n${CONFIG_DECIDED}\n${CONFIG_SAY}\nnext: plan-approval-publish (Approve implementation plan and publish) — run node-brief for it\n`), result.stdout);
+    assert.equal(result.stderr, '');
+  });
+
+  test(`node-brief (${name}): the exported configContinue returns {refused} when its write is refused, and node-brief warns once and asks`, { skip: process.platform === 'win32' || process.getuid?.() === 0 ? 'permissions do not stop this user from writing' : false }, async t => {
+    const configContinue = await configContinueOf(treeOf());
+    const engine = path.join(treeOf(), 'skills', 'workflow-engine', 'scripts', 'workflow.mjs');
+    const readOnly = (run, action) => {
+      fs.chmodSync(run.state, 0o444);
+      fs.chmodSync(run.dir, 0o555);
+      try {
+        return action();
+      } finally {
+        fs.chmodSync(run.dir, 0o755);
+        fs.chmodSync(run.state, 0o644);
+      }
+    };
+    const refused = plannedRun(t);
+    assert.deepEqual(readOnly(refused, () => configContinue({ state: refused.state, node: 'plan-approval' })), { refused: 'state-unwritable' });
+
+    const briefed = plannedRun(t);
+    const result = readOnly(briefed, () => nodeBrief(briefed.state, 'plan-approval', engine));
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(result.stderr.split('\n').filter(line => line.includes('config-continue')),
+      ['warning: node-brief-config-continue-refused: state-unwritable; the gate is asked as usual']);
+    assert.match(result.stdout, /^ask it: /m);
+    assert.equal(readState(briefed).workflow.nodes['plan-approval'].status, 'pending');
+  });
+}

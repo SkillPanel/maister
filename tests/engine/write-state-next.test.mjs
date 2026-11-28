@@ -423,3 +423,292 @@ for (const [name, treeOf] of TREES) {
     assert.equal(last.stderr, lastReport.stderr);
   });
 }
+
+// The rows that walk on and the rows that brief: a gate the project's config
+// continues is recorded where the walk stands and the walk goes on past it; a
+// continue the brief advises against, or whose write is refused, is briefed
+// with the walk's outcome handed in, never attempted twice; a task step, a
+// `dir:` step, a sub-run step and a gate on the path are briefed as
+// `node-brief` briefs them, the start recorded only where the brief records it.
+
+const WALK_CONFIG = `name: walk-config
+version: 1
+nodes:
+  work:
+    uses: direct:work
+    needs: []
+    outputs:
+      values:
+        deep: bool
+  approve:
+    type: gate
+    needs: [work]
+    ask: "Work done. Go on?"
+    options:
+      go-on: continue
+      rework: {effect: revise, reruns: work}
+      stop-here: stop
+  audit:
+    uses: direct:audit
+    needs: [approve]
+    when: "\${work.values.deep}"
+  recover:
+    uses: direct:recover
+    needs: [audit]
+    on: failure
+  review:
+    uses: direct:review
+    needs: [recover]
+display:
+  titles:
+    work: Work
+    approve: Approve
+    audit: Audit
+    recover: Recover
+    review: Review
+`;
+
+const WALK_DIR = `name: walk-dir
+version: 1
+nodes:
+  work:
+    uses: direct:work
+    needs: []
+  remote:
+    uses: workflow:walk-dir
+    dir: "members/one"
+    needs: [work]
+display:
+  titles:
+    work: Work
+    remote: Remote
+`;
+
+const AUTO = 'workflows:\n  walk-config:\n    auto_continue: [approve]\n';
+const DECIDED = "decided: approve — go-on, by the project's config (workflows.walk-config.auto_continue); nothing to ask, nothing to write";
+const ANSWER_APPROVE = {
+  nodes: { approve: { status: 'completed' } },
+  node_summaries: { approve: { decisions: [{ option: 'go-on', answered_by: 'tester', at: '2026-01-05T09:40:00Z' }] } },
+};
+const workDone = (values, summary = {}) => ({
+  nodes: { work: { status: 'completed', ...(values === null ? {} : { values }) } },
+  node_summaries: { work: { summary: 'Worked.', ...summary } },
+});
+
+/** A frozen run of `definition` (named `name`) in a scratch project of its own, the project's `config` beside it, its first step started. */
+function projectRun(t, { name, definition, ids, config = null, orchestrator = {} }) {
+  const runAt = scratch(t, { type: name, name: '2026-01-05-walk' });
+  const home = path.join(runAt.root, '.maister', 'workflows');
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, `${name}.yml`), definition);
+  fs.writeFileSync(path.join(home, `${name}.md`), `# ${name} — node prose\n\n${ids.map(id => `## \`${id}\`\n\nDo ${id}.\n`).join('\n')}`);
+  if (config !== null) fs.writeFileSync(path.join(runAt.root, '.maister', 'config.yml'), config);
+  freeze(runAt, { definition: path.join(home, `${name}.yml`), task: { title: 'Walk' }, orchestrator });
+  write(runAt, { nodes: { work: { status: 'running' } } });
+  return runAt;
+}
+
+const configRun = (t, options = {}) => projectRun(t, { name: 'walk-config', definition: WALK_CONFIG, ids: ['work', 'approve', 'audit', 'recover', 'review'], ...options });
+
+/** The node-brief of one tree, printed. */
+function briefOf(tree, runAt, node) {
+  const brief = run(engineIn(tree), ['node-brief', `--state=${runAt.state}`, `--node=${node}`]);
+  assert.equal(brief.code, 0, brief.stderr);
+  return brief.stdout;
+}
+
+/** A write's print without the `next:` line it ends on, which must be `line`. */
+function withoutNext(stdout, line) {
+  const tail = `\n${line}\n`;
+  assert.ok(stdout.endsWith(tail), stdout);
+  return stdout.slice(0, -tail.length);
+}
+
+const PERMISSIONS_SKIP = process.platform === 'win32' || process.getuid?.() === 0 ? 'permissions do not stop this user from writing' : false;
+
+for (const [name, treeOf] of TREES) {
+  test(`${name}: off-path steps give their skipped: lines in walk order, a guard before a failure, then the announcing next: line and the brief`, t => {
+    const tree = treeOf();
+    const walked = configRun(t);
+    const separate = configRun(t);
+    for (const runAt of [walked, separate]) write(runAt, workDone({ deep: false }));
+
+    const result = writeState(tree, walked, ANSWER_APPROVE, ['--next']);
+    assert.equal(result.code, 0, result.stderr);
+    const report = writeState(tree, separate, ANSWER_APPROVE);
+    for (const id of ['audit', 'recover']) assert.equal(writeState(tree, separate, { nodes: { [id]: { status: 'skipped' } } }).code, 0);
+    const brief = briefOf(tree, separate, 'review');
+
+    assert.equal(rooted(result.stdout, walked), rooted(withoutNext(report.stdout, 'next: audit (Audit) — run node-brief for it'), separate)
+      + '\n'
+      + `skipped: audit (Audit) — its guard ${GUARD} reads false\n`
+      + 'skipped: recover (Recover) — it runs only on a failure, and nothing failed\n'
+      + 'next: review (Review) — its brief follows\n'
+      + '\n'
+      + rooted(brief, separate));
+    assert.equal(result.stderr, '');
+    assert.deepEqual(statuses(walked), statuses(separate));
+  });
+
+  test(`${name}: a gate the config continues gives its decided: and say: lines without the inner next: line, and the walk goes on`, t => {
+    const tree = treeOf();
+    const walked = configRun(t, { config: AUTO });
+    const separate = configRun(t, { config: AUTO });
+
+    const result = writeState(tree, walked, workDone({ deep: false }), ['--next']);
+    assert.equal(result.code, 0, result.stderr);
+    const report = writeState(tree, separate, workDone({ deep: false }));
+    const gate = briefOf(tree, separate, 'approve').trimEnd().split('\n');
+    const [decided, say, inner] = gate.slice(-3);
+    assert.equal(decided, DECIDED);
+    assert.match(say, /^say: /);
+    assert.equal(inner, 'next: audit (Audit) — run node-brief for it', 'node-brief alone keeps its inner next: line');
+    for (const id of ['audit', 'recover']) assert.equal(writeState(tree, separate, { nodes: { [id]: { status: 'skipped' } } }).code, 0);
+    const brief = briefOf(tree, separate, 'review');
+
+    assert.equal(rooted(result.stdout, walked), rooted(withoutNext(report.stdout, 'next: approve (Approve) — run node-brief for it'), separate)
+      + '\n'
+      + `${decided}\n`
+      + `${say}\n`
+      + `skipped: audit (Audit) — its guard ${GUARD} reads false\n`
+      + 'skipped: recover (Recover) — it runs only on a failure, and nothing failed\n'
+      + 'next: review (Review) — its brief follows\n'
+      + '\n'
+      + rooted(brief, separate));
+    assert.doesNotMatch(result.stdout, /next: audit/, 'the continue\'s inner next: line is not printed');
+    assert.equal(result.stderr, '');
+    assert.deepEqual(statuses(walked), statuses(separate));
+    const decisions = readState(walked).node_summaries.approve.decisions;
+    assert.equal(decisions.length, 1, 'continued once');
+    assert.equal(decisions[0].by, 'config');
+  });
+
+  test(`${name}: a continue the brief advises against is briefed as a gate on the path, the say: line above ask it:, nothing written`, t => {
+    const tree = treeOf();
+    const advised = workDone({ deep: false }, { recommends: { option: 'rework', reason: 'The work misses a case.' } });
+    const { withNext, without, walked, plain } = twinWrites(t, tree, t2 => configRun(t2, { config: AUTO }), advised);
+    assert.equal(withNext.code, 0, withNext.stderr);
+    const brief = rooted(briefOf(tree, plain, 'approve'), plain);
+    assert.equal(withNext.stdout, `${withoutNext(without.stdout, 'next: approve (Approve) — run node-brief for it')}\nnext: approve (Approve) — its brief follows\n\n${brief}`);
+    assert.ok(withNext.stdout.includes("say: The project's config would continue, but work recommends revising; the gate is asked as usual.\nask it: "), withNext.stdout);
+    assert.doesNotMatch(withNext.stdout, /^decided:/m);
+    assert.equal(withNext.stderr, '');
+    assert.equal(statusOf(walked, 'approve'), 'pending');
+  });
+
+  test(`${name}: in-process, a continue whose write is refused is attempted once, handed to the brief, warned once and asked`, { skip: PERMISSIONS_SKIP }, async t => {
+    const closingWalk = await closingWalkOf(treeOf());
+
+    const walkRefused = (runAt, brief = null) => {
+      fs.chmodSync(runAt.state, 0o444);
+      fs.chmodSync(runAt.dir, 0o555);
+      try {
+        return closingWalk({ state: runAt.state, ...(brief ? { brief } : {}) });
+      } finally {
+        fs.chmodSync(runAt.dir, 0o755);
+        fs.chmodSync(runAt.state, 0o644);
+      }
+    };
+
+    // The outcome the walk hands the brief.
+    const handed = [];
+    const seen = configRun(t, { config: AUTO });
+    write(seen, workDone({ deep: false }));
+    walkRefused(seen, (node, outcome) => {
+      handed.push([node, outcome]);
+      return { ok: true, text: 'brief\n', warnings: [] };
+    });
+    assert.deepEqual(handed, [['approve', { refused: 'state-unwritable' }]]);
+
+    // The real brief prints the gate asked and the refusal's warning once.
+    const runAt = configRun(t, { config: AUTO });
+    write(runAt, workDone({ deep: false }));
+    const result = walkRefused(runAt);
+    assert.deepEqual(result.warnings.filter(line => line.includes('config-continue')),
+      ['warning: node-brief-config-continue-refused: state-unwritable; the gate is asked as usual']);
+    assert.deepEqual(result.lines, []);
+    assert.deepEqual(result.next, { id: 'approve', title: 'Approve' });
+    assert.match(result.brief, /^ask it: /m);
+    assert.doesNotMatch(result.brief, /^decided:/m);
+    assert.equal(statusOf(runAt, 'approve'), 'pending');
+    assert.equal(readState(runAt).node_summaries.approve, undefined);
+  });
+
+  test(`${name}: a task step on the path is briefed, its start recorded only when its guard reads true; an undecidable guard records none`, t => {
+    const tree = treeOf();
+    const STARTED = 'started: recorded running by this brief — the start needs no write of its own';
+
+    const deep = twinWrites(t, tree, t2 => {
+      const runAt = configRun(t2);
+      write(runAt, workDone({ deep: true }));
+      return runAt;
+    }, ANSWER_APPROVE);
+    assert.equal(deep.withNext.code, 0, deep.withNext.stderr);
+    assert.equal(statusOf(deep.walked, 'audit'), 'running', 'its guard reads true: the brief recorded the start');
+    const started = rooted(briefOf(tree, deep.plain, 'audit'), deep.plain);
+    assert.equal(deep.withNext.stdout, `${withoutNext(deep.without.stdout, 'next: audit (Audit) — run node-brief for it')}\nnext: audit (Audit) — its brief follows\n\n${started}`);
+    assert.ok(deep.withNext.stdout.split('\n').includes(STARTED));
+    assert.deepEqual(statuses(deep.walked), statuses(deep.plain));
+
+    const unknown = twinWrites(t, tree, t2 => {
+      const runAt = configRun(t2);
+      write(runAt, workDone(null));
+      return runAt;
+    }, ANSWER_APPROVE);
+    assert.equal(unknown.withNext.code, 0, unknown.withNext.stderr);
+    assert.equal(statusOf(unknown.walked, 'audit'), 'pending', 'a guard not yet decidable: no start');
+    assert.ok(unknown.withNext.stdout.includes('\nnext: audit (Audit) — its brief follows\n\n'), unknown.withNext.stdout);
+    assert.ok(!unknown.withNext.stdout.split('\n').some(line => line.startsWith('started: ') || line.startsWith('start: ')), unknown.withNext.stdout);
+    assert.deepEqual(statuses(unknown.walked), statuses(unknown.plain));
+  });
+
+  test(`${name}: a dir: step is briefed with no start recorded`, t => {
+    const tree = treeOf();
+    const make = t2 => projectRun(t2, { name: 'walk-dir', definition: WALK_DIR, ids: ['work', 'remote'], orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+    const done = { nodes: { work: { status: 'completed' } }, node_summaries: { work: { summary: 'Worked.' } } };
+    const { withNext, without, walked, plain } = twinWrites(t, tree, make, done);
+    assert.equal(withNext.code, 0, withNext.stderr);
+    const brief = rooted(briefOf(tree, plain, 'remote'), plain);
+    assert.equal(withNext.stdout, `${withoutNext(without.stdout, 'next: remote (Remote) — run node-brief for it')}\nnext: remote (Remote) — its brief follows\n\n${brief}`);
+    assert.match(withNext.stdout, /^runs: workflow:walk-dir — dispatched to members\/one$/m);
+    assert.ok(!withNext.stdout.split('\n').some(line => line.startsWith('started: ') || line.startsWith('start: ')), withNext.stdout);
+    assert.equal(statusOf(walked, 'remote'), 'pending');
+  });
+
+  test(`${name}: a sub-run step is briefed naming the hand-off call, with no start recorded`, t => {
+    const tree = treeOf();
+    const make = t2 => {
+      const runAt = scratch(t2);
+      freeze(runAt, { definition: SAMPLE });
+      write(runAt, { nodes: { analysis: { status: 'completed' } } });
+      write(runAt, { nodes: { approval: { status: 'completed' } } });
+      write(runAt, { nodes: { implementation: { status: 'running' } } });
+      return runAt;
+    };
+    const { withNext, without, walked, plain } = twinWrites(t, tree, make, { nodes: { implementation: { status: 'completed' } } });
+    assert.equal(withNext.code, 0, withNext.stderr);
+    const brief = rooted(briefOf(tree, plain, 'research'), plain);
+    assert.equal(withNext.stdout, `${withoutNext(without.stdout, 'next: research (Research) — run node-brief for it')}\nnext: research (Research) — its brief follows\n\n${brief}`);
+    assert.match(withNext.stdout, /^start: yours — run node .+ subrun-handoff --state=.+ --node=research$/m);
+    assert.ok(!withNext.stdout.split('\n').includes('started: recorded running by this brief — the start needs no write of its own'));
+    assert.equal(statusOf(walked, 'research'), 'pending');
+  });
+
+  test(`${name}: a gate on the path is briefed with its ask it: line — gate-request under a driver, today's call in a terminal run`, t => {
+    const tree = treeOf();
+    const terminal = twinWrites(t, tree, t2 => configRun(t2), workDone({ deep: false }));
+    assert.equal(terminal.withNext.code, 0, terminal.withNext.stderr);
+    const asked = rooted(briefOf(tree, terminal.plain, 'approve'), terminal.plain);
+    assert.equal(terminal.withNext.stdout, `${withoutNext(terminal.without.stdout, 'next: approve (Approve) — run node-brief for it')}\nnext: approve (Approve) — its brief follows\n\n${asked}`);
+    const call = name === 'variant' ? '--ask' : '--json --picker=rich';
+    assert.ok(terminal.withNext.stdout.trimEnd().split('\n').includes(`ask it: gate-brief --state=${rooted(terminal.walked.state, terminal.walked)} --node=approve ${call}`), terminal.withNext.stdout);
+    assert.equal(statusOf(terminal.walked, 'approve'), 'pending');
+
+    const driven = twinWrites(t, tree, t2 => configRun(t2, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } }), workDone({ deep: false }));
+    assert.equal(driven.withNext.code, 0, driven.withNext.stderr);
+    const requested = rooted(briefOf(tree, driven.plain, 'approve'), driven.plain);
+    assert.equal(driven.withNext.stdout, `${withoutNext(driven.without.stdout, 'next: approve (Approve) — run node-brief for it')}\nnext: approve (Approve) — its brief follows\n\n${requested}`);
+    assert.ok(driven.withNext.stdout.split('\n').includes(`ask it: gate-request --state=${rooted(driven.walked.state, driven.walked)} --node=approve`), driven.withNext.stdout);
+    assert.equal(fs.existsSync(path.join(driven.walked.dir, 'gates', 'approve.request.yml')), false, 'the brief writes no request');
+  });
+}

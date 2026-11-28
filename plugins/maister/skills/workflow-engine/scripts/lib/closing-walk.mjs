@@ -1,9 +1,11 @@
 /**
  * The walk a closing write runs once it has landed (`write-state --next`):
  * the run read from disk, its off-path steps recorded skipped through the
- * walk `skipWalk` shares, and the brief of the step it stops at rendered as
- * `node-brief` renders it — the start recorded and `brief.json` published —
- * so one call does what the write, its skip writes and a `node-brief` did.
+ * walk `skipWalk` shares, a gate the project's config continues recorded
+ * continued where the walk stands, and the brief of the step it stops at
+ * rendered as `node-brief` renders it — the start recorded and `brief.json`
+ * published — so one call does what the write, its skip writes, the continue
+ * and a `node-brief` did.
  * Where the run cannot go on from the write (`heldWalk`) it skips and briefs
  * nothing, and the write prints what it prints alone, or the line that says
  * why the run stands.
@@ -25,7 +27,7 @@ import { dueNext, reread, skipWalk } from './gate-brief.mjs';
 import { frozenIds } from './question-triage.mjs';
 import { stopAnswered, writeState } from './state.mjs';
 import { openRevision } from './revise.mjs';
-import { nodeBrief } from './node-brief.mjs';
+import { configContinue, nodeBrief } from './node-brief.mjs';
 
 /** The `task.status` values a run's closing patch records. */
 const RUN_ENDINGS = new Set(['completed', 'failed', 'stopped']);
@@ -38,11 +40,18 @@ const ONGOING = new Set(['running', 'waiting', 'suspended']);
  * the pointer `node-brief` prints, handed on to the brief; `today` what the
  * write's own `next:` line names (`nextCheck`), or null when it prints none,
  * for the stops that print what the write prints alone. `writer(patch, id)`,
- * `bound` and `brief(node)` stand in for the state writer, the turn limit (one
- * per frozen node, and one more) and `nodeBrief`; a caller leaves them out.
+ * `bound` and `brief(node, continueOutcome)` stand in for the state writer, the
+ * turn limit (one per frozen node, and one more) and `nodeBrief`; a caller
+ * leaves them out.
+ *
+ * Each turn takes one pending node out of the way — a skip, or a gate the
+ * config continues — or stops, so the whole walk stays within the bound. The
+ * continue is attempted once per gate: on any outcome but its lines the gate is
+ * briefed with that outcome handed in, and the brief does not attempt it again.
  *
  * Returns `{lines, next, brief, warnings}`: `lines` the walk's own lines in
- * walk order (`skipped: …`); `next` the step due next as the state writer's
+ * walk order (`skipped: …`, and a continued gate's `decided: …` and `say: …`);
+ * `next` the step due next as the state writer's
  * `next:` line takes it — `{id, title}`, `{id: null}` when only the closing
  * patch is left, `{id: null, stop}` for a gate answered with a stop, or null
  * when nothing is due; `brief` the brief's text when
@@ -53,7 +62,7 @@ const ONGOING = new Set(['running', 'waiting', 'suspended']);
 export function closingWalk({ state, rules, today = null, writer = null, bound = null, brief = null }) {
   const runDir = path.dirname(path.resolve(state));
   const read = () => parse(fs.readFileSync(state, 'utf8'));
-  const render = brief ?? (node => nodeBrief({ state, node, rules }));
+  const render = brief ?? ((node, continueOutcome) => nodeBrief({ state, node, rules, continueOutcome }));
   const out = { lines: [], next: null, brief: null, warnings: [] };
   const write = writer ?? (patch => {
     const result = writeState({ state, patch });
@@ -61,15 +70,28 @@ export function closingWalk({ state, rules, today = null, writer = null, bound =
     return result;
   });
   try {
-    const doc = read();
+    let doc = read();
     const held = heldWalk(doc, runDir, today);
     if (held !== undefined) return { ...out, next: held };
     const limit = bound ?? frozenIds(isPlainObject(doc.workflow) ? doc.workflow.nodes : {}).length + 1;
-    const { skipped, stop } = skipWalk({ doc, runDir, writer: write, reread: read, bound: limit });
-    out.lines.push(...skipped.map(skippedLine));
-    if (stop.kind === 'due') return briefed(out, stop, render, read, runDir);
-    if (stop.kind === 'refused') out.warnings.push(stop.id === null ? stopped(stop.code ?? stop.error?.message) : skipRefused(stop));
-    if (stop.kind === 'bound') out.warnings.push(`warning: next-walk-unsettled: the walk did not settle within ${stop.bound} steps; nothing after the writes above was walked or briefed`);
+    let left = limit;
+    for (;;) {
+      const { skipped, stop } = skipWalk({ doc, runDir, writer: write, reread: read, bound: left });
+      out.lines.push(...skipped.map(skippedLine));
+      left -= skipped.length;
+      if (stop.kind === 'due') {
+        const outcome = configContinue({ state, node: stop.id });
+        if (!outcome.lines) return briefed(out, stop, render, read, runDir, outcome);
+        // The gate is recorded continued: its lines in walk order, one turn spent, and on.
+        out.lines.push(...outcome.lines);
+        left -= 1;
+        doc = read();
+        continue;
+      }
+      if (stop.kind === 'refused') out.warnings.push(stop.id === null ? stopped(stop.code ?? stop.error?.message) : skipRefused(stop));
+      if (stop.kind === 'bound') out.warnings.push(`warning: next-walk-unsettled: the walk did not settle within ${limit} steps; nothing after the writes above was walked or briefed`);
+      break;
+    }
   } catch (error) {
     out.warnings.push(stopped(error.message));
   }
@@ -102,13 +124,13 @@ function heldWalk(doc, runDir, today) {
 
 /**
  * The walk stopped at a step that must run: its brief, rendered in this
- * process. A brief that refuses or throws leaves the warning and the step due
- * next as the state now reads.
+ * process, with the config continue's outcome handed in. A brief that refuses
+ * or throws leaves the warning and the step due next as the state now reads.
  */
-function briefed(out, stop, render, read, runDir) {
+function briefed(out, stop, render, read, runDir, outcome) {
   let result;
   try {
-    result = render(stop.id);
+    result = render(stop.id, outcome);
   } catch (error) {
     result = { ok: false, message: error.message };
   }

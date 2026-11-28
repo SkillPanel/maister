@@ -246,10 +246,14 @@ const MISSING = Symbol('not recorded');
  * Render the brief of `node` in the run whose state file is `state`. `rules`
  * is the pointer the `rules:` line prints; the caller passes its own, and the
  * conventions section of the skill beside this module stands in without one.
+ * `continueOutcome` is what `configContinue` already returned for this gate,
+ * handed in by a caller that attempted it (the closing walk): the brief prints
+ * it — its `say:` line above `ask it:`, or the refusal's warning — and never
+ * attempts the continue again. Left out, a gate's brief attempts it itself.
  *
  * Returns `{ok, text, errors, warnings}`; `text` ends with a newline.
  */
-export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node conventions` }) {
+export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node conventions`, continueOutcome = null }) {
   const pointer = quotedPointer(rules);
   let doc;
   try {
@@ -284,17 +288,7 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
 
   const nodes = current.graph?.nodes ?? [];
   const byId = new Map(nodes.map(entry => [entry.id, entry]));
-  const context = {
-    doc,
-    state: path.resolve(state),
-    runDir,
-    root: projectRootOf(runDir),
-    recorded,
-    byId,
-    inputs: inputsOf(doc),
-    defaults: current.defaults,
-    status: new Map(Object.keys(recorded).filter(id => id !== HELD_APPROVAL).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
-  };
+  const context = contextOf({ doc, state, runDir, recorded, byId, current });
   const resolved = byId.get(node) ?? null;
   if (resolved === null && current.graph !== null) {
     warnings.push(`node-brief-node-gone: ${node} is not in the definition as it reads now; the header comes from the frozen node entry alone`);
@@ -348,8 +342,10 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
   } else if (gate) {
     // A gate the project's config continues is recorded here and asks nothing;
     // one it would continue but its brief advises against is asked, the reason first.
-    const auto = configContinue({ state, node, doc, resolved, nodes, context, title, warnings });
-    if (auto.lines) lines.push(...auto.lines);
+    // An outcome handed in was attempted already: it is printed, never attempted twice.
+    const auto = continueOutcome ?? continueDecision({ state, node, doc, resolved, nodes, context, title });
+    if (typeof auto.refused === 'string') warnings.push(`node-brief-config-continue-refused: ${auto.refused}; the gate is asked as usual`);
+    if (auto.lines) lines.push(...auto.lines, ...(auto.next ?? []));
     else {
       if (auto.say) lines.push(auto.say);
       // An exception still asks the gate: the call comes first, the exception after it.
@@ -444,13 +440,63 @@ function readyToStart(node, resolved, nodes, context) {
 }
 
 /**
+ * The config continue of `node` in the run whose state file is `state`, for a
+ * caller that attempts it apart from the brief (the closing walk), once per
+ * gate: `{lines}` — the `decided:` and `say:` lines, without the node due next
+ * — when the continue was recorded, `{say}` when the brief advises against it,
+ * `{refused}` when its write was refused (the refusal's codes, comma-joined),
+ * and `{}` for a step, an unreadable run or a gate the config leaves asked.
+ * The outcome goes to `nodeBrief` as its `continueOutcome` whenever it is not
+ * `{lines}`, so the brief prints it rather than attempting it again.
+ */
+export function configContinue({ state, node }) {
+  let doc;
+  try {
+    doc = parse(fs.readFileSync(state, 'utf8'));
+  } catch {
+    return {};
+  }
+  if (!isPlainObject(doc) || !isPlainObject(doc.workflow)) return {};
+  const recorded = isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+  const runDir = path.dirname(path.resolve(state));
+  const current = reread(doc, doc.workflow, runDir);
+  const nodes = current.graph?.nodes ?? [];
+  const byId = new Map(nodes.map(entry => [entry.id, entry]));
+  const resolved = byId.get(node) ?? null;
+  if (resolved?.type !== 'gate') return {};
+  const context = contextOf({ doc, state, runDir, recorded, byId, current });
+  const { next: _next, ...outcome } = continueDecision({ state, node, doc, resolved, nodes, context, title: titleOf(current.display.titles, node) });
+  return outcome;
+}
+
+/**
+ * The facts a brief reads its statuses, guards and inputs from, built once per
+ * read of the state.
+ */
+function contextOf({ doc, state, runDir, recorded, byId, current }) {
+  return {
+    doc,
+    state: path.resolve(state),
+    runDir,
+    root: projectRootOf(runDir),
+    recorded,
+    byId,
+    inputs: inputsOf(doc),
+    defaults: current.defaults,
+    status: new Map(Object.keys(recorded).filter(id => id !== HELD_APPROVAL).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
+  };
+}
+
+/**
  * A gate the run froze in its `workflow_config.auto_continue` (the project's
- * `config.yml`), continued here instead of asked: `{lines}` when its plain
- * continue was recorded `by: config` — the decision, the line to show and the
- * node due next — `{say}` when the config would continue but the gate's own
- * brief advises against it, so it is asked with the reason first, and `{}`
- * otherwise. Under every driver: the config is the project's standing answer,
- * it grants nothing, and the record reads the same wherever the run is driven.
+ * `config.yml`), continued here instead of asked: `{lines, next}` when its
+ * plain continue was recorded `by: config` — the decision and the line to show,
+ * and apart from them the `next:` line naming the node due next, which only
+ * the brief prints — `{say}` when the config would continue but the gate's own
+ * brief advises against it, so it is asked with the reason first, `{refused}`
+ * when the writer refused the continue, and `{}` otherwise. Under every
+ * driver: the config is the project's standing answer, it grants nothing, and
+ * the record reads the same wherever the run is driven.
  *
  * Only a gate that is due now — pending, its needs settled, its guard true,
  * nothing earlier left to run — is continued; a gate its guard skips takes the
@@ -458,7 +504,7 @@ function readyToStart(node, resolved, nodes, context) {
  * revise or stop, a stop risk a closing node recorded, or a choice held for a
  * person's approval asks it, since config never stands for a person.
  */
-function configContinue({ state, node, doc, resolved, nodes, context, title, warnings }) {
+function continueDecision({ state, node, doc, resolved, nodes, context, title }) {
   if (!autoContinued(workflowConfigOf(doc)).includes(node)) return {};
   const option = plainContinueOf(resolved);
   if (option === null || !readyToStart(node, resolved, nodes, context)) return {};
@@ -480,10 +526,7 @@ function configContinue({ state, node, doc, resolved, nodes, context, title, war
       node_summaries: { [node]: { headline: line, decisions: [{ option, by: BY_CONFIG }] } },
     },
   });
-  if (!written.ok) {
-    warnings.push(`node-brief-config-continue-refused: ${written.errors.map(error => error.code).join(', ')}; the gate is asked as usual`);
-    return {};
-  }
+  if (!written.ok) return { refused: written.errors.map(error => error.code).join(', ') };
   const name = typeof doc.workflow?.name === 'string' ? doc.workflow.name : '<workflow>';
   const next = written.next === undefined ? []
     : written.next.id === null ? ['next: none — write the closing patch with task.status, then run run-complete']
@@ -492,8 +535,8 @@ function configContinue({ state, node, doc, resolved, nodes, context, title, war
     lines: [
       `decided: ${node} — ${option}, by the project's config (workflows.${name}.auto_continue); nothing to ask, nothing to write`,
       `say: ${line}`,
-      ...next,
     ],
+    next,
   };
 }
 
