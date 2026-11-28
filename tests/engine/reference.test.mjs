@@ -412,3 +412,40 @@ test('the inline runner route prints each runner whole in the calls its skill sp
     assert.deepEqual([...asked].sort(), [...headings].sort(), `${skill}: the calls cover ${runner} whole`);
   }
 });
+
+test('the four guide pointers to the decision areas and the candidates print through reference, on both trees', () => {
+  // research.md names the decision areas' writer; development, performance and migration name the candidates' consolidation.
+  const pointers = [
+    [
+      'references/decision-areas.md § Who writes it',
+      /^== skills\/workflow-engine\/references\/decision-areas\.md § Who writes it\n## Who writes it\n/,
+    ],
+    [
+      '<plugin root>/skills/docs-manager/references/standard-candidates.md § Consolidation',
+      /^== skills\/docs-manager\/references\/standard-candidates\.md § Consolidation\n## Consolidation\n/,
+    ],
+  ];
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    for (const [at, heading] of pointers) {
+      assert.match(printed(reference([at], engine)), heading, at);
+    }
+  }
+});
+
+test('the guide sections this group edits print under the cap, on both trees', () => {
+  const sections = [
+    'skills/workflow-engine/workflows/research.md § research-foundation',
+    'skills/workflow-engine/workflows/research.md § solution-convergence',
+    'skills/workflow-engine/workflows/research.md § high-level-design',
+    'skills/workflow-engine/workflows/product-design.md § intake',
+    'skills/workflow-engine/workflows/development.md § finalization',
+    'skills/workflow-engine/workflows/performance.md § finalization',
+    'skills/workflow-engine/workflows/migration.md § finalization',
+  ];
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    for (const at of sections) {
+      const text = printed(reference([at], engine));
+      assert.ok(text.length <= PRINT_MAX, `${at}: ${text.length} characters`);
+    }
+  }
+});
