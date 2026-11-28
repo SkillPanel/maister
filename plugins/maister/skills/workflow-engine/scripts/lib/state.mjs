@@ -5655,10 +5655,14 @@ function nextCheck(text, runDir, before) {
  * it, but a stop ends the run, so the write's `next:` line names the closing
  * patch instead. Read against the graph the frozen block proves; a run whose
  * graph cannot be proven gets the walk's line as before.
+ *
+ * Without `ended`, every frozen node is looked at, in frozen order: the stop
+ * as the state on disk records it, whichever write answered it — what the
+ * walk after a closing write checks before it skips or briefs anything.
  */
-function stopAnswered(doc, runDir, ended) {
-  const nodes = doc.workflow.nodes;
-  const gates = ended.filter(id => nodes[id].status === 'completed' && nodes[id].kind === 'gate');
+export function stopAnswered(doc, runDir, ended = null) {
+  const nodes = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+  const gates = (ended ?? frozenIds(nodes)).filter(id => isPlainObject(nodes[id]) && nodes[id].status === 'completed' && nodes[id].kind === 'gate');
   if (!gates.length) return null;
   const graph = provenGraph(doc.workflow, runDir).graph ?? null;
   if (!graph) return null;

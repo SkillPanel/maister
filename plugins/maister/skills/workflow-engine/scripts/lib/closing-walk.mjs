@@ -4,6 +4,9 @@
  * walk `skipWalk` shares, and the brief of the step it stops at rendered as
  * `node-brief` renders it — the start recorded and `brief.json` published —
  * so one call does what the write, its skip writes and a `node-brief` did.
+ * Where the run cannot go on from the write (`heldWalk`) it skips and briefs
+ * nothing, and the write prints what it prints alone, or the line that says
+ * why the run stands.
  *
  * Kept apart from the state writer, which cannot import the brief, and from
  * the entry point, which stays a dispatcher: the entry point loads it only
@@ -18,26 +21,36 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
-import { dueNext, skipWalk } from './gate-brief.mjs';
+import { dueNext, reread, skipWalk } from './gate-brief.mjs';
 import { frozenIds } from './question-triage.mjs';
-import { writeState } from './state.mjs';
+import { stopAnswered, writeState } from './state.mjs';
+import { openRevision } from './revise.mjs';
 import { nodeBrief } from './node-brief.mjs';
+
+/** The `task.status` values a run's closing patch records. */
+const RUN_ENDINGS = new Set(['completed', 'failed', 'stopped']);
+
+/** The statuses of a step started and not yet ended. */
+const ONGOING = new Set(['running', 'waiting', 'suspended']);
 
 /**
  * Walk the run whose state file is `state` after a landed write. `rules` is
- * the pointer `node-brief` prints, handed on to the brief. `writer(patch, id)`,
+ * the pointer `node-brief` prints, handed on to the brief; `today` what the
+ * write's own `next:` line names (`nextCheck`), or null when it prints none,
+ * for the stops that print what the write prints alone. `writer(patch, id)`,
  * `bound` and `brief(node)` stand in for the state writer, the turn limit (one
  * per frozen node, and one more) and `nodeBrief`; a caller leaves them out.
  *
  * Returns `{lines, next, brief, warnings}`: `lines` the walk's own lines in
  * walk order (`skipped: …`); `next` the step due next as the state writer's
  * `next:` line takes it — `{id, title}`, `{id: null}` when only the closing
- * patch is left, or null when nothing is due; `brief` the brief's text when
+ * patch is left, `{id: null, stop}` for a gate answered with a stop, or null
+ * when nothing is due; `brief` the brief's text when
  * the walk stopped at a step and its brief printed, else null, and then
  * `next` is the step the brief is of; `warnings` whole `warning:` lines for
  * stderr, the walk's writes' and the brief's included.
  */
-export function closingWalk({ state, rules, writer = null, bound = null, brief = null }) {
+export function closingWalk({ state, rules, today = null, writer = null, bound = null, brief = null }) {
   const runDir = path.dirname(path.resolve(state));
   const read = () => parse(fs.readFileSync(state, 'utf8'));
   const render = brief ?? (node => nodeBrief({ state, node, rules }));
@@ -49,6 +62,8 @@ export function closingWalk({ state, rules, writer = null, bound = null, brief =
   });
   try {
     const doc = read();
+    const held = heldWalk(doc, runDir, today);
+    if (held !== undefined) return { ...out, next: held };
     const limit = bound ?? frozenIds(isPlainObject(doc.workflow) ? doc.workflow.nodes : {}).length + 1;
     const { skipped, stop } = skipWalk({ doc, runDir, writer: write, reread: read, bound: limit });
     out.lines.push(...skipped.map(skippedLine));
@@ -60,6 +75,29 @@ export function closingWalk({ state, rules, writer = null, bound = null, brief =
   }
   out.next = todaysNext(read, runDir);
   return out;
+}
+
+/**
+ * Where the run cannot go on from the write, the rows checked before anything
+ * is skipped, in this order, the first that matches deciding: the task's
+ * ending recorded, a revise not yet applied (the resume orders `gate-revise`
+ * first), a gate answered with a stop, a gate pending or a step under way — a
+ * sub-run waited on among them — and a definition drifted from the frozen
+ * graph. Each returns the `next:` the walk prints — `today` where the write
+ * alone prints exactly that, the stop line for a stop, the step due now under
+ * drift — or undefined when none matches and the walk goes on.
+ */
+function heldWalk(doc, runDir, today) {
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const nodes = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  if (RUN_ENDINGS.has(isPlainObject(doc.task) ? doc.task.status : null)) return today;
+  if (openRevision(doc)?.applied === false) return today;
+  const stop = stopAnswered(doc, runDir);
+  if (stop !== null) return { id: null, stop };
+  const pending = isPlainObject(doc.orchestrator) && isPlainObject(doc.orchestrator.gate_pending);
+  if (pending || frozenIds(nodes).some(id => isPlainObject(nodes[id]) && ONGOING.has(nodes[id].status))) return today;
+  if (reread(doc, workflow, runDir).drift) return dueNext({ doc, runDir });
+  return undefined;
 }
 
 /**

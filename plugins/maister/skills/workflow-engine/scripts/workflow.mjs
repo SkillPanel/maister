@@ -966,7 +966,7 @@ async function runWriteState(flags) {
   // at all leaves the `next:` line the write alone prints.
   try {
     const walk = entryOf(await loadModule('closing-walk.mjs'), 'closingWalk', 'closing-walk.mjs');
-    printWalk(walk({ state: flags.state, rules: rulesOf('nodeBrief') }));
+    printWalk(walk({ state: flags.state, rules: rulesOf('nodeBrief'), today: result.next ?? null }));
   } catch (err) {
     process.stderr.write(`warning: the walk after the write stopped (${err.message}); nothing after the lines above was walked or briefed\n`);
     if (result.next) printNext(result.next);

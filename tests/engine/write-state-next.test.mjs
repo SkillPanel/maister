@@ -6,7 +6,10 @@
 // and any failure after the landing prints one `warning:` line and the
 // `next:` line the state on disk gives, at exit 0. The fallbacks are driven
 // in-process through `lib/closing-walk.mjs`, with an injected writer, bound
-// or brief. Every case runs on both trees, the source and the variant.
+// or brief. Where the run cannot go on from the write — its ending recorded,
+// a revise not yet applied, a stop answered, a step under way, a definition
+// drifted — the walk skips and briefs nothing. Every case runs on both trees,
+// the source and the variant.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ROOT, freeze, freezePatch, readState, run, scratch, variantRoot, write } from '../helpers.mjs';
+import { FIXTURES, ROOT, SAMPLE, freeze, freezePatch, readState, run, scratch, variantRoot, write } from '../helpers.mjs';
 
 const DEFINITION = `name: skip-walk
 version: 1
@@ -95,6 +98,53 @@ async function closingWalkOf(tree) {
 }
 
 const statusOf = (runAt, id) => readState(runAt).workflow.nodes[id].status ?? 'pending';
+
+/** Each node's status, by id: two runs written a second apart differ in their clock fields only. */
+const statuses = runAt => Object.fromEntries(Object.entries(readState(runAt).workflow.nodes).map(([id, entry]) => [id, entry.status ?? 'pending']));
+
+const REVISE = path.join(FIXTURES, 'definitions', 'revise.yml');
+const CLOSING_LINE = 'next: none — write the closing patch with task.status, then run run-complete';
+const STOP_LINE = 'next: none — review-approval was answered with a stop: write the closing patch with task.status stopped'
+  + ' and every node not yet run stopped, then run run-complete';
+
+/** A run frozen from the review loop, standing at its gate: the draft, the review and the side note ended, the figures skipped. */
+function atReviewGate(t) {
+  const runAt = scratch(t);
+  freeze(runAt, { definition: REVISE });
+  write(runAt, { nodes: { draft: { status: 'completed', values: { needs_figures: false } } }, node_summaries: { draft: { summary: 'Drafted.' } } });
+  write(runAt, { nodes: { figures: { status: 'skipped' }, 'side-note': { status: 'completed' } } });
+  write(runAt, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed.' } } });
+  return runAt;
+}
+
+/** The review gate recorded completed with `option` as its answer. */
+const reviewAnswered = option => ({
+  nodes: { 'review-approval': { status: 'completed' } },
+  node_summaries: { 'review-approval': { decisions: [{ option, answered_by: 'tester', at: '2026-01-05T09:40:00Z' }] } },
+});
+
+/**
+ * `patch` sent through one tree's `write-state` to two runs `make` builds
+ * alike, with `--next` to the first and without it to the second: both prints
+ * with their roots masked, and both runs.
+ */
+function twinWrites(t, tree, make, patch) {
+  const walked = make(t);
+  const plain = make(t);
+  const masked = (result, runAt) => ({ code: result.code, stdout: rooted(result.stdout, runAt), stderr: rooted(result.stderr, runAt) });
+  return {
+    walked,
+    plain,
+    withNext: masked(writeState(tree, walked, typeof patch === 'function' ? patch(walked) : patch, ['--next']), walked),
+    without: masked(writeState(tree, plain, typeof patch === 'function' ? patch(plain) : patch), plain),
+  };
+}
+
+/** The pending nodes of a run, each sent `skipped`, as a stop's closing patch sends them. */
+function restSkipped(runAt) {
+  const nodes = readState(runAt).workflow.nodes;
+  return Object.fromEntries(Object.keys(nodes).filter(id => (nodes[id].status ?? 'pending') === 'pending').map(id => [id, { status: 'skipped' }]));
+}
 
 for (const [name, treeOf] of TREES) {
   test(`${name}: without --next, stdout, stderr and the exit code are what they were over a start, a refusal, a completion and an empty write`, t => {
@@ -183,7 +233,7 @@ for (const [name, treeOf] of TREES) {
     assert.equal(statusOf(walked, 'review'), 'running', 'the brief recorded the start, as node-brief does');
     const published = JSON.parse(fs.readFileSync(path.join(walked.dir, 'display', 'brief.json'), 'utf8'));
     assert.equal(published.node, 'review');
-    assert.deepEqual(readState(walked).workflow.nodes, readState(separate).workflow.nodes);
+    assert.deepEqual(statuses(walked), statuses(separate));
   });
 
   test(`${name}: in-process, a refused skip write gives the next-skip-refused warning and today's line`, async t => {
@@ -232,5 +282,144 @@ for (const [name, treeOf] of TREES) {
     assert.deepEqual(thrown.warnings, ['warning: next-brief-failed: the brief of review could not be printed (disk gone)']);
     assert.deepEqual(thrown.next, { id: 'review', title: 'Review' });
     assert.equal(thrown.brief, null);
+  });
+
+  test(`${name}: with the task's ending recorded, --next prints what the closing patch prints without it, though a stop answer is on disk`, t => {
+    const tree = treeOf();
+    const stopped = t2 => {
+      const runAt = atReviewGate(t2);
+      write(runAt, reviewAnswered('abandon'));
+      return runAt;
+    };
+    const { withNext, without, walked, plain } = twinWrites(t, tree, stopped, runAt => ({ task: { status: 'stopped' }, nodes: restSkipped(runAt) }));
+    assert.equal(withNext.code, 0, withNext.stderr);
+    assert.deepEqual(withNext, without);
+    assert.doesNotMatch(withNext.stdout, /next:/, 'the stop line the gate earned was printed by the write that answered it');
+    assert.deepEqual(statuses(walked), statuses(plain));
+  });
+
+  test(`${name}: at a revise not yet applied, --next prints what the write prints without it and skips or briefs nothing`, t => {
+    const tree = treeOf();
+    const { withNext, without, walked, plain } = twinWrites(t, tree, atReviewGate, reviewAnswered('send-back'));
+    assert.equal(withNext.code, 0, withNext.stderr);
+    assert.deepEqual(withNext, without);
+    assert.ok(withNext.stdout.endsWith('\nnext: publish (Publish) — run node-brief for it\n'), withNext.stdout);
+    assert.equal(statusOf(walked, 'publish'), 'pending', 'no brief recorded a start');
+    assert.equal(fs.existsSync(path.join(walked.dir, 'display', 'brief.json')), false, 'no brief was published');
+    assert.deepEqual(statuses(walked), statuses(plain));
+  });
+
+  test(`${name}: a stop answer read from disk prints the stop line after a later write that ends no node`, t => {
+    const tree = treeOf();
+    const stopped = t2 => {
+      const runAt = atReviewGate(t2);
+      write(runAt, reviewAnswered('abandon'));
+      return runAt;
+    };
+    const { withNext, without, walked } = twinWrites(t, tree, stopped, {});
+    assert.equal(withNext.code, 0, withNext.stderr);
+    assert.deepEqual(without, { code: 0, stdout: 'orchestrator.updated\ndashboard-data.js\n', stderr: '' });
+    assert.deepEqual(withNext, { code: 0, stdout: `orchestrator.updated\ndashboard-data.js\n\n${STOP_LINE}\n`, stderr: '' });
+    assert.equal(statusOf(walked, 'publish'), 'pending', 'the step after the stop is neither skipped nor briefed');
+  });
+
+  test(`${name}: a gate pending, a step running beside the one due, or a sub-run waited on: --next prints what the write prints without it`, t => {
+    const tree = treeOf();
+
+    const pending = twinWrites(t, tree, t2 => {
+      const runAt = atReviewGate(t2);
+      fs.mkdirSync(path.join(runAt.dir, 'gates'), { recursive: true });
+      fs.writeFileSync(path.join(runAt.dir, 'gates', 'review-approval.request.yml'), 'version: 1\nnode: review-approval\nanswer: null\n');
+      return runAt;
+    }, {
+      orchestrator: { gate_pending: { node: 'review-approval', request: 'gates/review-approval.request.yml', since: '2026-01-05T09:00:00Z' } },
+      nodes: { 'review-approval': { status: 'suspended' } },
+    });
+    assert.equal(pending.withNext.code, 0, pending.withNext.stderr);
+    assert.deepEqual(pending.withNext, pending.without, 'a gate pending');
+    assert.deepEqual(statuses(pending.walked), statuses(pending.plain));
+
+    const running = twinWrites(t, tree, t2 => {
+      const runAt = scratch(t2);
+      freeze(runAt, { definition: REVISE });
+      write(runAt, { nodes: { draft: { status: 'running' } } });
+      return runAt;
+    }, {
+      nodes: { draft: { status: 'completed', values: { needs_figures: false } }, 'side-note': { status: 'running' } },
+      node_summaries: { draft: { summary: 'Drafted.' } },
+    });
+    assert.equal(running.withNext.code, 0, running.withNext.stderr);
+    assert.deepEqual(running.withNext, running.without, 'a step running');
+    assert.ok(running.withNext.stdout.endsWith('\nnext: figures (Figures) — run node-brief for it\n'), 'the line the write that ended a node prints');
+    assert.equal(statusOf(running.walked, 'figures'), 'pending', 'its false guard is left for later');
+
+    const waiting = twinWrites(t, tree, t2 => {
+      const runAt = scratch(t2);
+      freeze(runAt, { definition: SAMPLE });
+      write(runAt, { nodes: { analysis: { status: 'completed' } } });
+      write(runAt, { nodes: { approval: { status: 'completed' } } });
+      return runAt;
+    }, { nodes: { implementation: { status: 'completed' }, research: { status: 'waiting' } } });
+    assert.equal(waiting.withNext.code, 0, waiting.withNext.stderr);
+    assert.deepEqual(waiting.withNext, waiting.without, 'a sub-run waited on');
+    assert.doesNotMatch(waiting.withNext.stdout, /next:/);
+  });
+
+  test(`${name}: under a drifted definition, --next skips nothing and prints today's line where the write alone prints none`, t => {
+    const tree = treeOf();
+    const drifted = t2 => {
+      const runAt = frozenRun(t2);
+      write(runAt, COMPLETE_WORK);
+      const definition = path.join(runAt.root, '.maister', 'workflows', 'skip-walk.yml');
+      fs.writeFileSync(definition, fs.readFileSync(definition, 'utf8').replace('needs: [audit]', 'needs: [audit, recover]'));
+      return runAt;
+    };
+    const { withNext, without, walked } = twinWrites(t, tree, drifted, {});
+    assert.equal(withNext.code, 0, withNext.stderr);
+    assert.equal(without.stdout, 'orchestrator.updated\ndashboard-data.js\n');
+    assert.deepEqual(withNext, { ...without, stdout: `${without.stdout}\nnext: recover (Recover) — run node-brief for it\n` });
+    assert.equal(statusOf(walked, 'recover'), 'pending', 'nothing skipped under drift');
+  });
+
+  test(`${name}: with only the closing patch left, --next prints the closing line after the skips`, t => {
+    const tree = treeOf();
+    const atReview = t2 => {
+      const runAt = frozenRun(t2);
+      write(runAt, COMPLETE_WORK);
+      write(runAt, { nodes: { recover: { status: 'skipped' }, audit: { status: 'skipped' } } });
+      write(runAt, { nodes: { review: { status: 'running' } } });
+      return runAt;
+    };
+    const { withNext, without, walked } = twinWrites(t, tree, atReview, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed.' } } });
+    assert.equal(withNext.code, 0, withNext.stderr);
+    const todays = '\nnext: tidy (Tidy) — run node-brief for it\n';
+    assert.ok(without.stdout.endsWith(todays));
+    assert.deepEqual(withNext, {
+      ...without,
+      stdout: `${without.stdout.slice(0, -todays.length)}\nskipped: tidy (Tidy) — its guard ${GUARD} reads false\n${CLOSING_LINE}\n`,
+    });
+    assert.equal(statusOf(walked, 'tidy'), 'skipped');
+  });
+
+  test(`${name}: a failed write walks like any other: it briefs an on-failure step, and with nothing left prints the closing line`, t => {
+    const tree = treeOf();
+    const walked = frozenRun(t);
+    const separate = frozenRun(t);
+
+    const failed = writeState(tree, walked, { nodes: { work: { status: 'failed' } } }, ['--next']);
+    assert.equal(failed.code, 0, failed.stderr);
+    const report = writeState(tree, separate, { nodes: { work: { status: 'failed' } } });
+    assert.doesNotMatch(report.stdout, /next:/, 'the write alone prints no next line for a failure');
+    const brief = run(engineIn(tree), ['node-brief', `--state=${separate.state}`, '--node=recover']);
+    assert.equal(brief.code, 0, brief.stderr);
+    assert.equal(rooted(failed.stdout, walked), `${rooted(report.stdout, separate)}\nnext: recover (Recover) — its brief follows\n\n${rooted(brief.stdout, separate)}`);
+    assert.equal(statusOf(walked, 'recover'), 'running');
+
+    const last = writeState(tree, walked, { nodes: { recover: { status: 'failed' } } }, ['--next']);
+    assert.equal(last.code, 0, last.stderr);
+    const lastReport = writeState(tree, separate, { nodes: { recover: { status: 'failed' } } });
+    assert.doesNotMatch(lastReport.stdout, /next:/);
+    assert.equal(rooted(last.stdout, walked), `${rooted(lastReport.stdout, separate)}\n${CLOSING_LINE}\n`);
+    assert.equal(last.stderr, lastReport.stderr);
   });
 }
