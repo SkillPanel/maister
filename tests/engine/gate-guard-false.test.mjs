@@ -143,6 +143,17 @@ test('node-brief of a gate its guard skips prints the guard line and the skip wr
   }
 });
 
+test('node-brief\'s skip line names the closing write\'s flag, so the skip walks on to the step after it, on both builds', t => {
+  const run = reviewed(t, true);
+  const skipLine = 'skip it: its guard !${review.values.findings_to_review} reads false, so it is not asked —'
+    + ' record it skipped through write-state --next: {"nodes":{"confirmation":{"status":"skipped"}}}';
+  for (const engine of [ENGINE, variantEngine()]) {
+    const result = nodeBriefOf(run, 'confirmation', engine);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stdout.split('\n').find(line => line.startsWith('skip it: ')), skipLine, engine);
+  }
+});
+
 test('node-brief of an input-only gate that reads false names the skip write with its pending stretch, and asks nothing', t => {
   const run = scratch(t);
   freeze(run, { definition: QUESTIONS });

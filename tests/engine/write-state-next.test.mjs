@@ -11,13 +11,17 @@
 // drifted — the walk skips and briefs nothing. Every case runs on both trees,
 // the source and the variant.
 
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { FIXTURES, ROOT, SAMPLE, freeze, freezePatch, readState, run, scratch, variantRoot, write } from '../helpers.mjs';
+import { FIXTURES, ROOT, SAMPLE, delegating, freeze, freezePatch, readState, run, scratch, variantRoot, write } from '../helpers.mjs';
+import { refreshIndex } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-index.mjs';
+import { readDefinition } from '../../plugins/maister/skills/workflow-engine/scripts/lib/definition.mjs';
+import { parse } from '../../plugins/maister/skills/workflow-engine/scripts/lib/state-read.mjs';
 
 const DEFINITION = `name: skip-walk
 version: 1
@@ -108,9 +112,9 @@ const STOP_LINE = 'next: none — review-approval was answered with a stop: writ
   + ' and every node not yet run stopped, then run run-complete';
 
 /** A run frozen from the review loop, standing at its gate: the draft, the review and the side note ended, the figures skipped. */
-function atReviewGate(t) {
+function atReviewGate(t, orchestrator = {}) {
   const runAt = scratch(t);
-  freeze(runAt, { definition: REVISE });
+  freeze(runAt, { definition: REVISE, orchestrator });
   write(runAt, { nodes: { draft: { status: 'completed', values: { needs_figures: false } } }, node_summaries: { draft: { summary: 'Drafted.' } } });
   write(runAt, { nodes: { figures: { status: 'skipped' }, 'side-note': { status: 'completed' } } });
   write(runAt, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed.' } } });
@@ -710,5 +714,297 @@ for (const [name, treeOf] of TREES) {
     assert.equal(driven.withNext.stdout, `${withoutNext(driven.without.stdout, 'next: approve (Approve) — run node-brief for it')}\nnext: approve (Approve) — its brief follows\n\n${requested}`);
     assert.ok(driven.withNext.stdout.split('\n').includes(`ask it: gate-request --state=${rooted(driven.walked.state, driven.walked)} --node=approve`), driven.withNext.stdout);
     assert.equal(fs.existsSync(path.join(driven.walked.dir, 'gates', 'approve.request.yml')), false, 'the brief writes no request');
+  });
+}
+
+// The driven re-validation write: a driver's answer folded with editor tools,
+// then `{}` sent with `--next`. After a continue the step due next is briefed;
+// after a stop the stop line is read from disk; after a question set the node
+// runs again and nothing more is printed. At `held-approval` the closing node
+// is still running, so a continue, a stop and a revise not yet applied print
+// what the write prints without the flag. A refused re-validation prints its
+// refusal alone, which the session reports as the run failed.
+
+const COCKPIT = { kind: 'cockpit', cwd: '/work' };
+const DISPATCH = { kind: 'dispatch', cwd: '/work' };
+const QUESTION_SET_REQUEST = path.join(FIXTURES, 'gates', 'question-set.request.yml');
+const QUESTION_SET_ANSWER = path.join(FIXTURES, 'gates', 'question-set.answer.yml');
+const HELD_CLOSING = path.join(FIXTURES, 'definitions', 'held-closing.yml');
+const HELD = 'held-approval';
+const POLICY = JSON.parse(fs.readFileSync(path.join(FIXTURES, 'policy', 'questions.json'), 'utf8'));
+
+/** The request a driver writes for `gate`, unanswered, as its first line set. */
+function requestHead(gate) {
+  return ['version: 1', `node: ${gate}`, 'kind: approval', 'question: "Continue?"', 'multiple: false', 'asked_at: "2026-01-05T09:00:00Z"'].join('\n');
+}
+
+/** A driver suspending on `gate` through `send`: its request on disk, a pending index row, the marker and the gate suspended. */
+function suspendOn(runAt, gate, send = patch => write(runAt, patch)) {
+  const gates = path.join(runAt.dir, 'gates');
+  fs.mkdirSync(gates, { recursive: true });
+  fs.writeFileSync(path.join(gates, `${gate}.request.yml`), `${requestHead(gate)}\nanswer: null\n`);
+  refreshIndex(runAt.dir);
+  send({
+    orchestrator: { gate_pending: { node: gate, request: `gates/${gate}.request.yml`, since: '2026-01-05T09:00:00Z' } },
+    nodes: { [gate]: { status: 'suspended' } },
+  });
+}
+
+/** The answer to the suspended `gate` on disk, folded into the state with editor tools as step 4 writes it. */
+function foldAnswer(runAt, gate, option) {
+  fs.writeFileSync(path.join(runAt.dir, 'gates', `${gate}.request.yml`),
+    `${requestHead(gate)}\nanswer:\n  option: ${option}\n  answered_by: dana\n  at: "2026-01-05T09:05:00Z"\n  via: cockpit\n`);
+  const text = fs.readFileSync(runAt.state, 'utf8')
+    .replace(/^ {2}gate_pending: .*$/m, '  gate_pending: null')
+    .replace(new RegExp(`^( {4}${gate}: \\{kind: gate, status: )suspended`, 'm'), '$1completed');
+  assert.match(text, /^node_summaries:\n(?: {2}.*\n|\s*\n)*$/m, 'node_summaries is the last block');
+  fs.writeFileSync(runAt.state, `${text}  ${gate}:\n    decisions:\n      - {option: ${option}, answered_by: dana, at: "2026-01-05T09:05:00Z", via: cockpit}\n    status: completed\n`);
+}
+
+/** The review loop under a cockpit driver, its gate suspended and answered `option` on disk. */
+const drivenReview = option => t => {
+  const runAt = atReviewGate(t, { driver: COCKPIT });
+  suspendOn(runAt, 'review-approval');
+  foldAnswer(runAt, 'review-approval', option);
+  return runAt;
+};
+
+/** Plugin copies of one tree with the in-node policy written in, so a choice can be held; one per tree, removed when the file ends. */
+const policyCopies = new Map();
+after(() => {
+  for (const root of policyCopies.values()) fs.rmSync(path.dirname(root), { recursive: true, force: true });
+});
+
+function withPolicy(tree) {
+  if (!policyCopies.has(tree)) {
+    const copy = path.join(fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maister-policy-'))), 'maister');
+    fs.cpSync(tree, copy, { recursive: true });
+    const file = path.join(copy, 'skills', 'workflow-engine', 'policy', 'autonomy-policy.json');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${JSON.stringify(POLICY, null, 2)}\n`);
+    policyCopies.set(tree, copy);
+  }
+  return policyCopies.get(tree);
+}
+
+/** A question whose approval the run cannot settle under dispatch: held for `held-approval`. */
+const TIDY_CHOICE = {
+  id: 'tidy-choice',
+  question: 'Which tidy-choice?',
+  options: [{ id: 'a', label: 'tidy-choice A', description: 'A is the safe pick.', recommended: true }, { id: 'b', label: 'tidy-choice B' }],
+  triage: { version: 1, class: 'approve', family: 'area-family' },
+};
+
+/**
+ * `held-closing` dispatched through `tree` (a policy copy), a choice held in
+ * `tidy`, the closing node running and `held-approval` suspended, then
+ * answered `option` on disk.
+ */
+const heldAnswered = (tree, option) => t => {
+  const runAt = scratch(t);
+  const send = patch => {
+    const result = writeState(tree, runAt, patch);
+    assert.equal(result.code, 0, result.stderr);
+    return result;
+  };
+  send(freezePatch({ definition: HELD_CLOSING, orchestrator: { options: { ceiling: 'advice' }, driver: DISPATCH } }).patch);
+  send({ nodes: { outline: { status: 'running' } } });
+  send({ nodes: { outline: { status: 'completed' } }, node_summaries: { outline: { summary: 'Outlined the work.' } } });
+  send({ nodes: { 'outline-approval': { status: 'completed' } }, node_summaries: { 'outline-approval': { decisions: [{ option: 'continue-past-outline' }] } } });
+  send({ nodes: { choosing: { status: 'running' } } });
+  send({
+    nodes: { choosing: { status: 'completed', values: { wants_audit: false } }, audit: { status: 'skipped' } },
+    node_summaries: { choosing: { summary: 'Chose to finish without an audit.' } },
+  });
+  send({ nodes: { tidy: { status: 'running' } } });
+  assert.match(send({ node_summaries: { tidy: { question_set: { questions: [TIDY_CHOICE] } } } }).stdout, /\nask: none\n$/, 'the choice is held');
+  send({ nodes: { tidy: { status: 'completed' }, closing: { status: 'running' } }, node_summaries: { tidy: { summary: 'Tidied what the run touched.' } } });
+  suspendOn(runAt, HELD, send);
+  foldAnswer(runAt, HELD, option);
+  return runAt;
+};
+
+for (const [name, treeOf] of TREES) {
+  test(`${name}: driven, the re-validation write with --next after a continue briefs the step due next; a refused one prints its refusal alone`, t => {
+    const tree = treeOf();
+    const { withNext, without, walked, plain } = twinWrites(t, tree, drivenReview('publish-draft'), {});
+    assert.equal(withNext.code, 0, withNext.stderr);
+    assert.doesNotMatch(without.stdout, /next:/, 'the re-validation ends no node, so the write alone names no step');
+    const brief = rooted(briefOf(tree, plain, 'publish'), plain);
+    assert.equal(withNext.stdout, `${without.stdout}\nnext: publish (Publish) — its brief follows\n\n${brief}`);
+    assert.equal(withNext.stderr, '');
+    assert.equal(statusOf(walked, 'publish'), 'running', 'the brief recorded the start');
+    assert.deepEqual(statuses(walked), statuses(plain));
+
+    // A fold the editor tools left unreadable: the writer refuses the re-validation, the run fails with its code.
+    const broken = drivenReview('publish-draft')(t);
+    fs.writeFileSync(broken.state, fs.readFileSync(broken.state, 'utf8').replace(/^ {2}gate_pending: null$/m, '  gate_pending: review-approval'));
+    const before = fs.readFileSync(broken.state, 'utf8');
+    const alone = writeFromFile(tree, broken, {}).result;
+    const { file, result } = writeFromFile(tree, broken, {}, ['--next']);
+    assert.equal(result.code, 1);
+    assert.equal(result.stdout, '');
+    assert.equal(result.stderr, alone.stderr, 'the refusal and its pointer, nothing walked');
+    assert.match(result.stderr, /^state-[a-z-]+: /, 'the code the session reports as RUN-FAILED: <code>');
+    assert.ok(fs.existsSync(file));
+    assert.equal(fs.readFileSync(broken.state, 'utf8'), before);
+  });
+
+  test(`${name}: driven, the re-validation write with --next after a stop answer prints the stop line read from disk`, t => {
+    const tree = treeOf();
+    const { withNext, without, walked } = twinWrites(t, tree, drivenReview('abandon'), {});
+    assert.equal(withNext.code, 0, withNext.stderr);
+    assert.doesNotMatch(without.stdout, /next:/);
+    assert.deepEqual(withNext, { ...without, stdout: `${without.stdout}\n${STOP_LINE}\n` });
+    assert.equal(statusOf(walked, 'publish'), 'pending', 'the step after the stop is neither skipped nor briefed');
+  });
+
+  test(`${name}: driven, the re-validation write with --next after a question set leaves the node running and prints nothing more`, t => {
+    const make = t2 => {
+      const runAt = scratch(t2);
+      freeze(runAt, { orchestrator: { driver: { ...COCKPIT, features: ['question-sets'] } } });
+      write(runAt, { nodes: { analysis: { status: 'running' } } });
+      const request = path.join(runAt.dir, 'gates', 'analysis.request.yml');
+      fs.mkdirSync(path.dirname(request), { recursive: true });
+      fs.copyFileSync(QUESTION_SET_REQUEST, request);
+      write(runAt, { orchestrator: { gate_pending: { node: 'analysis', request: 'gates/analysis.request.yml', since: '2026-01-05T09:00:00Z' } }, nodes: { analysis: { status: 'suspended' } } });
+      fs.writeFileSync(request, fs.readFileSync(request, 'utf8').replace(/^answer: null\n$/m, fs.readFileSync(QUESTION_SET_ANSWER, 'utf8')));
+      fs.writeFileSync(runAt.state, fs.readFileSync(runAt.state, 'utf8')
+        .replace(/^( {4}analysis: \{.*?)status: suspended/m, '$1status: running')
+        .replace(/^( {2}gate_pending: ).*$/m, '$1null'));
+      return runAt;
+    };
+    const { withNext, without, walked, plain } = twinWrites(t, treeOf(), make, {});
+    assert.equal(withNext.code, 0, withNext.stderr);
+    assert.deepEqual(withNext, without);
+    assert.equal(statusOf(walked, 'analysis'), 'running');
+    assert.deepEqual(statuses(walked), statuses(plain));
+  });
+
+  for (const [option, what] of [['revise-tidy', 'a revise not yet applied'], ['continue', 'a continue'], ['stop', 'a stop']]) {
+    test(`${name}: driven, at held-approval the re-validation write with --next after ${what} prints nothing more: the closing node still runs`, t => {
+      const tree = withPolicy(treeOf());
+      const { withNext, without, walked, plain } = twinWrites(t, tree, heldAnswered(tree, option), {});
+      assert.equal(withNext.code, 0, withNext.stderr);
+      assert.deepEqual(withNext, without);
+      assert.doesNotMatch(withNext.stdout, /^next: /m);
+      assert.equal(statusOf(walked, 'closing'), 'running');
+      assert.equal(statusOf(walked, HELD), 'completed');
+      assert.deepEqual(statuses(walked), statuses(plain));
+    });
+  }
+}
+
+// Parity: each built-in workflow walked boundary by boundary, every step ended
+// by one flagged write in one run and by the separate calls in its twin — the
+// write, a skip write per off-path step, the brief of the step it stops at.
+// The two states are equal but for their clocks, and every combined print
+// fits both limits a print is held to.
+
+const WORKFLOWS = path.join(ROOT, 'plugins', 'maister', 'skills', 'workflow-engine', 'workflows');
+const BUILT_INS = ['development', 'migration', 'mockup-studio', 'performance', 'product-design', 'research'];
+const PRINT_CHARS = 20_000;
+const PRINT_BYTES = 20_480;
+const SINGLE_SCOPE = path.join(FIXTURES, 'runs', 'team-calendar-sharing', 'outputs', 'delivery-scope.yml');
+const CLOCK = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+/** A value for each input the definition requires, so the freeze is one a run could make. */
+function requiredInputs(file) {
+  const inputs = {};
+  for (const [key, spec] of Object.entries(readDefinition(file).doc?.inputs ?? {})) {
+    if (spec?.required === true) inputs[key] = spec.type === 'bool' ? false : 'A sample task';
+  }
+  return inputs;
+}
+
+/** The run's state with every clock dropped and its scratch root masked. */
+function unclocked(runAt) {
+  const strip = value => {
+    if (Array.isArray(value)) return value.map(strip);
+    if (value !== null && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value).filter(([, each]) => !(typeof each === 'string' && CLOCK.test(each))).map(([key, each]) => [key, strip(each)]));
+    }
+    return typeof value === 'string' ? value.split(runAt.root).join('<root>') : value;
+  };
+  return strip(readState(runAt));
+}
+
+/** The write that ends `node`: a gate answered with its continue, a step completed with a value for each it declares. */
+function ending(node, runAt) {
+  if (node.type === 'gate') {
+    const [option] = Object.entries(node.options).find(([, effect]) => (typeof effect === 'string' ? effect : effect.effect) === 'continue');
+    return { nodes: { [node.id]: { status: 'completed' } }, node_summaries: { [node.id]: { decisions: [{ option, answered_by: 'tester', at: '2026-01-05T09:40:00Z' }] } } };
+  }
+  const values = Object.fromEntries(Object.entries(node.outputs?.values ?? {}).map(([key, type]) => [key, type === 'bool' ? false : type?.enum ? type.enum[0] : 'x']));
+  const scope = node.outputs?.artifacts?.delivery_scope;
+  if (typeof scope === 'string') {
+    fs.mkdirSync(path.dirname(path.join(runAt.dir, scope)), { recursive: true });
+    fs.copyFileSync(SINGLE_SCOPE, path.join(runAt.dir, scope));
+  }
+  return delegating({
+    nodes: { [node.id]: { status: 'completed', ...(Object.keys(values).length ? { values } : {}) } },
+    node_summaries: { [node.id]: { summary: 'Done.' } },
+  }, runAt);
+}
+
+/** The gate rules of one tree, imported in this process. */
+async function gateRulesOf(tree) {
+  return import(pathToFileURL(path.join(tree, 'skills', 'workflow-engine', 'scripts', 'lib', 'gate-brief.mjs')).href);
+}
+
+/** The separate calls after `patch`: the write, a skip write per off-path step, then the brief of the step due; returns its id, or null. */
+function separately(tree, rules, runAt, patch) {
+  const report = writeState(tree, runAt, patch);
+  assert.equal(report.code, 0, report.stderr);
+  for (;;) {
+    const doc = parse(fs.readFileSync(runAt.state, 'utf8'));
+    const due = rules.dueNext({ doc, runDir: runAt.dir });
+    if (due === null || due.id === null) return null;
+    if (rules.offPathReason({ doc, runDir: runAt.dir, id: due.id }) !== null) {
+      assert.equal(writeState(tree, runAt, { nodes: { [due.id]: { status: 'skipped' } } }).code, 0);
+      continue;
+    }
+    briefOf(tree, runAt, due.id);
+    return due.id;
+  }
+}
+
+for (const [name, treeOf] of TREES) {
+  test(`${name}: each built-in walked through its boundaries, one flagged call leaves the state the separate calls leave, every print within both limits`, async t => {
+    const tree = treeOf();
+    const rules = await gateRulesOf(tree);
+    let largest = { chars: 0, bytes: 0, at: '' };
+    for (const workflow of BUILT_INS) {
+      const definition = path.join(WORKFLOWS, `${workflow}.yml`);
+      const options = { definition, inputs: requiredInputs(definition), orchestrator: { driver: { kind: 'terminal' } } };
+      const walked = scratch(t, { type: workflow });
+      const separate = scratch(t, { type: workflow });
+      const graph = freeze(walked, options);
+      freeze(separate, options);
+      const byId = new Map(graph.nodes.map(node => [node.id, node]));
+      const first = graph.nodes[0].id;
+      for (const runAt of [walked, separate]) briefOf(tree, runAt, first);
+
+      let current = first;
+      for (let turn = 0; current !== null; turn++) {
+        assert.ok(turn <= graph.nodes.length, `${workflow}: the walk did not reach the closing patch`);
+        const node = byId.get(current);
+        const result = writeState(tree, walked, ending(node, walked), ['--next']);
+        assert.equal(result.code, 0, `${workflow} ${current}: ${result.stderr}`);
+        assert.equal(result.stderr, '', `${workflow} ${current}`);
+        const chars = result.stdout.length;
+        const bytes = Buffer.byteLength(result.stdout);
+        assert.ok(chars <= PRINT_CHARS && bytes <= PRINT_BYTES, `${workflow} ${current}: ${chars} characters, ${bytes} bytes`);
+        if (bytes > largest.bytes) largest = { chars, bytes, at: `${workflow}, ending ${current}` };
+
+        const briefed = separately(tree, rules, separate, ending(node, separate));
+        const announced = result.stdout.match(/^next: (\S+) \(.*\) — its brief follows$/m)?.[1] ?? null;
+        assert.equal(announced, briefed, `${workflow} ${current}: the step briefed`);
+        if (announced === null) assert.ok(result.stdout.endsWith(`\n${CLOSING_LINE}\n`), `${workflow} ${current}: ${result.stdout}`);
+        assert.deepEqual(unclocked(walked), unclocked(separate), `${workflow}: the state after ending ${current}`);
+        current = announced;
+      }
+    }
+    t.diagnostic(`largest combined print: ${largest.chars} characters, ${largest.bytes} bytes (${largest.at})`);
   });
 }

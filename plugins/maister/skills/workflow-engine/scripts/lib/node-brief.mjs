@@ -338,7 +338,7 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
     lines.push(gate ? askIt : current.graph === null ? UNKNOWN_SECTION : GONE_SECTION);
   } else if (gate && (skip = guardSkipPatch({ doc, recorded, node, current })) !== null) {
     // A gate its guard skips asks nothing, on any driver: the brief names the skip write.
-    lines.push(`skip it: its guard ${resolved.when} reads false, so it is not asked — record it skipped through write-state: ${skip}`);
+    lines.push(`skip it: its guard ${resolved.when} reads false, so it is not asked — record it skipped through write-state --next: ${skip}`);
   } else if (gate) {
     // A gate the project's config continues is recorded here and asks nothing;
     // one it would continue but its brief advises against is asked, the reason first.
