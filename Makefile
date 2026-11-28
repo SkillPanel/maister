@@ -63,6 +63,27 @@ validate:
 	    /rich-picker|plain-picker/ { bad = 1 } \
 	    END { if (open || bad) { print "FAIL: " f " has an unclosed or inline picker marker"; exit 1 } }' "$$f" || exit 1; \
 	done
+	@echo "Checking no host marker is left in the variant..."
+	@! grep -rnE '<!--[[:space:]]*/?(claude-code|copilot)([[:space:]]|-->|$$)' "$(VARIANT)"/skills/ "$(VARIANT)"/agents/ --include="*.md" 2>/dev/null || (echo "FAIL: a host marker survives in the variant" && exit 1)
+	@echo "Checking the variant carries none of the Claude Code wording about calls in one message..."
+	@find "$(VARIANT)"/skills "$(VARIANT)"/agents -name "*.md" -exec awk ' \
+	  function check() { if (index(s, "A file write and the command that reads it may share a message") || index(s, "the patch file and its closing write above all") || index(s, "unless a patch file a refused write left is still on disk")) { print "FAIL: " prev " carries the Claude Code wording about calls in one message"; bad = 1 } } \
+	  FNR == 1 { if (prev != "") check(); s = ""; prev = FILENAME } \
+	  { line = $$0; sub(/^[[:space:]]+/, "", line); sub(/[[:space:]]+$$/, "", line); gsub(/[[:space:]]+/, " ", line); s = s " " line } \
+	  END { if (prev != "") check(); exit bad }' {} + || exit 1
+	@echo "Checking every host marker in the source is closed, on a line of its own and outside every passage of another kind..."
+	@for f in $$(grep -rlE '<!--[[:space:]]*/?(claude-code|copilot|rich-picker|plain-picker)' plugins/maister/skills/ plugins/maister/agents/ --include="*.md"); do \
+	  awk -v f="$$f" '/^[[:space:]]*<!-- claude-code -->[[:space:]]*$$/ { if (open) bad = 1; open = "claude"; next } \
+	    /^[[:space:]]*<!-- \/claude-code -->[[:space:]]*$$/ { if (open != "claude") bad = 1; open = ""; next } \
+	    /^[[:space:]]*<!-- copilot[[:space:]]*$$/ { if (open) bad = 1; open = "copilot"; next } \
+	    /^[[:space:]]*<!-- rich-picker -->[[:space:]]*$$/ { if (open) bad = 1; open = "rich"; next } \
+	    /^[[:space:]]*<!-- \/rich-picker -->[[:space:]]*$$/ { if (open != "rich") bad = 1; open = ""; next } \
+	    /^[[:space:]]*<!-- plain-picker[[:space:]]*$$/ { if (open) bad = 1; open = "plain"; next } \
+	    (open == "copilot" || open == "plain") && /^[[:space:]]*-->[[:space:]]*$$/ { open = ""; next } \
+	    open == "copilot" && /-->/ { bad = 1 } \
+	    /<!--[[:space:]]*\/?(claude-code|copilot)([[:space:]]|-->|$$)/ { bad = 1 } \
+	    END { if (open || bad) { print "FAIL: " f " has an unclosed, inline or nested host marker"; exit 1 } }' "$$f" || exit 1; \
+	done
 	@echo "Checking every display title, option label and header reads as plain text in sentence case..."
 	@awk 'FNR == 1 { d = 0 } \
 	  /^display:[[:space:]]*$$/ { d = 1; next } \
