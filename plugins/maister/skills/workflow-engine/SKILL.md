@@ -39,7 +39,13 @@ Calls where one needs the other's result never share a message; calls that only 
 -->
 
 - Close a step, record a skip (one you judged, or one a brief's `now false` or `skip it:` line gives), or record a gate's answer with `--next`. What follows the `next:` line is the next step's brief: act on it and never ask for it again.
-- Call `node-brief --state=<state> --node=<id>` only after a run's first write, after a plain `run node-brief for it` line, after `resume-check` (its `step_call`) and after `gate-revise`; read its output whole. At a gate, run the call its `ask it:` line prints — on its own, after the closing write has returned — and ask what it prints; never write a gate question by hand.
+- Call `node-brief --state=<state> --node=<id>` only after a run's first write, after a plain `run node-brief for it` line, after `resume-check` (its `step_call`) and after `gate-revise`; read its output whole. At a gate, run an `ask it:` line's call alone, then ask what it prints; never write a gate question by hand.
+<!-- claude-code -->
+Pass a printed `question:` as printed. Run `ask again:` only to ask again (`references/gates.md` § *Terminal mode*), `details:` when the person asks for more.
+<!-- /claude-code -->
+<!-- copilot
+Pass a printed `question:` as printed. Run `ask again:` only to ask again (`references/gates.md` § *Terminal mode*), `details:` when the person asks for more.
+-->
 
 **Every delegate prompt carries the run's context, fetched**, in the turn that writes it:
 `run-context --state=<state> --node=<node>`, or `prior-context --node=<node>` where the delegate

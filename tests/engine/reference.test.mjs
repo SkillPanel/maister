@@ -144,6 +144,8 @@ const POINTERS = [
   'references/in-node-questions.md § Decision areas from the brainstorm',
   'references/in-node-questions.md § Findings that need a decision',
   'references/gates.md § Before every gate — the gate brief',
+  'references/gates.md § Terminal mode',
+  'references/gates.md § The `gate-brief` forms',
   'references/gates.md § Revising at a gate',
   'references/gates.md § The closing checkpoint `held-approval`',
   'references/gates.md § Ending a dispatched run',
