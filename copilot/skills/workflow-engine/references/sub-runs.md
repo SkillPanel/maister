@@ -62,14 +62,19 @@ one the walk is due at starts at W1 — the first child as much as the next. So 
 crash anywhere is never an error: it finishes what the last call left. `--at` is the wake-up
 line's stamp; no write of a hand-off records a decision time, so it is recorded nowhere.
 
-**It ends on one line, after a blank line, below the paths each write changed:**
+**It ends on one line, after a blank line, below the paths each write changed**, and where the
+session runs a step next, the walk `write-state --next` prints after a write follows it
+(`references/verbs.md` § *The verbs every run calls*, its `write-state` row): a blank line, a `skipped:` line for each step it
+recorded skipped, and one `next:` line — `next: <id> (<title>) — its brief follows` with the
+brief after a blank line, the closing patch's line, or, with a `warning:` line on stderr, the plain
+`run node-brief for it` line when the walk could not go on:
 
 | Line | Then |
 |---|---|
 | `waiting: <node> run=<child-run-id> — the sub-run has not ended; nothing was written` | under a cockpit or dispatch driver, type the waiting marker from it and end the turn (A2) |
-| `started: <node> run=<child-run-id> — the sub-run is frozen and linked` | walk one: run the child in session; walk two: type the waiting marker from it and end the turn |
+| `started: <node> run=<child-run-id> — the sub-run is frozen and linked` | walk one: the child runs in session, and the walk of the child follows, its first step's brief included; walk two: nothing follows — type the waiting marker from it and end the turn |
 | `stopped: <node> run=<child-run-id> — the sub-run stopped and the stop patch is written: run run-complete` | run `run-complete`; no `RUN-FAILED` (A7) |
-| the writer's own `next:` line | brief that node, or close the run — a failed child with no `on:` node to take it is the closing patch, then `run-complete`, which prints the pinned reason |
+| the writer's own `next:` line, as the walk prints it | act on the brief that follows it, or close the run — a failed child with no `on:` node to take it is the closing patch, then `run-complete`, which prints the pinned reason |
 
 A refusal is exit `1` and `{ok: false, code, message}` on stdout; the message names the writes
 of this call that landed before it, and nothing after them was written. A refusal of checks 1–5

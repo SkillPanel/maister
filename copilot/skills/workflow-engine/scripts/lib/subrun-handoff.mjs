@@ -17,8 +17,10 @@
  * wake-up line. W2 lands before W3, and W3 before the driver types its waiting
  * marker — this verb never prints that marker, nor any `RUN-` marker: it ends
  * on one line the driver reads (`waiting:`, `started:`, `stopped:` or the
- * writer's `next:` line). It never runs a node of another scheme, asks a gate
- * or writes a gate request.
+ * writer's `next:` line), after which the entry point prints the walk
+ * `write-state --next` prints — of the parent after a `next:` line, of the
+ * child after a terminal driver's `started:` line. It never runs a node of
+ * another scheme, asks a gate or writes a gate request.
  *
  * Whatever the named node's status, it continues from disk: a `waiting` node is
  * adopted; one already adopted continues at the guard skips; a `running` one
@@ -42,7 +44,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { SUBRUN_REFUSAL, resolve as resolveGraph, validate } from './graph.mjs';
-import { dueNext, offPath, reread } from './gate-brief.mjs';
+import { dueNext, reread, skipWalk } from './gate-brief.mjs';
 import { childRun, projectRootOf, provenGraph, writeState } from './state.mjs';
 import { subrunPath } from './subrun-path.mjs';
 import { filledWith } from './node-brief.mjs';
@@ -68,7 +70,9 @@ const UNSETTLED = 'the hand-off walk did not settle within its step budget; noth
  * records a decision time, so it is accepted and recorded nowhere, as with the
  * separate writes. Returns `{ok: true, writes, warnings, line}` or
  * `{ok: true, writes, warnings, next}` — `next` as the state writer's `next:`
- * line takes it — or `{ok: false, code, message, writes, warnings}`.
+ * line takes it — or `{ok: false, code, message, writes, warnings}`. A
+ * `started:` line under a terminal driver also carries `child`, the child's
+ * state file, whose first step this session runs next.
  */
 export function subrunHandoff({ state, node, at = null }) {
   const run = { state, runDir: path.dirname(path.resolve(state)), writes: [], warnings: [], at };
@@ -168,27 +172,28 @@ function adopt(run, node, doc, budget) {
 
 /**
  * Steps 5 to 7: record each due node a false guard (or the `on: failure` rule)
- * takes off the path, then start the due `workflow:` node, or hand the driver
- * the writer's `next:` line for anything else.
+ * takes off the path, through the walk `skipWalk` shares, then start the due
+ * `workflow:` node, or hand the driver the writer's `next:` line for anything
+ * else. Each skip is one of this call's labelled writes.
  */
 function walk(run, doc, budget) {
-  for (let steps = 0; steps < budget; steps++) {
-    const due = dueNext({ doc, runDir: run.runDir });
-    if (due === null) return settled(run, doc, budget - steps);
-    if (due.id === null) return done(run, { next: due });
-    const entry = doc.workflow.nodes[due.id] ?? {};
-    if (offPath({ doc, runDir: run.runDir, id: due.id })) {
-      const written = write(run, run.state, { nodes: { [due.id]: { status: 'skipped' } } }, `skip ${due.id}`);
-      if (written.refusal) return written.refusal;
-      const after = readParent(run);
-      if (after.refusal) return after.refusal;
-      doc = after;
-      continue;
-    }
-    if (entry.kind === 'workflow' && !(typeof entry.dir === 'string' && entry.dir !== '')) return start(run, due.id, doc, { begun: false });
-    return done(run, { next: due });
-  }
-  throw new Error(UNSETTLED);
+  const writer = (patch, id) => {
+    const written = write(run, run.state, patch, `skip ${id}`);
+    return written.refusal ? { ok: false, code: written.refusal.code, refusal: written.refusal } : { ok: true };
+  };
+  const readAgain = () => {
+    const after = readParent(run);
+    return after.refusal ? { ok: false, code: after.refusal.code, refusal: after.refusal } : after;
+  };
+  const { skipped, stop, doc: current } = skipWalk({ doc, runDir: run.runDir, writer, reread: readAgain, bound: budget });
+  if (stop.error) throw stop.error;
+  if (stop.kind === 'refused') return stop.result.refusal;
+  if (stop.kind === 'bound') throw new Error(UNSETTLED);
+  if (stop.kind === 'settled') return settled(run, current, budget - skipped.length);
+  if (stop.kind === 'closing') return done(run, { next: { id: null } });
+  const entry = current.workflow.nodes[stop.id] ?? {};
+  if (entry.kind === 'workflow' && !(typeof entry.dir === 'string' && entry.dir !== '')) return start(run, stop.id, current, { begun: false });
+  return done(run, { next: { id: stop.id, title: stop.title } });
 }
 
 /**
@@ -276,7 +281,8 @@ function start(run, node, doc, { begun }) {
   }
   const linked = write(run, run.state, { nodes: { [node]: { status: 'waiting', values: { task_path: where.task_path, run_id: where.run_id } } } }, `W3 linking ${node}`);
   if (linked.refusal) return linked.refusal;
-  return done(run, { line: `started: ${node} run=${where.run_id} — the sub-run is frozen and linked` });
+  // Under a terminal driver the child runs in this session, so its first step is briefed next.
+  return done(run, { line: `started: ${node} run=${where.run_id} — the sub-run is frozen and linked`, ...(isTerminalDriver(doc) ? { child: childState } : {}) });
 }
 
 /**

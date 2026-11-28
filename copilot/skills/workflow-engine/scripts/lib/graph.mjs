@@ -935,11 +935,13 @@ export function guideRows(text) {
 }
 
 /**
- * Rows of `guideRows` as a step reads them: every `<!-- plain-picker` … `-->`
- * comment dropped whole — it ends at the first line holding `-->`, or with the
- * rows — and the rich-picker marker lines dropped with the text between them
- * kept. Neither marker counts inside a fence. `node-brief` prints a section
- * through this and the lint checks one through it, so the two read one text.
+ * Rows of `guideRows` as a step reads them, which is as Claude Code reads the
+ * source: every `<!-- plain-picker` … `-->` and `<!-- copilot` … `-->` comment
+ * dropped whole — it ends at the first line holding `-->`, or with the rows —
+ * and the rich-picker and claude-code marker lines dropped with the text
+ * between them kept. No marker counts inside a fence. `node-brief` and
+ * `reference` print through this and the lint checks a section through it, so
+ * all of them read one text.
  */
 export function readerRows(rows) {
   const kept = [];
@@ -949,11 +951,11 @@ export function readerRows(rows) {
       if (row.text.includes('-->')) plain = false;
       continue;
     }
-    if (!row.fenced && /^\s*<!--\s*plain-picker\b/.test(row.text)) {
+    if (!row.fenced && (/^\s*<!--\s*plain-picker\b/.test(row.text) || /^\s*<!--\s*copilot(?![\w-])/.test(row.text))) {
       plain = !row.text.includes('-->');
       continue;
     }
-    if (!row.fenced && /^\s*<!--\s*\/?rich-picker\s*-->\s*$/.test(row.text)) continue;
+    if (!row.fenced && /^\s*<!--\s*\/?(?:rich-picker|claude-code)\s*-->\s*$/.test(row.text)) continue;
     kept.push(row);
   }
   return kept;

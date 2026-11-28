@@ -127,7 +127,8 @@ before each wave's fan-out (`<plugin_root>/skills/workflow-engine/references/ver
    --wave=<K> --groups=<A>,<B>`, before the fan-out: the groups show as running until each is
    recorded done or reverted. On a resumed run this is also the call that brings the dashboard
    up to date.
-2. **Record the implementers before they act**, in the same message as the start:
+2. **Record the implementers before they act**,
+   after the start returns:
    `in-flight --state=<state> --node=<node> --runner=implementation
    --record=group-<A>:implementation/group-reports/group-<A>.md,group-<B>:…`. It clears each
    group's old report, so a report on disk always answers this dispatch. Every later send of a
@@ -171,7 +172,9 @@ Without waiting for its siblings:
   `- [~] N.1 SKIPPED: <reason>`, the reason the answer's own words or the report's), "Stop".
 - **Record it with `group-done`**: write the group's entry body (§ *Work-log entries*) to
   `<task_path>/implementation/.work-log-entry.md` and run `group-done --plan=<plan>
-  --groups=<id> --entry-file=<that file>` **in the same message**. Members back together are
+  --groups=<id> --entry-file=<that file>`
+  **after the write returns**.
+  Members back together are
   recorded together: one call with `--groups=<id>,<id>` and one `## Group <id>` part each. A
   `warning: plan-sync-missed` is already in the work log; add nothing.
 

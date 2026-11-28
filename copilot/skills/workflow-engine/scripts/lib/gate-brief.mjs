@@ -1407,6 +1407,29 @@ export function skippedAgain(id, stretch, guards) {
  * pending node it closes whose own guard reads false, recorded `skipped`.
  */
 function guardFalse({ doc, recorded, node, current }) {
+  const found = guardSkip({ doc, recorded, node, current });
+  if (found === null) return null;
+  const { gate, skips, patch, readsTask } = found;
+  const why = readsTask
+    ? 'it is a pure confirmation and no choice is held for approval'
+    : 'it reads only inputs or other gates\' values, which a held choice never overrides';
+  return refuse('gate-guard-false',
+    `--node=${node} is not asked: its guard ${gate.when} reads false, and ${why}. Nothing was written. `
+    + `Record it skipped${skips.length ? ' with its stretch' : ''} through write-state — ${patch} — and go on with the ready set`);
+}
+
+/**
+ * The skip write for a gate its guard skips, as the JSON patch `guardFalse`
+ * spells it, or null when the gate is asked: by the skip-guard rule, by the
+ * held-choice exception, because its guard reads true or cannot be read, or
+ * because it is answered or the graph is not trusted. Never refuses.
+ */
+export function guardSkipPatch({ doc, recorded, node, current }) {
+  return guardSkip({ doc, recorded, node, current })?.patch ?? null;
+}
+
+/** The guard of a gate its guard skips, with the skip write: the part `guardFalse` and `guardSkipPatch` share. */
+function guardSkip({ doc, recorded, node, current }) {
   if (current.drift || entryOf(recorded, node).status === 'completed') return null;
   const byId = new Map((current.graph?.nodes ?? []).map(entry => [entry.id, entry]));
   const gate = byId.get(node);
@@ -1432,12 +1455,7 @@ function guardFalse({ doc, recorded, node, current }) {
     return read.ok && !read.value;
   });
   const patch = JSON.stringify({ nodes: Object.fromEntries([node, ...skips].map(id => [id, { status: 'skipped' }])) });
-  const why = readsTask
-    ? 'it is a pure confirmation and no choice is held for approval'
-    : 'it reads only inputs or other gates\' values, which a held choice never overrides';
-  return refuse('gate-guard-false',
-    `--node=${node} is not asked: its guard ${gate.when} reads false, and ${why}. Nothing was written. `
-    + `Record it skipped${skips.length ? ' with its stretch' : ''} through write-state — ${patch} — and go on with the ready set`);
+  return { gate, skips, patch, readsTask };
 }
 
 /**
@@ -2783,29 +2801,94 @@ export function dueNext({ doc, runDir }) {
 
 /**
  * Whether the node `dueNext` names is off the path the run took, so the walk
- * records it `skipped` without running or asking it: an `on: failure` node with
- * nothing failed, or a guard that reads false. By `atClose`'s rule for one
- * node: a gate the skip-guard rule asks, a guard reading a task's value while a
- * choice is held for approval, a guard not yet decidable, and anything under
- * drift stay on the path — their briefs decide them. For `subrun-handoff`,
- * which records the skips a sub-run's adoption leaves due.
+ * records it `skipped` without running or asking it (`offPathReason`).
  */
 export function offPath({ doc, runDir, id }) {
+  return offPathReason({ doc, runDir, id }) !== null;
+}
+
+/**
+ * Why the node `dueNext` names is off the path the run took: `'failure'` for
+ * an `on: failure` node with nothing failed, the guard expression for a guard
+ * that reads false, or null when it stays on the path. By `atClose`'s rule for
+ * one node: a gate the skip-guard rule asks, a guard reading a task's value
+ * while a choice is held for approval, a guard not yet decidable, and anything
+ * under drift stay on the path — their briefs decide them.
+ */
+export function offPathReason({ doc, runDir, id }) {
   const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
   const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
   const current = reread(doc, workflow, runDir);
-  if (current.drift || current.graph === null) return false;
+  if (current.drift || current.graph === null) return null;
   const byId = new Map(current.graph.nodes.map(entry => [entry.id, entry]));
   const status = new Map(frozenIds(recorded).map(each => [each, entryOf(recorded, each).status ?? 'pending']));
   const decision = readiness(needsOf(recorded, byId, id).map(need => status.get(need)), byId.get(id)?.on);
-  if (decision === 'skip') return true;
-  if (decision !== 'ready') return false;
+  if (decision === 'skip') return 'failure';
+  if (decision !== 'ready') return null;
   const when = byId.get(id)?.when;
-  if (typeof when !== 'string') return false;
-  if (skipGuardAsks(byId.get(id), nodeKindIn(byId))) return false;
-  if (outstandingHeld(doc).length && guardReadsTask(byId.get(id), nodeKindIn(byId))) return false;
+  if (typeof when !== 'string') return null;
+  if (skipGuardAsks(byId.get(id), nodeKindIn(byId))) return null;
+  if (outstandingHeld(doc).length && guardReadsTask(byId.get(id), nodeKindIn(byId))) return null;
   const guard = evaluate(when, { byId, recorded, status, inputs: inputsOf(doc), defaults: current.defaults });
-  return guard.ok && !guard.value;
+  return guard.ok && !guard.value ? when : null;
+}
+
+/**
+ * The bounded skip walk shared by every caller that walks a run past its
+ * off-path steps, the sub-run hand-off among them: one rule. At each turn it
+ * asks `dueNext` for the step due; one off the path is recorded with one
+ * status-only write, `{nodes: {<id>: {status: skipped}}}`, through
+ * `writer(patch, id)`, and the state is read again through `reread()`. It
+ * stops at the first of:
+ *
+ * - `{kind: 'due', id, title}`: the step due is on the path and must run;
+ * - `{kind: 'closing'}`: nothing is left but the closing patch;
+ * - `{kind: 'settled'}`: nothing is due yet and the run is not done — a step
+ *   started and not ended, or one waiting on its child run;
+ * - `{kind: 'bound', bound}`: `bound` turns were taken and none stopped;
+ * - `{kind: 'refused', id, title, code, result}`: the writer refused the skip
+ *   of `id` (`result` as it returned it, `code` its top-level `code` or its
+ *   first error's). A writer, a re-read or a rule that throws stops here too,
+ *   with `error` and a null `code`; a re-read that fails after its skip landed
+ *   carries a null `id`, the skip already listed.
+ *
+ * The writer returns the state writer's result or its like: `ok === false`
+ * is a refusal. The re-reader returns the state document, or such a refusal.
+ * Returns `{skipped, stop, doc}`: each skip as `{id, title, reason, guard}`
+ * in walk order, `reason` `'failure'` or `'guard'` and `guard` the expression
+ * that read false (null for a failure), and `doc` the last state read. Never
+ * throws.
+ */
+export function skipWalk({ doc, runDir, writer, reread: readAgain, bound }) {
+  const skipped = [];
+  let at = null;
+  try {
+    for (let turn = 0; turn < bound; turn++) {
+      const due = dueNext({ doc, runDir });
+      if (due === null) return { skipped, stop: { kind: 'settled' }, doc };
+      if (due.id === null) return { skipped, stop: { kind: 'closing' }, doc };
+      at = due;
+      const reason = offPathReason({ doc, runDir, id: due.id });
+      if (reason === null) return { skipped, stop: { kind: 'due', id: due.id, title: due.title }, doc };
+      const result = writer({ nodes: { [due.id]: { status: 'skipped' } } }, due.id);
+      if (result?.ok === false) return { skipped, stop: { kind: 'refused', id: due.id, title: due.title, code: codeOf(result), result }, doc };
+      skipped.push({ id: due.id, title: due.title, reason: reason === 'failure' ? 'failure' : 'guard', guard: reason === 'failure' ? null : reason });
+      at = null;
+      const after = readAgain();
+      if (after?.ok === false) return { skipped, stop: { kind: 'refused', id: null, title: null, code: codeOf(after), result: after }, doc };
+      doc = after;
+    }
+    return { skipped, stop: { kind: 'bound', bound }, doc };
+  } catch (error) {
+    return { skipped, stop: { kind: 'refused', id: at?.id ?? null, title: at?.title ?? null, code: null, error }, doc };
+  }
+}
+
+/** A refused write's code: its own `code`, else its first error's, else null. */
+function codeOf(result) {
+  if (typeof result.code === 'string') return result.code;
+  const first = Array.isArray(result.errors) ? result.errors[0] : null;
+  return typeof first?.code === 'string' ? first.code : null;
 }
 
 /** The `task.status` values a run's closing patch records. */

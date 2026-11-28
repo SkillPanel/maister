@@ -137,6 +137,7 @@ of its first required `string` input, or the name alone.
 Invoke the `workflow-engine` skill with the Skill tool, passing:
 
 - the workflow's bare name, as `locate` printed it;
+- the located `definition` path, and that `validate` passed on it;
 - the inputs, as a map of input name to value;
 - the overlays, located ones first and then the operator's, in order;
 - the profile, when one was given;

@@ -132,11 +132,9 @@ page. When it reads `off` — HTML output is off, or the project's config turns
 the explainer off — the writer is not dispatched and the page is recorded
 absent, as the Writes part below says.
 
-Delegate to the `maister:explainer-writer` agent through the Task tool, with the
-model and effort
-`node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=maister:explainer-writer --host=copilot --state=<task path>/orchestrator-state.yml --node=research-foundation`
-prints: the writer is not one of the brief's declared delegates, so its call
-takes them from that line. Context for the explainer writer: `page_path`, the
+Delegate to the `maister:explainer-writer` agent through the Task tool, on the
+model and effort the brief's `explainer writer:` line prints. Context for the
+explainer writer: `page_path`, the
 absolute path of `outputs/research-explainer.html`; `sources`, the absolute
 paths of the report, the synthesis and the findings folder;
 `stage: foundation`; `report_suite`, the run's pages that exist, as `{label, href}`
@@ -311,7 +309,7 @@ A correction to the alternatives — an answer or a `revise-convergence` note th
 says an alternative in `outputs/solution-exploration.md` is wrong, missing or
 misdescribed — is not edited here. Re-delegate the brainstormer as
 `solution-generation`'s re-run says, with the correction as the note, as engine
-`references/decision-areas.md` § *A correction* says; then run
+`references/decision-areas.md` § *Who writes it* says; then run
 `node ${MAISTER_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs area-brief --state=<task path>/orchestrator-state.yml --node=solution-convergence --check`,
 re-delegating once on a fallback, and ask again the areas the correction changed,
 keeping the other answers.

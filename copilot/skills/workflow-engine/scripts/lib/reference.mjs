@@ -96,6 +96,25 @@ export function reference({ ats, pluginRoot }) {
   return { ok: true, text };
 }
 
+/**
+ * ` § <code>` when the section `heading` of the file at the absolute path
+ * `file` has a table row whose first cell holds `code`, and the empty string
+ * otherwise: the tail a pointer to that section gains to name its own row.
+ * The file is read only when a code is given; one that cannot be read gives
+ * the empty string.
+ */
+export function rowSuffix(file, heading, code) {
+  if (typeof code !== 'string' || code === '') return '';
+  try {
+    const rows = guideRows(fs.readFileSync(file, 'utf8'));
+    const section = sectionsOf(rows).find(each => each.key === fold(heading));
+    if (section && !rowOf(rows, section, code).error) return ` § ${code}`;
+  } catch {
+    // an unreadable file keeps the bare pointer
+  }
+  return '';
+}
+
 /** `<file> § <heading> § <row>` split at its `§`s; a part left out is null. */
 function split(at) {
   const [given, heading = '', ...rest] = at.split('§').map(part => part.trim());

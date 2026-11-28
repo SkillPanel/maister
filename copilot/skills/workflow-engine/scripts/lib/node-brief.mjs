@@ -89,6 +89,13 @@
  * - The gate's `ask it:` line, the whole call by the run's driver and the host
  *   this plugin ships for: `gate-request` where a driver suspends, else
  *   `gate-brief` in the form the host's question tool takes.
+ * - At a gate that is due and on the path in a run asked in session, the
+ *   `question:`, `ask again:` and `details:` lines in place of `ask it:`, and
+ *   the question itself as the brief's last block, after any exception text:
+ *   the `rich` profile's JSON without `more_details` on Claude Code, the
+ *   `gate-brief --ask` call on Copilot. A session handed a command to run for
+ *   the question spent a turn on it; printed here, it is asked from the brief.
+ *   `FOLDED_QUESTION` switches a host back to the `ask it:` line.
  * Paths stay repository-root-relative rather than task-relative: a delegate
  * is handed them as printed, and its working directory is the project root —
  * all but an `output_path` agent, which joins a path to `task_path` itself and
@@ -126,8 +133,11 @@
  * way. A `skill:` step hands the session to a skill whose own instructions take
  * over, and the start the prose asked for was the write runs dropped. Nothing
  * else — a refusal, a step not ready to run — writes anything else; a gate
- * writes only the marker and the stamp. A marker that cannot be written is not
- * a warning: the next brief prints the rows whole again. A stamp that cannot be
+ * writes only the marker and the stamp, and a gate whose question it prints
+ * the panel (`display/next.json`) and, on Copilot, the question record beside
+ * the state, retiring the previous answer's note (`ask-record.mjs`). A marker
+ * that cannot be written is not a warning: the next brief prints the rows
+ * whole again. A stamp that cannot be
  * written is one, so the display draws the call in full. It returns `{ok, text, errors, warnings}`.
  *
  * Refusals, each with a recovery row in the engine skill:
@@ -150,6 +160,9 @@
  * - `node-brief-start-unrecorded` — the state writer refused the step's start;
  *   the brief prints the refusal and its recovery where its `started:` line
  *   would be.
+ * - `node-brief-question-unbuilt` — a due gate's question could not be built
+ *   (`gate-brief` refused it, a guard it cannot read for one); the brief
+ *   prints the `ask it:` line in its place.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -160,7 +173,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parse, isPlainObject } from './state-read.mjs';
 import { BUILT_IN_AGENTS, guardReadsTask, guideRows, nodeKindIn, plainContinueOf, proseSection, readerRows, sectionNameOf } from './graph.mjs';
-import { driftClause, atClose, closingCandidates, evaluate, gateBrief, readinessOf, reread } from './gate-brief.mjs';
+import { driftClause, atClose, closingCandidates, evaluate, gateBrief, guardSkipPatch, readinessOf, reread } from './gate-brief.mjs';
 import { titleOf } from './display.mjs';
 import { attemptOf, companionsOfRun, explainerState, htmlOutput, projectRootOf, sourcesOf, startBanner, workflowConfigOf, writeState } from './state.mjs';
 import { autoContinued, configContinueLine } from './workflow-config.mjs';
@@ -169,13 +182,15 @@ import { STYLE_GUIDE, explainerLine } from './run-context.mjs';
 import { briefOfRun, delegatesFor, runHost } from './brief.mjs';
 import { openRevision } from './revise.mjs';
 import { canAsk, isDispatchedRun, isTerminalDriver, questionSets } from './driver.mjs';
-import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestionIds, outstandingHeld } from './question-triage.mjs';
+import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestionIds, frozenIds, outstandingHeld } from './question-triage.mjs';
 import { CLASSES, ceilingOf, loadPolicy, questionFamilies } from './policy.mjs';
 import { modelShown, resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { BY_CONFIG, DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
-import { conventionsShown, markConventionsShown, publishBrief } from './display-files.mjs';
+import { conventionsShown, markConventionsShown, publishBrief, publishNext } from './display-files.mjs';
+import { recordAsk } from './ask-record.mjs';
 import { runRoot } from './resume-check.mjs';
 import { jsonString } from '../../../../lib/canonical.mjs';
+import { rowSuffix } from './reference.mjs';
 
 /** The engine's entry script, which the `ask with:` line names by its absolute path. */
 const ENGINE = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
@@ -245,10 +260,14 @@ const MISSING = Symbol('not recorded');
  * Render the brief of `node` in the run whose state file is `state`. `rules`
  * is the pointer the `rules:` line prints; the caller passes its own, and the
  * conventions section of the skill beside this module stands in without one.
+ * `continueOutcome` is what `configContinue` already returned for this gate,
+ * handed in by a caller that attempted it (the closing walk): the brief prints
+ * it — its `say:` line above `ask it:`, or the refusal's warning — and never
+ * attempts the continue again. Left out, a gate's brief attempts it itself.
  *
  * Returns `{ok, text, errors, warnings}`; `text` ends with a newline.
  */
-export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node conventions` }) {
+export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node conventions`, continueOutcome = null }) {
   const pointer = quotedPointer(rules);
   let doc;
   try {
@@ -283,17 +302,7 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
 
   const nodes = current.graph?.nodes ?? [];
   const byId = new Map(nodes.map(entry => [entry.id, entry]));
-  const context = {
-    doc,
-    state: path.resolve(state),
-    runDir,
-    root: projectRootOf(runDir),
-    recorded,
-    byId,
-    inputs: inputsOf(doc),
-    defaults: current.defaults,
-    status: new Map(Object.keys(recorded).filter(id => id !== HELD_APPROVAL).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
-  };
+  const context = contextOf({ doc, state, runDir, recorded, byId, current });
   const resolved = byId.get(node) ?? null;
   if (resolved === null && current.graph !== null) {
     warnings.push(`node-brief-node-gone: ${node} is not in the definition as it reads now; the header comes from the frozen node entry alone`);
@@ -308,6 +317,7 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
   const printed = section === null ? null : sliced(section.text);
   const convention = keys => conventionLines(table, keys, shown, printedWhole);
   const askIt = askItLine(state, node, doc);
+  const host = shippedHost();
 
   const lines = gate
     ? gateLines({ node, title, resolved, context, convention, rules: pointer })
@@ -338,18 +348,31 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
   // A marker that cannot be written only means the next brief prints the rows whole again.
   if (shown !== null && printedWhole.size) markConventionsShown({ root, rows: new Set([...shown, ...printedWhole]) });
   lines.push('');
+  let skip = null;
   if (resolved === null) {
     lines.push(gate ? askIt : current.graph === null ? UNKNOWN_SECTION : GONE_SECTION);
+  } else if (gate && (skip = guardSkipPatch({ doc, recorded, node, current })) !== null) {
+    // A gate its guard skips asks nothing, on any driver: the brief names the skip write.
+    lines.push(`skip it: its guard ${resolved.when} reads false, so it is not asked — record it skipped through write-state --next: ${skip}`);
   } else if (gate) {
     // A gate the project's config continues is recorded here and asks nothing;
     // one it would continue but its brief advises against is asked, the reason first.
-    const auto = configContinue({ state, node, doc, resolved, nodes, context, title, warnings });
-    if (auto.lines) lines.push(...auto.lines);
+    // An outcome handed in was attempted already: it is printed, never attempted twice.
+    const auto = continueOutcome ?? continueDecision({ state, node, doc, resolved, nodes, context, title });
+    if (typeof auto.refused === 'string') warnings.push(`node-brief-config-continue-refused: ${auto.refused}; the gate is asked as usual`);
+    if (auto.lines) lines.push(...auto.lines, ...(auto.next ?? []));
     else {
       if (auto.say) lines.push(auto.say);
+      // A due gate asked in session prints its question last, built here; any
+      // other gate, or one whose question could not be built, keeps its call.
+      const question = FOLDED_QUESTION[host] === true && !current.drift && isTerminalDriver(doc) && dueInOrder(node, resolved, nodes, context)
+        ? foldedQuestion({ state, node, doc, runDir, host, warnings })
+        : null;
+      const ask = foldedAsk({ host, state, node, askIt, question });
       // An exception still asks the gate: the call comes first, the exception after it.
-      lines.push(askIt);
+      lines.push(...ask.lines);
       if (/^\*\*Exception\.\*\*/m.test(printed ?? '')) lines.push('', printed);
+      if (ask.block !== null) lines.push('', ask.block);
     }
   } else {
     lines.push(printed ?? NO_SECTION);
@@ -385,7 +408,7 @@ function startYours(node, state) {
 }
 
 /** The writing-state section holding a refused write's recovery. */
-const WRITE_REFUSED = `${quoted(fileURLToPath(new URL('../../references/writing-state.md', import.meta.url)))} § When a write is refused`;
+const WRITE_REFUSED_FILE = fileURLToPath(new URL('../../references/writing-state.md', import.meta.url));
 
 /**
  * The lines a ready step whose start write the writer refused prints instead
@@ -393,7 +416,7 @@ const WRITE_REFUSED = `${quoted(fileURLToPath(new URL('../../references/writing-
  */
 function startRefused(errors) {
   const [error] = errors;
-  return [`start: refused — ${error.code}: ${error.message}`, `rules: ${WRITE_REFUSED}`];
+  return [`start: refused — ${error.code}: ${error.message}`, `rules: ${quoted(WRITE_REFUSED_FILE)} § When a write is refused${rowSuffix(WRITE_REFUSED_FILE, 'When a write is refused', error.code)}`];
 }
 
 /** The terminal task statuses, after which nothing starts. */
@@ -424,28 +447,89 @@ function schemeOf(resolved) {
  * writes and says nothing.
  */
 function readyToStart(node, resolved, nodes, context) {
-  if (resolved === null || context.status.get(node) !== 'pending') return false;
-  if (typeof resolved.dir === 'string' && resolved.dir !== '') return false;
-  const orchestrator = isPlainObject(context.doc.orchestrator) ? context.doc.orchestrator : {};
-  if (isPlainObject(orchestrator.gate_pending)) return false;
-  if (RUN_ENDED.has(context.doc.task?.status)) return false;
-  if (readinessOf(resolved, context.status) !== 'ready') return false;
+  if (resolved === null || (typeof resolved.dir === 'string' && resolved.dir !== '')) return false;
   if (typeof resolved.when === 'string') {
     const guard = evaluate(resolved.when, context);
     if (!guard.ok || !guard.value) return false;
   }
+  return dueInOrder(node, resolved, nodes, context);
+}
+
+/**
+ * Whether the node is the one the walk reaches now, its guard aside: still
+ * `pending`, in a run neither ended nor waiting on a gate, its needs settled,
+ * and no earlier node in frozen order pending and not waiting on its needs.
+ * A gate's guard is read apart (`guardSkipPatch`), since the skip-guard rule
+ * and a held choice can keep a gate on the path whatever its guard reads.
+ */
+function dueInOrder(node, resolved, nodes, context) {
+  if (resolved === null || context.status.get(node) !== 'pending') return false;
+  const orchestrator = isPlainObject(context.doc.orchestrator) ? context.doc.orchestrator : {};
+  if (isPlainObject(orchestrator.gate_pending)) return false;
+  if (RUN_ENDED.has(context.doc.task?.status)) return false;
+  if (readinessOf(resolved, context.status) !== 'ready') return false;
   const earlier = nodes.slice(0, nodes.findIndex(entry => entry.id === node));
   return !earlier.some(entry => context.status.get(entry.id) === 'pending' && readinessOf(entry, context.status) !== 'waiting');
 }
 
 /**
+ * The config continue of `node` in the run whose state file is `state`, for a
+ * caller that attempts it apart from the brief (the closing walk), once per
+ * gate: `{lines}` — the `decided:` and `say:` lines, without the node due next
+ * — when the continue was recorded, `{say}` when the brief advises against it,
+ * `{refused}` when its write was refused (the refusal's codes, comma-joined),
+ * and `{}` for a step, an unreadable run or a gate the config leaves asked.
+ * The outcome goes to `nodeBrief` as its `continueOutcome` whenever it is not
+ * `{lines}`, so the brief prints it rather than attempting it again.
+ */
+export function configContinue({ state, node }) {
+  let doc;
+  try {
+    doc = parse(fs.readFileSync(state, 'utf8'));
+  } catch {
+    return {};
+  }
+  if (!isPlainObject(doc) || !isPlainObject(doc.workflow)) return {};
+  const recorded = isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+  const runDir = path.dirname(path.resolve(state));
+  const current = reread(doc, doc.workflow, runDir);
+  const nodes = current.graph?.nodes ?? [];
+  const byId = new Map(nodes.map(entry => [entry.id, entry]));
+  const resolved = byId.get(node) ?? null;
+  if (resolved?.type !== 'gate') return {};
+  const context = contextOf({ doc, state, runDir, recorded, byId, current });
+  const { next: _next, ...outcome } = continueDecision({ state, node, doc, resolved, nodes, context, title: titleOf(current.display.titles, node) });
+  return outcome;
+}
+
+/**
+ * The facts a brief reads its statuses, guards and inputs from, built once per
+ * read of the state.
+ */
+function contextOf({ doc, state, runDir, recorded, byId, current }) {
+  return {
+    doc,
+    state: path.resolve(state),
+    runDir,
+    root: projectRootOf(runDir),
+    recorded,
+    byId,
+    inputs: inputsOf(doc),
+    defaults: current.defaults,
+    status: new Map(Object.keys(recorded).filter(id => id !== HELD_APPROVAL).map(id => [id, entryOf(recorded, id).status ?? 'pending'])),
+  };
+}
+
+/**
  * A gate the run froze in its `workflow_config.auto_continue` (the project's
- * `config.yml`), continued here instead of asked: `{lines}` when its plain
- * continue was recorded `by: config` — the decision, the line to show and the
- * node due next — `{say}` when the config would continue but the gate's own
- * brief advises against it, so it is asked with the reason first, and `{}`
- * otherwise. Under every driver: the config is the project's standing answer,
- * it grants nothing, and the record reads the same wherever the run is driven.
+ * `config.yml`), continued here instead of asked: `{lines, next}` when its
+ * plain continue was recorded `by: config` — the decision and the line to show,
+ * and apart from them the `next:` line naming the node due next, which only
+ * the brief prints — `{say}` when the config would continue but the gate's own
+ * brief advises against it, so it is asked with the reason first, `{refused}`
+ * when the writer refused the continue, and `{}` otherwise. Under every
+ * driver: the config is the project's standing answer, it grants nothing, and
+ * the record reads the same wherever the run is driven.
  *
  * Only a gate that is due now — pending, its needs settled, its guard true,
  * nothing earlier left to run — is continued; a gate its guard skips takes the
@@ -453,7 +537,7 @@ function readyToStart(node, resolved, nodes, context) {
  * revise or stop, a stop risk a closing node recorded, or a choice held for a
  * person's approval asks it, since config never stands for a person.
  */
-function configContinue({ state, node, doc, resolved, nodes, context, title, warnings }) {
+function continueDecision({ state, node, doc, resolved, nodes, context, title }) {
   if (!autoContinued(workflowConfigOf(doc)).includes(node)) return {};
   const option = plainContinueOf(resolved);
   if (option === null || !readyToStart(node, resolved, nodes, context)) return {};
@@ -475,10 +559,7 @@ function configContinue({ state, node, doc, resolved, nodes, context, title, war
       node_summaries: { [node]: { headline: line, decisions: [{ option, by: BY_CONFIG }] } },
     },
   });
-  if (!written.ok) {
-    warnings.push(`node-brief-config-continue-refused: ${written.errors.map(error => error.code).join(', ')}; the gate is asked as usual`);
-    return {};
-  }
+  if (!written.ok) return { refused: written.errors.map(error => error.code).join(', ') };
   const name = typeof doc.workflow?.name === 'string' ? doc.workflow.name : '<workflow>';
   const next = written.next === undefined ? []
     : written.next.id === null ? ['next: none — write the closing patch with task.status, then run run-complete']
@@ -487,8 +568,8 @@ function configContinue({ state, node, doc, resolved, nodes, context, title, war
     lines: [
       `decided: ${node} — ${option}, by the project's config (workflows.${name}.auto_continue); nothing to ask, nothing to write`,
       `say: ${line}`,
-      ...next,
     ],
+    next,
   };
 }
 
@@ -507,6 +588,62 @@ function askItLine(state, node, doc) {
   const target = `--state=${quoted(path.resolve(state))} --node=${node}`;
   if (!isTerminalDriver(doc)) return `ask it: gate-request ${target}`;
   return `ask it: gate-brief ${target} ${shippedHost() === 'copilot' ? '--ask' : '--json --picker=rich'}`;
+}
+
+/**
+ * Whether a due gate's brief prints its question, by the host this plugin
+ * ships for. A host set false here prints the `ask it:` line instead, word for
+ * word, as before the question was folded into the brief.
+ */
+export const FOLDED_QUESTION = { claude: true, copilot: true };
+
+/** The `rules:` pointer the `gate-brief --json` result carries, as the entry script spells it. */
+const GATE_BRIEF_RULES = `${GATES_FILE} § Before every gate — the gate brief`;
+
+/**
+ * The lines a gate's call takes, and the question printed last: `{lines,
+ * block}`. Pure: `question` is the question's text as `foldedQuestion` built
+ * it, or null when none was built, and `folded` is the per-host switch. Where
+ * the host's entry is false or no question came, `lines` is today's `ask it:`
+ * line alone and `block` null; otherwise `lines` is the `question:`, `ask
+ * again:` and `details:` lines and `block` the question, its trailing newline
+ * dropped, for the brief to print after a blank line as its last block.
+ */
+export function foldedAsk({ host, state, node, askIt, question, folded = FOLDED_QUESTION }) {
+  if (folded[host] !== true || typeof question !== 'string') return { lines: [askIt], block: null };
+  const target = `--state=${quoted(path.resolve(state))} --node=${node}`;
+  return {
+    lines: [
+      'question: printed last, below — ask it with the question tool exactly as printed, never rebuilt',
+      `ask again: gate-brief ${target} ${host === 'copilot' ? '--ask' : '--json --picker=rich'}`,
+      `details: gate-brief ${target} --details`,
+    ],
+    block: question.replace(/\n$/, ''),
+  };
+}
+
+/**
+ * The question of a due gate asked in session, as the host's question tool
+ * takes it, or null with one warning when it cannot be built. On Claude Code,
+ * the `gate-brief --json --picker=rich` result without `more_details`; on
+ * Copilot, the `gate-brief --ask` call, its record written beside the state
+ * and the previous answer's note retired. Either way the panel is published,
+ * as the verb's own forms publish it. Nothing is written for a question that
+ * is not built.
+ */
+function foldedQuestion({ state, node, doc, runDir, host, warnings }) {
+  const copilot = host === 'copilot';
+  // A refusal of the question is never the brief's: it becomes the warning below.
+  const { ok, errors, picker, ask, panel, warnings: notes } = gateBrief({ state, node, form: 'json', picker: copilot ? 'plain' : 'rich', doc });
+  if (!ok) {
+    const code = errors?.[0]?.code ?? 'unknown';
+    warnings.push(`node-brief-question-unbuilt: ${code}: the question could not be built; ask it with the ask it line`);
+    return null;
+  }
+  if (panel) warnings.push(...publishNext({ runDir, panel }).map(each => `${each.code}: ${each.file}: ${each.message}`));
+  if (copilot) return recordAsk({ runDir, call: ask ?? picker.form });
+  const shown = (notes || []).map(note => note.message ?? note);
+  return JSON.stringify({ ok: true, ...picker, errors: [], warnings: shown, rules: GATE_BRIEF_RULES }, null, 2);
 }
 
 /** A path as a shell reads it: bare, or in single quotes when it holds whitespace. */
@@ -635,7 +772,7 @@ function stepLines({ node, title, resolved, entry, context, convention, table, r
   if (later.length && table !== null) lines.push(`convention (${later.join(', ')}): see rules`);
 
   if (section !== null) lines.push(...seeLines(section));
-  if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues, delegates));
+  if (known && scheme !== 'workflow' && !dispatched) lines.push(closingLine(node, values, brief, continues, delegates, closesRun(node, context.doc)));
   const closeOut = closeOutLine(node, context);
   if (closeOut) lines.push(closeOut);
   lines.push(`rules: ${rules}`);
@@ -694,7 +831,7 @@ function closeOutLine(node, { doc, runDir }) {
  * because a closing write guessed from memory is what the writer refused most:
  * a summary key misspelt, a context block or a re-sent `workflow` beside it.
  */
-function closingLine(node, values, brief, continues, delegates) {
+function closingLine(node, values, brief, continues, delegates, closes) {
   const typed = Object.entries(values).map(([key, type]) => `${JSON.stringify(key)}: ${placeholderOf(type)}`);
   const status = `"status": "completed"${typed.length ? `, "values": {${typed.join(', ')}}` : ''}`;
   const summary = [
@@ -710,7 +847,22 @@ function closingLine(node, values, brief, continues, delegates) {
   }
   if (delegates.length) summary.push(`"delegated": [${delegates.map(agent => JSON.stringify(agent)).join(', ')}]`);
   const id = JSON.stringify(node);
-  return `closing patch (fill each <…>; never re-send workflow): {"nodes": {${id}: {${status}}}, "node_summaries": {${id}: {${summary.join(', ')}}}}`;
+  const task = closes ? ', "task": {"status": "completed"}' : '';
+  return `closing patch (fill each <…>; never re-send workflow): {"nodes": {${id}: {${status}}}, "node_summaries": {${id}: {${summary.join(', ')}}}${task}}`;
+}
+
+/** The statuses of a frozen node that has ended. */
+const NODE_ENDED = new Set(['completed', 'skipped', 'failed', 'stopped']);
+
+/**
+ * Whether the step's closing write also closes the run: every other frozen
+ * node has ended, the run owes no close-out (it is not dispatched) and no
+ * choice is held for approval.
+ */
+function closesRun(node, doc) {
+  const recorded = doc.workflow?.nodes;
+  if (isDispatchedRun(doc) || outstandingHeld(doc).length > 0) return false;
+  return frozenIds(recorded).every(id => id === node || NODE_ENDED.has(recorded[id]?.status));
 }
 
 /**

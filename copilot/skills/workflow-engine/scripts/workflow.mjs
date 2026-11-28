@@ -17,7 +17,8 @@
  *                  take; without --name, the project's own workflows)
  *   write-state    --state, --patch-file (or the patch as JSON on stdin),
  *                  --host at the freeze (claude or copilot), optional
- *                  --no-open (the freeze opens the run's dashboard otherwise)
+ *                  --no-open (the freeze opens the run's dashboard otherwise),
+ *                  optional --next
  *                                                             changed paths
  *                  (and, for a node's question set, a blank line and the
  *                  `ask:` line naming the ids still to ask, or `none`; then,
@@ -29,7 +30,15 @@
  *                  then the `rules:` line naming their recovery; last, on a
  *                  write that completed or skipped a node, a blank line and
  *                  `next: <id> (<title>) — run node-brief for it`, or
- *                  `next: none — …` when only the closing patch is left)
+ *                  `next: none — …` when only the closing patch is left).
+ *                  With --next, a landed write other than the freeze then
+ *                  walks the run: a blank line, one `skipped:` line per
+ *                  off-path step it recorded skipped, and one `next:` line in
+ *                  place of the one above — `next: <id> (<title>) — its brief
+ *                  follows`, then a blank line and the step's brief as
+ *                  node-brief prints it, or the closing patch's line; a walk
+ *                  that cannot finish prints one `warning:` line and the
+ *                  `next:` line the state then gives, at exit 0
  *   gate-request   --state, --patch-file (or the request as JSON on stdin);
  *                  or --state, --node [--reask | --patch-file holding the
  *                  node's question set], the request built as gate-brief
@@ -137,7 +146,10 @@
  *                  then one line: waiting:, started:, stopped: or next:
  *                  (adopts the child that ended — W4 — records the skips a
  *                  false guard leaves due, starts the next child — W1, W2,
- *                  W3) — writes the run and the child; JSON on a refusal
+ *                  W3) — writes the run and the child; JSON on a refusal.
+ *                  A next: line, and a started: line under a terminal
+ *                  driver, is followed by the walk write-state --next
+ *                  prints, of the parent or of the child
  *   import         --state, --to (a folder of the run), repeatable --from,
  *                  optional --as                            JSON on stdout
  *                  (each source copied into the run byte for byte, a
@@ -254,11 +266,12 @@ import { isNewerVersion, readDefinition } from './lib/definition.mjs';
 // Shared with the session-start hook, which warns on the same detection, so it
 // sits at the plugin root beside `canonical.mjs` rather than in this skill.
 import { findEditionCollision } from '../../../lib/editions.mjs';
-import { SHIPPED_HOST } from '../../../lib/host.mjs';
+import { recordAsk } from './lib/ask-record.mjs';
 // Shared with the umbrella runtime's `--input-file`: one rule for a document
 // read from a fixed file instead of stdin.
 import { anchoredFile, consume as consumeFile, readFileText } from '../../../lib/input-file.mjs';
 import { GROUP_ID_RULE, parseGroupList } from './lib/group-id.mjs';
+import { rowSuffix } from './lib/reference.mjs';
 // Shared with the umbrella runtime too: one bounded read of a document on stdin.
 import { readStdin, STDIN_IDLE_MS } from '../../../lib/stdin.mjs';
 
@@ -267,8 +280,8 @@ const EXIT = { OK: 0, REJECTED: 1, INTERNAL: 2 };
 
 /** Every verb, with the module that implements it and the flags it accepts. */
 const VERBS = {
-  validate: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile'] },
-  resolve: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile'] },
+  validate: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile', 'short'] },
+  resolve: { module: 'graph.mjs', flags: ['definition', 'overlay', 'profile', 'short'] },
   diagram: { module: 'diagram.mjs', flags: ['definition', 'overlay', 'profile', 'out'] },
   // The name lookup the three verbs above do not do: they take paths, and a
   // run starts from a name. Read-only, and the name is optional — without it
@@ -287,7 +300,8 @@ const VERBS = {
   // reads, and it is checked against that one place (`patchFileOf`).
   // `--host` is read at the freeze only, for the run's delegation record.
   // `--no-open` keeps the freeze from opening the dashboard (`openAfter`).
-  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file', 'host', 'no-open'] },
+  // `--next` walks the run once the write has landed (`lib/closing-walk.mjs`).
+  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file', 'host', 'no-open', 'next'] },
   // The flags of `write-state`, and for the same reason: everything the verb
   // needs — the run directory, the `gates/` directory and the frozen graph — is
   // derived from the state file, so there is no second path a caller could get
@@ -434,13 +448,13 @@ const VERBS = {
  * host) are spelled as placeholders here, so the line reads the same on both.
  */
 const USAGE = {
-  validate: '[--definition=<definition file>] [--overlay=<overlay file>…] [--profile=<name>], at least one of --definition and --overlay',
-  resolve: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>]',
+  validate: '[--definition=<definition file>] [--overlay=<overlay file>…] [--profile=<name>] [--short], at least one of --definition and --overlay',
+  resolve: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>] [--short]',
   diagram: '--definition=<definition file> [--overlay=<overlay file>…] [--profile=<name>] [--out=<file>]',
   locate: '[--name=<workflow name> [--overlay=<overlay file>…] [--profile=<name>]]',
   'wave-start': '--plan=<implementation-plan.md> --wave=<wave number> --groups=<id>[,<id>…]',
   'group-done': '--plan=<implementation-plan.md> --groups=<id>[,<id>…] --entry-file=<plan folder>/.work-log-entry.md',
-  'write-state': '--state=<orchestrator-state.yml> [--patch-file=<patch file> | the patch as JSON on stdin] [--host=<claude or copilot>, at the freeze] [--no-open]',
+  'write-state': '--state=<orchestrator-state.yml> [--patch-file=<patch file> | the patch as JSON on stdin] [--host=<claude or copilot>, at the freeze] [--no-open] [--next]',
   'gate-request': '--state=<orchestrator-state.yml> (--patch-file=<request file> | the request as JSON on stdin | --node=<gate or running node> (--reask=<revise option> | --patch-file=<the node\'s question set>))',
   'gate-revise': '--state=<orchestrator-state.yml> --node=<gate> --option=<revise option> [--patch-file=<note file> | the note as JSON on stdin]',
   'move-base': '--state=<orchestrator-state.yml> [--to=<commit>] [--reason=<text>]',
@@ -532,9 +546,10 @@ function candidateLines(state) {
 }
 
 /** One pointer's value: the file's absolute path, then `§` and the heading. */
-function rulesOf(moment) {
+function rulesOf(moment, code = null) {
   const [file, heading] = RULES[moment];
-  return `${path.join(PLUGIN_ROOT, 'skills/workflow-engine', file)} § ${heading}`;
+  const at = path.join(PLUGIN_ROOT, 'skills/workflow-engine', file);
+  return `${at} § ${heading}${moment === 'writeRefused' ? rowSuffix(at, heading, code) : ''}`;
 }
 
 /**
@@ -546,8 +561,8 @@ function printRules(moment) {
 }
 
 /** The pointer as a refusal's stderr line: after its message, before any `warning:` line. */
-function refuseRules(moment) {
-  process.stderr.write(`rules: ${rulesOf(moment)}\n`);
+function refuseRules(moment, code = null) {
+  process.stderr.write(`rules: ${rulesOf(moment, code)}\n`);
 }
 
 /** The flags that may be given more than once; every other flag is single-valued. */
@@ -560,7 +575,7 @@ const REPEATABLE = new Set(['overlay', 'area', 'from', 'at']);
 const PICKERS = ['rich', 'plain'];
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open', 'fill', 'check']);
+const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open', 'fill', 'check', 'short', 'next']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -776,12 +791,14 @@ async function runValidate(flags) {
       profile: flags.profile ?? null,
       degraded: [NEWER_FORMAT],
     });
-    report({
-      ok: resolved.ok,
-      errors: resolved.errors,
-      warnings: [NEWER_FORMAT],
-      degraded: [NEWER_FORMAT],
-    });
+    report(flags.short
+      ? { ok: resolved.ok, errors: resolved.errors, warnings: [NEWER_FORMAT] }
+      : {
+        ok: resolved.ok,
+        errors: resolved.errors,
+        warnings: [NEWER_FORMAT],
+        degraded: [NEWER_FORMAT],
+      });
     return resolved.ok ? EXIT.OK : EXIT.REJECTED;
   }
 
@@ -824,7 +841,7 @@ async function runValidate(flags) {
       profile: flags.profile ?? null,
     }));
   }
-  report(result);
+  report(flags.short ? { ok: result.ok, errors: result.errors, warnings: result.warnings } : result);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
@@ -843,7 +860,12 @@ async function runResolve(flags) {
     profile: flags.profile ?? null,
     degraded: isNewerFormat(sources.definition) ? [NEWER_FORMAT] : [],
   });
-  report(result);
+  if (flags.short && result.ok) {
+    const { nodes, tracker_key: trackerKey, ...rest } = result;
+    report(rest);
+  } else {
+    report(result);
+  }
   return result.ok ? EXIT.OK : EXIT.REJECTED;
 }
 
@@ -938,8 +960,44 @@ async function runWriteState(flags) {
   // before the banner prints, so the relay line tells what the opener did.
   if (result.ok && result.banner) result.banner = module.bannerAfterOpen(result.banner, await openAfter(flags));
   const code = reportWrite(result, input, 'writeRefused');
-  if (result.ok && result.next) printNext(result.next);
+  if (!result.ok || !flags.next || Object.hasOwn(input.document, 'workflow')) {
+    if (result.ok && result.next) printNext(result.next);
+    return code;
+  }
+  await walkAndPrint(flags.state, result.next ?? null);
   return code;
+}
+
+/**
+ * The walk after a landed write (`lib/closing-walk.mjs`), printed: the
+ * closing paragraph of `write-state --next` and of `subrun-handoff`. `today`
+ * is the `next:` line the write alone gives, or null. The write has landed, so
+ * nothing here moves the exit code: the walk reports what it could not do as a
+ * warning, and a walk that could not run at all leaves `today`'s line.
+ */
+async function walkAndPrint(state, today) {
+  try {
+    const walk = entryOf(await loadModule('closing-walk.mjs'), 'closingWalk', 'closing-walk.mjs');
+    printWalk(walk({ state, rules: rulesOf('nodeBrief'), today }));
+  } catch (err) {
+    process.stderr.write(`warning: the walk after the write stopped (${err.message}); nothing after the lines above was walked or briefed\n`);
+    if (today) printNext(today);
+  }
+}
+
+/**
+ * What the walk after a closing write found: its warnings on stderr; on
+ * stdout a blank line, the walk's lines and its one `next:` line — the step
+ * whose brief follows, or the line `printNext` prints — then, when a brief
+ * follows, a blank line and the brief. A walk that found nothing to print
+ * adds nothing, not even the blank line.
+ */
+function printWalk({ lines, next, brief, warnings }) {
+  for (const warning of warnings) process.stderr.write(`${warning}\n`);
+  const announced = brief === null ? (next ? nextLine(next) : null) : `next: ${next.id} (${next.title}) — its brief follows`;
+  const block = announced === null ? lines : [...lines, announced];
+  if (block.length) process.stdout.write(`\n${block.join('\n')}\n`);
+  if (brief !== null) process.stdout.write(`\n${brief}`);
 }
 
 /**
@@ -950,11 +1008,16 @@ async function runWriteState(flags) {
  * due while the run is not done — a step waiting on its child run — has none.
  */
 function printNext(next) {
-  process.stdout.write(next.stop
-    ? `\nnext: none — ${next.stop} was answered with a stop: write the closing patch with task.status stopped and every node not yet run stopped, then run run-complete\n`
+  process.stdout.write(`\n${nextLine(next)}\n`);
+}
+
+/** The `next:` line itself, as `printNext` prints it. */
+function nextLine(next) {
+  return next.stop
+    ? `next: none — ${next.stop} was answered with a stop: write the closing patch with task.status stopped and every node not yet run stopped, then run run-complete`
     : next.id === null
-      ? '\nnext: none — write the closing patch with task.status, then run run-complete\n'
-      : `\nnext: ${next.id} (${next.title}) — run node-brief for it\n`);
+      ? 'next: none — write the closing patch with task.status, then run run-complete'
+      : `next: ${next.id} (${next.title}) — run node-brief for it`;
 }
 
 /**
@@ -1172,7 +1235,7 @@ function reportWrite(result, input, rules) {
   // A refusal is exit 1 and no rename happened: the state file on disk is
   // exactly what it was before the invocation.
   for (const reason of result.errors || []) process.stderr.write(`${reason.message ?? reason}\n`);
-  refuseRules(rules);
+  refuseRules(rules, (result.errors || [])[0]?.code ?? null);
   return EXIT.REJECTED;
 }
 
@@ -1467,9 +1530,10 @@ async function runGateBrief(flags) {
       + '--json is the in-session picker, --oneline the driven summary, --checkpoint the structured checkpoint, --request the driven gate request');
   }
   const form = forms[0] ?? 'plain';
-  if ((flags.note !== undefined || flags.details === true) && form !== 'ask') {
-    throw new UsageError('gate-brief takes --note and --details only with --ask: they print the question tool\'s call for a revise\'s note, or the full brief, at a gate asked in session');
+  if ((flags.note !== undefined && form !== 'ask') || (flags.details === true && form !== 'ask' && form !== 'plain')) {
+    throw new UsageError('gate-brief takes --note only with --ask, and --details alone or with --ask: they print the question tool\'s call for a revise\'s note, or the full brief, at a gate asked in session');
   }
+  const detailsAlone = form === 'plain' && flags.details === true;
   if (flags.note !== undefined && flags.details === true) {
     throw new UsageError('gate-brief --ask takes --note or --details, not both: --note asks a chosen revise\'s note, --details writes out the full brief');
   }
@@ -1508,7 +1572,7 @@ async function runGateBrief(flags) {
   const render = entryOf(module, 'gateBrief', VERBS['gate-brief'].module);
   // A gate asked with --ask is the labels-only picker, rendered and cut down
   // to the one thing the session passes on; a question set renders its own.
-  const asked = form === 'ask' && questions === undefined;
+  const asked = (form === 'ask' && questions === undefined) || detailsAlone;
   const result = render({ state: flags.state, node: flags.node, form: asked ? 'json' : form, picker: asked ? 'plain' : picker, reask: flags.reask, questions });
   // A refusal's code comes first on stderr, and a drift warning is kept after
   // it: a drifted run that also lacks a summary must still say it drifted.
@@ -1519,6 +1583,11 @@ async function runGateBrief(flags) {
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning.message ?? warning}\n`);
   if (result.ok && result.panel) await publishPanel(flags.state, result.panel);
   const warnings = (result.warnings || []).map(warning => warning.message ?? warning);
+  if (detailsAlone) {
+    if (!result.ok) return EXIT.REJECTED;
+    process.stdout.write(result.more_details.endsWith('\n') ? result.more_details : `${result.more_details}\n`);
+    return EXIT.OK;
+  }
   if (form === 'ask') {
     const code = printAsk(flags, result, entryOf(module, 'noteForm', VERBS['gate-brief'].module));
     // The set has become the call: a file left behind would read as a patch
@@ -1581,44 +1650,12 @@ function printAsk(flags, result, noteForm) {
 }
 
 /**
- * The question tool's call, as `--ask` prints it, recorded beside the run's
- * state as ASK_RECORD. The session still retypes the call into the tool, and
- * a session retyping a long brief rewords and shortens it; a host hook that
- * can replace a tool call's arguments hands this file over in their place,
- * once, while it is fresh (the Copilot variant's `hand-over-question.mjs`).
- * The record is a convenience, never the verb's result: a run directory it
- * cannot be written to leaves the printed call as it is.
+ * The question tool's call, as `--ask` prints it, and its record beside the
+ * run's state (`lib/ask-record.mjs` writes it and retires the previous note).
  */
-const ASK_RECORD = '.ask.json';
-
-/**
- * The Copilot build's after-question note and its retired name (`lib/state.mjs`
- * owns the note; spelled here so the verbs that print a call need not load the
- * state writer). Every question printed retires the note left by the one
- * before it, so a person's answer to that question never counts for this one.
- */
-const ASK_RESULT = '.ask.result.json';
-const ASK_RESULT_USED = '.ask.result.used.json';
-
 function printCall(flags, call) {
-  const text = `${JSON.stringify(call, null, 2)}\n`;
+  const text = recordAsk({ runDir: path.dirname(path.resolve(flags.state)), call });
   process.stdout.write(text);
-  if (SHIPPED_HOST === 'copilot') {
-    try {
-      const runDir = path.dirname(path.resolve(flags.state));
-      fs.renameSync(path.join(runDir, ASK_RESULT), path.join(runDir, ASK_RESULT_USED));
-    } catch {
-      // No note, or one that cannot be moved: the call is printed either way.
-    }
-  }
-  try {
-    const record = path.join(path.dirname(path.resolve(flags.state)), ASK_RECORD);
-    const scratchFile = `${record}.${process.pid}.tmp`;
-    fs.writeFileSync(scratchFile, text, 'utf8');
-    fs.renameSync(scratchFile, record);
-  } catch {
-    // The call is printed; a hand-over that cannot happen leaves it to the session.
-  }
   return EXIT.OK;
 }
 
@@ -1861,9 +1898,34 @@ async function runResumeCheck(flags) {
   const check = entryOf(module, 'resumeCheck', VERBS['resume-check'].module);
   const { warnings = [], ...result } = check({ state: flags.state });
   report(result);
+  if (result.ok && result.gate) await printResumeSection(module);
   for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
   if (result.ok) await openAfter(flags);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
+/**
+ * The section a resume of a waiting gate reads, printed after the JSON and a blank
+ * line with the reference print's own heading. A section that cannot be printed
+ * leaves the JSON as it is, one `warning:` line on stderr naming the call that
+ * prints it, and the exit code unchanged.
+ */
+async function printResumeSection(module) {
+  const shellPath = file => (/\s/.test(file) ? `'${file.replace(/'/g, "'\\''")}'` : file);
+  const at = 'references/gates.md § Driver-suspended mode — resume';
+  try {
+    const print = entryOf(await loadModule(VERBS.reference.module), 'reference', VERBS.reference.module);
+    const printed = print({ ats: [at], pluginRoot: PLUGIN_ROOT });
+    if (printed.ok) {
+      process.stdout.write(`\n${printed.text}`);
+      return;
+    }
+    const first = (printed.errors || [])[0];
+    const code = first?.code ?? 'reference-unreadable';
+    process.stderr.write(`warning: ${code}: the resuming section could not be printed; print it with node ${shellPath(fileURLToPath(import.meta.url))} reference --at="${at}"\n`);
+  } catch (err) {
+    process.stderr.write(`warning: reference-unreadable: the resuming section could not be printed; print it with node ${shellPath(fileURLToPath(import.meta.url))} reference --at="${at}" (${err.message})\n`);
+  }
 }
 
 /**
@@ -1884,9 +1946,11 @@ async function runSubrunPath(flags) {
 /**
  * `subrun-handoff` reports each write it made as `write-state` reports one —
  * the child's freeze opening its dashboard as any freeze does — then, after a
- * blank line, its one closing line: `waiting:`, `started:` or `stopped:` as
- * the module spells it, or the writer's own `next:` line. A refusal is JSON on
- * stdout, like `subrun-path`, after the writes that landed before it.
+ * blank line, its closing: `waiting:`, `started:` or `stopped:` as the module
+ * spells it, or the walk `write-state --next` prints after its last write. A
+ * child started under a terminal driver runs in this session, so the walk of
+ * the child follows its `started:` line. A refusal is JSON on stdout, like
+ * `subrun-path`, after the writes that landed before it.
  */
 async function runSubrunHandoff(flags) {
   if (!flags.state) throw new UsageError('subrun-handoff needs --state');
@@ -1909,8 +1973,12 @@ async function runSubrunHandoff(flags) {
     report({ ok: false, code: result.code, message: result.message });
     return EXIT.REJECTED;
   }
-  if (result.next) printNext(result.next);
-  else process.stdout.write(`\n${result.line}\n`);
+  if (result.next) {
+    await walkAndPrint(flags.state, result.next);
+    return EXIT.OK;
+  }
+  process.stdout.write(`\n${result.line}\n`);
+  if (result.child) await walkAndPrint(result.child, null);
   return EXIT.OK;
 }
 
