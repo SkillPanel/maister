@@ -327,7 +327,7 @@ function outsideComments(raw) {
 }
 
 test('the source skill says in Claude Code\'s passage that calls may share a message, with the guard, and P2 only inside a comment', () => {
-  const raw = fs.readFileSync(SKILL, 'utf8');
+  const raw = fs.readFileSync(SKILL, 'utf8').replace(/\r\n?/g, '\n');
   assert.match(raw, /^<!-- claude-code -->\n[^\n]*\n<!-- \/claude-code -->\n<!-- copilot\n[^\n]*\n-->$/m, 'one marked pair');
   assert.ok(collapse(raw).includes(`${P1} ${P3}`), 'P1 with P3 appended');
   assert.ok(!outsideComments(raw).includes(P2), 'P2 is only in the copilot comment');
