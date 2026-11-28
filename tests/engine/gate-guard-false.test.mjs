@@ -172,9 +172,22 @@ test('node-brief of an input-only gate that reads false names the skip write wit
   assert.match(result.stdout, /\{"nodes":\{"notes-approval":\{"status":"skipped"\},"notes":\{"status":"skipped"\}\}\}/);
 });
 
-test('control: node-brief of a gate the skip-guard rule asks keeps its ask it line', t => {
+test('control: node-brief of a due gate the skip-guard rule asks prints its question, in place of the ask it line', t => {
   const run = reviewed(t, false);
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'continue-on', by: 'operator' }] } },
+  });
   const result = nodeBriefOf(run, 'findings-approval');
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(askLine(result.stdout), `ask it: gate-brief --state=${run.state} --node=findings-approval --json --picker=rich`);
+  assert.equal(askLine(result.stdout), undefined);
+  const lines = result.stdout.split('\n');
+  const at = lines.indexOf('question: printed last, below — ask it with the question tool exactly as printed, never rebuilt');
+  assert.deepEqual(lines.slice(at, at + 3), [
+    'question: printed last, below — ask it with the question tool exactly as printed, never rebuilt',
+    `ask again: gate-brief --state=${run.state} --node=findings-approval --json --picker=rich`,
+    `details: gate-brief --state=${run.state} --node=findings-approval --details`,
+  ]);
+  const question = JSON.parse(result.stdout.slice(result.stdout.lastIndexOf('\n\n') + 2));
+  assert.deepEqual(question.options.map(option => option.id), ['continue-with-design', 'continue-without-design', 'stop-at-findings', 'more-details']);
 });

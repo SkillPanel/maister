@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ROOT, variantRoot } from '../helpers.mjs';
+import { FIXTURES, ROOT, freeze, run, scratch, variantRoot, write } from '../helpers.mjs';
 
 // The hooks each host runs, in the output shape each host reads. Claude Code
 // reads a SessionStart's context and a PreToolUse's decision under
@@ -348,6 +348,28 @@ for (const [label, tree] of [['source', SOURCE], ['variant', VARIANT]]) {
     assert.equal(fs.existsSync(path.join(dirs['2026-11-03-old'], '.ask.json')), true, 'the other run\'s record stays');
   });
 }
+
+test('hand-over (variant): the record a due gate\'s brief writes is handed over in place of the retyped call', t => {
+  // The variant's brief of a due gate prints its question last and records it.
+  const due = scratch(t);
+  freeze(due, { definition: path.join(FIXTURES, 'definitions/skip-guard.yml') });
+  write(due, {
+    nodes: { review: { status: 'completed', values: { findings_to_review: false } } },
+    node_summaries: { review: { summary: 'Reviewed the work.' } },
+  });
+  const engine = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
+  const brief = run(engine, ['node-brief', `--state=${due.state}`, '--node=review-approval']);
+  assert.equal(brief.code, 0, brief.stderr);
+  const printed = brief.stdout.slice(brief.stdout.lastIndexOf('\n\n') + 2);
+  assert.equal(fs.readFileSync(path.join(due.dir, '.ask.json'), 'utf8'), printed);
+
+  const call = JSON.parse(printed);
+  const retyped = { ...call, message: 'Review approval?' };
+  const result = handOver(VARIANT, due.root, retyped);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(handedArgs(VARIANT, result.json), call);
+  assert.equal(fs.existsSync(path.join(due.dir, '.ask.used.json')), true, 'the record is used up');
+});
 
 test('hand-over: registered for ask_user in the variant only', () => {
   const variant = fs.readFileSync(path.join(VARIANT, 'hooks.json'), 'utf8');

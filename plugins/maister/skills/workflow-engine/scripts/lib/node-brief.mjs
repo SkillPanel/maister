@@ -89,6 +89,13 @@
  * - The gate's `ask it:` line, the whole call by the run's driver and the host
  *   this plugin ships for: `gate-request` where a driver suspends, else
  *   `gate-brief` in the form the host's question tool takes.
+ * - At a gate that is due and on the path in a run asked in session, the
+ *   `question:`, `ask again:` and `details:` lines in place of `ask it:`, and
+ *   the question itself as the brief's last block, after any exception text:
+ *   the `rich` profile's JSON without `more_details` on Claude Code, the
+ *   `gate-brief --ask` call on Copilot. A session handed a command to run for
+ *   the question spent a turn on it; printed here, it is asked from the brief.
+ *   `FOLDED_QUESTION` switches a host back to the `ask it:` line.
  * Paths stay repository-root-relative rather than task-relative: a delegate
  * is handed them as printed, and its working directory is the project root —
  * all but an `output_path` agent, which joins a path to `task_path` itself and
@@ -126,8 +133,11 @@
  * way. A `skill:` step hands the session to a skill whose own instructions take
  * over, and the start the prose asked for was the write runs dropped. Nothing
  * else — a refusal, a step not ready to run — writes anything else; a gate
- * writes only the marker and the stamp. A marker that cannot be written is not
- * a warning: the next brief prints the rows whole again. A stamp that cannot be
+ * writes only the marker and the stamp, and a gate whose question it prints
+ * the panel (`display/next.json`) and, on Copilot, the question record beside
+ * the state, retiring the previous answer's note (`ask-record.mjs`). A marker
+ * that cannot be written is not a warning: the next brief prints the rows
+ * whole again. A stamp that cannot be
  * written is one, so the display draws the call in full. It returns `{ok, text, errors, warnings}`.
  *
  * Refusals, each with a recovery row in the engine skill:
@@ -150,6 +160,9 @@
  * - `node-brief-start-unrecorded` — the state writer refused the step's start;
  *   the brief prints the refusal and its recovery where its `started:` line
  *   would be.
+ * - `node-brief-question-unbuilt` — a due gate's question could not be built
+ *   (`gate-brief` refused it, a guard it cannot read for one); the brief
+ *   prints the `ask it:` line in its place.
  *
  * Zero dependencies, `node:` builtins only, Node >= 20.
  */
@@ -173,7 +186,8 @@ import { CHOICE_WORDS, HELD_APPROVAL, declaredClarificationIds, declaredQuestion
 import { CLASSES, ceilingOf, loadPolicy, questionFamilies } from './policy.mjs';
 import { modelShown, resolveAgent, shippedHost, shippedPluginName } from './subagents.mjs';
 import { BY_CONFIG, DECISION_BY, HEADLINE_MAX, RISK_TAGS, oneLine } from './items.mjs';
-import { conventionsShown, markConventionsShown, publishBrief } from './display-files.mjs';
+import { conventionsShown, markConventionsShown, publishBrief, publishNext } from './display-files.mjs';
+import { recordAsk } from './ask-record.mjs';
 import { runRoot } from './resume-check.mjs';
 import { jsonString } from '../../../../lib/canonical.mjs';
 import { rowSuffix } from './reference.mjs';
@@ -303,6 +317,7 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
   const printed = section === null ? null : sliced(section.text);
   const convention = keys => conventionLines(table, keys, shown, printedWhole);
   const askIt = askItLine(state, node, doc);
+  const host = shippedHost();
 
   const lines = gate
     ? gateLines({ node, title, resolved, context, convention, rules: pointer })
@@ -348,9 +363,16 @@ export function nodeBrief({ state, node, rules = `${CONVENTIONS_FILE} § Node co
     if (auto.lines) lines.push(...auto.lines, ...(auto.next ?? []));
     else {
       if (auto.say) lines.push(auto.say);
+      // A due gate asked in session prints its question last, built here; any
+      // other gate, or one whose question could not be built, keeps its call.
+      const question = FOLDED_QUESTION[host] === true && !current.drift && isTerminalDriver(doc) && dueInOrder(node, resolved, nodes, context)
+        ? foldedQuestion({ state, node, doc, runDir, host, warnings })
+        : null;
+      const ask = foldedAsk({ host, state, node, askIt, question });
       // An exception still asks the gate: the call comes first, the exception after it.
-      lines.push(askIt);
+      lines.push(...ask.lines);
       if (/^\*\*Exception\.\*\*/m.test(printed ?? '')) lines.push('', printed);
+      if (ask.block !== null) lines.push('', ask.block);
     }
   } else {
     lines.push(printed ?? NO_SECTION);
@@ -425,16 +447,27 @@ function schemeOf(resolved) {
  * writes and says nothing.
  */
 function readyToStart(node, resolved, nodes, context) {
-  if (resolved === null || context.status.get(node) !== 'pending') return false;
-  if (typeof resolved.dir === 'string' && resolved.dir !== '') return false;
-  const orchestrator = isPlainObject(context.doc.orchestrator) ? context.doc.orchestrator : {};
-  if (isPlainObject(orchestrator.gate_pending)) return false;
-  if (RUN_ENDED.has(context.doc.task?.status)) return false;
-  if (readinessOf(resolved, context.status) !== 'ready') return false;
+  if (resolved === null || (typeof resolved.dir === 'string' && resolved.dir !== '')) return false;
   if (typeof resolved.when === 'string') {
     const guard = evaluate(resolved.when, context);
     if (!guard.ok || !guard.value) return false;
   }
+  return dueInOrder(node, resolved, nodes, context);
+}
+
+/**
+ * Whether the node is the one the walk reaches now, its guard aside: still
+ * `pending`, in a run neither ended nor waiting on a gate, its needs settled,
+ * and no earlier node in frozen order pending and not waiting on its needs.
+ * A gate's guard is read apart (`guardSkipPatch`), since the skip-guard rule
+ * and a held choice can keep a gate on the path whatever its guard reads.
+ */
+function dueInOrder(node, resolved, nodes, context) {
+  if (resolved === null || context.status.get(node) !== 'pending') return false;
+  const orchestrator = isPlainObject(context.doc.orchestrator) ? context.doc.orchestrator : {};
+  if (isPlainObject(orchestrator.gate_pending)) return false;
+  if (RUN_ENDED.has(context.doc.task?.status)) return false;
+  if (readinessOf(resolved, context.status) !== 'ready') return false;
   const earlier = nodes.slice(0, nodes.findIndex(entry => entry.id === node));
   return !earlier.some(entry => context.status.get(entry.id) === 'pending' && readinessOf(entry, context.status) !== 'waiting');
 }
@@ -555,6 +588,62 @@ function askItLine(state, node, doc) {
   const target = `--state=${quoted(path.resolve(state))} --node=${node}`;
   if (!isTerminalDriver(doc)) return `ask it: gate-request ${target}`;
   return `ask it: gate-brief ${target} ${shippedHost() === 'copilot' ? '--ask' : '--json --picker=rich'}`;
+}
+
+/**
+ * Whether a due gate's brief prints its question, by the host this plugin
+ * ships for. A host set false here prints the `ask it:` line instead, word for
+ * word, as before the question was folded into the brief.
+ */
+export const FOLDED_QUESTION = { claude: true, copilot: true };
+
+/** The `rules:` pointer the `gate-brief --json` result carries, as the entry script spells it. */
+const GATE_BRIEF_RULES = `${GATES_FILE} § Before every gate — the gate brief`;
+
+/**
+ * The lines a gate's call takes, and the question printed last: `{lines,
+ * block}`. Pure: `question` is the question's text as `foldedQuestion` built
+ * it, or null when none was built, and `folded` is the per-host switch. Where
+ * the host's entry is false or no question came, `lines` is today's `ask it:`
+ * line alone and `block` null; otherwise `lines` is the `question:`, `ask
+ * again:` and `details:` lines and `block` the question, its trailing newline
+ * dropped, for the brief to print after a blank line as its last block.
+ */
+export function foldedAsk({ host, state, node, askIt, question, folded = FOLDED_QUESTION }) {
+  if (folded[host] !== true || typeof question !== 'string') return { lines: [askIt], block: null };
+  const target = `--state=${quoted(path.resolve(state))} --node=${node}`;
+  return {
+    lines: [
+      'question: printed last, below — ask it with the question tool exactly as printed, never rebuilt',
+      `ask again: gate-brief ${target} ${host === 'copilot' ? '--ask' : '--json --picker=rich'}`,
+      `details: gate-brief ${target} --details`,
+    ],
+    block: question.replace(/\n$/, ''),
+  };
+}
+
+/**
+ * The question of a due gate asked in session, as the host's question tool
+ * takes it, or null with one warning when it cannot be built. On Claude Code,
+ * the `gate-brief --json --picker=rich` result without `more_details`; on
+ * Copilot, the `gate-brief --ask` call, its record written beside the state
+ * and the previous answer's note retired. Either way the panel is published,
+ * as the verb's own forms publish it. Nothing is written for a question that
+ * is not built.
+ */
+function foldedQuestion({ state, node, doc, runDir, host, warnings }) {
+  const copilot = host === 'copilot';
+  // A refusal of the question is never the brief's: it becomes the warning below.
+  const { ok, errors, picker, ask, panel, warnings: notes } = gateBrief({ state, node, form: 'json', picker: copilot ? 'plain' : 'rich', doc });
+  if (!ok) {
+    const code = errors?.[0]?.code ?? 'unknown';
+    warnings.push(`node-brief-question-unbuilt: ${code}: the question could not be built; ask it with the ask it line`);
+    return null;
+  }
+  if (panel) warnings.push(...publishNext({ runDir, panel }).map(each => `${each.code}: ${each.file}: ${each.message}`));
+  if (copilot) return recordAsk({ runDir, call: ask ?? picker.form });
+  const shown = (notes || []).map(note => note.message ?? note);
+  return JSON.stringify({ ok: true, ...picker, errors: [], warnings: shown, rules: GATE_BRIEF_RULES }, null, 2);
 }
 
 /** A path as a shell reads it: bare, or in single quotes when it holds whitespace. */

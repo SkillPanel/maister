@@ -108,6 +108,9 @@ const statuses = runAt => Object.fromEntries(Object.entries(readState(runAt).wor
 
 const REVISE = path.join(FIXTURES, 'definitions', 'revise.yml');
 const CLOSING_LINE = 'next: none — write the closing patch with task.status, then run run-complete';
+
+/** The line a due gate asked in session prints first in place of its `ask it:` line, its question below. */
+const QUESTION_LINE = 'question: printed last, below — ask it with the question tool exactly as printed, never rebuilt';
 const STOP_LINE = 'next: none — review-approval was answered with a stop: write the closing patch with task.status stopped'
   + ' and every node not yet run stopped, then run run-complete';
 
@@ -587,14 +590,14 @@ for (const [name, treeOf] of TREES) {
     assert.equal(decisions[0].by, 'config');
   });
 
-  test(`${name}: a continue the brief advises against is briefed as a gate on the path, the say: line above ask it:, nothing written`, t => {
+  test(`${name}: a continue the brief advises against is briefed as a gate on the path, the say: line above its question, nothing written`, t => {
     const tree = treeOf();
     const advised = workDone({ deep: false }, { recommends: { option: 'rework', reason: 'The work misses a case.' } });
     const { withNext, without, walked, plain } = twinWrites(t, tree, t2 => configRun(t2, { config: AUTO }), advised);
     assert.equal(withNext.code, 0, withNext.stderr);
     const brief = rooted(briefOf(tree, plain, 'approve'), plain);
     assert.equal(withNext.stdout, `${withoutNext(without.stdout, 'next: approve (Approve) — run node-brief for it')}\nnext: approve (Approve) — its brief follows\n\n${brief}`);
-    assert.ok(withNext.stdout.includes("say: The project's config would continue, but work recommends revising; the gate is asked as usual.\nask it: "), withNext.stdout);
+    assert.ok(withNext.stdout.includes(`say: The project's config would continue, but work recommends revising; the gate is asked as usual.\n${QUESTION_LINE}\n`), withNext.stdout);
     assert.doesNotMatch(withNext.stdout, /^decided:/m);
     assert.equal(withNext.stderr, '');
     assert.equal(statusOf(walked, 'approve'), 'pending');
@@ -632,7 +635,7 @@ for (const [name, treeOf] of TREES) {
       ['warning: node-brief-config-continue-refused: state-unwritable; the gate is asked as usual']);
     assert.deepEqual(result.lines, []);
     assert.deepEqual(result.next, { id: 'approve', title: 'Approve' });
-    assert.match(result.brief, /^ask it: /m);
+    assert.ok(result.brief.split('\n').includes(QUESTION_LINE), result.brief);
     assert.doesNotMatch(result.brief, /^decided:/m);
     assert.equal(statusOf(runAt, 'approve'), 'pending');
     assert.equal(readState(runAt).node_summaries.approve, undefined);
@@ -698,14 +701,25 @@ for (const [name, treeOf] of TREES) {
     assert.equal(statusOf(walked, 'research'), 'pending');
   });
 
-  test(`${name}: a gate on the path is briefed with its ask it: line — gate-request under a driver, today's call in a terminal run`, t => {
+  test(`${name}: a gate on the path is briefed with its call — gate-request under a driver, its question printed last in a terminal run`, t => {
     const tree = treeOf();
     const terminal = twinWrites(t, tree, t2 => configRun(t2), workDone({ deep: false }));
     assert.equal(terminal.withNext.code, 0, terminal.withNext.stderr);
     const asked = rooted(briefOf(tree, terminal.plain, 'approve'), terminal.plain);
     assert.equal(terminal.withNext.stdout, `${withoutNext(terminal.without.stdout, 'next: approve (Approve) — run node-brief for it')}\nnext: approve (Approve) — its brief follows\n\n${asked}`);
+    // The question in place of the ask it line: the three lines, then the question as the last block.
     const call = name === 'variant' ? '--ask' : '--json --picker=rich';
-    assert.ok(terminal.withNext.stdout.trimEnd().split('\n').includes(`ask it: gate-brief --state=${rooted(terminal.walked.state, terminal.walked)} --node=approve ${call}`), terminal.withNext.stdout);
+    const target = `--state=${rooted(terminal.walked.state, terminal.walked)} --node=approve`;
+    const lines = terminal.withNext.stdout.split('\n');
+    assert.ok(!lines.some(line => line.startsWith('ask it: ')), terminal.withNext.stdout);
+    const at = lines.indexOf(QUESTION_LINE);
+    assert.deepEqual(lines.slice(at, at + 4), [QUESTION_LINE, `ask again: gate-brief ${target} ${call}`, `details: gate-brief ${target} --details`, '']);
+    const question = JSON.parse(terminal.withNext.stdout.slice(terminal.withNext.stdout.lastIndexOf('\n\n') + 2));
+    assert.ok(name === 'variant' ? question.requestedSchema : question.options, 'the last block is the question the host\'s tool takes');
+    if (name === 'variant') {
+      const record = rooted(fs.readFileSync(path.join(terminal.walked.dir, '.ask.json'), 'utf8'), terminal.walked);
+      assert.ok(terminal.withNext.stdout.endsWith(`\n\n${record}`), 'the record holds the printed bytes');
+    }
     assert.equal(statusOf(terminal.walked, 'approve'), 'pending');
 
     const driven = twinWrites(t, tree, t2 => configRun(t2, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } }), workDone({ deep: false }));

@@ -1157,7 +1157,186 @@ for (const [name, treeOf] of CONTINUE_TREES) {
     assert.equal(result.code, 0, result.stderr);
     assert.deepEqual(result.stderr.split('\n').filter(line => line.includes('config-continue')),
       ['warning: node-brief-config-continue-refused: state-unwritable; the gate is asked as usual']);
-    assert.match(result.stdout, /^ask it: /m);
+    // The gate is due, so it is asked from the question its brief prints last.
+    assert.match(result.stdout, /^question: printed last, below/m);
     assert.equal(readState(briefed).workflow.nodes['plan-approval'].status, 'pending');
+  });
+}
+
+// A due gate asked in session prints its question last: the `question:`,
+// `ask again:` and `details:` lines stand where `ask it:` stood, any exception
+// text follows them, then a blank line and the question — the `rich` profile's
+// JSON without `more_details` on Claude Code, the `gate-brief --ask` call on
+// Copilot, which is also written to `.ask.json` with the note before it retired.
+// The panel is published on both. A gate not yet due, a driven gate and a gate
+// under drift keep the `ask it:` line; a question that cannot be built keeps it
+// too, with one warning.
+
+const FOLD_TREES = [['source', 'claude', () => path.join(ROOT, 'plugins', 'maister')], ['variant', 'copilot', () => variantRoot()]];
+const engineOf = tree => path.join(tree, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs');
+const QUESTION_LINE = 'question: printed last, below — ask it with the question tool exactly as printed, never rebuilt';
+const UNBUILT = 'warning: node-brief-question-unbuilt: gate-brief-value-missing: the question could not be built; ask it with the ask it line';
+
+/** The three lines a folded gate prints in place of its `ask it:` line. */
+function foldedLines(state, node, host) {
+  const target = `--state=${state} --node=${node}`;
+  return [QUESTION_LINE, `ask again: gate-brief ${target} ${host === 'copilot' ? '--ask' : '--json --picker=rich'}`, `details: gate-brief ${target} --details`];
+}
+
+/** The brief's last block: everything after its last blank line. */
+const lastBlock = text => text.slice(text.lastIndexOf('\n\n') + 2);
+
+/** The question a host's tool takes, as the gate-brief verb prints it for the folded brief to match. */
+function verbQuestion(engine, state, node, host) {
+  if (host === 'copilot') {
+    const asked = run(engine, ['gate-brief', `--state=${state}`, `--node=${node}`, '--ask']);
+    assert.equal(asked.code, 0, asked.stderr);
+    return asked.stdout;
+  }
+  const json = run(engine, ['gate-brief', `--state=${state}`, `--node=${node}`, '--json', '--picker=rich']);
+  assert.equal(json.code, 0, json.stderr);
+  const { more_details: _details, ...question } = JSON.parse(json.stdout);
+  return `${JSON.stringify(question, null, 2)}\n`;
+}
+
+for (const [name, host, treeOf] of FOLD_TREES) {
+  test(`node-brief (${name}): a due gate asked in session prints the three lines, then its question as the last block, and publishes the panel`, t => {
+    const engine = engineOf(treeOf());
+    const due = skipGuardRun(t, false);
+    const panel = path.join(due.dir, 'display', 'next.json');
+    assert.equal(fs.existsSync(panel), false);
+    if (host === 'copilot') fs.writeFileSync(path.join(due.dir, '.ask.result.json'), '{"answered_by":"person"}\n');
+
+    const brief = nodeBrief(due.state, 'review-approval', engine);
+    assert.equal(brief.code, 0, brief.stderr);
+    assert.equal(brief.stderr, '');
+    const lines = brief.stdout.split('\n');
+    assert.ok(!lines.some(line => line.startsWith('ask it: ')), 'no ask it line');
+    const rules = lines.findIndex(line => line.startsWith('rules: '));
+    assert.deepEqual(lines.slice(rules + 1, rules + 5), ['', ...foldedLines(due.state, 'review-approval', host)]);
+    const block = lastBlock(brief.stdout);
+    assert.equal(brief.stdout, `${lines.slice(0, rules + 5).join('\n')}\n\n${block}`, 'the question follows the three lines after one blank line');
+    assert.equal(JSON.parse(fs.readFileSync(panel, 'utf8')).node, 'review-approval', 'the panel is published');
+
+    if (host === 'copilot') {
+      assert.equal(fs.readFileSync(path.join(due.dir, '.ask.json'), 'utf8'), block, 'the record holds the printed bytes');
+      assert.equal(fs.existsSync(path.join(due.dir, '.ask.result.json')), false, 'the note is retired');
+      assert.equal(fs.existsSync(path.join(due.dir, '.ask.result.used.json')), true);
+    } else {
+      assert.equal(fs.existsSync(path.join(due.dir, '.ask.json')), false, 'Claude Code keeps no record');
+      assert.ok(!('more_details' in JSON.parse(block)), 'no more_details');
+      assert.ok(JSON.parse(block).options.find(option => option.id === 'more-details').preview, 'More details keeps its preview');
+    }
+    assert.equal(block, verbQuestion(engine, due.state, 'review-approval', host), 'the block is what gate-brief prints');
+  });
+
+  test(`node-brief (${name}): an exception's text sits between the three lines and the question`, t => {
+    const engine = engineOf(treeOf());
+    const sample = scratch(t, { type: 'node-brief', name: '2026-01-05-exception' });
+    freeze(sample, { definition: NODE_BRIEF, orchestrator: { options: { html_output: false } } });
+    write(sample, { nodes: { scope: { status: 'completed', values: { wants_audit: true, focus: 'narrow' } } } });
+    write(sample, { nodes: { draft: { status: 'completed' } }, node_summaries: { draft: { summary: 'Drafted.' } } });
+    write(sample, { nodes: { approval: { status: 'completed' } }, node_summaries: { approval: { decisions: [{ option: 'continue-to-audit', by: 'operator' }] } } });
+    write(sample, { nodes: { audit: { status: 'completed' } }, node_summaries: { audit: { summary: 'Audited.', delegated: ['spec-auditor'] } } });
+    const brief = nodeBrief(sample.state, 'audit-approval', engine);
+    assert.equal(brief.code, 0, brief.stderr);
+    const block = lastBlock(brief.stdout);
+    assert.ok(brief.stdout.endsWith([
+      ...foldedLines(sample.state, 'audit-approval', host),
+      '',
+      '**Exception.** Ask it even when the audit found nothing, so the operator sees the audit ran.',
+      '',
+      block,
+    ].join('\n')), brief.stdout);
+    assert.equal(block, verbQuestion(engine, sample.state, 'audit-approval', host));
+  });
+
+  test(`node-brief (${name}): a second brief of the same due gate prints the question again${host === 'copilot' ? ', writing a fresh record and retiring the note' : ''}`, t => {
+    const engine = engineOf(treeOf());
+    const due = skipGuardRun(t, false);
+    const first = nodeBrief(due.state, 'review-approval', engine);
+    assert.equal(first.code, 0, first.stderr);
+    const record = path.join(due.dir, '.ask.json');
+    if (host === 'copilot') {
+      // The hand-over used the record up, and the person's answer left its note.
+      fs.renameSync(record, path.join(due.dir, '.ask.used.json'));
+      fs.writeFileSync(path.join(due.dir, '.ask.result.json'), '{"answered_by":"person"}\n');
+    }
+    const second = nodeBrief(due.state, 'review-approval', engine);
+    assert.equal(second.code, 0, second.stderr);
+    assert.equal(fromHeader(second.stdout).join('\n'), fromHeader(first.stdout).join('\n'));
+    assert.ok(second.stdout.split('\n').includes(QUESTION_LINE));
+    if (host === 'copilot') {
+      assert.equal(fs.readFileSync(record, 'utf8'), lastBlock(second.stdout), 'a fresh record');
+      assert.equal(fs.existsSync(path.join(due.dir, '.ask.result.json')), false, 'the note is retired again');
+    }
+  });
+
+  test(`node-brief (${name}): a gate not yet due, a driven gate and a gate under drift keep the ask it line word for word, and write no question`, t => {
+    const engine = engineOf(treeOf());
+    const call = host === 'copilot' ? '--ask' : '--json --picker=rich';
+    /** The brief's lines after its `rules:` line: today's are a blank, the call, and the end. */
+    const tail = text => {
+      const lines = text.split('\n');
+      return lines.slice(lines.findIndex(line => line.startsWith('rules: ')) + 1);
+    };
+
+    // Not yet due: the gate before it is still pending.
+    const early = skipGuardRun(t, false);
+    const notDue = nodeBrief(early.state, 'findings-approval', engine);
+    assert.equal(notDue.code, 0, notDue.stderr);
+    assert.deepEqual(tail(notDue.stdout), ['', `ask it: gate-brief --state=${early.state} --node=findings-approval ${call}`, '']);
+
+    // Driven: the request, as before.
+    const driven = skipGuardRun(t, false);
+    write(driven, { orchestrator: { driver: { kind: 'dispatch' } } });
+    const requested = nodeBrief(driven.state, 'review-approval', engine);
+    assert.equal(requested.code, 0, requested.stderr);
+    assert.deepEqual(tail(requested.stdout), ['', `ask it: gate-request --state=${driven.state} --node=review-approval`, '']);
+
+    // Drift: the definition changed after the freeze.
+    const drifted = scratch(t, { type: 'skip-guard', name: '2026-01-05-drift' });
+    for (const file of ['skip-guard.yml', 'skip-guard.md']) fs.copyFileSync(path.join(DEFINITIONS, file), path.join(drifted.root, file));
+    const definition = path.join(drifted.root, 'skip-guard.yml');
+    freeze(drifted, { definition });
+    write(drifted, { nodes: { review: { status: 'completed', values: { findings_to_review: false } } }, node_summaries: { review: { summary: 'Reviewed the work.' } } });
+    fs.writeFileSync(definition, fs.readFileSync(definition, 'utf8').replace('ask: "Review complete. Continue?"', 'ask: "Review complete. Go on?"'));
+    const moved = nodeBrief(drifted.state, 'review-approval', engine);
+    assert.equal(moved.code, 0, moved.stderr);
+    assert.match(moved.stderr, /^warning: node-brief-graph-drift: /m);
+    assert.deepEqual(tail(moved.stdout), ['', `ask it: gate-brief --state=${drifted.state} --node=review-approval ${call}`, '']);
+
+    for (const each of [early, driven, drifted]) {
+      assert.equal(fs.existsSync(path.join(each.dir, '.ask.json')), false, 'no question record');
+      assert.equal(fs.existsSync(path.join(each.dir, 'display', 'next.json')), false, 'no panel');
+    }
+  });
+
+  test(`node-brief (${name}): a due gate whose question cannot be built keeps its ask it line and warns once`, t => {
+    const engine = engineOf(treeOf());
+    const unread = scratch(t);
+    freeze(unread, { definition: path.join(DEFINITIONS, 'skip-guard.yml') });
+    // The review records no value, so the next gate's guard cannot be read.
+    write(unread, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed the work.' } } });
+    write(unread, { nodes: { 'review-approval': { status: 'completed' } }, node_summaries: { 'review-approval': { decisions: [{ option: 'continue-on', by: 'operator' }] } } });
+    const brief = nodeBrief(unread.state, 'findings-approval', engine);
+    assert.equal(brief.code, 0, brief.stderr);
+    assert.equal(brief.stderr, `${UNBUILT}\n`);
+    assert.ok(brief.stdout.endsWith(`\n\nask it: gate-brief --state=${unread.state} --node=findings-approval ${host === 'copilot' ? '--ask' : '--json --picker=rich'}\n`), brief.stdout);
+    assert.ok(!brief.stdout.split('\n').includes(QUESTION_LINE));
+    assert.equal(fs.existsSync(path.join(unread.dir, '.ask.json')), false);
+    assert.equal(fs.existsSync(path.join(unread.dir, 'display', 'next.json')), false);
+  });
+
+  test(`node-brief (${name}): one constant switches each host back — the exported foldedAsk gives the ask it line word for word where the host's entry is false`, async t => {
+    const lib = await import(pathToFileURL(path.join(treeOf(), 'skills', 'workflow-engine', 'scripts', 'lib', 'node-brief.mjs')).href);
+    assert.deepEqual(lib.FOLDED_QUESTION, { claude: true, copilot: true });
+    const early = skipGuardRun(t, false);
+    // Today's line, as a gate that is not yet due prints it.
+    const askIt = nodeBrief(early.state, 'findings-approval', engineOf(treeOf())).stdout.split('\n').find(line => line.startsWith('ask it: '));
+    const args = { host, state: early.state, node: 'findings-approval', askIt, question: '{\n  "q": 1\n}\n' };
+    assert.deepEqual(lib.foldedAsk({ ...args, folded: { ...lib.FOLDED_QUESTION, [host]: false } }), { lines: [askIt], block: null });
+    assert.deepEqual(lib.foldedAsk({ ...args, question: null }), { lines: [askIt], block: null }, 'no question built');
+    assert.deepEqual(lib.foldedAsk(args), { lines: foldedLines(early.state, 'findings-approval', host), block: '{\n  "q": 1\n}' });
   });
 }
