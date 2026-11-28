@@ -347,6 +347,17 @@ test('each refusal is listed under the verb that raises it, and not under one th
   assert.ok(!refusals('gate-brief').includes('closeout-unpublished'));
 });
 
+test('write-state lists --next, and neither it nor node-brief lists a warning code the closing walk or the brief prints', () => {
+  const warningCodes = ['next-skip-refused', 'next-walk-unsettled', 'next-brief-failed', 'node-brief-question-unbuilt'];
+  for (const description of [INTERFACE, JSON.parse(fs.readFileSync(path.join(VARIANT, 'interface.json'), 'utf8'))]) {
+    const verbs = description.engine.verbs;
+    assert.ok(verbs['write-state'].flags.includes('next'), 'write-state takes --next');
+    for (const verbName of ['write-state', 'node-brief']) {
+      for (const code of warningCodes) assert.ok(!verbs[verbName].refusals.includes(code), `${verbName} lists ${code} as a refusal`);
+    }
+  }
+});
+
 test('every code the engine\'s shipped recovery tables name is raised by some verb in the file', () => {
   const raised = new Set(Object.values(INTERFACE.engine.verbs).flatMap(each => each.refusals));
   const dir = path.join(SOURCE, 'skills/workflow-engine');

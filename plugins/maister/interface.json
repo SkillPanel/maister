@@ -1014,6 +1014,7 @@
       "write-state": {
         "flags": [
           "host",
+          "next",
           "no-open",
           "patch-file",
           "state"
@@ -1361,7 +1362,7 @@
       "display.mjs"
     ]
   },
-  "interface_version": "2.16",
+  "interface_version": "2.17",
   "mcp": {
     "servers": [],
     "tools": [

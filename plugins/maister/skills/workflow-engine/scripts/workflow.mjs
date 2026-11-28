@@ -17,7 +17,8 @@
  *                  take; without --name, the project's own workflows)
  *   write-state    --state, --patch-file (or the patch as JSON on stdin),
  *                  --host at the freeze (claude or copilot), optional
- *                  --no-open (the freeze opens the run's dashboard otherwise)
+ *                  --no-open (the freeze opens the run's dashboard otherwise),
+ *                  optional --next
  *                                                             changed paths
  *                  (and, for a node's question set, a blank line and the
  *                  `ask:` line naming the ids still to ask, or `none`; then,
@@ -29,7 +30,15 @@
  *                  then the `rules:` line naming their recovery; last, on a
  *                  write that completed or skipped a node, a blank line and
  *                  `next: <id> (<title>) — run node-brief for it`, or
- *                  `next: none — …` when only the closing patch is left)
+ *                  `next: none — …` when only the closing patch is left).
+ *                  With --next, a landed write other than the freeze then
+ *                  walks the run: a blank line, one `skipped:` line per
+ *                  off-path step it recorded skipped, and one `next:` line in
+ *                  place of the one above — `next: <id> (<title>) — its brief
+ *                  follows`, then a blank line and the step's brief as
+ *                  node-brief prints it, or the closing patch's line; a walk
+ *                  that cannot finish prints one `warning:` line and the
+ *                  `next:` line the state then gives, at exit 0
  *   gate-request   --state, --patch-file (or the request as JSON on stdin);
  *                  or --state, --node [--reask | --patch-file holding the
  *                  node's question set], the request built as gate-brief
@@ -288,7 +297,8 @@ const VERBS = {
   // reads, and it is checked against that one place (`patchFileOf`).
   // `--host` is read at the freeze only, for the run's delegation record.
   // `--no-open` keeps the freeze from opening the dashboard (`openAfter`).
-  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file', 'host', 'no-open'] },
+  // `--next` walks the run once the write has landed (`lib/closing-walk.mjs`).
+  'write-state': { module: 'state.mjs', flags: ['state', 'patch-file', 'host', 'no-open', 'next'] },
   // The flags of `write-state`, and for the same reason: everything the verb
   // needs — the run directory, the `gates/` directory and the frozen graph — is
   // derived from the state file, so there is no second path a caller could get
@@ -441,7 +451,7 @@ const USAGE = {
   locate: '[--name=<workflow name> [--overlay=<overlay file>…] [--profile=<name>]]',
   'wave-start': '--plan=<implementation-plan.md> --wave=<wave number> --groups=<id>[,<id>…]',
   'group-done': '--plan=<implementation-plan.md> --groups=<id>[,<id>…] --entry-file=<plan folder>/.work-log-entry.md',
-  'write-state': '--state=<orchestrator-state.yml> [--patch-file=<patch file> | the patch as JSON on stdin] [--host=<claude or copilot>, at the freeze] [--no-open]',
+  'write-state': '--state=<orchestrator-state.yml> [--patch-file=<patch file> | the patch as JSON on stdin] [--host=<claude or copilot>, at the freeze] [--no-open] [--next]',
   'gate-request': '--state=<orchestrator-state.yml> (--patch-file=<request file> | the request as JSON on stdin | --node=<gate or running node> (--reask=<revise option> | --patch-file=<the node\'s question set>))',
   'gate-revise': '--state=<orchestrator-state.yml> --node=<gate> --option=<revise option> [--patch-file=<note file> | the note as JSON on stdin]',
   'move-base': '--state=<orchestrator-state.yml> [--to=<commit>] [--reason=<text>]',
@@ -562,7 +572,7 @@ const REPEATABLE = new Set(['overlay', 'area', 'from', 'at']);
 const PICKERS = ['rich', 'plain'];
 
 /** The flags that take no value: present means true. Every other flag needs one. */
-const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open', 'fill', 'check', 'short']);
+const BOOLEAN = new Set(['oneline', 'json', 'checkpoint', 'request', 'background', 'refresh', 'answered', 'ask', 'details', 'no-open', 'fill', 'check', 'short', 'next']);
 
 /**
  * The warning recorded for a definition that declares a format this build does
@@ -947,8 +957,36 @@ async function runWriteState(flags) {
   // before the banner prints, so the relay line tells what the opener did.
   if (result.ok && result.banner) result.banner = module.bannerAfterOpen(result.banner, await openAfter(flags));
   const code = reportWrite(result, input, 'writeRefused');
-  if (result.ok && result.next) printNext(result.next);
+  if (!result.ok || !flags.next || Object.hasOwn(input.document, 'workflow')) {
+    if (result.ok && result.next) printNext(result.next);
+    return code;
+  }
+  // The write has landed, so nothing after it moves the exit code: the walk
+  // reports what it could not do as a warning, and a walk that could not run
+  // at all leaves the `next:` line the write alone prints.
+  try {
+    const walk = entryOf(await loadModule('closing-walk.mjs'), 'closingWalk', 'closing-walk.mjs');
+    printWalk(walk({ state: flags.state, rules: rulesOf('nodeBrief') }));
+  } catch (err) {
+    process.stderr.write(`warning: the walk after the write stopped (${err.message}); nothing after the lines above was walked or briefed\n`);
+    if (result.next) printNext(result.next);
+  }
   return code;
+}
+
+/**
+ * What the walk after a closing write found: its warnings on stderr; on
+ * stdout a blank line, the walk's lines and its one `next:` line — the step
+ * whose brief follows, or the line `printNext` prints — then, when a brief
+ * follows, a blank line and the brief. A walk that found nothing to print
+ * adds nothing, not even the blank line.
+ */
+function printWalk({ lines, next, brief, warnings }) {
+  for (const warning of warnings) process.stderr.write(`${warning}\n`);
+  const announced = brief === null ? (next ? nextLine(next) : null) : `next: ${next.id} (${next.title}) — its brief follows`;
+  const block = announced === null ? lines : [...lines, announced];
+  if (block.length) process.stdout.write(`\n${block.join('\n')}\n`);
+  if (brief !== null) process.stdout.write(`\n${brief}`);
 }
 
 /**
@@ -959,11 +997,16 @@ async function runWriteState(flags) {
  * due while the run is not done — a step waiting on its child run — has none.
  */
 function printNext(next) {
-  process.stdout.write(next.stop
-    ? `\nnext: none — ${next.stop} was answered with a stop: write the closing patch with task.status stopped and every node not yet run stopped, then run run-complete\n`
+  process.stdout.write(`\n${nextLine(next)}\n`);
+}
+
+/** The `next:` line itself, as `printNext` prints it. */
+function nextLine(next) {
+  return next.stop
+    ? `next: none — ${next.stop} was answered with a stop: write the closing patch with task.status stopped and every node not yet run stopped, then run run-complete`
     : next.id === null
-      ? '\nnext: none — write the closing patch with task.status, then run run-complete\n'
-      : `\nnext: ${next.id} (${next.title}) — run node-brief for it\n`);
+      ? 'next: none — write the closing patch with task.status, then run run-complete'
+      : `next: ${next.id} (${next.title}) — run node-brief for it`;
 }
 
 /**
