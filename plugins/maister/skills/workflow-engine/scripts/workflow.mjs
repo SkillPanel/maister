@@ -146,7 +146,10 @@
  *                  then one line: waiting:, started:, stopped: or next:
  *                  (adopts the child that ended — W4 — records the skips a
  *                  false guard leaves due, starts the next child — W1, W2,
- *                  W3) — writes the run and the child; JSON on a refusal
+ *                  W3) — writes the run and the child; JSON on a refusal.
+ *                  A next: line, and a started: line under a terminal
+ *                  driver, is followed by the walk write-state --next
+ *                  prints, of the parent or of the child
  *   import         --state, --to (a folder of the run), repeatable --from,
  *                  optional --as                            JSON on stdout
  *                  (each source copied into the run byte for byte, a
@@ -961,17 +964,25 @@ async function runWriteState(flags) {
     if (result.ok && result.next) printNext(result.next);
     return code;
   }
-  // The write has landed, so nothing after it moves the exit code: the walk
-  // reports what it could not do as a warning, and a walk that could not run
-  // at all leaves the `next:` line the write alone prints.
+  await walkAndPrint(flags.state, result.next ?? null);
+  return code;
+}
+
+/**
+ * The walk after a landed write (`lib/closing-walk.mjs`), printed: the
+ * closing paragraph of `write-state --next` and of `subrun-handoff`. `today`
+ * is the `next:` line the write alone gives, or null. The write has landed, so
+ * nothing here moves the exit code: the walk reports what it could not do as a
+ * warning, and a walk that could not run at all leaves `today`'s line.
+ */
+async function walkAndPrint(state, today) {
   try {
     const walk = entryOf(await loadModule('closing-walk.mjs'), 'closingWalk', 'closing-walk.mjs');
-    printWalk(walk({ state: flags.state, rules: rulesOf('nodeBrief'), today: result.next ?? null }));
+    printWalk(walk({ state, rules: rulesOf('nodeBrief'), today }));
   } catch (err) {
     process.stderr.write(`warning: the walk after the write stopped (${err.message}); nothing after the lines above was walked or briefed\n`);
-    if (result.next) printNext(result.next);
+    if (today) printNext(today);
   }
-  return code;
 }
 
 /**
@@ -1935,9 +1946,11 @@ async function runSubrunPath(flags) {
 /**
  * `subrun-handoff` reports each write it made as `write-state` reports one —
  * the child's freeze opening its dashboard as any freeze does — then, after a
- * blank line, its one closing line: `waiting:`, `started:` or `stopped:` as
- * the module spells it, or the writer's own `next:` line. A refusal is JSON on
- * stdout, like `subrun-path`, after the writes that landed before it.
+ * blank line, its closing: `waiting:`, `started:` or `stopped:` as the module
+ * spells it, or the walk `write-state --next` prints after its last write. A
+ * child started under a terminal driver runs in this session, so the walk of
+ * the child follows its `started:` line. A refusal is JSON on stdout, like
+ * `subrun-path`, after the writes that landed before it.
  */
 async function runSubrunHandoff(flags) {
   if (!flags.state) throw new UsageError('subrun-handoff needs --state');
@@ -1960,8 +1973,12 @@ async function runSubrunHandoff(flags) {
     report({ ok: false, code: result.code, message: result.message });
     return EXIT.REJECTED;
   }
-  if (result.next) printNext(result.next);
-  else process.stdout.write(`\n${result.line}\n`);
+  if (result.next) {
+    await walkAndPrint(flags.state, result.next);
+    return EXIT.OK;
+  }
+  process.stdout.write(`\n${result.line}\n`);
+  if (result.child) await walkAndPrint(result.child, null);
   return EXIT.OK;
 }
 
