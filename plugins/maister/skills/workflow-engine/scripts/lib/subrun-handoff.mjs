@@ -42,7 +42,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parse, isPlainObject } from './state-read.mjs';
 import { SUBRUN_REFUSAL, resolve as resolveGraph, validate } from './graph.mjs';
-import { dueNext, offPath, reread } from './gate-brief.mjs';
+import { dueNext, reread, skipWalk } from './gate-brief.mjs';
 import { childRun, projectRootOf, provenGraph, writeState } from './state.mjs';
 import { subrunPath } from './subrun-path.mjs';
 import { filledWith } from './node-brief.mjs';
@@ -168,27 +168,28 @@ function adopt(run, node, doc, budget) {
 
 /**
  * Steps 5 to 7: record each due node a false guard (or the `on: failure` rule)
- * takes off the path, then start the due `workflow:` node, or hand the driver
- * the writer's `next:` line for anything else.
+ * takes off the path, through the walk `skipWalk` shares, then start the due
+ * `workflow:` node, or hand the driver the writer's `next:` line for anything
+ * else. Each skip is one of this call's labelled writes.
  */
 function walk(run, doc, budget) {
-  for (let steps = 0; steps < budget; steps++) {
-    const due = dueNext({ doc, runDir: run.runDir });
-    if (due === null) return settled(run, doc, budget - steps);
-    if (due.id === null) return done(run, { next: due });
-    const entry = doc.workflow.nodes[due.id] ?? {};
-    if (offPath({ doc, runDir: run.runDir, id: due.id })) {
-      const written = write(run, run.state, { nodes: { [due.id]: { status: 'skipped' } } }, `skip ${due.id}`);
-      if (written.refusal) return written.refusal;
-      const after = readParent(run);
-      if (after.refusal) return after.refusal;
-      doc = after;
-      continue;
-    }
-    if (entry.kind === 'workflow' && !(typeof entry.dir === 'string' && entry.dir !== '')) return start(run, due.id, doc, { begun: false });
-    return done(run, { next: due });
-  }
-  throw new Error(UNSETTLED);
+  const writer = (patch, id) => {
+    const written = write(run, run.state, patch, `skip ${id}`);
+    return written.refusal ? { ok: false, code: written.refusal.code, refusal: written.refusal } : { ok: true };
+  };
+  const readAgain = () => {
+    const after = readParent(run);
+    return after.refusal ? { ok: false, code: after.refusal.code, refusal: after.refusal } : after;
+  };
+  const { skipped, stop, doc: current } = skipWalk({ doc, runDir: run.runDir, writer, reread: readAgain, bound: budget });
+  if (stop.error) throw stop.error;
+  if (stop.kind === 'refused') return stop.result.refusal;
+  if (stop.kind === 'bound') throw new Error(UNSETTLED);
+  if (stop.kind === 'settled') return settled(run, current, budget - skipped.length);
+  if (stop.kind === 'closing') return done(run, { next: { id: null } });
+  const entry = current.workflow.nodes[stop.id] ?? {};
+  if (entry.kind === 'workflow' && !(typeof entry.dir === 'string' && entry.dir !== '')) return start(run, stop.id, current, { begun: false });
+  return done(run, { next: { id: stop.id, title: stop.title } });
 }
 
 /**
