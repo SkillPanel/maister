@@ -45,6 +45,58 @@ import { SHIPPED_HOST } from '../../../../lib/host.mjs';
 import { isSetAside, runFolders } from '../../../../lib/run-dirs.mjs';
 import { forgetConventionsShown, publishPointer } from './display-files.mjs';
 import { openRevision } from './revise.mjs';
+import { dueNext, reread } from './gate-brief.mjs';
+import { titleOf } from './display.mjs';
+import { isTerminalDriver } from './driver.mjs';
+import { frozenIds } from './question-triage.mjs';
+import { fileURLToPath } from 'node:url';
+
+/** The engine's entry script, which the step and section calls name by its absolute path. */
+const ENGINE = fileURLToPath(new URL('../workflow.mjs', import.meta.url));
+
+/** The statuses a node, or the run, has ended in. */
+const ENDED = new Set(['completed', 'skipped', 'failed', 'stopped']);
+const RUN_ENDED = new Set(['completed', 'failed', 'stopped']);
+
+/** The two sections a driven resume prints in one call. */
+export const DRIVEN_SECTION_CALL = 'reference --at="references/gates.md § Driver-suspended mode — the write order" '
+  + '--at="references/gates.md § Driver-suspended mode — resume"';
+
+/** A path as a shell reads it: bare, or in single quotes when it holds whitespace. */
+function quoted(file) {
+  return /\s/.test(file) ? `'${file.replace(/'/g, "'\\''")}'` : file;
+}
+
+/**
+ * What a resume briefs next, in the order the spec's table lists: `{step, step_title,
+ * step_call, section_call}`, each null when nothing is named. Reads the state and the
+ * definition only; a due node's guard is not read.
+ */
+function stepOf({ doc, dir, state, gate, revision }) {
+  const none = { step: null, step_title: null, step_call: null };
+  const task = isPlainObject(doc.task) ? doc.task : {};
+  if (RUN_ENDED.has(task.status)) return { ...none, section_call: null };
+  if (gate) return { ...none, section_call: null };
+  const section_call = isTerminalDriver(doc) ? null : `node ${quoted(ENGINE)} ${DRIVEN_SECTION_CALL}`;
+  if (revision && revision.applied === false) return { ...none, section_call };
+  const workflow = isPlainObject(doc.workflow) ? doc.workflow : {};
+  const recorded = isPlainObject(workflow.nodes) ? workflow.nodes : {};
+  const entry = id => (isPlainObject(recorded[id]) ? recorded[id] : {});
+  const started = frozenIds(recorded).filter(id => {
+    const status = entry(id).status ?? 'pending';
+    return status !== 'pending' && !ENDED.has(status);
+  });
+  const subrun = started.find(id => entry(id).kind === 'workflow');
+  const id = subrun ?? started[0] ?? dueNext({ doc, runDir: dir })?.id ?? null;
+  if (id === null) return { ...none, section_call };
+  const verb = subrun === id ? 'subrun-handoff' : 'node-brief';
+  return {
+    step: id,
+    step_title: titleOf(reread(doc, workflow, dir).display.titles, id),
+    step_call: `node ${quoted(ENGINE)} ${verb} --state=${quoted(path.resolve(state))} --node=${id}`,
+    section_call,
+  };
+}
 
 /** The 2.x line's install commands, per host. */
 const INSTALL_2X = {
@@ -189,6 +241,7 @@ export function resumeCheck({ state }) {
     // not yet applied runs `gate-revise` before it walks the ready set.
     ...(revision ? { revision: { gate: revision.gate, option: revision.option, reruns: revision.reruns, revision: revision.revision, applied: revision.applied } } : {}),
     ...(gate ? { gate } : {}),
+    ...stepOf({ doc, dir, state, gate, revision }),
     next,
     ...(warnings.length ? { warnings } : {}),
   };

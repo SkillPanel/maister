@@ -1861,9 +1861,34 @@ async function runResumeCheck(flags) {
   const check = entryOf(module, 'resumeCheck', VERBS['resume-check'].module);
   const { warnings = [], ...result } = check({ state: flags.state });
   report(result);
+  if (result.ok && result.gate) await printResumeSection(module);
   for (const warning of warnings) process.stderr.write(`warning: ${warning}\n`);
   if (result.ok) await openAfter(flags);
   return result.ok ? EXIT.OK : EXIT.REJECTED;
+}
+
+/**
+ * The section a resume of a waiting gate reads, printed after the JSON and a blank
+ * line with the reference print's own heading. A section that cannot be printed
+ * leaves the JSON as it is, one `warning:` line on stderr naming the call that
+ * prints it, and the exit code unchanged.
+ */
+async function printResumeSection(module) {
+  const shellPath = file => (/\s/.test(file) ? `'${file.replace(/'/g, "'\\''")}'` : file);
+  const at = 'references/gates.md § Driver-suspended mode — resume';
+  try {
+    const print = entryOf(await loadModule(VERBS.reference.module), 'reference', VERBS.reference.module);
+    const printed = print({ ats: [at], pluginRoot: PLUGIN_ROOT });
+    if (printed.ok) {
+      process.stdout.write(`\n${printed.text}`);
+      return;
+    }
+    const first = (printed.errors || [])[0];
+    const code = first?.code ?? 'reference-unreadable';
+    process.stderr.write(`warning: ${code}: the resuming section could not be printed; print it with node ${shellPath(fileURLToPath(import.meta.url))} reference --at="${at}"\n`);
+  } catch (err) {
+    process.stderr.write(`warning: reference-unreadable: the resuming section could not be printed; print it with node ${shellPath(fileURLToPath(import.meta.url))} reference --at="${at}" (${err.message})\n`);
+  }
 }
 
 /**

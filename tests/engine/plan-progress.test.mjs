@@ -310,7 +310,7 @@ test('resume: the verbs leave the state a hand-kept log and an empty write leave
   };
   assert.deepEqual(unclocked(verbs), unclocked(hand));
   const check = run => JSON.parse(verb(['resume-check', `--state=${run.state}`]).stdout);
-  assert.deepEqual({ ...check(verbs), root: null, dashboard: null, task_path: null, next: null }, { ...check(hand), root: null, dashboard: null, task_path: null, next: null });
+  assert.deepEqual({ ...check(verbs), root: null, dashboard: null, task_path: null, next: null, step_call: null }, { ...check(hand), root: null, dashboard: null, task_path: null, next: null, step_call: null });
   assert.deepEqual(deriveProgress(read(verbs.plan), read(verbs.log)), deriveProgress(read(hand.plan), read(hand.log)));
   assert.deepEqual(progress(verbs), progress(hand));
 });

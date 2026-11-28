@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { ENGINE_DIR, FIXTURES, freeze, legacyMirror, run as runScript, scratch, sibling, variantRoot, verb, write } from '../helpers.mjs';
+import { ENGINE, ENGINE_DIR, FIXTURES, freeze, legacyMirror, reach, run as runScript, scratch, sibling, variantRoot, verb, write } from '../helpers.mjs';
 
 /** Run `resume-check` against a run and parse the JSON it always prints. */
 function resumeCheck(run) {
@@ -437,4 +437,104 @@ test('node check: Node.js 20 and newer pass, and so does this one, so resume-che
   assert.equal(result.code, 0, result.stderr);
   assert.ok(!result.stdout.includes('node-unavailable'), result.stdout);
   assert.equal(result.json.ok, true);
+});
+
+// ---------------------------------------------------------------------------
+// the step to brief and the section to print
+// ---------------------------------------------------------------------------
+
+const KEYS = ['step', 'step_title', 'step_call', 'section_call'];
+const DRIVEN_CALL = engine => `node ${engine} reference --at="references/gates.md § Driver-suspended mode — the write order" `
+  + '--at="references/gates.md § Driver-suspended mode — resume"';
+
+/** The four keys of a check, whole, run on `engine` (the source's unless given). */
+function named(run, engine = ENGINE) {
+  const result = runScript(engine, ['resume-check', `--state=${run.state}`, '--no-open']);
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  assert.equal(result.stdout.includes('\n\n== '), false, 'no section prints while no gate waits');
+  const json = JSON.parse(result.stdout);
+  return Object.fromEntries(KEYS.map(key => [key, json[key]]));
+}
+
+const call = (engine, verbName, run, id) => `node ${engine} ${verbName} --state=${run.state} --node=${id}`;
+
+for (const [label, engine] of [['source', () => ENGINE], ['variant', () => path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]]) {
+  test(`resume-check (${label}): a node due, a node running, a sub-run running and an ended run each read as the table says`, t => {
+    const eng = engine();
+    // Row 6: nothing started, a node due. The guard is not read; the title is the definition's.
+    const fresh = scratch(t);
+    freeze(fresh);
+    assert.deepEqual(named(fresh, eng), { step: 'analysis', step_title: 'Scope analysis', step_call: call(eng, 'node-brief', fresh, 'analysis'), section_call: null });
+
+    // Row 5: a node started and not ended, with a humanized title.
+    const running = scratch(t, { name: '2026-01-06-running' });
+    freeze(running);
+    reach(running, { nodes: { implementation: { status: 'running' } } });
+    assert.deepEqual(named(running, eng), { step: 'implementation', step_title: 'Implementation', step_call: call(eng, 'node-brief', running, 'implementation'), section_call: null });
+
+    // Row 4: a workflow: node running reads the hand-off.
+    const sub = scratch(t, { name: '2026-01-07-sub' });
+    freeze(sub);
+    reach(sub, { nodes: { research: { status: 'running' } } });
+    assert.deepEqual(named(sub, eng), { step: 'research', step_title: 'Research', step_call: call(eng, 'subrun-handoff', sub, 'research'), section_call: null });
+
+    // Row 7: only the closing patch left.
+    const closing = scratch(t, { name: '2026-01-08-closing' });
+    freeze(closing);
+    reach(closing, { nodes: { research: { status: 'completed' } } });
+    assert.deepEqual(named(closing, eng), { step: null, step_title: null, step_call: null, section_call: null });
+
+    // Row 1: the run has ended; the same state, now stopped, names nothing.
+    write(closing, { task: { status: 'completed' } });
+    assert.deepEqual(named(closing, eng), { step: null, step_title: null, step_call: null, section_call: null });
+  });
+}
+
+test('resume-check: a driven run names the two-section call, and a terminal run names none', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  const driven = named(run);
+  assert.equal(driven.section_call, DRIVEN_CALL(ENGINE));
+  assert.equal(driven.step, 'analysis', 'the due step is named beside the section');
+});
+
+test('resume-check: a revise not yet applied outranks a running node and a running sub-run', t => {
+  const run = scratch(t);
+  freeze(run, { definition: REVISE, orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  write(run, {
+    nodes: { draft: { status: 'completed', values: { needs_figures: false } } },
+    node_summaries: { draft: { summary: 'Drafted.' } },
+  });
+  write(run, { nodes: { figures: { status: 'skipped' }, 'side-note': { status: 'completed' } } });
+  write(run, { nodes: { review: { status: 'completed' } }, node_summaries: { review: { summary: 'Reviewed.' } } });
+  write(run, {
+    nodes: { 'review-approval': { status: 'completed' } },
+    node_summaries: { 'review-approval': { decisions: [{ option: 'send-back', answered_by: 'cockpit:ana', at: '2026-01-05T09:40:00Z' }] } },
+  });
+  write(run, { nodes: { publish: { status: 'running' } } });
+  assert.deepEqual(named(run), { step: null, step_title: null, step_call: null, section_call: DRIVEN_CALL(ENGINE) });
+
+  const sub = scratch(t, { name: '2026-01-09-sub' });
+  freeze(sub);
+  reach(sub, { nodes: { research: { status: 'running' } } });
+  assert.equal(named(sub).step_call, call(ENGINE, 'subrun-handoff', sub, 'research'));
+});
+
+test('resume-check: a refusal carries none of the four keys and prints as it did', t => {
+  const run = scratch(t, { fixture: 'prose-2x' });
+  const result = resumeCheck(run);
+  assert.equal(result.code, 1);
+  assert.deepEqual(Object.keys(result.json), ['ok', 'code', 'message', 'next']);
+  assert.equal(result.stdout.endsWith('}\n'), true);
+  assert.equal(result.stdout.includes('\n\n== '), false);
+});
+
+test('resume-check: the run folder is byte for byte the same after every check', t => {
+  const run = scratch(t);
+  freeze(run, { orchestrator: { driver: { kind: 'cockpit', cwd: '/work' } } });
+  reach(run, { nodes: { implementation: { status: 'running' } } });
+  const before = snapshot(run.dir);
+  named(run);
+  named(run, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs'));
+  assert.deepEqual(snapshot(run.dir), before);
 });
