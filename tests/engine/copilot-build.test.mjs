@@ -240,3 +240,78 @@ test('the directory rule never has a run folder made before its freeze: the free
     assert.doesNotMatch(text, /a new task or sub-run directory/, file);
   }
 });
+
+// Passages marked for one host (`host-markers.test.mjs` holds the reader and the
+// source check): the build drops Claude Code's and uncomments Copilot's, in every
+// skill file and every agent, after the substitutions of the steps before it.
+const CLAUDE_ONLY = 'Claude Code sentinel: send both calls in the same message.';
+const COPILOT_ONLY = 'Copilot sentinel: ask with AskUserQuestion after the first call returns.';
+const HOST_PASSAGES = [
+  '',
+  '<!-- claude-code -->',
+  CLAUDE_ONLY,
+  '<!-- /claude-code -->',
+  '<!-- copilot',
+  COPILOT_ONLY,
+  '-->',
+  '<!-- rich-picker -->',
+  'Rich picker sentinel.',
+  '<!-- /rich-picker -->',
+  '<!-- plain-picker',
+  'Plain picker sentinel.',
+  '-->',
+  '',
+].join('\n');
+const MARKED_FILES = ['skills/quick-dev/SKILL.md', 'skills/workflow-engine/references/gates.md', 'agents/implementation-runner.md'];
+/** A host marker line, either host, opener or closer. */
+const HOST_MARKER = /^[ \t]*<!--[ \t]*\/?(?:claude-code|copilot)(?:[ \t]|-->|$)/m;
+
+let markedBuild = null;
+/** One build of a scratch root whose MARKED_FILES end in HOST_PASSAGES, shared by the tests below. */
+function hostMarkedBuild() {
+  if (markedBuild) return markedBuild;
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'maister-build-hosts-')));
+  process.on('exit', () => fs.rmSync(dir, { recursive: true, force: true }));
+  const root = path.join(dir, 'root');
+  fs.cpSync(path.join(ROOT, 'platforms/copilot-cli'), path.join(root, 'platforms/copilot-cli'), { recursive: true });
+  fs.cpSync(path.join(ROOT, 'tools/interface.mjs'), path.join(root, 'tools/interface.mjs'));
+  fs.cpSync(path.join(ROOT, 'plugins/maister'), path.join(root, 'plugins/maister'), { recursive: true });
+  for (const file of MARKED_FILES) fs.appendFileSync(path.join(root, 'plugins/maister', file), HOST_PASSAGES);
+  const out = path.join(dir, 'copilot');
+  const result = build(['--out', slash(out)], root);
+  assert.equal(result.code, 0, result.stderr);
+  markedBuild = { source: path.join(root, 'plugins/maister'), out };
+  return markedBuild;
+}
+
+test('a claude-code passage stays in the source and is dropped from the build, in skills and in agents', () => {
+  const { source, out } = hostMarkedBuild();
+  for (const file of MARKED_FILES) {
+    assert.ok(read(source, file).includes(`<!-- claude-code -->\n${CLAUDE_ONLY}\n<!-- /claude-code -->`), file);
+    assert.ok(!read(out, file).includes(CLAUDE_ONLY), file);
+  }
+});
+
+test('a copilot passage is uncommented in the build, after the substitutions, and the picker passages render as before', () => {
+  const { out } = hostMarkedBuild();
+  for (const file of MARKED_FILES) {
+    const text = read(out, file);
+    assert.ok(text.includes(`\n${COPILOT_ONLY.replace('AskUserQuestion', 'ask_user')}\n`), file);
+  }
+  // Picker passages are rendered in skills only, as before.
+  for (const file of MARKED_FILES.filter(each => each.startsWith('skills/'))) {
+    const text = read(out, file);
+    assert.ok(!text.includes('Rich picker sentinel.'), file);
+    assert.ok(text.endsWith(`\n${COPILOT_ONLY.replace('AskUserQuestion', 'ask_user')}\nPlain picker sentinel.\n`), file);
+  }
+});
+
+test('no host marker line is left in the build\'s skills and agents', () => {
+  for (const variant of [hostMarkedBuild().out, variantRoot()]) {
+    for (const dir of ['skills', 'agents']) {
+      for (const file of markdown(path.join(variant, dir))) {
+        assert.doesNotMatch(fs.readFileSync(file, 'utf8'), HOST_MARKER, path.relative(variant, file));
+      }
+    }
+  }
+});

@@ -133,7 +133,7 @@ test('the answer fold clears the whole marker, key included', t => {
 function readings(run) {
   const check = verb(['resume-check', `--state=${run.state}`]);
   assert.equal(check.code, 0, check.stderr);
-  const report = JSON.parse(check.stdout);
+  const report = JSON.parse(check.stdout.split('\n\n== ')[0]);
   return {
     resume: { gate: report.gate, driver_kind: report.driver_kind, ok: report.ok },
     phases: readDashboard(run).phases,

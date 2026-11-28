@@ -413,8 +413,8 @@ the run's candidates file, and always runs.
    queued candidates that teach one lesson for merging, matches the
    rest against what the project's standards and documents already hold,
    suggests a destination, keeps at most five new lessons and returns each with
-   its evidence and how many it dropped, as docs-manager's
-   `references/standard-candidates.md` § *Consolidation* says. When the queue cannot be read, say
+   its evidence and how many it dropped, as
+   `<plugin root>/skills/docs-manager/references/standard-candidates.md` § *Consolidation* says. When the queue cannot be read, say
    so in the prompt in its place and go on. Write
    what it returns to `standard-candidates.json` in the task directory, in the
    shape that reference's *The run's candidates file* gives. When the call

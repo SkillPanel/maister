@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ENGINE, FIXTURES, freeze, run as runScript, scratch, sibling, verb, write } from '../helpers.mjs';
+import { ENGINE, FIXTURES, freeze, run as runScript, scratch, scratchPlugin, sibling, variantRoot, verb, write } from '../helpers.mjs';
 import { refreshIndex } from '../../plugins/maister/skills/workflow-engine/scripts/lib/gate-index.mjs';
 
 // What `resume-check` tells a session about a waiting gate, and how it finds the
@@ -60,7 +60,13 @@ const answered = (actor, at = LATER, option = 'continue-to-audit') =>
 function check(run, env) {
   const result = verb(['resume-check', `--state=${run.state}`], undefined, env);
   assert.equal(result.code, 0, result.stdout + result.stderr);
-  return JSON.parse(result.stdout);
+  return jsonPart(result.stdout);
+}
+
+/** The JSON part of a stdout: a waiting gate adds a blank line and a section after it. */
+function jsonPart(stdout) {
+  const at = stdout.indexOf('\n\n== ');
+  return JSON.parse(at === -1 ? stdout : stdout.slice(0, at));
 }
 
 /** `resume-check` with no state, from `cwd`. */
@@ -459,4 +465,46 @@ test('resume-check gate: the listing form carries no `next`, on the report or on
   const report = find(run.root);
   assert.ok(!Object.hasOwn(report, 'next'));
   assert.ok(report.waiting.every(entry => !Object.hasOwn(entry, 'next')));
+});
+
+// ---------------------------------------------------------------------------
+// the section printed after the JSON while a gate waits
+// ---------------------------------------------------------------------------
+
+const RESUME_HEADING = '== skills/workflow-engine/references/gates.md § Driver-suspended mode — resume';
+
+/** The JSON part and the section part of a resume-check stdout that holds both. */
+function parts(stdout) {
+  const at = stdout.indexOf('\n\n== ');
+  assert.notEqual(at, -1, 'a blank line and the section follow the JSON');
+  return { json: JSON.parse(stdout.slice(0, at)), section: stdout.slice(at + 2) };
+}
+
+test('resume-check gate: the JSON, a blank line, then the resuming section with its own heading', t => {
+  const run = suspended(scratch(t));
+  const before = snapshot(run.dir);
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    const result = runScript(engine, ['resume-check', `--state=${run.state}`, '--no-open']);
+    assert.equal(result.code, 0, result.stderr);
+    const { json, section } = parts(result.stdout);
+    assert.equal(json.gate.node, GATE);
+    assert.equal(json.step, null);
+    assert.equal(json.section_call, null);
+    assert.ok(section.startsWith(`${RESUME_HEADING}\n`), section.slice(0, 120));
+    assert.ok(result.stdout.length <= 20000, `${result.stdout.length} characters`);
+  }
+  assert.deepEqual(snapshot(run.dir), before);
+});
+
+test('resume-check gate: a section that cannot be printed leaves the JSON, one warning and the exit code', t => {
+  const run = suspended(scratch(t));
+  const engine = scratchPlugin(t);
+  fs.rmSync(path.join(path.dirname(engine), '../references/gates.md'));
+  const result = runScript(engine, ['resume-check', `--state=${run.state}`, '--no-open']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).gate.node, GATE, 'the JSON alone, nothing after it');
+  const warnings = result.stderr.split('\n').filter(line => line.startsWith('warning: reference-'));
+  assert.equal(warnings.length, 1, result.stderr);
+  assert.ok(warnings[0].includes('the resuming section could not be printed; print it with node '), warnings[0]);
+  assert.ok(warnings[0].includes('reference --at="references/gates.md § Driver-suspended mode — resume"'), warnings[0]);
 });

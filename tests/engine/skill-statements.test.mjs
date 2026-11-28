@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR } from '../helpers.mjs';
+import { ENGINE_DIR, variantRoot } from '../helpers.mjs';
+import { reference } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
 
 // A few statements in the engine skill are contracts in their own right: the
 // reason `write-state` checks structure rather than a schema, and the Step 0
@@ -226,10 +227,10 @@ test('interpolation says nowhere that an ask: is substituted — neither the gra
 
 test('the gate rule is loaded first: a gate is asked from the call its brief prints, never by hand, and the skill spells no picker passage', () => {
   const before = collapse(sectionLines('## Before anything else').join('\n'));
-  assert.ok(before.includes('run the call its `ask it:` line prints'), 'Before anything else names the brief\'s ask it line');
+  assert.ok(before.includes('run an `ask it:` line\'s call alone, then ask what it prints'), 'Before anything else names the brief\'s ask it line');
   assert.ok(before.includes('never write a gate question by hand'), 'Before anything else keeps the never-by-hand rule');
   const raw = fs.readFileSync(SKILL, 'utf8');
-  assert.doesNotMatch(raw, /rich-picker|plain-picker/, 'no picker marker is left in the skill');
+  assert.doesNotMatch(raw, /rich-picker|plain-picker/, 'no picker marker is left in the skill (host markers are allowed)');
   for (const heading of ['### Gates and in-node questions', '### Interpolating', '### Ending a dispatched run', '## Sub-runs']) {
     assert.ok(!raw.split(/\r?\n/).some(line => line.startsWith(heading)), `the skill no longer carries ${heading}: its brief lines print it`);
   }
@@ -278,4 +279,157 @@ test('the rules a run needs mid-run come first, in order, and end inside what a 
   const end = next ? last + next.index + 1 : text.length;
   assert.ok(end > last + HEAD.at(-1).length, 'the last head section has a body');
   assert.ok(end < HEAD_LIMIT, `the head ends at body character ${end}, at or past ${HEAD_LIMIT}`);
+});
+
+// --- Resume, the conventions sentence and the skip rule -----------------------
+
+test('Resume names the step and section calls, with the limit on file reads', () => {
+  const text = skill();
+  assert.ok(text.includes('Brief what `step_call` names, print what `section_call` names; never read the state file or a reference page with the file tool to find the step or the section; the driven answer reads (`gates.md` step 1) are unchanged.'));
+  assert.ok(text.includes('prints the two *Driver-suspended mode* sections in one call'));
+  assert.ok(!text.includes('Read the reference with the read tool, never through a shell'), 'the old read-tool sentence is gone');
+});
+
+test('the brief-printing sentence for a rules: page is gone from the skill', () => {
+  const text = skill();
+  assert.ok(!text.includes('print it the first time in a session'));
+  assert.ok(!text.includes('again after a compaction, which drops what was read'));
+});
+
+test('The ready set says an engine-recorded skip needs no summary and a judged one keeps it', () => {
+  const lines = sectionLines('### The ready set').join(' ');
+  assert.match(collapse(lines), /A skip the engine records needs no summary; a skip you judge keeps one\./);
+  const state = collapse(fs.readFileSync(WRITING_STATE, 'utf8'));
+  assert.ok(state.includes('A skip the engine records needs no summary, and a skip the session judges keeps one.'));
+});
+
+test('Starting a run batches its first calls and skips the checks a hand-over already made', () => {
+  const text = collapse(skill());
+  assert.ok(text.includes('`validate --short --definition=<path> [--overlay=<path>…] [--profile=<name>]` and `resolve --short` with the same flags in one message'));
+  assert.ok(text.includes('in one `reference` call with one `--at` each'));
+  assert.ok(text.includes('references/gates.md` § *Before every gate — the gate brief*'));
+  assert.ok(text.includes('A run `/maister:run` hands over with the located definition, overlays, profile and a passed validation gets no second `locate` or `validate`.'));
+  // The hand-over carries each of those values.
+  const handOver = collapse(fs.readFileSync(path.join(ENGINE_DIR, '..', 'run', 'SKILL.md'), 'utf8'));
+  for (const value of ['the located `definition` path, and that `validate` passed on it', 'the overlays, located ones first', 'the profile, when one was given']) {
+    assert.ok(handOver.includes(value), value);
+  }
+});
+
+// --- Calls in one message, said per host ---------------------------------------
+const P1 = 'A file write and the command that reads it may share a message — the patch file and its closing write above all — and so may calls that only read';
+const P3 = '— unless a patch file a refused write left is still on disk: then write the corrected file and run the write in two messages.';
+const P2 = 'Calls where one needs the other\'s result never share a message; calls that only read may.';
+
+/** The text outside every `<!-- … -->` comment, collapsed. */
+function outsideComments(raw) {
+  return collapse(raw.replace(/<!--[\s\S]*?-->/g, ''));
+}
+
+test('the source skill says in Claude Code\'s passage that calls may share a message, with the guard, and P2 only inside a comment', () => {
+  const raw = fs.readFileSync(SKILL, 'utf8').replace(/\r\n?/g, '\n');
+  assert.match(raw, /^<!-- claude-code -->\n[^\n]*\n<!-- \/claude-code -->\n<!-- copilot\n[^\n]*\n-->$/m, 'one marked pair');
+  assert.ok(collapse(raw).includes(`${P1} ${P3}`), 'P1 with P3 appended');
+  assert.ok(!outsideComments(raw).includes(P2), 'P2 is only in the copilot comment');
+  assert.ok(collapse(raw).includes(P2), 'P2 sits in the copilot comment');
+});
+
+test('the variant skill reads P2 and no P1 or P3 text, and stays within the Copilot budget', () => {
+  const root = variantRoot();
+  const raw = fs.readFileSync(path.join(root, 'skills/workflow-engine/SKILL.md'), 'utf8');
+  assert.ok(collapse(raw).includes(P2), 'P2 in the variant');
+  assert.ok(!raw.includes('may share a message'), 'no P1 text in the variant');
+  assert.ok(!raw.includes('two messages'), 'no P3 text in the variant');
+  assert.doesNotMatch(raw, /<!--\s*\/?(?:claude-code|copilot)/);
+  const printed = reference({ ats: ['SKILL.md'], pluginRoot: path.join(root, 'skills/workflow-engine') });
+  const length = printed.ok ? printed.text.length : raw.length;
+  assert.ok(length <= 19906, `the variant engine skill prints ${length} characters`);
+});
+
+// --- The closing write walks on: the loop bullets -----------------------------
+
+test('Before anything else tells the session to close with --next and to call node-brief in four cases only', () => {
+  const before = collapse(sectionLines('## Before anything else').join('\n'));
+  assert.ok(before.includes('Close a step, record a skip (one you judged, or one a brief\'s `now false` or `skip it:` line gives), or record a gate\'s answer with `--next`. What follows the `next:` line is the next step\'s brief: act on it and never ask for it again.'));
+  for (const phrase of ['only after a run\'s first write', 'after a plain `run node-brief for it` line', 'after `resume-check` (its `step_call`)', 'after `gate-revise`']) {
+    assert.ok(before.includes(phrase), phrase);
+  }
+});
+
+// --- The question folded into the brief: the gate bullets ---------------------
+
+const ENGINE_TREES = () => [['source', ENGINE_DIR], ['Copilot build', path.join(variantRoot(), 'skills/workflow-engine')]];
+
+/** The printed text of one reference section, whitespace collapsed, in one tree. */
+function printedSection(root, at) {
+  const out = reference({ ats: [at], pluginRoot: root });
+  assert.ok(out.ok, `${at} prints`);
+  return { text: collapse(out.text), length: out.text.length };
+}
+
+test('both trees\' engine skill say to pass a printed question as printed, run ask again only to ask again, and details when asked for more', () => {
+  for (const [tree, root] of ENGINE_TREES()) {
+    const before = collapse(printedSection(root, 'SKILL.md').text);
+    assert.ok(before.includes('Pass a printed `question:` as printed.'), `${tree}: pass the printed question as printed`);
+    assert.ok(before.includes('Run `ask again:` only to ask again'), `${tree}: ask again only to ask again`);
+    assert.ok(before.includes('`details:` when the person asks for more'), `${tree}: details when the person asks for more`);
+  }
+});
+
+test('the ask again line points at gates.md Terminal mode for the no-second-question rule, in both trees', () => {
+  for (const [tree, root] of ENGINE_TREES()) {
+    const text = printedSection(root, 'SKILL.md').text;
+    assert.ok(text.includes('only to ask again (`references/gates.md` § *Terminal mode*)'), `${tree}: the pointer`);
+  }
+});
+
+test('gates.md Terminal mode holds the no-second-question rule, with the Copilot cases only on the Copilot build', () => {
+  const at = 'references/gates.md § Terminal mode';
+  for (const [tree, root] of ENGINE_TREES()) {
+    const text = printedSection(root, at).text;
+    assert.ok(text.includes('After a brief that printed a question, make no other call that prints one'), `${tree}: the rule`);
+    assert.ok(text.includes('`ask it:` line instead of the question'), `${tree}: the ask it case`);
+  }
+  const copilot = printedSection(ENGINE_TREES()[1][1], at).text;
+  assert.ok(copilot.includes('overwrites `.ask.json` and retires the answer note'), 'the reason');
+  assert.ok(copilot.includes('only after the details print, after a revise\'s note (`--ask --note`), and when the brief printed an `ask it:` line'), 'the three cases');
+  assert.doesNotMatch(copilot, /--picker=rich/, 'no rich profile in the variant');
+});
+
+test('on the source More details is the details call, and a typed details too; the Copilot build runs ask again after the details print', () => {
+  const at = 'references/gates.md § Terminal mode';
+  const [[, source], [, copilot]] = ENGINE_TREES();
+  const src = printedSection(source, at).text;
+  assert.ok(src.includes('More details is the `details:` call'), 'source: More details');
+  assert.ok(src.includes('A typed "details" is the same request.'), 'source: typed details');
+  assert.ok(!src.includes('Its preview already shows the full brief'), 'source: the preview no longer stands for the brief');
+  const cop = printedSection(copilot, at).text;
+  assert.ok(cop.includes('More details is the `details:` call'), 'copilot: More details');
+  assert.ok(cop.includes('then run `ask again:` and ask what it prints'), 'copilot: ask again after details');
+});
+
+test('the gate-brief forms describe --details standing alone, and node-brief\'s row names question, ask again and details', () => {
+  for (const [tree, root] of ENGINE_TREES()) {
+    const forms = printedSection(root, 'references/gates.md § The `gate-brief` forms').text;
+    assert.ok(forms.includes('`--details` stands alone: it prints `more_details` as plain text, writes no `.ask.json` and retires no note'), `${tree}: standalone details`);
+    const verbs = collapse(fs.readFileSync(path.join(root, 'references/verbs.md'), 'utf8'));
+    assert.ok(verbs.includes('a `question:` line, an `ask again:` call and a `details:` call'), `${tree}: the node-brief row`);
+  }
+});
+
+test('every section the fold changed stays within the print budget in both trees, and the Copilot engine skill within 19,906', () => {
+  const sections = [
+    'SKILL.md',
+    'references/gates.md § Terminal mode',
+    'references/gates.md § Before every gate',
+    'references/gates.md § The `gate-brief` forms',
+    'references/verbs.md § The verbs every run calls',
+  ];
+  for (const [tree, root] of ENGINE_TREES()) {
+    for (const at of sections) {
+      const { length } = printedSection(root, at);
+      assert.ok(length <= 20_000, `${tree}: ${at} prints ${length}`);
+    }
+  }
+  assert.ok(printedSection(ENGINE_TREES()[1][1], 'SKILL.md').length <= 19906, 'the Copilot engine skill');
 });

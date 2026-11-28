@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ENGINE, ENGINE_DIR, ROOT, run, scratchTree, variantRoot } from '../helpers.mjs';
-import { PRINT_MAX, reference as printReference } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
+import { PRINT_MAX, reference as printReference, rowSuffix } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
 
 // `reference` prints a section of the plugin's own Markdown, so a session
 // reads the plugin's rules through a command and never opens a file outside
@@ -144,6 +144,8 @@ const POINTERS = [
   'references/in-node-questions.md § Decision areas from the brainstorm',
   'references/in-node-questions.md § Findings that need a decision',
   'references/gates.md § Before every gate — the gate brief',
+  'references/gates.md § Terminal mode',
+  'references/gates.md § The `gate-brief` forms',
   'references/gates.md § Revising at a gate',
   'references/gates.md § The closing checkpoint `held-approval`',
   'references/gates.md § Ending a dispatched run',
@@ -196,7 +198,7 @@ test('the hooks and the engine skill point at reference, never at the read tool'
   const skill = fs.readFileSync(path.join(ENGINE_DIR, 'SKILL.md'), 'utf8').replace(/\s+/g, ' ');
   assert.ok(skill.includes('**Print what a `rules:` line names** before acting, with the `reference` verb'));
   assert.ok(skill.includes('adding ` § <the code>` after a refusal for that code\'s row'));
-  assert.ok(skill.includes('Print `references/node-summaries.md` § *Who settled a decision* and § *What a risk is* now'));
+  assert.ok(skill.includes('Print `references/node-summaries.md` § *Who settled a decision*, § *What a risk is* and `references/gates.md` § *Before every gate — the gate brief* now'));
   assert.doesNotMatch(skill, /Read `references\/node-summaries\.md` whole now/);
   for (const hook of ['post-compact-reminder.mjs', 'skill-invocation-reminder.mjs']) {
     const text = fs.readFileSync(path.join(PLUGIN, 'hooks', hook), 'utf8');
@@ -410,5 +412,129 @@ test('the inline runner route prints each runner whole in the calls its skill sp
     const headings = fs.readFileSync(path.join(PLUGIN, file), 'utf8').split(/\r?\n/)
       .filter(line => /^#{1,2} /.test(line)).map(line => line.replace(/^#+ /, '').trim());
     assert.deepEqual([...asked].sort(), [...headings].sort(), `${skill}: the calls cover ${runner} whole`);
+  }
+});
+
+test('the four guide pointers to the decision areas and the candidates print through reference, on both trees', () => {
+  // research.md names the decision areas' writer; development, performance and migration name the candidates' consolidation.
+  const pointers = [
+    [
+      'references/decision-areas.md § Who writes it',
+      /^== skills\/workflow-engine\/references\/decision-areas\.md § Who writes it\n## Who writes it\n/,
+    ],
+    [
+      '<plugin root>/skills/docs-manager/references/standard-candidates.md § Consolidation',
+      /^== skills\/docs-manager\/references\/standard-candidates\.md § Consolidation\n## Consolidation\n/,
+    ],
+  ];
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    for (const [at, heading] of pointers) {
+      assert.match(printed(reference([at], engine)), heading, at);
+    }
+  }
+});
+
+test('the guide sections this group edits print under the cap, on both trees', () => {
+  const sections = [
+    'skills/workflow-engine/workflows/research.md § research-foundation',
+    'skills/workflow-engine/workflows/research.md § solution-convergence',
+    'skills/workflow-engine/workflows/research.md § high-level-design',
+    'skills/workflow-engine/workflows/product-design.md § intake',
+    'skills/workflow-engine/workflows/development.md § finalization',
+    'skills/workflow-engine/workflows/performance.md § finalization',
+    'skills/workflow-engine/workflows/migration.md § finalization',
+  ];
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    for (const at of sections) {
+      const text = printed(reference([at], engine));
+      assert.ok(text.length <= PRINT_MAX, `${at}: ${text.length} characters`);
+    }
+  }
+});
+
+test('gates.md "What the reset leaves" names the summary the writer drops', () => {
+  const text = printed(reference(['references/gates.md § Revising at a gate'])).replace(/\s+/g, ' ');
+  assert.match(text, /What the reset leaves\./);
+  assert.ok(text.includes('the writer drops its earlier summary and lists it as `node_summaries.<id>`'));
+  assert.ok(text.includes("A gate's own summary stays"));
+});
+
+test('every refusal code the interface lists for the writer\'s verbs has a pointer that resolves, its row when the section has one', () => {
+  const verbs = JSON.parse(fs.readFileSync(path.join(PLUGIN, 'interface.json'), 'utf8')).engine.verbs;
+  const entry = name => (Array.isArray(verbs) ? verbs.find(each => each.name === name) : verbs[name]);
+  const file = path.join(ENGINE_DIR, 'references', 'writing-state.md');
+  const heading = 'When a write is refused';
+  const codes = new Set(['write-state', 'move-base', 'subrun-handoff'].flatMap(name => entry(name).refusals));
+  assert.ok(codes.has('state-config-decision-invalid'));
+  for (const code of codes) {
+    const suffix = rowSuffix(file, heading, code);
+    const result = reference([`${file} § ${heading}${suffix}`]);
+    if (suffix === '') {
+      // The section itself is past the cap and is read by row: its pointer resolves to the section, not to a missing heading.
+      refused(result, 'reference-too-long');
+    } else {
+      assert.equal(suffix, ` § ${code}`);
+      assert.match(printed(result), new RegExp(`^\\|[^|]*\`${code}\``, 'm'), code);
+    }
+  }
+  assert.equal(rowSuffix(file, heading, 'state-config-decision-invalid'), ' § state-config-decision-invalid');
+  assert.equal(rowSuffix(file, heading, 'move-base-no-base'), '');
+  assert.equal(rowSuffix(file, heading, 'gate-brief-value-missing'), '');
+});
+
+test('the write table\'s opening count equals the writer\'s codes with a row', () => {
+  const text = fs.readFileSync(path.join(ENGINE_DIR, 'references', 'writing-state.md'), 'utf8').replace(/\r\n?/g, '\n');
+  const section = text.slice(text.indexOf('## When a write is refused'));
+  const body = section.slice(0, section.indexOf('\n## ', 5));
+  const named = new Set();
+  for (const line of body.split('\n').filter(each => each.startsWith('| `'))) {
+    for (const [, code] of line.split('|')[1].matchAll(/`([a-z0-9]+(?:-[a-z0-9]+)+)`/g)) named.add(code);
+  }
+  // Raised before the writer runs, or by gate-request alone: the opening sentence names them apart.
+  const apart = ['edition-collision', 'gate-request-unavailable', 'gate-request-invalid', 'gate-request-exists', 'gate-request-pending'];
+  for (const code of apart) assert.ok(named.has(code), code);
+  const words = ['forty', 'forty-one', 'forty-two', 'forty-three', 'forty-four', 'forty-five', 'forty-six', 'forty-seven', 'forty-eight'];
+  const written = /The writer has\s+([a-z-]+),/.exec(body);
+  assert.ok(written, 'the opening count is spelled');
+  assert.equal(words.indexOf(written[1]) + 40, named.size - apart.length, written[1]);
+});
+
+// --- The closing write walks on: gates.md, verbs.md and the sizes -------------
+
+const RESUME = 'references/gates.md § Driver-suspended mode — resume';
+const WRITE_ORDER = 'references/gates.md § Driver-suspended mode — the write order';
+const collapsed = text => text.replace(/\s+/g, ' ');
+
+test('the resume section carries --next on both re-validation writes and the held-approval sentence, on both trees', () => {
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    const text = collapsed(printed(reference([RESUME], engine)));
+    assert.ok(text.includes('`write-state --state=<state> --next`'), 'step 5 carries --next');
+    assert.ok(text.includes('Then the empty-patch re-validation, as in step 5, with `--next`.'), 'the question set carries --next');
+    assert.ok(text.includes('A refusal at step 5 is `RUN-FAILED: <code>`'), 'step 6 stays');
+    assert.ok(text.includes('a continue or a stop at `held-approval` prints nothing more, and the session carries on at the closing node\'s close-out step'));
+  }
+});
+
+test('verbs.md names --next and what it prints on the write-state row, and the false guard on the node-brief row', () => {
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    const text = printed(reference(['references/verbs.md § The verbs every run calls'], engine));
+    const rows = text.split('\n');
+    const write = rows.find(line => line.startsWith('| `write-state` |'));
+    assert.ok(write.includes('--next'));
+    assert.ok(write.includes('`next: <id> (<title>) — its brief follows`'));
+    assert.ok(write.includes('`skipped: <id> (<title>) — its guard <expr> reads false`'));
+    assert.ok(write.includes('next-skip-refused'));
+    const brief = rows.find(line => line.startsWith('| `node-brief` |'));
+    assert.ok(brief.includes('skip it: its guard <expr> reads false'));
+  }
+});
+
+test('the resume section and the driven batch stay inside the print limits, on both trees', () => {
+  for (const engine of [ENGINE, path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs')]) {
+    const resume = printed(reference([RESUME], engine));
+    // resume-check prints its JSON (about 2,000 characters) before this section: 20,000 together.
+    assert.ok(resume.length <= 18_000, `resume section: ${resume.length}`);
+    const batch = printed(reference([WRITE_ORDER, RESUME], engine));
+    assert.ok(batch.length <= 20_000, `driven batch: ${batch.length}`);
   }
 });

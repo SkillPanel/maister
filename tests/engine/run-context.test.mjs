@@ -26,6 +26,9 @@ const scratchOf = dir => `scratch: make any throwaway file — a helper script, 
   + 'never the system temp directory or a literal /tmp path, which sit outside the project and can stop the run for a permission prompt — no cleanup step, no rm -rf. '
   + 'Name every path absolute and never cd, into it or into the task directory: a relative path is resolved from the project root, and a host may stop the run to ask for access to it; '
   + 'name any file you make for what it holds, never with a name that starts with report, summary, findings or analysis and ends in .md, which Claude Code refuses when a subagent writes it';
+/** The short scratch line (S3) for the run in `dir`. */
+const shortScratchOf = dir => `scratch: make any throwaway file in the directory node ${ENGINE_SCRIPT} scratch-dir --for=<what it holds> --state=${path.join(dir, 'orchestrator-state.yml')} makes and prints, inside the run and ignored by git; `
+  + 'name every path absolute and never cd; your instructions carry the rest of the rule';
 const CONTRACT = 'summary contract: open every markdown artifact you write with ## TL;DR (at most 5 lines, conclusions in plain words), '
   + '## Key Decisions (- decision — rationale) and ## Open Questions / Risks (- risk → what would change), omitting an empty section; '
   + 'a risk that waits on a choice is written to the reader ("you have not yet chosen…") and never names a role as the one who decides; '
@@ -36,12 +39,12 @@ function runContext(run, node) {
 }
 
 /** The block the verb prints, built line by line from its parts. */
-function block({ taskPath, html, docs = [], pack = null, companions = [], contract = true }) {
+function block({ taskPath, html, docs = [], pack = null, companions = [], contract = true, short = false }) {
   const lines = ['## Run context', '', `task_path: ${taskPath}`, `html: ${html}`];
   if (docs.length) lines.push('docs (read-only):', ...docs.map(doc => `- ${doc}`));
   else lines.push('docs: none');
   if (pack) lines.push(groundingPackLine(pack));
-  lines.push(scratchOf(taskPath));
+  lines.push(short ? shortScratchOf(taskPath) : scratchOf(taskPath));
   if (contract) lines.push(CONTRACT);
   if (typeof companions === 'string') lines.push(`companions: ${companions}`);
   else if (companions.length) lines.push('companions:', ...companions.map(each => `- ${each}`));
@@ -77,6 +80,7 @@ test('run-context: the exact block, HTML on, for a node owing two companions', t
     taskPath: run.dir,
     html: GUIDE,
     companions: ['verification/e2e-verification-report.html', 'verification/visual-fidelity.html'],
+    short: true, // the step's agent is the plugin's own e2e-test-verifier
   }));
   assert.ok(fs.existsSync(GUIDE) && fs.existsSync(PATTERNS), 'the printed paths are files of this plugin');
 });
@@ -454,4 +458,42 @@ test('run-context: the scratch line names the scratch-dir call inside the run, a
   assert.equal(made.code, 0, made.stderr);
   const dir = made.stdout.trim();
   assert.match(path.relative(run.dir, dir), /^scratch[\\/]helper-script-/);
+});
+
+const PRODUCT_DESIGN = path.join(ENGINE_DIR, 'workflows/product-design.yml');
+
+/** The scratch line a run-context block prints, the one line starting `scratch:`. */
+const scratchLineOf = stdout => stdout.split('\n').find(line => line.startsWith('scratch:'));
+
+test('run-context: a step whose helpers are all this plugin\'s own prints the short scratch line', t => {
+  const research = scratch(t);
+  freeze(research, { definition: RESEARCH, inputs: { question: 'How does it work?' } });
+  const foundation = runContext(research, 'research-foundation');
+  assert.equal(foundation.code, 0, foundation.stderr);
+  assert.equal(scratchLineOf(foundation.stdout), shortScratchOf(research.dir));
+
+  const development = scratch(t);
+  freeze(development, { definition: DEVELOPMENT, inputs: { task_description: 'Add a page' } });
+  const specification = runContext(development, 'specification');
+  assert.equal(specification.code, 0, specification.stderr);
+  assert.equal(scratchLineOf(specification.stdout), shortScratchOf(development.dir));
+});
+
+test('run-context: a host-type helper, or a project agent among the delegates, keeps today\'s whole line', t => {
+  const design = scratch(t);
+  freeze(design, { definition: PRODUCT_DESIGN, inputs: { task_description: 'A thing' } });
+  const intake = runContext(design, 'intake');
+  assert.equal(intake.code, 0, intake.stderr);
+  assert.equal(scratchLineOf(intake.stdout), scratchOf(design.dir).replace(/\n.*/s, ''));
+
+  // A copy of the fixture whose draft step names one agent this plugin ships and one it does not.
+  const run = scratch(t, { type: 'run-context', name: '2026-01-05-run-context' });
+  for (const name of ['run-context.md', 'run-context-child.yml', 'run-context-child.md']) {
+    fs.copyFileSync(path.join(DEFINITIONS, name), path.join(run.root, name));
+  }
+  const definition = path.join(run.root, 'run-context.yml');
+  fs.writeFileSync(definition, `${fs.readFileSync(RUN_CONTEXT, 'utf8')}\nbrief:\n  draft:\n    delegates: [specification-creator, maister:gap-analyzer, a-project-agent]\n  wrap-up:\n    delegates: [specification-creator, maister:gap-analyzer]\n`);
+  freeze(run, { definition });
+  assert.equal(scratchLineOf(runContext(run, 'draft').stdout), scratchOf(run.dir).replace(/\n.*/s, ''));
+  assert.equal(scratchLineOf(runContext(run, 'wrap-up').stdout), shortScratchOf(run.dir));
 });

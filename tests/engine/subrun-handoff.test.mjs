@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, readState, scratch, sibling, snapshot, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, readState, run as runScript, scratch, sibling, snapshot, variantRoot, verb, write } from '../helpers.mjs';
 
 const AUTHORED = path.join(FIXTURES, 'subrun-handoff');
 const CHILD_SOURCE = '.maister/workflows/handoff-child.yml';
@@ -38,6 +38,11 @@ function parent(t, { driver = null } = {}) {
 
 function handoff(run, node, ...extra) {
   return verb(['subrun-handoff', `--state=${run.state}`, `--node=${node}`, ...extra]);
+}
+
+/** The hand-off as the Copilot CLI build's engine runs it. */
+function variantHandoff(run, node) {
+  return runScript(path.join(variantRoot(), 'skills', 'workflow-engine', 'scripts', 'workflow.mjs'), ['subrun-handoff', `--state=${run.state}`, `--node=${node}`]);
 }
 
 /** The verb's closing line: the last non-empty line of its stdout. */
@@ -184,6 +189,22 @@ test('parity: one call leaves the state the separate W4, skip, W1, W2 and W3 wri
     lines.lastIndexOf('workflow.nodes.second'),
   ];
   assert.ok(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1])), `${order} in\n${result.stdout}`);
+});
+
+test('both trees: the walk the hand-off shares prints and leaves byte for byte the same adoption, skips and start', t => {
+  const viaSource = waitingOnFirst(t);
+  const viaVariant = waitingOnFirst(t);
+  finish(viaSource.child);
+  finish(viaVariant.child);
+  const source = handoff(viaSource.run, 'first');
+  const variant = variantHandoff(viaVariant.run, 'first');
+  assert.equal(source.code, 0, source.stdout + source.stderr);
+  assert.equal(variant.code, 0, variant.stdout + variant.stderr);
+  assert.equal(masked(variant.stdout, viaVariant.run.root), masked(source.stdout, viaSource.run.root));
+  assert.equal(variant.stderr, source.stderr);
+  assert.equal(masked(fs.readFileSync(viaVariant.run.state, 'utf8'), viaVariant.run.root), masked(fs.readFileSync(viaSource.run.state, 'utf8'), viaSource.run.root));
+  const skips = source.stdout.split('\n').filter(line => /^workflow\.nodes\.(remedy|confirm)$/.test(line));
+  assert.deepEqual(skips, ['workflow.nodes.remedy', 'workflow.nodes.confirm']);
 });
 
 test('the adoption records the guard skip, the gate the child\'s answer skipped and the artifact a skipped child step never wrote', t => {
@@ -375,4 +396,26 @@ test('every code the verb raises is in its module header and has a verbs.md row;
   for (const file of [path.join(scripts, 'workflow.mjs'), ...fs.readdirSync(path.join(scripts, 'lib')).map(name => path.join(scripts, 'lib', name))]) {
     assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /WAITING-SUBRUN/, file);
   }
+});
+
+test('after a revise, a skip the hand-off writes drops the node\'s earlier summary and lists node_summaries.<id>', t => {
+  const { run, child } = waitingOnFirst(t);
+  // The parent as a revise leaves a reset node: its earlier attempt's summary
+  // still on file, its attempt counted up. No gate of this definition sends
+  // the run back, so the attempt is set by hand where the writer records it.
+  write(run, { node_summaries: { remedy: { summary: 'Patched the store on the first attempt.' } } });
+  const text = fs.readFileSync(run.state, 'utf8');
+  const reset = text.replace(/^( {4}remedy: \{)/m, '$1attempt: 2, ');
+  assert.notEqual(reset, text, text);
+  fs.writeFileSync(run.state, reset);
+  finish(child);
+
+  const result = handoff(run, 'first');
+  assert.equal(result.code, 0, result.stdout + result.stderr);
+  const lines = result.stdout.split('\n');
+  assert.ok(lines.includes('node_summaries.remedy'), result.stdout);
+  assert.equal(lines.includes('node_summaries.remedy.status'), false, result.stdout);
+  const state = readState(run);
+  assert.equal(state.workflow.nodes.remedy.status, 'skipped');
+  assert.equal(Object.hasOwn(state.node_summaries, 'remedy'), false);
 });

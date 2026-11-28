@@ -2182,3 +2182,96 @@ test('gate-brief --checkpoint: a host-answered question lands in decisions.host,
   const without = JSON.parse(verb(['gate-brief', `--state=${atApproval(t).state}`, '--node=approval', '--checkpoint']).stdout);
   assert.equal(Object.hasOwn(without.decisions, 'host'), false);
 });
+
+// ---------------------------------------------------------------------------
+// a node recorded skipped with no summary
+// ---------------------------------------------------------------------------
+
+/**
+ * A fan-out whose gate closes a guarded step and an unguarded one, and can
+ * send the draft back: written into the run's project, its prose beside it.
+ */
+function fanOut(run) {
+  const definition = path.join(run.root, 'fan-skip.yml');
+  fs.writeFileSync(definition, [
+    'name: fan-skip',
+    'version: 1',
+    'nodes:',
+    '  draft:',
+    '    uses: direct:draft',
+    '    needs: []',
+    '    outputs:',
+    '      values: {wide: bool}',
+    '  extra:',
+    '    uses: direct:extra',
+    '    needs: [draft]',
+    '    when: "${draft.values.wide}"',
+    '  check:',
+    '    uses: direct:check',
+    '    needs: [draft]',
+    '  review-approval:',
+    '    type: gate',
+    '    needs: [extra, check]',
+    '    ask: "Checks complete. Continue?"',
+    '    options:',
+    '      go-on: continue',
+    '      redo: {effect: revise, reruns: draft}',
+    '      halt: stop',
+    '  wrap-up:',
+    '    uses: direct:wrap-up',
+    '    needs: [review-approval]',
+    'display:',
+    '  titles: {draft: Draft, extra: Extra pass, check: Check, wrap-up: Wrap-up}',
+    '',
+  ].join('\n'));
+  fs.writeFileSync(path.join(run.root, 'fan-skip.md'),
+    ['# Fan skip', '', '## `draft`', '', 'Draft.', '', '## `extra`', '', 'Extra.', '', '## `check`', '', 'Check.', '', '## `wrap-up`', '', 'Wrap up.', ''].join('\n'));
+  freeze(run, { definition });
+}
+
+/** The fan-out, the draft recorded with `wide`, at the gate once `extra` and `check` are written. */
+function atFanGate(t, wide, extra) {
+  const run = scratch(t);
+  fanOut(run);
+  write(run, { nodes: { draft: { status: 'completed', values: { wide } } }, node_summaries: { draft: { summary: 'Drafted.' } } });
+  write(run, extra);
+  write(run, { nodes: { check: { status: 'completed' } }, node_summaries: { check: { summary: 'Checked.' } } });
+  return run;
+}
+
+test('gate-brief: a node recorded skipped with no summary reads Skipped. beside the node that ran', t => {
+  const run = atFanGate(t, false, { nodes: { extra: { status: 'skipped' } } });
+  assert.equal(Object.hasOwn(readState(run).node_summaries ?? {}, 'extra'), false);
+  const result = brief(run, 'review-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Check: Checked\.$/m);
+  assert.match(result.stdout, /^Extra pass: Skipped\.$/m);
+});
+
+test('stale summary: after a revise, a node recorded skipped with no summary reads Skipped.; one skipped with its own summary keeps it', t => {
+  const run = atFanGate(t, true, { nodes: { extra: { status: 'completed' } }, node_summaries: { extra: { summary: 'Found two gaps.' } } });
+  const revise = () => {
+    const result = verb(['gate-revise', `--state=${run.state}`, '--node=review-approval', '--option=redo'], { note: 'Narrow it' });
+    assert.equal(result.code, 0, result.stderr);
+    write(run, { nodes: { draft: { status: 'completed', values: { wide: false } } }, node_summaries: { draft: { summary: 'Drafted narrower.' } } });
+  };
+
+  revise();
+  const skipped = write(run, { nodes: { extra: { status: 'skipped' } } });
+  assert.ok(skipped.stdout.split('\n').includes('node_summaries.extra'), skipped.stdout);
+  assert.equal(Object.hasOwn(readState(run).node_summaries, 'extra'), false, 'the earlier attempt\'s summary is dropped');
+  write(run, { nodes: { check: { status: 'completed' } }, node_summaries: { check: { summary: 'Checked again.' } } });
+  let result = brief(run, 'review-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Extra pass: Skipped\.$/m);
+  assert.doesNotMatch(result.stdout, /Found two gaps/);
+
+  // A judged skip sends its summary in the same write: the writer keeps it.
+  revise();
+  write(run, { nodes: { extra: { status: 'skipped' } }, node_summaries: { extra: { summary: 'Not needed for the narrow scope.' } } });
+  assert.equal(readState(run).node_summaries.extra.summary, 'Not needed for the narrow scope.');
+  write(run, { nodes: { check: { status: 'completed' } }, node_summaries: { check: { summary: 'Checked a third time.' } } });
+  result = brief(run, 'review-approval');
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^Extra pass: Not needed for the narrow scope\.$/m);
+});

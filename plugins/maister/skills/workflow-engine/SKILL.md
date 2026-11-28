@@ -12,11 +12,10 @@ workflow's own command or `/maister:run <name>`, which hand the run here; nothin
 needs the word "engine". The grammar a definition is written in is
 [`references/grammar.md` § *3. The definition*](references/grammar.md) and the sections after it; this skill executes it and does not restate it.
 
-**A dispatched run is told by its `dispatch_id`, not by a kind of its own**: its
-`orchestrator.driver` is a `cockpit` driver carrying one, or the legacy `kind: dispatch` with or
-without one. It suspends on its gates like any `cockpit` run and owes its close-out to the outbox
-(`references/gates.md` § *Ending a dispatched run*). Every rule that says *a dispatched run* or *under dispatch* means
-this one.
+**A dispatched run is told by its `dispatch_id`**: its `orchestrator.driver` is a `cockpit`
+driver carrying one, or the legacy `kind: dispatch`. It suspends on its gates like any `cockpit`
+run and owes its close-out to the outbox (`references/gates.md` § *Ending a dispatched run*). Every
+rule that says *a dispatched run* or *under dispatch* means this one.
 
 ## Before anything else
 
@@ -32,10 +31,21 @@ node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-request --st
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs gate-revise --state=<run>/orchestrator-state.yml --node=<gate> --option=<revise option> <<< '<json>'
 ```
 
-**Run `node-brief` before every node** — the one a write's `next:` line names —
-`node-brief --state=<state> --node=<id>`, and read its output whole: how the node runs, its
-`with:` filled in, the conventions that apply and its section of the guide. At a gate, run the call its `ask it:` line prints — on its own, after the
-closing write has returned — and ask what it prints; never write a gate question by hand.
+<!-- claude-code -->
+A file write and the command that reads it may share a message — the patch file and its closing write above all — and so may calls that only read — unless a patch file a refused write left is still on disk: then write the corrected file and run the write in two messages.
+<!-- /claude-code -->
+<!-- copilot
+Calls where one needs the other's result never share a message; calls that only read may.
+-->
+
+- Close a step, record a skip (one you judged, or one a brief's `now false` or `skip it:` line gives), or record a gate's answer with `--next`. What follows the `next:` line is the next step's brief: act on it and never ask for it again.
+- Call `node-brief --state=<state> --node=<id>` only after a run's first write, after a plain `run node-brief for it` line, after `resume-check` (its `step_call`) and after `gate-revise`; read its output whole. At a gate, run an `ask it:` line's call alone, then ask what it prints; never write a gate question by hand.
+<!-- claude-code -->
+Pass a printed `question:` as printed. Run `ask again:` only to ask again (`references/gates.md` § *Terminal mode*), `details:` when the person asks for more.
+<!-- /claude-code -->
+<!-- copilot
+Pass a printed `question:` as printed. Run `ask again:` only to ask again (`references/gates.md` § *Terminal mode*), `details:` when the person asks for more.
+-->
 
 **Every delegate prompt carries the run's context, fetched**, in the turn that writes it:
 `run-context --state=<state> --node=<node>`, or `prior-context --node=<node>` where the delegate
@@ -43,8 +53,8 @@ needs the earlier phases, pasted unedited — whole, never piped or sliced, neve
 delegate's copy; `--background` for a document written for end users.
 
 **Every state change goes through `write-state`** — never an editor tool on
-`orchestrator-state.yml` or the dashboard files, not even when a verb fails: a model-written state
-file drifts out of canonical shape, and its readers then disagree about the run. The one exception
+`orchestrator-state.yml` or the dashboard files, not even when a verb fails: a model-written file
+drifts out of canonical shape. The one exception
 is answering a pending gate (`references/gates.md` § *Driver-suspended mode — resume*); the patch
 vocabulary is `references/writing-state.md` § *Recording an outcome — the detail*.
 
@@ -52,8 +62,7 @@ vocabulary is `references/writing-state.md` § *Recording an outcome — the det
 `--at="<its file> § <its heading>"`, adding ` § <the code>` after a refusal for that code's row.
 Print a step's `references/…` pointer the same way, never with the read tool: the plugin sits
 outside the project, and a host may stop the run to ask before that read. On a refusal or after
-`companion-` lines it holds the recovery; on a brief, print it the first time in a session and
-again after a compaction, which drops what was read.
+`companion-` lines it holds the recovery.
 
 ---
 
@@ -88,9 +97,8 @@ who sees only the terminal.
 - **Name a phase by the title its brief prints**, never by its id; ids stay only where something
   is keyed (state, gate files, markers, option ids).
 - **No internal labels.** A node prose's parts, step names and self-checks are yours; the user
-  hears what is happening ("Four assumptions to confirm before I write the spec").
-- **Expand every code the first time, or don't use it**: "B1 (the per-order customer lookup)"
-  only when the code recurs.
+  hears what is happening.
+- **Expand every code the first time, or don't use it.**
 - **Say "you"**, never "the operator" or "a person"; "needs your decision", not "needs a hand". A
   choice still open is written to whoever reads the gate — "you have not yet chosen between…" —
   never to a role (owner, lead, operator, reviewer): who is asked is decided outside the run.
@@ -100,9 +108,8 @@ who sees only the terminal.
 - **Every recommendation gives its reason** in the option's description and keeps every
   criterion the task states; "(Recommended)" appears once per question, on the option
   (`references/in-node-questions.md` § *When a question suspends*).
-- **Paths are anchored** at the project root (`.maister/tasks/<type>/<run>/analysis/gap-analysis.md`);
-  only a gate's *Review* and More details, which the start banner anchored, name them inside the
-  task folder.
+- **Paths are anchored** at the project root; only a gate's *Review* and More details, which the
+  start banner anchored, name them inside the task folder.
 
 ---
 
@@ -127,24 +134,22 @@ a run issues follows the same rule: one command per line, never several chained 
 or `|`, because a permission rule matches a single command and a chained line is offered only a
 dismissal. Any other form brings the approval prompt back.
 
-**The here-string** (*Before anything else*, **The invocation**) is single-quoted, so nothing in
-it is expanded. An apostrophe inside the JSON is `'\''` — close the quote, an escaped quote, open
+**The here-string** (*Before anything else*) is single-quoted, so nothing in it is expanded. An apostrophe inside the JSON is `'\''` — close the quote, an escaped quote, open
 it again: `{"summary":"the operator'\''s note"}`.
 Never the JSON escape `\u0027`, which a tool call decodes into a bare quote that ends the string early.
 The typographic `’` may stand for an apostrophe only in a prose text value, never in code, a
 command, a path or an identifier.
 
 **bash and zsh take the here-string; on Windows every shell takes the patch file** — PowerShell
-and cmd have no here-string, and Git Bash can lose a JSON escape's backslashes. Any shell takes
-the patch file for a large document, since a command line is limited (about 32 KB on Windows).
-Write the JSON with the file-writing tool to `.state-patch.json` beside `orchestrator-state.yml`
+and cmd have no here-string, and Git Bash can lose a JSON escape's backslashes. Any shell takes it
+for a large document (a Windows command line holds about 32 KB). Write the JSON with the file-writing tool to `.state-patch.json` beside `orchestrator-state.yml`
 — the one name and place a verb reads a document from — and name it on the call:
 
 ```
 node <plugin root>/skills/workflow-engine/scripts/workflow.mjs write-state --state=<run>/orchestrator-state.yml --patch-file=<run>/.state-patch.json
 ```
 
-Every verb's flags, output and refusals are in `references/verbs.md` § *The verbs every run calls*, § *The verbs some steps call* and § *Refusals*, a row per verb. Each step here spells the whole call of the verbs every run makes, where its moment is. Read a verb's row there only for a call no step spells.
+Every verb's flags, output and refusals are a row each in `references/verbs.md` (*The verbs every run calls*, *The verbs some steps call*, *Refusals*); read a row only for a call no step here spells.
 
 ---
 
@@ -168,11 +173,11 @@ Every verb's flags, output and refusals are in `references/verbs.md` § *The ver
 
 ### The ready set
 
-Run one node at a time: the one a completing or skipping write names on its `next:` line. A
-guard its brief reads `now false`, or an `on: failure` node with nothing failed, is recorded
-`skipped`, which satisfies everything downstream. On `next: none` — or a node failed with no `on:`
+Run one node at a time: the one the `next:` line names. A guard its brief reads `now false`, or
+an `on: failure` node with nothing failed, is recorded `skipped`, which satisfies everything downstream. A skip the engine records needs no summary; a
+skip you judge keeps one. On `next: none` — or a node failed with no `on:`
 downstream to take it, or a stop ended the run — write the closing patch with `task.status` and
-end through `run-complete`.
+end through `run-complete`, also after a step's patch that carries `task`.
 
 ### Recording an outcome
 
@@ -181,11 +186,8 @@ declare (`references/writing-state.md` § *Recording an outcome — the detail*)
 anything else, and its refusal names the fix. A step is `completed` once its self-check passes,
 after a re-drive if it took one (the `every step` row); a false guard records it `skipped`, which
 satisfies `needs`; a hard failure with no operator path is `failed`, and `run-complete` ends the
-run `RUN-FAILED`; a spent budget is the `has a budget` row's. **An outcome that comes from
-elsewhere is mapped, never judged**: a `workflow:` node's is its child's `task.status`
-adopted by `subrun-handoff` (`references/sub-runs.md` § *The hand-off verb*), and a dispatched
-node's (`dir:`) its close-out grade, the held `partial` question included
-(`references/in-node-questions.md` § *A dispatch closed out partial*). Any path a summary lists
+run `RUN-FAILED`; a spent budget is the `has a budget` row's. **An outcome that comes from elsewhere is mapped, never judged** (`references/writing-state.md`
+§ *Recording an outcome — the detail*). Any path a summary lists
 beyond the declarations, and a non-null `.html` beside it, is checked on disk too.
 
 ### Delegation by scheme
@@ -196,14 +198,14 @@ moment*); a `start: refused` line is a refusal, settled by its `rules:` line fir
 (`references/grammar.md` § 5.1).
 
 **While a delegate runs, say so.** Right after launching one, print the line its brief's `say:`
-names, and when a notification brings you back before it is done, one short line on what is
-done and what is left. Never predict how long a step takes; an elapsed time a step reports may be said. With a
+names; when a notification brings you back before it is done, one short line on what is done and
+left. Never predict how long a step takes; an elapsed time a step reports may be said. With a
 dashboard, the first such line ends *"Progress is on the dashboard in your browser."*, repeated
 only now and then, never with its path. Questions never name the dashboard.
 
 ### Node conventions
 
-The rows apply by case. `node-brief` prints each whole where it applies, then names it on its `conventions in force (…)` line; the table is `references/node-conventions.md`, at the brief's `rules:` path.
+The rows apply by case; `node-brief` prints each where it applies. The table is `references/node-conventions.md`, the brief's `rules:` path.
 
 ---
 
@@ -215,9 +217,7 @@ recomputed from the recorded statuses, and the definition is never re-resolved.
 **A run under a `cockpit` or `dispatch` driver takes its first line through `references/gates.md`
 § *Driver-suspended mode — resume*;** neither a stamped line nor a person's words takes the ready
 set while `gate_pending` is set. A person's words get a report of where the run stands and write
-nothing. Its first call is `resume-check`, with no `--state` when no run was named. Read the
-reference with the read tool, never through a shell: a host may deny shell calls on a waiting
-run. On such a run a session given a person's words records nothing at all, not even an answer on
+nothing. Its first call is `resume-check`, with no `--state` when no run was named. On such a run a session given a person's words records nothing at all, not even an answer on
 disk, and never takes an answer from the person in the session: an answer is folded only on a
 stamped line.
 
@@ -225,14 +225,20 @@ stamped line.
 checks the Node.js version first (Step 2). Its `next` says what to do first: relay a `warning:`
 line once, then do it. A node update goes under the patch's top-level `nodes`, never `workflow`.
 
+Brief what `step_call` names, print what `section_call` names; never read the state file or a
+reference page with the file tool to find the step or the section; the driven answer reads
+(`gates.md` step 1) are unchanged. A driven resume prints the two *Driver-suspended mode* sections
+in one call, the one `section_call` names.
+
 ---
 
 ## Starting a run
 
 ### Step 1: Read the node summary shape
 
-Print `references/node-summaries.md` § *Who settled a decision* and § *What a risk is* now, with
-`reference` and one `--at` each: every closing write and every checkpoint depend on what each
+Print `references/node-summaries.md` § *Who settled a decision*, § *What a risk is* and
+`references/gates.md` § *Before every gate — the gate brief* now, in one `reference` call with one
+`--at` each: every closing write and every checkpoint depend on what each
 decision's `by` and each risk's tag mean. The summary contract reaches you through
 `run-context`, the companion lines through `write-state`, and the closing check through
 `run-complete`.
@@ -244,7 +250,7 @@ The workflow needs Node.js 20 or newer. On an older one `locate` and `resume-che
 way stop before any task directory exists: a terminal-driver run tells the user an install which
 cannot run Node.js 20 stays on the 2.x line (`/plugin marketplace add SkillPanel/maister#release/2.x`,
 then `/plugin install maister@maister-plugins-2x`); a dispatched worker reports `blocked` through
-the outbox verb. There is no second interpreter: never run such a workflow by hand.
+the outbox verb. Never run such a workflow by hand.
 
 ### Step 3: Resolve the workflow by name
 
@@ -252,11 +258,13 @@ the outbox verb. There is no second interpreter: never run such a workflow by ha
 the `definition` and `overlays` it prints, then the overlays the invocation names, in that order,
 and its profile; inputs, overlays, profile and a title handed over by `/maister:run` are used
 exactly as given. When `locate` reports an overlay `ignored`, say it is not in effect.
+A run `/maister:run` hands over with the located definition, overlays, profile and a passed
+validation gets no second `locate` or `validate`.
 
 ### Step 4: Freeze the graph before executing anything
 
-Three calls, in this order: `validate --definition=<path> [--overlay=<path>…] [--profile=<name>]`,
-then `resolve` with the same flags, then the freeze's `write-state`. Pass `--profile` only when the
+Three calls: `validate --short --definition=<path> [--overlay=<path>…] [--profile=<name>]` and
+`resolve --short` with the same flags in one message, then the freeze's `write-state`. Pass `--profile` only when the
 invocation or `locate` names one; otherwise leave it out. If `validate` rejects the
 definition, stop with `RUN-FAILED:` and its first error; relay its warnings
 (`references/grammar.md` § 14).
@@ -280,7 +288,7 @@ a key it owns with a `note:`; relay any `warning:`; a refusal names its recovery
 The run creates no task items.
 
 **The freeze prints the startup banner first; the next thing you write, before any other call, is a
-visible message to the user with its lines copied as printed** — never only in your thinking. The
+visible message to the user with its lines copied as printed**, never only in your thinking. The
 first node's brief repeats them under `say:` until a node starts.
 
 > **SELF-CHECK before the call after the freeze**: does your message name the workflow and
@@ -292,10 +300,9 @@ the state file, never from memory.
 ### Step 5: Decline the resume flags the graph cannot express
 
 `--from=PHASE` and `--reset-attempts` have no expression here: a resume recomputes the ready set
-from the frozen graph, and no attempt counter lives in state. **Name the flag that arrived as not
-taken, in one line, before the first node runs** — a step is sent back with the revise its
-checkpoint offers (`references/gates.md` § *Revising at a gate*) — and go on without it. **Never
-drop one silently.**
+from the frozen graph. **Name the flag that arrived as not taken, in one line, before the first
+node runs** — a step is sent back with a checkpoint's revise (`references/gates.md` § *Revising at
+a gate*) — and go on without it, never silently.
 
 ---
 

@@ -259,6 +259,12 @@ statuses are `pending`, `running`, `waiting`, `suspended`, `completed`, `skipped
 spelling `in_progress`, and a node the frozen graph does not carry is refused with
 `state-node-unknown`.
 
+**An outcome that comes from
+elsewhere is mapped, never judged**: a `workflow:` node's is its child's `task.status`
+adopted by `subrun-handoff` (`references/sub-runs.md` § *The hand-off verb*), and a dispatched
+node's (`dir:`) its close-out grade, the held `partial` question included
+(`references/in-node-questions.md` § *A dispatch closed out partial*).
+
 **A node's values are held to the outputs it declares.** Each declared type has one form:
 - `bool`: `true` or `false`;
 - `string` or `id`: a string;
@@ -345,7 +351,8 @@ number of entries ride in one patch. There are four moments:
   arrives first; a summary written with its own `status` keeps it until the node's status
   next changes.
 - **A ready-set walk skips nodes.** Every node a false guard skips goes in one patch, with
-  their summaries, however many there are. That patch lands no later than the next
+  their summaries, however many there are. A skip the engine records needs no summary, and a
+  skip the session judges keeps one. That patch lands no later than the next
   executed node's `running` patch — either earlier, or as part of that same patch — so no
   node is ever recorded as started while a node the walk already passed still reads
   `pending`.
@@ -379,7 +386,7 @@ freeze leaves a child whose second call cannot land.
 
 Exit `1` means **nothing was published** — no rename happened and the file on disk is
 byte-for-byte what it was. The first token on stderr is the refusal code. The writer has
-forty-three, each with its response below; two of them, `gate-unwritable` and `gate-temp-exists`,
+forty-five, each with its response below; two of them, `gate-unwritable` and `gate-temp-exists`,
 come from the gate index a write regenerates, and `gate-request` raises them too. Two more are
 raised before the writer runs, `edition-collision` and `gate-request-unavailable`, and three are
 `gate-request`'s own: `gate-request-invalid`, `gate-request-exists` and `gate-request-pending`.
@@ -411,6 +418,7 @@ Exit `2` carries no code at all and has the table's last rows:
 | `state-node-unknown` | The patch names a node the run's frozen graph does not carry. The message lists the nodes it does carry. Nothing was written. Correct the id, which is usually a typo, and send the write again. Never add a node to a running graph: one the definition gained after the freeze belongs to the next run. |
 | `state-gate-values-sent` | The write sends `values` for a gate. A gate's values are recorded by the writer from the answer, as the chosen continue option sets them. Nothing was written. Drop `values` from the gate's entry and record the answer the usual way — the gate `completed`, the chosen option under its `decisions` — and the writer records the values in the same write. |
 | `state-gate-config-continued` | The write sends a decision, an answer or a status other than `completed` for a gate the project's config continued (its answer recorded `by: config`). Nothing was written. The gate is not asked or answered again: show the line `node-brief` printed for it and go on with the node due next, which `gate-brief` for the gate names in its refusal. |
+| `state-config-decision-invalid` | A decision carries `by: config` outside the engine's own continue of a gate the project's config continues. Nothing was written. Only the engine records `by: config`: send the decision without it, or let `node-brief` for the gate continue it. |
 | `state-value-invalid` | A value recorded under a key the node declares is not of the declared type. The message names the key, the value and the form it should take. Nothing was written. Send the node's whole `values` map again with that key corrected, because values are replaced whole. If the node produced no such value, the node prose decides whether it failed; never coerce one to get past the check. |
 | `state-gate-option-unknown` | The gate's summary records an option the gate does not offer. The message lists the ones it does offer. Nothing was written. Record the id of the option the operator actually chose, exactly as the gate spells it and never its label, and send the write again. Never re-ask the gate: the answer was given, and only its spelling was wrong. While choices are held, a frozen gate also offers a `revise-<node>` for each step behind it holding one (`references/gates.md` § *For a held choice*), and only while it does. At `held-approval` the options are the ones its brief offers — continue, a `revise-<node>` per node holding a choice, stop — and only continue and stop once its revises are spent; while a held question with no choice yet waits there is no continue — only the revises and stop, and stop alone once the revises are spent too. |
 | `state-absent-invalid` | A node summary's `absent` map is not a map, names an artifact the node does not declare, or gives an entry no reason (§ *Recording an outcome — the detail*). The message lists the declared keys. Nothing was written. Name each artifact by its declared key, never by its path, give the reason in a few words, and send the write again. An artifact the node was meant to produce and did not is not an absence to sanction: the node has not completed. |

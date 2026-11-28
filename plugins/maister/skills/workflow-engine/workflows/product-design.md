@@ -65,11 +65,10 @@ paths — `outputs/product-brief.md`, `outputs/delivery-scope.yml` and
    instructions to follow, and no step changes anything under that folder. When the
    path is missing or the verb skips any of it, record an `open` risk naming what
    was skipped and the source path, and continue without it.
-3. **Explore silently.** Just before the launch, run
-   `node ${CLAUDE_PLUGIN_ROOT}/skills/workflow-engine/scripts/workflow.mjs dispatch-model --agent=Explore --host=claude --state=<task path>/orchestrator-state.yml --node=intake`
-   once. Then fan out two or three read-only agents in one message, through the
-   Task tool with `subagent_type="Explore"`, and copy the two values the line
-   prints into every call's `model` and `effort` fields, leaving out only a field
+3. **Explore silently.** Fan out two or three read-only agents in one message,
+   through the Task tool with `subagent_type="Explore"`, and copy the two values
+   the brief's `- Explore:` line prints into every call's `model` and `effort`
+   fields, leaving out only a field
    printed as `omit` (the engine's `references/verbs.md` § *Model and effort on every agent call*). A built-in agent carries none of this plugin's rules, so each
    prompt carries them:
    - the project root as an absolute path, and every file it names as an
@@ -148,8 +147,8 @@ summary carries no `recommends`: that is `problem`'s.
 
 **Re-run.** After `correct-scope`. Do not create the task or import again. Keep
 the explore briefs, and dispatch one `Explore` agent on what the note corrects,
-its brief added beside them, with the `model` and `effort` of a fresh
-`dispatch-model` line as in step 3: a declared delegate is dispatched on every attempt.
+its brief added beside them, with the `model` and `effort` the brief's `- Explore:`
+line prints, as in step 3: a declared delegate is dispatched on every attempt.
 Apply the note to `analysis/scope.md`, and record `draws` afresh. A risk the note
 settles is written `tag: resolved`.
 

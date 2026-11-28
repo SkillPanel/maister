@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { freezePatch, readState, ROOT, scratch, verb, write } from '../helpers.mjs';
+import { reference } from '../../plugins/maister/skills/workflow-engine/scripts/lib/reference.mjs';
+import { freezePatch, readState, ROOT, scratch, variantRoot, verb, write } from '../helpers.mjs';
 
 // The implementation runner's contract in code: the same two verbs as the
 // verification runner's, under `--runner=implementation`. The runner ends
@@ -429,3 +430,29 @@ for (const workflow of ['development', 'performance', 'migration']) {
     assert.match(prose, /\*\*The waves run in the executor's hand-off\*\*/);
   });
 }
+
+// ---------------------------------------------------------------------------
+// the two dependent calls: one message on one host, two on the other
+// ---------------------------------------------------------------------------
+
+test('the runner sends the in-flight record and the group-done write in one message on the source, and after the first returns on the variant', () => {
+  const flat = file => fs.readFileSync(file, 'utf8').replace(/\s+/g, ' ');
+  const source = flat(path.join(PLUGIN, 'agents/implementation-runner.md'));
+  assert.ok(source.includes('before they act**, <!-- claude-code --> in the same message as the start:'), 'source: the record rides with the start');
+  assert.ok(source.includes('<!-- claude-code --> **in the same message**. <!-- /claude-code -->'), 'source: the entry file and group-done share a message');
+  assert.ok(source.includes('Fan out in one message.'), 'the read-only fan-out stays');
+
+  const variant = flat(path.join(variantRoot(), 'agents/implementation-runner.md'));
+  assert.ok(variant.includes('before they act**, after the start returns: `in-flight'), 'variant: the record follows the start');
+  assert.ok(variant.includes('--entry-file=<that file>` **after the write returns**. Members'), 'variant: group-done follows the write');
+  assert.ok(!variant.includes('in the same message as the start'), 'variant: no same-message start');
+  assert.ok(!variant.includes('**in the same message**'), 'variant: no same-message write');
+  assert.ok(variant.includes('Fan out in one message.'), 'variant: the read-only fan-out stays');
+});
+
+test('the runner\'s waves section stays within a batch on the variant', () => {
+  const root = variantRoot();
+  const printed = reference({ ats: ['agents/implementation-runner.md § Phase 2: The waves'], pluginRoot: root });
+  assert.equal(printed.ok, true, JSON.stringify(printed.errors));
+  assert.ok(printed.text.length <= 20000, `${printed.text.length} characters`);
+});

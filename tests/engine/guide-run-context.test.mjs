@@ -37,9 +37,10 @@ test('every closed "Context for …" list ends with the fetched run context', ()
 test('each research "Context for the explainer writer" sentence ends with the foundation\'s run context', () => {
   const ends = [];
   for (const paragraph of paragraphs(guide('research'))) {
-    const at = paragraph.search(/Context for the explainer writer:/);
+    const flat = paragraph.replace(/\s+/g, ' ');
+    const at = flat.search(/Context for the explainer writer:/);
     if (at === -1) continue;
-    const sentence = paragraph.slice(at).replace(/\s+/g, ' ');
+    const sentence = flat.slice(at);
     const end = sentence.search(/\.(\s|$)/);
     ends.push((end === -1 ? sentence : sentence.slice(0, end)).match(/plus the `[^`]*` output$/)?.[0] ?? null);
   }

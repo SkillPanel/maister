@@ -140,8 +140,8 @@ test('a stamped line that differs from what is written is refused, after the alr
   assert.ok(set.includes('A line that differs from what is written is refused the same way.'));
 });
 
-test('a session is told to read the reference with the read tool before it reaches the reference', () => {
-  assert.ok(flat(SKILL).includes('Read the reference with the read tool, never through a shell: a host may deny shell calls on a waiting run.'));
+test('a session is told never to read the state file or a reference page with the file tool to find the step or the section', () => {
+  assert.ok(flat(SKILL).includes('never read the state file or a reference page with the file tool to find the step or the section; the driven answer reads (`gates.md` step 1) are unchanged.'));
 });
 
 test('every route to a resume is sent to the first-line rule', () => {

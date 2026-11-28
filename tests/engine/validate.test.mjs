@@ -292,3 +292,57 @@ test('a reference in an overlay gate question is refused once, at the overlay fi
   assert.equal(errors[0].path, 'nodes.sign-off.ask');
   assert.ok(errors[0].message.startsWith('ask is shown to the person as written'), errors[0].message);
 });
+
+// ---------------------------------------------------------------------------
+// --short: the freeze's two checks, answered in fewer keys
+// ---------------------------------------------------------------------------
+
+/** A copy of the sample definition declaring a newer format, beside its prose. */
+function newerSample(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'maister-short-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'sample.yml');
+  fs.writeFileSync(file, fs.readFileSync(SAMPLE, 'utf8').replace(/^version: 1$/m, 'version: 2'));
+  fs.copyFileSync(SAMPLE.replace(/\.yml$/, '.md'), path.join(dir, 'sample.md'));
+  return file;
+}
+
+test('resolve --short prints exactly the freeze\'s keys, without the nodes and the tracker key', () => {
+  const full = JSON.parse(verb(['resolve', `--definition=${SAMPLE}`]).stdout);
+  const short = verb(['resolve', '--short', `--definition=${SAMPLE}`]);
+  assert.equal(short.code, 0, short.stderr);
+  const printed = JSON.parse(short.stdout);
+  assert.deepEqual(Object.keys(printed), ['ok', 'errors', 'warnings', 'degraded', 'name', 'source', 'overlays', 'profile', 'graph_hash']);
+  assert.ok(!('nodes' in printed) && !('tracker_key' in printed));
+  for (const key of Object.keys(printed)) assert.deepEqual(printed[key], full[key], key);
+});
+
+test('validate --short prints exactly ok, errors and warnings; a newer format still shows in warnings', t => {
+  const short = verb(['validate', '--short', `--definition=${SAMPLE}`]);
+  assert.equal(short.code, 0, short.stderr);
+  assert.deepEqual(Object.keys(JSON.parse(short.stdout)).sort(), ['errors', 'ok', 'warnings']);
+
+  const newer = verb(['validate', '--short', `--definition=${newerSample(t)}`]);
+  assert.equal(newer.code, 0, newer.stderr);
+  const report = JSON.parse(newer.stdout);
+  assert.deepEqual(Object.keys(report).sort(), ['errors', 'ok', 'warnings']);
+  assert.deepEqual(report.warnings, ['newer-format']);
+});
+
+test('the short forms leave the defaults and the exit codes as they were', t => {
+  const resolved = JSON.parse(verb(['resolve', `--definition=${SAMPLE}`]).stdout);
+  assert.ok(Array.isArray(resolved.nodes) && 'tracker_key' in resolved);
+  const validated = JSON.parse(verb(['validate', `--definition=${SAMPLE}`]).stdout);
+  for (const key of ['resolved', 'counts']) assert.ok(key in validated, key);
+  const newer = JSON.parse(verb(['validate', `--definition=${newerSample(t)}`]).stdout);
+  assert.deepEqual(newer.degraded, ['newer-format']);
+
+  // A refusal keeps its exit code and prints its errors in full under --short.
+  const broken = path.join(FIXTURES, 'definitions', 'broken.yml');
+  const full = verb(['validate', `--definition=${broken}`]);
+  const short = verb(['validate', '--short', `--definition=${broken}`]);
+  assert.equal(full.code, 1);
+  assert.equal(short.code, 1);
+  assert.deepEqual(JSON.parse(short.stdout).errors, JSON.parse(full.stdout).errors);
+  assert.equal(verb(['resolve', '--short', `--definition=${broken}`]).code, verb(['resolve', `--definition=${broken}`]).code);
+});

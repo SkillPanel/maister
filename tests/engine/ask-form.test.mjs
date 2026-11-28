@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, freeze, scratch, verb, delegating, write as writeState } from '../helpers.mjs';
+import { ENGINE_DIR, freeze, run as runScript, scratch, variantRoot, verb, delegating, write as writeState } from '../helpers.mjs';
+import { askText, recordAsk } from '../../plugins/maister/skills/workflow-engine/scripts/lib/ask-record.mjs';
 
 // `gate-brief --ask` hands a labels-only question tool its call and nothing
 // else: a session handed the call beside the parts it is built from rebuilt it
@@ -107,13 +108,73 @@ test('ask --details: the full brief as text, the same the JSON form carries as m
   assert.equal(details.stdout.trimEnd(), json.more_details.trimEnd());
 });
 
-test('ask: --note and --details take --ask, and not each other — exit 2', t => {
+test('ask: --note takes --ask, and --note and --details are not taken together — exit 2', t => {
   const run = atSpecGate(t);
-  for (const flags of [['--note=revise-specification'], ['--details'], ['--json', '--details'], ['--ask', '--note=revise-specification', '--details']]) {
+  for (const flags of [['--note=revise-specification'], ['--ask', '--note=revise-specification', '--details']]) {
     const result = brief(run, 'specification-approval', ...flags);
     assert.equal(result.code, 2, flags.join(' '));
     assert.match(result.stderr, /^usage:|gate-brief/m, flags.join(' '));
   }
+  const alone = brief(run, 'specification-approval', '--note=revise-specification');
+  assert.match(alone.stderr, /^usage: gate-brief takes --note only with --ask, and --details alone or with --ask: /m);
+});
+
+test('details alone: the full brief as plain text, recomputed from the state, no record written and no note retired', t => {
+  const run = atSpecGate(t);
+  const note = path.join(run.dir, '.ask.result.json');
+  fs.writeFileSync(note, '{"outcome":"person"}\n');
+  const alone = brief(run, 'specification-approval', '--details');
+  assert.equal(alone.code, 0, alone.stderr);
+  const asked = brief(run, 'specification-approval', '--ask', '--details');
+  assert.equal(asked.code, 0, asked.stderr);
+  assert.equal(alone.stdout, asked.stdout, '--details alone prints what --ask --details prints');
+  const json = JSON.parse(brief(run, 'specification-approval', '--json', '--picker=plain').stdout);
+  assert.equal(alone.stdout.trimEnd(), json.more_details.trimEnd());
+  assert.equal(fs.existsSync(path.join(run.dir, '.ask.json')), false, 'no record');
+  assert.equal(fs.existsSync(note), true, 'the note stays');
+  assert.equal(fs.existsSync(path.join(run.dir, '.ask.result.used.json')), false);
+});
+
+test('details alone: with --json, --oneline, --checkpoint or --request it is a usage error', t => {
+  const run = atSpecGate(t);
+  for (const form of ['--json', '--oneline', '--checkpoint', '--request']) {
+    const result = brief(run, 'specification-approval', '--details', form);
+    assert.equal(result.code, 2, form);
+    assert.equal(result.stdout, '', form);
+    assert.match(result.stderr, /^usage: gate-brief takes --note only with --ask, and --details alone or with --ask: /m, form);
+  }
+});
+
+test('ask-record: printCall records the printed bytes through the module, and retires the note on the Copilot build only', t => {
+  const call = { message: 'Pick one', requestedSchema: { type: 'object', properties: {} } };
+  assert.equal(askText(call), `${JSON.stringify(call, null, 2)}\n`);
+
+  const copilotRun = atSpecGate(t);
+  const claudeRun = atSpecGate(t);
+  const note = dir => path.join(dir, '.ask.result.json');
+  const used = dir => path.join(dir, '.ask.result.used.json');
+  fs.writeFileSync(note(copilotRun.dir), '{"outcome":"person"}\n');
+  fs.writeFileSync(note(claudeRun.dir), '{"outcome":"person"}\n');
+
+  const source = brief(claudeRun, 'specification-approval', '--ask');
+  assert.equal(source.code, 0, source.stderr);
+  assert.equal(fs.readFileSync(recordOf(claudeRun), 'utf8'), source.stdout, 'the record is the printed block');
+  assert.equal(fs.existsSync(note(claudeRun.dir)), true, 'the source build keeps the note');
+  assert.equal(fs.existsSync(used(claudeRun.dir)), false);
+
+  const variant = runScript(path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs'), ['gate-brief', `--state=${copilotRun.state}`, '--node=specification-approval', '--ask']);
+  assert.equal(variant.code, 0, variant.stderr);
+  assert.equal(fs.readFileSync(recordOf(copilotRun), 'utf8'), variant.stdout);
+  assert.equal(variant.stdout, `${JSON.stringify(JSON.parse(variant.stdout), null, 2)}\n`, 'the bytes are the two-space JSON plus one newline');
+  assert.equal(fs.existsSync(note(copilotRun.dir)), false, 'the Copilot build retires the note');
+  assert.equal(fs.existsSync(used(copilotRun.dir)), true);
+
+  // The module called in-process: the same bytes, the note retired for a named host.
+  fs.writeFileSync(note(claudeRun.dir), '{"outcome":"person"}\n');
+  const text = recordAsk({ runDir: claudeRun.dir, call, host: 'copilot' });
+  assert.equal(text, askText(call));
+  assert.equal(fs.readFileSync(recordOf(claudeRun), 'utf8'), text);
+  assert.equal(fs.existsSync(note(claudeRun.dir)), false);
 });
 
 /** The user-guide question as the node writes it: a single choice, the recommended one with its reason. */
@@ -284,7 +345,7 @@ test('ask: the gate\'s call, the note\'s call and a question set\'s call are eac
 
 test('ask: --details, --json and a refusal record nothing', t => {
   const run = atSpecGate(t);
-  for (const flags of [['--ask', '--details'], ['--json', '--picker=plain'], ['--ask', '--note=stop-development']]) {
+  for (const flags of [['--ask', '--details'], ['--details'], ['--json', '--picker=plain'], ['--ask', '--note=stop-development']]) {
     brief(run, 'specification-approval', ...flags);
     assert.equal(fs.existsSync(recordOf(run)), false, flags.join(' '));
   }

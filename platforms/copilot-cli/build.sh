@@ -485,6 +485,31 @@ find "$OUT/skills" -name "*.md" | while read f; do
   render_plain_picker "$f"
 done
 
+# 9b. Render the passages marked for one host, in every skill file and agent.
+#    Where Claude Code and Copilot are told different things — what two calls
+#    may share a message, how a question is asked — the source holds both, each
+#    marked, one marker to a line, and this build keeps Copilot's:
+#      <!-- claude-code -->            <!-- copilot
+#      … Claude Code only …            … Copilot only …
+#      <!-- /claude-code -->           -->
+#    A Claude Code passage is dropped with its markers; a Copilot one is
+#    uncommented, its text already through the substitutions above. Host and
+#    picker passages never nest (make validate refuses it), so each kind is
+#    resolved on its own.
+render_host_passages() {
+  awk '
+    /^[[:space:]]*<!-- claude-code -->[[:space:]]*$/  { claude = 1; next }
+    /^[[:space:]]*<!-- \/claude-code -->[[:space:]]*$/ { claude = 0; next }
+    claude { next }
+    /^[[:space:]]*<!-- copilot[[:space:]]*$/ { copilot = 1; next }
+    copilot && /^[[:space:]]*-->[[:space:]]*$/ { copilot = 0; next }
+    { print }
+  ' "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+}
+find "$OUT/skills" "$OUT/agents" -name "*.md" | while read f; do
+  render_host_passages "$f"
+done
+
 # The variant's own install surface, staged after every substitution rather than
 # before. Copilot CLI chooses where a marketplace install lands, so the one
 # thing an operator cannot work out for themselves -- the directory to point the

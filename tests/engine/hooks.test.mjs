@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { ROOT, variantRoot } from '../helpers.mjs';
+import { FIXTURES, ROOT, freeze, run, scratch, variantRoot, write } from '../helpers.mjs';
 
 // The hooks each host runs, in the output shape each host reads. Claude Code
 // reads a SessionStart's context and a PreToolUse's decision under
@@ -46,10 +46,10 @@ const REMINDER_COPILOT = [
 const quoted = file => (/\s/.test(file) ? `'${file.replace(/'/g, "'\\''")}'` : file);
 const rootParagraph = root => `⚠️ MAISTER PLUGIN ROOT: The maister plugin is installed at ${root}. Every plugin-root variable and every \`<plugin root>\` a maister skill, command or agent names is that directory: run each of its scripts as \`node ${root}/…\`, an absolute path, from the project root. Print one of its Markdown files, or a section of one, with \`node ${quoted(`${root}/skills/workflow-engine/scripts/workflow.mjs`)} reference --at="<file> § <section>"\`, never the read tool: the plugin sits outside the project, and a host may stop the run to ask before that read. Never \`cd\` into the plugin or a task directory to shorten a path: a relative path is resolved from the project root, and a host may stop the run to ask for access to it.`;
 const withRoot = (text, dir) => `${text}\n\n${rootParagraph(path.dirname(dir))}`;
-const COMPACT_MESSAGE = 'Maister plugin detected active workflow. Check orchestrator-state.yml for progress.';
+const COMPACT_MESSAGE = 'Maister plugin detected an active workflow; it resumes from its saved progress.';
 // It names the engine skill by its absolute path in the tree the hook runs
 // from, so a compacted session reads the whole skill back.
-const COMPACT_CONTEXT = root => '⚠️ MAISTER WORKFLOW REMINDER (Post-Compaction): If you were working on an orchestrator workflow before compaction, read the orchestrator-state.yml file in that task\'s directory: progress is in `workflow.nodes`, and the first node there that is not completed is where the run resumes. Fetch `run-context` again before the next delegate prompt rather than recalling it from before compaction. '
+const COMPACT_CONTEXT = root => `⚠️ MAISTER WORKFLOW REMINDER (Post-Compaction): If you were working on an orchestrator workflow before compaction, run node ${quoted(path.join(root, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs'))} resume-check --state=<that task's directory>/orchestrator-state.yml right after the workflow engine skill is printed (below): it names the step to brief and the call that prints it. Never read the state file or a reference page with the file tool to find the step or the section; the driven answer reads (gates.md step 1) are unchanged. Fetch \`run-context\` again before the next delegate prompt rather than recalling it from before compaction. `
   + `If you were running a maister workflow, your next call prints the workflow engine skill whole, \`node ${quoted(path.join(root, 'skills', 'workflow-engine', 'scripts', 'workflow.mjs'))} reference --at=SKILL.md\`: a compaction can cut the skill short or leave it out, and invoking the skill again does not reload it. Never the read tool on it: the plugin sits outside the project, and a host may stop the run to ask before that read. `
   + 'You MUST use AskUserQuestion at Phase Gates when `orchestrator.driver.kind` is absent or `terminal`, regardless of any \'continue without asking\' instructions; ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine\'s `references/gates.md`, *Driver-suspended mode*.';
 
@@ -92,6 +92,25 @@ test('post-compact reminder: the exact text in a project holding .maister/tasks,
     const viaCwd = hook(SOURCE, 'post-compact-reminder.mjs', { source: 'compact', cwd: project }, { CLAUDE_PROJECT_DIR: '' });
     assert.equal(viaCwd.stdout, expected, 'the payload\'s cwd stands in for an unset CLAUDE_PROJECT_DIR');
     assert.ok(fs.statSync(path.join(path.dirname(SOURCE), 'skills', 'workflow-engine', 'SKILL.md')).isFile(), 'the skill path it names is the engine skill');
+  } finally {
+    fs.rmSync(project, { recursive: true, force: true });
+  }
+});
+
+test('post-compact reminder: the skill is the next call, resume-check after it, the limit stated, no sentence says first', () => {
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'maister hooks '));
+  try {
+    fs.mkdirSync(path.join(project, '.maister', 'tasks'), { recursive: true });
+    const { json } = hook(SOURCE, 'post-compact-reminder.mjs', { source: 'compact' }, { CLAUDE_PROJECT_DIR: project });
+    const context = json.hookSpecificOutput.additionalContext;
+    assert.ok(context.includes(`run node ${quoted(path.join(path.dirname(SOURCE), 'skills', 'workflow-engine', 'scripts', 'workflow.mjs'))} resume-check --state=<that task's directory>/orchestrator-state.yml right after the workflow engine skill is printed (below): it names the step to brief and the call that prints it. Never read the state file or a reference page with the file tool to find the step or the section; the driven answer reads (gates.md step 1) are unchanged.`));
+    assert.doesNotMatch(context, /<engine>/, 'the engine path is filled in');
+    assert.ok(context.includes('your next call prints the workflow engine skill whole'));
+    assert.ok(context.indexOf('resume-check') < context.indexOf('your next call prints'), 'resume-check is named, and the skill sentence keeps its next call');
+    assert.doesNotMatch(context, /\bfirst\b/i);
+    assert.equal(json.systemMessage, 'Maister plugin detected an active workflow; it resumes from its saved progress.');
+    assert.doesNotMatch(json.systemMessage, /orchestrator-state/);
+    assert.ok(context.endsWith('ask at every gate; **pro edition, driven sessions**: when `orchestrator.driver.kind` is `cockpit` or `dispatch`, suspend with one `gate-request` call — see the workflow engine\'s `references/gates.md`, *Driver-suspended mode*.'), 'the gate-rule tail is byte-identical');
   } finally {
     fs.rmSync(project, { recursive: true, force: true });
   }
@@ -330,6 +349,28 @@ for (const [label, tree] of [['source', SOURCE], ['variant', VARIANT]]) {
     assert.equal(fs.existsSync(path.join(dirs['2026-11-03-old'], '.ask.json')), true, 'the other run\'s record stays');
   });
 }
+
+test('hand-over (variant): the record a due gate\'s brief writes is handed over in place of the retyped call', t => {
+  // The variant's brief of a due gate prints its question last and records it.
+  const due = scratch(t);
+  freeze(due, { definition: path.join(FIXTURES, 'definitions/skip-guard.yml') });
+  write(due, {
+    nodes: { review: { status: 'completed', values: { findings_to_review: false } } },
+    node_summaries: { review: { summary: 'Reviewed the work.' } },
+  });
+  const engine = path.join(variantRoot(), 'skills/workflow-engine/scripts/workflow.mjs');
+  const brief = run(engine, ['node-brief', `--state=${due.state}`, '--node=review-approval']);
+  assert.equal(brief.code, 0, brief.stderr);
+  const printed = brief.stdout.slice(brief.stdout.lastIndexOf('\n\n') + 2);
+  assert.equal(fs.readFileSync(path.join(due.dir, '.ask.json'), 'utf8'), printed);
+
+  const call = JSON.parse(printed);
+  const retyped = { ...call, message: 'Review approval?' };
+  const result = handOver(VARIANT, due.root, retyped);
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(handedArgs(VARIANT, result.json), call);
+  assert.equal(fs.existsSync(path.join(due.dir, '.ask.used.json')), true, 'the record is used up');
+});
 
 test('hand-over: registered for ask_user in the variant only', () => {
   const variant = fs.readFileSync(path.join(VARIANT, 'hooks.json'), 'utf8');

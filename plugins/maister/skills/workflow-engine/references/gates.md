@@ -146,6 +146,20 @@ What a gate asks is built by the engine, never written by hand. The engine reads
   has returned successfully. Never issue the two in parallel: a brief that reads the state
   before the write lands is refused for a summary that is about to exist. Its output is what the
   user is asked. Never write a gate question by hand.
+<!-- claude-code -->
+  A due gate asked in session needs no call of its own: the brief the closing write's `--next`
+  or `node-brief` prints already ends with its question, below `question:`, `ask again:` and
+  `details:` lines (*Terminal mode*). Only a gate not yet due, a driven gate, a gate under
+  drift or a question that could not be built keeps an `ask it:` line, whose call is run as
+  printed.
+<!-- /claude-code -->
+<!-- copilot
+  A due gate asked in session needs no call of its own: the brief the closing write's `--next`
+  or `node-brief` prints already ends with its question, the `--ask` call, below `question:`,
+  `ask again:` and `details:` lines (*Terminal mode*). Only a gate not yet due, a driven gate,
+  a gate under drift or a question that could not be built keeps an `ask it:` line, whose call
+  is run as printed.
+-->
 - **`gate-brief-no-summary` or `gate-brief-value-missing`**: send the patch the message names
   through `write-state`, then run the verb again. The value-missing patch carries the node's
   whole `values` map, because a node's values are replaced whole on patch. A missing gate value
@@ -285,8 +299,10 @@ suggestions, its question then asking for the note typed.
 `--ask` prints the `plain` profile's `form` alone, as JSON — the arguments of a message-and-form
 question tool's call and nothing else, so the whole output is the call. With `--note=<revise
 option>` it prints that revise's note question the same way, one property `note`: an array of
-the suggestions, each its note as value and title, or text when there are fewer than two; with
-`--details`, `more_details` as text. With `--patch-file` and a running node, the node's question
+the suggestions, each its note as value and title, or text when there are fewer than two.
+`--details` stands alone: it prints `more_details` as plain text, writes no `.ask.json` and
+retires no note (`--ask --details` prints the same text). `--note` goes only with `--ask`. With
+`--patch-file` and a running node, the node's question
 set as one call — a property per question, keyed by its id and titled by its header, its
 description the question, why it is asked, a line per described option and the recommendation,
 its choices the options by id and label, the recommended one marked, the set's default as the
@@ -363,19 +379,28 @@ questions.
    choice. The recorded answer is the chosen option's `id`, never its label. **The
    `more-details` option is never recorded**: it is the More details request (`references/in-node-questions.md` § *In-node
    questions*), and the writer refuses it as an answer.
-<!-- rich-picker -->
-   Its preview already shows the full brief, so ask this gate again at once, with the same
-   picker, in the same turn. Before it, write at most one line saying the full brief is in the
-   More details preview — never a paraphrase or a summary of it, which only repeats what the
-   user can read there, less exactly.
-<!-- /rich-picker -->
-<!-- plain-picker
-   Run `gate-brief --ask --details` for the gate, write its output out as your message, as
-   given, then ask this gate again with the same `--ask` output, in the same turn.
+<!-- claude-code -->
+   **The brief prints the question.** A due gate's brief ends with the question, below its
+   `question:`, `ask again:` and `details:` lines, as `gate-brief --json --picker=rich` prints it
+   without `more_details`: pass it to the question tool as printed, never rebuilt. After a brief
+   that printed a question, make no other call that prints one — another brief, `gate-brief
+   --json` — before asking it. Run `ask again:` only to ask again, and an `ask it:` call by hand
+   only when the brief printed an `ask it:` line instead of the question. More details is the `details:`
+   call: write its output out as your message, as given, then ask this gate again with the
+   same picker, in the same turn. A typed "details" is the same request.
+<!-- /claude-code -->
+<!-- copilot
+   **The brief prints the question.** A due gate's brief ends with the question, the `--ask`
+   call, below its `question:`, `ask again:` and `details:` lines: pass it to the question tool
+   as printed, never rebuilt. After a brief that printed a question, make no other call that
+   prints one — another brief, `gate-brief --ask` or `--json` — before asking it: such a call
+   overwrites `.ask.json` and retires the answer note. Run the question call by hand only after
+   the details print, after a revise's note (`--ask --note`), and when the brief printed an
+   `ask it:` line instead of the question. More details is the `details:` call: write its output
+   out as your message, as given, then run `ask again:` and ask what it prints, in the same
+   turn. A typed "details" is the same request.
 -->
-   When `details` is `typed`, the question already asks the user to type "details", and a
-   typed "details" is the same request, answered by writing `more_details` out as given, since
-   no option previews it. When `options` is empty — the definition changed and no longer holds the
+   When `options` is empty — the definition changed and no longer holds the
    gate — ask with the gate's own option ids, and More details after them.
 2. **Records the answer** as one item of the gate's `decisions`, `{option: <the chosen id>}`,
    and marks the node `completed`, in one write. That is the one shape of a gate answer: never a
@@ -411,7 +436,7 @@ and prints `decided:`, a `say:` line and the next node in place of `ask it:`. Sh
 line and brief the next node; write nothing for the gate. It does so under every driver, and
 no gate request is written.
 
-The gate is asked as usual, a `say:` line naming why above `ask it:`, when its brief
+The gate is asked as usual, a `say:` line naming why above its question (`ask it:` where the question is not printed), when its brief
 recommends a revise or a stop, a step it closes recorded a stop risk, or a choice is held for
 approval: config never stands for a person. A gate its guard skips keeps the usual skip.
 Only the engine records `by: config`; the writer refuses it anywhere else
@@ -543,7 +568,7 @@ an immediate re-validation through the writer.
    the decision was recorded. Every text value typed into the summary is double-quoted, as the
    writer spells it: `headline: "Approved: continue to close-out."`. A plain value holding
    `: ` is a nested mapping to a YAML parser, which then cannot read the file at all.
-5. The very next action is the **re-validation write**: `write-state --state=<state>` with
+5. The very next action is the **re-validation write**: `write-state --state=<state> --next` with
    `{}` as the patch file's body (engine § *The invocation contract*), described as
    re-validating the recorded answer. It is not a no-op: the writer reads
    back the file the editor tools wrote, self-checks it and re-publishes it, recording what the
@@ -551,6 +576,10 @@ an immediate re-validation through the writer.
    provenance keys copied from the request's answer block, and under a classifying policy the
    triage and settlement items — and regenerating `gates/index.yml`. It also re-emits, quoted, a
    summary entry holding a plain value a YAML parser would misread, with a note. None of that is drift.
+   What follows the `next:` line is acted on as the engine skill says. After a continue the walk
+   briefs the next step; after a stop it prints the stop line read from disk; after a revise at
+   `held-approval` it prints nothing more, because `gate-revise` comes first. Note that a continue or a stop at
+   `held-approval` prints nothing more, and the session carries on at the closing node's close-out step.
 6. A refusal at step 5 is `RUN-FAILED: <code>`, reported verbatim, and the run stops there:
    the operator repairs the directory or starts a new task. **Never repair the state file to get
    past it** — editing further with the same tools compounds the drift.
@@ -577,7 +606,7 @@ its work:
    what is written is refused the same way.
 2. **Record, in this order:** the answer block, whole **less `grants`**, in
    `gates/<node>.request.yml`; then the node's `status` back to **`running`** — never
-   `completed`; then `gate_pending: null` last. Then the empty-patch re-validation, as in step 5.
+   `completed`; then `gate_pending: null` last. Then the empty-patch re-validation, as in step 5, with `--next`. The node is `running` again, so nothing more is printed.
 3. **Then record the answers through the writer**: send
    `{"node_summaries": {"<node>": {"answer": <the answer block, whole>}}}`, the block copied
    from the answer file as it stands. The writer reads the questions from the node's request
@@ -785,7 +814,10 @@ attempt's answers as history (`references/in-node-questions.md` § *When a quest
 and its `attempt` one higher; a guarded node in it is judged again once the rerun node records
 its values, and a gate in it is asked again. The summaries stay until the nodes re-complete and
 rewrite them field by field, so the brief and the prior context still show what the previous
-attempt found (`references/writing-state.md` § *Writing state*). The gate's decisions keep every
+attempt found (`references/writing-state.md` § *Writing state*). The one exception is a node of
+the stretch, not a gate, that is then recorded `skipped` with no summary: the writer drops its
+earlier summary and lists it as `node_summaries.<id>`. A gate's own summary stays, for it holds
+the revise decision. The gate's decisions keep every
 revise, and a later answer at the gate is added after them, never over them.
 
 **A ceiling, not a budget.** A revise the user chooses is theirs to make as often as they want;

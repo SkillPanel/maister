@@ -81,6 +81,7 @@ import { scanState, unansweredRequests } from '../../../../lib/state-scan.mjs';
 // regenerating it only when the *next* gate is asked left every run's final
 // gate reading `pending` forever. The renderer is a separate module so the gate
 // writer can import it without a cycle.
+import { ASK_RESULT, ASK_RESULT_USED } from './ask-record.mjs';
 import { syncIndex, INDEX_FILE, REQUEST_SUFFIX } from './gate-index.mjs';
 // The one state reader. This module carried a private `isPlainObject` until the
 // reader was extracted; two copies of the same predicate is the drift that
@@ -4570,8 +4571,7 @@ export function answerVia(state) {
  * ASK_RESULT_USED: by the next question `--ask` prints (`workflow.mjs`) and by
  * the first write that records answers on its strength (`retireNote`).
  */
-export const ASK_RESULT = '.ask.result.json';
-export const ASK_RESULT_USED = '.ask.result.used.json';
+export { ASK_RESULT, ASK_RESULT_USED };
 
 /**
  * What the run holds about who answered its last question, read from the
@@ -5351,15 +5351,44 @@ function registeredPath(node, nodeId, run) {
  * `node_summaries` entry already on disk and not written by this patch is
  * touched — one this patch wrote was mirrored as it was written — and only its
  * `status` line, so the prose beside it stays byte-identical.
+ *
+ * One exception: a node a revise reset (`attempt` 2 or more) that this write
+ * records `skipped` with no summary of its own. Its summary on file is the
+ * earlier attempt's, which no stamp tells apart, and a summary reads before
+ * `Skipped.` at the gate; so that summary is dropped whole, and the change
+ * listed as `node_summaries.<id>`. A judged skip sends its summary in the same
+ * write, and keeps it. A gate keeps its summary: the revise that reset it
+ * wrote the person's answer there, and a gate brief never reads a gate's
+ * summary as the summary of a step it closes.
  */
 function mirrorOntoRecorded(doc, nodePatch, summaryPatch, changed) {
   for (const [id, patchEntry] of Object.entries(nodePatch)) {
     if (isPlainObject(summaryPatch) && Object.hasOwn(summaryPatch, id)) continue;
     const mirrored = mirrorOf(patchEntry?.status);
     if (!mirrored || !doc.locate(['node_summaries', id])) continue;
+    if (patchEntry.status === 'skipped' && dropStaleSummary(doc, id)) {
+      if (!changed.includes(`node_summaries.${id}`)) changed.push(`node_summaries.${id}`);
+      continue;
+    }
     doc.set(['node_summaries', id, 'status'], [`    status: ${mirrored}`]);
     changed.push(`node_summaries.${id}.status`);
   }
+}
+
+/**
+ * Drop `id`'s summary when the node now stands `skipped` on a reset attempt;
+ * whether it did. An emptied block is written `node_summaries: {}`, the shape
+ * a run starts with.
+ */
+function dropStaleSummary(doc, id) {
+  const nodes = typedOf(doc).workflow?.nodes;
+  const entry = isPlainObject(nodes) ? nodes[id] : undefined;
+  if (!isPlainObject(entry) || entry.kind === 'gate' || entry.status !== 'skipped' || attemptOf(entry) < 2) return false;
+  const found = doc.locate(['node_summaries', id]);
+  doc.splice(found.start, found.end, []);
+  const block = doc.locate(['node_summaries']);
+  if (block && block.end === block.start + 1 && block.inline === '') doc.lines[block.start] = 'node_summaries: {}';
+  return true;
 }
 
 /**
@@ -5626,10 +5655,14 @@ function nextCheck(text, runDir, before) {
  * it, but a stop ends the run, so the write's `next:` line names the closing
  * patch instead. Read against the graph the frozen block proves; a run whose
  * graph cannot be proven gets the walk's line as before.
+ *
+ * Without `ended`, every frozen node is looked at, in frozen order: the stop
+ * as the state on disk records it, whichever write answered it — what the
+ * walk after a closing write checks before it skips or briefs anything.
  */
-function stopAnswered(doc, runDir, ended) {
-  const nodes = doc.workflow.nodes;
-  const gates = ended.filter(id => nodes[id].status === 'completed' && nodes[id].kind === 'gate');
+export function stopAnswered(doc, runDir, ended = null) {
+  const nodes = isPlainObject(doc.workflow) && isPlainObject(doc.workflow.nodes) ? doc.workflow.nodes : {};
+  const gates = (ended ?? frozenIds(nodes)).filter(id => isPlainObject(nodes[id]) && nodes[id].status === 'completed' && nodes[id].kind === 'gate');
   if (!gates.length) return null;
   const graph = provenGraph(doc.workflow, runDir).graph ?? null;
   if (!graph) return null;

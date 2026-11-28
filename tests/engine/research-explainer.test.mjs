@@ -118,19 +118,40 @@ function part(text, label) {
   return end < 0 ? rest : rest.slice(0, end);
 }
 
-test('each writing step dispatches the explainer writer, runs the check and registers the page first', () => {
+const PRODUCT_GUIDE = 'skills/workflow-engine/workflows/product-design.md';
+
+test('each writing step runs the check and registers the page first; only the two later steps look up the writer model', () => {
   const guide = researchGuide();
   for (const node of WRITING_NODES) {
     const body = section(guide, `\`${node}\``);
     assert.ok(body.includes('`maister:explainer-writer`'), `${node}: names the writer`);
-    assert.ok(body.replace(/\s+/g, ' ').includes(
-      `workflow.mjs dispatch-model --agent=maister:explainer-writer --host=claude --state=<task path>/orchestrator-state.yml --node=${node}`),
-    `${node}: the writer's dispatch-model call names this node`);
+    if (node === 'research-foundation') {
+      // The brief prints the writer's model and effort on its `explainer writer:` line, so the foundation makes no lookup.
+      assert.ok(!body.includes('dispatch-model'), `${node}: no dispatch-model call`);
+    } else {
+      assert.ok(body.replace(/\s+/g, ' ').includes(
+        `workflow.mjs dispatch-model --agent=maister:explainer-writer --host=claude --state=<task path>/orchestrator-state.yml --node=${node}`),
+      `${node}: the writer's dispatch-model call names this node`);
+    }
     assert.ok(body.includes(CHECK_SCRIPT), `${node}: names the check script`);
     const writes = part(body, 'Writes');
     assert.equal(/outputs\/[a-z-]+\.(html|md)/.exec(writes)?.[0], 'outputs/research-explainer.html',
       `${node}: the Writes part registers the explainer first`);
   }
+});
+
+test('no guide claims the explainer writer is outside the brief\'s declared delegates', () => {
+  const files = fs.readdirSync(PLUGIN, { recursive: true }).map(String).filter(file => file.endsWith('.md'));
+  assert.ok(files.length > 0, 'the plugin holds Markdown files');
+  for (const file of files) {
+    assert.doesNotMatch(read(file), /not one of the brief's declared delegates/, file);
+  }
+});
+
+test('the product-design intake copies the Explore model and effort the brief prints, with no lookup call', () => {
+  const intake = section(read(PRODUCT_GUIDE), '`intake`');
+  assert.ok(!intake.includes('dispatch-model'), 'the intake names no dispatch-model call');
+  assert.ok(intake.includes('`Explore`'), 'the intake still fans out Explore agents');
 });
 
 test('the foundation has five steps and the design four parts, the new ones in place', () => {
