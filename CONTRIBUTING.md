@@ -43,6 +43,10 @@ Node's built-in test runner only. Keep tests and fixtures under `tests/`, never 
 `plugins/`: the Copilot build copies the plugin directory whole. A change to an engine script
 should arrive with a test here that fails without it.
 
+To measure what a workflow run costs in model turns, tokens and time per step, use
+`tools/engine-turns.mjs` on the transcripts a run leaves: `tools/engine-turns.md` says how, and
+`tests/benchmark/` holds the story it is meant to run.
+
 ## Scope
 
 This file covers the contribution loop only. It does not enumerate skills, agents, or

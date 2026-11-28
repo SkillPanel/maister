@@ -23,7 +23,9 @@ dist/copilot/                     # Copilot CLI build (make build, make validate
 platforms/copilot-cli/build.sh    # The generator
 tools/interface.mjs               # Generates each tree's interface.json (dev tooling, never shipped)
 tools/publish-dist.sh             # CI's publish of the Copilot build to dist/<channel> (dev tooling, never shipped)
+tools/engine-turns.mjs            # Turns, tokens and time per step from a host transcript (dev tooling, never shipped; engine-turns.md)
 tests/                            # Engine verb suite (`make test`) + committed fixtures — never under plugins/
+tests/benchmark/                  # The engine-turn benchmark's story, a project workflow to measure
 docs/                             # User-facing docs (workflows.md, commands.md)
 README.md                         # User-facing install/usage
 CONTRIBUTING.md                   # Contributor loop (make targets); license inbound=outbound
