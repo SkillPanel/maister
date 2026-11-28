@@ -17,8 +17,10 @@
  * wake-up line. W2 lands before W3, and W3 before the driver types its waiting
  * marker — this verb never prints that marker, nor any `RUN-` marker: it ends
  * on one line the driver reads (`waiting:`, `started:`, `stopped:` or the
- * writer's `next:` line). It never runs a node of another scheme, asks a gate
- * or writes a gate request.
+ * writer's `next:` line), after which the entry point prints the walk
+ * `write-state --next` prints — of the parent after a `next:` line, of the
+ * child after a terminal driver's `started:` line. It never runs a node of
+ * another scheme, asks a gate or writes a gate request.
  *
  * Whatever the named node's status, it continues from disk: a `waiting` node is
  * adopted; one already adopted continues at the guard skips; a `running` one
@@ -68,7 +70,9 @@ const UNSETTLED = 'the hand-off walk did not settle within its step budget; noth
  * records a decision time, so it is accepted and recorded nowhere, as with the
  * separate writes. Returns `{ok: true, writes, warnings, line}` or
  * `{ok: true, writes, warnings, next}` — `next` as the state writer's `next:`
- * line takes it — or `{ok: false, code, message, writes, warnings}`.
+ * line takes it — or `{ok: false, code, message, writes, warnings}`. A
+ * `started:` line under a terminal driver also carries `child`, the child's
+ * state file, whose first step this session runs next.
  */
 export function subrunHandoff({ state, node, at = null }) {
   const run = { state, runDir: path.dirname(path.resolve(state)), writes: [], warnings: [], at };
@@ -277,7 +281,8 @@ function start(run, node, doc, { begun }) {
   }
   const linked = write(run, run.state, { nodes: { [node]: { status: 'waiting', values: { task_path: where.task_path, run_id: where.run_id } } } }, `W3 linking ${node}`);
   if (linked.refusal) return linked.refusal;
-  return done(run, { line: `started: ${node} run=${where.run_id} — the sub-run is frozen and linked` });
+  // Under a terminal driver the child runs in this session, so its first step is briefed next.
+  return done(run, { line: `started: ${node} run=${where.run_id} — the sub-run is frozen and linked`, ...(isTerminalDriver(doc) ? { child: childState } : {}) });
 }
 
 /**

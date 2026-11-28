@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { ENGINE_DIR, FIXTURES, freeze, readState, run as runScript, scratch, sibling, snapshot, variantRoot, verb, write } from '../helpers.mjs';
+import { ENGINE_DIR, FIXTURES, freeze, lastLine, maskRoot, readState, run as runScript, scratch, sibling, snapshot, variantRoot, verb, write } from '../helpers.mjs';
 
 const AUTHORED = path.join(FIXTURES, 'subrun-handoff');
 const CHILD_SOURCE = '.maister/workflows/handoff-child.yml';
@@ -23,9 +23,13 @@ const COCKPIT = root => ({ kind: 'cockpit', cwd: root });
  * holds the fixture pair, frozen with `driver`, its intake done; `first` is
  * the node due next.
  */
-function parent(t, { driver = null } = {}) {
+function parent(t, { driver = null, edit = null } = {}) {
   const run = scratch(t, { type: 'handoff-parent', name: '2026-01-05-handoff' });
   fs.cpSync(AUTHORED, path.join(run.root, '.maister', 'workflows'), { recursive: true });
+  if (edit) {
+    const file = path.join(run.root, '.maister', 'workflows', 'handoff-parent.yml');
+    fs.writeFileSync(file, edit(fs.readFileSync(file, 'utf8')));
+  }
   freeze(run, {
     definition: path.join(run.root, '.maister', 'workflows', 'handoff-parent.yml'),
     task: { title: 'Hand-off', description: 'Probe the store twice.' },
@@ -45,11 +49,24 @@ function variantHandoff(run, node) {
   return runScript(path.join(variantRoot(), 'skills', 'workflow-engine', 'scripts', 'workflow.mjs'), ['subrun-handoff', `--state=${run.state}`, `--node=${node}`]);
 }
 
-/** The verb's closing line: the last non-empty line of its stdout. */
+/**
+ * The verb's closing line: the first `waiting:`, `started:` or `stopped:` line
+ * naming a child run, or the first `next:` line. A brief may follow it.
+ */
 function closing(result) {
-  const lines = result.stdout.split('\n').filter(line => line !== '');
-  return lines[lines.length - 1];
+  return result.stdout.split('\n').find(line => /^(waiting|started|stopped): \S+ run=|^next: /.test(line));
 }
+
+/** What follows the closing paragraph's `next:` line: the brief, from its first line. */
+function briefAfter(stdout, announced) {
+  const at = stdout.indexOf(`\n${announced}\n\n`);
+  assert.ok(at >= 0, `${announced} in\n${stdout}`);
+  return stdout.slice(at + announced.length + 3);
+}
+
+/** Each tree's plugin root, so the two trees' briefs compare. */
+const SOURCE_TREE = path.join(ENGINE_DIR, '..', '..');
+const treeMasked = (text, root) => masked(text, root).replaceAll(SOURCE_TREE, '<plugin>').replaceAll(path.join(variantRoot()), '<plugin>');
 
 function refusal(result, code) {
   assert.equal(result.code, 1, result.stdout + result.stderr);
@@ -99,7 +116,7 @@ function waitingOnFirst(t, options = {}) {
   return { run, child };
 }
 
-const masked = (text, root) => text.replace(STAMP, '"<ts>"').replaceAll(root, '<root>');
+const masked = (text, root) => maskRoot(text.replace(STAMP, '"<ts>"'), root);
 
 test('the first child starts in one call: W1, the freeze into the derived directory with its parent link, W3', t => {
   const run = parent(t);
@@ -121,6 +138,11 @@ test('the first child starts in one call: W1, the freeze into the derived direct
   assert.equal(frozen.task.status, 'in_progress', 'the writer records the status the freeze starts a run with');
   assert.equal(frozen.workflow.source, CHILD_SOURCE);
   assert.match(result.stdout, /A sub-run's banner: do not relay it/);
+  // The child runs in this session, so its first step's brief follows, as node-brief prints it.
+  const brief = briefAfter(result.stdout, 'next: probe (Probe) — its brief follows');
+  assert.doesNotMatch(result.stdout, /run node-brief for it/);
+  assert.equal(frozen.workflow.nodes.probe.status, 'running', 'the brief recorded the child step\'s start');
+  assert.match(brief, /^started: recorded running by this brief/m);
 });
 
 test('a child still running: nothing is written and the node still waits', t => {
@@ -173,6 +195,10 @@ test('parity: one call leaves the state the separate W4, skip, W1, W2 and W3 wri
     orchestrator: { options: { inputs: { subject: 'the store', embedded: true } }, driver: { kind: 'terminal' }, parent: { run: run.path, node: 'second' } },
   });
   write(run, { nodes: { second: { status: 'waiting', values: { task_path: next.path, run_id: next.name } } } });
+  // The call the hand-off's closing paragraph stands in for: the child's first brief.
+  const separate = verb(['node-brief', `--state=${next.state}`, '--node=probe']);
+  assert.equal(separate.code, 0, separate.stderr);
+  assert.equal(masked(briefAfter(result.stdout, 'next: probe (Probe) — its brief follows'), viaVerb.run.root), masked(separate.stdout, run.root));
 
   assert.equal(masked(fs.readFileSync(viaVerb.run.state, 'utf8'), viaVerb.run.root), masked(fs.readFileSync(run.state, 'utf8'), run.root));
   assert.equal(masked(fs.readFileSync(second.state, 'utf8'), viaVerb.run.root), masked(fs.readFileSync(next.state, 'utf8'), run.root));
@@ -200,7 +226,7 @@ test('both trees: the walk the hand-off shares prints and leaves byte for byte t
   const variant = variantHandoff(viaVariant.run, 'first');
   assert.equal(source.code, 0, source.stdout + source.stderr);
   assert.equal(variant.code, 0, variant.stdout + variant.stderr);
-  assert.equal(masked(variant.stdout, viaVariant.run.root), masked(source.stdout, viaSource.run.root));
+  assert.equal(treeMasked(variant.stdout, viaVariant.run.root), treeMasked(source.stdout, viaSource.run.root));
   assert.equal(variant.stderr, source.stderr);
   assert.equal(masked(fs.readFileSync(viaVariant.run.state, 'utf8'), viaVariant.run.root), masked(fs.readFileSync(viaSource.run.state, 'utf8'), viaSource.run.root));
   const skips = source.stdout.split('\n').filter(line => /^workflow\.nodes\.(remedy|confirm)$/.test(line));
@@ -221,14 +247,35 @@ test('the adoption records the guard skip, the gate the child\'s answer skipped 
   assert.ok(summary.artifacts.some(each => each.path === `../../handoff-child/${child.name}/notes/probe-notes.md`), JSON.stringify(summary.artifacts));
 });
 
-test('a gate the walk does not skip ends the hand-off at the writer\'s next: line: adopt only, no child started', t => {
-  const { run, child } = waitingOnFirst(t);
-  finish(child, { answer: 'leave-open' });
+test('a gate the walk does not skip ends the hand-off as write-state --next ends: its brief, the question last; adopt only, no child started', t => {
+  // The gate also follows the adopted node, so the summary the adoption records is what it asks about.
+  const edit = text => text.replace('    needs: [remedy]\n    when: "!${first.values.settled}"', '    needs: [first, remedy]\n    when: "!${first.values.settled}"');
+  const viaVerb = waitingOnFirst(t, { edit });
+  const bySteps = waitingOnFirst(t, { edit });
+  finish(viaVerb.child, { answer: 'leave-open' });
+  finish(bySteps.child, { answer: 'leave-open' });
+  const { run } = viaVerb;
   const result = handoff(run, 'first');
   assert.equal(result.code, 0, result.stderr);
-  assert.equal(closing(result), 'next: confirm (Confirm the probe) — run node-brief for it');
+  const announced = 'next: confirm (Confirm the probe) — its brief follows';
+  assert.equal(closing(result), announced);
+  assert.doesNotMatch(result.stdout, /run node-brief for it/);
+  const question = JSON.parse(result.stdout.slice(result.stdout.lastIndexOf('\n\n') + 2));
+  assert.ok(question.options, 'the last block is the question the host\'s tool takes');
+
+  // The same adoption sent as a separate write with --next prints the same brief.
+  const { child } = bySteps;
+  const separate = verb(['write-state', `--state=${bySteps.run.state}`, '--next'], {
+    nodes: { first: { status: 'completed', values: { task_path: child.path, run_id: child.name, blocking: false, settled: false } } },
+    node_summaries: { first: { summary: `Sub-run ${child.name} completed.`, absent: { extra: 'the sub-run skipped deepen, which writes it' } } },
+  });
+  assert.equal(separate.code, 0, separate.stderr);
+  assert.equal(masked(briefAfter(result.stdout, announced), run.root), masked(briefAfter(separate.stdout, announced), bySteps.run.root));
+  assert.equal(result.stderr, separate.stderr);
+
   const nodes = readState(run).workflow.nodes;
   assert.equal(nodes.first.status, 'completed');
+  assert.equal(nodes.confirm.status, 'pending', 'a gate is asked, never started by its brief');
   assert.equal(nodes.second.status, 'pending');
   assert.ok(!fs.existsSync(path.join(run.root, '.maister', 'tasks', 'handoff-child', '2026-01-05-handoff-second')));
 });
@@ -264,10 +311,15 @@ test('a crash between W1 and W3: the running node goes on from its child\'s dire
     workflow: { source: CHILD_SOURCE, overlays: [], profile: null, graph_hash: resolved.graph_hash, grammar_version: 1, name: 'handoff-child' },
     orchestrator: { options: { inputs: { subject: 'the store', embedded: true } }, driver: { kind: 'terminal' }, parent: { run: crashed.path, node: 'first' } },
   });
-  const frozen = fs.readFileSync(child.state, 'utf8');
+  const frozen = readState(child);
   const adopted = handoff(crashed, 'first');
   assert.equal(adopted.code, 0, adopted.stdout + adopted.stderr);
-  assert.equal(fs.readFileSync(child.state, 'utf8'), frozen, 'the child was not frozen again');
+  // Not frozen again: no banner, the freeze's record as it was; only the child's first brief started its step.
+  assert.doesNotMatch(adopted.stdout, /A sub-run's banner/);
+  const after = readState(child);
+  assert.deepEqual({ ...after.orchestrator, updated: null, started_phase: null }, { ...frozen.orchestrator, updated: null, started_phase: null });
+  assert.deepEqual({ ...after.workflow, nodes: null }, { ...frozen.workflow, nodes: null });
+  assert.equal(after.workflow.nodes.probe.status, 'running');
   assert.equal(readState(crashed).workflow.nodes.first.status, 'waiting');
   assert.deepEqual(fs.readdirSync(path.join(crashed.root, '.maister', 'tasks', 'handoff-child')), ['2026-01-05-handoff-first']);
 });
@@ -305,7 +357,9 @@ test('a failed child whose node an `on: always` step follows: the next: line nam
   const second = childOf(run, 'second');
   finish(second, { status: 'failed' });
   const result = handoff(run, 'second');
-  assert.equal(closing(result), 'next: wrap (Wrap) — run node-brief for it');
+  assert.equal(closing(result), 'next: wrap (Wrap) — its brief follows');
+  assert.doesNotMatch(result.stdout, /run node-brief for it/);
+  assert.equal(readState(run).workflow.nodes.wrap.status, 'running', 'the brief recorded the step\'s start');
 });
 
 test('a child whose definition changed after its freeze: subrun-graph-drifted, nothing written', t => {
@@ -367,6 +421,9 @@ test('walk two: a cockpit parent freezes its child with its driver kind and the 
   const result = handoff(run, 'first');
   assert.equal(result.code, 0, result.stdout + result.stderr);
   assert.doesNotMatch(result.stdout, /WAITING-SUBRUN/);
+  // The child runs in a session of its own: the hand-off ends on started:, nothing briefed.
+  assert.equal(lastLine(result.stdout), `started: first run=${childOf(run, 'first').name} — the sub-run is frozen and linked`);
+  assert.equal(readState(childOf(run, 'first')).workflow.nodes.probe.status, 'pending');
   const driver = readState(childOf(run, 'first')).orchestrator.driver;
   assert.equal(driver.kind, 'cockpit');
   assert.equal(driver.cwd, run.root);
