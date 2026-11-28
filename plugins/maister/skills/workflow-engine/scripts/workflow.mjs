@@ -263,7 +263,7 @@ import { isNewerVersion, readDefinition } from './lib/definition.mjs';
 // Shared with the session-start hook, which warns on the same detection, so it
 // sits at the plugin root beside `canonical.mjs` rather than in this skill.
 import { findEditionCollision } from '../../../lib/editions.mjs';
-import { SHIPPED_HOST } from '../../../lib/host.mjs';
+import { recordAsk } from './lib/ask-record.mjs';
 // Shared with the umbrella runtime's `--input-file`: one rule for a document
 // read from a fixed file instead of stdin.
 import { anchoredFile, consume as consumeFile, readFileText } from '../../../lib/input-file.mjs';
@@ -1519,9 +1519,10 @@ async function runGateBrief(flags) {
       + '--json is the in-session picker, --oneline the driven summary, --checkpoint the structured checkpoint, --request the driven gate request');
   }
   const form = forms[0] ?? 'plain';
-  if ((flags.note !== undefined || flags.details === true) && form !== 'ask') {
-    throw new UsageError('gate-brief takes --note and --details only with --ask: they print the question tool\'s call for a revise\'s note, or the full brief, at a gate asked in session');
+  if ((flags.note !== undefined && form !== 'ask') || (flags.details === true && form !== 'ask' && form !== 'plain')) {
+    throw new UsageError('gate-brief takes --note only with --ask, and --details alone or with --ask: they print the question tool\'s call for a revise\'s note, or the full brief, at a gate asked in session');
   }
+  const detailsAlone = form === 'plain' && flags.details === true;
   if (flags.note !== undefined && flags.details === true) {
     throw new UsageError('gate-brief --ask takes --note or --details, not both: --note asks a chosen revise\'s note, --details writes out the full brief');
   }
@@ -1560,7 +1561,7 @@ async function runGateBrief(flags) {
   const render = entryOf(module, 'gateBrief', VERBS['gate-brief'].module);
   // A gate asked with --ask is the labels-only picker, rendered and cut down
   // to the one thing the session passes on; a question set renders its own.
-  const asked = form === 'ask' && questions === undefined;
+  const asked = (form === 'ask' && questions === undefined) || detailsAlone;
   const result = render({ state: flags.state, node: flags.node, form: asked ? 'json' : form, picker: asked ? 'plain' : picker, reask: flags.reask, questions });
   // A refusal's code comes first on stderr, and a drift warning is kept after
   // it: a drifted run that also lacks a summary must still say it drifted.
@@ -1571,6 +1572,11 @@ async function runGateBrief(flags) {
   for (const warning of result.warnings || []) process.stderr.write(`warning: ${warning.message ?? warning}\n`);
   if (result.ok && result.panel) await publishPanel(flags.state, result.panel);
   const warnings = (result.warnings || []).map(warning => warning.message ?? warning);
+  if (detailsAlone) {
+    if (!result.ok) return EXIT.REJECTED;
+    process.stdout.write(result.more_details.endsWith('\n') ? result.more_details : `${result.more_details}\n`);
+    return EXIT.OK;
+  }
   if (form === 'ask') {
     const code = printAsk(flags, result, entryOf(module, 'noteForm', VERBS['gate-brief'].module));
     // The set has become the call: a file left behind would read as a patch
@@ -1633,44 +1639,12 @@ function printAsk(flags, result, noteForm) {
 }
 
 /**
- * The question tool's call, as `--ask` prints it, recorded beside the run's
- * state as ASK_RECORD. The session still retypes the call into the tool, and
- * a session retyping a long brief rewords and shortens it; a host hook that
- * can replace a tool call's arguments hands this file over in their place,
- * once, while it is fresh (the Copilot variant's `hand-over-question.mjs`).
- * The record is a convenience, never the verb's result: a run directory it
- * cannot be written to leaves the printed call as it is.
+ * The question tool's call, as `--ask` prints it, and its record beside the
+ * run's state (`lib/ask-record.mjs` writes it and retires the previous note).
  */
-const ASK_RECORD = '.ask.json';
-
-/**
- * The Copilot build's after-question note and its retired name (`lib/state.mjs`
- * owns the note; spelled here so the verbs that print a call need not load the
- * state writer). Every question printed retires the note left by the one
- * before it, so a person's answer to that question never counts for this one.
- */
-const ASK_RESULT = '.ask.result.json';
-const ASK_RESULT_USED = '.ask.result.used.json';
-
 function printCall(flags, call) {
-  const text = `${JSON.stringify(call, null, 2)}\n`;
+  const text = recordAsk({ runDir: path.dirname(path.resolve(flags.state)), call });
   process.stdout.write(text);
-  if (SHIPPED_HOST === 'copilot') {
-    try {
-      const runDir = path.dirname(path.resolve(flags.state));
-      fs.renameSync(path.join(runDir, ASK_RESULT), path.join(runDir, ASK_RESULT_USED));
-    } catch {
-      // No note, or one that cannot be moved: the call is printed either way.
-    }
-  }
-  try {
-    const record = path.join(path.dirname(path.resolve(flags.state)), ASK_RECORD);
-    const scratchFile = `${record}.${process.pid}.tmp`;
-    fs.writeFileSync(scratchFile, text, 'utf8');
-    fs.renameSync(scratchFile, record);
-  } catch {
-    // The call is printed; a hand-over that cannot happen leaves it to the session.
-  }
   return EXIT.OK;
 }
 

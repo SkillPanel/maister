@@ -81,6 +81,7 @@ import { scanState, unansweredRequests } from '../../../../lib/state-scan.mjs';
 // regenerating it only when the *next* gate is asked left every run's final
 // gate reading `pending` forever. The renderer is a separate module so the gate
 // writer can import it without a cycle.
+import { ASK_RESULT, ASK_RESULT_USED } from './ask-record.mjs';
 import { syncIndex, INDEX_FILE, REQUEST_SUFFIX } from './gate-index.mjs';
 // The one state reader. This module carried a private `isPlainObject` until the
 // reader was extracted; two copies of the same predicate is the drift that
@@ -4570,8 +4571,7 @@ export function answerVia(state) {
  * ASK_RESULT_USED: by the next question `--ask` prints (`workflow.mjs`) and by
  * the first write that records answers on its strength (`retireNote`).
  */
-export const ASK_RESULT = '.ask.result.json';
-export const ASK_RESULT_USED = '.ask.result.used.json';
+export { ASK_RESULT, ASK_RESULT_USED };
 
 /**
  * What the run holds about who answered its last question, read from the
