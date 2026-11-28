@@ -522,3 +522,11 @@ test('the file declares the written scope as additions: the scope format, the op
   assert.equal(studio.layout.flat.scope, 'scope.md');
   assert.match(studio.layout.scope_note, /scope\.md/);
 });
+
+test('the file is at interface version 2.16, one minor step over the published beta, and lists the next and short flags', () => {
+  assert.equal(INTERFACE.interface_version, '2.16');
+  const verbs = INTERFACE.engine.verbs;
+  assert.ok(verbs['write-state'].flags.includes('next'), 'write-state takes --next');
+  assert.ok(verbs.resolve.flags.includes('short'), 'resolve takes --short');
+  assert.ok(verbs.validate.flags.includes('short'), 'validate takes --short');
+});
