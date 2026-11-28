@@ -106,9 +106,10 @@ test('a gate whose continue grants is dropped at the freeze and asked as usual',
   assert.match(result.stderr, /warning: workflows-config:\.maister\/config\.yml:workflows\.config-workflow\.auto_continue\.1 — plan-approval-publish's continue grants push, pr-create/);
   assert.deepEqual(readState(run).orchestrator.options.workflow_config, { auto_continue: ['plan-approval'] });
   planned(run);
-  // The plain gate's guard reads false under publish: it keeps today's skip.
+  // The plain gate's guard reads false under publish: it keeps today's skip, and the brief says to record it.
   const plain = brief(run, 'plan-approval');
-  assert.match(plain, /^ask it: gate-brief /m);
+  assert.match(plain, /^skip it: its guard .* reads false, so it is not asked — record it skipped through write-state: \{"nodes":\{"plan-approval":\{"status":"skipped"\}\}\}$/m);
+  assert.doesNotMatch(plain, /^ask it:/m);
   const skipped = verb(['gate-brief', `--state=${run.state}`, '--node=plan-approval', '--json', '--picker=rich']);
   assert.equal(skipped.code, 1);
   assert.match(skipped.stdout + skipped.stderr, /gate-guard-false/);
